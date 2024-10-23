@@ -4,7 +4,9 @@ const SignUp = ({ toggleForm }: { toggleForm: () => void }) => {
       <h1>Sign Up</h1>
       <p>
         Already have an account?{" "}
-        <button onClick={() => toggleForm()}>Sign In</button>
+        <button className=" text-accent-1" onClick={() => toggleForm()}>
+          Sign In
+        </button>
       </p>
     </div>
   );

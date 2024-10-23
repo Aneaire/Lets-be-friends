@@ -1,0 +1,149 @@
+@import url("https://fonts.googleapis.com/css2?family=Itim&family=Montserrat+Alternates:wght@200;300;400;500;700;900&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+@layer base {
+  :root {
+    --color-accent1: 204deg 87% 50%;
+    --color-accent2: 320deg 47% 54%;
+    --color-accentLight: 0deg 0% 100%;
+    --color-text: 0deg 3% 19%;
+    --color-textLight: #504e4e9d;
+    --color-bkg: 216deg 20% 95%;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-accent1: 320deg 47% 54%;
+      --color-accent2: 204deg 87% 40%;
+      --color-accentLight: 322deg 9% 24%;
+      --color-text: 0deg 14% 93%;
+      --color-textLight: #968691;
+      --color-bkg: 320deg 9% 20%;
+    }
+  }
+}
+
+@layer utilities {
+  .max-container {
+    @apply mx-auto max-w-[1660px];
+  }
+
+  .max-w-section {
+    @apply max-w-5xl mx-auto;
+  }
+  .padding-container {
+    @apply px-6 lg:px-20 3xl:px-0;
+  }
+
+  .flexCenter {
+    @apply flex items-center justify-center;
+  }
+
+  .flexBetween {
+    @apply flex items-center justify-between;
+  }
+
+  .flexStart {
+    @apply flex items-center justify-start;
+  }
+
+  .flexEnd {
+    @apply flex items-center justify-end;
+  }
+
+  .absoluteCenter {
+    @apply top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2;
+  }
+
+  /* FOONTS AND TEXT =============================> */
+
+  .accentFont {
+    font-family: "Itim", cursive;
+  }
+
+  .regularFont {
+    font-family: "Montserrat Alternates", sans-serif;
+  }
+  .textName {
+    @apply text-[17px] text-content font-medium tracking-wider;
+  }
+  .textWhite {
+    color: #f0ebeb;
+  }
+  .textBlack {
+    color: #343333;
+  }
+  .heading {
+    @apply md:text-xl text-lg font-bold text-content;
+  }
+  .heading-2 {
+    @apply text-xl font-medium text-content accentFont;
+  }
+  .textSmall {
+    font-size: 10px;
+  }
+
+  /* Colors ============================> */
+
+  .attractButton {
+    @apply bg-gradient-to-tl from-fuchsia-500 to-green-500 textWhite shadow-sm shadow-slate-600/70;
+  }
+
+  .redButton {
+    @apply bg-rose-600;
+  }
+
+  .accentGradient {
+    @apply bg-gradient-to-tl from-fuchsia-500 to-green-500 textWhite shadow-sm shadow-slate-600/70;
+  }
+
+  .input-clr {
+    @apply bg-slate-300 dark:bg-slate-900 text-content font-medium;
+  }
+
+  /* Navbar ===========================> */
+  .action_last:last-child {
+    @apply px-4 lg:px-8 py-2 bg-accent-1 hover:bg-accent-1/60 hover:scale-90 rounded-full duration-150;
+  }
+
+  .topbar {
+    @apply sticky top-0 left-0 z-50 w-full md:hidden;
+  }
+
+  /* Left sidebar */
+  .leftsidebar {
+    @apply hidden md:flex px-6 py-10 flex-col justify-between min-w-[270px] bg-bgLight;
+  }
+
+  .leftsidebar-link {
+    @apply rounded-lg text-content font-medium hover:bg-accent-1 transition;
+  }
+
+  /* Bootombar  */
+
+  .bottombar {
+    @apply z-50 flexBetween w-full fixed left-0 bottom-0 rounded-t-[20px] bg-bgLight px-5 py-4 md:hidden;
+  }
+
+  /* FindFriends ======================>*/
+  .cards-size {
+    @apply w-[173px] h-[210px] md:w-[230px] md:h-[280px];
+  }
+  .card_text_wrap {
+    @apply bottom-0 left-0 bg-white/70 dark:bg-black/40 md:backdrop-blur-[3px] px-2 py-2 rounded-t-xl;
+  }
+
+  .common-container {
+    @apply flex flex-col flex-1 items-center gap-10 overflow-scroll py-10 px-5 md:px-8 lg:p-14 custom-scrollbar;
+  }
+
+  .without-ring {
+    @apply focus:border-current focus:ring-0;
+  }
+}
