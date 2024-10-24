@@ -1,5 +1,6 @@
 import { Link, Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
+import { Toaster } from "sonner";
 import Authentication from "../pages/autentication/Authentication";
 
 const isAuthenticated = false;
@@ -7,7 +8,12 @@ const isAuthenticated = false;
 export const Route = createRootRoute({
   component: () => {
     if (!isAuthenticated) {
-      return <Authentication />;
+      return (
+        <>
+          <Authentication />
+          <Toaster />
+        </>
+      );
     }
 
     return <RootComponent />;
@@ -38,6 +44,7 @@ function RootComponent() {
       </div>
       <hr />
       <Outlet />
+      <Toaster />
       <TanStackRouterDevtools position="bottom-right" />
     </>
   );
