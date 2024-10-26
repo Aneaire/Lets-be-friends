@@ -9,51 +9,60 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { useCreateAccount } from "@/lib/react-query/mutation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
+const SignUpSchema = z.object({
+  fullName: z
+    .string()
+    .min(3, { message: "The full name must be at least 3 characters." })
+    .max(50, { message: "The full name must be less than 50 characters." }),
+  username: z
+    .string()
+    .min(3, { message: "The username must be at least 3 characters." })
+    .max(30, { message: "The username must be less than 30 characters." })
+    .regex(/^[a-zA-Z0-9]+$/, {
+      message: "The username must only contain letters and numbers.",
+    }),
+  email: z
+    .string()
+    .email({ message: "The email must be a valid email address." }),
+  password: z
+    .string()
+    .min(6, { message: "The password must be at least 6 characters." }),
+});
+
 const SignUp = () => {
-  const SignUpSchema = z.object({
-    fullName: z
-      .string()
-      .min(3, { message: "The full name must be at least 3 characters." })
-      .max(50, { message: "The full name must be less than 50 characters." }),
-    username: z
-      .string()
-      .min(3, { message: "The username must be at least 3 characters." })
-      .max(30, { message: "The username must be less than 30 characters." })
-      .regex(/^[a-zA-Z0-9]+$/, {
-        message: "The username must only contain letters and numbers.",
-      }),
-    email: z
-      .string()
-      .email({ message: "The email must be a valid email address." }),
-    password: z
-      .string()
-      .min(6, { message: "The password must be at least 6 characters." }),
-  });
+  const { mutateAsync: createAccount, data, isPending } = useCreateAccount();
 
   const form = useForm<z.infer<typeof SignUpSchema>>({
     resolver: zodResolver(SignUpSchema),
     defaultValues: {
       fullName: "",
+      username: "",
       email: "",
       password: "",
     },
   });
 
   const onSubmit = (data: z.infer<typeof SignUpSchema>) => {
-    console.log(data);
+    createAccount({
+      ...data,
+    }).then(() => {
+      toast.success("Account created successfully!");
+    });
   };
 
   return (
     <Form {...form}>
-      <div className=" sm:w-[420px] flex flex-col flexCenter text-content regularFont">
+      <div className=" sm:w-[420px] flex flex-col flexCenter text-content regularFont mx-auto">
         <h2 className=" text-content text-2xl  font-black mt-4 text-center">
           Sign Up Now
         </h2>
-        <p className=" opacity-70 text-center text-md mt-1 mb-4 ">
+        <p className=" opacity-70 text-center text-md mt-1 mb-4">
           Join our community and unlock endless possibilities! Discover new
           connections, stay in touch with friends, and explore everything we
           have to offer—all in one place.
@@ -126,6 +135,7 @@ const SignUp = () => {
             )}
           />
           <Button
+            disabled={isPending || !!data}
             type="submit"
             className="text-white bg-accent-1 font-accent font-bold text-lg mt-5"
           >

@@ -9,11 +9,22 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { account } from "@/lib/appwrite/config";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 const Login = () => {
+  const user = useQuery({
+    queryKey: ["user"],
+    queryFn: () => {
+      const acc = account.get();
+
+      return acc;
+    },
+  });
+
   const LoginSchema = z.object({
     email: z.string(),
     password: z.string().min(6),

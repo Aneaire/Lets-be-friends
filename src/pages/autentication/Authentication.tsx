@@ -5,8 +5,8 @@ import SignUp from "./SignUp";
 const Authentication = () => {
   const [showLogin, setShowLogin] = React.useState(true);
   return (
-    <div className=" flex h-screen padding">
-      <section className="flex flex-1 justify-center items-center flex-col py-10">
+    <div className=" flex h-screen">
+      <section className="flex flex-1 justify-center items-center flex-col py-10 padding">
         <div className=" max-w-md w-full">
           <img
             src="/images/screen-logo.svg"

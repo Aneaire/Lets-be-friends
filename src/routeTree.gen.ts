@@ -11,18 +11,30 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
-import { Route as AboutImport } from './routes/about'
 import { Route as IndexImport } from './routes/index'
+import { Route as VerificationSecretImport } from './routes/verification/$secret'
+import { Route as ProfileUserIdImport } from './routes/profile/$userId'
+import { Route as ChatsAccountIdImport } from './routes/chats/$accountId'
 
 // Create/Update Routes
 
-const AboutRoute = AboutImport.update({
-  path: '/about',
+const IndexRoute = IndexImport.update({
+  path: '/',
   getParentRoute: () => rootRoute,
 } as any)
 
-const IndexRoute = IndexImport.update({
-  path: '/',
+const VerificationSecretRoute = VerificationSecretImport.update({
+  path: '/verification/$secret',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ProfileUserIdRoute = ProfileUserIdImport.update({
+  path: '/profile/$userId',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ChatsAccountIdRoute = ChatsAccountIdImport.update({
+  path: '/chats/$accountId',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -37,11 +49,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutImport
+    '/chats/$accountId': {
+      id: '/chats/$accountId'
+      path: '/chats/$accountId'
+      fullPath: '/chats/$accountId'
+      preLoaderRoute: typeof ChatsAccountIdImport
+      parentRoute: typeof rootRoute
+    }
+    '/profile/$userId': {
+      id: '/profile/$userId'
+      path: '/profile/$userId'
+      fullPath: '/profile/$userId'
+      preLoaderRoute: typeof ProfileUserIdImport
+      parentRoute: typeof rootRoute
+    }
+    '/verification/$secret': {
+      id: '/verification/$secret'
+      path: '/verification/$secret'
+      fullPath: '/verification/$secret'
+      preLoaderRoute: typeof VerificationSecretImport
       parentRoute: typeof rootRoute
     }
   }
@@ -51,37 +77,56 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
+  '/chats/$accountId': typeof ChatsAccountIdRoute
+  '/profile/$userId': typeof ProfileUserIdRoute
+  '/verification/$secret': typeof VerificationSecretRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
+  '/chats/$accountId': typeof ChatsAccountIdRoute
+  '/profile/$userId': typeof ProfileUserIdRoute
+  '/verification/$secret': typeof VerificationSecretRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
+  '/chats/$accountId': typeof ChatsAccountIdRoute
+  '/profile/$userId': typeof ProfileUserIdRoute
+  '/verification/$secret': typeof VerificationSecretRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about'
+  fullPaths:
+    | '/'
+    | '/chats/$accountId'
+    | '/profile/$userId'
+    | '/verification/$secret'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about'
-  id: '__root__' | '/' | '/about'
+  to: '/' | '/chats/$accountId' | '/profile/$userId' | '/verification/$secret'
+  id:
+    | '__root__'
+    | '/'
+    | '/chats/$accountId'
+    | '/profile/$userId'
+    | '/verification/$secret'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AboutRoute: typeof AboutRoute
+  ChatsAccountIdRoute: typeof ChatsAccountIdRoute
+  ProfileUserIdRoute: typeof ProfileUserIdRoute
+  VerificationSecretRoute: typeof VerificationSecretRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AboutRoute: AboutRoute,
+  ChatsAccountIdRoute: ChatsAccountIdRoute,
+  ProfileUserIdRoute: ProfileUserIdRoute,
+  VerificationSecretRoute: VerificationSecretRoute,
 }
 
 export const routeTree = rootRoute
@@ -97,14 +142,22 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
-        "/about"
+        "/chats/$accountId",
+        "/profile/$userId",
+        "/verification/$secret"
       ]
     },
     "/": {
       "filePath": "index.tsx"
     },
-    "/about": {
-      "filePath": "about.tsx"
+    "/chats/$accountId": {
+      "filePath": "chats/$accountId.tsx"
+    },
+    "/profile/$userId": {
+      "filePath": "profile/$userId.tsx"
+    },
+    "/verification/$secret": {
+      "filePath": "verification/$secret.tsx"
     }
   }
 }
