@@ -1,6 +1,36 @@
 # 🤝 Let's Be Friends
 
-Before you deploy this project, please take note of the following important setup step:
+# Self Hosting Topics
+
+## Appwrite Account
+
+To get started with your Appwrite account:
+
+```bash
+# Login with appwrite cli
+appwrite client --endpoint http://localhost/v1
+
+# Build the project for production
+npm appwrite
+```
+
+## Appwrite Config ⚠️ Important
+
+Initialize your project with the following steps:
+
+```bash
+# Start in a new folder then run
+appwrite init project
+```
+
+📝 For more detailed information on configuration, please refer to the provided video guide.
+
+## Appwrite Functions
+
+For a complete guide on setting up and using Appwrite functions, please watch our tutorial video:
+[Appwrite Functions Tutorial](https://www.youtube.com/watch?v=GMwrHds4Oa8)
+
+> **Note**: Before deploying this project, please ensure you've completed all the setup steps mentioned above.
 
 ---
 

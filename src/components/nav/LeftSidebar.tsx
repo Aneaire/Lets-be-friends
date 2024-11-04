@@ -1,22 +1,23 @@
 import { INavLink, sidebarLinks } from "@/constants";
 import { icons } from "@/constants/icons";
-import { useAuthContext } from "@/context/AuthContext";
 import { useSignOutAccount } from "@/lib/react-query/mutation";
+import useAuthStore from "@/store/userStore";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Button } from "../ui/button";
 import ProfileAvatar from "../user/ProfileAvatar";
 
 const LeftSidebar = () => {
-  const { user } = useAuthContext();
+  const { user } = useAuthStore();
   const { pathname } = useLocation();
-  const { mutate: signOut, isSuccess } = useSignOutAccount();
+  const { mutate: signOut } = useSignOutAccount();
+
   return (
     <nav
       className="leftsidebar top-0 rounded-br-2xl h-screen "
       style={{ position: "sticky" }}
     >
       <div className=" flex flex-col  gap-11">
-        <Link to={"/"}>
+        <Link className=" mx-auto" to={"/"}>
           <img src="/logo.svg" width={170} height={36} alt="logo" />
         </Link>
 

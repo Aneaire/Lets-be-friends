@@ -14,7 +14,10 @@ import { Route as rootRoute } from './routes/__root'
 import { Route as IndexImport } from './routes/index'
 import { Route as VerificationSecretImport } from './routes/verification/$secret'
 import { Route as ProfileUserIdImport } from './routes/profile/$userId'
+import { Route as PostPostIdImport } from './routes/post/$postId'
 import { Route as ChatsAccountIdImport } from './routes/chats/$accountId'
+import { Route as PostCreatePostIndexImport } from './routes/post/create-post/index'
+import { Route as PostUpdatePostPostIdImport } from './routes/post/update-post/$postId'
 
 // Create/Update Routes
 
@@ -33,8 +36,23 @@ const ProfileUserIdRoute = ProfileUserIdImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const PostPostIdRoute = PostPostIdImport.update({
+  path: '/post/$postId',
+  getParentRoute: () => rootRoute,
+} as any)
+
 const ChatsAccountIdRoute = ChatsAccountIdImport.update({
   path: '/chats/$accountId',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const PostCreatePostIndexRoute = PostCreatePostIndexImport.update({
+  path: '/post/create-post/',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const PostUpdatePostPostIdRoute = PostUpdatePostPostIdImport.update({
+  path: '/post/update-post/$postId',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -56,6 +74,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatsAccountIdImport
       parentRoute: typeof rootRoute
     }
+    '/post/$postId': {
+      id: '/post/$postId'
+      path: '/post/$postId'
+      fullPath: '/post/$postId'
+      preLoaderRoute: typeof PostPostIdImport
+      parentRoute: typeof rootRoute
+    }
     '/profile/$userId': {
       id: '/profile/$userId'
       path: '/profile/$userId'
@@ -70,6 +95,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerificationSecretImport
       parentRoute: typeof rootRoute
     }
+    '/post/update-post/$postId': {
+      id: '/post/update-post/$postId'
+      path: '/post/update-post/$postId'
+      fullPath: '/post/update-post/$postId'
+      preLoaderRoute: typeof PostUpdatePostPostIdImport
+      parentRoute: typeof rootRoute
+    }
+    '/post/create-post/': {
+      id: '/post/create-post/'
+      path: '/post/create-post'
+      fullPath: '/post/create-post'
+      preLoaderRoute: typeof PostCreatePostIndexImport
+      parentRoute: typeof rootRoute
+    }
   }
 }
 
@@ -78,23 +117,32 @@ declare module '@tanstack/react-router' {
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chats/$accountId': typeof ChatsAccountIdRoute
+  '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
+  '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
+  '/post/create-post': typeof PostCreatePostIndexRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/chats/$accountId': typeof ChatsAccountIdRoute
+  '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
+  '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
+  '/post/create-post': typeof PostCreatePostIndexRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
   '/chats/$accountId': typeof ChatsAccountIdRoute
+  '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
+  '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
+  '/post/create-post/': typeof PostCreatePostIndexRoute
 }
 
 export interface FileRouteTypes {
@@ -102,31 +150,50 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/chats/$accountId'
+    | '/post/$postId'
     | '/profile/$userId'
     | '/verification/$secret'
+    | '/post/update-post/$postId'
+    | '/post/create-post'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/chats/$accountId' | '/profile/$userId' | '/verification/$secret'
+  to:
+    | '/'
+    | '/chats/$accountId'
+    | '/post/$postId'
+    | '/profile/$userId'
+    | '/verification/$secret'
+    | '/post/update-post/$postId'
+    | '/post/create-post'
   id:
     | '__root__'
     | '/'
     | '/chats/$accountId'
+    | '/post/$postId'
     | '/profile/$userId'
     | '/verification/$secret'
+    | '/post/update-post/$postId'
+    | '/post/create-post/'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatsAccountIdRoute: typeof ChatsAccountIdRoute
+  PostPostIdRoute: typeof PostPostIdRoute
   ProfileUserIdRoute: typeof ProfileUserIdRoute
   VerificationSecretRoute: typeof VerificationSecretRoute
+  PostUpdatePostPostIdRoute: typeof PostUpdatePostPostIdRoute
+  PostCreatePostIndexRoute: typeof PostCreatePostIndexRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatsAccountIdRoute: ChatsAccountIdRoute,
+  PostPostIdRoute: PostPostIdRoute,
   ProfileUserIdRoute: ProfileUserIdRoute,
   VerificationSecretRoute: VerificationSecretRoute,
+  PostUpdatePostPostIdRoute: PostUpdatePostPostIdRoute,
+  PostCreatePostIndexRoute: PostCreatePostIndexRoute,
 }
 
 export const routeTree = rootRoute
@@ -143,8 +210,11 @@ export const routeTree = rootRoute
       "children": [
         "/",
         "/chats/$accountId",
+        "/post/$postId",
         "/profile/$userId",
-        "/verification/$secret"
+        "/verification/$secret",
+        "/post/update-post/$postId",
+        "/post/create-post/"
       ]
     },
     "/": {
@@ -153,11 +223,20 @@ export const routeTree = rootRoute
     "/chats/$accountId": {
       "filePath": "chats/$accountId.tsx"
     },
+    "/post/$postId": {
+      "filePath": "post/$postId.tsx"
+    },
     "/profile/$userId": {
       "filePath": "profile/$userId.tsx"
     },
     "/verification/$secret": {
       "filePath": "verification/$secret.tsx"
+    },
+    "/post/update-post/$postId": {
+      "filePath": "post/update-post/$postId.tsx"
+    },
+    "/post/create-post/": {
+      "filePath": "post/create-post/index.tsx"
     }
   }
 }

@@ -9,22 +9,18 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { account } from "@/lib/appwrite/config";
+import { useSignIn } from "@/lib/react-query/mutation";
+import useAuthStore from "@/store/userStore";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 const Login = () => {
-  const user = useQuery({
-    queryKey: ["user"],
-    queryFn: () => {
-      const acc = account.get();
-
-      return acc;
-    },
-  });
-
+  const navigate = useNavigate();
+  const login = useAuthStore((state) => state.login);
+  const { mutateAsync: signIn, data, isPending } = useSignIn();
+  // const { refetch } = useAuthContext();
   const LoginSchema = z.object({
     email: z.string(),
     password: z.string().min(6),
@@ -39,7 +35,7 @@ const Login = () => {
   });
 
   const onSubmit = (data: z.infer<typeof LoginSchema>) => {
-    console.log(data);
+    signIn(data);
   };
 
   return (
@@ -65,6 +61,7 @@ const Login = () => {
                 <FormLabel>Email</FormLabel>
                 <FormControl>
                   <Input
+                    className=" text-dark-1"
                     type="email"
                     autoComplete="email"
                     autoFocus
@@ -84,7 +81,12 @@ const Login = () => {
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="**********" {...field} />
+                  <Input
+                    className=" text-dark-1"
+                    type="password"
+                    placeholder="**********"
+                    {...field}
+                  />
                 </FormControl>
                 <FormDescription />
                 <FormMessage />

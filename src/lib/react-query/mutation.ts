@@ -1,12 +1,23 @@
-import { useMutation } from "@tanstack/react-query";
+import useAuthStore from "@/store/userStore";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  checkSaved,
   createAccount,
+  createCaptionPost,
+  createPost,
+  deletePost,
+  likePost,
+  savePost,
   signIn,
   signOutAccount,
+  unlikePost,
+  unSavePost,
+  updatePost,
   verifyAccount,
 } from "../appwrite/api";
-import { ICreateAccount } from "../types";
+import { ICreateAccount, ICreatePost, IUpdatePost } from "../types";
+import { QUERY_KEYS } from "./queryKeys";
 
 // Handling accounts
 export const useCreateAccount = () => {
@@ -43,5 +54,107 @@ export const useVerifyAccount = () => {
     onError: () => {
       toast.error("Something went wrong");
     },
+  });
+};
+
+// Handling posts
+export const useCreatePost = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore.getState();
+  return useMutation({
+    mutationFn: (post: ICreatePost) => createPost(post),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.RECENT_POST],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.USER_POSTS, user.id],
+      });
+    },
+  });
+};
+
+export const useUpdatePost = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore.getState();
+  return useMutation({
+    mutationFn: (post: IUpdatePost) => updatePost(post),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.USER_POSTS, user.id],
+      });
+    },
+  });
+};
+
+export const useDeletePost = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ postId, imageId }: { postId?: string; imageId: string }) =>
+      deletePost({ postId, imageId }),
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.RECENT_POST],
+      });
+    },
+  });
+};
+
+export const useCreateCaptionPost = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ caption, creator }: { caption: string; creator: string }) =>
+      createCaptionPost({ caption, creator }),
+    onSuccess: () => {
+      toast.success("Post created successfully");
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.RECENT_POST] });
+    },
+  });
+};
+
+export const useLikePost = ({ postId }: { postId: string }) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ postId }: { postId: string }) => likePost({ postId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.RECENT_POST, postId],
+      });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POST, postId] });
+    },
+  });
+};
+
+export const useUnlikePost = ({ postId }: { postId: string }) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userLikesId }: { userLikesId: string }) =>
+      unlikePost({ userLikesId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.RECENT_POST, postId],
+      });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POST, postId] });
+    },
+  });
+};
+
+export const useCheckSaved = () => {
+  return useMutation({
+    mutationFn: ({ postId }: { postId: string }) => checkSaved({ postId }),
+  });
+};
+
+export const useSavePost = () => {
+  return useMutation({
+    mutationFn: ({ postId }: { postId: string }) => savePost({ postId }),
+  });
+};
+
+export const useUnSavePost = () => {
+  return useMutation({
+    mutationFn: ({ userSavedId }: { userSavedId: string }) =>
+      unSavePost({ userSavedId }),
   });
 };

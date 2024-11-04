@@ -1,11 +1,11 @@
 import { icons } from "@/constants/icons";
-import { useAuthContext } from "@/context/AuthContext";
+import useAuthStore from "@/store/userStore";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import ProfileAvatar from "../user/ProfileAvatar";
 
 const Topbar = () => {
   const navigate = useNavigate();
-  const { user } = useAuthContext();
+  const { user } = useAuthStore();
   const { pathname } = useLocation();
 
   if (pathname.includes("/conversation-receipt/")) return null;

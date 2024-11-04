@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: ["class"],
+  // darkMode: ["class"],
+  // safelist: ["dark"],
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
@@ -25,6 +26,7 @@ export default {
         light: {
           1: "hsl(0, 14%, 93%)/60",
         },
+        inputss: "hsl(var(--color-input) / <alpha-value>)",
       },
     },
   },

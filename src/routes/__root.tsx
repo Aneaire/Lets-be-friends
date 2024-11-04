@@ -2,7 +2,8 @@ import LoadingScreen from "@/components/common/LoadingScreen";
 import Bottombar from "@/components/nav/Bottombar";
 import LeftSidebar from "@/components/nav/LeftSidebar";
 import Topbar from "@/components/nav/Topbar";
-import { AuthProvider, useAuthContext } from "@/context/AuthContext";
+import { AuthProvider } from "@/context/AuthContext";
+import useAuthStore from "@/store/userStore";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
@@ -12,7 +13,7 @@ import Authentication from "../pages/autentication/Authentication";
 const queryClient = new QueryClient();
 
 const ManageDisplayBaseOnAuth = () => {
-  const { isAuthenticated, isLoading } = useAuthContext();
+  const { isLoading, isAuthenticated } = useAuthStore();
 
   if (isLoading) {
     return <LoadingScreen />;

@@ -11,6 +11,8 @@ export const config = {
 
   // Posts
   postCollection: process.env.VITE_POST_COLLECTION_ID!,
+  userLikesCollection: process.env.VITE_USER_LIKES_COLLECTION_ID!,
+  userSavedCollection: process.env.VITE_USER_SAVED_COLLECTION_ID!,
 
   // Buckets
   postBucket: process.env.VITE_POST_BUCKET_ID!,

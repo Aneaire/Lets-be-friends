@@ -1,80 +1,59 @@
 // src/contexts/AuthContext.tsx
-
 import { useGetOwnerInfos } from "@/lib/react-query/queries";
-import { useNavigate } from "@tanstack/react-router";
-import React, { createContext, ReactNode, useContext, useState } from "react";
-import { toast } from "sonner";
+import useAuthStore from "@/store/userStore";
+import { ReactNode, useEffect } from "react";
 
-// 1. Define the User type
-interface User {
-  id: string;
-  accountId: string;
-  fullName: string;
-  username: string;
-  imageId: string;
-  image: string;
+interface AuthProviderProps {
+  children: ReactNode;
 }
 
-// 2. Create the AuthContext type
-interface AuthContextType {
-  user: User;
-  setUser: React.Dispatch<React.SetStateAction<User>>;
-  isAuthenticated: boolean;
-  setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>;
-  isLoading: boolean;
-}
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const { data: ownerInfos, isLoading, error, refetch } = useGetOwnerInfos();
+  const { login, setLoading, setError } = useAuthStore();
 
-// 3. Create the context with default values
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+  useEffect(() => {
+    // Store the refetch function in Zustand
+    refetch;
+  }, [refetch]);
 
-// 4. Create a provider component to wrap your app
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({
-  children,
-}) => {
-  const { data: ownerInfos, isLoading, error } = useGetOwnerInfos();
-  const navigate = useNavigate();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<User>({
-    id: "",
-    accountId: "",
-    fullName: "Angelo Santiago",
-    username: "",
-    imageId: "",
-    image: "",
-  });
-
-  React.useEffect(() => {
+  useEffect(() => {
+    setLoading(isLoading);
     if (ownerInfos) {
-      setIsAuthenticated(true);
-      setUser({
+      login({
         id: ownerInfos.$id || "",
         accountId: ownerInfos.accountId || "",
         fullName: ownerInfos.fullName || "",
         username: ownerInfos.username || "",
         imageId: ownerInfos.imageId || "",
         image: ownerInfos.image || "",
+        email: ownerInfos.email || "",
       });
     }
 
     if (error) {
-      toast.error("Something went wrong");
+      setError(true);
+      // toast("Make sure you are logged in");
     }
   }, [ownerInfos, error]);
 
-  return (
-    <AuthContext.Provider
-      value={{ user, setUser, isAuthenticated, setIsAuthenticated, isLoading }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return children;
 };
 
-// 5. Create a custom hook to use the context
-export const useAuthContext = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useUser must be used within a AuthProvider");
+// Custom hook that replaces useAuthContext
+export const useAuth = () => {
+  const store = useAuthStore();
+
+  if (!store) {
+    throw new Error("useAuth must be used within a component tree");
   }
-  return context;
+
+  return {
+    user: store.user,
+    isAuthenticated: store.isAuthenticated,
+    isLoading: store.isLoading,
+    error: store.error,
+    login: store.login,
+    logout: store.logout,
+    setUser: store.setUser,
+  };
 };
