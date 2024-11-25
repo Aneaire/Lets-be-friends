@@ -15,7 +15,13 @@ export type IUser = {
   verified?: boolean;
   posts?: IPost[]; // Assuming the relatedCollection is represented as a string ID
   likedPosts: IUserLikes[];
+  support: ISupport[];
 } & Models.Document;
+
+type ISupport = {
+  userId: string;
+  support: string[];
+};
 
 export type ICreatePost = {
   userId: string;
@@ -23,6 +29,7 @@ export type ICreatePost = {
   file: File[];
   location?: string;
   tags?: string;
+  usedDp?: boolean;
   accountId: string;
 };
 
@@ -51,6 +58,7 @@ export type IPost = {
   imageId?: string;
   creator: IUser; // Assuming the relatedCollection is represented as a string ID
   likes: number;
+  location?: string;
   userlikes: IUserLikes[]; // Assuming the relatedCollection is represented as a string ID
 } & Models.Document;
 

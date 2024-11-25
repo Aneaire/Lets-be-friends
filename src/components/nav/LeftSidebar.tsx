@@ -23,7 +23,7 @@ const LeftSidebar = () => {
 
         <Link
           to={"/profile/$userId"}
-          params={{ userId: "1" }}
+          params={{ userId: user.id }}
           className=" flex gap-3 items-center"
         >
           <ProfileAvatar

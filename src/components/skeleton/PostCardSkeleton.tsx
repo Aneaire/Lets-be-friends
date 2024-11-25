@@ -1,6 +1,12 @@
 import { Skeleton } from "../ui/skeleton";
 
-const PostCardSkeleton = () => {
+export const MapPostCardSkeleton = () => {
+  return Array.from({ length: 10 }, (_, index) => (
+    <PostCardSkeleton key={index} />
+  ));
+};
+
+export const PostCardSkeleton = () => {
   return (
     <div className="post-card">
       <div className="flex-between">
@@ -38,5 +44,3 @@ const PostCardSkeleton = () => {
     </div>
   );
 };
-
-export default PostCardSkeleton;

@@ -87,7 +87,7 @@ export const Route = createFileRoute("/post/$postId")({
                 </ul>
               </div>
               <div className=" mt-auto w-full">
-                <Separator className=" mb-2" />
+                {post?.image && <Separator className=" mb-2" />}
                 {post && (
                   <PostStats
                     color="text-content"

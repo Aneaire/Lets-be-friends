@@ -11,23 +11,23 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreatePost, useUpdatePost } from "@/lib/react-query/mutation";
+import { IPost } from "@/lib/types";
 import useAuthStore from "@/store/userStore";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Models } from "appwrite";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
 
 type PostFormProps = {
-  post?: Models.Document;
-  action: "Create" | "Update";
+  post?: IPost;
+  action: "Create" | "Update" | "Profile";
 };
 
 const PostValidation = z.object({
   caption: z.string().max(5000),
   file: z.custom<File[]>(),
-  location: z.string().max(100) || null,
+  location: z.string().max(100).optional() || null,
   tags: z.string(),
 });
 
@@ -54,7 +54,7 @@ const PostForm = ({ post, action }: PostFormProps) => {
           ? textInputedInHome
           : "",
       file: [],
-      location: post ? post?.location : "",
+      location: post?.location ? post?.location : "",
       tags: post ? post.tags && post.tags.join(",") : "",
     },
   });
@@ -73,15 +73,14 @@ const PostForm = ({ post, action }: PostFormProps) => {
       }
       return navigate({ to: `/post/${post.$id}` });
     }
-    const newPost = await createPost({
+
+    await createPost({
       ...values,
       userId: user.id,
       accountId: user.accountId,
+      usedDp: action === "Profile" ? true : false,
     });
 
-    if (!newPost) {
-      toast.error("Please try again later");
-    }
     navigate({ to: "/" });
   }
 

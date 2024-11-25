@@ -192,6 +192,168 @@ export const getOwnerInfos = async () => {
   }
 };
 
+export const updateOwnerInfos = async ({
+  bio,
+  bday,
+  gender,
+  userId,
+}: { userId: string } & Pick<IUser, "bio" | "bday" | "gender">) => {
+  try {
+    const infos = await databases.updateDocument(
+      config.mainDb,
+      config.userCollection,
+      userId,
+      {
+        bio: bio,
+        gender: gender,
+        bday: bday,
+      }
+    );
+
+    if (!infos) {
+      throw new Error("Failed to update infos");
+    }
+
+    return infos;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const getOwnerInfosAndSupport = async () => {
+  try {
+    const acc = useAuthStore.getState().user;
+
+    if (!acc) {
+      throw new Error("Failed to get account");
+    }
+
+    const user = await databases.getDocument(
+      config.mainDb,
+      config.userCollection,
+      acc.id,
+      [Query.select(["$id", "$createdAt", "*", "support.*"])]
+    );
+
+    return user as IUser;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export async function searchUsers(searchTerm: string) {
+  try {
+    const users = await databases.listDocuments(
+      config.mainDb,
+      config.userCollection,
+      [
+        Query.or([
+          Query.search("fullName", searchTerm),
+          Query.equal("username", searchTerm),
+        ]),
+      ]
+    );
+
+    if (!users) throw Error;
+
+    return users;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export async function getUsers({ pageParam }: { pageParam: number }) {
+  const accountId = useAuthStore.getState().user.accountId;
+  const queries = [
+    Query.orderDesc("$updatedAt"),
+    Query.limit(20),
+    Query.notEqual("accountId", accountId),
+    Query.select([
+      "accountId",
+      "$id",
+      "imageId",
+      "fullName",
+      "username",
+      "bio",
+      "$updatedAt",
+    ]),
+  ];
+
+  if (pageParam) {
+    queries.push(Query.cursorAfter(pageParam.toString()));
+  }
+
+  try {
+    const users = await databases.listDocuments(
+      config.mainDb,
+      config.userCollection,
+      queries
+    );
+
+    if (!users) throw new Error("No users found");
+
+    return users;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export type IUserInformation = {
+  phoneNumber?: string; // 30
+  bio: string;
+  userId: string;
+  gender: string; // fking 50
+  lookingFor: string;
+  hobby: string; // 100
+  education?: string;
+  birthDate?: Date;
+};
+
+export async function updateProfileInfos(values: IUserInformation) {
+  const updatedInfos = await databases.updateDocument(
+    config.mainDb,
+    config.userCollection,
+    values.userId,
+    {
+      phoneNumber: values.phoneNumber,
+      bio: values.bio,
+      lookingFor: values.lookingFor,
+      education: values.education,
+      hobby: values.hobby,
+      gender: values.gender,
+      bDay: values.birthDate,
+    }
+  );
+  if (!updatedInfos) throw Error;
+  return updatedInfos;
+}
+
+export const updateSupports = async ({
+  userId,
+  support,
+  isThereSupportToUpdate,
+}: {
+  userId: string;
+  support: string[];
+  isThereSupportToUpdate: boolean;
+}) => {
+  try {
+    let doc;
+    if (isThereSupportToUpdate) {
+      doc = await databases.updateDocument(
+        config.mainDb,
+        config.userSupportCollection,
+        userId,
+        {
+          support: support,
+        }
+      );
+    }
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 // Images
 
 export const getPostImage = async ({
@@ -272,6 +434,91 @@ export async function getRecentInfinitePosts({
   }
 }
 
+export async function getLatestPost({ pageParam }: { pageParam: number }) {
+  const queries: any[] = [
+    Query.select([
+      "$createdAt",
+      "$updatedAt",
+      "$id",
+      "caption",
+      "imageId",
+      "creator.*",
+      "likes",
+    ]),
+    Query.isNotNull("creator"),
+    Query.isNotNull("image"),
+    Query.orderDesc("$updatedAt"),
+    Query.limit(10),
+  ];
+
+  if (pageParam) {
+    queries.push(Query.cursorAfter(pageParam.toString()));
+  }
+
+  try {
+    const posts = await databases.listDocuments(
+      config.mainDb,
+      config.postCollection,
+      queries
+    );
+
+    if (!posts) throw Error;
+
+    return posts;
+  } catch (error) {
+    defaultToast.SWW;
+  }
+}
+
+export async function getUserPosts({
+  pageParam,
+  id,
+}: {
+  pageParam: number;
+  id: string;
+}) {
+  const queries: any[] = [
+    Query.orderDesc("$updatedAt"),
+    Query.equal("creator", id),
+    Query.limit(10),
+    Query.select(["$id", "$createdAt", "*", "creator.*"]),
+  ];
+
+  if (pageParam) {
+    queries.push(Query.cursorAfter(pageParam.toString()));
+  }
+
+  try {
+    const posts = await databases.listDocuments(
+      config.mainDb,
+      config.postCollection,
+      queries
+    );
+
+    if (!posts) throw Error;
+
+    return posts;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export async function searchPosts(searchTerm: string) {
+  try {
+    const posts = await databases.listDocuments(
+      config.mainDb,
+      config.postCollection,
+      [Query.search("caption", searchTerm), Query.isNotNull("creator")]
+    );
+
+    if (!posts) throw Error;
+
+    return posts;
+  } catch (error) {
+    defaultToast.SWW;
+  }
+}
+
 export async function createPost(post: ICreatePost) {
   try {
     let fileUrl;
@@ -308,6 +555,7 @@ export async function createPost(post: ICreatePost) {
         location: post.location,
         tags: tags,
         likes: 0,
+        usedDp: post.usedDp,
       },
       userToAny(post.accountId)
     );
@@ -317,9 +565,22 @@ export async function createPost(post: ICreatePost) {
       throw Error;
     }
 
+    if (post.usedDp) {
+      await databases.updateDocument(
+        config.mainDb,
+        config.userCollection,
+        post.userId,
+        {
+          image: fileUrl?.fileUrl,
+          imageId: fileUrl?.id,
+        },
+        userToAny(post.accountId)
+      );
+    }
+
     return newPost;
   } catch (error) {
-    toast.error("Something went wrong");
+    console.error(error);
   }
 }
 
@@ -383,6 +644,8 @@ export async function deletePost({
 }) {
   if (!postId) throw Error;
 
+  const user = useAuthStore.getState().user;
+
   try {
     if (imageId) await deleteFile(imageId);
 
@@ -390,6 +653,18 @@ export async function deletePost({
       config.mainDb,
       config.postCollection,
       postId
+    );
+
+    if (!imageId) throw Error;
+
+    await databases.updateDocument(
+      config.mainDb,
+      config.userCollection,
+      user.id,
+      {
+        image: null,
+        imageId: null,
+      }
     );
 
     return { status: "ok" };
@@ -547,3 +822,21 @@ export const unSavePost = async ({ userSavedId }: { userSavedId: string }) => {
     console.error(error);
   }
 };
+// USER IN DB
+
+export async function getUser({ id }: { id: string }) {
+  try {
+    const user = await databases.getDocument(
+      config.mainDb,
+      config.userCollection,
+      id,
+      [Query.select(["$id", "*"])]
+    );
+
+    if (!user) throw Error;
+
+    return user as IUser;
+  } catch (error) {
+    console.error(error);
+  }
+}

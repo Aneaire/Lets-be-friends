@@ -12,10 +12,13 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as IndexImport } from './routes/index'
+import { Route as PeopleIndexImport } from './routes/people/index'
+import { Route as ExploreIndexImport } from './routes/explore/index'
 import { Route as VerificationSecretImport } from './routes/verification/$secret'
 import { Route as ProfileUserIdImport } from './routes/profile/$userId'
 import { Route as PostPostIdImport } from './routes/post/$postId'
 import { Route as ChatsAccountIdImport } from './routes/chats/$accountId'
+import { Route as ProfileUpdateProfileIndexImport } from './routes/profile/update-profile/index'
 import { Route as PostCreatePostIndexImport } from './routes/post/create-post/index'
 import { Route as PostUpdatePostPostIdImport } from './routes/post/update-post/$postId'
 
@@ -23,6 +26,16 @@ import { Route as PostUpdatePostPostIdImport } from './routes/post/update-post/$
 
 const IndexRoute = IndexImport.update({
   path: '/',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const PeopleIndexRoute = PeopleIndexImport.update({
+  path: '/people/',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ExploreIndexRoute = ExploreIndexImport.update({
+  path: '/explore/',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -43,6 +56,11 @@ const PostPostIdRoute = PostPostIdImport.update({
 
 const ChatsAccountIdRoute = ChatsAccountIdImport.update({
   path: '/chats/$accountId',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ProfileUpdateProfileIndexRoute = ProfileUpdateProfileIndexImport.update({
+  path: '/profile/update-profile/',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -95,6 +113,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerificationSecretImport
       parentRoute: typeof rootRoute
     }
+    '/explore/': {
+      id: '/explore/'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreIndexImport
+      parentRoute: typeof rootRoute
+    }
+    '/people/': {
+      id: '/people/'
+      path: '/people'
+      fullPath: '/people'
+      preLoaderRoute: typeof PeopleIndexImport
+      parentRoute: typeof rootRoute
+    }
     '/post/update-post/$postId': {
       id: '/post/update-post/$postId'
       path: '/post/update-post/$postId'
@@ -109,6 +141,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PostCreatePostIndexImport
       parentRoute: typeof rootRoute
     }
+    '/profile/update-profile/': {
+      id: '/profile/update-profile/'
+      path: '/profile/update-profile'
+      fullPath: '/profile/update-profile'
+      preLoaderRoute: typeof ProfileUpdateProfileIndexImport
+      parentRoute: typeof rootRoute
+    }
   }
 }
 
@@ -120,8 +159,11 @@ export interface FileRoutesByFullPath {
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
+  '/explore': typeof ExploreIndexRoute
+  '/people': typeof PeopleIndexRoute
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
   '/post/create-post': typeof PostCreatePostIndexRoute
+  '/profile/update-profile': typeof ProfileUpdateProfileIndexRoute
 }
 
 export interface FileRoutesByTo {
@@ -130,8 +172,11 @@ export interface FileRoutesByTo {
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
+  '/explore': typeof ExploreIndexRoute
+  '/people': typeof PeopleIndexRoute
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
   '/post/create-post': typeof PostCreatePostIndexRoute
+  '/profile/update-profile': typeof ProfileUpdateProfileIndexRoute
 }
 
 export interface FileRoutesById {
@@ -141,8 +186,11 @@ export interface FileRoutesById {
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
+  '/explore/': typeof ExploreIndexRoute
+  '/people/': typeof PeopleIndexRoute
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
   '/post/create-post/': typeof PostCreatePostIndexRoute
+  '/profile/update-profile/': typeof ProfileUpdateProfileIndexRoute
 }
 
 export interface FileRouteTypes {
@@ -153,8 +201,11 @@ export interface FileRouteTypes {
     | '/post/$postId'
     | '/profile/$userId'
     | '/verification/$secret'
+    | '/explore'
+    | '/people'
     | '/post/update-post/$postId'
     | '/post/create-post'
+    | '/profile/update-profile'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -162,8 +213,11 @@ export interface FileRouteTypes {
     | '/post/$postId'
     | '/profile/$userId'
     | '/verification/$secret'
+    | '/explore'
+    | '/people'
     | '/post/update-post/$postId'
     | '/post/create-post'
+    | '/profile/update-profile'
   id:
     | '__root__'
     | '/'
@@ -171,8 +225,11 @@ export interface FileRouteTypes {
     | '/post/$postId'
     | '/profile/$userId'
     | '/verification/$secret'
+    | '/explore/'
+    | '/people/'
     | '/post/update-post/$postId'
     | '/post/create-post/'
+    | '/profile/update-profile/'
   fileRoutesById: FileRoutesById
 }
 
@@ -182,8 +239,11 @@ export interface RootRouteChildren {
   PostPostIdRoute: typeof PostPostIdRoute
   ProfileUserIdRoute: typeof ProfileUserIdRoute
   VerificationSecretRoute: typeof VerificationSecretRoute
+  ExploreIndexRoute: typeof ExploreIndexRoute
+  PeopleIndexRoute: typeof PeopleIndexRoute
   PostUpdatePostPostIdRoute: typeof PostUpdatePostPostIdRoute
   PostCreatePostIndexRoute: typeof PostCreatePostIndexRoute
+  ProfileUpdateProfileIndexRoute: typeof ProfileUpdateProfileIndexRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -192,8 +252,11 @@ const rootRouteChildren: RootRouteChildren = {
   PostPostIdRoute: PostPostIdRoute,
   ProfileUserIdRoute: ProfileUserIdRoute,
   VerificationSecretRoute: VerificationSecretRoute,
+  ExploreIndexRoute: ExploreIndexRoute,
+  PeopleIndexRoute: PeopleIndexRoute,
   PostUpdatePostPostIdRoute: PostUpdatePostPostIdRoute,
   PostCreatePostIndexRoute: PostCreatePostIndexRoute,
+  ProfileUpdateProfileIndexRoute: ProfileUpdateProfileIndexRoute,
 }
 
 export const routeTree = rootRoute
@@ -213,8 +276,11 @@ export const routeTree = rootRoute
         "/post/$postId",
         "/profile/$userId",
         "/verification/$secret",
+        "/explore/",
+        "/people/",
         "/post/update-post/$postId",
-        "/post/create-post/"
+        "/post/create-post/",
+        "/profile/update-profile/"
       ]
     },
     "/": {
@@ -232,11 +298,20 @@ export const routeTree = rootRoute
     "/verification/$secret": {
       "filePath": "verification/$secret.tsx"
     },
+    "/explore/": {
+      "filePath": "explore/index.tsx"
+    },
+    "/people/": {
+      "filePath": "people/index.tsx"
+    },
     "/post/update-post/$postId": {
       "filePath": "post/update-post/$postId.tsx"
     },
     "/post/create-post/": {
       "filePath": "post/create-post/index.tsx"
+    },
+    "/profile/update-profile/": {
+      "filePath": "profile/update-profile/index.tsx"
     }
   }
 }

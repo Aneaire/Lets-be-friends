@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 
 export const defaultToast = {
-  SWW: toast.error("Something went wrong"),
+  SWW: (message: string = "Something went wrong") => toast.error(message),
   success: toast.success("Task completed successfully"),
 };

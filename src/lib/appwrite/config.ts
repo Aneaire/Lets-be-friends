@@ -8,6 +8,7 @@ export const config = {
   // Users
   userCollection: process.env.VITE_USER_COLLECTION_ID!,
   friendListCollection: process.env.VITE_FRIEND_LIST_COLLECTION_ID!,
+  userSupportCollection: process.env.VITE_USER_SUPPORT_COLLECTION_ID!,
 
   // Posts
   postCollection: process.env.VITE_POST_COLLECTION_ID!,

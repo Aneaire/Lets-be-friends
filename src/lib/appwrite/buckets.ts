@@ -20,8 +20,8 @@ export async function uploadFile(file: File, accountId?: string) {
     );
 
     return uploadedFile;
-  } catch (error) {
-    defaultToast.SWW;
+  } catch (error: any) {
+    defaultToast.SWW(error.message);
   }
 }
 

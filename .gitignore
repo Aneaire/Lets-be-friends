@@ -13,6 +13,8 @@ dist/
 .netlify
 .wrangler
 
+db/functions
+
 # IDE
 .vscode/*
 !.vscode/extensions.json

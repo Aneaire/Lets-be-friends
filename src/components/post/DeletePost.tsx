@@ -100,7 +100,7 @@ function ProfileForm(values: IDeletePost) {
       <Button
         onClick={() => handleFulfilling()}
         variant="ghost"
-        className={`post_details-delete_btn bg-rose-600`}
+        className={`post_details-delete_btn bg-rose-600 hover:bg-rose-700/80 transition`}
         disabled={deleting}
       >
         Delete

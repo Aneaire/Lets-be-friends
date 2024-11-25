@@ -19,7 +19,6 @@ function HomeComponent() {
     fetchNextPage,
     isFetching,
   } = useGetRecentInfinitePosts();
-
   const parent = useRef(null);
 
   useEffect(() => {

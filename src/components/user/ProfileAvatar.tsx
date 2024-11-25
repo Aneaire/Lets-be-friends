@@ -7,11 +7,13 @@ const ProfileAvatar = ({
   name = "N",
   className,
   quality = 25,
+  textSize = "text-xl",
 }: {
   imageId: string;
   name: string;
   quality?: number;
   className?: string;
+  textSize?: string;
 }) => {
   const { data: image, isLoading } = useGetProfileImage({
     imageId: imageId,
@@ -23,7 +25,7 @@ const ProfileAvatar = ({
     <Avatar className={className}>
       <AvatarImage className={`object-cover `} src={image} alt="DP" />
       <AvatarFallback className={`bg-accent-2 `}>
-        <p className=" text-xl textWhite font-bold">
+        <p className={` ${textSize} textWhite font-bold `}>
           {name ? name.slice(0, 1) : "N"}
         </p>
       </AvatarFallback>

@@ -13,10 +13,11 @@ import {
   signOutAccount,
   unlikePost,
   unSavePost,
+  updateOwnerInfos,
   updatePost,
   verifyAccount,
 } from "../appwrite/api";
-import { ICreateAccount, ICreatePost, IUpdatePost } from "../types";
+import { ICreateAccount, ICreatePost, IUpdatePost, IUser } from "../types";
 import { QUERY_KEYS } from "./queryKeys";
 
 // Handling accounts
@@ -53,6 +54,17 @@ export const useVerifyAccount = () => {
     }) => verifyAccount({ accountId, secret }),
     onError: () => {
       toast.error("Something went wrong");
+    },
+  });
+};
+
+export const useUpdateOwnerinfos = () => {
+  return useMutation({
+    mutationFn: (
+      values: { userId: string } & Pick<IUser, "bio" | "bday" | "gender">
+    ) => updateOwnerInfos({ ...values }),
+    onSuccess: () => {
+      toast.success("Infos updated");
     },
   });
 };
@@ -121,7 +133,17 @@ export const useLikePost = ({ postId }: { postId: string }) => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.RECENT_POST, postId],
       });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.POST, postId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.USER_POSTS, postId],
+      });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POST, postId] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.LIKE, postId] });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.LATEST_POST, postId],
+      });
     },
   });
 };
@@ -135,7 +157,17 @@ export const useUnlikePost = ({ postId }: { postId: string }) => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.RECENT_POST, postId],
       });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.POST, postId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.USER_POSTS, postId],
+      });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POST, postId] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.LIKE, postId] });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.LATEST_POST, postId],
+      });
     },
   });
 };
