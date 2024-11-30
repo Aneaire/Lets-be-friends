@@ -15,13 +15,30 @@ export type IUser = {
   verified?: boolean;
   posts?: IPost[]; // Assuming the relatedCollection is represented as a string ID
   likedPosts: IUserLikes[];
-  support: ISupport[];
+  support: ISupport | string;
 } & Models.Document;
 
-type ISupport = {
+export type ISupport = {
   userId: string;
-  support: string[];
+  list: string[];
+  user: IUser | string;
+  price: number;
+} & Models.Document;
+
+export type IConversation = {
+  conversationId: string;
+  accountId1: string;
+  accountId2: string;
 };
+
+export type IMessage = {
+  body: string;
+  read: boolean;
+  type: "text" | "image" | "video" | "audio";
+  sender: string;
+  imageUrl?: string;
+  imageId?: string;
+} & Models.Document;
 
 export type ICreatePost = {
   userId: string;

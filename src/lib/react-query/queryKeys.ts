@@ -14,4 +14,11 @@ export enum QUERY_KEYS {
   SEARCH_POSTS = "searchPosts",
   USER_POSTS = "userPosts",
   LIKE = "like",
+
+  // Conversation
+  CHECK_CONVERSATION = "checkConversation",
+  CONVERSATION = "conversation",
+  CONVERSATIONS = "conversations",
+  MESSAGE = "message",
+  MESSAGES = "messages",
 }

@@ -8,6 +8,7 @@ import {
   ICreatePost,
   IPost,
   ISavedPost,
+  ISupport,
   IUpdatePost,
   IUser,
   IUserLikes,
@@ -232,10 +233,93 @@ export const getOwnerInfosAndSupport = async () => {
       config.mainDb,
       config.userCollection,
       acc.id,
-      [Query.select(["$id", "$createdAt", "*", "support.*"])]
+      [Query.select(["$id", "*"])]
     );
 
+    if (user.support) {
+      const support = await getSupport(user.support);
+
+      user.support = support;
+    }
+
     return user as IUser;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const getSupport = async (id: string) => {
+  try {
+    const support = await databases.getDocument(
+      config.mainDb,
+      config.userSupportCollection,
+      id
+    );
+
+    return support as ISupport;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const getSupportByUserId = async (id: string) => {
+  try {
+    const support = await databases.listDocuments(
+      config.mainDb,
+      config.userSupportCollection,
+      [Query.equal("userId", id)]
+    );
+
+    return support.documents[0] as ISupport;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const updateSupport = async ({
+  supports,
+  supportId,
+  price,
+}: {
+  supports: string[];
+  supportId: string | null;
+  price: number;
+}) => {
+  try {
+    const owner = useAuthStore.getState().user;
+
+    if (!owner) {
+      throw new Error("Failed to get account");
+    }
+
+    if (supportId == null) {
+      const create = await databases.createDocument(
+        config.mainDb,
+        config.userSupportCollection,
+        ID.unique(),
+        {
+          user: owner.id,
+          userId: owner.id,
+          list: supports,
+          price,
+        },
+        userAccess(owner.accountId)
+      );
+
+      return create;
+    }
+
+    const update = await databases.updateDocument(
+      config.mainDb,
+      config.userSupportCollection,
+      supportId,
+      {
+        list: supports,
+        price,
+      }
+    );
+
+    return update;
   } catch (error) {
     console.error(error);
   }
@@ -327,32 +411,6 @@ export async function updateProfileInfos(values: IUserInformation) {
   if (!updatedInfos) throw Error;
   return updatedInfos;
 }
-
-export const updateSupports = async ({
-  userId,
-  support,
-  isThereSupportToUpdate,
-}: {
-  userId: string;
-  support: string[];
-  isThereSupportToUpdate: boolean;
-}) => {
-  try {
-    let doc;
-    if (isThereSupportToUpdate) {
-      doc = await databases.updateDocument(
-        config.mainDb,
-        config.userSupportCollection,
-        userId,
-        {
-          support: support,
-        }
-      );
-    }
-  } catch (error) {
-    console.error(error);
-  }
-};
 
 // Images
 
@@ -836,6 +894,35 @@ export async function getUser({ id }: { id: string }) {
     if (!user) throw Error;
 
     return user as IUser;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Conversations
+
+export async function checkConversation({
+  accountId1,
+  accountId2,
+}: {
+  accountId1: string;
+  accountId2: string;
+}) {
+  try {
+    const conversations = await databases.listDocuments(
+      config.mainDb,
+      config.conversationCollection,
+      [
+        Query.or([
+          Query.equal("accountId1", accountId1),
+          Query.equal("accountId2", accountId2),
+          Query.equal("accountId1", accountId2),
+          Query.equal("accountId2", accountId1),
+        ]),
+      ]
+    );
+    console.log("conversations : ", conversations);
+    return conversations.documents[0];
   } catch (error) {
     console.error(error);
   }

@@ -30,6 +30,20 @@ appwrite init project
 For a complete guide on setting up and using Appwrite functions, please watch our tutorial video:
 [Appwrite Functions Tutorial](https://www.youtube.com/watch?v=GMwrHds4Oa8)
 
+### Creating function
+
+```terminal
+appwrite init functions
+```
+
+for pushing
+
+```terminal
+appwrite init push
+```
+
+take note that in local development functions can't call itself (IP address) use your device ip like mine ("http://100.92.---.---/v1")
+
 > **Note**: Before deploying this project, please ensure you've completed all the setup steps mentioned above.
 
 ---
@@ -71,3 +85,8 @@ That's it! Now you're ready to deploy your app.
 ### 💡 Need Help?
 
 If you encounter any issues or have questions during the setup, feel free to reach out!
+
+## todos
+
+~ [] - Infinite loading of posts
+~ [] - take advantage of router.loader in tanstack router

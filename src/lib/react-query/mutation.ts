@@ -2,6 +2,7 @@ import useAuthStore from "@/store/userStore";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  checkConversation,
   checkSaved,
   createAccount,
   createCaptionPost,
@@ -15,8 +16,10 @@ import {
   unSavePost,
   updateOwnerInfos,
   updatePost,
+  updateSupport,
   verifyAccount,
 } from "../appwrite/api";
+import { createConversation } from "../appwrite/functions";
 import { ICreateAccount, ICreatePost, IUpdatePost, IUser } from "../types";
 import { QUERY_KEYS } from "./queryKeys";
 
@@ -65,6 +68,22 @@ export const useUpdateOwnerinfos = () => {
     ) => updateOwnerInfos({ ...values }),
     onSuccess: () => {
       toast.success("Infos updated");
+    },
+  });
+};
+
+export const useUpdateSupport = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (values: {
+      supports: string[];
+      supportId: string | null;
+      price: number;
+    }) => updateSupport({ ...values }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.OWNER_INFO_AND_SUPPORT],
+      });
     },
   });
 };
@@ -188,5 +207,24 @@ export const useUnSavePost = () => {
   return useMutation({
     mutationFn: ({ userSavedId }: { userSavedId: string }) =>
       unSavePost({ userSavedId }),
+  });
+};
+
+// Chats
+
+export const useCreateConversation = () => {
+  return useMutation({
+    mutationFn: (values: { accountId1: string; accountId2: string }) =>
+      createConversation(values.accountId1, values.accountId2),
+  });
+};
+
+export const useCheckConversation = () => {
+  return useMutation({
+    mutationFn: (values: { accountId1: string; accountId2: string }) =>
+      checkConversation({
+        accountId1: values.accountId1,
+        accountId2: values.accountId2,
+      }),
   });
 };

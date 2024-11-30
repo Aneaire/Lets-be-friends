@@ -8,6 +8,8 @@ import {
   getPost,
   getPostImage,
   getRecentInfinitePosts,
+  getSupport,
+  getSupportByUserId,
   getUser,
   getUserPosts,
   getUsers,
@@ -25,8 +27,23 @@ export const useGetOwnerInfos = () => {
 
 export const useGetOwnerInfosAndSupport = () => {
   return useQuery({
-    queryKey: [QUERY_KEYS.OWNER_INFO + "support"],
+    queryKey: [QUERY_KEYS.OWNER_INFO_AND_SUPPORT],
     queryFn: getOwnerInfosAndSupport,
+  });
+};
+
+export const useGetSupport = (id: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.OWNER_INFO_AND_SUPPORT + id],
+    queryFn: () => getSupport(id),
+    enabled: !!id,
+  });
+};
+
+export const useGetSupportByUserId = (id: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.OWNER_INFO_AND_SUPPORT + id],
+    queryFn: () => getSupportByUserId(id),
   });
 };
 

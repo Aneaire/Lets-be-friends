@@ -1,3 +1,4 @@
+import LoadingIcon from "@/components/common/LoadingIcon";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -9,6 +10,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { icons } from "@/constants/icons";
+import { useUpdateSupport } from "@/lib/react-query/mutation";
+import { ISupport } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -23,21 +26,35 @@ const ownerInfoValidation = z.object({
   price: z.number({ coerce: true }),
 });
 
-const SupportForm = () => {
+const SupportForm = ({ support }: { support: ISupport }) => {
+  const { mutateAsync: updateSupport, isPending } = useUpdateSupport();
   const form = useForm<z.infer<typeof ownerInfoValidation>>({
     resolver: zodResolver(ownerInfoValidation),
     defaultValues: {
-      support1: "",
-      support2: "",
-      support3: "",
-      support4: "",
-      support5: "",
-      support6: "",
+      support1: support?.list[0] || "",
+      support2: support?.list[1] || "",
+      support3: support?.list[2] || "",
+      support4: support?.list[3] || "",
+      support5: support?.list[4] || "",
+      support6: support?.list[5] || "",
+      price: support?.price || 2000,
     },
   });
 
   const onSubmit = (data: z.infer<typeof ownerInfoValidation>) => {
     console.log(data);
+    updateSupport({
+      price: data.price,
+      supportId: support?.$id || null,
+      supports: [
+        data.support1!,
+        data.support2!,
+        data.support3!,
+        data.support4!,
+        data.support5!,
+        data.support6!,
+      ],
+    });
   };
 
   const placeholder = "Type what you can support";
@@ -168,7 +185,13 @@ const SupportForm = () => {
           />
 
           <Button type="submit" className=" bg-accent-2 mx-auto px-4 mt-4">
-            Save Changes
+            {isPending ? (
+              <>
+                Saving <LoadingIcon />
+              </>
+            ) : (
+              "Save Changes"
+            )}
           </Button>
         </form>
       </Form>
