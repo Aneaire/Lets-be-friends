@@ -33,7 +33,7 @@ export const Route = createFileRoute("/explore/")({
     const shouldShowPosts =
       !shouldShowSearchResults &&
       posts.pages.every((item) => item?.documents.length === 0);
-    console.log(posts);
+
     return (
       <div className=" explore-container min-h-screen">
         <div className=" explore-inner_container">
@@ -84,7 +84,6 @@ export const Route = createFileRoute("/explore/")({
             <LoadingIcon size="9" />
           </div>
         )}
-        <LoadingIcon size="9" />
       </div>
     );
   },

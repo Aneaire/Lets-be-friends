@@ -4,6 +4,7 @@ export const config = {
   projectId: process.env.VITE_PROJECT_ID!,
   url: process.env.VITE_URL!,
   mainDb: process.env.VITE_MAIN_DATABASE_ID!,
+  chatDb: process.env.VITE_CHAT_DATABASE_ID!,
 
   // Users
   userCollection: process.env.VITE_USER_COLLECTION_ID!,
@@ -20,6 +21,7 @@ export const config = {
 
   // Functions
   createConversationFnId: process.env.VITE_CREATE_CONVERSATION_ID!,
+  manageConversationFnId: process.env.VITE_MANAGE_CONVERSATION_ID!,
 
   // Buckets
   postBucket: process.env.VITE_POST_BUCKET_ID!,

@@ -55,7 +55,7 @@ export const Route = createFileRoute("/post/$postId")({
                   to={`/profile/${post?.creatorId}`}
                 >
                   <ProfileAvatar
-                    imageId={post?.creator?.imageId}
+                    imageId={post?.creator?.imageId!}
                     name={post?.creator.fullName!}
                   />
                   <div className="flex gap-1 flex-col">

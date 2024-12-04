@@ -10,6 +10,7 @@ import {
   deletePost,
   likePost,
   savePost,
+  sendMessage,
   signIn,
   signOutAccount,
   unlikePost,
@@ -214,17 +215,31 @@ export const useUnSavePost = () => {
 
 export const useCreateConversation = () => {
   return useMutation({
-    mutationFn: (values: { accountId1: string; accountId2: string }) =>
-      createConversation(values.accountId1, values.accountId2),
+    mutationFn: (values: {
+      accountId1: string;
+      accountId2: string;
+      userId1: string;
+      userId2: string;
+    }) => createConversation({ ...values }),
   });
 };
 
 export const useCheckConversation = () => {
   return useMutation({
-    mutationFn: (values: { accountId1: string; accountId2: string }) =>
+    mutationFn: (values: { userId1: string; userId2: string }) =>
       checkConversation({
-        accountId1: values.accountId1,
-        accountId2: values.accountId2,
+        userId1: values.userId1,
+        userId2: values.userId2,
       }),
+  });
+};
+
+export const useSendMessage = () => {
+  return useMutation({
+    mutationFn: (values: {
+      conversation: string;
+      collectionId: string;
+      body: string;
+    }) => sendMessage({ ...values }),
   });
 };

@@ -1,22 +1,24 @@
+import LoadingIcon from "@/components/common/LoadingIcon";
 import PostCaption from "@/components/post/PostCaption";
 import PostCard from "@/components/post/PostCard";
 import { PostCardSkeletonLooped } from "@/components/post/PostCardSkeleton";
 import { useGetRecentInfinitePosts } from "@/lib/react-query/queries";
 import autoAnimate from "@formkit/auto-animate";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
+import { useInView } from "react-intersection-observer";
 
 export const Route = createFileRoute("/")({
   component: HomeComponent,
 });
 
 function HomeComponent() {
-  const navigate = useNavigate();
+  const { ref, inView } = useInView();
 
   const {
     data: posts,
-    isFetchingNextPage,
     fetchNextPage,
+    hasNextPage,
     isFetching,
   } = useGetRecentInfinitePosts();
   const parent = useRef(null);
@@ -24,6 +26,10 @@ function HomeComponent() {
   useEffect(() => {
     parent.current && autoAnimate(parent.current);
   }, [parent]);
+
+  useEffect(() => {
+    if (inView && hasNextPage) fetchNextPage();
+  }, [inView]);
 
   return (
     <div className="flex flex-1 text-content">
@@ -71,11 +77,11 @@ function HomeComponent() {
               )}
             </ul>
           )}
-          {/* {hasNextPage && (
-              <div ref={ref}>
-                <LoadingIcon size="5" />
-              </div>
-            )} */}
+          {hasNextPage && (
+            <div ref={ref}>
+              <LoadingIcon size="5" />
+            </div>
+          )}
         </div>
       </div>
     </div>

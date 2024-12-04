@@ -19,7 +19,7 @@ import { Route as ChatsIndexImport } from './routes/chats/index'
 import { Route as VerificationSecretImport } from './routes/verification/$secret'
 import { Route as ProfileUserIdImport } from './routes/profile/$userId'
 import { Route as PostPostIdImport } from './routes/post/$postId'
-import { Route as ChatsAccountIdImport } from './routes/chats/$accountId'
+import { Route as ChatsConversationImport } from './routes/chats/$conversation'
 import { Route as ProfileUpdateProfileIndexImport } from './routes/profile/update-profile/index'
 import { Route as PostCreatePostIndexImport } from './routes/post/create-post/index'
 import { Route as PostUpdatePostPostIdImport } from './routes/post/update-post/$postId'
@@ -66,8 +66,8 @@ const PostPostIdRoute = PostPostIdImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
-const ChatsAccountIdRoute = ChatsAccountIdImport.update({
-  path: '/chats/$accountId',
+const ChatsConversationRoute = ChatsConversationImport.update({
+  path: '/chats/$conversation',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -97,11 +97,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
-    '/chats/$accountId': {
-      id: '/chats/$accountId'
-      path: '/chats/$accountId'
-      fullPath: '/chats/$accountId'
-      preLoaderRoute: typeof ChatsAccountIdImport
+    '/chats/$conversation': {
+      id: '/chats/$conversation'
+      path: '/chats/$conversation'
+      fullPath: '/chats/$conversation'
+      preLoaderRoute: typeof ChatsConversationImport
       parentRoute: typeof rootRoute
     }
     '/post/$postId': {
@@ -181,7 +181,7 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/chats/$accountId': typeof ChatsAccountIdRoute
+  '/chats/$conversation': typeof ChatsConversationRoute
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
@@ -196,7 +196,7 @@ export interface FileRoutesByFullPath {
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/chats/$accountId': typeof ChatsAccountIdRoute
+  '/chats/$conversation': typeof ChatsConversationRoute
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
@@ -212,7 +212,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
-  '/chats/$accountId': typeof ChatsAccountIdRoute
+  '/chats/$conversation': typeof ChatsConversationRoute
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
@@ -229,7 +229,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/chats/$accountId'
+    | '/chats/$conversation'
     | '/post/$postId'
     | '/profile/$userId'
     | '/verification/$secret'
@@ -243,7 +243,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/chats/$accountId'
+    | '/chats/$conversation'
     | '/post/$postId'
     | '/profile/$userId'
     | '/verification/$secret'
@@ -257,7 +257,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/chats/$accountId'
+    | '/chats/$conversation'
     | '/post/$postId'
     | '/profile/$userId'
     | '/verification/$secret'
@@ -273,7 +273,7 @@ export interface FileRouteTypes {
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ChatsAccountIdRoute: typeof ChatsAccountIdRoute
+  ChatsConversationRoute: typeof ChatsConversationRoute
   PostPostIdRoute: typeof PostPostIdRoute
   ProfileUserIdRoute: typeof ProfileUserIdRoute
   VerificationSecretRoute: typeof VerificationSecretRoute
@@ -288,7 +288,7 @@ export interface RootRouteChildren {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ChatsAccountIdRoute: ChatsAccountIdRoute,
+  ChatsConversationRoute: ChatsConversationRoute,
   PostPostIdRoute: PostPostIdRoute,
   ProfileUserIdRoute: ProfileUserIdRoute,
   VerificationSecretRoute: VerificationSecretRoute,
@@ -314,7 +314,7 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
-        "/chats/$accountId",
+        "/chats/$conversation",
         "/post/$postId",
         "/profile/$userId",
         "/verification/$secret",
@@ -330,8 +330,8 @@ export const routeTree = rootRoute
     "/": {
       "filePath": "index.tsx"
     },
-    "/chats/$accountId": {
-      "filePath": "chats/$accountId.tsx"
+    "/chats/$conversation": {
+      "filePath": "chats/$conversation.tsx"
     },
     "/post/$postId": {
       "filePath": "post/$postId.tsx"

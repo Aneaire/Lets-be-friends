@@ -32,8 +32,6 @@ export const Route = createFileRoute("/people/")({
       (item) => item?.documents.length === 0
     );
 
-    console.log(searchUsers);
-
     const shouldShowSearchResults = searchUser !== "";
     return (
       <>

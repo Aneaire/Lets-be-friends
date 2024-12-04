@@ -40,6 +40,7 @@ const PostCaption = () => {
         className="w-14 h-14 hidden md:block"
         imageId={user.imageId}
         name={user.fullName}
+        changeFallbackColor={false}
       />
       <div className=" flex-1">
         <textarea

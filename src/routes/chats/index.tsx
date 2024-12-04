@@ -1,27 +1,36 @@
-import { Button } from "@/components/ui/button";
-import { config, functions } from "@/lib/appwrite/config";
+import { useGetConversations } from "@/lib/react-query/queries";
+import { IConversation } from "@/lib/types";
+import ChatBlock from "@/pages/chats/ChatBlock";
+import ChatBlockSkeleton from "@/pages/chats/ChatBlockSkeleton";
+import useAuthStore from "@/store/userStore";
+import autoAnimate from "@formkit/auto-animate";
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 
 export const Route = createFileRoute("/chats/")({
   component: () => {
-    const submit = async () => {
-      const promise = functions.createExecution(
-        config.createConversationFnId,
-        JSON.stringify({
-          accountId1: "6746a967000856f82dee",
-          accountId2: "6746aa74001d7cbc7dec",
-        })
-      );
+    const user = useAuthStore.getState().user;
+    const parent = useRef(null);
+    const { data: conversations, isLoading } = useGetConversations();
 
-      promise.then(
-        function (response: any) {
-          console.log(response); // Success
-        },
-        function (error: any) {
-          console.log(error); // Failure
-        }
-      );
-    };
+    const DisplayList = () => (
+      <>
+        {conversations?.pages.map((data) =>
+          data.documents.map((conversation: IConversation) => (
+            <ChatBlock
+              ownerId={user.id}
+              key={conversation.$id}
+              conversation={conversation}
+            />
+          ))
+        )}
+      </>
+    );
+
+    useEffect(() => {
+      parent.current && autoAnimate(parent.current);
+    }, [parent]);
+
     return (
       <div className="flex flex-1 text-content">
         <div className="home-container">
@@ -34,13 +43,15 @@ export const Route = createFileRoute("/chats/")({
 
             {/* Contents */}
 
-            <section className=" w-full space-y-2">
-              {/* {Array.from({ length: 10 }, (_, index) => (
-              <ChatBlock key={index} />
-            ))} */}
-              <Button variant={"secondary"} onClick={submit}>
-                Create
-              </Button>
+            <section
+              ref={parent}
+              className=" w-full space-y-2 mx-auto max-w-2xl"
+            >
+              {isLoading ? (
+                [...Array(20)].map((_, i) => <ChatBlockSkeleton key={i} />)
+              ) : (
+                <DisplayList />
+              )}
             </section>
           </div>
         </div>

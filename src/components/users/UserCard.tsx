@@ -21,7 +21,7 @@ const UserCard = ({ user }: { user: IUser }) => {
                   ? profilePicture
                   : "/images/profile-placeholder.svg"
               }
-              alt="user-profile-image"
+              alt="profile-image"
               draggable={false}
             />
           ) : (
@@ -41,9 +41,9 @@ const UserCard = ({ user }: { user: IUser }) => {
                     user.bio
                   )
                 ) : (
-                  <p className="leading-3 text-xs text-white/50">
+                  <span className="leading-3 text-xs text-white/50">
                     @{user.username}
-                  </p>
+                  </span>
                 )}
               </p>
             </div>

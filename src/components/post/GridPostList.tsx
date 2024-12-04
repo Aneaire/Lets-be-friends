@@ -1,4 +1,3 @@
-import useAuthStore from "@/store/userStore";
 import { Link } from "@tanstack/react-router";
 import { Models } from "appwrite";
 import LoadingIcon from "../common/LoadingIcon";
@@ -16,7 +15,6 @@ const GridPostList = ({
   showUser = true,
   showStats = true,
 }: GridPostListProps) => {
-  const user = useAuthStore((state) => state.user);
   if (!posts) return <LoadingIcon size={"1"} />;
   return (
     <>

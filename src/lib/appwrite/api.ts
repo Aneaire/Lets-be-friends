@@ -6,6 +6,7 @@ import { globalConfig } from "../globalConfig";
 import {
   ICreateAccount,
   ICreatePost,
+  IMessage,
   IPost,
   ISavedPost,
   ISupport,
@@ -15,6 +16,7 @@ import {
 } from "../types";
 import { deleteFile, getFilePreview, uploadFile } from "./buckets";
 import { account, config, databases, storage } from "./config";
+import { updateConversation } from "./functions";
 import { userAccess, userToAny } from "./permissions";
 
 // Handling accounts
@@ -324,6 +326,23 @@ export const updateSupport = async ({
     console.error(error);
   }
 };
+
+export async function getUserImageAndName({ userId }: { userId: string }) {
+  try {
+    const user = await databases.getDocument(
+      config.mainDb,
+      config.userCollection,
+      userId,
+      [Query.select(["$id", "fullName", "imageId", "username"])]
+    );
+
+    if (!user) throw Error;
+
+    return user as IUser;
+  } catch (error) {
+    console.error(error);
+  }
+}
 
 export async function searchUsers(searchTerm: string) {
   try {
@@ -902,27 +921,106 @@ export async function getUser({ id }: { id: string }) {
 // Conversations
 
 export async function checkConversation({
-  accountId1,
-  accountId2,
+  userId1,
+  userId2,
 }: {
-  accountId1: string;
-  accountId2: string;
+  userId1: string;
+  userId2: string;
 }) {
   try {
     const conversations = await databases.listDocuments(
       config.mainDb,
       config.conversationCollection,
-      [
-        Query.or([
-          Query.equal("accountId1", accountId1),
-          Query.equal("accountId2", accountId2),
-          Query.equal("accountId1", accountId2),
-          Query.equal("accountId2", accountId1),
-        ]),
-      ]
+      [Query.contains("userIds", userId1), Query.contains("userIds", userId2)]
     );
-    console.log("conversations : ", conversations);
+
+    console.log("Have a conversation", conversations);
     return conversations.documents[0];
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export async function getConversations({ pageParam }: { pageParam: number }) {
+  const queries: any[] = [Query.orderDesc("$updatedAt"), Query.limit(10)];
+
+  if (pageParam) {
+    queries.push(Query.cursorAfter(pageParam.toString()));
+  }
+
+  try {
+    const conversations = await databases.listDocuments(
+      config.mainDb,
+      config.conversationCollection,
+      queries
+    );
+
+    if (!conversations) throw Error;
+
+    return conversations;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export async function getMessages({
+  pageParam,
+  collectionId,
+}: {
+  pageParam: number;
+  collectionId: string;
+}) {
+  const queries: any[] = [Query.orderDesc("$createdAt"), Query.limit(7)];
+
+  if (pageParam) {
+    queries.push(Query.cursorAfter(pageParam.toString()));
+  }
+
+  try {
+    const conversations = await databases.listDocuments(
+      config.chatDb,
+      collectionId,
+      queries
+    );
+
+    if (!conversations) throw Error;
+
+    return conversations;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export async function sendMessage({
+  collectionId,
+  conversation,
+  body,
+}: {
+  collectionId: string;
+  conversation: string;
+  body: string;
+}) {
+  try {
+    const user = useAuthStore.getState().user;
+    const newMessage = await databases.createDocument(
+      config.chatDb,
+      collectionId,
+      ID.unique(),
+      {
+        body,
+        sender: user.id,
+      }
+    ); // TODO: Replace with actual message sending logic
+
+    if (!newMessage) throw Error;
+
+    const updatedConversation = await updateConversation({
+      conversation,
+      sender: user.id,
+      body,
+    }).then(() => console.log("Updated conversation"));
+
+    return newMessage as IMessage;
   } catch (error) {
     console.error(error);
   }

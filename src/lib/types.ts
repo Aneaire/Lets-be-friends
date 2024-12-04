@@ -11,6 +11,8 @@ export type IUser = {
   accountId: string;
   fullName: string;
   username: string;
+  imageId: string;
+  image: string;
   email: string;
   verified?: boolean;
   posts?: IPost[]; // Assuming the relatedCollection is represented as a string ID
@@ -27,19 +29,25 @@ export type ISupport = {
 
 export type IConversation = {
   conversationId: string;
-  accountId1: string;
-  accountId2: string;
-};
+  userIds: string;
+  read: boolean;
+  preview: string;
+} & Models.Document;
 
 export type IMessage = {
   body: string;
   read: boolean;
-  type: "text" | "image" | "video" | "audio";
+  type: "text" | "image";
   sender: string;
   imageUrl?: string;
   imageId?: string;
 } & Models.Document;
 
+export type IUserImageAndName = {
+  fullName: string;
+  username: string;
+  imageId: string;
+};
 export type ICreatePost = {
   userId: string;
   caption: string;

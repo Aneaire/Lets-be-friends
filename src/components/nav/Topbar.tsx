@@ -17,14 +17,13 @@ const Topbar = () => {
         </Link>
 
         <div className="flex-center gap-3">
-          <Link to="/chats/$accountId" params={{ accountId: "asd" }}>
-            {icons.message(35)}
-          </Link>
+          <Link to="/chats">{icons.message(35)}</Link>
           <Link to={`/profile/${user.id}`} className="flexCenter gap-3">
             <ProfileAvatar
               className="w-8 h-8"
               imageId={user.imageId}
               name={user.fullName}
+              changeFallbackColor={false}
             />
           </Link>
         </div>

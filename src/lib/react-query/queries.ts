@@ -2,7 +2,9 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Models } from "appwrite";
 import {
   checkLiked,
+  getConversations,
   getLatestPost,
+  getMessages,
   getOwnerInfos,
   getOwnerInfosAndSupport,
   getPost,
@@ -11,6 +13,7 @@ import {
   getSupport,
   getSupportByUserId,
   getUser,
+  getUserImageAndName,
   getUserPosts,
   getUsers,
   searchPosts,
@@ -29,6 +32,14 @@ export const useGetOwnerInfosAndSupport = () => {
   return useQuery({
     queryKey: [QUERY_KEYS.OWNER_INFO_AND_SUPPORT],
     queryFn: getOwnerInfosAndSupport,
+  });
+};
+
+export const useGetUserImageAndName = (userId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.USER, userId],
+    queryFn: () => getUserImageAndName({ userId }),
+    enabled: !!userId,
   });
 };
 
@@ -176,5 +187,37 @@ export const useGetUser = ({ id }: { id?: string }) => {
     queryKey: [QUERY_KEYS.USER, id],
     queryFn: () => getUser({ id: id! }),
     enabled: !!id,
+  });
+};
+
+// Conversations
+
+export const useGetConversations = () => {
+  return useInfiniteQuery({
+    queryKey: [QUERY_KEYS.CONVERSATIONS],
+    queryFn: getConversations as any,
+    getNextPageParam: (lastPage: Models.Document) => {
+      if (lastPage && lastPage.documents.length === 0) {
+        return null;
+      }
+      const lastId = lastPage?.documents[lastPage?.documents.length - 1].$id;
+      return lastId;
+    },
+    initialPageParam: null,
+  });
+};
+
+export const useGetMessages = ({ collectionId }: { collectionId: string }) => {
+  return useInfiniteQuery({
+    queryKey: [QUERY_KEYS.MESSAGES],
+    queryFn: ({ pageParam }) => getMessages({ pageParam, collectionId }) as any,
+    getNextPageParam: (lastPage: Models.Document) => {
+      if (lastPage && lastPage.documents.length === 0) {
+        return null;
+      }
+      const lastId = lastPage?.documents[lastPage?.documents.length - 1].$id;
+      return lastId;
+    },
+    initialPageParam: null,
   });
 };

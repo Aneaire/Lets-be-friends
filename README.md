@@ -72,6 +72,19 @@ We recommend using **Postmark** as the SMTP provider for reliable transactional 
 
 For more details on Postmark's SMTP settings, check out the [Postmark SMTP documentation](https://postmarkapp.com/developer/user-guide/smtp).
 
+### Setting up Realtime
+
+Fix the port in compose.yml might not work when
+
+```docker-compose.yml
+ports:
+      - 9505:80
+```
+
+Refer to
+
+[Link to docker-compose.yml](https://github.com/appwrite/appwrite/blob/ae87033974a700b4c2cd6e8935a436bae0d61670/docker-compose.yml#L201)
+
 ---
 
 ⚠️ **Note**: If you do not configure an SMTP provider, your app might fail to send important transactional emails.

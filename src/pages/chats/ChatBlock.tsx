@@ -1,12 +1,34 @@
 import ProfileAvatar from "@/components/user/ProfileAvatar";
+import { useGetUserImageAndName } from "@/lib/react-query/queries";
+import { IConversation } from "@/lib/types";
+import { extractOtherId } from "@/lib/utils";
 import { formatDate } from "@/utils";
+import { useNavigate } from "@tanstack/react-router";
+import ChatBlockSkeleton from "./ChatBlockSkeleton";
 
-const ChatBlock = () => {
-  const dateCheck = new Date(Date.now());
-  const within3Days = true;
-  //    item.removeExpired == null ? isWithin3Days(dateCheck) : true;
+const ChatBlock = ({
+  conversation,
+  ownerId,
+}: {
+  conversation: IConversation;
+  ownerId: string;
+}) => {
+  const userId = extractOtherId({
+    mixedIds: conversation.userIds,
+    knownId: ownerId,
+  });
+  const { data: user, isLoading } = useGetUserImageAndName(userId);
 
-  const handleRedirect = () => {};
+  const navigate = useNavigate({ from: "/chats" });
+  const handleRedirect = () => {
+    navigate({
+      to: `/chats/${conversation.conversationId}`,
+      search: { userId, conversation: conversation.$id },
+    });
+  };
+
+  if (!user || isLoading) return <ChatBlockSkeleton />;
+
   return (
     <div
       onClick={() => handleRedirect()}
@@ -14,29 +36,19 @@ const ChatBlock = () => {
     >
       <ProfileAvatar
         className="w-12 h-12 "
-        imageId={"6734b759003b11989c6a"}
-        name={"Angelo"}
+        imageId={user.imageId}
+        name={user.fullName}
       />
       <div className=" text-content w-full">
-        <h3 className=" font-medium">{"Angelo"}</h3>
+        <h3 className=" font-medium">{user.fullName}</h3>
         <div className=" flex items-center justify-between">
-          {/* {within3Days ? (
-            <p className=" text-xs opacity-75">
-              {item.preview ? (
-                item.preview
-              ) : (
-                <span className=" italic">start conversation</span>
-              )}
-            </p>
-          ) : (
-            <p className=" text-xs opacity-75">visit my plans!</p>
-          )} */}
+          <p className=" text-xs opacity-75">
+            {conversation.preview == null
+              ? "Have an chat"
+              : conversation.preview}
+          </p>
 
-          {within3Days ? (
-            <p className=" text-xs">{formatDate(Date.now().toString())}</p>
-          ) : (
-            <p className=" text-xs text-rose-500">expired</p>
-          )}
+          <p className=" text-xs">{formatDate(conversation.$updatedAt)}</p>
         </div>
       </div>
     </div>

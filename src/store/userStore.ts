@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, devtools, persist } from "zustand/middleware";
 
 // Types
-interface User {
+export interface AuthUser {
   id: string;
   accountId: string;
   email: string;
@@ -13,16 +13,16 @@ interface User {
 }
 
 interface AuthState {
-  user: User;
+  user: AuthUser;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: boolean;
 }
 
 interface AuthActions {
-  setUser: (user: User) => void;
+  setUser: (user: AuthUser) => void;
   clearUser: () => void;
-  login: (user: User) => void;
+  login: (user: AuthUser) => void;
   logout: () => void;
   setError: (error: boolean) => void;
   setLoading: (isLoading: boolean) => void;
@@ -31,7 +31,7 @@ interface AuthActions {
 type AuthStore = AuthState & AuthActions;
 
 // Initial state
-const initialUserState: User = {
+const initialUserState: AuthUser = {
   id: "",
   accountId: "",
   email: "",
@@ -57,7 +57,7 @@ const useAuthStore = create<AuthStore>()(
         ...initialState,
 
         // Actions
-        setUser: (user: User) =>
+        setUser: (user: AuthUser) =>
           set({ user, isAuthenticated: true, error: false }, false, "setUser"),
 
         clearUser: () =>
@@ -67,7 +67,7 @@ const useAuthStore = create<AuthStore>()(
             "clearUser"
           ),
 
-        login: (user: User) =>
+        login: (user: AuthUser) =>
           set(
             {
               user,

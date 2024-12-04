@@ -30,6 +30,7 @@ const LeftSidebar = () => {
             className=" w-14 h-14"
             imageId={user.imageId}
             name={user.fullName}
+            changeFallbackColor={false}
           />
           <div className=" flex flex-col">
             <p className="font-bold text-base text-content ">

@@ -65,7 +65,7 @@ export const Route = createFileRoute("/profile/$userId")({
                 <span className=" hidden md:block">View Plans</span>{" "}
                 {icons.plans(20)}
               </Link>
-              <CreateConvo userAccountId={user?.accountId!} />
+              <CreateConvo userAccountId={user?.accountId!} userId={userId!} />
             </div>
           </>
         )}
