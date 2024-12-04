@@ -21,4 +21,7 @@ export enum QUERY_KEYS {
   CONVERSATIONS = "conversations",
   MESSAGE = "message",
   MESSAGES = "messages",
+
+  // Services
+  SUPPORT = "support",
 }

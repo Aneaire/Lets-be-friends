@@ -19,7 +19,7 @@ export default {
         bg: "hsl(var(--color-bkg) / <alpha-value>)",
         bgLight: "hsl(var(--color-accentLight) / <alpha-value>)",
         textLight: "var(--color-textLight)",
-        red: "#FF5A5A",
+        red: "#bb3c53",
         dark: {
           1: "hsl(240, 5%, 13%)",
         },

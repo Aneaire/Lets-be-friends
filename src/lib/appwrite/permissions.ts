@@ -13,3 +13,10 @@ export const userToAny = (accountId: string) => [
   Permission.write(Role.user(accountId)),
   Permission.read(Role.any()),
 ];
+
+export const userToAnyUpdate = (accountId: string) => [
+  Permission.delete(Role.user(accountId)),
+  Permission.write(Role.user(accountId)),
+  Permission.read(Role.any()),
+  Permission.update(Role.any()),
+];

@@ -11,6 +11,9 @@ export const config = {
   friendListCollection: process.env.VITE_FRIEND_LIST_COLLECTION_ID!,
   userSupportCollection: process.env.VITE_USER_SUPPORT_COLLECTION_ID!,
 
+  // Booking
+  bookingCollection: process.env.VITE_BOOKING_COLLECTION_ID!,
+
   // Posts
   postCollection: process.env.VITE_POST_COLLECTION_ID!,
   userLikesCollection: process.env.VITE_USER_LIKES_COLLECTION_ID!,

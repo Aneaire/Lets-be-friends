@@ -22,6 +22,7 @@ import { Route as PostPostIdImport } from './routes/post/$postId'
 import { Route as ChatsConversationImport } from './routes/chats/$conversation'
 import { Route as ProfileUpdateProfileIndexImport } from './routes/profile/update-profile/index'
 import { Route as PostCreatePostIndexImport } from './routes/post/create-post/index'
+import { Route as ProfileScheduleSupportIdImport } from './routes/profile/schedule/$supportId'
 import { Route as PostUpdatePostPostIdImport } from './routes/post/update-post/$postId'
 
 // Create/Update Routes
@@ -78,6 +79,11 @@ const ProfileUpdateProfileIndexRoute = ProfileUpdateProfileIndexImport.update({
 
 const PostCreatePostIndexRoute = PostCreatePostIndexImport.update({
   path: '/post/create-post/',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ProfileScheduleSupportIdRoute = ProfileScheduleSupportIdImport.update({
+  path: '/profile/schedule/$supportId',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -160,6 +166,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PostUpdatePostPostIdImport
       parentRoute: typeof rootRoute
     }
+    '/profile/schedule/$supportId': {
+      id: '/profile/schedule/$supportId'
+      path: '/profile/schedule/$supportId'
+      fullPath: '/profile/schedule/$supportId'
+      preLoaderRoute: typeof ProfileScheduleSupportIdImport
+      parentRoute: typeof rootRoute
+    }
     '/post/create-post/': {
       id: '/post/create-post/'
       path: '/post/create-post'
@@ -190,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/explore': typeof ExploreIndexRoute
   '/people': typeof PeopleIndexRoute
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
+  '/profile/schedule/$supportId': typeof ProfileScheduleSupportIdRoute
   '/post/create-post': typeof PostCreatePostIndexRoute
   '/profile/update-profile': typeof ProfileUpdateProfileIndexRoute
 }
@@ -205,6 +219,7 @@ export interface FileRoutesByTo {
   '/explore': typeof ExploreIndexRoute
   '/people': typeof PeopleIndexRoute
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
+  '/profile/schedule/$supportId': typeof ProfileScheduleSupportIdRoute
   '/post/create-post': typeof PostCreatePostIndexRoute
   '/profile/update-profile': typeof ProfileUpdateProfileIndexRoute
 }
@@ -221,6 +236,7 @@ export interface FileRoutesById {
   '/explore/': typeof ExploreIndexRoute
   '/people/': typeof PeopleIndexRoute
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
+  '/profile/schedule/$supportId': typeof ProfileScheduleSupportIdRoute
   '/post/create-post/': typeof PostCreatePostIndexRoute
   '/profile/update-profile/': typeof ProfileUpdateProfileIndexRoute
 }
@@ -238,6 +254,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/people'
     | '/post/update-post/$postId'
+    | '/profile/schedule/$supportId'
     | '/post/create-post'
     | '/profile/update-profile'
   fileRoutesByTo: FileRoutesByTo
@@ -252,6 +269,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/people'
     | '/post/update-post/$postId'
+    | '/profile/schedule/$supportId'
     | '/post/create-post'
     | '/profile/update-profile'
   id:
@@ -266,6 +284,7 @@ export interface FileRouteTypes {
     | '/explore/'
     | '/people/'
     | '/post/update-post/$postId'
+    | '/profile/schedule/$supportId'
     | '/post/create-post/'
     | '/profile/update-profile/'
   fileRoutesById: FileRoutesById
@@ -282,6 +301,7 @@ export interface RootRouteChildren {
   ExploreIndexRoute: typeof ExploreIndexRoute
   PeopleIndexRoute: typeof PeopleIndexRoute
   PostUpdatePostPostIdRoute: typeof PostUpdatePostPostIdRoute
+  ProfileScheduleSupportIdRoute: typeof ProfileScheduleSupportIdRoute
   PostCreatePostIndexRoute: typeof PostCreatePostIndexRoute
   ProfileUpdateProfileIndexRoute: typeof ProfileUpdateProfileIndexRoute
 }
@@ -297,6 +317,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExploreIndexRoute: ExploreIndexRoute,
   PeopleIndexRoute: PeopleIndexRoute,
   PostUpdatePostPostIdRoute: PostUpdatePostPostIdRoute,
+  ProfileScheduleSupportIdRoute: ProfileScheduleSupportIdRoute,
   PostCreatePostIndexRoute: PostCreatePostIndexRoute,
   ProfileUpdateProfileIndexRoute: ProfileUpdateProfileIndexRoute,
 }
@@ -323,6 +344,7 @@ export const routeTree = rootRoute
         "/explore/",
         "/people/",
         "/post/update-post/$postId",
+        "/profile/schedule/$supportId",
         "/post/create-post/",
         "/profile/update-profile/"
       ]
@@ -356,6 +378,9 @@ export const routeTree = rootRoute
     },
     "/post/update-post/$postId": {
       "filePath": "post/update-post/$postId.tsx"
+    },
+    "/profile/schedule/$supportId": {
+      "filePath": "profile/schedule/$supportId.tsx"
     },
     "/post/create-post/": {
       "filePath": "post/create-post/index.tsx"

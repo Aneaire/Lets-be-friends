@@ -4,6 +4,7 @@ import { ID, Query } from "appwrite";
 import { toast } from "sonner";
 import { globalConfig } from "../globalConfig";
 import {
+  IBooking,
   ICreateAccount,
   ICreatePost,
   IMessage,
@@ -17,7 +18,7 @@ import {
 import { deleteFile, getFilePreview, uploadFile } from "./buckets";
 import { account, config, databases, storage } from "./config";
 import { updateConversation } from "./functions";
-import { userAccess, userToAny } from "./permissions";
+import { userAccess, userToAny, userToAnyUpdate } from "./permissions";
 
 // Handling accounts
 export const signIn = async (email: string, password: string) => {
@@ -255,7 +256,8 @@ export const getSupport = async (id: string) => {
     const support = await databases.getDocument(
       config.mainDb,
       config.userSupportCollection,
-      id
+      id,
+      [Query.select(["$id", "*", "user.accountId"])]
     );
 
     return support as ISupport;
@@ -1025,3 +1027,60 @@ export async function sendMessage({
     console.error(error);
   }
 }
+
+// Booking
+
+export const createBooking = async ({
+  ownerId,
+  ownerAccountId,
+  date,
+  price,
+}: {
+  ownerId: string;
+  ownerAccountId: string;
+  date: Date;
+  price: number;
+}) => {
+  try {
+    const user = useAuthStore.getState().user;
+    console.log(ownerAccountId, user.accountId);
+    const newBooking = await databases.createDocument(
+      config.mainDb,
+      config.bookingCollection,
+      ID.unique(),
+      {
+        bookerId: user.id,
+        date,
+        price,
+        ownerId,
+      },
+      userToAnyUpdate(user.accountId)
+    );
+
+    if (!newBooking) throw Error;
+
+    return newBooking;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const checkIfBooked = async ({
+  ownerId,
+  bookerId,
+}: {
+  ownerId: string;
+  bookerId: string;
+}) => {
+  try {
+    const booking = await databases.listDocuments(
+      config.mainDb,
+      config.bookingCollection,
+      [Query.equal("ownerId", ownerId), Query.equal("bookerId", bookerId)]
+    );
+
+    return booking.documents[0] as IBooking;
+  } catch (error) {
+    console.error(error);
+  }
+};

@@ -5,6 +5,7 @@ import {
   checkConversation,
   checkSaved,
   createAccount,
+  createBooking,
   createCaptionPost,
   createPost,
   deletePost,
@@ -241,5 +242,22 @@ export const useSendMessage = () => {
       collectionId: string;
       body: string;
     }) => sendMessage({ ...values }),
+  });
+};
+
+export const useCreateBooking = (supportId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (values: {
+      ownerId: string;
+      date: Date;
+      price: number;
+      ownerAccountId: string;
+    }) => createBooking({ ...values }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.SUPPORT, supportId],
+      });
+    },
   });
 };

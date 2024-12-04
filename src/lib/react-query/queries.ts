@@ -1,6 +1,8 @@
+import useAuthStore from "@/store/userStore";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Models } from "appwrite";
 import {
+  checkIfBooked,
   checkLiked,
   getConversations,
   getLatestPost,
@@ -45,7 +47,7 @@ export const useGetUserImageAndName = (userId: string) => {
 
 export const useGetSupport = (id: string) => {
   return useQuery({
-    queryKey: [QUERY_KEYS.OWNER_INFO_AND_SUPPORT + id],
+    queryKey: [QUERY_KEYS.SUPPORT + id],
     queryFn: () => getSupport(id),
     enabled: !!id,
   });
@@ -219,5 +221,16 @@ export const useGetMessages = ({ collectionId }: { collectionId: string }) => {
       return lastId;
     },
     initialPageParam: null,
+  });
+};
+
+// Services
+
+export const useCheckIfBooked = (values: { ownerId: string }) => {
+  const user = useAuthStore.getState().user;
+  return useQuery({
+    queryKey: [QUERY_KEYS.BOOKING, values.ownerId + user.id],
+    queryFn: () => checkIfBooked({ ...values, bookerId: user.id }),
+    enabled: !!values.ownerId,
   });
 };

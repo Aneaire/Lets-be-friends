@@ -23,8 +23,17 @@ export type IUser = {
 export type ISupport = {
   userId: string;
   list: string[];
-  user: IUser | string;
+  user: IUser;
   price: number;
+} & Models.Document;
+
+export type IBooking = {
+  bookerId: string;
+  ownerId: string;
+  date: Date;
+  price: number;
+  status: "pending" | "accepted" | "rejected";
+  ownerAccepted: boolean;
 } & Models.Document;
 
 export type IConversation = {
