@@ -215,7 +215,7 @@ html {
 
   /* Home */
   .home-container {
-    @apply flex flex-col flex-1 items-center gap-10 py-10  px-2 md:px-8 lg:p-14;
+    @apply flex flex-col flex-1 items-center gap-10 py-4 md:py-10  px-2 md:px-8 lg:p-14;
   }
 
   .home-posts {

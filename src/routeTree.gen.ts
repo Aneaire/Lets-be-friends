@@ -13,6 +13,7 @@
 import { Route as rootRoute } from './routes/__root'
 import { Route as IndexImport } from './routes/index'
 import { Route as PeopleIndexImport } from './routes/people/index'
+import { Route as ManagePlansIndexImport } from './routes/manage-plans/index'
 import { Route as ExploreIndexImport } from './routes/explore/index'
 import { Route as CollectionIndexImport } from './routes/collection/index'
 import { Route as ChatsIndexImport } from './routes/chats/index'
@@ -20,8 +21,10 @@ import { Route as VerificationSecretImport } from './routes/verification/$secret
 import { Route as ProfileUserIdImport } from './routes/profile/$userId'
 import { Route as PostPostIdImport } from './routes/post/$postId'
 import { Route as ChatsConversationImport } from './routes/chats/$conversation'
+import { Route as BookingBookingIdImport } from './routes/booking/$bookingId'
 import { Route as ProfileUpdateProfileIndexImport } from './routes/profile/update-profile/index'
 import { Route as PostCreatePostIndexImport } from './routes/post/create-post/index'
+import { Route as ReviewCreateReviewUserIdImport } from './routes/review/create-review/$userId'
 import { Route as ProfileScheduleSupportIdImport } from './routes/profile/schedule/$supportId'
 import { Route as PostUpdatePostPostIdImport } from './routes/post/update-post/$postId'
 
@@ -34,6 +37,11 @@ const IndexRoute = IndexImport.update({
 
 const PeopleIndexRoute = PeopleIndexImport.update({
   path: '/people/',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ManagePlansIndexRoute = ManagePlansIndexImport.update({
+  path: '/manage-plans/',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -72,6 +80,11 @@ const ChatsConversationRoute = ChatsConversationImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const BookingBookingIdRoute = BookingBookingIdImport.update({
+  path: '/booking/$bookingId',
+  getParentRoute: () => rootRoute,
+} as any)
+
 const ProfileUpdateProfileIndexRoute = ProfileUpdateProfileIndexImport.update({
   path: '/profile/update-profile/',
   getParentRoute: () => rootRoute,
@@ -79,6 +92,11 @@ const ProfileUpdateProfileIndexRoute = ProfileUpdateProfileIndexImport.update({
 
 const PostCreatePostIndexRoute = PostCreatePostIndexImport.update({
   path: '/post/create-post/',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ReviewCreateReviewUserIdRoute = ReviewCreateReviewUserIdImport.update({
+  path: '/review/create-review/$userId',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -101,6 +119,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexImport
+      parentRoute: typeof rootRoute
+    }
+    '/booking/$bookingId': {
+      id: '/booking/$bookingId'
+      path: '/booking/$bookingId'
+      fullPath: '/booking/$bookingId'
+      preLoaderRoute: typeof BookingBookingIdImport
       parentRoute: typeof rootRoute
     }
     '/chats/$conversation': {
@@ -152,6 +177,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExploreIndexImport
       parentRoute: typeof rootRoute
     }
+    '/manage-plans/': {
+      id: '/manage-plans/'
+      path: '/manage-plans'
+      fullPath: '/manage-plans'
+      preLoaderRoute: typeof ManagePlansIndexImport
+      parentRoute: typeof rootRoute
+    }
     '/people/': {
       id: '/people/'
       path: '/people'
@@ -171,6 +203,13 @@ declare module '@tanstack/react-router' {
       path: '/profile/schedule/$supportId'
       fullPath: '/profile/schedule/$supportId'
       preLoaderRoute: typeof ProfileScheduleSupportIdImport
+      parentRoute: typeof rootRoute
+    }
+    '/review/create-review/$userId': {
+      id: '/review/create-review/$userId'
+      path: '/review/create-review/$userId'
+      fullPath: '/review/create-review/$userId'
+      preLoaderRoute: typeof ReviewCreateReviewUserIdImport
       parentRoute: typeof rootRoute
     }
     '/post/create-post/': {
@@ -194,6 +233,7 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/booking/$bookingId': typeof BookingBookingIdRoute
   '/chats/$conversation': typeof ChatsConversationRoute
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
@@ -201,15 +241,18 @@ export interface FileRoutesByFullPath {
   '/chats': typeof ChatsIndexRoute
   '/collection': typeof CollectionIndexRoute
   '/explore': typeof ExploreIndexRoute
+  '/manage-plans': typeof ManagePlansIndexRoute
   '/people': typeof PeopleIndexRoute
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
   '/profile/schedule/$supportId': typeof ProfileScheduleSupportIdRoute
+  '/review/create-review/$userId': typeof ReviewCreateReviewUserIdRoute
   '/post/create-post': typeof PostCreatePostIndexRoute
   '/profile/update-profile': typeof ProfileUpdateProfileIndexRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/booking/$bookingId': typeof BookingBookingIdRoute
   '/chats/$conversation': typeof ChatsConversationRoute
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
@@ -217,9 +260,11 @@ export interface FileRoutesByTo {
   '/chats': typeof ChatsIndexRoute
   '/collection': typeof CollectionIndexRoute
   '/explore': typeof ExploreIndexRoute
+  '/manage-plans': typeof ManagePlansIndexRoute
   '/people': typeof PeopleIndexRoute
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
   '/profile/schedule/$supportId': typeof ProfileScheduleSupportIdRoute
+  '/review/create-review/$userId': typeof ReviewCreateReviewUserIdRoute
   '/post/create-post': typeof PostCreatePostIndexRoute
   '/profile/update-profile': typeof ProfileUpdateProfileIndexRoute
 }
@@ -227,6 +272,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
+  '/booking/$bookingId': typeof BookingBookingIdRoute
   '/chats/$conversation': typeof ChatsConversationRoute
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
@@ -234,9 +280,11 @@ export interface FileRoutesById {
   '/chats/': typeof ChatsIndexRoute
   '/collection/': typeof CollectionIndexRoute
   '/explore/': typeof ExploreIndexRoute
+  '/manage-plans/': typeof ManagePlansIndexRoute
   '/people/': typeof PeopleIndexRoute
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
   '/profile/schedule/$supportId': typeof ProfileScheduleSupportIdRoute
+  '/review/create-review/$userId': typeof ReviewCreateReviewUserIdRoute
   '/post/create-post/': typeof PostCreatePostIndexRoute
   '/profile/update-profile/': typeof ProfileUpdateProfileIndexRoute
 }
@@ -245,6 +293,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/booking/$bookingId'
     | '/chats/$conversation'
     | '/post/$postId'
     | '/profile/$userId'
@@ -252,14 +301,17 @@ export interface FileRouteTypes {
     | '/chats'
     | '/collection'
     | '/explore'
+    | '/manage-plans'
     | '/people'
     | '/post/update-post/$postId'
     | '/profile/schedule/$supportId'
+    | '/review/create-review/$userId'
     | '/post/create-post'
     | '/profile/update-profile'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/booking/$bookingId'
     | '/chats/$conversation'
     | '/post/$postId'
     | '/profile/$userId'
@@ -267,14 +319,17 @@ export interface FileRouteTypes {
     | '/chats'
     | '/collection'
     | '/explore'
+    | '/manage-plans'
     | '/people'
     | '/post/update-post/$postId'
     | '/profile/schedule/$supportId'
+    | '/review/create-review/$userId'
     | '/post/create-post'
     | '/profile/update-profile'
   id:
     | '__root__'
     | '/'
+    | '/booking/$bookingId'
     | '/chats/$conversation'
     | '/post/$postId'
     | '/profile/$userId'
@@ -282,9 +337,11 @@ export interface FileRouteTypes {
     | '/chats/'
     | '/collection/'
     | '/explore/'
+    | '/manage-plans/'
     | '/people/'
     | '/post/update-post/$postId'
     | '/profile/schedule/$supportId'
+    | '/review/create-review/$userId'
     | '/post/create-post/'
     | '/profile/update-profile/'
   fileRoutesById: FileRoutesById
@@ -292,6 +349,7 @@ export interface FileRouteTypes {
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BookingBookingIdRoute: typeof BookingBookingIdRoute
   ChatsConversationRoute: typeof ChatsConversationRoute
   PostPostIdRoute: typeof PostPostIdRoute
   ProfileUserIdRoute: typeof ProfileUserIdRoute
@@ -299,15 +357,18 @@ export interface RootRouteChildren {
   ChatsIndexRoute: typeof ChatsIndexRoute
   CollectionIndexRoute: typeof CollectionIndexRoute
   ExploreIndexRoute: typeof ExploreIndexRoute
+  ManagePlansIndexRoute: typeof ManagePlansIndexRoute
   PeopleIndexRoute: typeof PeopleIndexRoute
   PostUpdatePostPostIdRoute: typeof PostUpdatePostPostIdRoute
   ProfileScheduleSupportIdRoute: typeof ProfileScheduleSupportIdRoute
+  ReviewCreateReviewUserIdRoute: typeof ReviewCreateReviewUserIdRoute
   PostCreatePostIndexRoute: typeof PostCreatePostIndexRoute
   ProfileUpdateProfileIndexRoute: typeof ProfileUpdateProfileIndexRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BookingBookingIdRoute: BookingBookingIdRoute,
   ChatsConversationRoute: ChatsConversationRoute,
   PostPostIdRoute: PostPostIdRoute,
   ProfileUserIdRoute: ProfileUserIdRoute,
@@ -315,9 +376,11 @@ const rootRouteChildren: RootRouteChildren = {
   ChatsIndexRoute: ChatsIndexRoute,
   CollectionIndexRoute: CollectionIndexRoute,
   ExploreIndexRoute: ExploreIndexRoute,
+  ManagePlansIndexRoute: ManagePlansIndexRoute,
   PeopleIndexRoute: PeopleIndexRoute,
   PostUpdatePostPostIdRoute: PostUpdatePostPostIdRoute,
   ProfileScheduleSupportIdRoute: ProfileScheduleSupportIdRoute,
+  ReviewCreateReviewUserIdRoute: ReviewCreateReviewUserIdRoute,
   PostCreatePostIndexRoute: PostCreatePostIndexRoute,
   ProfileUpdateProfileIndexRoute: ProfileUpdateProfileIndexRoute,
 }
@@ -335,6 +398,7 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
+        "/booking/$bookingId",
         "/chats/$conversation",
         "/post/$postId",
         "/profile/$userId",
@@ -342,15 +406,20 @@ export const routeTree = rootRoute
         "/chats/",
         "/collection/",
         "/explore/",
+        "/manage-plans/",
         "/people/",
         "/post/update-post/$postId",
         "/profile/schedule/$supportId",
+        "/review/create-review/$userId",
         "/post/create-post/",
         "/profile/update-profile/"
       ]
     },
     "/": {
       "filePath": "index.tsx"
+    },
+    "/booking/$bookingId": {
+      "filePath": "booking/$bookingId.tsx"
     },
     "/chats/$conversation": {
       "filePath": "chats/$conversation.tsx"
@@ -373,6 +442,9 @@ export const routeTree = rootRoute
     "/explore/": {
       "filePath": "explore/index.tsx"
     },
+    "/manage-plans/": {
+      "filePath": "manage-plans/index.tsx"
+    },
     "/people/": {
       "filePath": "people/index.tsx"
     },
@@ -381,6 +453,9 @@ export const routeTree = rootRoute
     },
     "/profile/schedule/$supportId": {
       "filePath": "profile/schedule/$supportId.tsx"
+    },
+    "/review/create-review/$userId": {
+      "filePath": "review/create-review/$userId.tsx"
     },
     "/post/create-post/": {
       "filePath": "post/create-post/index.tsx"

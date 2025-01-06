@@ -13,6 +13,7 @@ export const config = {
 
   // Booking
   bookingCollection: process.env.VITE_BOOKING_COLLECTION_ID!,
+  receiptCollection: process.env.VITE_RECEIPT_COLLECTION_ID!,
 
   // Posts
   postCollection: process.env.VITE_POST_COLLECTION_ID!,
@@ -25,9 +26,11 @@ export const config = {
   // Functions
   createConversationFnId: process.env.VITE_CREATE_CONVERSATION_ID!,
   manageConversationFnId: process.env.VITE_MANAGE_CONVERSATION_ID!,
+  paymongoFnId: process.env.VITE_PAYMONGO_FUNCTION_ID!,
 
   // Buckets
   postBucket: process.env.VITE_POST_BUCKET_ID!,
+  bookingBucket: process.env.VITE_BOOKING_BUCKET_ID!,
 };
 
 export const client = new Client();

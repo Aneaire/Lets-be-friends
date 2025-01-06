@@ -11,8 +11,6 @@ const SupportCard = ({ supportId }: { supportId: string }) => {
         <LoadingIcon />
       </span>
     );
-
-  console.log(support);
   return (
     <div className=" pt-8 pb-2 w-full  max-w-screen-sm mx-auto relative">
       <h1 className=" absolute -bottom-[20ox] left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-accent-2 font-bold font-accent px-5 bg-bg z-10 text-xl text-center text-nowrap">

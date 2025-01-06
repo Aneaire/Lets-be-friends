@@ -1,7 +1,11 @@
 import useAuthStore from "@/store/userStore";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { z } from "zod";
 import {
+  acceptBooking,
+  bookingConfirmation,
+  bookingConfirmationValidation,
   checkConversation,
   checkSaved,
   createAccount,
@@ -10,6 +14,7 @@ import {
   createPost,
   deletePost,
   likePost,
+  ReceiptUpdateValidation,
   savePost,
   sendMessage,
   signIn,
@@ -18,10 +23,16 @@ import {
   unSavePost,
   updateOwnerInfos,
   updatePost,
+  updateReceipt,
   updateSupport,
   verifyAccount,
 } from "../appwrite/api";
-import { createConversation } from "../appwrite/functions";
+import {
+  createConversation,
+  createPaymentLink,
+  createPaymentLinkValidation,
+  retrievePaymentFromPaymongo,
+} from "../appwrite/functions";
 import { ICreateAccount, ICreatePost, IUpdatePost, IUser } from "../types";
 import { QUERY_KEYS } from "./queryKeys";
 
@@ -86,6 +97,7 @@ export const useUpdateSupport = () => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.OWNER_INFO_AND_SUPPORT],
       });
+      toast.success("Support updated");
     },
   });
 };
@@ -253,11 +265,61 @@ export const useCreateBooking = (supportId: string) => {
       date: Date;
       price: number;
       ownerAccountId: string;
+      note: string;
     }) => createBooking({ ...values }),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.SUPPORT, supportId],
       });
     },
+  });
+};
+
+export const useBookingConfirmationValidation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (values: z.infer<typeof bookingConfirmationValidation>) =>
+      bookingConfirmation(values).then(() => {
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.BOOKING] });
+      }),
+    onSuccess: () => {
+      toast.success(
+        "Done! we will now review this booking for your friend to receive payment"
+      );
+    },
+    onError: () => {
+      toast.error("Something went wrong");
+    },
+  });
+};
+
+export const useAcceptBooking = (bookingId: string) => {
+  return useMutation({
+    mutationFn: () => acceptBooking(bookingId),
+  });
+};
+
+// Paymongo
+
+export const useCreatePaymentLink = () => {
+  return useMutation({
+    mutationFn: (values: z.infer<typeof createPaymentLinkValidation>) =>
+      createPaymentLink({ ...values }),
+  });
+};
+
+export const useRetrievePaymentFromPaymongo = () => {
+  return useMutation({
+    mutationFn: (values: { referenceNumber: string; bookingId: string }) =>
+      retrievePaymentFromPaymongo({ ...values }),
+  });
+};
+
+// Receipt
+
+export const useUpdateReceipt = () => {
+  return useMutation({
+    mutationFn: (values: z.infer<typeof ReceiptUpdateValidation>) =>
+      updateReceipt({ ...values }),
   });
 };

@@ -8,30 +8,28 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreatePost, useUpdatePost } from "@/lib/react-query/mutation";
-import { IPost } from "@/lib/types";
+import { IReview } from "@/lib/types";
 import useAuthStore from "@/store/userStore";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
 
 type PostFormProps = {
-  post?: IPost;
-  action: "Create" | "Update" | "Profile";
+  post?: IReview;
+  action: "Create" | "Update";
 };
 
-const PostValidation = z.object({
+const ReviewValidation = z.object({
   caption: z.string().max(5000),
   file: z.custom<File[]>(),
-  location: z.string().max(100).optional() || null,
-  tags: z.string(),
+  star: z.number().min(1).max(5),
 });
 
-const PostForm = ({ post, action }: PostFormProps) => {
+const ReviewForm = ({ post, action }: PostFormProps) => {
   const { mutateAsync: createPost, isPending: isLoadingCreate } =
     useCreatePost();
   const { mutateAsync: updatePost, isPending: isLoadingUpdate } =
@@ -39,33 +37,18 @@ const PostForm = ({ post, action }: PostFormProps) => {
 
   const { user } = useAuthStore();
 
-  // TEXT INPUTED IN HOMEPAGE  const { search } = useLocation();
-  const { search } = useLocation();
-  // const queryParams = new URLSearchParams(search);
-  const queryParams = new URLSearchParams(
-    typeof search === "string"
-      ? search
-      : Object.entries(search).map(([key, value]) => [key, value.toString()])
-  );
-  const textInputedInHome = queryParams.get("textInputed");
-
   const navigate = useNavigate();
-  const form = useForm<z.infer<typeof PostValidation>>({
-    resolver: zodResolver(PostValidation),
+  const form = useForm<z.infer<typeof ReviewValidation>>({
+    resolver: zodResolver(ReviewValidation),
     defaultValues: {
-      caption: post
-        ? post?.caption
-        : !!textInputedInHome
-          ? textInputedInHome
-          : "",
+      caption: post ? post?.caption : "",
       file: [],
-      location: post?.location ? post?.location : "",
-      tags: post ? post.tags && post.tags.join(",") : "",
+      star: post ? post?.star : 0,
     },
   });
 
   // 2. Define a submit handler.
-  async function onSubmit(values: z.infer<typeof PostValidation>) {
+  async function onSubmit(values: z.infer<typeof ReviewValidation>) {
     if (post && action === "Update") {
       const updatedPost = await updatePost({
         ...values,
@@ -83,7 +66,6 @@ const PostForm = ({ post, action }: PostFormProps) => {
       ...values,
       userId: user.id,
       accountId: user.accountId,
-      usedDp: action === "Profile" ? true : false,
     });
 
     navigate({ to: "/" });
@@ -130,47 +112,6 @@ const PostForm = ({ post, action }: PostFormProps) => {
             )}
           />
         )}
-
-        <FormField
-          control={form.control}
-          name="location"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="shad-form_label ">Add Location</FormLabel>
-              <FormControl>
-                <Input
-                  autoComplete="off"
-                  type="text"
-                  className="shad-input"
-                  placeholder="San Mateo, Manila"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage className="shad-form_message" />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="tags"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="shad-form_label ">
-                Add Tags (separated by comma " , ")
-              </FormLabel>
-              <FormControl>
-                <Input
-                  autoComplete="off"
-                  type="text"
-                  className="shad-input"
-                  placeholder="Arts, Learn, Social, Friends "
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage className="shad-form_message" />
-            </FormItem>
-          )}
-        />
         <div className=" flex gap-4 items-center justify-end ">
           <Button
             onClick={() => navigate({ to: "." })}
@@ -196,4 +137,4 @@ const PostForm = ({ post, action }: PostFormProps) => {
   );
 };
 
-export default PostForm;
+export default ReviewForm;

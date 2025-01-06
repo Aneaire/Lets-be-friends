@@ -35,11 +35,14 @@ export async function deleteFile(fileId: string) {
   }
 }
 
-export function getFilePreview(fileId: string) {
+export function getFilePreview(
+  fileId: string,
+  type: "post" | "booking" = "post"
+) {
   try {
     // Retrieve the file URL without resizing or cropping
     const fileUrl = storage.getFilePreview(
-      config.postBucket,
+      type === "post" ? config.postBucket : config.bookingBucket,
       fileId,
       undefined, // width
       undefined, // height
@@ -52,5 +55,57 @@ export function getFilePreview(fileId: string) {
     return fileUrl;
   } catch (error) {
     defaultToast.SWW;
+  }
+}
+
+export function getFilePreviewWithQuality({
+  fileId,
+  type = "post",
+  quality = 25,
+}: {
+  fileId: string;
+  type: "post" | "booking";
+  quality?: number;
+}) {
+  try {
+    // Retrieve the file URL without resizing or cropping
+    const fileUrl = storage.getFilePreview(
+      type === "post" ? config.postBucket : config.bookingBucket,
+      fileId,
+      undefined, // width
+      undefined, // height
+      undefined, // gravity
+      quality // quality
+    );
+
+    if (!fileUrl) throw Error;
+
+    return fileUrl;
+  } catch (error) {
+    defaultToast.SWW;
+  }
+}
+
+// Booking
+
+export async function uploadBookingConfirmation(
+  file: File,
+  accountId?: string
+) {
+  try {
+    const image = await resizeImageToOptimize(file);
+
+    if (!image) throw Error;
+
+    const uploadedFile = await storage.createFile(
+      config.bookingBucket,
+      ID.unique(),
+      image,
+      accountId ? userToAny(accountId) : undefined
+    );
+
+    return uploadedFile;
+  } catch (error: any) {
+    defaultToast.SWW(error.message);
   }
 }

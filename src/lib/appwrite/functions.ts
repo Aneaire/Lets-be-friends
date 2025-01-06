@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { config, functions } from "./config";
 
 export const createConversation = async ({
@@ -46,6 +47,60 @@ export const updateConversation = async ({
       })
     );
     return convo.responseBody;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const createPaymentLinkValidation = z.object({
+  bookingId: z.string().max(40),
+  amount: z.number(),
+  description: z.string().max(500),
+});
+
+export const createPaymentLink = async ({
+  bookingId,
+  amount,
+  description,
+}: z.infer<typeof createPaymentLinkValidation>) => {
+  try {
+    console.log(bookingId);
+    const paymentLink = await functions.createExecution(
+      config.paymongoFnId,
+      JSON.stringify({
+        bookingId,
+        amount,
+        description,
+      })
+    );
+    const parsedData: ICreatePaymentLink = JSON.parse(paymentLink.responseBody);
+    return parsedData;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const retrievePaymentFromPaymongo = async ({
+  referenceNumber,
+  bookingId,
+}: {
+  referenceNumber: string;
+  bookingId: string;
+}) => {
+  try {
+    const paymentLink = await functions.createExecution(
+      config.paymongoFnId,
+      JSON.stringify({
+        referenceNumber,
+        type: "retrieve",
+        bookingId,
+      })
+    );
+    const parsedData: IPayMongoPaymentLink["attributes"] = JSON.parse(
+      paymentLink.responseBody
+    );
+    console.log("Retrieve payment", parsedData);
+    return parsedData;
   } catch (error) {
     console.error(error);
   }

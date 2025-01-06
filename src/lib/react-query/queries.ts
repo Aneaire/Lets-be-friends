@@ -2,8 +2,10 @@ import useAuthStore from "@/store/userStore";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Models } from "appwrite";
 import {
+  checkAllBookings,
   checkIfBooked,
   checkLiked,
+  getBookings,
   getConversations,
   getLatestPost,
   getMessages,
@@ -18,9 +20,11 @@ import {
   getUserImageAndName,
   getUserPosts,
   getUsers,
+  IBookingType,
   searchPosts,
   searchUsers,
 } from "../appwrite/api";
+import { getFilePreview } from "../appwrite/buckets";
 import { QUERY_KEYS } from "./queryKeys";
 
 export const useGetOwnerInfos = () => {
@@ -232,5 +236,45 @@ export const useCheckIfBooked = (values: { ownerId: string }) => {
     queryKey: [QUERY_KEYS.BOOKING, values.ownerId + user.id],
     queryFn: () => checkIfBooked({ ...values, bookerId: user.id }),
     enabled: !!values.ownerId,
+  });
+};
+
+export const useCheckAllBookings = (ownerId: string) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.CHECK_BOOKED_SUPPORT, ownerId],
+    queryFn: () => checkAllBookings(ownerId),
+  });
+};
+
+export const useGetBookerBookings = (type: IBookingType) => {
+  return useInfiniteQuery({
+    queryKey: [QUERY_KEYS.BOOKINGS + type],
+    queryFn: ({ pageParam }) => getBookings({ pageParam, type }) as any,
+    getNextPageParam: (lastPage: Models.Document) => {
+      if (lastPage && lastPage.documents.length === 0) {
+        return null;
+      }
+
+      const lastId = lastPage?.documents[lastPage?.documents.length - 1].$id;
+      return lastId;
+    },
+    initialPageParam: null,
+  });
+};
+
+// Receipt
+
+export const useGetFilePreviewWithQuality = ({
+  fileId,
+  type = "post",
+  quality = 25,
+}: {
+  fileId: string;
+  type: "post" | "booking";
+  quality?: number;
+}) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.RECEIPT_IMAGE, fileId],
+    queryFn: () => getFilePreview(fileId, type),
   });
 };

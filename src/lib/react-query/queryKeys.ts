@@ -24,4 +24,10 @@ export enum QUERY_KEYS {
 
   // Services
   SUPPORT = "support",
+  BOOKING = "booking",
+  BOOKINGS = "bookings",
+  CHECK_BOOKED_SUPPORT = "checkBookedSupport",
+  BOOKING_VALIDATION = "bookingValidation",
+  RECEIPT = "receipt",
+  RECEIPT_IMAGE = "receiptImage",
 }

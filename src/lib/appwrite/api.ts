@@ -2,11 +2,13 @@ import useAuthStore from "@/store/userStore";
 import { defaultToast } from "@/utils/defaultToast";
 import { ID, Query } from "appwrite";
 import { toast } from "sonner";
+import { z } from "zod";
 import { globalConfig } from "../globalConfig";
 import {
   IBooking,
   ICreateAccount,
   ICreatePost,
+  ICreateReview,
   IMessage,
   IPost,
   ISavedPost,
@@ -15,7 +17,12 @@ import {
   IUser,
   IUserLikes,
 } from "../types";
-import { deleteFile, getFilePreview, uploadFile } from "./buckets";
+import {
+  deleteFile,
+  getFilePreview,
+  uploadBookingConfirmation,
+  uploadFile,
+} from "./buckets";
 import { account, config, databases, storage } from "./config";
 import { updateConversation } from "./functions";
 import { userAccess, userToAny, userToAnyUpdate } from "./permissions";
@@ -1029,21 +1036,21 @@ export async function sendMessage({
 }
 
 // Booking
+// Need to be function ==========!
 
 export const createBooking = async ({
   ownerId,
-  ownerAccountId,
   date,
   price,
+  note,
 }: {
   ownerId: string;
-  ownerAccountId: string;
   date: Date;
   price: number;
+  note: string;
 }) => {
   try {
     const user = useAuthStore.getState().user;
-    console.log(ownerAccountId, user.accountId);
     const newBooking = await databases.createDocument(
       config.mainDb,
       config.bookingCollection,
@@ -1053,7 +1060,10 @@ export const createBooking = async ({
         date,
         price,
         ownerId,
-      },
+        status: "pending",
+        ownerAccepted: false,
+        note,
+      } as IBooking,
       userToAnyUpdate(user.accountId)
     );
 
@@ -1076,7 +1086,11 @@ export const checkIfBooked = async ({
     const booking = await databases.listDocuments(
       config.mainDb,
       config.bookingCollection,
-      [Query.equal("ownerId", ownerId), Query.equal("bookerId", bookerId)]
+      [
+        Query.equal("ownerId", ownerId),
+        Query.equal("bookerId", bookerId),
+        Query.notEqual("status", "completed"),
+      ]
     );
 
     return booking.documents[0] as IBooking;
@@ -1084,3 +1098,249 @@ export const checkIfBooked = async ({
     console.error(error);
   }
 };
+
+export const checkAllBookings = async (ownerId: string) => {
+  // Need to edit later
+  try {
+    const booking = await databases.listDocuments(
+      config.mainDb,
+      config.bookingCollection,
+      [Query.notEqual("status", "completed"), Query.equal("ownerId", ownerId)]
+    );
+
+    if (!booking) throw Error;
+
+    return booking.documents as IBooking[];
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export type IBookingType = "clients" | "bookings" | "completed";
+
+export const getBookings = async ({
+  pageParam,
+  type,
+}: {
+  pageParam: number;
+  type: IBookingType;
+}) => {
+  const user = useAuthStore.getState().user;
+  const queries: any[] = [
+    Query.limit(3),
+    Query.equal(
+      type === "clients" || type === "completed" ? "ownerId" : "bookerId",
+      user.id
+    ),
+  ];
+
+  if (type !== "completed") {
+    queries.push(
+      Query.orderAsc("date"),
+      Query.or([
+        Query.equal("status", "pending"),
+        Query.equal("status", "accepted"),
+      ])
+    );
+  }
+
+  if (type === "completed") {
+    queries.push(Query.orderDesc("date"));
+    queries.push(Query.equal("status", "completed"));
+  }
+
+  if (pageParam) {
+    queries.push(Query.cursorAfter(pageParam.toString()));
+  }
+
+  try {
+    const bookings = await databases.listDocuments(
+      config.mainDb,
+      config.bookingCollection,
+      queries
+    );
+
+    return bookings;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const getBooking = async (id: string) => {
+  try {
+    const booking = await databases.getDocument(
+      config.mainDb,
+      config.bookingCollection,
+      id
+    );
+
+    if (!booking) throw Error;
+
+    return booking as IBooking;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const acceptBooking = async (id: string) => {
+  try {
+    const booking = await databases.updateDocument(
+      config.mainDb,
+      config.bookingCollection,
+      id,
+      {
+        status: "accepted",
+        ownerAccepted: true,
+      } as IBooking
+    );
+
+    if (!booking) throw Error;
+
+    return booking;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const bookingConfirmationValidation = z.object({
+  bookingId: z.string().max(40),
+  feedback: z.string().max(1000).optional(),
+});
+
+export const bookingConfirmation = async (
+  values: z.infer<typeof bookingConfirmationValidation>
+) => {
+  try {
+    const { bookingId, feedback } = values;
+    const confirmBooking = await databases.updateDocument(
+      config.mainDb,
+      config.bookingCollection,
+      bookingId,
+      {
+        status: "completed",
+        feedback,
+      } as IBooking
+    );
+
+    if (!confirmBooking) throw Error;
+
+    return confirmBooking;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+// Receipt
+
+export const ReceiptUpdateValidation = z.object({
+  start: z.custom<File[]>().or(z.string()).optional(),
+  middle: z.custom<File[]>().or(z.string()).optional(),
+  end: z.custom<File[]>().or(z.string()).optional(),
+  bookingId: z.string().max(40),
+});
+
+export const updateReceipt = async ({
+  start,
+  middle,
+  end,
+  bookingId,
+}: z.infer<typeof ReceiptUpdateValidation>) => {
+  try {
+    let imageToUpload = [
+      ...(typeof start !== "string" ? (start ?? []) : []),
+      ...(typeof middle !== "string" ? (middle ?? []) : []),
+      ...(typeof end !== "string" ? (end ?? []) : []),
+    ];
+    console.log("imageToUpload", imageToUpload);
+    console.log("values", { start, middle, end });
+    let fileId; // Upload file to appwrite storage
+    if (imageToUpload.length > 0) {
+      const uploadedFile = await uploadBookingConfirmation(imageToUpload[0]);
+
+      if (!uploadedFile) throw Error;
+
+      fileId = uploadedFile.$id;
+    }
+
+    const receipt = await databases.updateDocument(
+      config.mainDb,
+      config.bookingCollection,
+      bookingId,
+      {
+        receipt: {
+          start:
+            typeof start === "string"
+              ? start
+              : start && start.length > 0
+                ? fileId
+                : null,
+          middle:
+            typeof middle === "string"
+              ? middle
+              : middle && middle.length > 0
+                ? fileId
+                : null,
+          end:
+            typeof end === "string"
+              ? end
+              : end && end.length > 0
+                ? fileId
+                : null,
+        },
+      }
+    );
+
+    imageToUpload = [];
+
+    return receipt;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+// Write a review/post
+export async function createReview(post: ICreateReview) {
+  try {
+    let fileUrl;
+
+    // Upload file to appwrite storage
+    if (post.file.length > 0) {
+      const uploadedFile = await uploadFile(post.file[0]);
+
+      if (!uploadedFile) throw Error;
+
+      // Get file url
+      const getFileUrl = getFilePreview(uploadedFile.$id);
+      if (!getFileUrl) {
+        await deleteFile(uploadedFile.$id);
+        throw Error;
+      }
+      fileUrl = { fileUrl: getFileUrl, id: uploadedFile.$id };
+    }
+
+    // Create post
+    const newPost = await databases.createDocument(
+      config.mainDb,
+      config.postCollection,
+      ID.unique(),
+      {
+        creator: post.userId,
+        creatorId: post.userId,
+        caption: post.caption,
+        image: post.file.length == 0 ? null : fileUrl?.fileUrl,
+        imageId: post.file.length == 0 ? null : fileUrl?.id,
+        likes: 0,
+      },
+      userToAny(post.accountId)
+    );
+
+    if (!newPost && fileUrl) {
+      await deleteFile(fileUrl?.id);
+      throw Error;
+    }
+
+    return newPost;
+  } catch (error) {
+    console.error(error);
+  }
+}

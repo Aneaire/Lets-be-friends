@@ -6,7 +6,6 @@ import { AuthProvider } from "@/context/AuthContext";
 import useAuthStore from "@/store/userStore";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, createRootRoute } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import { Toaster } from "sonner";
 import Authentication from "../pages/autentication/Authentication";
 
@@ -69,7 +68,7 @@ function RootComponent() {
           </div>
         )} */}
       </div>
-      <TanStackRouterDevtools position="bottom-right" />
+      {/* <TanStackRouterDevtools position="bottom-right" /> */}
     </>
   );
 }

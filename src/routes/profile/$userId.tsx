@@ -23,7 +23,6 @@ export const Route = createFileRoute("/profile/$userId")({
     const { userId } = useParams({ strict: false });
     const owner = useAuthStore.getState().user;
     const user: IUser = Route.useLoaderData();
-    console.log(user);
 
     const togglePagePagination = useUserSettingsStore(
       (state) => state.togglePagePagination
@@ -40,7 +39,7 @@ export const Route = createFileRoute("/profile/$userId")({
         {isOwnerProfile ? (
           <div className=" w-ful flex justify-between mt-2 text-sm">
             <Link
-              to={`/profile/plans/${userId}`}
+              to={`/manage-plans`}
               className=" flex textWhite gap-2 px-4 py-2 md:text-sm bg-accent-2 rounded-md w-fit"
             >
               <span className=" hidden md:block">View Plans</span>{" "}

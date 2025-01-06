@@ -32,8 +32,24 @@ export type IBooking = {
   ownerId: string;
   date: Date;
   price: number;
-  status: "pending" | "accepted" | "rejected";
+  status: "pending" | "accepted" | "rejected" | "cancelled" | "completed";
   ownerAccepted: boolean;
+  note: string;
+  confirmationImage: string;
+  confirmationImageId: string;
+  feedback?: string;
+  paid: boolean;
+  referenceNumber?: string;
+  paymentLink?: string;
+  receipt?: IReceipt;
+} & Models.Document;
+
+export type IReceipt = {
+  booking: string;
+  start: string;
+  middle: string;
+  end: string;
+  adminSentPayment: boolean;
 } & Models.Document;
 
 export type IConversation = {
@@ -102,6 +118,32 @@ export type IUserLikes = {
   post?: IPost[] | string;
   user: IUser | string;
 } & Models.Document;
+
+export type IReview = {
+  creatorId: string;
+  ownerId: string;
+  caption?: string;
+  image?: string;
+  imageId?: string;
+  creator: IUser; // Assuming the relatedCollection is represented as a string ID
+  owner: IUser; // Assuming the relatedCollection is represented as a string ID
+  likes: number;
+  userlikes: IUserLikes[]; // Assuming the relatedCollection is represented as a string ID
+} & Models.Document;
+
+export type IReviewLikes = {
+  reviewId: string;
+  userId: string;
+  post?: IReview[] | string;
+  user: IUser | string;
+} & Models.Document;
+
+export type ICreateReview = {
+  userId: string;
+  caption: string;
+  file: File[];
+  accountId: string;
+};
 
 export type ISavedPost = {
   postId: string;
