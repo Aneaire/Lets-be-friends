@@ -21,6 +21,7 @@ export const Route = createFileRoute("/people/")({
     useEffect(() => {
       if (inView && !searchUser) fetchNextPage();
     }, [inView]);
+
     if (!users) {
       return (
         <div className=" flex-center w-full h-full">
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/people/")({
         </div>
       );
     }
+
     const showUsers = users?.pages.every(
       (item) => item?.documents.length === 0
     );
@@ -63,7 +65,7 @@ export const Route = createFileRoute("/people/")({
                     </div>
                   ) : showUsers ? (
                     <p className=" text-light-1 mt-10 text-center w-full">
-                      End of Posts
+                      No more users
                     </p>
                   ) : (
                     <div className=" flex place-content-center flex-wrap gap-4 py-2">

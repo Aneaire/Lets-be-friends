@@ -37,7 +37,7 @@ const EditOwnerInfos = ({ owner }: { owner: IUser }) => {
     resolver: zodResolver(ownerInfoValidation),
     defaultValues: {
       bio: owner?.bio ? owner?.bio : "",
-      bday: owner?.bday ? owner?.bday : new Date(2004, 0, 1),
+      bday: owner?.bday ? new Date(owner?.bday) : new Date(2004, 0, 1),
       gender: owner?.gender ? owner?.gender : "",
     },
   });

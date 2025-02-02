@@ -514,6 +514,23 @@ export const icons = {
       />
     </svg>
   ),
+  history: (size: sizeProps, strokeColor: string = "stroke-content") => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox={"0 0 24 24"}
+      strokeWidth="2"
+      width={size}
+      height={size}
+      className={`${strokeColor}`}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
+  ),
 };
 
 // STARS
@@ -521,8 +538,8 @@ export const icons = {
 export const stars = {
   one: (
     <svg
-      width="19"
-      height="18"
+      width="22"
+      height="21"
       viewBox="0 0 19 18"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -553,8 +570,8 @@ export const stars = {
   ),
   hollow: (
     <svg
-      width="19"
-      height="18"
+      width="22"
+      height="21"
       viewBox="0 0 19 18"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"

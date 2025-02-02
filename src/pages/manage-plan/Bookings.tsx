@@ -44,21 +44,33 @@ const Bookings = ({ type }: { type: IBookingType }) => {
     .map((booking: IBooking) => (
       <Booker
         key={booking.$id}
-        ownerId={type === "bookings" ? booking.ownerId : undefined}
+        ownerId={
+          type === "bookings" || type === "all" ? booking.ownerId : undefined
+        }
         bookerId={
-          type === "clients" || type === "completed"
+          type === "clients" || type === "completed" || type === "all"
             ? booking.bookerId
             : undefined
         }
         date={booking.date}
         bookingId={booking.$id}
         paid={booking.paid}
+        status={booking.status}
       />
     ));
 
   return (
     <section className="w-full space-y-2">
       {uniqueBookingElements}
+      {uniqueBookingElements?.length === 0 && (
+        <div className="w-full flex-center">
+          <p className="text-sm">
+            {type !== "clients"
+              ? "No bookings found"
+              : "No current clients found"}
+          </p>
+        </div>
+      )}
 
       {hasNextPage && (
         <div ref={ref} className="w-full flex-center">

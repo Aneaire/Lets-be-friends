@@ -8,9 +8,11 @@ import { icons } from "@/constants/icons";
 import { getUser } from "@/lib/appwrite/api";
 import { IUser } from "@/lib/types";
 import SupportCard from "@/pages/profile/SupportCard";
+import ReviewPosts from "@/pages/review/ReviewPosts";
 import useUserSettingsStore from "@/store/userSettingsStore";
 import useAuthStore from "@/store/userStore";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { Suspense } from "react";
 
 export const Route = createFileRoute("/profile/$userId")({
   loader: async ({ params }) => {
@@ -31,6 +33,7 @@ export const Route = createFileRoute("/profile/$userId")({
       useUserSettingsStore.getState().setTogglePagePagination;
 
     const isOwnerProfile = owner.id === userId;
+    console.log(user);
 
     if (user === undefined) return <NotFound />;
 
@@ -75,11 +78,20 @@ export const Route = createFileRoute("/profile/$userId")({
 
         <div className=" flex flex-col  lg:flex-row lg:gap-3 items-center justify-center mt-10">
           {user?.imageId ? (
-            <ImagePost
-              card="profile-card"
-              imageId={user?.imageId}
-              quality={50}
-            />
+            <Suspense
+              fallback={
+                <img
+                  className=" w-[130px] aspect-square object-cover rounded-full"
+                  src="/images/profile-placeholder.svg"
+                />
+              }
+            >
+              <ImagePost
+                card="profile-card"
+                imageId={user?.imageId}
+                quality={50}
+              />
+            </Suspense>
           ) : (
             <img
               className=" w-[130px] aspect-square object-cover rounded-full"
@@ -98,7 +110,6 @@ export const Route = createFileRoute("/profile/$userId")({
             )}
           </div>
         </div>
-
         {/* Supports */}
         <div className=" pt-8 pb-2 w-full  max-w-screen-sm mx-auto flex-center">
           {user?.support == null ? (
@@ -138,7 +149,11 @@ export const Route = createFileRoute("/profile/$userId")({
         </div>
 
         <div className="flex flex-col flex-center gap-5 mb-10 text-content">
-          <UserPosts id={userId!} />
+          {togglePagePagination === "Posts" ? (
+            <UserPosts id={userId!} />
+          ) : (
+            <ReviewPosts id={userId!} />
+          )}
         </div>
       </div>
     );

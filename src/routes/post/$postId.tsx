@@ -17,12 +17,16 @@ export const Route = createFileRoute("/post/$postId")({
     const user = useAuthStore((state) => state.user);
     const { data: post, isLoading } = useGetPost(postId ? postId : "");
     const { isPending: isDeleting } = useDeletePost();
-
+    console.log(post);
     const whoOwnerIs = user?.accountId == post?.creator.accountId;
     const creatorAccess = whoOwnerIs ? (
       <div className={` flex-end flex-1 gap-1`}>
         <Link to={`/post/update-post/${post?.$id}`}>{icons.edit(24)}</Link>
-        <DeletePostBtn imageId={post.imageId!} postId={post?.$id} />
+        <DeletePostBtn
+          imageId={post.imageId!}
+          postId={post?.$id}
+          usedDp={post.usedDp}
+        />
       </div>
     ) : (
       <></>

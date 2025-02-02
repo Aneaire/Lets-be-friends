@@ -13,7 +13,7 @@ import { IReceipt } from "@/lib/types";
 import { getCurrentPhilippinesDate } from "@/utils/dateUtils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "@tanstack/react-router";
-import { isAfter, isToday } from "date-fns";
+import { format, isAfter, isToday } from "date-fns";
 import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -80,6 +80,12 @@ const Receipt = ({
           isToday(new Date(date))
         ) {
           button.current?.click();
+        } else {
+          if (values.start && values.start?.length > 0) {
+            toast.error(
+              `You can only upload in ${format(new Date(date), "MMMM do")} `
+            );
+          }
         }
       }
     });

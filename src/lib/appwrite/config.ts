@@ -14,6 +14,8 @@ export const config = {
   // Booking
   bookingCollection: process.env.VITE_BOOKING_COLLECTION_ID!,
   receiptCollection: process.env.VITE_RECEIPT_COLLECTION_ID!,
+  reviewCollection: process.env.VITE_REVIEWS_COLLECTION_ID!,
+  reviewLikesCollection: process.env.VITE_REVIEW_LIKES_COLLECTION_ID!,
 
   // Posts
   postCollection: process.env.VITE_POST_COLLECTION_ID!,

@@ -5,6 +5,7 @@ import {
   checkAllBookings,
   checkIfBooked,
   checkLiked,
+  checkReviewLiked,
   getBookings,
   getConversations,
   getLatestPost,
@@ -19,6 +20,7 @@ import {
   getUser,
   getUserImageAndName,
   getUserPosts,
+  getUserReviews,
   getUsers,
   IBookingType,
   searchPosts,
@@ -243,6 +245,7 @@ export const useCheckAllBookings = (ownerId: string) => {
   return useQuery({
     queryKey: [QUERY_KEYS.CHECK_BOOKED_SUPPORT, ownerId],
     queryFn: () => checkAllBookings(ownerId),
+    staleTime: 0,
   });
 };
 
@@ -276,5 +279,32 @@ export const useGetFilePreviewWithQuality = ({
   return useQuery({
     queryKey: [QUERY_KEYS.RECEIPT_IMAGE, fileId],
     queryFn: () => getFilePreview(fileId, type),
+  });
+};
+
+// Reviews
+
+export const useGetUserReviews = ({ id }: { id?: string }) => {
+  if (!id) throw Error;
+
+  return useInfiniteQuery({
+    queryKey: [QUERY_KEYS.USER_REVIEWS, id],
+    queryFn: ({ pageParam }) => getUserReviews({ pageParam, id }) as any,
+    getNextPageParam: (lastPage: Models.Document) => {
+      if (lastPage && lastPage.documents.length === 0) {
+        return null;
+      }
+      const lastId = lastPage?.documents[lastPage?.documents.length - 1].$id;
+
+      return lastId;
+    },
+    initialPageParam: null,
+  });
+};
+
+export const useCheckReviewLiked = ({ reviewId }: { reviewId: string }) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.LIKE, reviewId],
+    queryFn: () => checkReviewLiked({ reviewId }),
   });
 };

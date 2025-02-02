@@ -42,6 +42,7 @@ export type IBooking = {
   referenceNumber?: string;
   paymentLink?: string;
   receipt?: IReceipt;
+  review?: IReview | string;
 } & Models.Document;
 
 export type IReceipt = {
@@ -98,6 +99,7 @@ export type IDeletePost = {
   postId: string;
   imageId: string;
   image?: URL;
+  usedDp: boolean;
 };
 
 export type IPost = {
@@ -109,6 +111,7 @@ export type IPost = {
   creator: IUser; // Assuming the relatedCollection is represented as a string ID
   likes: number;
   location?: string;
+  usedDp: boolean;
   userlikes: IUserLikes[]; // Assuming the relatedCollection is represented as a string ID
 } & Models.Document;
 
@@ -120,29 +123,44 @@ export type IUserLikes = {
 } & Models.Document;
 
 export type IReview = {
-  creatorId: string;
-  ownerId: string;
+  creatorId?: string;
+  ownerId?: string;
   caption?: string;
   image?: string;
   imageId?: string;
-  creator: IUser; // Assuming the relatedCollection is represented as a string ID
-  owner: IUser; // Assuming the relatedCollection is represented as a string ID
-  likes: number;
-  userlikes: IUserLikes[]; // Assuming the relatedCollection is represented as a string ID
+  creator?: IUser; // Assuming the relatedCollection is represented as a string ID
+  likes?: number;
+  userlikes?: IReviewLikes[]; // Assuming the relatedCollection is represented as a string ID
+  booking?: IBooking | string;
 } & Models.Document;
 
 export type IReviewLikes = {
   reviewId: string;
   userId: string;
-  post?: IReview[] | string;
-  user: IUser | string;
+  review?: IReview | string;
+  // user: IUser | string;
 } & Models.Document;
 
 export type ICreateReview = {
+  bookingId: string;
   userId: string;
   caption: string;
   file: File[];
   accountId: string;
+  ownerId: string;
+  stars: number;
+};
+
+export type IUpdateReview = {
+  reviewId: string;
+  userId: string;
+  caption: string;
+  file: File[];
+  accountId: string;
+  ownerId: string;
+  stars: number;
+  image?: string;
+  imageId?: string;
 };
 
 export type ISavedPost = {

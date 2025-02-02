@@ -87,7 +87,11 @@ function ProfileForm(values: IDeletePost) {
   const { mutate: deletePost, isPending: deleting } = useDeletePost();
 
   const handleFulfilling = async () => {
-    await deletePost({ postId: values.postId, imageId: values.imageId });
+    await deletePost({
+      postId: values.postId,
+      imageId: values.imageId,
+      usedDp: values.imageId ? false : true,
+    });
     navigate({ to: "/" });
   };
 

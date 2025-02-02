@@ -20,6 +20,7 @@ import { bookingConfirmationValidation, getBooking } from "@/lib/appwrite/api";
 import {
   useAcceptBooking,
   useBookingConfirmationValidation,
+  useCancelBooking,
   useCreatePaymentLink,
   useRetrievePaymentFromPaymongo,
 } from "@/lib/react-query/mutation";
@@ -27,7 +28,11 @@ import { useGetUserImageAndName } from "@/lib/react-query/queries";
 import { cn } from "@/lib/utils";
 import DisplayReceiptImage from "@/pages/booking/DisplayReceiptImage";
 import Receipt from "@/pages/booking/Receipt";
-import { getCurrentPhilippinesDate } from "@/utils/dateUtils";
+import ReviewPostCard from "@/pages/review/ReviewPostCard";
+import {
+  getCurrentPhilippinesDate,
+  toPhilippinesTime,
+} from "@/utils/dateUtils";
 import autoAnimate from "@formkit/auto-animate";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -94,7 +99,13 @@ export const Route = createFileRoute("/booking/$bookingId")({
     ) => {
       if (booking != undefined) {
         await sendConfirmation(data).then(() => {
-          router.navigate({ to: "/" });
+          toast.success("Write a review for " + user?.fullName);
+          navigate({
+            to:
+              `/review/create-review/` +
+              booking.ownerId +
+              `?bookingId=${booking.$id}`,
+          });
         });
       }
     };
@@ -107,7 +118,13 @@ export const Route = createFileRoute("/booking/$bookingId")({
       acceptBooking().then(() => router.invalidate());
     };
 
-    const handleCancel = async () => {};
+    // Cancelling booking
+    const { mutateAsync: cancelBooking, isPending: cancelPending } =
+      useCancelBooking(booking?.$id!);
+
+    const handleCancel = async () => {
+      cancelBooking().then(() => router.invalidate());
+    };
 
     // Payment
     const { mutateAsync: createPaymentLink, isPending: creatingPaymentLink } =
@@ -116,8 +133,6 @@ export const Route = createFileRoute("/booking/$bookingId")({
       mutateAsync: retrievePaymentFromPaymongo,
       isPending: retrievingPayment,
     } = useRetrievePaymentFromPaymongo();
-
-    console.log(booking);
 
     const createPaymentLinkHandler = async () => {
       await createPaymentLink({
@@ -159,10 +174,17 @@ export const Route = createFileRoute("/booking/$bookingId")({
       createPaymentLinkHandler();
     };
 
+    const isBeforeDate = isBefore(
+      getCurrentPhilippinesDate(),
+      toPhilippinesTime(new Date(booking?.date!))
+    );
+
+    const hasNotUploadedReceiptYet = !booking?.receipt?.end;
+
     if (booking === undefined || user === undefined) return <NotFound />;
 
     return (
-      <div className="flex flex-1 text-content">
+      <div className="flex flex-1 text-content pb-5">
         <div className="home-container">
           <div className="home-posts">
             <div className=" w-full flex justify-between items-center">
@@ -336,6 +358,17 @@ export const Route = createFileRoute("/booking/$bookingId")({
                       </div>
                     )
                   )}
+
+                  {/* Review */}
+                  {booking.review && (
+                    <div className=" py-2">
+                      <ReviewPostCard
+                        type="booking"
+                        posts={booking.review as any}
+                      />
+                    </div>
+                  )}
+
                   {booking.ownerAccepted && (
                     <Form {...form}>
                       <form
@@ -366,15 +399,9 @@ export const Route = createFileRoute("/booking/$bookingId")({
                             className=" bg-accent-1 px-5 "
                             type="submit"
                             disabled={
+                              isBeforeDate ||
+                              hasNotUploadedReceiptYet ||
                               booking.status === "completed"
-                                ? true
-                                : isBefore(
-                                    getCurrentPhilippinesDate(),
-                                    new Date(booking.date)
-                                  ) ||
-                                  booking.receipt?.end === null ||
-                                  isPending
-                              // false
                             }
                           >
                             {booking.status === "completed"
@@ -389,7 +416,10 @@ export const Route = createFileRoute("/booking/$bookingId")({
                             <Button
                               onClick={() =>
                                 navigate({
-                                  to: `/review/create-review/` + booking.$id,
+                                  to:
+                                    `/review/create-review/` +
+                                    booking.ownerId +
+                                    `?bookingId=${booking.$id}`,
                                 })
                               }
                               className="attractButton"
@@ -405,26 +435,35 @@ export const Route = createFileRoute("/booking/$bookingId")({
               )}
 
               {/* Booker */}
-              {!booking.paid && amIBooker && (
-                <div className=" w-full flex-between mt-5 gap-4">
-                  <Button
-                    onClick={handleCancel}
-                    variant="destructive"
-                    className=" gap-1"
-                  >
-                    Cancel
-                  </Button>
+              {booking.status === "cancelled" ? (
+                <p className=" text-center text-red">Booking Cancelled</p>
+              ) : (
+                <>
+                  {!booking.paid && amIBooker && (
+                    <div className=" w-full flex-between mt-5 gap-4">
+                      <Button
+                        onClick={handleCancel}
+                        variant="destructive"
+                        className=" gap-1"
+                      >
+                        Cancel
+                      </Button>
 
-                  {booking.ownerAccepted && (
-                    <Button onClick={handlePayment} className=" accentGradient">
-                      {creatingPaymentLink || retrievingPayment
-                        ? "Please Wait"
-                        : "Pay Booking"}{" "}
-                      {retrievingPayment ||
-                        (creatingPaymentLink && <LoadingIcon />)}
-                    </Button>
+                      {booking.ownerAccepted && (
+                        <Button
+                          onClick={handlePayment}
+                          className=" accentGradient"
+                        >
+                          {creatingPaymentLink || retrievingPayment
+                            ? "Please Wait"
+                            : "Pay Booking"}{" "}
+                          {retrievingPayment ||
+                            (creatingPaymentLink && <LoadingIcon />)}
+                        </Button>
+                      )}
+                    </div>
                   )}
-                </div>
+                </>
               )}
             </section>
           </div>

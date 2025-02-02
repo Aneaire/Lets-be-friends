@@ -15,6 +15,9 @@ export enum QUERY_KEYS {
   USER_POSTS = "userPosts",
   LIKE = "like",
 
+  // Review
+  USER_REVIEWS = "userReviews",
+
   // Conversation
   CHECK_CONVERSATION = "checkConversation",
   CONVERSATION = "conversation",
@@ -30,4 +33,7 @@ export enum QUERY_KEYS {
   BOOKING_VALIDATION = "bookingValidation",
   RECEIPT = "receipt",
   RECEIPT_IMAGE = "receiptImage",
+
+  // Reviews
+  REVIEW = "review",
 }

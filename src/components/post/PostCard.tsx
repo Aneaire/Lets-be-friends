@@ -15,6 +15,7 @@ type PostCardProps = {
 
 const PostCard = ({ posts }: PostCardProps) => {
   const { user } = useAuthStore();
+
   if (!posts) {
     return <LoadingIcon />;
   }

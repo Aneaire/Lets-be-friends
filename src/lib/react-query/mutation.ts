@@ -6,24 +6,30 @@ import {
   acceptBooking,
   bookingConfirmation,
   bookingConfirmationValidation,
+  cancelBooking,
   checkConversation,
   checkSaved,
   createAccount,
   createBooking,
   createCaptionPost,
   createPost,
+  createReview,
   deletePost,
+  expiredBooking,
   likePost,
+  likeReview,
   ReceiptUpdateValidation,
   savePost,
   sendMessage,
   signIn,
   signOutAccount,
   unlikePost,
+  unlikeReview,
   unSavePost,
   updateOwnerInfos,
   updatePost,
   updateReceipt,
+  updateReview,
   updateSupport,
   verifyAccount,
 } from "../appwrite/api";
@@ -33,7 +39,14 @@ import {
   createPaymentLinkValidation,
   retrievePaymentFromPaymongo,
 } from "../appwrite/functions";
-import { ICreateAccount, ICreatePost, IUpdatePost, IUser } from "../types";
+import {
+  ICreateAccount,
+  ICreatePost,
+  ICreateReview,
+  IUpdatePost,
+  IUpdateReview,
+  IUser,
+} from "../types";
 import { QUERY_KEYS } from "./queryKeys";
 
 // Handling accounts
@@ -124,7 +137,7 @@ export const useUpdatePost = () => {
   const { user } = useAuthStore.getState();
   return useMutation({
     mutationFn: (post: IUpdatePost) => updatePost(post),
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.USER_POSTS, user.id],
       });
@@ -135,8 +148,15 @@ export const useUpdatePost = () => {
 export const useDeletePost = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ postId, imageId }: { postId?: string; imageId: string }) =>
-      deletePost({ postId, imageId }),
+    mutationFn: ({
+      postId,
+      imageId,
+      usedDp,
+    }: {
+      postId?: string;
+      imageId: string;
+      usedDp: boolean;
+    }) => deletePost({ postId, imageId, usedDp }),
 
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -299,6 +319,18 @@ export const useAcceptBooking = (bookingId: string) => {
   });
 };
 
+export const useExpiredBooking = (bookingId: string) => {
+  return useMutation({
+    mutationFn: () => expiredBooking(bookingId),
+  });
+};
+
+export const useCancelBooking = (bookingId: string) => {
+  return useMutation({
+    mutationFn: () => cancelBooking(bookingId),
+  });
+};
+
 // Paymongo
 
 export const useCreatePaymentLink = () => {
@@ -321,5 +353,44 @@ export const useUpdateReceipt = () => {
   return useMutation({
     mutationFn: (values: z.infer<typeof ReceiptUpdateValidation>) =>
       updateReceipt({ ...values }),
+  });
+};
+
+// Reviews
+
+export const useCreateReview = () => {
+  return useMutation({
+    mutationFn: (values: ICreateReview) => createReview({ ...values }),
+  });
+};
+
+export const useUpdateReview = () => {
+  return useMutation({
+    mutationFn: (post: IUpdateReview) => updateReview(post),
+  });
+};
+
+export const useLikeReview = ({ reviewId }: { reviewId: string }) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ reviewId }: { reviewId: string }) =>
+      likeReview({ reviewId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.REVIEW, reviewId],
+      });
+    },
+  });
+};
+
+export const useUnlikeReview = ({ reviewId }: { reviewId: string }) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ likesId }: { likesId: string }) => unlikeReview({ likesId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.REVIEW, reviewId],
+      });
+    },
   });
 };

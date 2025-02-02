@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
+import { icons } from "@/constants/icons";
 import Bookings from "@/pages/manage-plan/Bookings";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 export const Route = createFileRoute("/manage-plans/")({
@@ -14,10 +15,11 @@ export const Route = createFileRoute("/manage-plans/")({
       <div className="flex flex-1 text-content">
         <div className="home-container">
           <div className="home-posts">
-            <div className=" w-full flex justify-between">
+            <div className=" w-full flex justify-between items-center">
               <h2 className="  font-bold text-xl md:text-2xl tracking-wide text-left">
                 Manage Your Plans
               </h2>
+              <Link to="/booking/history">{icons.history(24)}</Link>
             </div>
             <div className=" w-full flex flex-grow gap-2">
               <Button

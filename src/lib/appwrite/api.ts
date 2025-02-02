@@ -11,9 +11,12 @@ import {
   ICreateReview,
   IMessage,
   IPost,
+  IReview,
+  IReviewLikes,
   ISavedPost,
   ISupport,
   IUpdatePost,
+  IUpdateReview,
   IUser,
   IUserLikes,
 } from "../types";
@@ -611,7 +614,7 @@ export async function createPost(post: ICreatePost) {
 
     // Upload file to appwrite storage
     if (post.file.length > 0) {
-      const uploadedFile = await uploadFile(post.file[0]);
+      const uploadedFile = await uploadFile(post.file[0], post.accountId);
 
       if (!uploadedFile) throw Error;
 
@@ -724,9 +727,11 @@ export async function updatePost(post: IUpdatePost) {
 export async function deletePost({
   postId,
   imageId,
+  usedDp,
 }: {
   postId?: string;
   imageId: string;
+  usedDp: boolean;
 }) {
   if (!postId) throw Error;
 
@@ -743,15 +748,17 @@ export async function deletePost({
 
     if (!imageId) throw Error;
 
-    await databases.updateDocument(
-      config.mainDb,
-      config.userCollection,
-      user.id,
-      {
-        image: null,
-        imageId: null,
-      }
-    );
+    if (usedDp && user.imageId === imageId) {
+      await databases.updateDocument(
+        config.mainDb,
+        config.userCollection,
+        user.id,
+        {
+          image: null,
+          imageId: null,
+        }
+      );
+    }
 
     return { status: "ok" };
   } catch (error) {
@@ -1089,7 +1096,10 @@ export const checkIfBooked = async ({
       [
         Query.equal("ownerId", ownerId),
         Query.equal("bookerId", bookerId),
-        Query.notEqual("status", "completed"),
+        Query.or([
+          Query.equal("status", "pending"),
+          Query.equal("status", "accepted"),
+        ]),
       ]
     );
 
@@ -1105,7 +1115,13 @@ export const checkAllBookings = async (ownerId: string) => {
     const booking = await databases.listDocuments(
       config.mainDb,
       config.bookingCollection,
-      [Query.notEqual("status", "completed"), Query.equal("ownerId", ownerId)]
+      [
+        Query.or([
+          Query.equal("status", "pending"),
+          Query.equal("status", "accepted"),
+        ]),
+        Query.equal("ownerId", ownerId),
+      ]
     );
 
     if (!booking) throw Error;
@@ -1116,7 +1132,7 @@ export const checkAllBookings = async (ownerId: string) => {
   }
 };
 
-export type IBookingType = "clients" | "bookings" | "completed";
+export type IBookingType = "clients" | "bookings" | "completed" | "all";
 
 export const getBookings = async ({
   pageParam,
@@ -1126,15 +1142,26 @@ export const getBookings = async ({
   type: IBookingType;
 }) => {
   const user = useAuthStore.getState().user;
-  const queries: any[] = [
-    Query.limit(3),
-    Query.equal(
-      type === "clients" || type === "completed" ? "ownerId" : "bookerId",
-      user.id
-    ),
-  ];
+  const queries: any[] = [Query.limit(15)];
 
-  if (type !== "completed") {
+  if (type !== "all") {
+    queries.push(
+      Query.equal(
+        type === "clients" || type === "completed" ? "ownerId" : "bookerId",
+        user.id
+      )
+    );
+  } else {
+    queries.push(Query.orderDesc("$updatedAt"));
+    queries.push(
+      Query.or([
+        Query.equal("ownerId", user.id),
+        Query.equal("bookerId", user.id),
+      ])
+    );
+  }
+
+  if (type !== "completed" && type !== "all") {
     queries.push(
       Query.orderAsc("date"),
       Query.or([
@@ -1230,6 +1257,44 @@ export const bookingConfirmation = async (
   }
 };
 
+export const expiredBooking = async (id: string) => {
+  try {
+    const booking = await databases.updateDocument(
+      config.mainDb,
+      config.bookingCollection,
+      id,
+      {
+        status: "expired",
+      }
+    );
+
+    if (!booking) throw Error;
+
+    return booking;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const cancelBooking = async (id: string) => {
+  try {
+    const booking = await databases.updateDocument(
+      config.mainDb,
+      config.bookingCollection,
+      id,
+      {
+        status: "cancelled",
+      }
+    );
+
+    if (!booking) throw Error;
+
+    return booking;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 // Receipt
 
 export const ReceiptUpdateValidation = z.object({
@@ -1251,8 +1316,7 @@ export const updateReceipt = async ({
       ...(typeof middle !== "string" ? (middle ?? []) : []),
       ...(typeof end !== "string" ? (end ?? []) : []),
     ];
-    console.log("imageToUpload", imageToUpload);
-    console.log("values", { start, middle, end });
+
     let fileId; // Upload file to appwrite storage
     if (imageToUpload.length > 0) {
       const uploadedFile = await uploadBookingConfirmation(imageToUpload[0]);
@@ -1305,7 +1369,7 @@ export async function createReview(post: ICreateReview) {
 
     // Upload file to appwrite storage
     if (post.file.length > 0) {
-      const uploadedFile = await uploadFile(post.file[0]);
+      const uploadedFile = await uploadFile(post.file[0], post.accountId);
 
       if (!uploadedFile) throw Error;
 
@@ -1321,15 +1385,18 @@ export async function createReview(post: ICreateReview) {
     // Create post
     const newPost = await databases.createDocument(
       config.mainDb,
-      config.postCollection,
+      config.reviewCollection,
       ID.unique(),
       {
-        creator: post.userId,
         creatorId: post.userId,
+        creator: post.userId,
+        ownerId: post.ownerId,
         caption: post.caption,
+        stars: post.stars,
         image: post.file.length == 0 ? null : fileUrl?.fileUrl,
         imageId: post.file.length == 0 ? null : fileUrl?.id,
         likes: 0,
+        booking: post.bookingId,
       },
       userToAny(post.accountId)
     );
@@ -1340,6 +1407,159 @@ export async function createReview(post: ICreateReview) {
     }
 
     return newPost;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export async function updateReview(post: IUpdateReview) {
+  const hasFileToUpdate = post.file.length > 0;
+
+  try {
+    let image: any = {
+      imageUrl: post.image,
+      imageId: post.imageId,
+    };
+
+    if (hasFileToUpdate) {
+      if (post.imageId) await deleteFile(post.imageId);
+      const uploadedFile = await uploadFile(post.file[0]);
+      if (!uploadedFile) throw Error;
+
+      // Get file url
+      const fileUrl = getFilePreview(uploadedFile.$id);
+      if (!fileUrl) {
+        await deleteFile(uploadedFile.$id);
+        throw Error;
+      }
+      image = { ...image, imageUrl: fileUrl, imageId: uploadedFile.$id };
+    }
+
+    const newPost = await databases.updateDocument(
+      config.mainDb,
+      config.reviewCollection,
+      post.reviewId,
+      {
+        caption: post.caption,
+        image: image.image,
+        imageId: image.imageId,
+        stars: post.stars,
+      }
+    );
+
+    if (!newPost && post.imageId) {
+      await deleteFile(post.imageId);
+      throw Error;
+    }
+
+    return newPost;
+  } catch (error) {
+    defaultToast.SWW;
+  }
+}
+
+export async function getUserReviews({
+  pageParam,
+  id,
+}: {
+  pageParam: number;
+  id: string;
+}) {
+  const queries: any[] = [
+    Query.orderDesc("$createdAt"),
+    Query.equal("ownerId", id),
+    Query.limit(10),
+    Query.select(["$id", "$createdAt", "*", "creator.*"]),
+  ];
+
+  if (pageParam) {
+    queries.push(Query.cursorAfter(pageParam.toString()));
+  }
+
+  try {
+    const posts = await databases.listDocuments(
+      config.mainDb,
+      config.reviewCollection,
+      queries
+    );
+
+    if (!posts) throw Error;
+
+    return posts;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export async function getReview({ id }: { id: string }) {
+  try {
+    const post = await databases.getDocument(
+      config.mainDb,
+      config.reviewCollection,
+      id
+    );
+
+    if (!post) {
+      throw new Error("Failed to get post");
+    }
+
+    return post as IReview;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export async function likeReview({ reviewId }: { reviewId: string }) {
+  const { user } = useAuthStore.getState();
+  try {
+    const updatedPost = await databases.createDocument(
+      config.mainDb,
+      config.reviewLikesCollection,
+      ID.unique(),
+      {
+        reviewId,
+        userId: user.id,
+        review: reviewId,
+      } as IReviewLikes,
+      userToAny(user.accountId)
+    );
+
+    if (!updatedPost) throw Error;
+
+    return updatedPost;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export async function unlikeReview({ likesId }: { likesId: string }) {
+  try {
+    const deleteLike = await databases.deleteDocument(
+      config.mainDb,
+      config.reviewLikesCollection,
+      likesId
+    );
+
+    if (!deleteLike) throw Error;
+
+    return deleteLike;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export async function checkReviewLiked({ reviewId }: { reviewId: string }) {
+  const { user } = useAuthStore.getState();
+  try {
+    const updatedPost = await databases.listDocuments(
+      config.mainDb,
+      config.reviewLikesCollection,
+      [Query.equal("userId", user.id), Query.equal("reviewId", reviewId)]
+    );
+
+    if (updatedPost.documents.length === 0) return null;
+
+    return updatedPost.documents[0];
   } catch (error) {
     console.error(error);
   }

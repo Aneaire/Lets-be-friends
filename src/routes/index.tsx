@@ -3,6 +3,7 @@ import PostCaption from "@/components/post/PostCaption";
 import PostCard from "@/components/post/PostCard";
 import { PostCardSkeletonLooped } from "@/components/post/PostCardSkeleton";
 import { useGetRecentInfinitePosts } from "@/lib/react-query/queries";
+import useAuthStore from "@/store/userStore";
 import autoAnimate from "@formkit/auto-animate";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
@@ -14,6 +15,8 @@ export const Route = createFileRoute("/")({
 
 function HomeComponent() {
   const { ref, inView } = useInView();
+  const user = useAuthStore((state) => state.user);
+  console.log(user);
 
   const {
     data: posts,

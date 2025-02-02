@@ -18,12 +18,14 @@ import { Route as ExploreIndexImport } from './routes/explore/index'
 import { Route as CollectionIndexImport } from './routes/collection/index'
 import { Route as ChatsIndexImport } from './routes/chats/index'
 import { Route as VerificationSecretImport } from './routes/verification/$secret'
+import { Route as ReviewReviewIdImport } from './routes/review/$reviewId'
 import { Route as ProfileUserIdImport } from './routes/profile/$userId'
 import { Route as PostPostIdImport } from './routes/post/$postId'
 import { Route as ChatsConversationImport } from './routes/chats/$conversation'
 import { Route as BookingBookingIdImport } from './routes/booking/$bookingId'
 import { Route as ProfileUpdateProfileIndexImport } from './routes/profile/update-profile/index'
 import { Route as PostCreatePostIndexImport } from './routes/post/create-post/index'
+import { Route as BookingHistoryIndexImport } from './routes/booking/history/index'
 import { Route as ReviewCreateReviewUserIdImport } from './routes/review/create-review/$userId'
 import { Route as ProfileScheduleSupportIdImport } from './routes/profile/schedule/$supportId'
 import { Route as PostUpdatePostPostIdImport } from './routes/post/update-post/$postId'
@@ -65,6 +67,11 @@ const VerificationSecretRoute = VerificationSecretImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const ReviewReviewIdRoute = ReviewReviewIdImport.update({
+  path: '/review/$reviewId',
+  getParentRoute: () => rootRoute,
+} as any)
+
 const ProfileUserIdRoute = ProfileUserIdImport.update({
   path: '/profile/$userId',
   getParentRoute: () => rootRoute,
@@ -92,6 +99,11 @@ const ProfileUpdateProfileIndexRoute = ProfileUpdateProfileIndexImport.update({
 
 const PostCreatePostIndexRoute = PostCreatePostIndexImport.update({
   path: '/post/create-post/',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const BookingHistoryIndexRoute = BookingHistoryIndexImport.update({
+  path: '/booking/history/',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -147,6 +159,13 @@ declare module '@tanstack/react-router' {
       path: '/profile/$userId'
       fullPath: '/profile/$userId'
       preLoaderRoute: typeof ProfileUserIdImport
+      parentRoute: typeof rootRoute
+    }
+    '/review/$reviewId': {
+      id: '/review/$reviewId'
+      path: '/review/$reviewId'
+      fullPath: '/review/$reviewId'
+      preLoaderRoute: typeof ReviewReviewIdImport
       parentRoute: typeof rootRoute
     }
     '/verification/$secret': {
@@ -212,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReviewCreateReviewUserIdImport
       parentRoute: typeof rootRoute
     }
+    '/booking/history/': {
+      id: '/booking/history/'
+      path: '/booking/history'
+      fullPath: '/booking/history'
+      preLoaderRoute: typeof BookingHistoryIndexImport
+      parentRoute: typeof rootRoute
+    }
     '/post/create-post/': {
       id: '/post/create-post/'
       path: '/post/create-post'
@@ -237,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/chats/$conversation': typeof ChatsConversationRoute
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
+  '/review/$reviewId': typeof ReviewReviewIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
   '/chats': typeof ChatsIndexRoute
   '/collection': typeof CollectionIndexRoute
@@ -246,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
   '/profile/schedule/$supportId': typeof ProfileScheduleSupportIdRoute
   '/review/create-review/$userId': typeof ReviewCreateReviewUserIdRoute
+  '/booking/history': typeof BookingHistoryIndexRoute
   '/post/create-post': typeof PostCreatePostIndexRoute
   '/profile/update-profile': typeof ProfileUpdateProfileIndexRoute
 }
@@ -256,6 +284,7 @@ export interface FileRoutesByTo {
   '/chats/$conversation': typeof ChatsConversationRoute
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
+  '/review/$reviewId': typeof ReviewReviewIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
   '/chats': typeof ChatsIndexRoute
   '/collection': typeof CollectionIndexRoute
@@ -265,6 +294,7 @@ export interface FileRoutesByTo {
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
   '/profile/schedule/$supportId': typeof ProfileScheduleSupportIdRoute
   '/review/create-review/$userId': typeof ReviewCreateReviewUserIdRoute
+  '/booking/history': typeof BookingHistoryIndexRoute
   '/post/create-post': typeof PostCreatePostIndexRoute
   '/profile/update-profile': typeof ProfileUpdateProfileIndexRoute
 }
@@ -276,6 +306,7 @@ export interface FileRoutesById {
   '/chats/$conversation': typeof ChatsConversationRoute
   '/post/$postId': typeof PostPostIdRoute
   '/profile/$userId': typeof ProfileUserIdRoute
+  '/review/$reviewId': typeof ReviewReviewIdRoute
   '/verification/$secret': typeof VerificationSecretRoute
   '/chats/': typeof ChatsIndexRoute
   '/collection/': typeof CollectionIndexRoute
@@ -285,6 +316,7 @@ export interface FileRoutesById {
   '/post/update-post/$postId': typeof PostUpdatePostPostIdRoute
   '/profile/schedule/$supportId': typeof ProfileScheduleSupportIdRoute
   '/review/create-review/$userId': typeof ReviewCreateReviewUserIdRoute
+  '/booking/history/': typeof BookingHistoryIndexRoute
   '/post/create-post/': typeof PostCreatePostIndexRoute
   '/profile/update-profile/': typeof ProfileUpdateProfileIndexRoute
 }
@@ -297,6 +329,7 @@ export interface FileRouteTypes {
     | '/chats/$conversation'
     | '/post/$postId'
     | '/profile/$userId'
+    | '/review/$reviewId'
     | '/verification/$secret'
     | '/chats'
     | '/collection'
@@ -306,6 +339,7 @@ export interface FileRouteTypes {
     | '/post/update-post/$postId'
     | '/profile/schedule/$supportId'
     | '/review/create-review/$userId'
+    | '/booking/history'
     | '/post/create-post'
     | '/profile/update-profile'
   fileRoutesByTo: FileRoutesByTo
@@ -315,6 +349,7 @@ export interface FileRouteTypes {
     | '/chats/$conversation'
     | '/post/$postId'
     | '/profile/$userId'
+    | '/review/$reviewId'
     | '/verification/$secret'
     | '/chats'
     | '/collection'
@@ -324,6 +359,7 @@ export interface FileRouteTypes {
     | '/post/update-post/$postId'
     | '/profile/schedule/$supportId'
     | '/review/create-review/$userId'
+    | '/booking/history'
     | '/post/create-post'
     | '/profile/update-profile'
   id:
@@ -333,6 +369,7 @@ export interface FileRouteTypes {
     | '/chats/$conversation'
     | '/post/$postId'
     | '/profile/$userId'
+    | '/review/$reviewId'
     | '/verification/$secret'
     | '/chats/'
     | '/collection/'
@@ -342,6 +379,7 @@ export interface FileRouteTypes {
     | '/post/update-post/$postId'
     | '/profile/schedule/$supportId'
     | '/review/create-review/$userId'
+    | '/booking/history/'
     | '/post/create-post/'
     | '/profile/update-profile/'
   fileRoutesById: FileRoutesById
@@ -353,6 +391,7 @@ export interface RootRouteChildren {
   ChatsConversationRoute: typeof ChatsConversationRoute
   PostPostIdRoute: typeof PostPostIdRoute
   ProfileUserIdRoute: typeof ProfileUserIdRoute
+  ReviewReviewIdRoute: typeof ReviewReviewIdRoute
   VerificationSecretRoute: typeof VerificationSecretRoute
   ChatsIndexRoute: typeof ChatsIndexRoute
   CollectionIndexRoute: typeof CollectionIndexRoute
@@ -362,6 +401,7 @@ export interface RootRouteChildren {
   PostUpdatePostPostIdRoute: typeof PostUpdatePostPostIdRoute
   ProfileScheduleSupportIdRoute: typeof ProfileScheduleSupportIdRoute
   ReviewCreateReviewUserIdRoute: typeof ReviewCreateReviewUserIdRoute
+  BookingHistoryIndexRoute: typeof BookingHistoryIndexRoute
   PostCreatePostIndexRoute: typeof PostCreatePostIndexRoute
   ProfileUpdateProfileIndexRoute: typeof ProfileUpdateProfileIndexRoute
 }
@@ -372,6 +412,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatsConversationRoute: ChatsConversationRoute,
   PostPostIdRoute: PostPostIdRoute,
   ProfileUserIdRoute: ProfileUserIdRoute,
+  ReviewReviewIdRoute: ReviewReviewIdRoute,
   VerificationSecretRoute: VerificationSecretRoute,
   ChatsIndexRoute: ChatsIndexRoute,
   CollectionIndexRoute: CollectionIndexRoute,
@@ -381,6 +422,7 @@ const rootRouteChildren: RootRouteChildren = {
   PostUpdatePostPostIdRoute: PostUpdatePostPostIdRoute,
   ProfileScheduleSupportIdRoute: ProfileScheduleSupportIdRoute,
   ReviewCreateReviewUserIdRoute: ReviewCreateReviewUserIdRoute,
+  BookingHistoryIndexRoute: BookingHistoryIndexRoute,
   PostCreatePostIndexRoute: PostCreatePostIndexRoute,
   ProfileUpdateProfileIndexRoute: ProfileUpdateProfileIndexRoute,
 }
@@ -402,6 +444,7 @@ export const routeTree = rootRoute
         "/chats/$conversation",
         "/post/$postId",
         "/profile/$userId",
+        "/review/$reviewId",
         "/verification/$secret",
         "/chats/",
         "/collection/",
@@ -411,6 +454,7 @@ export const routeTree = rootRoute
         "/post/update-post/$postId",
         "/profile/schedule/$supportId",
         "/review/create-review/$userId",
+        "/booking/history/",
         "/post/create-post/",
         "/profile/update-profile/"
       ]
@@ -429,6 +473,9 @@ export const routeTree = rootRoute
     },
     "/profile/$userId": {
       "filePath": "profile/$userId.tsx"
+    },
+    "/review/$reviewId": {
+      "filePath": "review/$reviewId.tsx"
     },
     "/verification/$secret": {
       "filePath": "verification/$secret.tsx"
@@ -456,6 +503,9 @@ export const routeTree = rootRoute
     },
     "/review/create-review/$userId": {
       "filePath": "review/create-review/$userId.tsx"
+    },
+    "/booking/history/": {
+      "filePath": "booking/history/index.tsx"
     },
     "/post/create-post/": {
       "filePath": "post/create-post/index.tsx"
