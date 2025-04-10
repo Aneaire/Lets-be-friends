@@ -61,10 +61,10 @@ export const Route = createFileRoute("/chats/$conversation")({
         const message = await sendMessage({
           body: inputMessage,
           collectionId: collectionId!,
-          conversation,
         });
+        console.log(message);
+        setInputMessage("");
         if (message) {
-          setInputMessage("");
           scrollToBottom();
         }
       } catch (error: any) {

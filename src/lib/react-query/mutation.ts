@@ -145,7 +145,7 @@ export const useUpdatePost = () => {
   });
 };
 
-export const useDeletePost = () => {
+export const useDeletePost = (postId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -160,7 +160,13 @@ export const useDeletePost = () => {
 
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [QUERY_KEYS.RECENT_POST],
+        queryKey: [QUERY_KEYS.RECENT_POST, postId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.POST, postId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.USER_POSTS, postId],
       });
     },
   });
@@ -269,11 +275,8 @@ export const useCheckConversation = () => {
 
 export const useSendMessage = () => {
   return useMutation({
-    mutationFn: (values: {
-      conversation: string;
-      collectionId: string;
-      body: string;
-    }) => sendMessage({ ...values }),
+    mutationFn: (values: { collectionId: string; body: string }) =>
+      sendMessage({ ...values }),
   });
 };
 

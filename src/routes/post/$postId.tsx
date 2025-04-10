@@ -16,8 +16,8 @@ export const Route = createFileRoute("/post/$postId")({
     const { postId } = useParams({ strict: false });
     const user = useAuthStore((state) => state.user);
     const { data: post, isLoading } = useGetPost(postId ? postId : "");
-    const { isPending: isDeleting } = useDeletePost();
-    console.log(post);
+    const { isPending: isDeleting } = useDeletePost(postId!);
+
     const whoOwnerIs = user?.accountId == post?.creator.accountId;
     const creatorAccess = whoOwnerIs ? (
       <div className={` flex-end flex-1 gap-1`}>

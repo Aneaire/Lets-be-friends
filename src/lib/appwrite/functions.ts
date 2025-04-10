@@ -38,7 +38,7 @@ export const updateConversation = async ({
   body: string;
 }) => {
   try {
-    const convo = await functions.createExecution(
+    await functions.createExecution(
       config.manageConversationFnId,
       JSON.stringify({
         conversation,
@@ -46,7 +46,6 @@ export const updateConversation = async ({
         body: body.slice(0, 35),
       })
     );
-    return convo.responseBody;
   } catch (error) {
     console.error(error);
   }

@@ -45,8 +45,9 @@ const Messages = ({
   // Subscribe to real-time updates
   useEffect(() => {
     const unsubscribe = client.subscribe(
-      [`databases.${config.chatDb}.collections.${conversationId}.documents`],
+      `databases.${config.chatDb}.collections.${conversationId}.documents`,
       (event: any) => {
+        console.log(event.payload);
         if (!currentMessageIds.has(event.payload.$id)) {
           setMessages((prevMessages) => [event.payload, ...prevMessages]);
         }
@@ -83,7 +84,7 @@ const Messages = ({
                 : "bg-accent-1"
             }`}
           >
-            <p className="text-sm font-medium">{message.body}</p>
+            <p className="text-sm font-medium break-words">{message.body}</p>
             <div className="text-xs text-muted-foreground flex justify-between">
               <span>
                 {new Date(message.$createdAt).toLocaleTimeString([], {

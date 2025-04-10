@@ -23,6 +23,7 @@ export const Route = createFileRoute("/profile/update-profile/")({
           behavior: "smooth",
         });
     }, [toggleSupport]);
+
     return (
       <div className="max-w-5xl mx-auto  flex flex-1 text-content overflow-x-hidden">
         <div className=" common-container">

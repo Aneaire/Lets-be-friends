@@ -135,6 +135,8 @@ export const Route = createFileRoute("/profile/$userId")({
             <PostCaption />{" "}
           </div>
         )}
+
+        {/* posts */}
         <div className=" flex justify-end max-w-screen-sm mx-auto ">
           <Button
             onClick={() =>

@@ -22,7 +22,7 @@ const ChatBlock = ({
   const navigate = useNavigate({ from: "/chats" });
   const handleRedirect = () => {
     navigate({
-      to: `/chats/${conversation.conversationId}`,
+      to: `/chats/${conversation.$id}`,
       search: { userId, conversation: conversation.$id },
     });
   };

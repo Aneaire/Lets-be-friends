@@ -43,7 +43,6 @@ const EditOwnerInfos = ({ owner }: { owner: IUser }) => {
   });
 
   const onSubmit = (data: z.infer<typeof ownerInfoValidation>) => {
-    console.log(owner);
     updateOwnerInfos({
       bio: data.bio,
       bday: data.bday,
@@ -51,6 +50,7 @@ const EditOwnerInfos = ({ owner }: { owner: IUser }) => {
       userId: owner.$id,
     });
   };
+
   return (
     <Form {...form}>
       <form className=" space-y-3" onSubmit={form.handleSubmit(onSubmit)}>

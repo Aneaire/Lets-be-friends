@@ -27,7 +27,6 @@ import {
   uploadFile,
 } from "./buckets";
 import { account, config, databases, storage } from "./config";
-import { updateConversation } from "./functions";
 import { userAccess, userToAny, userToAnyUpdate } from "./permissions";
 
 // Handling accounts
@@ -947,7 +946,11 @@ export async function checkConversation({
     const conversations = await databases.listDocuments(
       config.mainDb,
       config.conversationCollection,
-      [Query.contains("userIds", userId1), Query.contains("userIds", userId2)]
+      [
+        Query.contains("userIds", userId1),
+        Query.contains("userIds", userId2),
+        Query.select(["$id"]),
+      ]
     );
 
     console.log("Have a conversation", conversations);
@@ -1009,11 +1012,9 @@ export async function getMessages({
 
 export async function sendMessage({
   collectionId,
-  conversation,
   body,
 }: {
   collectionId: string;
-  conversation: string;
   body: string;
 }) {
   try {
@@ -1029,12 +1030,6 @@ export async function sendMessage({
     ); // TODO: Replace with actual message sending logic
 
     if (!newMessage) throw Error;
-
-    const updatedConversation = await updateConversation({
-      conversation,
-      sender: user.id,
-      body,
-    }).then(() => console.log("Updated conversation"));
 
     return newMessage as IMessage;
   } catch (error) {

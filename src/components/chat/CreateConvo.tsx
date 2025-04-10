@@ -32,7 +32,7 @@ const CreateConvo = ({
     }).then((data) => {
       if (data) {
         navigate({
-          to: `/chats/${data.conversationId}`,
+          to: `/chats/${data.$id}`,
           search: { userId, conversation: data.$id },
         });
       } else {
@@ -45,7 +45,7 @@ const CreateConvo = ({
           toast.success("Conversation created");
           const parsedData: IConversation = JSON.parse(data!);
           navigate({
-            to: `/chats/${parsedData.conversationId}`,
+            to: `/chats/${parsedData.$id}`,
             search: { userId: userId, conversation: parsedData.$id },
           });
         });
