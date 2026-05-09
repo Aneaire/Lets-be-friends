@@ -1,0 +1,16 @@
+{
+  "name": "lets-be-friends",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.24.0",
+  "scripts": {
+    "dev": "pnpm --filter @lets-be-friends/web dev",
+    "build": "pnpm --filter @lets-be-friends/web build",
+    "test": "pnpm --filter @lets-be-friends/web test",
+    "typecheck": "pnpm --filter @lets-be-friends/web typecheck",
+    "convex:codegen": "pnpm --filter @lets-be-friends/web convex:codegen"
+  },
+  "devDependencies": {
+    "pnpm": "^10.24.0"
+  }
+}

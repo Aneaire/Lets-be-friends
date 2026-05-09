@@ -1,0 +1,67 @@
+export const friendStrengths = [
+  'Good listener',
+  'Local tour buddy',
+  'Coffee companion',
+  'Language practice',
+  'Study partner',
+  'Fitness buddy',
+  'Gaming teammate',
+  'Food trip companion',
+  'Event buddy',
+  'Photography walk partner',
+  'Online chat friend',
+  'Hobby mentor',
+] as const
+
+export const activityCategories = [
+  'Coffee or meal companion',
+  'Local walk or city guide',
+  'Study or productivity buddy',
+  'Language practice',
+  'Gaming session',
+  'Hobby session',
+  'Event companion',
+  'Fitness or outdoor buddy',
+  'Online conversation',
+  'Online coworking',
+  'Travel or neighborhood guide',
+  'Photography or creative walk',
+] as const
+
+export const bookingStatuses = [
+  'draft',
+  'verification_required',
+  'pending_admin_review',
+  'request_sent',
+  'accepted',
+  'declined',
+  'cancelled',
+  'completed',
+  'review_window',
+  'closed',
+] as const
+
+export const verificationStatuses = ['not_started', 'pending', 'approved', 'rejected'] as const
+export const userRoles = ['member', 'friend_host', 'reviewer', 'owner'] as const
+export const hostApplicationStatuses = ['draft', 'pending_review', 'approved', 'rejected', 'suspended'] as const
+export const reportStatuses = ['open', 'reviewing', 'resolved', 'dismissed'] as const
+
+export type FriendStrength = (typeof friendStrengths)[number]
+export type ActivityCategory = (typeof activityCategories)[number]
+export type BookingStatus = (typeof bookingStatuses)[number]
+export type VerificationStatus = (typeof verificationStatuses)[number]
+export type UserRole = (typeof userRoles)[number]
+export type HostApplicationStatus = (typeof hostApplicationStatuses)[number]
+export type ReportStatus = (typeof reportStatuses)[number]
+
+export function canBookingChat(status: BookingStatus) {
+  return ['request_sent', 'accepted', 'completed', 'review_window'].includes(status)
+}
+
+export function requiresVerificationForBooking(status: VerificationStatus) {
+  return status !== 'approved'
+}
+
+export function isAdminRole(role: UserRole) {
+  return role === 'owner' || role === 'reviewer'
+}

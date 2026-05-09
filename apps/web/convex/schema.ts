@@ -1,0 +1,101 @@
+import { defineSchema, defineTable } from 'convex/server'
+import { v } from 'convex/values'
+
+const role = v.union(v.literal('member'), v.literal('friend_host'), v.literal('reviewer'), v.literal('owner'))
+const verificationStatus = v.union(v.literal('not_started'), v.literal('pending'), v.literal('approved'), v.literal('rejected'))
+const hostStatus = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'))
+const bookingStatus = v.union(v.literal('draft'), v.literal('verification_required'), v.literal('pending_admin_review'), v.literal('request_sent'), v.literal('accepted'), v.literal('declined'), v.literal('cancelled'), v.literal('completed'), v.literal('review_window'), v.literal('closed'))
+const mode = v.union(v.literal('online'), v.literal('in_person'), v.literal('both'))
+
+export default defineSchema({
+  users: defineTable({
+    clerkUserId: v.string(),
+    displayName: v.string(),
+    role,
+    verificationStatus,
+    suspended: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_clerk_user_id', ['clerkUserId']).index('by_role', ['role']),
+  verificationRequests: defineTable({
+    userId: v.id('users'),
+    reason: v.union(v.literal('booking'), v.literal('host_application'), v.literal('reverification')),
+    personaInquiryId: v.optional(v.string()),
+    personaStatus: verificationStatus,
+    adminStatus: verificationStatus,
+    bookingId: v.optional(v.id('bookings')),
+    hostProfileId: v.optional(v.id('hostProfiles')),
+    reviewerUserId: v.optional(v.id('users')),
+    reviewerNote: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_user', ['userId']).index('by_admin_status', ['adminStatus']).index('by_booking', ['bookingId']).index('by_host_profile', ['hostProfileId']),
+  hostProfiles: defineTable({
+    userId: v.id('users'),
+    displayName: v.string(),
+    intro: v.string(),
+    city: v.string(),
+    approximateArea: v.optional(v.string()),
+    strengths: v.array(v.string()),
+    categories: v.array(v.string()),
+    boundaries: v.array(v.string()),
+    mode,
+    status: hostStatus,
+    applicationNote: v.optional(v.string()),
+    reviewerUserId: v.optional(v.id('users')),
+    reviewerNote: v.optional(v.string()),
+    rating: v.number(),
+    reviewCount: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_user', ['userId']).index('by_status', ['status']),
+  bookings: defineTable({
+    memberId: v.id('users'),
+    hostProfileId: v.id('hostProfiles'),
+    category: v.string(),
+    mode: v.union(v.literal('online'), v.literal('in_person')),
+    requestedAt: v.number(),
+    durationMinutes: v.number(),
+    notes: v.optional(v.string()),
+    status: bookingStatus,
+    verificationRequestId: v.optional(v.id('verificationRequests')),
+    hostDecisionNote: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_member', ['memberId']).index('by_host', ['hostProfileId']).index('by_status', ['status']),
+  messages: defineTable({
+    bookingId: v.id('bookings'),
+    senderId: v.id('users'),
+    body: v.string(),
+    reportable: v.boolean(),
+    createdAt: v.number(),
+  }).index('by_booking', ['bookingId']),
+  reviews: defineTable({
+    bookingId: v.id('bookings'),
+    reviewerId: v.id('users'),
+    revieweeId: v.id('users'),
+    hostProfileId: v.optional(v.id('hostProfiles')),
+    rating: v.number(),
+    body: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index('by_booking', ['bookingId']).index('by_host_profile', ['hostProfileId']).index('by_reviewee', ['revieweeId']),
+  reports: defineTable({
+    reporterId: v.id('users'),
+    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('user')),
+    targetId: v.string(),
+    reason: v.string(),
+    status: v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed')),
+    reviewerUserId: v.optional(v.id('users')),
+    reviewerNote: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_status', ['status']).index('by_reporter', ['reporterId']),
+  auditLogs: defineTable({
+    actorUserId: v.optional(v.id('users')),
+    action: v.string(),
+    targetType: v.string(),
+    targetId: v.optional(v.string()),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index('by_created_at', ['createdAt']),
+})
