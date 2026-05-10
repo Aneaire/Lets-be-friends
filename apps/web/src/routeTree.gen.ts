@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SafetyRouteImport } from './routes/safety'
+import { Route as HostRouteImport } from './routes/host'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as BecomeHostRouteImport } from './routes/become-host'
 import { Route as AppRouteImport } from './routes/app'
@@ -19,6 +20,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const SafetyRoute = SafetyRouteImport.update({
   id: '/safety',
   path: '/safety',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HostRoute = HostRouteImport.update({
+  id: '/host',
+  path: '/host',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DiscoverRoute = DiscoverRouteImport.update({
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRoute
   '/become-host': typeof BecomeHostRoute
   '/discover': typeof DiscoverRoute
+  '/host': typeof HostRoute
   '/safety': typeof SafetyRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppRoute
   '/become-host': typeof BecomeHostRoute
   '/discover': typeof DiscoverRoute
+  '/host': typeof HostRoute
   '/safety': typeof SafetyRoute
 }
 export interface FileRoutesById {
@@ -70,13 +78,28 @@ export interface FileRoutesById {
   '/app': typeof AppRoute
   '/become-host': typeof BecomeHostRoute
   '/discover': typeof DiscoverRoute
+  '/host': typeof HostRoute
   '/safety': typeof SafetyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/app' | '/become-host' | '/discover' | '/safety'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/app'
+    | '/become-host'
+    | '/discover'
+    | '/host'
+    | '/safety'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/app' | '/become-host' | '/discover' | '/safety'
+  to:
+    | '/'
+    | '/admin'
+    | '/app'
+    | '/become-host'
+    | '/discover'
+    | '/host'
+    | '/safety'
   id:
     | '__root__'
     | '/'
@@ -84,6 +107,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/become-host'
     | '/discover'
+    | '/host'
     | '/safety'
   fileRoutesById: FileRoutesById
 }
@@ -93,6 +117,7 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRoute
   BecomeHostRoute: typeof BecomeHostRoute
   DiscoverRoute: typeof DiscoverRoute
+  HostRoute: typeof HostRoute
   SafetyRoute: typeof SafetyRoute
 }
 
@@ -103,6 +128,13 @@ declare module '@tanstack/react-router' {
       path: '/safety'
       fullPath: '/safety'
       preLoaderRoute: typeof SafetyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/host': {
+      id: '/host'
+      path: '/host'
+      fullPath: '/host'
+      preLoaderRoute: typeof HostRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/discover': {
@@ -149,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRoute,
   BecomeHostRoute: BecomeHostRoute,
   DiscoverRoute: DiscoverRoute,
+  HostRoute: HostRoute,
   SafetyRoute: SafetyRoute,
 }
 export const routeTree = rootRouteImport

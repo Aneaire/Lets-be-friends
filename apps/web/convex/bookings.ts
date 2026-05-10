@@ -20,6 +20,27 @@ export const mine = query({
   },
 })
 
+export const forHost = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewer(ctx)
+    if (!viewer) return []
+    if (viewer.suspended) throw new Error('Account is suspended')
+    const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    if (!host) return []
+    const bookings = await ctx.db.query('bookings').withIndex('by_host', (q) => q.eq('hostProfileId', host._id)).order('desc').collect()
+    return await Promise.all(bookings.map(async (booking) => {
+      const member = await ctx.db.get(booking.memberId)
+      return {
+        ...booking,
+        memberDisplayName: member?.displayName ?? 'Member',
+        hostDisplayName: host.displayName,
+        hostCity: host.city,
+      }
+    }))
+  },
+})
+
 export const createDraft = mutation({
   args: {
     hostProfileId: v.id('hostProfiles'),

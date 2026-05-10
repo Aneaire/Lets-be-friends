@@ -26,6 +26,15 @@ export const ensureViewer = mutation({
       await ctx.db.patch(existing._id, { displayName: args.displayName, updatedAt: now })
       return existing._id
     }
-    return await ctx.db.insert('users', { clerkUserId, displayName: args.displayName, role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now, updatedAt: now })
+    const existingOwner = await ctx.db.query('users').withIndex('by_role', (q) => q.eq('role', 'owner')).first()
+    return await ctx.db.insert('users', {
+      clerkUserId,
+      displayName: args.displayName,
+      role: existingOwner ? 'member' : 'owner',
+      verificationStatus: 'not_started',
+      suspended: false,
+      createdAt: now,
+      updatedAt: now,
+    })
   },
 })

@@ -189,8 +189,8 @@ function AppPage() {
                           await sendMessage({ bookingId: booking._id, body })
                           setNotice('Message sent.')
                         }}
-                        onReview={async () => {
-                          await submitReview({ bookingId: booking._id, rating: 5, body: 'Safe, friendly experience.' })
+                        onReview={async (rating, body) => {
+                          await submitReview({ bookingId: booking._id, rating, body })
                           setNotice('Review submitted.')
                         }}
                         onReport={async () => {
@@ -226,8 +226,8 @@ function AppPage() {
                           await sendMessage({ bookingId: booking._id, body })
                           setNotice('Message sent.')
                         }}
-                        onReview={async () => {
-                          await submitReview({ bookingId: booking._id, rating: 5, body: 'Safe, friendly experience.' })
+                        onReview={async (rating, body) => {
+                          await submitReview({ bookingId: booking._id, rating, body })
                           setNotice('Review submitted.')
                         }}
                         onReport={async () => {
@@ -266,12 +266,13 @@ function BookingRow({
 }: {
   booking: Booking
   onSendMessage: (body: string) => Promise<void>
-  onReview: () => Promise<void>
+  onReview: (rating: number, body?: string) => Promise<void>
   onReport: () => Promise<void>
 }) {
   const status = statusCopy[booking.status as BookingStatus] ?? { label: booking.status, tone: 'self' as const }
   const canChat = ['request_sent', 'accepted', 'completed', 'review_window'].includes(booking.status)
   const canReview = ['completed', 'review_window'].includes(booking.status)
+  const messages = useQuery(api.bookings.messages, canChat ? { bookingId: booking._id } : 'skip')
 
   return (
     <article className="worklist-row">
@@ -326,17 +327,55 @@ function BookingRow({
               <button className="btn btn-social btn-sm">Send</button>
             </form>
           )}
-          {canReview && (
-            <button onClick={onReview} className="btn btn-social-quiet btn-sm">
-              Leave 5-star review
-            </button>
-          )}
+          {canReview && <ReviewForm onReview={onReview} />}
           <button onClick={onReport} className="btn btn-danger btn-sm">
             Report
           </button>
         </div>
       )}
+      {canChat && <MessageThread messages={messages ?? []} />}
     </article>
+  )
+}
+
+function MessageThread({ messages }: { messages: Array<{ _id: string; body: string; createdAt: number }> }) {
+  if (messages.length === 0) return null
+  return (
+    <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-3 space-y-2">
+      <p className="text-tiny uppercase tracking-wide text-[color:var(--text-soft)]">Messages</p>
+      {messages.slice(-5).map((message) => (
+        <div key={message._id} className="text-meta">
+          <span className="tabular text-soft">{formatRequestedAt(message.createdAt)}</span>
+          <span className="mx-2 text-soft">·</span>
+          <span>{message.body}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ReviewForm({ onReview }: { onReview: (rating: number, body?: string) => Promise<void> }) {
+  return (
+    <form
+      className="flex items-center gap-2 flex-wrap"
+      onSubmit={async (event) => {
+        event.preventDefault()
+        const form = event.currentTarget
+        const data = new FormData(form)
+        await onReview(Number(data.get('rating')), String(data.get('body') || '') || undefined)
+        form.reset()
+      }}
+    >
+      <select name="rating" className="field max-w-24" defaultValue="5" aria-label="Review rating">
+        <option value="5">5★</option>
+        <option value="4">4★</option>
+        <option value="3">3★</option>
+        <option value="2">2★</option>
+        <option value="1">1★</option>
+      </select>
+      <input name="body" className="field min-w-[220px]" placeholder="Review note" />
+      <button className="btn btn-social-quiet btn-sm">Leave review</button>
+    </form>
   )
 }
 

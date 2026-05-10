@@ -4,7 +4,7 @@ import { SignInButton, UserButton, useAuth } from '@clerk/react'
 import { BrandLogo } from './BrandLogo'
 import { ThemeToggle } from './ThemeToggle'
 
-const workspaceRoutes = ['/app', '/admin']
+const workspaceRoutes = ['/app', '/host', '/admin']
 
 function useSurface(): 'marketing' | 'workspace' {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
@@ -62,6 +62,9 @@ function WorkspaceTopLinks() {
     <>
       <Link to="/app" search={{}} className="nav-link" activeProps={{ 'aria-current': 'page' }}>
         Member
+      </Link>
+      <Link to="/host" className="nav-link" activeProps={{ 'aria-current': 'page' }}>
+        Host
       </Link>
       <AuthOnly>
         <Link to="/admin" className="nav-link" activeProps={{ 'aria-current': 'page' }}>
