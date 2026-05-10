@@ -50,7 +50,7 @@ function AppPage() {
   const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
   const bookings = useQuery(api.bookings.mine, viewer ? {} : 'skip')
-  const approvedHosts = useQuery(api.hosts.listApproved) as ApprovedHostOption[] | undefined
+  const approvedHosts = useQuery(api.hosts.listApproved, {}) as ApprovedHostOption[] | undefined
   const bookableHosts = useMemo(() => (approvedHosts ?? []).filter((host) => host.bookable && !host.demo), [approvedHosts])
   const ensureUser = useMutation(api.users.ensureViewer)
   const createDraft = useMutation(api.bookings.createDraft)

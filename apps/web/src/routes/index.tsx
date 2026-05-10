@@ -33,7 +33,7 @@ const trustGates = [
 ] as const
 
 function HomePage() {
-  const hosts = (useQuery(api.hosts.listApproved) ?? []) as HomeHost[]
+  const hosts = (useQuery(api.hosts.listApproved, {}) ?? []) as HomeHost[]
   const featured = hosts.slice(0, 4)
 
   return (

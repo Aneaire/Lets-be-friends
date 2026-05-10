@@ -36,6 +36,8 @@ export default defineSchema({
     intro: v.string(),
     city: v.string(),
     approximateArea: v.optional(v.string()),
+    approximateLatitude: v.optional(v.number()),
+    approximateLongitude: v.optional(v.number()),
     strengths: v.array(v.string()),
     categories: v.array(v.string()),
     boundaries: v.array(v.string()),

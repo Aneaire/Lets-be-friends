@@ -9,19 +9,43 @@ const demoHosts = [
 ] as const
 
 export const listApproved = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    latitude: v.optional(v.number()),
+    longitude: v.optional(v.number()),
+    radiusKm: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
     const viewer = await getViewer(ctx)
     const hosts = await ctx.db.query('hostProfiles').withIndex('by_status', (q) => q.eq('status', 'approved')).collect()
     if (hosts.length === 0) return demoHosts as any
-    return await Promise.all(hosts.map(async (host) => ({
-      ...host,
-      _id: host._id,
-      bookable: true,
-      demo: false,
-      saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
-      following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
-    })))
+    const radiusKm = Math.min(Math.max(args.radiusKm ?? 25, 1), 200)
+    const hasOrigin = typeof args.latitude === 'number' && typeof args.longitude === 'number'
+    const withDistance = hosts
+      .map((host) => ({
+        host,
+        distanceKm: hasOrigin && typeof host.approximateLatitude === 'number' && typeof host.approximateLongitude === 'number'
+          ? distanceKm(args.latitude!, args.longitude!, host.approximateLatitude, host.approximateLongitude)
+          : undefined,
+      }))
+      .filter(({ host, distanceKm }) => !hasOrigin || host.mode === 'online' || (typeof distanceKm === 'number' && distanceKm <= radiusKm))
+      .sort((a, b) => {
+        if (!hasOrigin) return b.host.rating - a.host.rating
+        if (a.host.mode === 'online' && b.host.mode !== 'online') return 1
+        if (b.host.mode === 'online' && a.host.mode !== 'online') return -1
+        return (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY)
+      })
+
+    return await Promise.all(withDistance.map(async ({ host, distanceKm }) => ({
+        ...host,
+        approximateLatitude: undefined,
+        approximateLongitude: undefined,
+        distanceKm: typeof distanceKm === 'number' ? Math.round(distanceKm * 10) / 10 : undefined,
+        _id: host._id,
+        bookable: true,
+        demo: false,
+        saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
+        following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
+      })))
   },
 })
 
@@ -72,6 +96,8 @@ export const submitApplication = mutation({
     intro: v.string(),
     city: v.string(),
     approximateArea: v.optional(v.string()),
+    approximateLatitude: v.optional(v.number()),
+    approximateLongitude: v.optional(v.number()),
     strengths: v.array(v.string()),
     categories: v.array(v.string()),
     boundaries: v.array(v.string()),
@@ -81,8 +107,10 @@ export const submitApplication = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const now = Date.now()
+    const approximateLatitude = typeof args.approximateLatitude === 'number' ? roundCoordinate(args.approximateLatitude) : undefined
+    const approximateLongitude = typeof args.approximateLongitude === 'number' ? roundCoordinate(args.approximateLongitude) : undefined
     const existing = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
-    const patch = { ...args, status: 'pending_review' as const, rating: existing?.rating ?? 0, reviewCount: existing?.reviewCount ?? 0, updatedAt: now }
+    const patch = { ...args, approximateLatitude, approximateLongitude, status: 'pending_review' as const, rating: existing?.rating ?? 0, reviewCount: existing?.reviewCount ?? 0, updatedAt: now }
     const hostProfileId = existing
       ? (await ctx.db.patch(existing._id, patch), existing._id)
       : await ctx.db.insert('hostProfiles', { userId: viewer._id, ...patch, createdAt: now })
@@ -101,3 +129,19 @@ export const submitApplication = mutation({
     return hostProfileId
   },
 })
+
+function roundCoordinate(value: number) {
+  return Math.round(value * 100) / 100
+}
+
+function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const earthRadiusKm = 6371
+  const dLat = toRadians(lat2 - lat1)
+  const dLon = toRadians(lon2 - lon1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function toRadians(value: number) {
+  return value * Math.PI / 180
+}

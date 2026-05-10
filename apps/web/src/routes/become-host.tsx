@@ -34,6 +34,12 @@ function HostAuthPanel() {
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>(['Good listener'])
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['Online conversation'])
   const [saved, setSaved] = useState(false)
+  const [approxLocation, setApproxLocation] = useState<{ latitude: number; longitude: number } | null>(
+    typeof application?.approximateLatitude === 'number' && typeof application?.approximateLongitude === 'number'
+      ? { latitude: application.approximateLatitude, longitude: application.approximateLongitude }
+      : null,
+  )
+  const [locationStatus, setLocationStatus] = useState('')
 
   if (!isSignedIn) {
     return (
@@ -64,6 +70,8 @@ function HostAuthPanel() {
             intro: String(form.get('intro') || ''),
             city: String(form.get('city') || ''),
             approximateArea: String(form.get('approximateArea') || '') || undefined,
+            approximateLatitude: approxLocation?.latitude,
+            approximateLongitude: approxLocation?.longitude,
             strengths: selectedStrengths,
             categories: selectedCategories,
             boundaries: String(form.get('boundaries') || '').split('\n').map((item) => item.trim()).filter(Boolean),
@@ -98,6 +106,50 @@ function HostAuthPanel() {
               required={false}
               defaultValue={application?.approximateArea ?? ''}
             />
+          </div>
+          <div className="panel p-4">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <p className="label">Near-me discovery</p>
+                <p className="text-meta max-w-[54ch]">
+                  Optional. We store only rounded coordinates for distance sorting, not your exact address.
+                  Members see an approximate distance, never your coordinates.
+                </p>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  className="btn btn-social btn-sm"
+                  onClick={() => {
+                    if (!navigator.geolocation) {
+                      setLocationStatus('Location is not available in this browser.')
+                      return
+                    }
+                    setLocationStatus('Asking for your approximate location…')
+                    navigator.geolocation.getCurrentPosition(
+                      (position) => {
+                        const rounded = {
+                          latitude: Math.round(position.coords.latitude * 100) / 100,
+                          longitude: Math.round(position.coords.longitude * 100) / 100,
+                        }
+                        setApproxLocation(rounded)
+                        setLocationStatus('Approximate location added to your review packet.')
+                      },
+                      () => setLocationStatus('Location permission was not granted.'),
+                      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
+                    )
+                  }}
+                >
+                  Add approximate location
+                </button>
+                {approxLocation && (
+                  <button type="button" className="btn btn-neutral btn-sm" onClick={() => { setApproxLocation(null); setLocationStatus('Approximate location removed.') }}>
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+            {locationStatus && <p className="text-meta mt-3">{locationStatus}</p>}
           </div>
         </NumberedSection>
 

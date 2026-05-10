@@ -21,13 +21,17 @@ type DiscoveryHost = {
   saved?: boolean
   following?: boolean
   userId?: string
+  distanceKm?: number
 }
 
 type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 
 function DiscoverPage() {
   const { isSignedIn } = useAuth()
-  const hosts = (useQuery(api.hosts.listApproved) ?? []) as DiscoveryHost[]
+  const [nearby, setNearby] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [radiusKm, setRadiusKm] = useState(25)
+  const [locationStatus, setLocationStatus] = useState('')
+  const hosts = (useQuery(api.hosts.listApproved, nearby ? { ...nearby, radiusKm } : {}) ?? []) as DiscoveryHost[]
   const toggleSaveProfile = useMutation(api.hosts.toggleSaveProfile)
   const toggleFollow = useMutation(api.social.toggleFollow)
   const [mode, setMode] = useState<ModeFilter>('all')
@@ -109,6 +113,53 @@ function DiscoverPage() {
               <span>Bookable now (hide demo profiles)</span>
             </label>
           </FilterSection>
+
+          <FilterSection title="Near me">
+            <div className="flex flex-col gap-3 w-full">
+              <label className="field-row">
+                <span className="label">Distance radius</span>
+                <select className="field" value={radiusKm} onChange={(event) => setRadiusKm(Number(event.currentTarget.value))}>
+                  <option value={5}>5 km</option>
+                  <option value={10}>10 km</option>
+                  <option value={25}>25 km</option>
+                  <option value={50}>50 km</option>
+                  <option value={100}>100 km</option>
+                </select>
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  className="btn btn-social btn-sm"
+                  onClick={() => {
+                    if (!navigator.geolocation) {
+                      setLocationStatus('Location is not available in this browser.')
+                      return
+                    }
+                    setLocationStatus('Asking for your approximate location…')
+                    navigator.geolocation.getCurrentPosition(
+                      (position) => {
+                        setNearby({
+                          latitude: position.coords.latitude,
+                          longitude: position.coords.longitude,
+                        })
+                        setLocationStatus(`Showing nearby in-person hosts within ${radiusKm} km. Online-only hosts appear after nearby matches.`)
+                      },
+                      () => setLocationStatus('Location permission was not granted.'),
+                      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
+                    )
+                  }}
+                >
+                  Use my location
+                </button>
+                {nearby && (
+                  <button type="button" className="btn btn-neutral btn-sm" onClick={() => { setNearby(null); setLocationStatus('Near-me filter cleared.') }}>
+                    Clear
+                  </button>
+                )}
+              </div>
+              {locationStatus && <p className="text-meta">{locationStatus}</p>}
+            </div>
+          </FilterSection>
         </aside>
 
         <section aria-label="Results">
@@ -157,6 +208,12 @@ function HostRow({ host, signedIn, onSave, onFollow }: { host: DiscoveryHost; si
             </div>
             <div className="worklist-row-meta mt-1">
               <span>{host.city}</span>
+              {typeof host.distanceKm === 'number' && (
+                <>
+                  <span className="dot" aria-hidden="true" />
+                  <span>{host.distanceKm} km away</span>
+                </>
+              )}
               <span className="dot" aria-hidden="true" />
               <span>{formatMode(host.mode)}</span>
               {host.strengths.length > 0 && (
