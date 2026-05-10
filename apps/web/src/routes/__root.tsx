@@ -24,8 +24,11 @@ export const Route = createRootRoute({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head><HeadContent /></head>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <ThemeBootScript />
+        <HeadContent />
+      </head>
       <body>
         <AppProviders>
           <Header />
@@ -36,5 +39,15 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <Scripts />
       </body>
     </html>
+  )
+}
+
+function ThemeBootScript() {
+  return (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `(function(){try{var key='lets-be-friends-theme';var saved=localStorage.getItem(key);var dark=saved==='dark'||(!saved&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',dark);document.documentElement.dataset.theme=dark?'dark':'light';}catch(e){document.documentElement.dataset.theme='light';}})();`,
+      }}
+    />
   )
 }

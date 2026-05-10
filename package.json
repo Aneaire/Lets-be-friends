@@ -5,9 +5,11 @@
   "packageManager": "pnpm@10.24.0",
   "scripts": {
     "dev": "pnpm --filter @lets-be-friends/web dev",
+    "dev:web": "pnpm --filter @lets-be-friends/web dev:web",
     "build": "pnpm --filter @lets-be-friends/web build",
     "test": "pnpm --filter @lets-be-friends/web test",
     "typecheck": "pnpm --filter @lets-be-friends/web typecheck",
+    "convex:dev": "pnpm --filter @lets-be-friends/web convex:dev",
     "convex:codegen": "pnpm --filter @lets-be-friends/web convex:codegen"
   },
   "devDependencies": {

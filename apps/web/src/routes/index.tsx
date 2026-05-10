@@ -1,47 +1,198 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
-import { friendStrengths, activityCategories } from '@lets-be-friends/shared'
-import { BrandLogo } from '../components/BrandLogo'
+import { useQuery } from 'convex/react'
+import { activityCategories } from '@lets-be-friends/shared'
+import { api } from '../../convex/_generated/api'
 
 export const Route = createFileRoute('/')({ component: HomePage })
 
+type HomeHost = {
+  _id: string
+  displayName: string
+  city: string
+  mode: 'online' | 'in_person' | 'both'
+  intro: string
+  strengths: string[]
+  bookable?: boolean
+  demo?: boolean
+}
+
+const trustGates = [
+  {
+    label: 'Discover',
+    body: 'Approved Friend Hosts only. Demo profiles fill the surface while admin review is empty.',
+  },
+  {
+    label: 'Verify',
+    body: 'Persona identity check before a booking request leaves verification_required.',
+  },
+  {
+    label: 'Book',
+    body: 'Exact meeting details unlock after the host accepts. Reportable at every step.',
+  },
+] as const
+
 function HomePage() {
+  const hosts = (useQuery(api.hosts.listApproved) ?? []) as HomeHost[]
+  const featured = hosts.slice(0, 4)
+
   return (
     <main>
-      <section className="mx-auto grid max-w-7xl gap-10 px-5 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-24">
+      <section className="hero-grid">
         <div>
-          <div className="mb-6 flex items-center gap-4">
-            <BrandLogo className="h-20 w-[72px]" variant="lockup" />
-            <p className="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-900">18+ trust-first social booking MVP</p>
-          </div>
-          <h1 className="max-w-3xl text-5xl font-black tracking-tight text-emerald-950 md:text-7xl">Book time with approved Friend Hosts.</h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-650">Find good listeners, local tour buddies, coffee companions, study partners, gaming teammates, and online friends for safe shared experiences.</p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/discover" className="rounded-full bg-emerald-900 px-6 py-3 font-semibold text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-800">Explore hosts</Link>
+          <p className="eyebrow">Trust-first social booking · 18+ MVP</p>
+          <h1 className="text-display mt-5 max-w-[16ch]">
+            Friendly hours, booked through people we already approved.
+          </h1>
+          <p className="lede mt-6">
+            Find good listeners, study partners, tour buddies, and online friends. Identity, intent,
+            and location stay visible before a booking moves forward.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center gap-2">
+            <Link to="/discover" className="btn btn-social btn-lg">Find a host</Link>
             <HomeAuthAction />
+            <Link to="/safety" className="btn btn-ghost">How safety works</Link>
           </div>
         </div>
-        <div className="rounded-[2rem] border border-emerald-900/10 bg-white p-4 shadow-2xl shadow-emerald-900/10">
-          <div className="rounded-[1.5rem] bg-gradient-to-br from-emerald-900 to-teal-700 p-6 text-white">
-            <p className="text-sm uppercase tracking-[0.25em] text-emerald-100">Featured strengths</p>
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              {friendStrengths.slice(0, 8).map((strength) => <span key={strength} className="rounded-2xl bg-white/12 px-4 py-3 text-sm font-medium backdrop-blur">{strength}</span>)}
+        <div className="hero-art">
+          <img
+            src="/hero-ribbon.png"
+            alt=""
+            aria-hidden="true"
+            loading="eager"
+            decoding="async"
+            className="hero-art-img"
+          />
+        </div>
+      </section>
+
+      <section className="marketing-band">
+        <div className="marketing-page-wide">
+          <div className="flex items-end justify-between gap-4 mb-6">
+            <div>
+              <p className="eyebrow">How a booking moves</p>
+              <h2 className="text-h1 mt-2">Three trust gates, in order.</h2>
+            </div>
+            <Link to="/safety" className="btn btn-ghost btn-sm hidden sm:inline-flex">
+              Read the safety model
+            </Link>
+          </div>
+          <div className="trust-gate-row">
+            {trustGates.map((gate, index) => (
+              <div className="trust-gate-step" key={gate.label}>
+                <span className="trust-gate-step-num tabular">
+                  {String(index + 1).padStart(2, '0')} / {gate.label}
+                </span>
+                <p className="text-body">{gate.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="marketing-band">
+        <div className="marketing-page-wide">
+          <div className="flex items-end justify-between gap-4 mb-5">
+            <div>
+              <p className="eyebrow">Currently visible</p>
+              <h2 className="text-h1 mt-2">Approved Friend Hosts.</h2>
+            </div>
+            <Link to="/discover" className="btn btn-neutral btn-sm">Open discovery</Link>
+          </div>
+          <div className="panel">
+            <div className="worklist">
+              {featured.length === 0 && (
+                <div className="worklist-empty">
+                  No hosts visible yet. The list fills as admin approves applications.
+                </div>
+              )}
+              {featured.map((host) => (
+                <FeaturedHostRow key={host._id} host={host} />
+              ))}
             </div>
           </div>
         </div>
       </section>
-      <section className="bg-white/70 px-5 py-14">
-        <div className="mx-auto max-w-7xl">
-          <h2 className="text-3xl font-bold text-emerald-950">Safe MVP categories</h2>
-          <div className="mt-6 flex flex-wrap gap-3">{activityCategories.map((category) => <span key={category} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700">{category}</span>)}</div>
+
+      <section className="marketing-band-sunk">
+        <div className="marketing-page-wide flex flex-wrap items-baseline gap-x-3 gap-y-2 py-10">
+          <p className="eyebrow shrink-0">Safe categories</p>
+          <p className="text-body muted">{activityCategories.join(' · ')}</p>
         </div>
       </section>
     </main>
   )
 }
 
+function FeaturedHostRow({ host }: { host: HomeHost }) {
+  return (
+    <article className="worklist-row">
+      <div className="worklist-row-head">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="avatar" aria-hidden="true">{initials(host.displayName)}</span>
+          <div className="min-w-0">
+            <h3 className="text-h3 truncate">{host.displayName}</h3>
+            <div className="worklist-row-meta">
+              <span>{host.city}</span>
+              <span className="dot" aria-hidden="true" />
+              <span>{formatMode(host.mode)}</span>
+              <span className="dot" aria-hidden="true" />
+              <TrustChip state={host.demo ? 'demo' : host.bookable ? 'verified' : 'awaiting'} />
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {host.bookable ? (
+            <Link to="/app" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
+              Request booking
+            </Link>
+          ) : (
+            <span className="text-meta">Demo</span>
+          )}
+        </div>
+      </div>
+      <p className="text-body muted line-clamp-2 max-w-[64ch]">{host.intro}</p>
+    </article>
+  )
+}
+
+function TrustChip({ state }: { state: 'verified' | 'awaiting' | 'demo' }) {
+  const label = state === 'verified' ? 'Verified · admin approved' : state === 'awaiting' ? 'Awaiting review' : 'Demo profile'
+  return (
+    <span className="trust-chip" data-state={state}>
+      <span className="trust-chip-dot" aria-hidden="true" />
+      {label}
+    </span>
+  )
+}
+
 function HomeAuthAction() {
   const { isSignedIn } = useAuth()
-  if (isSignedIn) return <Link to="/app" className="rounded-full border border-emerald-900/20 bg-white px-6 py-3 font-semibold text-emerald-950">Open app</Link>
-  return <SignInButton mode="modal"><button className="rounded-full border border-emerald-900/20 bg-white px-6 py-3 font-semibold text-emerald-950 hover:border-emerald-900/40">Create account</button></SignInButton>
+  if (isSignedIn) {
+    return (
+      <Link to="/app" search={{}} className="btn btn-self btn-lg">
+        Open workspace
+      </Link>
+    )
+  }
+  return (
+    <SignInButton mode="modal">
+      <button className="btn btn-self btn-lg">Create account</button>
+    </SignInButton>
+  )
+}
+
+function formatMode(mode: HomeHost['mode']) {
+  if (mode === 'both') return 'Online and in-person'
+  if (mode === 'in_person') return 'In-person'
+  return 'Online'
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('')
 }

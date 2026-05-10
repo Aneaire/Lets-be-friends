@@ -39,6 +39,21 @@ Reasons:
 - Good workspace support.
 - Keeps web, future mobile, and shared packages organized.
 
+## Local Development
+
+Run the app from the repo root with:
+
+```bash
+pnpm dev
+```
+
+This starts both required development processes:
+
+- `convex dev` for the Convex backend and generated API state.
+- `vite dev` for the TanStack Start web app.
+
+Use `pnpm dev:web` only when intentionally running the web server without Convex. Use `pnpm convex:dev` only when intentionally running Convex by itself.
+
 ## Web Application
 
 Use **TanStack Start** with React and TypeScript.

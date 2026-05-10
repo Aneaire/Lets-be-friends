@@ -1,12 +1,22 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { canChatForStatus, requireViewer, writeAudit } from './lib'
+import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
 
 export const mine = query({
   args: {},
   handler: async (ctx) => {
-    const viewer = await requireViewer(ctx)
-    return await ctx.db.query('bookings').withIndex('by_member', (q) => q.eq('memberId', viewer._id)).order('desc').collect()
+    const viewer = await getViewer(ctx)
+    if (!viewer) return []
+    if (viewer.suspended) throw new Error('Account is suspended')
+    const bookings = await ctx.db.query('bookings').withIndex('by_member', (q) => q.eq('memberId', viewer._id)).order('desc').collect()
+    return await Promise.all(bookings.map(async (booking) => {
+      const host = await ctx.db.get(booking.hostProfileId)
+      return {
+        ...booking,
+        hostDisplayName: host?.displayName ?? 'Friend Host',
+        hostCity: host?.city ?? 'Unknown location',
+      }
+    }))
   },
 })
 

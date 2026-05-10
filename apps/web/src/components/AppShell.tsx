@@ -1,37 +1,96 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import type React from 'react'
 import { SignInButton, UserButton, useAuth } from '@clerk/react'
 import { BrandLogo } from './BrandLogo'
+import { ThemeToggle } from './ThemeToggle'
+
+const workspaceRoutes = ['/app', '/admin']
+
+function useSurface(): 'marketing' | 'workspace' {
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  return workspaceRoutes.some((prefix) => pathname.startsWith(prefix)) ? 'workspace' : 'marketing'
+}
+
+const marketingNav = [
+  { to: '/discover', label: 'Discover' },
+  { to: '/become-host', label: 'Host' },
+  { to: '/safety', label: 'Safety' },
+] as const
 
 export function Header() {
+  const surface = useSurface()
   return (
-    <header className="sticky top-0 z-20 border-b border-emerald-900/10 bg-[#f8f5ef]/90 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
-        <Link to="/" className="flex items-center gap-3 font-semibold tracking-tight text-emerald-950">
-          <BrandLogo className="h-11 w-10" />
-          <span>Let's Be Friends</span>
+    <header className="app-header">
+      <div className="app-header-inner">
+        <Link to="/" className="brand-link">
+          <BrandLogo className="h-8 w-7" />
+          <span>Let&apos;s Be Friends</span>
         </Link>
-        <nav className="hidden items-center gap-6 text-sm font-medium text-stone-700 md:flex">
-          <Link to="/discover" className="hover:text-emerald-900">Discover</Link>
-          <Link to="/become-host" className="hover:text-emerald-900">Become a host</Link>
-          <Link to="/safety" className="hover:text-emerald-900">Safety</Link>
-          <AuthOnly><Link to="/app" className="hover:text-emerald-900">App</Link></AuthOnly>
-          <AuthOnly><Link to="/admin" className="hover:text-emerald-900">Admin</Link></AuthOnly>
-        </nav>
-        <div className="flex items-center gap-3">
-          <AuthButtons />
+
+        {surface === 'marketing' ? (
+          <nav className="nav-row hidden md:flex">
+            {marketingNav.map((item) => (
+              <Link key={item.to} to={item.to} className="nav-link" activeProps={{ 'aria-current': 'page' }}>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        ) : (
+          <nav className="nav-row hidden md:flex">
+            <span className="text-meta">Workspace</span>
+            <span className="nav-divider" aria-hidden="true" />
+            <WorkspaceTopLinks />
+          </nav>
+        )}
+
+        <div className="ml-auto flex items-center gap-2">
+          {surface === 'marketing' && (
+            <Link to="/discover" className="btn btn-ghost hidden md:inline-flex">
+              Find a host
+            </Link>
+          )}
+          <ThemeToggle />
+          <AuthButtons surface={surface} />
         </div>
       </div>
     </header>
   )
 }
 
-export function Footer() {
+function WorkspaceTopLinks() {
   return (
-    <footer className="border-t border-emerald-900/10 px-5 py-8 text-center text-sm text-stone-500">
-      <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-3">
-        <BrandLogo className="h-12 w-11" />
-        <p>Trust-first friendship experiences. 18+ MVP. Verification before booking.</p>
+    <>
+      <Link to="/app" search={{}} className="nav-link" activeProps={{ 'aria-current': 'page' }}>
+        Member
+      </Link>
+      <AuthOnly>
+        <Link to="/admin" className="nav-link" activeProps={{ 'aria-current': 'page' }}>
+          Admin
+        </Link>
+      </AuthOnly>
+    </>
+  )
+}
+
+export function Footer() {
+  const surface = useSurface()
+  if (surface === 'workspace') return null
+  return (
+    <footer className="app-footer">
+      <div className="app-footer-inner">
+        <div className="flex items-center gap-2">
+          <BrandLogo className="h-6 w-5" />
+          <span>Let&apos;s Be Friends</span>
+          <span className="trust-chip" data-state="awaiting" aria-hidden="true">
+            <span className="trust-chip-dot" />
+            18+ MVP
+          </span>
+        </div>
+        <div className="flex items-center gap-5">
+          <Link to="/safety" className="nav-link">Safety model</Link>
+          <Link to="/become-host" className="nav-link">Become a host</Link>
+          <span className="text-soft">Verification before booking.</span>
+        </div>
       </div>
     </footer>
   )
@@ -42,12 +101,61 @@ function AuthOnly({ children }: { children: React.ReactNode }) {
   return isSignedIn ? <>{children}</> : null
 }
 
-function AuthButtons() {
+function AuthButtons({ surface }: { surface: 'marketing' | 'workspace' }) {
   const { isSignedIn } = useAuth()
   if (isSignedIn) return <UserButton />
+  if (surface === 'workspace') {
+    return (
+      <SignInButton mode="modal">
+        <button className="btn btn-self btn-sm">Sign in</button>
+      </SignInButton>
+    )
+  }
   return (
     <SignInButton mode="modal">
-      <button className="rounded-full bg-emerald-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800">Sign in</button>
+      <button className="btn btn-neutral btn-sm">Sign in</button>
     </SignInButton>
+  )
+}
+
+type WorkspaceShellProps = {
+  title: string
+  eyebrow?: string
+  description?: React.ReactNode
+  actions?: React.ReactNode
+  toolbar?: React.ReactNode
+  rail: React.ReactNode
+  railLabel?: string
+  children: React.ReactNode
+}
+
+export function WorkspaceShell({
+  title,
+  eyebrow,
+  description,
+  actions,
+  toolbar,
+  rail,
+  railLabel,
+  children,
+}: WorkspaceShellProps) {
+  return (
+    <div className="workspace">
+      <aside className="rail" aria-label={railLabel ?? 'Workspace navigation'}>
+        {rail}
+      </aside>
+      <div className="workspace-main">
+        <div className="workspace-header">
+          <div>
+            {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+            <h1 className="text-h1 mt-2">{title}</h1>
+            {description && <p className="lede mt-2 max-w-[64ch]">{description}</p>}
+          </div>
+          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        </div>
+        {toolbar && <div className="workspace-toolbar">{toolbar}</div>}
+        <div className="workspace-body">{children}</div>
+      </div>
+    </div>
   )
 }

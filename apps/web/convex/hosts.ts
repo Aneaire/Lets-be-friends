@@ -3,9 +3,9 @@ import { v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
 
 const demoHosts = [
-  { _id: 'demo-1', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee or meal companion', 'Local walk or city guide'] },
-  { _id: 'demo-2', displayName: 'Jo', city: 'Online', mode: 'online', rating: 4.8, reviewCount: 18, intro: 'Online coworking and study partner for people who want accountability without pressure.', strengths: ['Study partner', 'Online chat friend', 'Language practice'], categories: ['Online coworking', 'Language practice'] },
-  { _id: 'demo-3', displayName: 'Rafi', city: 'Bohol', mode: 'in_person', rating: 4.7, reviewCount: 12, intro: 'Photography walk partner for safe public routes, food stops, and relaxed creative exploration.', strengths: ['Photography walk partner', 'Food trip companion', 'Local tour buddy'], categories: ['Photography or creative walk', 'Travel or neighborhood guide'] },
+  { _id: 'demo-1', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee or meal companion', 'Local walk or city guide'], bookable: false, demo: true },
+  { _id: 'demo-2', displayName: 'Jo', city: 'Online', mode: 'online', rating: 4.8, reviewCount: 18, intro: 'Online coworking and study partner for people who want accountability without pressure.', strengths: ['Study partner', 'Online chat friend', 'Language practice'], categories: ['Online coworking', 'Language practice'], bookable: false, demo: true },
+  { _id: 'demo-3', displayName: 'Rafi', city: 'Bohol', mode: 'in_person', rating: 4.7, reviewCount: 12, intro: 'Photography walk partner for safe public routes, food stops, and relaxed creative exploration.', strengths: ['Photography walk partner', 'Food trip companion', 'Local tour buddy'], categories: ['Photography or creative walk', 'Travel or neighborhood guide'], bookable: false, demo: true },
 ] as const
 
 export const listApproved = query({
@@ -13,7 +13,7 @@ export const listApproved = query({
   handler: async (ctx) => {
     const hosts = await ctx.db.query('hostProfiles').withIndex('by_status', (q) => q.eq('status', 'approved')).collect()
     if (hosts.length === 0) return demoHosts as any
-    return hosts.map((host) => ({ ...host, _id: host._id }))
+    return hosts.map((host) => ({ ...host, _id: host._id, bookable: true, demo: false }))
   },
 })
 

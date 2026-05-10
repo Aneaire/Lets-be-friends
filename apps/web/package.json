@@ -3,11 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "dev": "concurrently -k -n convex,web -c magenta,cyan \"pnpm convex:dev\" \"pnpm dev:web\"",
+    "dev:web": "PORT=3000 node --env-file=../../.env.local --env-file-if-exists=.env.local ./node_modules/vite/bin/vite.js --host localhost --port 3000 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit",
+    "convex:dev": "node --env-file=../../.env.local --env-file-if-exists=.env.local ./node_modules/convex/bin/main.js dev",
     "convex:codegen": "convex codegen"
   },
   "dependencies": {
@@ -34,6 +36,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
     "jsdom": "^28.1.0",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",

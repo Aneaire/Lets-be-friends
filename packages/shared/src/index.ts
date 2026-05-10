@@ -46,6 +46,19 @@ export const userRoles = ['member', 'friend_host', 'reviewer', 'owner'] as const
 export const hostApplicationStatuses = ['draft', 'pending_review', 'approved', 'rejected', 'suspended'] as const
 export const reportStatuses = ['open', 'reviewing', 'resolved', 'dismissed'] as const
 
+export const brandAccentColors = {
+  self: {
+    name: 'logo blue',
+    hex: '#1093ED',
+    oklch: 'oklch(64.58% 0.1673 247.38)',
+  },
+  social: {
+    name: 'logo pink',
+    hex: '#C1519C',
+    oklch: 'oklch(60.29% 0.1669 342.36)',
+  },
+} as const
+
 export type FriendStrength = (typeof friendStrengths)[number]
 export type ActivityCategory = (typeof activityCategories)[number]
 export type BookingStatus = (typeof bookingStatuses)[number]
@@ -53,6 +66,7 @@ export type VerificationStatus = (typeof verificationStatuses)[number]
 export type UserRole = (typeof userRoles)[number]
 export type HostApplicationStatus = (typeof hostApplicationStatuses)[number]
 export type ReportStatus = (typeof reportStatuses)[number]
+export type BrandAccentIntent = keyof typeof brandAccentColors
 
 export function canBookingChat(status: BookingStatus) {
   return ['request_sent', 'accepted', 'completed', 'review_window'].includes(status)
