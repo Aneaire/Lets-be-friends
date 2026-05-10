@@ -13,6 +13,7 @@ function useSurface(): 'marketing' | 'workspace' {
 
 const marketingNav = [
   { to: '/discover', label: 'Discover' },
+  { to: '/social', label: 'Social' },
   { to: '/become-host', label: 'Host' },
   { to: '/safety', label: 'Safety' },
 ] as const

@@ -9,7 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SocialRouteImport } from './routes/social'
 import { Route as SafetyRouteImport } from './routes/safety'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as HostRouteImport } from './routes/host'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as BecomeHostRouteImport } from './routes/become-host'
@@ -17,9 +19,19 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 
+const SocialRoute = SocialRouteImport.update({
+  id: '/social',
+  path: '/social',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SafetyRoute = SafetyRouteImport.update({
   id: '/safety',
   path: '/safety',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HostRoute = HostRouteImport.update({
@@ -60,7 +72,9 @@ export interface FileRoutesByFullPath {
   '/become-host': typeof BecomeHostRoute
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
+  '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
+  '/social': typeof SocialRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -69,7 +83,9 @@ export interface FileRoutesByTo {
   '/become-host': typeof BecomeHostRoute
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
+  '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
+  '/social': typeof SocialRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -79,7 +95,9 @@ export interface FileRoutesById {
   '/become-host': typeof BecomeHostRoute
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
+  '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
+  '/social': typeof SocialRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -90,7 +108,9 @@ export interface FileRouteTypes {
     | '/become-host'
     | '/discover'
     | '/host'
+    | '/profile'
     | '/safety'
+    | '/social'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -99,7 +119,9 @@ export interface FileRouteTypes {
     | '/become-host'
     | '/discover'
     | '/host'
+    | '/profile'
     | '/safety'
+    | '/social'
   id:
     | '__root__'
     | '/'
@@ -108,7 +130,9 @@ export interface FileRouteTypes {
     | '/become-host'
     | '/discover'
     | '/host'
+    | '/profile'
     | '/safety'
+    | '/social'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -118,16 +142,32 @@ export interface RootRouteChildren {
   BecomeHostRoute: typeof BecomeHostRoute
   DiscoverRoute: typeof DiscoverRoute
   HostRoute: typeof HostRoute
+  ProfileRoute: typeof ProfileRoute
   SafetyRoute: typeof SafetyRoute
+  SocialRoute: typeof SocialRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/social': {
+      id: '/social'
+      path: '/social'
+      fullPath: '/social'
+      preLoaderRoute: typeof SocialRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/safety': {
       id: '/safety'
       path: '/safety'
       fullPath: '/safety'
       preLoaderRoute: typeof SafetyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/host': {
@@ -182,7 +222,9 @@ const rootRouteChildren: RootRouteChildren = {
   BecomeHostRoute: BecomeHostRoute,
   DiscoverRoute: DiscoverRoute,
   HostRoute: HostRoute,
+  ProfileRoute: ProfileRoute,
   SafetyRoute: SafetyRoute,
+  SocialRoute: SocialRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

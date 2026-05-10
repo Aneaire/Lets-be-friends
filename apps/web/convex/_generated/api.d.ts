@@ -14,6 +14,7 @@ import type * as hosts from "../hosts.js";
 import type * as lib from "../lib.js";
 import type * as reports from "../reports.js";
 import type * as reviews from "../reviews.js";
+import type * as social from "../social.js";
 import type * as users from "../users.js";
 
 import type {
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   lib: typeof lib;
   reports: typeof reports;
   reviews: typeof reviews;
+  social: typeof social;
   users: typeof users;
 }>;
 

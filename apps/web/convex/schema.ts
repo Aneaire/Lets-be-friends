@@ -79,6 +79,35 @@ export default defineSchema({
     body: v.optional(v.string()),
     createdAt: v.number(),
   }).index('by_booking', ['bookingId']).index('by_host_profile', ['hostProfileId']).index('by_reviewee', ['revieweeId']),
+  posts: defineTable({
+    authorId: v.id('users'),
+    body: v.string(),
+    experienceBookingId: v.optional(v.id('bookings')),
+    reportable: v.boolean(),
+    hidden: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_author', ['authorId']).index('by_created_at', ['createdAt']),
+  follows: defineTable({
+    followerId: v.id('users'),
+    followingId: v.id('users'),
+    createdAt: v.number(),
+  }).index('by_follower', ['followerId']).index('by_following', ['followingId']).index('by_pair', ['followerId', 'followingId']),
+  savedPosts: defineTable({
+    userId: v.id('users'),
+    postId: v.id('posts'),
+    createdAt: v.number(),
+  }).index('by_user', ['userId']).index('by_post', ['postId']).index('by_pair', ['userId', 'postId']),
+  savedReviews: defineTable({
+    userId: v.id('users'),
+    reviewId: v.id('reviews'),
+    createdAt: v.number(),
+  }).index('by_user', ['userId']).index('by_review', ['reviewId']).index('by_pair', ['userId', 'reviewId']),
+  savedProfiles: defineTable({
+    userId: v.id('users'),
+    hostProfileId: v.id('hostProfiles'),
+    createdAt: v.number(),
+  }).index('by_user', ['userId']).index('by_host_profile', ['hostProfileId']).index('by_pair', ['userId', 'hostProfileId']),
   reports: defineTable({
     reporterId: v.id('users'),
     targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('user')),

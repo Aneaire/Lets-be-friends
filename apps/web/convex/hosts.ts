@@ -11,9 +11,49 @@ const demoHosts = [
 export const listApproved = query({
   args: {},
   handler: async (ctx) => {
+    const viewer = await getViewer(ctx)
     const hosts = await ctx.db.query('hostProfiles').withIndex('by_status', (q) => q.eq('status', 'approved')).collect()
     if (hosts.length === 0) return demoHosts as any
-    return hosts.map((host) => ({ ...host, _id: host._id, bookable: true, demo: false }))
+    return await Promise.all(hosts.map(async (host) => ({
+      ...host,
+      _id: host._id,
+      bookable: true,
+      demo: false,
+      saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
+      following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
+    })))
+  },
+})
+
+export const getPublic = query({
+  args: { hostProfileId: v.id('hostProfiles') },
+  handler: async (ctx, args) => {
+    const viewer = await getViewer(ctx)
+    const host = await ctx.db.get(args.hostProfileId)
+    if (!host || host.status !== 'approved') return null
+    return {
+      ...host,
+      saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
+      following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
+    }
+  },
+})
+
+export const toggleSaveProfile = mutation({
+  args: { hostProfileId: v.id('hostProfiles') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const host = await ctx.db.get(args.hostProfileId)
+    if (!host || host.status !== 'approved') throw new Error('Profile is not available')
+    const existing = await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', args.hostProfileId)).first()
+    if (existing) {
+      await ctx.db.delete(existing._id)
+      await writeAudit(ctx, { actorUserId: viewer._id, action: 'profile.unsaved', targetType: 'hostProfile', targetId: String(args.hostProfileId) })
+      return false
+    }
+    await ctx.db.insert('savedProfiles', { userId: viewer._id, hostProfileId: args.hostProfileId, createdAt: Date.now() })
+    await writeAudit(ctx, { actorUserId: viewer._id, action: 'profile.saved', targetType: 'hostProfile', targetId: String(args.hostProfileId) })
+    return true
   },
 })
 

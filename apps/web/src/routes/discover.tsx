@@ -1,5 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { useQuery } from 'convex/react'
+import { useAuth } from '@clerk/react'
+import { useMutation, useQuery } from 'convex/react'
 import { useMemo, useState } from 'react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
@@ -17,12 +18,18 @@ type DiscoveryHost = {
   categories?: string[]
   bookable?: boolean
   demo?: boolean
+  saved?: boolean
+  following?: boolean
+  userId?: string
 }
 
 type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 
 function DiscoverPage() {
+  const { isSignedIn } = useAuth()
   const hosts = (useQuery(api.hosts.listApproved) ?? []) as DiscoveryHost[]
+  const toggleSaveProfile = useMutation(api.hosts.toggleSaveProfile)
+  const toggleFollow = useMutation(api.social.toggleFollow)
   const [mode, setMode] = useState<ModeFilter>('all')
   const [category, setCategory] = useState<string | null>(null)
   const [strength, setStrength] = useState<string | null>(null)
@@ -114,7 +121,19 @@ function DiscoverPage() {
             <div className="panel">
               <div className="worklist" role="list">
                 {filtered.map((host) => (
-                  <HostRow key={host._id} host={host} />
+                  <HostRow
+                    key={host._id}
+                    host={host}
+                    signedIn={Boolean(isSignedIn)}
+                    onSave={async () => {
+                      if (!host.bookable || host.demo) return
+                      await toggleSaveProfile({ hostProfileId: host._id as any })
+                    }}
+                    onFollow={async () => {
+                      if (!host.userId) return
+                      await toggleFollow({ userId: host.userId as any })
+                    }}
+                  />
                 ))}
               </div>
             </div>
@@ -125,7 +144,7 @@ function DiscoverPage() {
   )
 }
 
-function HostRow({ host }: { host: DiscoveryHost }) {
+function HostRow({ host, signedIn, onSave, onFollow }: { host: DiscoveryHost; signedIn: boolean; onSave: () => Promise<void>; onFollow: () => Promise<void> }) {
   return (
     <article className="worklist-row" role="listitem">
       <div className="worklist-row-head">
@@ -153,9 +172,20 @@ function HostRow({ host }: { host: DiscoveryHost }) {
         </div>
         <div className="shrink-0">
           {host.bookable ? (
-            <Link to="/app" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
-              Request booking
-            </Link>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Link to="/profile" search={{ hostProfileId: host._id }} className="btn btn-neutral btn-sm">
+                View profile
+              </Link>
+              <Link to="/app" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
+                Request booking
+              </Link>
+              {signedIn && (
+                <>
+                  <button onClick={onFollow} className="btn btn-social-quiet btn-sm">{host.following ? 'Following' : 'Follow'}</button>
+                  <button onClick={onSave} className="btn btn-neutral btn-sm">{host.saved ? 'Saved' : 'Save'}</button>
+                </>
+              )}
+            </div>
           ) : (
             <span className="text-meta">Not bookable yet</span>
           )}
