@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
+import { isModerationVisible } from '@lets-be-friends/shared'
 import { requireViewer, writeAudit } from './lib'
 
 export const forHost = query({
@@ -7,7 +8,7 @@ export const forHost = query({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx).catch(() => null)
     const reviews = await ctx.db.query('reviews').withIndex('by_host_profile', (q) => q.eq('hostProfileId', args.hostProfileId)).order('desc').take(20)
-    return await Promise.all(reviews.map(async (review) => {
+    return await Promise.all(reviews.filter(isModerationVisible).map(async (review) => {
       const reviewer = await ctx.db.get(review.reviewerId)
       return {
         ...review,
@@ -23,7 +24,7 @@ export const toggleSave = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const review = await ctx.db.get(args.reviewId)
-    if (!review) throw new Error('Review not found')
+    if (!review || !isModerationVisible(review)) throw new Error('Review not found')
     const existing = await ctx.db.query('savedReviews').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('reviewId', args.reviewId)).first()
     if (existing) {
       await ctx.db.delete(existing._id)

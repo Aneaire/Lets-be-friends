@@ -21,7 +21,7 @@ type HostBookingStatus =
 
 const statusCopy: Record<HostBookingStatus, { label: string; tone: 'self' | 'social' | 'success' | 'warning' | 'danger' }> = {
   verification_required: { label: 'Verification required', tone: 'warning' },
-  pending_admin_review: { label: 'Pending admin review', tone: 'warning' },
+  pending_admin_review: { label: 'Pending safety review', tone: 'warning' },
   request_sent: { label: 'Needs decision', tone: 'social' },
   accepted: { label: 'Accepted', tone: 'success' },
   declined: { label: 'Declined', tone: 'danger' },
@@ -69,12 +69,12 @@ function HostWorkspacePage() {
       title="Requests and host profile"
       description={
         viewer
-          ? `Signed in as ${viewer.displayName}. Host visibility depends on application and admin review status.`
+          ? `Signed in as ${viewer.displayName}. Host visibility depends on application and safety review status.`
           : 'Sync your profile before managing host requests.'
       }
       actions={
         <button
-          onClick={() => ensureUser({ displayName: user?.fullName ?? user?.username ?? 'New friend' })}
+          onClick={() => ensureUser({ displayName: viewer?.displayName ?? user?.fullName ?? user?.username ?? 'New friend' })}
           className="btn btn-neutral btn-sm"
         >
           Sync profile
@@ -188,8 +188,8 @@ function HostWorkspacePage() {
                       setNotice('Message sent.')
                     }}
                     onReport={async () => {
-                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Host flagged this booking for admin review' })
-                      setNotice('Report sent to admin review.')
+                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Host flagged this booking for safety review' })
+                      setNotice('Report sent to safety review.')
                     }}
                   />
                 ))}
@@ -220,8 +220,8 @@ function HostWorkspacePage() {
                       setNotice('Message sent.')
                     }}
                     onReport={async () => {
-                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Host flagged this booking for admin review' })
-                      setNotice('Report sent to admin review.')
+                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Host flagged this booking for safety review' })
+                      setNotice('Report sent to safety review.')
                     }}
                   />
                 ))}

@@ -21,6 +21,7 @@ type DiscoveryHost = {
   saved?: boolean
   following?: boolean
   userId?: string
+  profileImageUrl?: string
   distanceKm?: number
 }
 
@@ -59,7 +60,7 @@ function DiscoverPage() {
           <p className="eyebrow">Discovery</p>
           <h1 className="text-h1 mt-2">Find a Friend Host</h1>
           <p className="lede mt-2">
-            Approved hosts only. Demo profiles fill the page while admin review is empty.
+            Approved hosts only. Demo profiles fill the page while the review queue is empty.
           </p>
         </div>
         <p className="text-meta tabular">
@@ -200,7 +201,7 @@ function HostRow({ host, signedIn, onSave, onFollow }: { host: DiscoveryHost; si
     <article className="worklist-row" role="listitem">
       <div className="worklist-row-head">
         <div className="flex items-start gap-3 min-w-0">
-          <span className="avatar avatar-lg" aria-hidden="true">{initials(host.displayName)}</span>
+          <ProfilePhoto imageUrl={host.profileImageUrl} name={host.displayName} size="lg" />
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-h3">{host.displayName}</h2>
@@ -230,7 +231,7 @@ function HostRow({ host, signedIn, onSave, onFollow }: { host: DiscoveryHost; si
         <div className="shrink-0">
           {host.bookable ? (
             <div className="flex items-center gap-2 flex-wrap justify-end">
-              <Link to="/profile" search={{ hostProfileId: host._id }} className="btn btn-neutral btn-sm">
+              <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-neutral btn-sm">
                 View profile
               </Link>
               <Link to="/app" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
@@ -299,6 +300,15 @@ function TrustChip({ state }: { state: 'verified' | 'awaiting' | 'demo' }) {
     <span className="trust-chip" data-state={state}>
       <span className="trust-chip-dot" aria-hidden="true" />
       {label}
+    </span>
+  )
+}
+
+function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: string; size?: 'lg' }) {
+  const className = size === 'lg' ? 'profile-photo profile-photo-lg' : 'profile-photo'
+  return (
+    <span className={className} aria-hidden="true">
+      {imageUrl ? <img src={imageUrl} alt="" /> : <span>{initials(name)}</span>}
     </span>
   )
 }

@@ -2,13 +2,13 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import type React from 'react'
 import { SignInButton, useAuth, useClerk, useUser } from '@clerk/react'
 import { useQuery } from 'convex/react'
-import { CalendarCheck, ClipboardCheck, Compass, LogOut, MessageCircle, ShieldCheck, UserRound, UserRoundCog } from 'lucide-react'
+import { CalendarCheck, Compass, LogOut, MessageCircle, Search, ShieldCheck, UserRound, UserRoundCog } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import { BrandLogo } from './BrandLogo'
 import { ThemeToggle } from './ThemeToggle'
 
-const workspaceRoutes = ['/app', '/host', '/admin']
+export const workspaceRoutes = ['/app', '/profile', '/host'] as const
 
 function useSurface(): 'marketing' | 'workspace' {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
@@ -17,13 +17,17 @@ function useSurface(): 'marketing' | 'workspace' {
 
 const marketingNav = [
   { to: '/discover', label: 'Discover' },
-  { to: '/social', label: 'Social' },
   { to: '/become-host', label: 'Host' },
   { to: '/safety', label: 'Safety' },
 ] as const
 
 export function Header() {
   const surface = useSurface()
+  const { isSignedIn } = useAuth()
+  const visibleMarketingNav = isSignedIn
+    ? marketingNav.filter((item) => item.to !== '/safety')
+    : marketingNav
+
   return (
     <header className="app-header">
       <div className="app-header-inner">
@@ -34,7 +38,7 @@ export function Header() {
 
         {surface === 'marketing' ? (
           <nav className="nav-row hidden md:flex">
-            {marketingNav.map((item) => (
+            {visibleMarketingNav.map((item) => (
               <Link key={item.to} to={item.to} className="nav-link" activeProps={{ 'aria-current': 'page' }}>
                 {item.label}
               </Link>
@@ -50,8 +54,9 @@ export function Header() {
 
         <div className="ml-auto flex items-center gap-2">
           {surface === 'marketing' && (
-            <Link to="/discover" className="btn btn-ghost hidden md:inline-flex">
-              Find a host
+            <Link to="/discover" className="discover-header-link" aria-label="Discover Friend Hosts">
+              <Search size={16} aria-hidden="true" />
+              <span>Discover</span>
             </Link>
           )}
           <ThemeToggle />
@@ -68,14 +73,12 @@ function WorkspaceTopLinks() {
       <Link to="/app" search={{}} className="nav-link" activeProps={{ 'aria-current': 'page' }}>
         Member
       </Link>
+      <Link to="/profile" className="nav-link" activeProps={{ 'aria-current': 'page' }}>
+        Profile
+      </Link>
       <Link to="/host" className="nav-link" activeProps={{ 'aria-current': 'page' }}>
         Host
       </Link>
-      <AuthOnly>
-        <Link to="/admin" className="nav-link" activeProps={{ 'aria-current': 'page' }}>
-          Admin
-        </Link>
-      </AuthOnly>
     </>
   )
 }
@@ -102,11 +105,6 @@ export function Footer() {
       </div>
     </footer>
   )
-}
-
-function AuthOnly({ children }: { children: React.ReactNode }) {
-  const { isSignedIn } = useAuth()
-  return isSignedIn ? <>{children}</> : null
 }
 
 function AuthButtons({ surface }: { surface: 'marketing' | 'workspace' }) {
@@ -152,7 +150,7 @@ function AccountMenu() {
 
   const displayName = viewer?.displayName ?? user?.fullName ?? user?.username ?? 'Account'
   const email = user?.primaryEmailAddress?.emailAddress
-  const imageUrl = user?.imageUrl
+  const imageUrl = viewer?.profileImageUrl ?? user?.imageUrl
   const initials = displayName
     .split(/\s+/)
     .filter(Boolean)
@@ -197,14 +195,17 @@ function AccountMenu() {
           </div>
 
           <div className="account-menu-group">
+            <AccountMenuLink to="/profile" icon={<UserRound size={16} />} onSelect={() => setOpen(false)}>
+              Profile
+            </AccountMenuLink>
             {publicProfileSearch ? (
               <AccountMenuLink
-                to="/profile"
+                to="/host-profile"
                 search={publicProfileSearch}
                 icon={<UserRound size={16} />}
                 onSelect={() => setOpen(false)}
               >
-                Public profile
+                Public host profile
               </AccountMenuLink>
             ) : (
               <AccountMenuLink to="/become-host" icon={<UserRound size={16} />} onSelect={() => setOpen(false)}>
@@ -214,11 +215,6 @@ function AccountMenu() {
             <AccountMenuLink to="/host" icon={<UserRoundCog size={16} />} onSelect={() => setOpen(false)}>
               Friend Host workspace
             </AccountMenuLink>
-            {(viewer?.role === 'owner' || viewer?.role === 'reviewer') && (
-              <AccountMenuLink to="/admin" icon={<ClipboardCheck size={16} />} onSelect={() => setOpen(false)}>
-                Admin review
-              </AccountMenuLink>
-            )}
             <AccountMenuLink to="/safety" icon={<ShieldCheck size={16} />} onSelect={() => setOpen(false)}>
               Safety model
             </AccountMenuLink>
@@ -262,7 +258,7 @@ function AccountMenuLink({
   children,
   onSelect,
 }: {
-  to: '/app' | '/discover' | '/social' | '/profile' | '/become-host' | '/host' | '/admin' | '/safety'
+  to: '/app' | '/discover' | '/social' | '/profile' | '/host-profile' | '/become-host' | '/host' | '/safety'
   search?: Record<string, string>
   icon: React.ReactNode
   children: React.ReactNode

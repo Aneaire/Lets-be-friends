@@ -10,7 +10,7 @@ const trustGates = [
   },
   {
     what: 'Host approval',
-    who: 'Admin review queue',
+    who: 'Safety review queue',
     when: 'Every Friend Host application is held until a reviewer decides approve or reject.',
   },
   {
@@ -26,7 +26,7 @@ const trustGates = [
   {
     what: 'Reportable everywhere',
     who: 'Any signed-in user',
-    when: 'Profiles, posts, messages, bookings, and reviews each create an admin report.',
+    when: 'Profiles, posts, messages, bookings, and reviews each create a safety report.',
   },
 ] as const
 
@@ -64,8 +64,8 @@ function SafetyPage() {
 
       <section className="mt-12 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-body muted max-w-[60ch]">
-          The MVP runs entirely on these gates. Persona is a placeholder while keys are in test
-          mode; admin review is real.
+          Early access runs entirely on these gates. Persona is a placeholder while keys are in
+          test mode; safety review is real.
         </p>
         <div className="flex gap-2">
           <Link to="/discover" className="btn btn-neutral btn-sm">Open discovery</Link>

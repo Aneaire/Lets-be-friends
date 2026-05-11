@@ -79,3 +79,7 @@ export function requiresVerificationForBooking(status: VerificationStatus) {
 export function isAdminRole(role: UserRole) {
   return role === 'owner' || role === 'reviewer'
 }
+
+export function isModerationVisible(item: { hidden?: boolean }) {
+  return item.hidden !== true
+}

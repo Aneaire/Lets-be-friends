@@ -1,7 +1,7 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth, useUser } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type React from 'react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
@@ -16,7 +16,7 @@ function BecomeHostPage() {
         <h1 className="text-h1 mt-2">Apply as a Friend Host.</h1>
         <p className="lede mt-2">
           Build a profile around what you offer: strengths, boundaries, online or in-person mode,
-          and safe activity categories. Identity verification and admin approval happen before
+          and safe activity categories. Identity verification and safety review happen before
           public discovery.
         </p>
       </header>
@@ -29,6 +29,7 @@ function HostAuthPanel() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
   const ensureUser = useMutation(api.users.ensureViewer)
+  const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.hosts.myApplication)
   const submit = useMutation(api.hosts.submitApplication)
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>(['Good listener'])
@@ -41,18 +42,33 @@ function HostAuthPanel() {
   )
   const [locationStatus, setLocationStatus] = useState('')
 
+  useEffect(() => {
+    if (!application) return
+    setSelectedStrengths(application.strengths.length > 0 ? application.strengths : ['Good listener'])
+    setSelectedCategories(application.categories.length > 0 ? application.categories : ['Online conversation'])
+    setApproxLocation(
+      typeof application.approximateLatitude === 'number' && typeof application.approximateLongitude === 'number'
+        ? { latitude: application.approximateLatitude, longitude: application.approximateLongitude }
+        : null,
+    )
+  }, [application?._id])
+
   if (!isSignedIn) {
     return (
       <div className="empty-state">
         <p className="empty-state-title">Sign in first</p>
         <p className="text-meta max-w-[40ch]">
-          Host applications are tied to a verified account so admin review can reach back to you.
+          Host applications are tied to a verified account so safety review can reach back to you.
         </p>
         <SignInButton mode="modal">
           <button className="btn btn-self btn-sm mt-2">Sign in to apply</button>
         </SignInButton>
       </div>
     )
+  }
+
+  if (viewer === undefined || application === undefined) {
+    return <div className="empty-state">Loading host profile...</div>
   }
 
   const status = application?.status
@@ -64,9 +80,8 @@ function HostAuthPanel() {
         onSubmit={async (event) => {
           event.preventDefault()
           const form = new FormData(event.currentTarget)
-          await ensureUser({ displayName: user?.fullName ?? user?.username ?? 'New friend' })
+          await ensureUser({ displayName: viewer?.displayName ?? user?.fullName ?? user?.username ?? 'New friend' })
           await submit({
-            displayName: String(form.get('displayName') || user?.fullName || 'Friend Host'),
             intro: String(form.get('intro') || ''),
             city: String(form.get('city') || ''),
             approximateArea: String(form.get('approximateArea') || '') || undefined,
@@ -93,10 +108,9 @@ function HostAuthPanel() {
 
         <NumberedSection
           n={1}
-          title="Identity"
-          rationale="Reviewers contact you with this name. The public host card uses it directly."
+          title="Location"
+          rationale="The public host card uses your normal profile name. Host review checks location privacy and public availability details."
         >
-          <FieldRow name="displayName" label="Public host name" defaultValue={application?.displayName ?? user?.fullName ?? ''} />
           <div className="grid gap-3 sm:grid-cols-2">
             <FieldRow name="city" label="City or online region" defaultValue={application?.city ?? ''} />
             <FieldRow
@@ -191,7 +205,7 @@ function HostAuthPanel() {
         <NumberedSection
           n={4}
           title="Safe categories"
-          rationale="MVP only allows the categories below. New ones are added through admin review."
+          rationale="Early access supports the categories below. New ones are added through safety review."
         >
           <ChipGroup values={activityCategories} selected={selectedCategories} setSelected={setSelectedCategories} />
         </NumberedSection>
@@ -238,7 +252,7 @@ function HostAuthPanel() {
 function ReviewStatusPanel({ status }: { status?: string }) {
   const steps = [
     { id: 'submit', label: 'Application submitted', done: !!status },
-    { id: 'review', label: 'Admin review', done: status === 'approved' || status === 'rejected', active: status === 'pending' },
+    { id: 'review', label: 'Safety review', done: status === 'approved' || status === 'rejected', active: status === 'pending' },
     { id: 'identity', label: 'Identity check (Persona)', done: false, active: status === 'pending' },
     { id: 'live', label: 'Visible in discovery', done: status === 'approved' },
   ]

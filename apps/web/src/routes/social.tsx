@@ -8,7 +8,7 @@ export const Route = createFileRoute('/social')({ component: SocialPage })
 
 type FeedPost = NonNullable<ReturnType<typeof useQuery<typeof api.social.feed>>>[number]
 
-function SocialPage() {
+export function SocialPage() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
@@ -49,7 +49,7 @@ function SocialPage() {
             const data = new FormData(form)
             const body = String(data.get('body') ?? '').trim()
             if (!body) return
-            await ensureUser({ displayName: user?.fullName ?? user?.username ?? 'New friend' })
+            await ensureUser({ displayName: viewer?.displayName ?? user?.fullName ?? user?.username ?? 'New friend' })
             await createPost({ body })
             form.reset()
             setNotice('Post shared.')
@@ -60,7 +60,7 @@ function SocialPage() {
             <textarea name="body" className="field min-h-24" maxLength={1000} placeholder="Share something friendly, useful, or memorable." />
           </label>
           <div className="flex items-center justify-between gap-3 mt-3">
-            <p className="text-meta">Posts are reportable and can be moderated by admins.</p>
+            <p className="text-meta">Posts are reportable and can be reviewed by the safety team.</p>
             <button className="btn btn-social btn-sm">Post</button>
           </div>
         </form>
@@ -97,8 +97,8 @@ function SocialPage() {
                   setNotice(post.followingAuthor ? 'User unfollowed.' : 'User followed.')
                 }}
                 onReport={async () => {
-                  await report({ targetType: 'post', targetId: post._id, reason: 'Post needs admin review' })
-                  setNotice('Report sent to admin review.')
+                  await report({ targetType: 'post', targetId: post._id, reason: 'Post needs safety review' })
+                  setNotice('Report sent to safety review.')
                 }}
               />
             ))}

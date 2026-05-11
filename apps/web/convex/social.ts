@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
+import { isModerationVisible } from '@lets-be-friends/shared'
 import { getViewer, requireViewer, writeAudit } from './lib'
 
 export const feed = query({
@@ -7,7 +8,7 @@ export const feed = query({
   handler: async (ctx) => {
     const viewer = await getViewer(ctx)
     const posts = await ctx.db.query('posts').withIndex('by_created_at').order('desc').take(50)
-    return await Promise.all(posts.filter((post) => !post.hidden).map(async (post) => {
+    return await Promise.all(posts.filter(isModerationVisible).map(async (post) => {
       const author = await ctx.db.get(post.authorId)
       return {
         ...post,
@@ -26,7 +27,7 @@ export const byUser = query({
     const viewer = await getViewer(ctx)
     const posts = await ctx.db.query('posts').withIndex('by_author', (q) => q.eq('authorId', args.userId)).order('desc').take(30)
     const author = await ctx.db.get(args.userId)
-    return await Promise.all(posts.filter((post) => !post.hidden).map(async (post) => ({
+    return await Promise.all(posts.filter(isModerationVisible).map(async (post) => ({
       ...post,
       authorDisplayName: author?.displayName ?? 'Member',
       saved: viewer ? Boolean(await ctx.db.query('savedPosts').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', post._id)).first()) : false,

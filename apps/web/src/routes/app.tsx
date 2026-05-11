@@ -105,7 +105,7 @@ function AppPage() {
       }
       actions={
         <button
-          onClick={() => ensureUser({ displayName: user?.fullName ?? user?.username ?? 'New friend' })}
+          onClick={() => ensureUser({ displayName: viewer?.displayName ?? user?.fullName ?? user?.username ?? 'New friend' })}
           className="btn btn-neutral btn-sm"
         >
           Sync profile
@@ -194,8 +194,8 @@ function AppPage() {
                           setNotice('Review submitted.')
                         }}
                         onReport={async () => {
-                          await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs admin review' })
-                          setNotice('Report sent to the admin queue.')
+                          await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs safety review' })
+                          setNotice('Report sent to the review queue.')
                         }}
                       />
                     ))}
@@ -231,8 +231,8 @@ function AppPage() {
                           setNotice('Review submitted.')
                         }}
                         onReport={async () => {
-                          await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs admin review' })
-                          setNotice('Report sent to the admin queue.')
+                          await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs safety review' })
+                          setNotice('Report sent to the review queue.')
                         }}
                       />
                     ))}
@@ -248,7 +248,7 @@ function AppPage() {
           hosts={bookableHosts}
           hostsLoading={approvedHosts === undefined}
           initialHostProfileId={hostProfileId}
-          userName={user?.fullName ?? user?.username ?? 'New friend'}
+          userName={viewer?.displayName ?? user?.fullName ?? user?.username ?? 'New friend'}
           setNotice={setNotice}
         />
       </div>
@@ -304,7 +304,7 @@ function BookingRow({
       {booking.status === 'verification_required' && (
         <div className="notice notice-warning text-meta">
           <span className="notice-icon">!</span>
-          <span>Held until identity check passes. A placeholder Persona inquiry was created and is in the admin queue.</span>
+          <span>Held until identity check passes. A placeholder Persona inquiry was created and is in the review queue.</span>
         </div>
       )}
 
@@ -451,7 +451,7 @@ function BookingDrawer({ hosts, hostsLoading, initialHostProfileId, createDraft,
         {!hostsLoading && hosts.length === 0 && (
           <div className="notice notice-warning text-meta">
             <span className="notice-icon">!</span>
-            <span>No approved hosts yet. Approve one in the admin queue first.</span>
+            <span>No approved hosts yet. One needs to pass safety review first.</span>
           </div>
         )}
 
@@ -522,7 +522,7 @@ function BookingDrawer({ hosts, hostsLoading, initialHostProfileId, createDraft,
         </button>
         <p className="text-tiny">
           If identity is unverified, the booking is held in <code>verification_required</code> until
-          admin review approves the placeholder Persona inquiry.
+          safety review approves the placeholder Persona inquiry.
         </p>
       </form>
     </aside>

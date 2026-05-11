@@ -11,9 +11,10 @@ export const mine = query({
     const bookings = await ctx.db.query('bookings').withIndex('by_member', (q) => q.eq('memberId', viewer._id)).order('desc').collect()
     return await Promise.all(bookings.map(async (booking) => {
       const host = await ctx.db.get(booking.hostProfileId)
+      const hostUser = host ? await ctx.db.get(host.userId) : null
       return {
         ...booking,
-        hostDisplayName: host?.displayName ?? 'Friend Host',
+        hostDisplayName: hostUser?.displayName ?? host?.displayName ?? 'Friend Host',
         hostCity: host?.city ?? 'Unknown location',
       }
     }))
@@ -34,7 +35,7 @@ export const forHost = query({
       return {
         ...booking,
         memberDisplayName: member?.displayName ?? 'Member',
-        hostDisplayName: host.displayName,
+        hostDisplayName: viewer.displayName,
         hostCity: host.city,
       }
     }))

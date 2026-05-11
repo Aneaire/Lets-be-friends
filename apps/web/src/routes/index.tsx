@@ -3,6 +3,7 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { useQuery } from 'convex/react'
 import { activityCategories } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { SocialPage } from './social'
 
 export const Route = createFileRoute('/')({ component: HomePage })
 
@@ -20,7 +21,7 @@ type HomeHost = {
 const trustGates = [
   {
     label: 'Discover',
-    body: 'Approved Friend Hosts only. Demo profiles fill the surface while admin review is empty.',
+    body: 'Approved Friend Hosts only. Demo profiles fill the surface while the review queue is empty.',
   },
   {
     label: 'Verify',
@@ -33,8 +34,11 @@ const trustGates = [
 ] as const
 
 function HomePage() {
+  const { isSignedIn } = useAuth()
   const hosts = (useQuery(api.hosts.listApproved, {}) ?? []) as HomeHost[]
   const featured = hosts.slice(0, 4)
+
+  if (isSignedIn) return <SocialPage />
 
   return (
     <main>
@@ -49,7 +53,7 @@ function HomePage() {
             and location stay visible before a booking moves forward.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-2">
-            <Link to="/discover" className="btn btn-social btn-lg">Find a host</Link>
+            <Link to="/discover" className="btn btn-social btn-lg hero-action">Find a host</Link>
             <HomeAuthAction />
             <Link to="/safety" className="btn btn-ghost">How safety works</Link>
           </div>
@@ -103,7 +107,7 @@ function HomePage() {
             <div className="worklist">
               {featured.length === 0 && (
                 <div className="worklist-empty">
-                  No hosts visible yet. The list fills as admin approves applications.
+                  No hosts visible yet. The list fills as applications pass safety review.
                 </div>
               )}
               {featured.map((host) => (
@@ -157,7 +161,7 @@ function FeaturedHostRow({ host }: { host: HomeHost }) {
 }
 
 function TrustChip({ state }: { state: 'verified' | 'awaiting' | 'demo' }) {
-  const label = state === 'verified' ? 'Verified · admin approved' : state === 'awaiting' ? 'Awaiting review' : 'Demo profile'
+  const label = state === 'verified' ? 'Verified after review' : state === 'awaiting' ? 'Awaiting review' : 'Demo profile'
   return (
     <span className="trust-chip" data-state={state}>
       <span className="trust-chip-dot" aria-hidden="true" />
@@ -170,14 +174,14 @@ function HomeAuthAction() {
   const { isSignedIn } = useAuth()
   if (isSignedIn) {
     return (
-      <Link to="/app" search={{}} className="btn btn-self btn-lg">
+      <Link to="/app" search={{}} className="btn btn-self btn-lg hero-action">
         Open workspace
       </Link>
     )
   }
   return (
     <SignInButton mode="modal">
-      <button className="btn btn-self btn-lg">Create account</button>
+      <button className="btn btn-self btn-lg hero-action">Create account</button>
     </SignInButton>
   )
 }

@@ -12,11 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SocialRouteImport } from './routes/social'
 import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as HostProfileRouteImport } from './routes/host-profile'
 import { Route as HostRouteImport } from './routes/host'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as BecomeHostRouteImport } from './routes/become-host'
 import { Route as AppRouteImport } from './routes/app'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SocialRoute = SocialRouteImport.update({
@@ -32,6 +32,11 @@ const SafetyRoute = SafetyRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HostProfileRoute = HostProfileRouteImport.update({
+  id: '/host-profile',
+  path: '/host-profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HostRoute = HostRouteImport.update({
@@ -54,11 +59,6 @@ const AppRoute = AppRouteImport.update({
   path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -67,22 +67,22 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/become-host': typeof BecomeHostRoute
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
+  '/host-profile': typeof HostProfileRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
   '/social': typeof SocialRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/become-host': typeof BecomeHostRoute
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
+  '/host-profile': typeof HostProfileRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
   '/social': typeof SocialRoute
@@ -90,11 +90,11 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/become-host': typeof BecomeHostRoute
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
+  '/host-profile': typeof HostProfileRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
   '/social': typeof SocialRoute
@@ -103,33 +103,33 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/admin'
     | '/app'
     | '/become-host'
     | '/discover'
     | '/host'
+    | '/host-profile'
     | '/profile'
     | '/safety'
     | '/social'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/admin'
     | '/app'
     | '/become-host'
     | '/discover'
     | '/host'
+    | '/host-profile'
     | '/profile'
     | '/safety'
     | '/social'
   id:
     | '__root__'
     | '/'
-    | '/admin'
     | '/app'
     | '/become-host'
     | '/discover'
     | '/host'
+    | '/host-profile'
     | '/profile'
     | '/safety'
     | '/social'
@@ -137,11 +137,11 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AdminRoute: typeof AdminRoute
   AppRoute: typeof AppRoute
   BecomeHostRoute: typeof BecomeHostRoute
   DiscoverRoute: typeof DiscoverRoute
   HostRoute: typeof HostRoute
+  HostProfileRoute: typeof HostProfileRoute
   ProfileRoute: typeof ProfileRoute
   SafetyRoute: typeof SafetyRoute
   SocialRoute: typeof SocialRoute
@@ -168,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/host-profile': {
+      id: '/host-profile'
+      path: '/host-profile'
+      fullPath: '/host-profile'
+      preLoaderRoute: typeof HostProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/host': {
@@ -198,13 +205,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -217,11 +217,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AdminRoute: AdminRoute,
   AppRoute: AppRoute,
   BecomeHostRoute: BecomeHostRoute,
   DiscoverRoute: DiscoverRoute,
   HostRoute: HostRoute,
+  HostProfileRoute: HostProfileRoute,
   ProfileRoute: ProfileRoute,
   SafetyRoute: SafetyRoute,
   SocialRoute: SocialRoute,

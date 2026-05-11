@@ -19,7 +19,15 @@ export function canChatForStatus(status: string) {
 
 export async function writeAudit(
   ctx: { db: any },
-  input: { actorUserId?: Id<'users'>; action: string; targetType: string; targetId?: string; note?: string },
+  input: {
+    actorUserId?: Id<'users'>
+    action: string
+    targetType: string
+    targetId?: string
+    before?: unknown
+    after?: unknown
+    note?: string
+  },
 ) {
   await ctx.db.insert('auditLogs', { ...input, createdAt: Date.now() })
 }

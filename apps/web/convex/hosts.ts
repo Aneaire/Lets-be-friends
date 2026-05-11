@@ -35,8 +35,13 @@ export const listApproved = query({
         return (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY)
       })
 
-    return await Promise.all(withDistance.map(async ({ host, distanceKm }) => ({
+    return await Promise.all(withDistance.map(async ({ host, distanceKm }) => {
+      const user = await ctx.db.get(host.userId)
+      return {
         ...host,
+        displayName: user?.displayName ?? host.displayName,
+        profileImageUrl: user ? await profileImageUrl(ctx, user) : undefined,
+        bio: user?.bio,
         approximateLatitude: undefined,
         approximateLongitude: undefined,
         distanceKm: typeof distanceKm === 'number' ? Math.round(distanceKm * 10) / 10 : undefined,
@@ -45,7 +50,8 @@ export const listApproved = query({
         demo: false,
         saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
         following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
-      })))
+      }
+    }))
   },
 })
 
@@ -55,8 +61,12 @@ export const getPublic = query({
     const viewer = await getViewer(ctx)
     const host = await ctx.db.get(args.hostProfileId)
     if (!host || host.status !== 'approved') return null
+    const user = await ctx.db.get(host.userId)
     return {
       ...host,
+      displayName: user?.displayName ?? host.displayName,
+      profileImageUrl: user ? await profileImageUrl(ctx, user) : undefined,
+      bio: user?.bio,
       saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
       following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
     }
@@ -86,13 +96,19 @@ export const myApplication = query({
   handler: async (ctx) => {
     const viewer = await getViewer(ctx)
     if (!viewer) return null
-    return await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    if (!host) return null
+    return {
+      ...host,
+      displayName: viewer.displayName,
+      profileImageUrl: await profileImageUrl(ctx, viewer),
+      bio: viewer.bio,
+    }
   },
 })
 
 export const submitApplication = mutation({
   args: {
-    displayName: v.string(),
     intro: v.string(),
     city: v.string(),
     approximateArea: v.optional(v.string()),
@@ -110,7 +126,7 @@ export const submitApplication = mutation({
     const approximateLatitude = typeof args.approximateLatitude === 'number' ? roundCoordinate(args.approximateLatitude) : undefined
     const approximateLongitude = typeof args.approximateLongitude === 'number' ? roundCoordinate(args.approximateLongitude) : undefined
     const existing = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
-    const patch = { ...args, approximateLatitude, approximateLongitude, status: 'pending_review' as const, rating: existing?.rating ?? 0, reviewCount: existing?.reviewCount ?? 0, updatedAt: now }
+    const patch = { ...args, displayName: viewer.displayName, approximateLatitude, approximateLongitude, status: 'pending_review' as const, rating: existing?.rating ?? 0, reviewCount: existing?.reviewCount ?? 0, updatedAt: now }
     const hostProfileId = existing
       ? (await ctx.db.patch(existing._id, patch), existing._id)
       : await ctx.db.insert('hostProfiles', { userId: viewer._id, ...patch, createdAt: now })
@@ -144,4 +160,9 @@ function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
 
 function toRadians(value: number) {
   return value * Math.PI / 180
+}
+
+async function profileImageUrl(ctx: any, user: { profileImageStorageId?: any; profileImageUrl?: string }) {
+  if (!user.profileImageStorageId) return user.profileImageUrl
+  return await ctx.storage.getUrl(user.profileImageStorageId) ?? user.profileImageUrl
 }
