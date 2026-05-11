@@ -40,7 +40,7 @@ function HomePage() {
     <main>
       <section className="hero-grid">
         <div>
-          <p className="eyebrow">Trust-first social booking · 18+ MVP</p>
+          <p className="eyebrow">Trust-first social booking · Early access</p>
           <h1 className="text-display mt-5 max-w-[16ch]">
             Friendly hours, booked through people we already approved.
           </h1>

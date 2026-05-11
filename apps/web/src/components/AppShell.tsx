@@ -1,6 +1,10 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import type React from 'react'
-import { SignInButton, UserButton, useAuth } from '@clerk/react'
+import { SignInButton, useAuth, useClerk, useUser } from '@clerk/react'
+import { useQuery } from 'convex/react'
+import { CalendarCheck, ClipboardCheck, Compass, LogOut, MessageCircle, ShieldCheck, UserRound, UserRoundCog } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { api } from '../../convex/_generated/api'
 import { BrandLogo } from './BrandLogo'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -87,7 +91,7 @@ export function Footer() {
           <span>Let&apos;s Be Friends</span>
           <span className="trust-chip" data-state="awaiting" aria-hidden="true">
             <span className="trust-chip-dot" />
-            18+ MVP
+            Early access
           </span>
         </div>
         <div className="flex items-center gap-5">
@@ -107,7 +111,7 @@ function AuthOnly({ children }: { children: React.ReactNode }) {
 
 function AuthButtons({ surface }: { surface: 'marketing' | 'workspace' }) {
   const { isSignedIn } = useAuth()
-  if (isSignedIn) return <UserButton />
+  if (isSignedIn) return <AccountMenu />
   if (surface === 'workspace') {
     return (
       <SignInButton mode="modal">
@@ -119,6 +123,156 @@ function AuthButtons({ surface }: { surface: 'marketing' | 'workspace' }) {
     <SignInButton mode="modal">
       <button className="btn btn-neutral btn-sm">Sign in</button>
     </SignInButton>
+  )
+}
+
+function AccountMenu() {
+  const { signOut } = useClerk()
+  const { user } = useUser()
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const viewer = useQuery(api.users.viewer)
+  const application = useQuery(api.hosts.myApplication)
+
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  const displayName = viewer?.displayName ?? user?.fullName ?? user?.username ?? 'Account'
+  const email = user?.primaryEmailAddress?.emailAddress
+  const imageUrl = user?.imageUrl
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'A'
+  const publicProfileSearch =
+    application?.status === 'approved' ? { hostProfileId: application._id } : undefined
+
+  return (
+    <div className="account-menu" ref={menuRef}>
+      <button
+        type="button"
+        className="account-menu-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <AccountAvatar imageUrl={imageUrl} initials={initials} />
+      </button>
+
+      {open && (
+        <div className="account-menu-panel" role="menu">
+          <div className="account-menu-identity">
+            <AccountAvatar imageUrl={imageUrl} initials={initials} size="lg" />
+            <span className="min-w-0">
+              <span className="account-menu-name">{displayName}</span>
+              {email && <span className="account-menu-email">{email}</span>}
+            </span>
+          </div>
+
+          <div className="account-menu-group">
+            <AccountMenuLink to="/app" icon={<CalendarCheck size={16} />} onSelect={() => setOpen(false)}>
+              Member workspace
+            </AccountMenuLink>
+            <AccountMenuLink to="/discover" icon={<Compass size={16} />} onSelect={() => setOpen(false)}>
+              Discover Friend Hosts
+            </AccountMenuLink>
+            <AccountMenuLink to="/social" icon={<MessageCircle size={16} />} onSelect={() => setOpen(false)}>
+              Community posts
+            </AccountMenuLink>
+          </div>
+
+          <div className="account-menu-group">
+            {publicProfileSearch ? (
+              <AccountMenuLink
+                to="/profile"
+                search={publicProfileSearch}
+                icon={<UserRound size={16} />}
+                onSelect={() => setOpen(false)}
+              >
+                Public profile
+              </AccountMenuLink>
+            ) : (
+              <AccountMenuLink to="/become-host" icon={<UserRound size={16} />} onSelect={() => setOpen(false)}>
+                Host profile
+              </AccountMenuLink>
+            )}
+            <AccountMenuLink to="/host" icon={<UserRoundCog size={16} />} onSelect={() => setOpen(false)}>
+              Friend Host workspace
+            </AccountMenuLink>
+            {(viewer?.role === 'owner' || viewer?.role === 'reviewer') && (
+              <AccountMenuLink to="/admin" icon={<ClipboardCheck size={16} />} onSelect={() => setOpen(false)}>
+                Admin review
+              </AccountMenuLink>
+            )}
+            <AccountMenuLink to="/safety" icon={<ShieldCheck size={16} />} onSelect={() => setOpen(false)}>
+              Safety model
+            </AccountMenuLink>
+          </div>
+
+          <button
+            type="button"
+            className="account-menu-item account-menu-signout"
+            role="menuitem"
+            onClick={() => void signOut()}
+          >
+            <LogOut size={16} aria-hidden="true" />
+            <span>Sign out</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AccountAvatar({
+  imageUrl,
+  initials,
+  size = 'default',
+}: {
+  imageUrl?: string
+  initials: string
+  size?: 'default' | 'lg'
+}) {
+  return (
+    <span className={size === 'lg' ? 'account-avatar account-avatar-lg' : 'account-avatar'} aria-hidden="true">
+      {imageUrl ? <img src={imageUrl} alt="" /> : <span>{initials}</span>}
+    </span>
+  )
+}
+
+function AccountMenuLink({
+  to,
+  search,
+  icon,
+  children,
+  onSelect,
+}: {
+  to: '/app' | '/discover' | '/social' | '/profile' | '/become-host' | '/host' | '/admin' | '/safety'
+  search?: Record<string, string>
+  icon: React.ReactNode
+  children: React.ReactNode
+  onSelect: () => void
+}) {
+  return (
+    <Link to={to} search={search} className="account-menu-item" role="menuitem" onClick={onSelect}>
+      {icon}
+      <span>{children}</span>
+    </Link>
   )
 }
 
