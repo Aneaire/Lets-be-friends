@@ -15,6 +15,7 @@ export const Route = createRootRoute({
       { name: 'description', content: "Safety review and moderation for Let's Be Friends." },
     ],
     links: [
+      { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
       { rel: 'stylesheet', href: appCss },
       { rel: 'stylesheet', href: adminCss },
     ],

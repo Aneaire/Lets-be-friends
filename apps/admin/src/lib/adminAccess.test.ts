@@ -15,6 +15,7 @@ describe('admin access helpers', () => {
     expect(reviewerRoutes).not.toContain('/settings')
     expect(reviewerRoutes).toContain('/host-applications')
     expect(reviewerRoutes).toContain('/posts')
+    expect(reviewerRoutes).toContain('/profile')
   })
 
   it('maps auth and viewer state to admin gate states', () => {

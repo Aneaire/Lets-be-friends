@@ -19,6 +19,7 @@ const iconByRoute: Record<string, React.ReactNode> = {
   '/users': <UsersRound size={16} />,
   '/posts': <FileText size={16} />,
   '/reviews': <ListChecks size={16} />,
+  '/profile': <UserCog size={16} />,
   '/categories': <ListChecks size={16} />,
   '/audit-logs': <ShieldAlert size={16} />,
   '/settings': <Settings size={16} />,
@@ -112,7 +113,7 @@ function AdminShell({
     <div className="admin-shell">
       <aside className="admin-sidebar" aria-label="Admin navigation">
         <div className="admin-sidebar-brand">
-          <span className="admin-brand-mark" aria-hidden="true">LBF</span>
+          <img className="admin-brand-logo" src="/logo.svg" alt="" aria-hidden="true" />
           <span>
             <span className="admin-brand-title">Let's Be Friends</span>
             <span className="admin-brand-subtitle">Admin</span>

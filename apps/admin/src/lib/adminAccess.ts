@@ -10,6 +10,7 @@ export type AdminRoute =
   | '/users'
   | '/posts'
   | '/reviews'
+  | '/profile'
   | '/categories'
   | '/audit-logs'
   | '/settings'
@@ -42,6 +43,12 @@ const adminNavSections: AdminNavSection[] = [
       { to: '/users', label: 'Users', ownerOnly: true },
       { to: '/posts', label: 'Posts' },
       { to: '/reviews', label: 'Reviews' },
+    ],
+  },
+  {
+    title: 'Account',
+    items: [
+      { to: '/profile', label: 'Profile' },
     ],
   },
   {

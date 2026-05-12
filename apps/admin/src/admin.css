@@ -26,18 +26,11 @@
     margin-bottom: 1rem;
   }
 
-  .admin-brand-mark {
-    display: inline-grid;
-    place-items: center;
+  .admin-brand-logo {
     width: 2rem;
     height: 2rem;
-    border-radius: 8px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-size: 0.6875rem;
-    font-weight: 750;
-    letter-spacing: 0;
+    object-fit: contain;
+    flex: 0 0 auto;
   }
 
   .admin-brand-title,
@@ -124,6 +117,68 @@
 
   .admin-content {
     padding: 1.75rem clamp(1rem, 2.5vw, 2.5rem) 3rem;
+  }
+
+  .admin-profile-layout {
+    display: grid;
+    grid-template-columns: minmax(18rem, 0.9fr) minmax(0, 1.1fr);
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .admin-profile-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .admin-profile-avatar {
+    display: inline-grid;
+    place-items: center;
+    width: 4rem;
+    height: 4rem;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface-sunk);
+    color: var(--text);
+    overflow: hidden;
+    flex: 0 0 auto;
+    font-weight: 750;
+  }
+
+  .admin-profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .admin-profile-details {
+    margin: 0;
+  }
+
+  .admin-profile-detail {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.35fr) minmax(0, 1fr);
+    gap: 1rem;
+    padding: 0.85rem 1.25rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .admin-profile-detail:first-child {
+    border-top: 0;
+  }
+
+  .admin-profile-detail dt {
+    color: var(--text-soft);
+    font-size: 0.75rem;
+    font-weight: 650;
+  }
+
+  .admin-profile-detail dd {
+    margin: 0;
+    color: var(--text);
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .admin-page-header {
@@ -324,6 +379,10 @@
 
     .admin-stat-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-profile-layout {
+      grid-template-columns: 1fr;
     }
   }
 

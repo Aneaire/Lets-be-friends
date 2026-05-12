@@ -13,6 +13,7 @@ import { Route as UsersRouteImport } from './routes/users'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReviewsRouteImport } from './routes/reviews'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PostsRouteImport } from './routes/posts'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as HostApplicationsRouteImport } from './routes/host-applications'
@@ -39,6 +40,11 @@ const ReviewsRoute = ReviewsRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PostsRoute = PostsRouteImport.update({
@@ -85,6 +91,7 @@ export interface FileRoutesByFullPath {
   '/host-applications': typeof HostApplicationsRoute
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
+  '/profile': typeof ProfileRoute
   '/reports': typeof ReportsRoute
   '/reviews': typeof ReviewsRoute
   '/settings': typeof SettingsRoute
@@ -98,6 +105,7 @@ export interface FileRoutesByTo {
   '/host-applications': typeof HostApplicationsRoute
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
+  '/profile': typeof ProfileRoute
   '/reports': typeof ReportsRoute
   '/reviews': typeof ReviewsRoute
   '/settings': typeof SettingsRoute
@@ -112,6 +120,7 @@ export interface FileRoutesById {
   '/host-applications': typeof HostApplicationsRoute
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
+  '/profile': typeof ProfileRoute
   '/reports': typeof ReportsRoute
   '/reviews': typeof ReviewsRoute
   '/settings': typeof SettingsRoute
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/host-applications'
     | '/overview'
     | '/posts'
+    | '/profile'
     | '/reports'
     | '/reviews'
     | '/settings'
@@ -140,6 +150,7 @@ export interface FileRouteTypes {
     | '/host-applications'
     | '/overview'
     | '/posts'
+    | '/profile'
     | '/reports'
     | '/reviews'
     | '/settings'
@@ -153,6 +164,7 @@ export interface FileRouteTypes {
     | '/host-applications'
     | '/overview'
     | '/posts'
+    | '/profile'
     | '/reports'
     | '/reviews'
     | '/settings'
@@ -167,6 +179,7 @@ export interface RootRouteChildren {
   HostApplicationsRoute: typeof HostApplicationsRoute
   OverviewRoute: typeof OverviewRoute
   PostsRoute: typeof PostsRoute
+  ProfileRoute: typeof ProfileRoute
   ReportsRoute: typeof ReportsRoute
   ReviewsRoute: typeof ReviewsRoute
   SettingsRoute: typeof SettingsRoute
@@ -201,6 +214,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/posts': {
@@ -263,6 +283,7 @@ const rootRouteChildren: RootRouteChildren = {
   HostApplicationsRoute: HostApplicationsRoute,
   OverviewRoute: OverviewRoute,
   PostsRoute: PostsRoute,
+  ProfileRoute: ProfileRoute,
   ReportsRoute: ReportsRoute,
   ReviewsRoute: ReviewsRoute,
   SettingsRoute: SettingsRoute,
