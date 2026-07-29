@@ -2,7 +2,7 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import type React from 'react'
 import { SignInButton, useAuth, useClerk, useUser } from '@clerk/react'
 import { useQuery } from 'convex/react'
-import { CalendarCheck, Compass, LogOut, MessageCircle, Search, ShieldCheck, UserRound, UserRoundCog } from 'lucide-react'
+import { CalendarCheck, CircleHelp, Compass, LogOut, MessageCircle, Search, ShieldCheck, UserRound, UserRoundCog } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import { BrandLogo } from './BrandLogo'
@@ -23,6 +23,7 @@ const marketingNav = [
 
 export function Header() {
   const surface = useSurface()
+  const onboarding = useRouterState({ select: (state) => state.location.pathname === '/onboarding' })
   const { isSignedIn } = useAuth()
   const visibleMarketingNav = isSignedIn
     ? marketingNav.filter((item) => item.to !== '/safety')
@@ -36,7 +37,9 @@ export function Header() {
           <span>Let&apos;s Be Friends</span>
         </Link>
 
-        {surface === 'marketing' ? (
+        {onboarding ? (
+          <span className="text-meta hidden sm:inline">Welcome guide</span>
+        ) : surface === 'marketing' ? (
           <nav className="nav-row hidden md:flex">
             {visibleMarketingNav.map((item) => (
               <Link key={item.to} to={item.to} className="nav-link" activeProps={{ 'aria-current': 'page' }}>
@@ -53,7 +56,7 @@ export function Header() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
-          {surface === 'marketing' && (
+          {surface === 'marketing' && !onboarding && (
             <Link to="/discover" className="discover-header-link" aria-label="Discover Friend Hosts">
               <Search size={16} aria-hidden="true" />
               <span>Discover</span>
@@ -85,7 +88,8 @@ function WorkspaceTopLinks() {
 
 export function Footer() {
   const surface = useSurface()
-  if (surface === 'workspace') return null
+  const onboarding = useRouterState({ select: (state) => state.location.pathname === '/onboarding' })
+  if (surface === 'workspace' || onboarding) return null
   return (
     <footer className="app-footer">
       <div className="app-footer-inner">
@@ -215,6 +219,9 @@ function AccountMenu() {
             <AccountMenuLink to="/host" icon={<UserRoundCog size={16} />} onSelect={() => setOpen(false)}>
               Friend Host workspace
             </AccountMenuLink>
+            <AccountMenuLink to="/onboarding" icon={<CircleHelp size={16} />} onSelect={() => setOpen(false)}>
+              How it works
+            </AccountMenuLink>
             <AccountMenuLink to="/safety" icon={<ShieldCheck size={16} />} onSelect={() => setOpen(false)}>
               Safety model
             </AccountMenuLink>
@@ -258,7 +265,7 @@ function AccountMenuLink({
   children,
   onSelect,
 }: {
-  to: '/app' | '/discover' | '/social' | '/profile' | '/host-profile' | '/become-host' | '/host' | '/safety'
+  to: '/app' | '/discover' | '/social' | '/profile' | '/host-profile' | '/become-host' | '/host' | '/onboarding' | '/safety'
   search?: Record<string, string>
   icon: React.ReactNode
   children: React.ReactNode

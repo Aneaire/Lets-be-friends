@@ -15,6 +15,7 @@ export const Route = createFileRoute('/host-profile')({
 type HostProfile = NonNullable<ReturnType<typeof useQuery<typeof api.hosts.getPublic>>>
 type HostReview = NonNullable<ReturnType<typeof useQuery<typeof api.reviews.forHost>>>[number]
 type HostPost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUser>>>[number]
+type HostPostMedia = { storageId: Id<'_storage'>; kind: 'image' | 'video'; url: string | null }
 
 function HostProfilePage() {
   const { hostProfileId } = Route.useSearch()
@@ -76,41 +77,50 @@ function HostProfilePage() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            <Link to="/app" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">Request booking</Link>
-            {isSignedIn ? (
+            {host.viewerCanBook === false ? (
               <>
-                <button
-                  onClick={async () => {
-                    await toggleFollow({ userId: host.userId })
-                    setNotice(host.following ? 'Member unfollowed.' : 'Member followed.')
-                  }}
-                  className="btn btn-social-quiet btn-sm"
-                >
-                  {host.following ? 'Following' : 'Follow'}
-                </button>
-                <button
-                  onClick={async () => {
-                    await toggleSaveProfile({ hostProfileId: host._id })
-                    setNotice(host.saved ? 'Profile removed from saved.' : 'Profile saved.')
-                  }}
-                  className="btn btn-neutral btn-sm"
-                >
-                  {host.saved ? 'Saved profile' : 'Save profile'}
-                </button>
-                <button
-                  onClick={async () => {
-                    await report({ targetType: 'profile', targetId: host._id, reason: 'Profile needs safety review' })
-                    setNotice('Report sent to safety review.')
-                  }}
-                  className="btn btn-danger btn-sm"
-                >
-                  Report
-                </button>
+                <span className="status-pill" data-tone="self">Your profile</span>
+                <Link to="/become-host" className="btn btn-self btn-sm">Edit host profile</Link>
               </>
             ) : (
-              <SignInButton mode="modal">
-                <button className="btn btn-self btn-sm">Sign in to save</button>
-              </SignInButton>
+              <>
+                <Link to="/app" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">Request booking</Link>
+                {isSignedIn ? (
+                  <>
+                    <button
+                      onClick={async () => {
+                        await toggleFollow({ userId: host.userId })
+                        setNotice(host.following ? 'Member unfollowed.' : 'Member followed.')
+                      }}
+                      className="btn btn-social-quiet btn-sm"
+                    >
+                      {host.following ? 'Following' : 'Follow'}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await toggleSaveProfile({ hostProfileId: host._id })
+                        setNotice(host.saved ? 'Profile removed from saved.' : 'Profile saved.')
+                      }}
+                      className="btn btn-neutral btn-sm"
+                    >
+                      {host.saved ? 'Saved profile' : 'Save profile'}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await report({ targetType: 'profile', targetId: host._id, reason: 'Profile needs safety review' })
+                        setNotice('Report sent to safety review.')
+                      }}
+                      className="btn btn-danger btn-sm"
+                    >
+                      Report
+                    </button>
+                  </>
+                ) : (
+                  <SignInButton mode="modal">
+                    <button className="btn btn-self btn-sm">Sign in to save</button>
+                  </SignInButton>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -118,6 +128,24 @@ function HostProfilePage() {
         <p className="text-body muted max-w-[72ch] mt-5">{host.intro}</p>
         <div className="flex flex-wrap gap-2 mt-5">
           {host.strengths.map((strength) => <span key={strength} className="chip" data-selected="true">{strength}</span>)}
+        </div>
+        <div className="profile-detail-grid mt-6">
+          <div>
+            <p className="eyebrow">Categories</p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {host.categories.map((category) => <span key={category} className="chip">{category}</span>)}
+            </div>
+          </div>
+          <div>
+            <p className="eyebrow">Boundaries</p>
+            {host.boundaries.length > 0 ? (
+              <ul className="profile-boundary-list mt-3">
+                {host.boundaries.map((boundary) => <li key={boundary}>{boundary}</li>)}
+              </ul>
+            ) : (
+              <p className="text-meta mt-3">No additional boundaries listed.</p>
+            )}
+          </div>
         </div>
       </section>
 
@@ -161,7 +189,8 @@ function HostProfilePage() {
                 {posts.slice(0, 6).map((post) => (
                   <article key={post._id} className="worklist-row">
                     <div className="worklist-row-meta tabular">{formatTime(post.createdAt)}</div>
-                    <p className="text-body muted whitespace-pre-wrap">{post.body}</p>
+                    {post.body && <p className="text-body muted whitespace-pre-wrap">{post.body}</p>}
+                    {post.media.length > 0 && <HostPostMediaGrid media={post.media} />}
                   </article>
                 ))}
               </div>
@@ -170,6 +199,19 @@ function HostProfilePage() {
         </aside>
       </div>
     </main>
+  )
+}
+
+function HostPostMediaGrid({ media }: { media: HostPostMedia[] }) {
+  return (
+    <div className="social-media-grid profile-post-media" data-count={media.length}>
+      {media.map((item) => (
+        <div key={item.storageId} className="social-media-item">
+          {item.url && item.kind === 'image' && <img src={item.url} alt="" loading="lazy" />}
+          {item.url && item.kind === 'video' && <video src={item.url} controls playsInline preload="metadata" />}
+        </div>
+      ))}
+    </div>
   )
 }
 

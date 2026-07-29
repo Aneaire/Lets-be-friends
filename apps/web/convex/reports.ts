@@ -4,7 +4,7 @@ import { requireViewer, writeAudit } from './lib'
 
 export const create = mutation({
   args: {
-    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('user')),
+    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user')),
     targetId: v.string(),
     reason: v.string(),
   },

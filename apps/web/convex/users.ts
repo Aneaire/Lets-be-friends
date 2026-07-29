@@ -21,26 +21,47 @@ export const viewer = query({
 })
 
 export const ensureViewer = mutation({
-  args: { displayName: v.string() },
+  args: {
+    displayName: v.string(),
+    expectedClerkUserId: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const clerkUserId = await getClerkUserId(ctx)
-    if (!clerkUserId) throw new Error('Authentication required')
-    const now = Date.now()
-    const existing = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique()
-    if (existing) {
-      await ctx.db.patch(existing._id, { displayName: args.displayName, updatedAt: now })
-      return existing._id
+    if (args.expectedClerkUserId !== undefined && args.expectedClerkUserId !== clerkUserId) {
+      throw new Error('Your signed-in account changed. Please reload and try again.')
     }
+    if (!clerkUserId) throw new Error('Authentication required')
+    const existing = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique()
+    if (existing) return existing._id
+
+    const now = Date.now()
     const existingOwner = await ctx.db.query('users').withIndex('by_role', (q) => q.eq('role', 'owner')).first()
     return await ctx.db.insert('users', {
       clerkUserId,
-      displayName: args.displayName,
+      displayName: args.displayName.trim() || 'New friend',
       role: existingOwner ? 'member' : 'owner',
       verificationStatus: 'not_started',
       suspended: false,
       createdAt: now,
       updatedAt: now,
     })
+  },
+})
+
+export const completeOnboarding = mutation({
+  args: { goal: v.union(v.literal('member'), v.literal('friend_host')) },
+  handler: async (ctx, args) => {
+    const clerkUserId = await getClerkUserId(ctx)
+    if (!clerkUserId) throw new Error('Authentication required')
+    const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique()
+    if (!viewer) throw new Error('Account setup is not complete')
+    const now = Date.now()
+    await ctx.db.patch(viewer._id, {
+      onboardingGoal: args.goal,
+      onboardingCompletedAt: viewer.onboardingCompletedAt ?? now,
+      updatedAt: now,
+    })
+    return viewer._id
   },
 })
 

@@ -47,13 +47,23 @@ function PostsPage() {
               <>
                 <div className="admin-cell-primary">{row.authorDisplayName}</div>
                 <p className="admin-cell-muted max-w-[56ch]">{row.body}</p>
+                {row.media.length > 0 && (
+                  <div className="social-media-grid mt-3" data-count={row.media.length}>
+                    {row.media.map((item) => (
+                      <div key={item.storageId} className="social-media-item">
+                        {item.url && item.kind === 'image' && <img src={item.url} alt="" />}
+                        {item.url && item.kind === 'video' && <video src={item.url} controls preload="metadata" />}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             ),
           },
           {
             key: 'status',
             header: 'Status',
-            render: (row) => <span className="status-pill" data-tone={row.hidden ? 'danger' : 'success'}>{row.hidden ? 'hidden' : 'visible'}</span>,
+            render: (row) => <span className="status-pill" data-tone={row.hidden ? 'danger' : 'success'}>{row.deletedAt ? 'deleted by author' : row.hidden ? 'hidden' : 'visible'}</span>,
           },
           {
             key: 'created',
@@ -64,7 +74,9 @@ function PostsPage() {
             key: 'actions',
             header: 'Actions',
             render: (row) => (
-              row.hidden ? (
+              row.deletedAt ? (
+                <span className="text-meta">Evidence retained</span>
+              ) : row.hidden ? (
                 <ActionNote label="Unhide" submitLabel="Unhide" onSubmit={(note) => setHidden({ postId: row._id, hidden: false, note })} />
               ) : (
                 <ActionNote label="Hide" submitLabel="Hide" tone="danger" requireNote onSubmit={(note) => setHidden({ postId: row._id, hidden: true, note })} />

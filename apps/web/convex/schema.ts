@@ -6,6 +6,12 @@ const verificationStatus = v.union(v.literal('not_started'), v.literal('pending'
 const hostStatus = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'))
 const bookingStatus = v.union(v.literal('draft'), v.literal('verification_required'), v.literal('pending_admin_review'), v.literal('request_sent'), v.literal('accepted'), v.literal('declined'), v.literal('cancelled'), v.literal('completed'), v.literal('review_window'), v.literal('closed'))
 const mode = v.union(v.literal('online'), v.literal('in_person'), v.literal('both'))
+const postMedia = v.object({
+  storageId: v.id('_storage'),
+  kind: v.union(v.literal('image'), v.literal('video')),
+  contentType: v.string(),
+  size: v.number(),
+})
 
 export default defineSchema({
   users: defineTable({
@@ -14,6 +20,8 @@ export default defineSchema({
     profileImageStorageId: v.optional(v.id('_storage')),
     profileImageUrl: v.optional(v.string()),
     bio: v.optional(v.string()),
+    onboardingGoal: v.optional(v.union(v.literal('member'), v.literal('friend_host'))),
+    onboardingCompletedAt: v.optional(v.number()),
     role,
     verificationStatus,
     suspended: v.boolean(),
@@ -65,6 +73,9 @@ export default defineSchema({
     status: bookingStatus,
     verificationRequestId: v.optional(v.id('verificationRequests')),
     hostDecisionNote: v.optional(v.string()),
+    cancelledByUserId: v.optional(v.id('users')),
+    cancelledAt: v.optional(v.number()),
+    cancellationReason: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_member', ['memberId']).index('by_host', ['hostProfileId']).index('by_status', ['status']),
@@ -87,16 +98,38 @@ export default defineSchema({
     moderatorNote: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
-  }).index('by_booking', ['bookingId']).index('by_host_profile', ['hostProfileId']).index('by_reviewee', ['revieweeId']),
+  }).index('by_booking', ['bookingId']).index('by_booking_reviewer', ['bookingId', 'reviewerId']).index('by_host_profile', ['hostProfileId']).index('by_reviewee', ['revieweeId']),
   posts: defineTable({
     authorId: v.id('users'),
     body: v.string(),
+    media: v.optional(v.array(postMedia)),
     experienceBookingId: v.optional(v.id('bookings')),
+    reportable: v.boolean(),
+    hidden: v.boolean(),
+    deletedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_author', ['authorId']).index('by_author_hidden_created_at', ['authorId', 'hidden', 'createdAt']).index('by_created_at', ['createdAt']),
+  postMediaUploads: defineTable({
+    userId: v.id('users'),
+    storageId: v.optional(v.id('_storage')),
+    postId: v.optional(v.id('posts')),
+    kind: v.optional(v.union(v.literal('image'), v.literal('video'))),
+    contentType: v.optional(v.string()),
+    size: v.optional(v.number()),
+    createdAt: v.number(),
+    registeredAt: v.optional(v.number()),
+    discardedAt: v.optional(v.number()),
+  }).index('by_user_created_at', ['userId', 'createdAt']).index('by_storage_id', ['storageId']).index('by_post', ['postId']),
+  postComments: defineTable({
+    postId: v.id('posts'),
+    authorId: v.id('users'),
+    body: v.string(),
     reportable: v.boolean(),
     hidden: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_author', ['authorId']).index('by_created_at', ['createdAt']),
+  }).index('by_post', ['postId']).index('by_author', ['authorId']),
   follows: defineTable({
     followerId: v.id('users'),
     followingId: v.id('users'),
@@ -105,6 +138,12 @@ export default defineSchema({
   savedPosts: defineTable({
     userId: v.id('users'),
     postId: v.id('posts'),
+    createdAt: v.number(),
+  }).index('by_user', ['userId']).index('by_post', ['postId']).index('by_pair', ['userId', 'postId']),
+  postReactions: defineTable({
+    userId: v.id('users'),
+    postId: v.id('posts'),
+    reaction: v.literal('like'),
     createdAt: v.number(),
   }).index('by_user', ['userId']).index('by_post', ['postId']).index('by_pair', ['userId', 'postId']),
   savedReviews: defineTable({
@@ -119,7 +158,7 @@ export default defineSchema({
   }).index('by_user', ['userId']).index('by_host_profile', ['hostProfileId']).index('by_pair', ['userId', 'hostProfileId']),
   reports: defineTable({
     reporterId: v.id('users'),
-    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('user')),
+    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user')),
     targetId: v.string(),
     reason: v.string(),
     status: v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed')),

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SocialRouteImport } from './routes/social'
 import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as HostProfileRouteImport } from './routes/host-profile'
 import { Route as HostRouteImport } from './routes/host'
 import { Route as DiscoverRouteImport } from './routes/discover'
@@ -32,6 +33,11 @@ const SafetyRoute = SafetyRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HostProfileRoute = HostProfileRouteImport.update({
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
   '/host-profile': typeof HostProfileRoute
+  '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
   '/social': typeof SocialRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
   '/host-profile': typeof HostProfileRoute
+  '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
   '/social': typeof SocialRoute
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
   '/host-profile': typeof HostProfileRoute
+  '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
   '/social': typeof SocialRoute
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/host'
     | '/host-profile'
+    | '/onboarding'
     | '/profile'
     | '/safety'
     | '/social'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/host'
     | '/host-profile'
+    | '/onboarding'
     | '/profile'
     | '/safety'
     | '/social'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/host'
     | '/host-profile'
+    | '/onboarding'
     | '/profile'
     | '/safety'
     | '/social'
@@ -142,6 +154,7 @@ export interface RootRouteChildren {
   DiscoverRoute: typeof DiscoverRoute
   HostRoute: typeof HostRoute
   HostProfileRoute: typeof HostProfileRoute
+  OnboardingRoute: typeof OnboardingRoute
   ProfileRoute: typeof ProfileRoute
   SafetyRoute: typeof SafetyRoute
   SocialRoute: typeof SocialRoute
@@ -168,6 +181,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/host-profile': {
@@ -222,6 +242,7 @@ const rootRouteChildren: RootRouteChildren = {
   DiscoverRoute: DiscoverRoute,
   HostRoute: HostRoute,
   HostProfileRoute: HostProfileRoute,
+  OnboardingRoute: OnboardingRoute,
   ProfileRoute: ProfileRoute,
   SafetyRoute: SafetyRoute,
   SocialRoute: SocialRoute,

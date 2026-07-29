@@ -2,6 +2,7 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-r
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { Header, Footer } from '../components/AppShell'
+import { OnboardingGate } from '../components/OnboardingGate'
 import { AppProviders } from '../components/Providers'
 import appCss from '../styles.css?url'
 
@@ -31,11 +32,17 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <AppProviders>
-          <Header />
-          {children}
-          <Footer />
+          <OnboardingGate>
+            <div className="app-frame">
+              <Header />
+              <div className="app-frame-main">
+                {children}
+              </div>
+              <Footer />
+            </div>
+          </OnboardingGate>
         </AppProviders>
-        <TanStackDevtools config={{ position: 'bottom-right' }} plugins={[{ name: 'Tanstack Router', render: <TanStackRouterDevtoolsPanel /> }]} />
+        {import.meta.env.DEV && <TanStackDevtools config={{ position: 'bottom-right' }} plugins={[{ name: 'Tanstack Router', render: <TanStackRouterDevtoolsPanel /> }]} />}
         <Scripts />
       </body>
     </html>

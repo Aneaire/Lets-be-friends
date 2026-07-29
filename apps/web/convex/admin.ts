@@ -7,7 +7,7 @@ const verificationStatusOrAll = v.union(v.literal('not_started'), v.literal('pen
 const hostStatusOrAll = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'), v.literal('all'))
 const reportStatus = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'))
 const reportStatusOrAll = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'), v.literal('all'))
-const reportTargetTypeOrAll = v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('user'), v.literal('all'))
+const reportTargetTypeOrAll = v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('all'))
 const visibility = v.union(v.literal('visible'), v.literal('hidden'), v.literal('all'))
 
 async function requireAdmin(ctx: any) {
@@ -173,6 +173,7 @@ export const posts = query({
       const author = await ctx.db.get(post.authorId)
       return {
         ...post,
+        media: await Promise.all((post.media ?? []).map(async (item) => ({ ...item, url: await ctx.storage.getUrl(item.storageId) }))),
         authorDisplayName: author?.displayName ?? 'Member',
         authorSuspended: author?.suspended ?? false,
       }
@@ -245,6 +246,8 @@ export const reviewBookingVerification = mutation({
     const admin = await requireAdmin(ctx)
     const verification = await ctx.db.get(args.verificationRequestId)
     if (!verification) throw new Error('Verification request not found')
+    const booking = verification.bookingId ? await ctx.db.get(verification.bookingId) : null
+    if (booking?.status === 'cancelled') throw new Error('Booking was cancelled and cannot be verified')
     const note = args.decision === 'rejected' ? requireNote(args.note, 'Rejecting booking verification') : normalizeNote(args.note)
     const now = Date.now()
     const after = { ...verification, adminStatus: args.decision, personaStatus: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now }
@@ -318,6 +321,7 @@ export const setPostHidden = mutation({
     const admin = await requireAdmin(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post) throw new Error('Post not found')
+    if (post.deletedAt && !args.hidden) throw new Error('Author-deleted posts cannot be restored')
     const note = args.hidden ? requireNote(args.note, 'Hiding a post') : normalizeNote(args.note)
     const after = { ...post, hidden: args.hidden, updatedAt: Date.now() }
     await ctx.db.patch(args.postId, { hidden: args.hidden, updatedAt: after.updatedAt })
@@ -403,6 +407,10 @@ async function describeReportTarget(ctx: any, report: { targetType: string; targ
   if (report.targetType === 'review') {
     const review = await safeGet(ctx, report.targetId)
     return review?.body ? `Review: ${truncate(review.body, 80)}` : `Review${review?.rating ? `: ${review.rating} stars` : ''}`
+  }
+  if (report.targetType === 'comment') {
+    const comment = await safeGet(ctx, report.targetId)
+    return comment?.body ? `Comment: ${truncate(comment.body, 80)}` : 'Comment'
   }
   if (report.targetType === 'booking') {
     const booking = await safeGet(ctx, report.targetId)

@@ -1,11 +1,12 @@
+import { canBookHost } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
 
 const demoHosts = [
-  { _id: 'demo-1', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee or meal companion', 'Local walk or city guide'], bookable: false, demo: true },
-  { _id: 'demo-2', displayName: 'Jo', city: 'Online', mode: 'online', rating: 4.8, reviewCount: 18, intro: 'Online coworking and study partner for people who want accountability without pressure.', strengths: ['Study partner', 'Online chat friend', 'Language practice'], categories: ['Online coworking', 'Language practice'], bookable: false, demo: true },
-  { _id: 'demo-3', displayName: 'Rafi', city: 'Bohol', mode: 'in_person', rating: 4.7, reviewCount: 12, intro: 'Photography walk partner for safe public routes, food stops, and relaxed creative exploration.', strengths: ['Photography walk partner', 'Food trip companion', 'Local tour buddy'], categories: ['Photography or creative walk', 'Travel or neighborhood guide'], bookable: false, demo: true },
+  { _id: 'demo-1', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee or meal companion', 'Local walk or city guide'], bookable: false, viewerCanBook: true, demo: true },
+  { _id: 'demo-2', displayName: 'Jo', city: 'Online', mode: 'online', rating: 4.8, reviewCount: 18, intro: 'Online coworking and study partner for people who want accountability without pressure.', strengths: ['Study partner', 'Online chat friend', 'Language practice'], categories: ['Online coworking', 'Language practice'], bookable: false, viewerCanBook: true, demo: true },
+  { _id: 'demo-3', displayName: 'Rafi', city: 'Bohol', mode: 'in_person', rating: 4.7, reviewCount: 12, intro: 'Photography walk partner for safe public routes, food stops, and relaxed creative exploration.', strengths: ['Photography walk partner', 'Food trip companion', 'Local tour buddy'], categories: ['Photography or creative walk', 'Travel or neighborhood guide'], bookable: false, viewerCanBook: true, demo: true },
 ] as const
 
 export const listApproved = query({
@@ -37,16 +38,16 @@ export const listApproved = query({
 
     return await Promise.all(withDistance.map(async ({ host, distanceKm }) => {
       const user = await ctx.db.get(host.userId)
+      const { approximateArea: _approximateArea, approximateLatitude: _approximateLatitude, approximateLongitude: _approximateLongitude, ...publicHost } = host
       return {
-        ...host,
+        ...publicHost,
         displayName: user?.displayName ?? host.displayName,
         profileImageUrl: user ? await profileImageUrl(ctx, user) : undefined,
         bio: user?.bio,
-        approximateLatitude: undefined,
-        approximateLongitude: undefined,
         distanceKm: typeof distanceKm === 'number' ? Math.round(distanceKm * 10) / 10 : undefined,
         _id: host._id,
         bookable: true,
+        viewerCanBook: canBookHost(viewer ? String(viewer._id) : null, String(host.userId)),
         demo: false,
         saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
         following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
@@ -62,11 +63,13 @@ export const getPublic = query({
     const host = await ctx.db.get(args.hostProfileId)
     if (!host || host.status !== 'approved') return null
     const user = await ctx.db.get(host.userId)
+    const { approximateArea: _approximateArea, approximateLatitude: _approximateLatitude, approximateLongitude: _approximateLongitude, ...publicHost } = host
     return {
-      ...host,
+      ...publicHost,
       displayName: user?.displayName ?? host.displayName,
       profileImageUrl: user ? await profileImageUrl(ctx, user) : undefined,
       bio: user?.bio,
+      viewerCanBook: canBookHost(viewer ? String(viewer._id) : null, String(host.userId)),
       saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
       following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
     }

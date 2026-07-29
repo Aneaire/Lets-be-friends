@@ -1,9 +1,10 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { SignInButton, useAuth, useUser } from '@clerk/react'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { X } from 'lucide-react'
 import type React from 'react'
-import { activityCategories } from '@lets-be-friends/shared'
+import { activityCategories, canBookingChat, canCancelBooking, canCompleteBooking, canReadBookingMessages, canReviewBooking } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { WorkspaceShell } from '../components/AppShell'
@@ -22,6 +23,7 @@ type ApprovedHostOption = {
   mode: 'online' | 'in_person' | 'both'
   categories?: string[]
   bookable?: boolean
+  viewerCanBook?: boolean
   demo?: boolean
 }
 
@@ -30,6 +32,7 @@ type BookingStatus =
   | 'request_sent'
   | 'accepted'
   | 'declined'
+  | 'cancelled'
   | 'completed'
   | 'review_window'
   | 'closed'
@@ -39,6 +42,7 @@ const statusCopy: Record<BookingStatus, { label: string; tone: 'self' | 'social'
   request_sent: { label: 'Request sent', tone: 'social' },
   accepted: { label: 'Accepted', tone: 'success' },
   declined: { label: 'Declined', tone: 'danger' },
+  cancelled: { label: 'Cancelled', tone: 'danger' },
   completed: { label: 'Completed', tone: 'success' },
   review_window: { label: 'Review window open', tone: 'social' },
   closed: { label: 'Closed', tone: 'self' },
@@ -47,17 +51,39 @@ const statusCopy: Record<BookingStatus, { label: string; tone: 'self' | 'social'
 function AppPage() {
   const { hostProfileId } = Route.useSearch()
   const { isSignedIn } = useAuth()
-  const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
   const bookings = useQuery(api.bookings.mine, viewer ? {} : 'skip')
   const approvedHosts = useQuery(api.hosts.listApproved, {}) as ApprovedHostOption[] | undefined
-  const bookableHosts = useMemo(() => (approvedHosts ?? []).filter((host) => host.bookable && !host.demo), [approvedHosts])
-  const ensureUser = useMutation(api.users.ensureViewer)
+  const bookableHosts = useMemo(() => (approvedHosts ?? []).filter((host) => host.bookable && host.viewerCanBook !== false && !host.demo), [approvedHosts])
   const createDraft = useMutation(api.bookings.createDraft)
   const sendMessage = useMutation(api.bookings.sendMessage)
+  const cancelBooking = useMutation(api.bookings.cancel)
+  const completeBooking = useMutation(api.bookings.markCompleted)
   const submitReview = useMutation(api.reviews.submit)
   const report = useMutation(api.reports.create)
+  const navigate = useNavigate()
   const [notice, setNotice] = useState('')
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(Boolean(hostProfileId))
+  const bookingTriggerRef = useRef<HTMLButtonElement>(null)
+  const bookingOpenerRef = useRef<HTMLElement | null>(null)
+
+  const openBookingDialog = useCallback((opener?: HTMLElement) => {
+    bookingOpenerRef.current = opener ?? bookingTriggerRef.current
+    setBookingDialogOpen(true)
+  }, [])
+
+  const closeBookingDialog = useCallback(() => {
+    setBookingDialogOpen(false)
+    if (hostProfileId) {
+      void navigate({ to: '/app', search: {}, replace: true })
+    }
+  }, [hostProfileId, navigate])
+
+  useEffect(() => {
+    if (!hostProfileId) return
+    bookingOpenerRef.current = bookingTriggerRef.current
+    setBookingDialogOpen(true)
+  }, [hostProfileId])
 
   if (!isSignedIn) {
     return (
@@ -78,7 +104,7 @@ function AppPage() {
     ['request_sent', 'accepted', 'verification_required'].includes(booking.status),
   ).length
   const completedBookings = (bookings ?? []).filter((booking) =>
-    ['completed', 'review_window', 'closed', 'declined'].includes(booking.status),
+    ['completed', 'review_window', 'closed', 'declined', 'cancelled'].includes(booking.status),
   ).length
 
   const verificationLabel = viewer
@@ -98,34 +124,28 @@ function AppPage() {
     <WorkspaceShell
       eyebrow="Member workspace"
       title="Bookings and messages"
-      description={
-        viewer
-          ? `Signed in as ${viewer.displayName}. Identity status visible on the right.`
-          : 'Sync your profile to Convex to start booking.'
-      }
+      description={viewer ? `Signed in as ${viewer.displayName}. Identity status is listed in your account rail.` : 'Loading your profile…'}
       actions={
         <button
-          onClick={() => ensureUser({ displayName: viewer?.displayName ?? user?.fullName ?? user?.username ?? 'New friend' })}
-          className="btn btn-neutral btn-sm"
+          ref={bookingTriggerRef}
+          type="button"
+          className="btn btn-social"
+          onClick={(event) => openBookingDialog(event.currentTarget)}
+          aria-haspopup="dialog"
+          aria-expanded={bookingDialogOpen}
+          aria-controls="booking-dialog"
         >
-          Sync profile
+          Start a booking
         </button>
       }
       rail={
         <>
           <div className="rail-section">
             <div className="rail-section-title">Workspace</div>
-            <a href="#bookings" className="rail-link is-active">
+            <div className="rail-link is-active" aria-current="page">
               <span>Bookings</span>
               <span className="rail-link-count tabular">{openBookings}</span>
-            </a>
-            <a href="#new-booking" className="rail-link">
-              <span>Start a booking</span>
-            </a>
-            <a href="#archive" className="rail-link">
-              <span>Past bookings</span>
-              <span className="rail-link-count tabular">{completedBookings}</span>
-            </a>
+            </div>
           </div>
           <div className="rail-section">
             <div className="rail-section-title">Account</div>
@@ -150,108 +170,134 @@ function AppPage() {
         </div>
       )}
 
-      <div className="drawer-host">
-        <div className="min-w-0">
-          <section id="bookings">
-            <header className="flex items-baseline justify-between gap-3 mb-3">
-              <h2 className="text-h2">Open bookings</h2>
-              <span className="text-meta tabular">{openBookings} active</span>
-            </header>
-            {viewer === undefined && <div className="empty-state">Loading your profile…</div>}
-            {viewer === null && (
-              <div className="notice notice-warning">
-                <span className="notice-icon">!</span>
-                <span>Sync your profile first. Bookings appear here once your Convex profile exists.</span>
-              </div>
-            )}
-            {viewer && (bookings ?? []).length === 0 && (
-              <div className="empty-state">
-                <p className="empty-state-title">No bookings yet.</p>
-                <p className="text-meta max-w-[44ch]">
-                  Pick an approved Friend Host on the right to send your first request.
-                </p>
-              </div>
-            )}
-            {(bookings ?? []).filter((booking) =>
-              ['request_sent', 'accepted', 'verification_required'].includes(booking.status),
-            ).length > 0 && (
-              <div className="panel mt-2">
-                <div className="worklist">
-                  {(bookings ?? [])
-                    .filter((booking) =>
-                      ['request_sent', 'accepted', 'verification_required'].includes(booking.status),
-                    )
-                    .map((booking) => (
-                      <BookingRow
-                        key={booking._id}
-                        booking={booking}
-                        onSendMessage={async (body) => {
-                          await sendMessage({ bookingId: booking._id, body })
-                          setNotice('Message sent.')
-                        }}
-                        onReview={async (rating, body) => {
-                          await submitReview({ bookingId: booking._id, rating, body })
-                          setNotice('Review submitted.')
-                        }}
-                        onReport={async () => {
-                          await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs safety review' })
-                          setNotice('Report sent to the review queue.')
-                        }}
-                      />
-                    ))}
-                </div>
-              </div>
-            )}
-          </section>
+      <section id="bookings">
+        <header className="flex items-baseline justify-between gap-3 mb-3">
+          <h2 className="text-h2">Open bookings</h2>
+          <span className="text-meta tabular">{openBookings} active</span>
+        </header>
+        {viewer === undefined && <div className="empty-state">Loading your profile…</div>}
+        {viewer && (bookings ?? []).length === 0 && (
+          <div className="empty-state">
+            <p className="empty-state-title">No bookings yet.</p>
+            <p className="text-meta max-w-[44ch]">
+              Choose an approved Friend Host and send your first request.
+            </p>
+            <button
+              type="button"
+              className="btn btn-social btn-sm mt-2"
+              onClick={(event) => openBookingDialog(event.currentTarget)}
+              aria-haspopup="dialog"
+              aria-expanded={bookingDialogOpen}
+              aria-controls="booking-dialog"
+            >
+              Start your first booking
+            </button>
+          </div>
+        )}
+        {(bookings ?? []).filter((booking) =>
+          ['request_sent', 'accepted', 'verification_required'].includes(booking.status),
+        ).length > 0 && (
+          <div className="panel mt-2">
+            <div className="worklist">
+              {(bookings ?? [])
+                .filter((booking) =>
+                  ['request_sent', 'accepted', 'verification_required'].includes(booking.status),
+                )
+                .map((booking) => (
+                  <BookingRow
+                    key={booking._id}
+                    booking={booking}
+                    onSendMessage={async (body) => {
+                      await sendMessage({ bookingId: booking._id, body })
+                      setNotice('Message sent.')
+                    }}
+                    onCancel={async () => {
+                      await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by member.' })
+                      setNotice('Booking cancelled.')
+                    }}
+                    onComplete={async () => {
+                      await completeBooking({ bookingId: booking._id })
+                      setNotice('Booking marked complete. The review window is open.')
+                    }}
+                    onReview={async (rating, body) => {
+                      await submitReview({ bookingId: booking._id, rating, body })
+                      setNotice('Review submitted.')
+                    }}
+                    onReport={async () => {
+                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs safety review' })
+                      setNotice('Report sent to the review queue.')
+                    }}
+                    onReportMessage={async (messageId) => {
+                      await report({ targetType: 'message', targetId: messageId, reason: 'Message needs safety review' })
+                      setNotice('Message report sent to the review queue.')
+                    }}
+                  />
+                ))}
+            </div>
+          </div>
+        )}
+      </section>
 
-          {(bookings ?? []).filter((booking) =>
-            ['completed', 'review_window', 'closed', 'declined'].includes(booking.status),
-          ).length > 0 && (
-            <section id="archive" className="mt-10">
-              <header className="flex items-baseline justify-between gap-3 mb-3">
-                <h2 className="text-h2">Past bookings</h2>
-                <span className="text-meta tabular">{completedBookings}</span>
-              </header>
-              <div className="panel">
-                <div className="worklist">
-                  {(bookings ?? [])
-                    .filter((booking) =>
-                      ['completed', 'review_window', 'closed', 'declined'].includes(booking.status),
-                    )
-                    .map((booking) => (
-                      <BookingRow
-                        key={booking._id}
-                        booking={booking}
-                        onSendMessage={async (body) => {
-                          await sendMessage({ bookingId: booking._id, body })
-                          setNotice('Message sent.')
-                        }}
-                        onReview={async (rating, body) => {
-                          await submitReview({ bookingId: booking._id, rating, body })
-                          setNotice('Review submitted.')
-                        }}
-                        onReport={async () => {
-                          await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs safety review' })
-                          setNotice('Report sent to the review queue.')
-                        }}
-                      />
-                    ))}
-                </div>
-              </div>
-            </section>
-          )}
-        </div>
+      {(bookings ?? []).filter((booking) =>
+        ['completed', 'review_window', 'closed', 'declined', 'cancelled'].includes(booking.status),
+      ).length > 0 && (
+        <section id="archive" className="mt-10">
+          <header className="flex items-baseline justify-between gap-3 mb-3">
+            <h2 className="text-h2">Past bookings</h2>
+            <span className="text-meta tabular">{completedBookings}</span>
+          </header>
+          <div className="panel">
+            <div className="worklist">
+              {(bookings ?? [])
+                .filter((booking) =>
+                  ['completed', 'review_window', 'closed', 'declined', 'cancelled'].includes(booking.status),
+                )
+                .map((booking) => (
+                  <BookingRow
+                    key={booking._id}
+                    booking={booking}
+                    onSendMessage={async (body) => {
+                      await sendMessage({ bookingId: booking._id, body })
+                      setNotice('Message sent.')
+                    }}
+                    onCancel={async () => {
+                      await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by member.' })
+                      setNotice('Booking cancelled.')
+                    }}
+                    onComplete={async () => {
+                      await completeBooking({ bookingId: booking._id })
+                      setNotice('Booking marked complete. The review window is open.')
+                    }}
+                    onReview={async (rating, body) => {
+                      await submitReview({ bookingId: booking._id, rating, body })
+                      setNotice('Review submitted.')
+                    }}
+                    onReport={async () => {
+                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs safety review' })
+                      setNotice('Report sent to the review queue.')
+                    }}
+                    onReportMessage={async (messageId) => {
+                      await report({ targetType: 'message', targetId: messageId, reason: 'Message needs safety review' })
+                      setNotice('Message report sent to the review queue.')
+                    }}
+                  />
+                ))}
+            </div>
+          </div>
+        </section>
+      )}
 
-        <BookingDrawer
+      {bookingDialogOpen && (
+        <BookingDialog
           createDraft={createDraft}
-          ensureUser={ensureUser}
           hosts={bookableHosts}
           hostsLoading={approvedHosts === undefined}
           initialHostProfileId={hostProfileId}
-          userName={viewer?.displayName ?? user?.fullName ?? user?.username ?? 'New friend'}
+          onClose={closeBookingDialog}
+          restoreFocusTo={bookingOpenerRef.current ?? bookingTriggerRef.current}
           setNotice={setNotice}
         />
-      </div>
+      )}
     </WorkspaceShell>
   )
 }
@@ -261,18 +307,27 @@ type Booking = NonNullable<ReturnType<typeof useQuery<typeof api.bookings.mine>>
 function BookingRow({
   booking,
   onSendMessage,
+  onCancel,
+  onComplete,
   onReview,
   onReport,
+  onReportMessage,
 }: {
   booking: Booking
   onSendMessage: (body: string) => Promise<void>
+  onCancel: () => Promise<void>
+  onComplete: () => Promise<void>
   onReview: (rating: number, body?: string) => Promise<void>
   onReport: () => Promise<void>
+  onReportMessage: (messageId: Id<'messages'>) => Promise<void>
 }) {
   const status = statusCopy[booking.status as BookingStatus] ?? { label: booking.status, tone: 'self' as const }
-  const canChat = ['request_sent', 'accepted', 'completed', 'review_window'].includes(booking.status)
-  const canReview = ['completed', 'review_window'].includes(booking.status)
-  const messages = useQuery(api.bookings.messages, canChat ? { bookingId: booking._id } : 'skip')
+  const canChat = canBookingChat(booking.status)
+  const canCancel = canCancelBooking(booking.status)
+  const canComplete = canCompleteBooking(booking.status)
+  const canReview = canReviewBooking(booking.status) && !booking.viewerHasReviewed
+  const canReadMessages = canReadBookingMessages(booking.status)
+  const messages = useQuery(api.bookings.messages, canReadMessages ? { bookingId: booking._id } : 'skip')
 
   return (
     <article className="worklist-row">
@@ -308,8 +363,7 @@ function BookingRow({
         </div>
       )}
 
-      {(canChat || canReview) && (
-        <div className="worklist-row-actions">
+      <div className="worklist-row-actions">
           {canChat && (
             <form
               className="flex items-center gap-2 flex-1 min-w-[260px]"
@@ -327,27 +381,36 @@ function BookingRow({
               <button className="btn btn-social btn-sm">Send</button>
             </form>
           )}
+          {canComplete && <button type="button" onClick={onComplete} className="btn btn-neutral btn-sm">Mark completed</button>}
           {canReview && <ReviewForm onReview={onReview} />}
+          {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
+          {canCancel && <button type="button" onClick={onCancel} className="btn btn-danger btn-sm">Cancel booking</button>}
           <button onClick={onReport} className="btn btn-danger btn-sm">
             Report
           </button>
-        </div>
-      )}
-      {canChat && <MessageThread messages={messages ?? []} />}
+      </div>
+      {canReadMessages && <MessageThread messages={messages ?? []} onReport={onReportMessage} />}
     </article>
   )
 }
 
-function MessageThread({ messages }: { messages: Array<{ _id: string; body: string; createdAt: number }> }) {
+function MessageThread({ messages, onReport }: {
+  messages: Array<{ _id: Id<'messages'>; body: string; createdAt: number; senderDisplayName: string; sentByViewer: boolean }>
+  onReport: (messageId: Id<'messages'>) => Promise<void>
+}) {
   if (messages.length === 0) return null
   return (
     <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-3 space-y-2">
       <p className="text-tiny uppercase tracking-wide text-[color:var(--text-soft)]">Messages</p>
-      {messages.slice(-5).map((message) => (
-        <div key={message._id} className="text-meta">
-          <span className="tabular text-soft">{formatRequestedAt(message.createdAt)}</span>
-          <span className="mx-2 text-soft">·</span>
-          <span>{message.body}</span>
+      {messages.map((message) => (
+        <div key={message._id} className="message-row text-meta">
+          <div className="min-w-0">
+            <strong>{message.sentByViewer ? 'You' : message.senderDisplayName}</strong>
+            <span className="mx-2 text-soft">·</span>
+            <span className="tabular text-soft">{formatRequestedAt(message.createdAt)}</span>
+            <p className="mt-1 whitespace-pre-wrap">{message.body}</p>
+          </div>
+          <button type="button" onClick={() => onReport(message._id)} className="btn btn-ghost btn-sm">Report</button>
         </div>
       ))}
     </div>
@@ -379,7 +442,7 @@ function ReviewForm({ onReview }: { onReview: (rating: number, body?: string) =>
   )
 }
 
-type BookingDrawerProps = {
+type BookingDialogProps = {
   hosts: ApprovedHostOption[]
   hostsLoading: boolean
   initialHostProfileId?: string
@@ -391,13 +454,26 @@ type BookingDrawerProps = {
     durationMinutes: number
     notes?: string
   }) => Promise<Id<'bookings'>>
-  ensureUser: (args: { displayName: string }) => Promise<Id<'users'>>
-  userName: string
+  onClose: () => void
+  restoreFocusTo: HTMLElement | null
   setNotice: (notice: string) => void
 }
 
-function BookingDrawer({ hosts, hostsLoading, initialHostProfileId, createDraft, ensureUser, userName, setNotice }: BookingDrawerProps) {
+function BookingDialog({
+  hosts,
+  hostsLoading,
+  initialHostProfileId,
+  createDraft,
+  onClose,
+  restoreFocusTo,
+  setNotice,
+}: BookingDialogProps) {
   const [selectedHostProfileId, setSelectedHostProfileId] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const hostSelectRef = useRef<HTMLSelectElement>(null)
+  const submittingRef = useRef(false)
   const selectedHost = hosts.find((host) => host._id === selectedHostProfileId)
   const categoryOptions = selectedHost?.categories?.length ? selectedHost.categories : activityCategories
   const [selectedMode, setSelectedMode] = useState<'online' | 'in_person'>('online')
@@ -409,8 +485,8 @@ function BookingDrawer({ hosts, hostsLoading, initialHostProfileId, createDraft,
 
   useEffect(() => {
     setSelectedHostProfileId((current) => {
-      if (current && hosts.some((host) => host._id === current)) return current
       if (initialHostProfileId && hosts.some((host) => host._id === initialHostProfileId)) return initialHostProfileId
+      if (current && hosts.some((host) => host._id === current)) return current
       return hosts[0]?._id ?? ''
     })
   }, [hosts, initialHostProfileId])
@@ -419,113 +495,218 @@ function BookingDrawer({ hosts, hostsLoading, initialHostProfileId, createDraft,
     if (!modeOptions.includes(selectedMode)) setSelectedMode(modeOptions[0])
   }, [modeOptions, selectedMode])
 
-  const canSubmit = selectedHostProfileId.length > 0
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      if (hostSelectRef.current && !hostSelectRef.current.disabled) {
+        hostSelectRef.current.focus()
+      } else {
+        dialogRef.current?.focus()
+      }
+    })
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (submittingRef.current) return
+        event.preventDefault()
+        onClose()
+        return
+      }
+
+      if (event.key !== 'Tab' || !dialogRef.current) return
+
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      )).filter((element) => element.getClientRects().length > 0)
+
+      if (focusable.length === 0) {
+        event.preventDefault()
+        dialogRef.current.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const activeElement = document.activeElement
+      if (event.shiftKey && (activeElement === first || activeElement === dialogRef.current)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && (activeElement === last || activeElement === dialogRef.current)) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.cancelAnimationFrame(focusFrame)
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+      window.requestAnimationFrame(() => restoreFocusTo?.focus())
+    }
+  }, [onClose, restoreFocusTo])
+
+  const canSubmit = selectedHostProfileId.length > 0 && !isSubmitting
 
   return (
-    <aside id="new-booking" className="drawer">
-      <div className="drawer-header">
-        <h2 className="text-h3">Start a booking</h2>
-        <span className="text-meta">Step 1 of 1</span>
-      </div>
-      <form
-        className="drawer-body"
-        onSubmit={async (event) => {
-          event.preventDefault()
-          if (!selectedHostProfileId) {
-            setNotice('Choose an approved Friend Host before saving a booking.')
-            return
-          }
-          const form = new FormData(event.currentTarget)
-          await ensureUser({ displayName: userName })
-          const bookingId = await createDraft({
-            hostProfileId: selectedHostProfileId as Id<'hostProfiles'>,
-            category: String(form.get('category')),
-            mode: selectedMode,
-            requestedAt: new Date(String(form.get('requestedAt'))).getTime(),
-            durationMinutes: Number(form.get('durationMinutes')),
-            notes: String(form.get('notes') || '') || undefined,
-          })
-          setNotice(`Booking ${bookingId.toString().slice(-6)} saved. Check the bookings list for next steps.`)
-        }}
+    <div
+      className="booking-dialog-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !isSubmitting) onClose()
+      }}
+    >
+      <div
+        ref={dialogRef}
+        id="booking-dialog"
+        className="booking-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="booking-dialog-title"
+        tabIndex={-1}
       >
-        {!hostsLoading && hosts.length === 0 && (
-          <div className="notice notice-warning text-meta">
-            <span className="notice-icon">!</span>
-            <span>No approved hosts yet. One needs to pass safety review first.</span>
+        <header className="booking-dialog-header">
+          <div>
+            <p className="eyebrow">New request</p>
+            <h2 id="booking-dialog-title" className="text-h2 mt-1">Start a booking</h2>
           </div>
-        )}
-
-        <label className="field-row">
-          <span className="label">Friend Host</span>
-          <select
-            name="hostProfileId"
-            value={selectedHostProfileId}
-            onChange={(event) => setSelectedHostProfileId(event.currentTarget.value)}
-            disabled={hostsLoading || hosts.length === 0}
-            className="field"
-            required
+          <button
+            type="button"
+            className="social-icon-button"
+            aria-label="Close booking dialog"
+            onClick={onClose}
+            disabled={isSubmitting}
           >
-            {hostsLoading && <option value="">Loading…</option>}
-            {!hostsLoading && hosts.length === 0 && <option value="">No approved hosts</option>}
-            {hosts.map((host) => (
-              <option key={host._id} value={host._id}>
-                {host.displayName} · {host.city}
-              </option>
-            ))}
-          </select>
-        </label>
+            <X size={16} aria-hidden="true" />
+          </button>
+        </header>
 
-        <label className="field-row">
-          <span className="label">Category</span>
-          <select name="category" className="field">
-            {categoryOptions.map((category) => <option key={category}>{category}</option>)}
-          </select>
-        </label>
+        <form
+          className="booking-dialog-body"
+          onSubmit={async (event) => {
+            event.preventDefault()
+            if (!selectedHostProfileId) {
+              setSubmitError('Choose an approved Friend Host before sending a booking request.')
+              return
+            }
 
-        <div className="grid gap-3 grid-cols-2">
+            setSubmitError('')
+            submittingRef.current = true
+            setIsSubmitting(true)
+            const form = new FormData(event.currentTarget)
+            try {
+              const bookingId = await createDraft({
+                hostProfileId: selectedHostProfileId as Id<'hostProfiles'>,
+                category: String(form.get('category')),
+                mode: selectedMode,
+                requestedAt: new Date(String(form.get('requestedAt'))).getTime(),
+                durationMinutes: Number(form.get('durationMinutes')),
+                notes: String(form.get('notes') || '') || undefined,
+              })
+              submittingRef.current = false
+              setIsSubmitting(false)
+              setNotice(`Booking ${bookingId.toString().slice(-6)} saved. Check the bookings list for next steps.`)
+              onClose()
+            } catch (error) {
+              submittingRef.current = false
+              setIsSubmitting(false)
+              setSubmitError(error instanceof Error ? error.message : 'The booking request could not be sent. Try again.')
+            }
+          }}
+        >
+          {!hostsLoading && hosts.length === 0 && (
+            <div className="notice notice-warning text-meta">
+              <span className="notice-icon">!</span>
+              <span>
+                No approved hosts yet.{' '}
+                <Link to="/become-host" className="notice-link">Apply to become an approved host</Link>.
+              </span>
+            </div>
+          )}
+
+          {submitError && (
+            <div className="notice notice-danger text-meta" role="alert">
+              <span className="notice-icon">!</span>
+              <span>{submitError}</span>
+            </div>
+          )}
+
           <label className="field-row">
-            <span className="label">Mode</span>
+            <span className="label">Friend Host</span>
             <select
-              value={selectedMode}
-              onChange={(event) => setSelectedMode(event.currentTarget.value as 'online' | 'in_person')}
-              name="mode"
+              ref={hostSelectRef}
+              name="hostProfileId"
+              value={selectedHostProfileId}
+              onChange={(event) => setSelectedHostProfileId(event.currentTarget.value)}
+              disabled={hostsLoading || hosts.length === 0 || isSubmitting}
               className="field"
+              required
             >
-              {modeOptions.includes('online') && <option value="online">Online</option>}
-              {modeOptions.includes('in_person') && <option value="in_person">In person</option>}
+              {hostsLoading && <option value="">Loading…</option>}
+              {!hostsLoading && hosts.length === 0 && <option value="">No approved hosts</option>}
+              {hosts.map((host) => (
+                <option key={host._id} value={host._id}>
+                  {host.displayName} · {host.city}
+                </option>
+              ))}
             </select>
           </label>
+
           <label className="field-row">
-            <span className="label">Duration <span className="label-aux">min</span></span>
-            <input name="durationMinutes" type="number" min={15} step={15} required defaultValue="60" className="field" />
+            <span className="label">Category</span>
+            <select name="category" className="field" disabled={isSubmitting}>
+              {categoryOptions.map((category) => <option key={category}>{category}</option>)}
+            </select>
           </label>
-        </div>
 
-        <label className="field-row">
-          <span className="label">When</span>
-          <input
-            name="requestedAt"
-            type="datetime-local"
-            required
-            defaultValue={new Date(Date.now() + 86400000).toISOString().slice(0, 16)}
-            className="field"
-          />
-        </label>
+          <div className="booking-dialog-paired-fields">
+            <label className="field-row">
+              <span className="label">Mode</span>
+              <select
+                value={selectedMode}
+                onChange={(event) => setSelectedMode(event.currentTarget.value as 'online' | 'in_person')}
+                name="mode"
+                className="field"
+                disabled={isSubmitting}
+              >
+                {modeOptions.includes('online') && <option value="online">Online</option>}
+                {modeOptions.includes('in_person') && <option value="in_person">In person</option>}
+              </select>
+            </label>
+            <label className="field-row">
+              <span className="label">Duration <span className="label-aux">min</span></span>
+              <input name="durationMinutes" type="number" min={15} step={15} required defaultValue="60" className="field" disabled={isSubmitting} />
+            </label>
+          </div>
 
-        <label className="field-row">
-          <span className="label">Notes <span className="label-aux">visible to host on accept</span></span>
-          <textarea name="notes" className="field min-h-20" />
-        </label>
+          <label className="field-row">
+            <span className="label">When</span>
+            <input
+              name="requestedAt"
+              type="datetime-local"
+              required
+              defaultValue={new Date(Date.now() + 86400000).toISOString().slice(0, 16)}
+              className="field"
+              disabled={isSubmitting}
+            />
+          </label>
 
-        <button disabled={!canSubmit} className="btn btn-social btn-block">
-          Send booking request
-        </button>
-        <p className="text-tiny">
-          If identity is unverified, the booking is held in <code>verification_required</code> until
-          safety review approves the placeholder Persona inquiry.
-        </p>
-      </form>
-    </aside>
+          <label className="field-row">
+            <span className="label">Notes <span className="label-aux">visible to host on accept</span></span>
+            <textarea name="notes" className="field min-h-20" disabled={isSubmitting} />
+          </label>
+
+          <button disabled={!canSubmit} className="btn btn-social btn-block">
+            {isSubmitting ? 'Sending request…' : 'Send booking request'}
+          </button>
+          <p className="text-tiny">
+            If identity is unverified, the booking is held in <code>verification_required</code> until
+            safety review approves the placeholder Persona inquiry.
+          </p>
+        </form>
+      </div>
+    </div>
   )
 }
 

@@ -1,8 +1,10 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { SignInButton, useAuth, useUser } from '@clerk/react'
+import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import type React from 'react'
+import { canBookingChat, canCancelBooking, canCompleteBooking, canReadBookingMessages, canReviewBooking } from '@lets-be-friends/shared'
+import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
 import { WorkspaceShell } from '../components/AppShell'
 
@@ -33,14 +35,14 @@ const statusCopy: Record<HostBookingStatus, { label: string; tone: 'self' | 'soc
 
 function HostWorkspacePage() {
   const { isSignedIn } = useAuth()
-  const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.hosts.myApplication)
   const bookings = useQuery(api.bookings.forHost, viewer ? {} : 'skip')
-  const ensureUser = useMutation(api.users.ensureViewer)
   const decide = useMutation(api.bookings.hostDecision)
+  const cancelBooking = useMutation(api.bookings.cancel)
   const complete = useMutation(api.bookings.markCompleted)
   const sendMessage = useMutation(api.bookings.sendMessage)
+  const submitReview = useMutation(api.reviews.submit)
   const report = useMutation(api.reports.create)
   const [notice, setNotice] = useState('')
 
@@ -70,15 +72,7 @@ function HostWorkspacePage() {
       description={
         viewer
           ? `Signed in as ${viewer.displayName}. Host visibility depends on application and safety review status.`
-          : 'Sync your profile before managing host requests.'
-      }
-      actions={
-        <button
-          onClick={() => ensureUser({ displayName: viewer?.displayName ?? user?.fullName ?? user?.username ?? 'New friend' })}
-          className="btn btn-neutral btn-sm"
-        >
-          Sync profile
-        </button>
+          : 'Loading your host workspace…'
       }
       rail={
         <>
@@ -120,7 +114,7 @@ function HostWorkspacePage() {
           <h2 className="text-h2">Profile status</h2>
           {application && <span className="status-pill" data-tone={statusTone(application.status)}>{application.status}</span>}
         </header>
-        {!viewer && <div className="empty-state">Sync your profile first.</div>}
+        {!viewer && <div className="empty-state">Loading your profile…</div>}
         {viewer && !application && (
           <div className="empty-state">
             <p className="empty-state-title">No host application yet.</p>
@@ -179,9 +173,17 @@ function HostWorkspacePage() {
                       await decide({ bookingId: booking._id, decision: 'declined', note: 'Declined by Friend Host.' })
                       setNotice('Booking declined.')
                     }}
+                    onCancel={async () => {
+                      await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by Friend Host.' })
+                      setNotice('Booking cancelled.')
+                    }}
                     onComplete={async () => {
                       await complete({ bookingId: booking._id })
-                      setNotice('Booking marked completed. Review window is open.')
+                      setNotice('Booking marked complete. Review window is open.')
+                    }}
+                    onReview={async (rating, body) => {
+                      await submitReview({ bookingId: booking._id, rating, body })
+                      setNotice('Review submitted.')
                     }}
                     onSendMessage={async (body) => {
                       await sendMessage({ bookingId: booking._id, body })
@@ -190,6 +192,10 @@ function HostWorkspacePage() {
                     onReport={async () => {
                       await report({ targetType: 'booking', targetId: booking._id, reason: 'Host flagged this booking for safety review' })
                       setNotice('Report sent to safety review.')
+                    }}
+                    onReportMessage={async (messageId) => {
+                      await report({ targetType: 'message', targetId: messageId, reason: 'Message needs safety review' })
+                      setNotice('Message report sent to safety review.')
                     }}
                   />
                 ))}
@@ -214,7 +220,18 @@ function HostWorkspacePage() {
                     booking={booking}
                     onAccept={async () => undefined}
                     onDecline={async () => undefined}
-                    onComplete={async () => undefined}
+                    onCancel={async () => {
+                      await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by Friend Host.' })
+                      setNotice('Booking cancelled.')
+                    }}
+                    onComplete={async () => {
+                      await complete({ bookingId: booking._id })
+                      setNotice('Booking marked complete. Review window is open.')
+                    }}
+                    onReview={async (rating, body) => {
+                      await submitReview({ bookingId: booking._id, rating, body })
+                      setNotice('Review submitted.')
+                    }}
                     onSendMessage={async (body) => {
                       await sendMessage({ bookingId: booking._id, body })
                       setNotice('Message sent.')
@@ -222,6 +239,10 @@ function HostWorkspacePage() {
                     onReport={async () => {
                       await report({ targetType: 'booking', targetId: booking._id, reason: 'Host flagged this booking for safety review' })
                       setNotice('Report sent to safety review.')
+                    }}
+                    onReportMessage={async (messageId) => {
+                      await report({ targetType: 'message', targetId: messageId, reason: 'Message needs safety review' })
+                      setNotice('Message report sent to safety review.')
                     }}
                   />
                 ))}
@@ -239,22 +260,31 @@ function HostBookingRow({
   booking,
   onAccept,
   onDecline,
+  onCancel,
   onComplete,
+  onReview,
   onSendMessage,
   onReport,
+  onReportMessage,
 }: {
   booking: HostBooking
   onAccept: () => Promise<void>
   onDecline: () => Promise<void>
+  onCancel: () => Promise<void>
   onComplete: () => Promise<void>
+  onReview: (rating: number, body?: string) => Promise<void>
   onSendMessage: (body: string) => Promise<void>
   onReport: () => Promise<void>
+  onReportMessage: (messageId: Id<'messages'>) => Promise<void>
 }) {
   const status = statusCopy[booking.status as HostBookingStatus] ?? { label: booking.status, tone: 'self' as const }
   const canDecide = booking.status === 'request_sent'
-  const canComplete = booking.status === 'accepted'
-  const canChat = ['request_sent', 'accepted', 'completed', 'review_window'].includes(booking.status)
-  const messages = useQuery(api.bookings.messages, canChat ? { bookingId: booking._id } : 'skip')
+  const canCancel = canCancelBooking(booking.status)
+  const canComplete = canCompleteBooking(booking.status)
+  const canReview = canReviewBooking(booking.status) && !booking.viewerHasReviewed
+  const canChat = canBookingChat(booking.status)
+  const canReadMessages = canReadBookingMessages(booking.status)
+  const messages = useQuery(api.bookings.messages, canReadMessages ? { bookingId: booking._id } : 'skip')
 
   return (
     <article className="worklist-row">
@@ -277,7 +307,7 @@ function HostBookingRow({
 
       {booking.notes && <p className="text-body muted max-w-[72ch]">{booking.notes}</p>}
 
-      {canChat && <MessageThread messages={messages ?? []} viewerLabel="Host" />}
+      {canReadMessages && <MessageThread messages={messages ?? []} onReport={onReportMessage} />}
 
       <div className="worklist-row-actions">
         {canDecide && (
@@ -287,6 +317,9 @@ function HostBookingRow({
           </>
         )}
         {canComplete && <button onClick={onComplete} className="btn btn-neutral btn-sm">Mark completed</button>}
+        {canReview && <ReviewForm onReview={onReview} />}
+        {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
+        {canCancel && <button type="button" onClick={onCancel} className="btn btn-danger btn-sm">Cancel booking</button>}
         {canChat && <MessageForm onSend={onSendMessage} />}
         <button onClick={onReport} className="btn btn-danger btn-sm">Report</button>
       </div>
@@ -294,18 +327,25 @@ function HostBookingRow({
   )
 }
 
-function MessageThread({ messages, viewerLabel }: { messages: Array<{ _id: string; body: string; createdAt: number }>; viewerLabel: string }) {
+function MessageThread({ messages, onReport }: {
+  messages: Array<{ _id: Id<'messages'>; body: string; createdAt: number; senderDisplayName: string; sentByViewer: boolean }>
+  onReport: (messageId: Id<'messages'>) => Promise<void>
+}) {
   if (messages.length === 0) {
     return <p className="text-meta">No messages yet. Chat opens only after the booking is allowed.</p>
   }
   return (
     <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-3 space-y-2">
-      <p className="text-tiny uppercase tracking-wide text-[color:var(--text-soft)]">Messages · {viewerLabel}</p>
-      {messages.slice(-5).map((message) => (
-        <div key={message._id} className="text-meta">
-          <span className="tabular text-soft">{formatRequestedAt(message.createdAt)}</span>
-          <span className="mx-2 text-soft">·</span>
-          <span>{message.body}</span>
+      <p className="text-tiny uppercase tracking-wide text-[color:var(--text-soft)]">Messages</p>
+      {messages.map((message) => (
+        <div key={message._id} className="message-row text-meta">
+          <div className="min-w-0">
+            <strong>{message.sentByViewer ? 'You' : message.senderDisplayName}</strong>
+            <span className="mx-2 text-soft">·</span>
+            <span className="tabular text-soft">{formatRequestedAt(message.createdAt)}</span>
+            <p className="mt-1 whitespace-pre-wrap">{message.body}</p>
+          </div>
+          <button type="button" onClick={() => onReport(message._id)} className="btn btn-ghost btn-sm">Report</button>
         </div>
       ))}
     </div>
@@ -328,6 +368,31 @@ function MessageForm({ onSend }: { onSend: (body: string) => Promise<void> }) {
     >
       <input name="body" className="field" placeholder="Send a chat message" />
       <button className="btn btn-social btn-sm">Send</button>
+    </form>
+  )
+}
+
+function ReviewForm({ onReview }: { onReview: (rating: number, body?: string) => Promise<void> }) {
+  return (
+    <form
+      className="flex items-center gap-2 flex-wrap"
+      onSubmit={async (event) => {
+        event.preventDefault()
+        const form = event.currentTarget
+        const data = new FormData(form)
+        await onReview(Number(data.get('rating')), String(data.get('body') || '') || undefined)
+        form.reset()
+      }}
+    >
+      <select name="rating" className="field max-w-24" defaultValue="5" aria-label="Review rating">
+        <option value="5">5★</option>
+        <option value="4">4★</option>
+        <option value="3">3★</option>
+        <option value="2">2★</option>
+        <option value="1">1★</option>
+      </select>
+      <input name="body" className="field min-w-[220px]" placeholder="Review note" />
+      <button className="btn btn-social-quiet btn-sm">Leave review</button>
     </form>
   )
 }

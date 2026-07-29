@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { SignInButton, useAuth } from '@clerk/react'
+import { SignUpButton, useAuth } from '@clerk/react'
 import { useQuery } from 'convex/react'
 import { activityCategories } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
@@ -35,7 +35,9 @@ const trustGates = [
 
 function HomePage() {
   const { isSignedIn } = useAuth()
-  const hosts = (useQuery(api.hosts.listApproved, {}) ?? []) as HomeHost[]
+  const hostsResult = useQuery(api.hosts.listApproved, {}) as HomeHost[] | undefined
+  const hosts = hostsResult ?? []
+  const hostsLoading = hostsResult === undefined
   const featured = hosts.slice(0, 4)
 
   if (isSignedIn) return <SocialPage />
@@ -105,12 +107,13 @@ function HomePage() {
           </div>
           <div className="panel">
             <div className="worklist">
-              {featured.length === 0 && (
+              {hostsLoading && <HomeHostSkeletonRows />}
+              {!hostsLoading && featured.length === 0 && (
                 <div className="worklist-empty">
                   No hosts visible yet. The list fills as applications pass safety review.
                 </div>
               )}
-              {featured.map((host) => (
+              {!hostsLoading && featured.map((host) => (
                 <FeaturedHostRow key={host._id} host={host} />
               ))}
             </div>
@@ -125,6 +128,28 @@ function HomePage() {
         </div>
       </section>
     </main>
+  )
+}
+
+function HomeHostSkeletonRows() {
+  return (
+    <>
+      {Array.from({ length: 3 }).map((_, index) => (
+        <article className="worklist-row skeleton-row" aria-hidden="true" key={index}>
+          <div className="worklist-row-head">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="skeleton skeleton-avatar" />
+              <div className="min-w-0 skeleton-stack">
+                <span className="skeleton skeleton-line skeleton-line-title" />
+                <span className="skeleton skeleton-line skeleton-line-meta" />
+              </div>
+            </div>
+            <span className="skeleton skeleton-button" />
+          </div>
+          <span className="skeleton skeleton-line skeleton-line-body" />
+        </article>
+      ))}
+    </>
   )
 }
 
@@ -180,9 +205,9 @@ function HomeAuthAction() {
     )
   }
   return (
-    <SignInButton mode="modal">
+    <SignUpButton mode="modal">
       <button className="btn btn-self btn-lg hero-action">Create account</button>
-    </SignInButton>
+    </SignUpButton>
   )
 }
 

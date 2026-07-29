@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { SignInButton, useAuth, useUser } from '@clerk/react'
+import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useState } from 'react'
 import type React from 'react'
@@ -27,8 +27,6 @@ function BecomeHostPage() {
 
 function HostAuthPanel() {
   const { isSignedIn } = useAuth()
-  const { user } = useUser()
-  const ensureUser = useMutation(api.users.ensureViewer)
   const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.hosts.myApplication)
   const submit = useMutation(api.hosts.submitApplication)
@@ -80,7 +78,6 @@ function HostAuthPanel() {
         onSubmit={async (event) => {
           event.preventDefault()
           const form = new FormData(event.currentTarget)
-          await ensureUser({ displayName: viewer?.displayName ?? user?.fullName ?? user?.username ?? 'New friend' })
           await submit({
             intro: String(form.get('intro') || ''),
             city: String(form.get('city') || ''),

@@ -5,7 +5,7 @@ import { api } from '../../../web/convex/_generated/api'
 import { ActionNote } from '../components/ActionNote'
 
 type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed' | 'all'
-type TargetType = 'all' | 'profile' | 'booking' | 'message' | 'review' | 'post' | 'user'
+type TargetType = 'all' | 'profile' | 'booking' | 'message' | 'review' | 'post' | 'comment' | 'user'
 
 export const Route = createFileRoute('/reports')({ component: ReportsPage })
 
@@ -21,7 +21,7 @@ function ReportsPage() {
         <div>
           <p className="eyebrow">Moderation</p>
           <h1 className="text-h1 mt-2">Reports</h1>
-          <p className="lede mt-2">Triage member-submitted concerns about profiles, bookings, messages, reviews, posts, and users.</p>
+          <p className="lede mt-2">Triage member-submitted concerns about profiles, bookings, messages, reviews, posts, comments, and users.</p>
         </div>
       </header>
 
@@ -45,6 +45,7 @@ function ReportsPage() {
             <option value="message">Messages</option>
             <option value="review">Reviews</option>
             <option value="post">Posts</option>
+            <option value="comment">Comments</option>
             <option value="user">Users</option>
           </select>
         </label>

@@ -7,11 +7,15 @@ import type { Id } from '../../convex/_generated/dataModel'
 
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
 
+type ProfilePost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUser>>>[number]
+type ProfilePostMedia = { storageId: Id<'_storage'>; kind: 'image' | 'video'; url: string | null }
+
 function ProfilePage() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.hosts.myApplication)
+  const posts = useQuery(api.social.byUser, viewer ? { userId: viewer._id } : 'skip') as ProfilePost[] | undefined
   const updateProfile = useMutation(api.users.updateProfile)
   const generateProfileImageUploadUrl = useMutation(api.users.generateProfileImageUploadUrl)
   const [notice, setNotice] = useState('')
@@ -48,6 +52,7 @@ function ProfilePage() {
   const profileImageUrl = viewer?.profileImageUrl ?? user?.imageUrl ?? ''
   const bio = viewer?.bio ?? ''
   const hostStatus = application?.status ?? 'not started'
+  const verification = verificationPresentation(viewer?.verificationStatus ?? 'not_started')
 
   return (
     <main className="profile-page">
@@ -103,10 +108,6 @@ function ProfilePage() {
                 <dt>Bio</dt>
                 <dd>{bio || 'No bio added yet.'}</dd>
               </div>
-              <div>
-                <dt>Friend Host profile</dt>
-                <dd><span className="status-pill" data-tone={hostStatusTone(hostStatus)}>{hostStatus}</span></dd>
-              </div>
             </dl>
           </div>
         </section>
@@ -114,17 +115,22 @@ function ProfilePage() {
         <aside className="panel">
           <div className="panel-header">
             <div>
-              <h2 className="text-h2">Friend Host profile</h2>
-              <p className="text-meta mt-1">Host-specific details still go through review.</p>
+              <h2 className="text-h2">Account status</h2>
+              <p className="text-meta mt-1">Identity verification and Friend Host profile progress.</p>
             </div>
           </div>
           <div className="panel-body flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-meta">Status</span>
-              <span className="status-pill" data-tone={hostStatusTone(hostStatus)}>{hostStatus}</span>
+              <span className="text-meta">Identity verification</span>
+              <span className="status-pill" data-tone={verification.tone}>{verification.label}</span>
+            </div>
+            <p className="text-body muted">{verification.guidance}</p>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-meta">Friend Host profile</span>
+              <span className="status-pill" data-tone={hostStatusTone(hostStatus)}>{hostStatusLabel(hostStatus)}</span>
             </div>
             <p className="text-body muted">
-              The host profile uses your member name. Strengths, mode, boundaries, city, and experience intro are managed separately.
+              The host profile uses your member name. Strengths, mode, boundaries, city, and experience intro are managed separately and reviewed before your profile is listed.
             </p>
             <Link to="/become-host" className="btn btn-neutral btn-sm">
               {application ? 'Edit host profile' : 'Set up host profile'}
@@ -132,6 +138,39 @@ function ProfilePage() {
           </div>
         </aside>
       </div>
+
+      <section className="panel mt-6">
+        <div className="panel-header">
+          <div>
+            <h2 className="text-h2">Posts</h2>
+            <p className="text-meta mt-1">Recent posts visible from your member profile.</p>
+          </div>
+          <Link to="/social" className="btn btn-neutral btn-sm">Open posts</Link>
+        </div>
+        {viewer && posts === undefined && <div className="empty-state m-5">Loading posts...</div>}
+        {(!viewer || (posts && posts.length === 0)) && (
+          <div className="empty-state m-5">
+            <p className="empty-state-title">No posts yet.</p>
+            <p className="text-meta">Share a post from the community page when you are ready.</p>
+          </div>
+        )}
+        {posts && posts.length > 0 && (
+          <div className="worklist">
+            {posts.map((post) => (
+              <article key={post._id} className="worklist-row">
+                <div className="worklist-row-head">
+                  <div className="min-w-0">
+                    <h3 className="text-h3">{displayName}</h3>
+                    <div className="worklist-row-meta tabular">{formatTime(post.createdAt)}</div>
+                  </div>
+                </div>
+                {post.body && <p className="text-body muted whitespace-pre-wrap">{post.body}</p>}
+                {post.media.length > 0 && <ProfilePostMediaGrid media={post.media} />}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {editOpen && (
         <div
@@ -252,6 +291,19 @@ async function uploadProfileImage(
   return storageId as Id<'_storage'>
 }
 
+function ProfilePostMediaGrid({ media }: { media: ProfilePostMedia[] }) {
+  return (
+    <div className="social-media-grid profile-post-media" data-count={media.length}>
+      {media.map((item) => (
+        <div key={item.storageId} className="social-media-item">
+          {item.url && item.kind === 'image' && <img src={item.url} alt="" loading="lazy" />}
+          {item.url && item.kind === 'video' && <video src={item.url} controls playsInline preload="metadata" />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: string; size?: 'lg' | 'xl' }) {
   const className = size === 'xl' ? 'profile-photo profile-photo-xl' : size === 'lg' ? 'profile-photo profile-photo-lg' : 'profile-photo'
   return (
@@ -261,11 +313,59 @@ function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: strin
   )
 }
 
+function verificationPresentation(status: string): {
+  label: string
+  tone: 'self' | 'success' | 'warning' | 'danger'
+  guidance: string
+} {
+  if (status === 'approved') {
+    return {
+      label: 'Verified',
+      tone: 'success',
+      guidance: 'You can send booking requests directly.',
+    }
+  }
+  if (status === 'pending') {
+    return {
+      label: 'Pending review',
+      tone: 'warning',
+      guidance: 'Your booking request is held safely while identity review is completed.',
+    }
+  }
+  if (status === 'rejected') {
+    return {
+      label: 'Review needed',
+      tone: 'danger',
+      guidance: 'Identity review needs attention before you can send a booking request.',
+    }
+  }
+  return {
+    label: 'Not started',
+    tone: 'self',
+    guidance: 'Identity review starts when you send your first booking request.',
+  }
+}
+
+function hostStatusLabel(status: string) {
+  if (status === 'pending_review') return 'Pending review'
+  if (status === 'not started') return 'Not started'
+  return status.charAt(0).toUpperCase() + status.slice(1).replaceAll('_', ' ')
+}
+
 function hostStatusTone(status: string): 'self' | 'success' | 'warning' | 'danger' {
   if (status === 'approved') return 'success'
   if (status === 'rejected' || status === 'suspended') return 'danger'
   if (status === 'pending_review') return 'warning'
   return 'self'
+}
+
+function formatTime(timestamp: number) {
+  return new Date(timestamp).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function initials(name: string) {

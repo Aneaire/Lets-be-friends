@@ -1,6 +1,6 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { isModerationVisible } from '@lets-be-friends/shared'
+import { bookingStatusAfterReview, canReviewBooking, isModerationVisible } from '@lets-be-friends/shared'
 import { requireViewer, writeAudit } from './lib'
 
 export const forHost = query({
@@ -44,20 +44,25 @@ export const submit = mutation({
     if (args.rating < 1 || args.rating > 5) throw new Error('Rating must be between 1 and 5')
     const booking = await ctx.db.get(args.bookingId)
     if (!booking) throw new Error('Booking not found')
-    if (booking.status !== 'completed' && booking.status !== 'review_window') throw new Error('Reviews require a completed booking')
+    if (!canReviewBooking(booking.status)) throw new Error('Reviews require a completed booking')
     const host = await ctx.db.get(booking.hostProfileId)
     if (!host) throw new Error('Host profile not found')
     const isMember = booking.memberId === viewer._id
     const isHost = host.userId === viewer._id
     if (!isMember && !isHost) throw new Error('Not your booking')
-    const revieweeId = isMember ? host.userId : booking.memberId
-    const reviewId = await ctx.db.insert('reviews', { bookingId: args.bookingId, reviewerId: viewer._id, revieweeId, hostProfileId: isMember ? booking.hostProfileId : undefined, rating: args.rating, body: args.body, createdAt: Date.now() })
+    const existing = await ctx.db.query('reviews').withIndex('by_booking_reviewer', (q) => q.eq('bookingId', args.bookingId).eq('reviewerId', viewer._id)).first()
+    if (existing) throw new Error('You have already reviewed this booking')
+    const otherParticipantId = isMember ? host.userId : booking.memberId
+    const otherReview = await ctx.db.query('reviews').withIndex('by_booking_reviewer', (q) => q.eq('bookingId', args.bookingId).eq('reviewerId', otherParticipantId)).first()
+    const body = args.body?.trim() || undefined
+    const now = Date.now()
+    const reviewId = await ctx.db.insert('reviews', { bookingId: args.bookingId, reviewerId: viewer._id, revieweeId: otherParticipantId, hostProfileId: isMember ? booking.hostProfileId : undefined, rating: args.rating, body, createdAt: now })
     if (isMember) {
       const nextCount = host.reviewCount + 1
       const nextRating = (host.rating * host.reviewCount + args.rating) / nextCount
-      await ctx.db.patch(booking.hostProfileId, { rating: nextRating, reviewCount: nextCount, updatedAt: Date.now() })
+      await ctx.db.patch(booking.hostProfileId, { rating: nextRating, reviewCount: nextCount, updatedAt: now })
     }
-    await ctx.db.patch(args.bookingId, { status: 'review_window', updatedAt: Date.now() })
+    await ctx.db.patch(args.bookingId, { status: bookingStatusAfterReview(Boolean(otherReview)), updatedAt: now })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'review.submitted', targetType: 'review', targetId: String(reviewId) })
     return reviewId
   },

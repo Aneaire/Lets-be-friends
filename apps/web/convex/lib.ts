@@ -1,3 +1,4 @@
+import { canBookingChat } from '@lets-be-friends/shared'
 import type { Id } from './_generated/dataModel'
 
 export async function getViewer(ctx: { auth: { getUserIdentity: () => Promise<{ subject: string } | null> }; db: any }) {
@@ -13,8 +14,8 @@ export async function requireViewer(ctx: { auth: { getUserIdentity: () => Promis
   return viewer
 }
 
-export function canChatForStatus(status: string) {
-  return ['request_sent', 'accepted', 'completed', 'review_window'].includes(status)
+export function canChatForStatus(status: Parameters<typeof canBookingChat>[0]) {
+  return canBookingChat(status)
 }
 
 export async function writeAudit(

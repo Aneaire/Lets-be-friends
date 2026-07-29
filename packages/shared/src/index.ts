@@ -72,8 +72,32 @@ export function canBookingChat(status: BookingStatus) {
   return ['request_sent', 'accepted', 'completed', 'review_window'].includes(status)
 }
 
+export function canReadBookingMessages(status: BookingStatus) {
+  return ['request_sent', 'accepted', 'declined', 'cancelled', 'completed', 'review_window', 'closed'].includes(status)
+}
+
+export function canCancelBooking(status: BookingStatus) {
+  return ['verification_required', 'request_sent', 'accepted'].includes(status)
+}
+
+export function canCompleteBooking(status: BookingStatus) {
+  return status === 'accepted'
+}
+
+export function canReviewBooking(status: BookingStatus) {
+  return status === 'completed' || status === 'review_window'
+}
+
+export function bookingStatusAfterReview(otherParticipantHasReviewed: boolean): BookingStatus {
+  return otherParticipantHasReviewed ? 'closed' : 'review_window'
+}
+
 export function requiresVerificationForBooking(status: VerificationStatus) {
   return status !== 'approved'
+}
+
+export function canBookHost(viewerUserId: string | null | undefined, hostOwnerUserId: string) {
+  return viewerUserId == null || viewerUserId !== hostOwnerUserId
 }
 
 export function isAdminRole(role: UserRole) {
