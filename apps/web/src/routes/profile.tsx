@@ -4,6 +4,7 @@ import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
+import { memberVerificationPresentation } from '../lib/memberVerification'
 
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
 
@@ -15,13 +16,16 @@ function ProfilePage() {
   const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.hosts.myApplication)
+  const latestMemberVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const posts = useQuery(api.social.byUser, viewer ? { userId: viewer._id } : 'skip') as ProfilePost[] | undefined
+  const startIdentityVerification = useMutation(api.users.startIdentityVerification)
   const updateProfile = useMutation(api.users.updateProfile)
   const generateProfileImageUploadUrl = useMutation(api.users.generateProfileImageUploadUrl)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [identityRequestBusy, setIdentityRequestBusy] = useState(false)
   const [selectedProfileImage, setSelectedProfileImage] = useState<File | null>(null)
   const closeEdit = () => {
     setEditOpen(false)
@@ -43,7 +47,7 @@ function ProfilePage() {
     )
   }
 
-  if (viewer === undefined || application === undefined) {
+  if (viewer === undefined || application === undefined || (viewer && latestMemberVerification === undefined)) {
     return <main className="marketing-page"><div className="empty-state">Loading profile...</div></main>
   }
 
@@ -52,18 +56,44 @@ function ProfilePage() {
   const profileImageUrl = viewer?.profileImageUrl ?? user?.imageUrl ?? ''
   const bio = viewer?.bio ?? ''
   const hostStatus = application?.status ?? 'not started'
-  const verification = verificationPresentation(viewer?.verificationStatus ?? 'not_started')
+  const verification = memberVerificationPresentation(
+    viewer?.verificationStatus ?? 'not_started',
+    latestMemberVerification?.adminStatus,
+  )
+
+  const requestIdentityReview = async () => {
+    setIdentityRequestBusy(true)
+    setError('')
+    try {
+      const result = await startIdentityVerification({})
+      setNotice(
+        result.status === 'approved'
+          ? 'Identity is already verified.'
+          : result.created
+            ? 'Identity review requested.'
+            : 'Your identity review is already pending.',
+      )
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Identity review could not be requested. Try again.',
+      )
+    } finally {
+      setIdentityRequestBusy(false)
+    }
+  }
 
   return (
     <main className="profile-page">
       {notice && (
-        <div className="notice notice-success mb-6">
+        <div className="notice notice-success mb-6" role="status" aria-live="polite">
           <span className="notice-icon">✓</span>
           <span>{notice}</span>
         </div>
       )}
       {error && (
-        <div className="notice notice-danger mb-6">
+        <div className="notice notice-danger mb-6" role="alert">
           <span className="notice-icon">!</span>
           <span>{error}</span>
         </div>
@@ -125,6 +155,25 @@ function ProfilePage() {
               <span className="status-pill" data-tone={verification.tone}>{verification.label}</span>
             </div>
             <p className="text-body muted">{verification.guidance}</p>
+            {(verification.state === 'not_started' || verification.state === 'rejected') && (
+              <button
+                type="button"
+                className="btn btn-self btn-sm"
+                onClick={() => void requestIdentityReview()}
+                disabled={identityRequestBusy}
+              >
+                {identityRequestBusy
+                  ? 'Requesting review…'
+                  : verification.state === 'rejected'
+                    ? 'Request another review'
+                    : 'Request identity review'}
+              </button>
+            )}
+            {verification.state === 'approved' && (
+              <Link to="/app" search={{}} className="btn btn-social btn-sm">
+                Start a booking
+              </Link>
+            )}
             <div className="flex items-center justify-between gap-3">
               <span className="text-meta">Friend Host profile</span>
               <span className="status-pill" data-tone={hostStatusTone(hostStatus)}>{hostStatusLabel(hostStatus)}</span>
@@ -145,13 +194,13 @@ function ProfilePage() {
             <h2 className="text-h2">Posts</h2>
             <p className="text-meta mt-1">Recent posts visible from your member profile.</p>
           </div>
-          <Link to="/social" className="btn btn-neutral btn-sm">Open posts</Link>
+          <Link to="/" className="btn btn-neutral btn-sm">Open Home</Link>
         </div>
         {viewer && posts === undefined && <div className="empty-state m-5">Loading posts...</div>}
         {(!viewer || (posts && posts.length === 0)) && (
           <div className="empty-state m-5">
             <p className="empty-state-title">No posts yet.</p>
-            <p className="text-meta">Share a post from the community page when you are ready.</p>
+            <p className="text-meta">Share a post from Home when you are ready.</p>
           </div>
         )}
         {posts && posts.length > 0 && (
@@ -311,39 +360,6 @@ function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: strin
       {imageUrl ? <img src={imageUrl} alt="" /> : <span>{initials(name)}</span>}
     </span>
   )
-}
-
-function verificationPresentation(status: string): {
-  label: string
-  tone: 'self' | 'success' | 'warning' | 'danger'
-  guidance: string
-} {
-  if (status === 'approved') {
-    return {
-      label: 'Verified',
-      tone: 'success',
-      guidance: 'You can send booking requests directly.',
-    }
-  }
-  if (status === 'pending') {
-    return {
-      label: 'Pending review',
-      tone: 'warning',
-      guidance: 'Your booking request is held safely while identity review is completed.',
-    }
-  }
-  if (status === 'rejected') {
-    return {
-      label: 'Review needed',
-      tone: 'danger',
-      guidance: 'Identity review needs attention before you can send a booking request.',
-    }
-  }
-  return {
-    label: 'Not started',
-    tone: 'self',
-    guidance: 'Identity review starts when you send your first booking request.',
-  }
 }
 
 function hostStatusLabel(status: string) {

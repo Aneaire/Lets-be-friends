@@ -1,4 +1,4 @@
-import { canBookHost, canCancelBooking, canCompleteBooking, canReadBookingMessages } from '@lets-be-friends/shared'
+import { canBookHost, canCancelBooking, canCompleteBooking, canCreateBooking, canReadBookingMessages } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
@@ -60,28 +60,21 @@ export const createDraft = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
+    if (!canCreateBooking(viewer.verificationStatus)) {
+      throw new Error('Identity verification must be approved before you can request a booking.')
+    }
     const host = await ctx.db.get(args.hostProfileId)
     if (!host || host.status !== 'approved') throw new Error('Friend Host is not available for booking')
     if (!canBookHost(String(viewer._id), String(host.userId))) throw new Error('You cannot book your own Friend Host profile.')
     const now = Date.now()
-    const status = viewer.verificationStatus === 'approved' ? 'request_sent' : 'verification_required'
-    const bookingId = await ctx.db.insert('bookings', { memberId: viewer._id, ...args, status, createdAt: now, updatedAt: now })
-    if (status === 'verification_required') {
-      const verificationRequestId = await ctx.db.insert('verificationRequests', {
-        userId: viewer._id,
-        reason: 'booking',
-        personaInquiryId: `persona_dummy_booking_${bookingId}`,
-        personaStatus: 'pending',
-        adminStatus: 'pending',
-        bookingId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      await ctx.db.patch(bookingId, { verificationRequestId, updatedAt: now })
-      await writeAudit(ctx, { actorUserId: viewer._id, action: 'booking.verification_required', targetType: 'booking', targetId: String(bookingId), note: 'Draft saved with dummy Persona inquiry placeholder.' })
-    } else {
-      await writeAudit(ctx, { actorUserId: viewer._id, action: 'booking.request_sent', targetType: 'booking', targetId: String(bookingId) })
-    }
+    const bookingId = await ctx.db.insert('bookings', {
+      memberId: viewer._id,
+      ...args,
+      status: 'request_sent',
+      createdAt: now,
+      updatedAt: now,
+    })
+    await writeAudit(ctx, { actorUserId: viewer._id, action: 'booking.request_sent', targetType: 'booking', targetId: String(bookingId) })
     return bookingId
   },
 })

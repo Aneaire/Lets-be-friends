@@ -16,6 +16,7 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+      { rel: 'preload', href: '/fonts/bricolage-grotesque-latin-wght-normal.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
       { rel: 'stylesheet', href: appCss },
     ],
   }),
@@ -33,9 +34,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         <AppProviders>
           <OnboardingGate>
-            <div className="app-frame">
+            <div className="app-frame web-app-shell">
+              <a className="skip-link" href="#main-content">Skip to main content</a>
               <Header />
-              <div className="app-frame-main">
+              <div className="app-frame-main" id="main-content" tabIndex={-1}>
                 {children}
               </div>
               <Footer />

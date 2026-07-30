@@ -33,7 +33,7 @@ const adminNavSections: AdminNavSection[] = [
     items: [
       { to: '/overview', label: 'Overview' },
       { to: '/host-applications', label: 'Host applications', countKey: 'hostApplicationsPending' },
-      { to: '/booking-verification', label: 'Booking verification', countKey: 'bookingVerificationsPending' },
+      { to: '/booking-verification', label: 'Member verification', countKey: 'memberVerificationsPending' },
       { to: '/reports', label: 'Reports', countKey: 'reportsOpen' },
     ],
   },

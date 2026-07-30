@@ -20,16 +20,16 @@ type HomeHost = {
 
 const trustGates = [
   {
-    label: 'Discover',
-    body: 'Approved Friend Hosts only. Demo profiles fill the surface while the review queue is empty.',
+    label: 'Verify',
+    body: 'Request manual identity review during early access. Booking unlocks after approval.',
   },
   {
-    label: 'Verify',
-    body: 'Persona identity check before a booking request leaves verification_required.',
+    label: 'Discover',
+    body: 'Compare approved Friend Hosts by strengths, mode, boundaries, and reviews.',
   },
   {
     label: 'Book',
-    body: 'Exact meeting details unlock after the host accepts. Reportable at every step.',
+    body: 'Send a request after approval. Exact meeting details unlock only after the host accepts.',
   },
 ] as const
 
@@ -51,8 +51,8 @@ function HomePage() {
             Friendly hours, booked through people we already approved.
           </h1>
           <p className="lede mt-6">
-            Find good listeners, study partners, tour buddies, and online friends. Identity, intent,
-            and location stay visible before a booking moves forward.
+            Find good listeners, study partners, tour buddies, and online friends. Identity review,
+            booking intent, and location boundaries stay clear before a request is sent.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-2">
             <Link to="/discover" className="btn btn-social btn-lg hero-action">Find a host</Link>
@@ -172,8 +172,8 @@ function FeaturedHostRow({ host }: { host: HomeHost }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {host.bookable ? (
-            <Link to="/app" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
-              Request booking
+            <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
+              View profile
             </Link>
           ) : (
             <span className="text-meta">Demo</span>

@@ -77,14 +77,17 @@ function HostProfilePage() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            {host.viewerCanBook === false ? (
+            {host.viewerBookingEligibility === 'own_profile' ? (
               <>
                 <span className="status-pill" data-tone="self">Your profile</span>
                 <Link to="/become-host" className="btn btn-self btn-sm">Edit host profile</Link>
               </>
             ) : (
               <>
-                <Link to="/app" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">Request booking</Link>
+                <HostBookingAction
+                  eligibility={host.viewerBookingEligibility}
+                  hostProfileId={host._id}
+                />
                 {isSignedIn ? (
                   <>
                     <button
@@ -199,6 +202,36 @@ function HostProfilePage() {
         </aside>
       </div>
     </main>
+  )
+}
+
+function HostBookingAction({
+  eligibility,
+  hostProfileId,
+}: {
+  eligibility: 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
+  hostProfileId: Id<'hostProfiles'>
+}) {
+  if (eligibility === 'eligible') {
+    return (
+      <Link to="/app" search={{ hostProfileId }} className="btn btn-social btn-sm">
+        Request booking
+      </Link>
+    )
+  }
+
+  if (eligibility === 'verification_required') {
+    return (
+      <Link to="/app" search={{}} className="btn btn-self btn-sm">
+        Verify to book
+      </Link>
+    )
+  }
+
+  return (
+    <SignInButton mode="modal">
+      <button type="button" className="btn btn-self btn-sm">Sign in to book</button>
+    </SignInButton>
   )
 }
 

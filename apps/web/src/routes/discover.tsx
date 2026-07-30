@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { useAuth } from '@clerk/react'
+import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LayoutGrid, SlidersHorizontal, X } from 'lucide-react'
@@ -20,6 +20,7 @@ type DiscoveryHost = {
   categories?: string[]
   bookable?: boolean
   viewerCanBook?: boolean
+  viewerBookingEligibility?: 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
   demo?: boolean
   saved?: boolean
   following?: boolean
@@ -501,19 +502,11 @@ function HostRow({ host, signedIn, onSave, onFollow }: { host: DiscoveryHost; si
               <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-neutral btn-sm">
                 View profile
               </Link>
-              {host.viewerCanBook === false ? (
-                <span className="status-pill" data-tone="self">Your profile</span>
-              ) : (
+              <BookingEligibilityAction host={host} />
+              {signedIn && host.viewerBookingEligibility !== 'own_profile' && (
                 <>
-                  <Link to="/app" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
-                    Request booking
-                  </Link>
-                  {signedIn && (
-                    <>
-                      <button onClick={onFollow} className="btn btn-social-quiet btn-sm">{host.following ? 'Following' : 'Follow'}</button>
-                      <button onClick={onSave} className="btn btn-neutral btn-sm">{host.saved ? 'Saved' : 'Save'}</button>
-                    </>
-                  )}
+                  <button onClick={onFollow} className="btn btn-social-quiet btn-sm">{host.following ? 'Following' : 'Follow'}</button>
+                  <button onClick={onSave} className="btn btn-neutral btn-sm">{host.saved ? 'Saved' : 'Save'}</button>
                 </>
               )}
             </div>
@@ -524,6 +517,34 @@ function HostRow({ host, signedIn, onSave, onFollow }: { host: DiscoveryHost; si
       </div>
       <p className="text-body muted max-w-[68ch]">{host.intro}</p>
     </article>
+  )
+}
+
+function BookingEligibilityAction({ host }: { host: DiscoveryHost }) {
+  if (host.viewerBookingEligibility === 'own_profile') {
+    return <span className="status-pill" data-tone="self">Your profile</span>
+  }
+
+  if (host.viewerBookingEligibility === 'eligible') {
+    return (
+      <Link to="/app" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
+        Request booking
+      </Link>
+    )
+  }
+
+  if (host.viewerBookingEligibility === 'verification_required') {
+    return (
+      <Link to="/app" search={{}} className="btn btn-self btn-sm">
+        Verify to book
+      </Link>
+    )
+  }
+
+  return (
+    <SignInButton mode="modal">
+      <button type="button" className="btn btn-self btn-sm">Sign in to book</button>
+    </SignInButton>
   )
 }
 

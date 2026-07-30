@@ -8,6 +8,8 @@ import { activityCategories, canBookingChat, canCancelBooking, canCompleteBookin
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { WorkspaceShell } from '../components/AppShell'
+import { MeetingSeam } from '../components/AppNavigation'
+import { memberVerificationPresentation } from '../lib/memberVerification'
 
 export const Route = createFileRoute('/app')({
   validateSearch: (search: Record<string, unknown>): { hostProfileId?: string } => (
@@ -24,6 +26,7 @@ type ApprovedHostOption = {
   categories?: string[]
   bookable?: boolean
   viewerCanBook?: boolean
+  viewerBookingEligibility?: 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
   demo?: boolean
 }
 
@@ -52,9 +55,9 @@ function AppPage() {
   const { hostProfileId } = Route.useSearch()
   const { isSignedIn } = useAuth()
   const viewer = useQuery(api.users.viewer)
+  const latestMemberVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const bookings = useQuery(api.bookings.mine, viewer ? {} : 'skip')
-  const approvedHosts = useQuery(api.hosts.listApproved, {}) as ApprovedHostOption[] | undefined
-  const bookableHosts = useMemo(() => (approvedHosts ?? []).filter((host) => host.bookable && host.viewerCanBook !== false && !host.demo), [approvedHosts])
+  const startIdentityVerification = useMutation(api.users.startIdentityVerification)
   const createDraft = useMutation(api.bookings.createDraft)
   const sendMessage = useMutation(api.bookings.sendMessage)
   const cancelBooking = useMutation(api.bookings.cancel)
@@ -63,14 +66,42 @@ function AppPage() {
   const report = useMutation(api.reports.create)
   const navigate = useNavigate()
   const [notice, setNotice] = useState('')
-  const [bookingDialogOpen, setBookingDialogOpen] = useState(Boolean(hostProfileId))
+  const [error, setError] = useState('')
+  const [identityRequestBusy, setIdentityRequestBusy] = useState(false)
+  const [identityDetailsOpen, setIdentityDetailsOpen] = useState(false)
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
   const bookingTriggerRef = useRef<HTMLButtonElement>(null)
   const bookingOpenerRef = useRef<HTMLElement | null>(null)
 
+  const verification = viewer
+    ? memberVerificationPresentation(
+        viewer.verificationStatus,
+        latestMemberVerification?.adminStatus,
+      )
+    : { state: 'not_started' as const, label: 'Loading', tone: 'self' as const, guidance: 'Loading identity status…' }
+  const canBook = verification.state === 'approved'
+  const viewerLoading = viewer === undefined
+  const approvedHosts = useQuery(
+    api.hosts.listApproved,
+    canBook ? {} : 'skip',
+  ) as ApprovedHostOption[] | undefined
+  const bookableHosts = useMemo(
+    () => (approvedHosts ?? []).filter(
+      (host) => host.bookable && host.viewerBookingEligibility === 'eligible' && !host.demo,
+    ),
+    [approvedHosts],
+  )
+
   const openBookingDialog = useCallback((opener?: HTMLElement) => {
+    if (!canBook) {
+      setIdentityDetailsOpen(true)
+      setError('Identity verification must be approved before you can start a booking.')
+      return
+    }
+    setError('')
     bookingOpenerRef.current = opener ?? bookingTriggerRef.current
     setBookingDialogOpen(true)
-  }, [])
+  }, [canBook])
 
   const closeBookingDialog = useCallback(() => {
     setBookingDialogOpen(false)
@@ -80,17 +111,26 @@ function AppPage() {
   }, [hostProfileId, navigate])
 
   useEffect(() => {
-    if (!hostProfileId) return
+    if (!hostProfileId || viewerLoading) return
+
+    if (!canBook) {
+      setBookingDialogOpen(false)
+      setIdentityDetailsOpen(true)
+      setError('Verify your identity before requesting this booking.')
+      void navigate({ to: '/app', search: {}, replace: true })
+      return
+    }
+
     bookingOpenerRef.current = bookingTriggerRef.current
     setBookingDialogOpen(true)
-  }, [hostProfileId])
+  }, [canBook, hostProfileId, navigate, viewerLoading])
 
   if (!isSignedIn) {
     return (
       <main className="marketing-page">
         <p className="eyebrow">Sign in required</p>
         <h1 className="text-h1 mt-2">Sign in to open your workspace.</h1>
-        <p className="lede mt-2">Bookings, messages, and verification status live behind a verified account.</p>
+        <p className="lede mt-2">Bookings, messages, and identity status live in your signed-in workspace. Identity approval is required before booking.</p>
         <div className="mt-6">
           <SignInButton mode="modal">
             <button className="btn btn-self">Sign in</button>
@@ -107,25 +147,52 @@ function AppPage() {
     ['completed', 'review_window', 'closed', 'declined', 'cancelled'].includes(booking.status),
   ).length
 
-  const verificationLabel = viewer
-    ? viewer.verificationStatus === 'approved'
-      ? 'Verified'
-      : viewer.verificationStatus === 'pending'
-        ? 'Pending review'
-        : 'Not started'
-    : 'Loading'
+  const heldBooking = (bookings ?? []).find((booking) => booking.status === 'verification_required')
 
-  const verificationTone =
-    viewer?.verificationStatus === 'approved' ? 'success'
-    : viewer?.verificationStatus === 'pending' ? 'warning'
-    : 'self'
+  const requestIdentityReview = async () => {
+    setIdentityRequestBusy(true)
+    setError('')
+    try {
+      const result = await startIdentityVerification({})
+      setNotice(
+        result.status === 'approved'
+          ? 'Identity is already verified.'
+          : result.created
+            ? 'Identity review requested.'
+            : 'Your identity review is already pending.',
+      )
+      setIdentityDetailsOpen(true)
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Identity review could not be requested. Try again.',
+      )
+    } finally {
+      setIdentityRequestBusy(false)
+    }
+  }
 
   return (
     <WorkspaceShell
-      eyebrow="Member workspace"
+      variant="bookings"
+      eyebrow="Member bookings"
       title="Bookings and messages"
-      description={viewer ? `Signed in as ${viewer.displayName}. Identity status is listed in your account rail.` : 'Loading your profile…'}
-      actions={
+      description={viewer ? `Plan with approved Friend Hosts and keep every conversation in one place.` : 'Loading your bookings…'}
+      status={
+        <button
+          type="button"
+          id="identity-status-trigger"
+          className="workspace-status-item workspace-status-action"
+          aria-expanded={identityDetailsOpen}
+          aria-controls="identity-status-details"
+          onClick={() => setIdentityDetailsOpen((open) => !open)}
+        >
+          <span>Identity</span>
+          <span className="status-pill" data-tone={verification.tone}>{verification.label}</span>
+        </button>
+      }
+      actions={canBook ? (
         <button
           ref={bookingTriggerRef}
           type="button"
@@ -137,22 +204,47 @@ function AppPage() {
         >
           Start a booking
         </button>
+      ) : verification.state === 'pending' ? null : (
+        <button
+          type="button"
+          className="btn btn-self"
+          onClick={() => void requestIdentityReview()}
+          disabled={!viewer || identityRequestBusy}
+        >
+          {identityRequestBusy
+            ? 'Requesting review…'
+            : verification.state === 'rejected'
+              ? 'Request another review'
+              : 'Request identity review'}
+        </button>
+      )}
+      mobileNavigation={
+        <>
+          <a href="#bookings" className="workspace-mobile-nav-link is-active">
+            <span>Open</span>
+            <span className="tabular">{openBookings}</span>
+          </a>
+          <a href="#archive" className="workspace-mobile-nav-link">
+            <span>Past</span>
+            <span className="tabular">{completedBookings}</span>
+          </a>
+        </>
       }
       rail={
         <>
           <div className="rail-section">
-            <div className="rail-section-title">Workspace</div>
-            <div className="rail-link is-active" aria-current="page">
-              <span>Bookings</span>
+            <div className="rail-section-title">Member bookings</div>
+            <a href="#bookings" className="rail-link is-active" aria-current="location">
+              <span>Open</span>
               <span className="rail-link-count tabular">{openBookings}</span>
-            </div>
+            </a>
+            <a href="#archive" className="rail-link">
+              <span>Past</span>
+              <span className="rail-link-count tabular">{completedBookings}</span>
+            </a>
           </div>
           <div className="rail-section">
             <div className="rail-section-title">Account</div>
-            <div className="rail-link" aria-disabled="true" style={{ cursor: 'default' }}>
-              <span>Identity</span>
-              <span className="status-pill" data-tone={verificationTone}>{verificationLabel}</span>
-            </div>
             <Link to="/become-host" className="rail-link">
               <span>Host application</span>
             </Link>
@@ -163,10 +255,68 @@ function AppPage() {
         </>
       }
     >
+      {identityDetailsOpen && (
+        <section
+          id="identity-status-details"
+          className="panel identity-status-details mb-6"
+          aria-labelledby="identity-status-trigger"
+        >
+          <div className="panel-body identity-status-details-body">
+            <div>
+              <p className="text-meta">Identity verification</p>
+              <h2 className="text-h3 mt-1">{verification.label}</h2>
+              <p className="text-body muted mt-1">{verification.guidance}</p>
+              {verification.state === 'pending' && (
+                <p className="text-meta mt-2">No additional action is needed right now.</p>
+              )}
+            </div>
+            <div className="identity-status-details-actions">
+              {verification.state === 'approved' && (
+                <button
+                  type="button"
+                  className="btn btn-social btn-sm"
+                  onClick={(event) => openBookingDialog(event.currentTarget)}
+                  aria-haspopup="dialog"
+                  aria-expanded={bookingDialogOpen}
+                  aria-controls="booking-dialog"
+                >
+                  Start a booking
+                </button>
+              )}
+              {(verification.state === 'not_started' || verification.state === 'rejected') && (
+                <button
+                  type="button"
+                  className="btn btn-self btn-sm"
+                  onClick={() => void requestIdentityReview()}
+                  disabled={!viewer || identityRequestBusy}
+                >
+                  {identityRequestBusy
+                    ? 'Requesting review…'
+                    : verification.state === 'rejected'
+                      ? 'Request another review'
+                      : 'Request identity review'}
+                </button>
+              )}
+              {verification.state === 'pending' && heldBooking && (
+                <a href={`#booking-${heldBooking._id}`} className="btn btn-neutral btn-sm">
+                  View legacy held booking
+                </a>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       {notice && (
-        <div className="notice notice-success mb-6">
+        <div className="notice notice-success mb-6" role="status" aria-live="polite">
           <span className="notice-icon">✓</span>
           <span>{notice}</span>
+        </div>
+      )}
+      {error && (
+        <div className="notice notice-danger mb-6" role="alert">
+          <span className="notice-icon">!</span>
+          <span>{error}</span>
         </div>
       )}
 
@@ -178,20 +328,39 @@ function AppPage() {
         {viewer === undefined && <div className="empty-state">Loading your profile…</div>}
         {viewer && (bookings ?? []).length === 0 && (
           <div className="empty-state">
-            <p className="empty-state-title">No bookings yet.</p>
-            <p className="text-meta max-w-[44ch]">
-              Choose an approved Friend Host and send your first request.
+            <p className="empty-state-title">
+              {canBook ? 'No bookings yet.' : 'Verify your identity before booking.'}
             </p>
-            <button
-              type="button"
-              className="btn btn-social btn-sm mt-2"
-              onClick={(event) => openBookingDialog(event.currentTarget)}
-              aria-haspopup="dialog"
-              aria-expanded={bookingDialogOpen}
-              aria-controls="booking-dialog"
-            >
-              Start your first booking
-            </button>
+            <p className="text-meta max-w-[44ch]">
+              {canBook
+                ? 'Choose an approved Friend Host and send your first request.'
+                : verification.guidance}
+            </p>
+            {canBook ? (
+              <button
+                type="button"
+                className="btn btn-social btn-sm mt-2"
+                onClick={(event) => openBookingDialog(event.currentTarget)}
+                aria-haspopup="dialog"
+                aria-expanded={bookingDialogOpen}
+                aria-controls="booking-dialog"
+              >
+                Start your first booking
+              </button>
+            ) : verification.state !== 'pending' ? (
+              <button
+                type="button"
+                className="btn btn-self btn-sm mt-2"
+                onClick={() => void requestIdentityReview()}
+                disabled={identityRequestBusy}
+              >
+                {identityRequestBusy
+                  ? 'Requesting review…'
+                  : verification.state === 'rejected'
+                    ? 'Request another review'
+                    : 'Request identity review'}
+              </button>
+            ) : null}
           </div>
         )}
         {(bookings ?? []).filter((booking) =>
@@ -287,7 +456,7 @@ function AppPage() {
         </section>
       )}
 
-      {bookingDialogOpen && (
+      {canBook && bookingDialogOpen && (
         <BookingDialog
           createDraft={createDraft}
           hosts={bookableHosts}
@@ -330,7 +499,7 @@ function BookingRow({
   const messages = useQuery(api.bookings.messages, canReadMessages ? { bookingId: booking._id } : 'skip')
 
   return (
-    <article className="worklist-row">
+    <article id={`booking-${booking._id}`} className="worklist-row">
       <div className="worklist-row-head">
         <div className="flex items-center gap-3 min-w-0">
           <span className="avatar" aria-hidden="true">
@@ -359,7 +528,7 @@ function BookingRow({
       {booking.status === 'verification_required' && (
         <div className="notice notice-warning text-meta">
           <span className="notice-icon">!</span>
-          <span>Held until identity check passes. A placeholder Persona inquiry was created and is in the review queue.</span>
+          <span>This is a legacy held booking from the earlier verification flow. Approval will send it to the Friend Host; rejection will cancel it.</span>
         </div>
       )}
 
@@ -564,16 +733,18 @@ function BookingDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="booking-dialog-title"
+        aria-describedby="booking-dialog-guidance"
         tabIndex={-1}
       >
         <header className="booking-dialog-header">
           <div>
             <p className="eyebrow">New request</p>
+            <MeetingSeam />
             <h2 id="booking-dialog-title" className="text-h2 mt-1">Start a booking</h2>
           </div>
           <button
             type="button"
-            className="social-icon-button"
+            className="social-icon-button booking-dialog-close"
             aria-label="Close booking dialog"
             onClick={onClose}
             disabled={isSubmitting}
@@ -700,9 +871,8 @@ function BookingDialog({
           <button disabled={!canSubmit} className="btn btn-social btn-block">
             {isSubmitting ? 'Sending request…' : 'Send booking request'}
           </button>
-          <p className="text-tiny">
-            If identity is unverified, the booking is held in <code>verification_required</code> until
-            safety review approves the placeholder Persona inquiry.
+          <p className="text-tiny" id="booking-dialog-guidance">
+            Booking requests are available only after identity review is approved.
           </p>
         </form>
       </div>

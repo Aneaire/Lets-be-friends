@@ -187,7 +187,7 @@ const clerkLocalization = {
   signUp: {
     start: {
       title: "Create your Let's Be Friends account",
-      subtitle: 'Join with a basic profile first. Verification only starts when booking or applying as a Friend Host.',
+      subtitle: 'Join with a basic profile, then request identity review before booking or set up a Friend Host profile.',
       actionText: 'Already have an account?',
       actionLink: 'Sign in',
     },

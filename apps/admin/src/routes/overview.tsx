@@ -20,7 +20,7 @@ function OverviewPage() {
 
       <section className="admin-stat-grid" aria-label="Admin posture">
         <Stat label="Host applications" value={counts?.hostApplicationsPending} />
-        <Stat label="Booking verification" value={counts?.bookingVerificationsPending} />
+        <Stat label="Member verification" value={counts?.memberVerificationsPending} />
         <Stat label="Open reports" value={counts?.reportsOpen} />
         <Stat label="Suspended users" value={counts?.usersSuspended} />
       </section>

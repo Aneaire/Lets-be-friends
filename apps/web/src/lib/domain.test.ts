@@ -1,21 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import {
   activityCategories,
+  bookingEligibility,
   bookingStatusAfterReview,
   bookingStatuses,
   brandAccentColors,
   canBookingChat,
   canBookHost,
+  canCreateBooking,
   canCancelBooking,
   canCompleteBooking,
   canReadBookingMessages,
   canReviewBooking,
   friendStrengths,
   isAdminRole,
+  isMemberVerificationReason,
   isModerationVisible,
+  requiresVerificationForBooking,
   userRoles,
 } from '@lets-be-friends/shared'
-import { workspaceRoutes } from '../components/AppShell'
+import { primaryNavigation } from './navigation'
 
 describe('shared early access domain constants', () => {
   it('keeps safe discovery defaults available', () => {
@@ -48,6 +52,29 @@ describe('shared early access domain constants', () => {
     expect(canBookHost('user-1', 'user-1')).toBe(false)
     expect(canBookHost('user-1', 'user-2')).toBe(true)
     expect(canBookHost(null, 'user-1')).toBe(true)
+  })
+
+  it('requires approved identity status before creating a booking', () => {
+    expect(canCreateBooking('approved')).toBe(true)
+    expect(canCreateBooking('not_started')).toBe(false)
+    expect(canCreateBooking('pending')).toBe(false)
+    expect(canCreateBooking('rejected')).toBe(false)
+    expect(requiresVerificationForBooking('approved')).toBe(false)
+    expect(requiresVerificationForBooking('pending')).toBe(true)
+  })
+
+  it('classifies viewer booking eligibility explicitly', () => {
+    expect(bookingEligibility(null, undefined, 'host-1')).toBe('sign_in_required')
+    expect(bookingEligibility('host-1', 'approved', 'host-1')).toBe('own_profile')
+    expect(bookingEligibility('member-1', 'pending', 'host-1')).toBe('verification_required')
+    expect(bookingEligibility('member-1', 'approved', 'host-1')).toBe('eligible')
+  })
+
+  it('keeps member review reasons separate from host applications', () => {
+    expect(isMemberVerificationReason('member')).toBe(true)
+    expect(isMemberVerificationReason('reverification')).toBe(true)
+    expect(isMemberVerificationReason('booking')).toBe(true)
+    expect(isMemberVerificationReason('host_application')).toBe(false)
   })
 
   it('allows participant cancellation only before completion starts', () => {
@@ -94,8 +121,8 @@ describe('shared early access domain constants', () => {
     expect(canReadBookingMessages('draft')).toBe(false)
   })
 
-  it('does not expose admin routes in the user workspace shell', () => {
-    expect(workspaceRoutes).toEqual(['/app', '/profile', '/host'])
-    expect(workspaceRoutes).not.toContain('/admin')
+  it('does not expose admin routes in the user navigation', () => {
+    expect(primaryNavigation.map(({ to }) => to)).toEqual(['/', '/discover', '/app', '/host'])
+    expect(primaryNavigation.some(({ to }) => to.startsWith('/admin'))).toBe(false)
   })
 })

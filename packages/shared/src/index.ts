@@ -42,6 +42,7 @@ export const bookingStatuses = [
 ] as const
 
 export const verificationStatuses = ['not_started', 'pending', 'approved', 'rejected'] as const
+export const verificationRequestReasons = ['member', 'booking', 'host_application', 'reverification'] as const
 export const userRoles = ['member', 'friend_host', 'reviewer', 'owner'] as const
 export const hostApplicationStatuses = ['draft', 'pending_review', 'approved', 'rejected', 'suspended'] as const
 export const reportStatuses = ['open', 'reviewing', 'resolved', 'dismissed'] as const
@@ -63,6 +64,8 @@ export type FriendStrength = (typeof friendStrengths)[number]
 export type ActivityCategory = (typeof activityCategories)[number]
 export type BookingStatus = (typeof bookingStatuses)[number]
 export type VerificationStatus = (typeof verificationStatuses)[number]
+export type VerificationRequestReason = (typeof verificationRequestReasons)[number]
+export type BookingEligibility = 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
 export type UserRole = (typeof userRoles)[number]
 export type HostApplicationStatus = (typeof hostApplicationStatuses)[number]
 export type ReportStatus = (typeof reportStatuses)[number]
@@ -92,8 +95,26 @@ export function bookingStatusAfterReview(otherParticipantHasReviewed: boolean): 
   return otherParticipantHasReviewed ? 'closed' : 'review_window'
 }
 
+export function canCreateBooking(status: VerificationStatus) {
+  return status === 'approved'
+}
+
 export function requiresVerificationForBooking(status: VerificationStatus) {
-  return status !== 'approved'
+  return !canCreateBooking(status)
+}
+
+export function isMemberVerificationReason(reason: VerificationRequestReason) {
+  return reason === 'member' || reason === 'reverification' || reason === 'booking'
+}
+
+export function bookingEligibility(
+  viewerUserId: string | null | undefined,
+  verificationStatus: VerificationStatus | null | undefined,
+  hostOwnerUserId: string,
+): BookingEligibility {
+  if (viewerUserId == null) return 'sign_in_required'
+  if (viewerUserId === hostOwnerUserId) return 'own_profile'
+  return verificationStatus === 'approved' ? 'eligible' : 'verification_required'
 }
 
 export function canBookHost(viewerUserId: string | null | undefined, hostOwnerUserId: string) {

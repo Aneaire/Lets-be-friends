@@ -8,11 +8,11 @@ import { goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/
 export const Route = createFileRoute('/onboarding')({ component: OnboardingPage })
 
 const memberJourney = [
+  ['Request identity review', 'Early access uses a manual identity review before booking is available.'],
+  ['Receive approval', 'Your Bookings workspace shows when review is complete and booking access is unlocked.'],
   ['Discover an approved Friend Host', 'Compare strengths, modes, boundaries, and reviews before choosing.'],
-  ['Request a category, mode, and time', 'Share the activity you want and the timing that works for you.'],
-  ['Complete identity review if needed', 'A request may pause for a safety check before it reaches the host.'],
-  ['Wait for the host decision and messages', 'The host can accept or decline, and messages support safe coordination.'],
-  ['Have the experience and leave a review', 'Afterward, share feedback that helps the community make informed choices.'],
+  ['Send a booking request', 'Choose a category, mode, and time for the Friend Host to accept or decline.'],
+  ['Have the experience and leave a review', 'Messages support safe coordination, and afterward you can share feedback.'],
 ] as const
 
 const hostJourney = [
@@ -27,6 +27,7 @@ function OnboardingPage() {
   const viewer = useQuery(api.users.viewer, isSignedIn ? {} : 'skip')
   const updateProfile = useMutation(api.users.updateProfile)
   const completeOnboarding = useMutation(api.users.completeOnboarding)
+  const startIdentityVerification = useMutation(api.users.startIdentityVerification)
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [goal, setGoal] = useState<OnboardingGoal | undefined>()
@@ -93,6 +94,28 @@ function OnboardingPage() {
       setSubmitting(false)
     }
   }
+
+  const finishWithIdentityReview = async () => {
+    if (submitting) return
+    setSubmitting(true)
+    setError('')
+    try {
+      await startIdentityVerification({})
+      await completeOnboarding({ goal: 'member' })
+      await navigate({ to: '/app' })
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Identity review could not be requested.')
+      setSubmitting(false)
+    }
+  }
+
+  const identityActionLabel = viewer.verificationStatus === 'approved'
+    ? 'Open bookings'
+    : viewer.verificationStatus === 'pending'
+      ? 'View review status'
+      : viewer.verificationStatus === 'rejected'
+        ? 'Request another review'
+        : 'Verify identity'
 
   return (
     <main className="onboarding-page">
@@ -199,7 +222,11 @@ function OnboardingPage() {
             <p className="lede mt-3">
               {selectedGoal === 'friend_host'
                 ? 'Continue to your Friend Host profile. Applying starts review; it does not guarantee approval.'
-                : 'Continue to discovery and compare approved Friend Hosts before requesting a booking.'}
+                : viewer.verificationStatus === 'approved'
+                  ? 'Your identity is verified. Continue to Bookings when you are ready to request a Friend Host.'
+                  : viewer.verificationStatus === 'pending'
+                    ? 'Your identity review is already pending. Continue to Bookings to follow its status, or skip for now and explore.'
+                    : 'Request manual identity review now so booking can unlock after approval, or skip for now and explore Friend Hosts.'}
             </p>
             {viewer.onboardingCompletedAt && <p className="text-meta mt-4">Your welcome guide is already complete. Finishing again keeps your account setup intact.</p>}
           </div>
@@ -216,7 +243,16 @@ function OnboardingPage() {
             {step === 1 && <button type="button" className="btn btn-self" onClick={() => setStep(2)}>Continue</button>}
             {step === 2 && <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void saveProfileAndContinue()}>{submitting ? 'Saving…' : 'Save and continue'}</button>}
             {step === 3 && <button type="button" className="btn btn-self" onClick={() => setStep(4)}>Continue</button>}
-            {step === 4 && <button type="button" className={`btn ${selectedGoal === 'friend_host' ? 'btn-self' : 'btn-social'}`} disabled={submitting} onClick={() => void finish(selectedGoal)}>{submitting ? 'Saving…' : selectedGoal === 'friend_host' ? 'Set up host profile' : 'Discover Friend Hosts'}</button>}
+            {step === 4 && selectedGoal === 'friend_host' && (
+              <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void finish(selectedGoal)}>
+                {submitting ? 'Saving…' : 'Set up host profile'}
+              </button>
+            )}
+            {step === 4 && selectedGoal === 'member' && (
+              <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void finishWithIdentityReview()}>
+                {submitting ? 'Requesting review…' : identityActionLabel}
+              </button>
+            )}
           </div>
         </footer>
       </section>

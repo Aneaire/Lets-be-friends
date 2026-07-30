@@ -67,17 +67,39 @@ function HostWorkspacePage() {
 
   return (
     <WorkspaceShell
-      eyebrow="Friend Host workspace"
+      variant="hosting"
+      eyebrow="Hosting"
       title="Requests and host profile"
       description={
         viewer
-          ? `Signed in as ${viewer.displayName}. Host visibility depends on application and safety review status.`
-          : 'Loading your host workspace…'
+          ? 'Manage booking requests, conversations, and the profile members see.'
+          : 'Loading your hosting workspace…'
+      }
+      status={
+        <span className="workspace-status-item">
+          <span>Host profile</span>
+          <span className="status-pill" data-tone={application ? statusTone(application.status) : 'self'}>
+            {application?.status ?? 'Not started'}
+          </span>
+        </span>
+      }
+      mobileNavigation={
+        <>
+          <a href="#requests" className="workspace-mobile-nav-link is-active">
+            <span>Requests</span>
+            <span className="tabular">{activeCount}</span>
+          </a>
+          <a href="#profile" className="workspace-mobile-nav-link"><span>Profile</span></a>
+          <a href="#history" className="workspace-mobile-nav-link">
+            <span>History</span>
+            <span className="tabular">{historyCount}</span>
+          </a>
+        </>
       }
       rail={
         <>
           <div className="rail-section">
-            <div className="rail-section-title">Host</div>
+            <div className="rail-section-title">Hosting</div>
             <a href="#requests" className="rail-link is-active">
               <span>Incoming requests</span>
               <span className="rail-link-count tabular">{pendingCount}</span>
@@ -103,7 +125,7 @@ function HostWorkspacePage() {
       }
     >
       {notice && (
-        <div className="notice notice-success mb-6">
+        <div className="notice notice-success mb-6" role="status" aria-live="polite">
           <span className="notice-icon">✓</span>
           <span>{notice}</span>
         </div>
@@ -153,7 +175,7 @@ function HostWorkspacePage() {
         {bookings && bookings.filter((booking) => ['request_sent', 'accepted', 'verification_required', 'pending_admin_review'].includes(booking.status)).length === 0 && (
           <div className="empty-state">
             <p className="empty-state-title">No active host requests.</p>
-            <p className="text-meta">Approved hosts will see booking requests here after member verification clears.</p>
+            <p className="text-meta">Booking requests from verified members will appear here after they are sent.</p>
           </div>
         )}
         {bookings && bookings.filter((booking) => ['request_sent', 'accepted', 'verification_required', 'pending_admin_review'].includes(booking.status)).length > 0 && (

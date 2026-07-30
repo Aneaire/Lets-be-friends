@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Bricolage Grotesque Variable";
+  src: url("/fonts/bricolage-grotesque-latin-wght-normal.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 200 800;
+}
+
 :root {
   color-scheme: light;
   --app-bg: oklch(98.4% 0.002 250);
@@ -1256,9 +1264,121 @@ textarea.field {
   max-width: 60ch;
 }
 
+.approx-location-figure {
+  margin: 1rem 0 0;
+  min-width: 0;
+}
+
+.approx-location-map-frame {
+  position: relative;
+  width: 100%;
+  height: clamp(13rem, 26vw, 17rem);
+  min-height: 13rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-sunk);
+}
+
+.approx-location-map-canvas,
+.approx-location-map-placeholder,
+.approx-location-map-error {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.approx-location-map-placeholder,
+.approx-location-map-error {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 0.8125rem;
+}
+
+.approx-location-map-placeholder::after {
+  content: "Loading map preview…";
+}
+
+.approx-location-caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-top: 0.625rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.approx-location-caption strong {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.approx-location-map-marker-host {
+  pointer-events: none;
+}
+
+.approx-location-map-marker {
+  display: grid;
+  width: 4.5rem;
+  height: 4.5rem;
+  place-items: center;
+  border: 1px solid color-mix(in oklch, var(--accent-self-button) 42%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent-self-button) 18%, transparent);
+}
+
+.approx-location-map-marker-dot {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 3px solid white;
+  border-radius: 999px;
+  background: var(--accent-self-button);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 28%);
+}
+
+.approx-location-map-frame .maplibregl-canvas:focus {
+  outline: none;
+}
+
+.approx-location-map-frame .maplibregl-ctrl-attrib {
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  background: color-mix(in oklch, var(--surface) 92%, transparent) !important;
+  color: var(--text-muted) !important;
+  box-shadow: none !important;
+}
+
+.approx-location-map-frame .maplibregl-ctrl-attrib a {
+  color: var(--text-muted) !important;
+}
+
+.approx-location-map-frame .maplibregl-ctrl-attrib a:hover {
+  color: var(--text) !important;
+}
+
+.approx-location-map-frame .maplibregl-ctrl-attrib-button {
+  background-color: transparent !important;
+}
+
 @media (max-width: 640px) {
   .numbered-section {
     grid-template-columns: 1fr;
+  }
+
+  .approx-location-map-frame {
+    height: 13rem;
+  }
+
+  .approx-location-caption {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
@@ -2994,4 +3114,554 @@ textarea.field {
   }
 }
 
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Web application navigation and identity
+   ────────────────────────────────────────────────────────────── */
+
+.web-app-shell {
+  --app-header-height: 4rem;
+  --mobile-primary-nav-height: 5rem;
+}
+
+.web-app-shell :is(.text-display, .text-h1, .text-h2),
+.web-app-shell .brand-link {
+  font-family: "Bricolage Grotesque Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  translate: 0 -160%;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.65rem 0.85rem;
+  font-weight: 650;
+  text-decoration: none;
+  transition: translate 140ms ease;
+}
+
+.skip-link:focus {
+  translate: 0;
+}
+
+.web-app-shell .app-header {
+  height: var(--app-header-height);
+  background: var(--surface);
+  backdrop-filter: none;
+}
+
+.web-app-shell .app-header-inner {
+  width: min(100%, 92rem);
+  margin-inline: auto;
+}
+
+.web-app-shell .brand-link {
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.public-nav,
+.primary-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.primary-nav {
+  margin-left: 1.25rem;
+}
+
+.primary-nav-link {
+  position: relative;
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 8px;
+  color: var(--text-muted);
+  padding: 0.55rem 0.8rem;
+  font-size: 0.875rem;
+  font-weight: 560;
+  text-decoration: none;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.primary-nav-link:hover {
+  background: var(--surface-sunk);
+  color: var(--text);
+}
+
+.primary-nav-link[aria-current="page"] {
+  color: var(--text);
+}
+
+.primary-nav-link[data-kind="bookings"][aria-current="page"] {
+  color: var(--accent-social);
+}
+
+.theme-toggle,
+.web-app-shell .account-menu-trigger {
+  display: inline-grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.theme-toggle:hover,
+.web-app-shell .account-menu-trigger:hover,
+.web-app-shell .account-menu-trigger[aria-expanded="true"] {
+  background: var(--surface-sunk);
+  color: var(--text);
+}
+
+.account-navigation {
+  position: relative;
+}
+
+.account-navigation-layer {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 45;
+}
+
+.account-navigation-backdrop,
+.account-menu-heading {
+  display: none;
+}
+
+.web-app-shell .account-menu-panel {
+  position: relative;
+  inset: auto;
+  width: min(20rem, calc(100vw - 2rem));
+  max-height: min(42rem, calc(100dvh - var(--app-header-height) - 1.5rem));
+  overflow-y: auto;
+  box-shadow: 0 18px 50px color-mix(in oklch, var(--text) 13%, transparent);
+}
+
+.meeting-seam {
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) 0.32rem minmax(0, 1fr);
+  width: 3.6rem;
+  align-items: center;
+}
+
+.meeting-seam-self,
+.meeting-seam-social {
+  height: 2px;
+}
+
+.meeting-seam-self {
+  background: var(--accent-self-button);
+}
+
+.meeting-seam-social {
+  background: var(--accent-social-button);
+}
+
+.meeting-seam-notch {
+  width: 0.32rem;
+  height: 0.32rem;
+  background: var(--text);
+  rotate: 12deg;
+}
+
+.primary-nav-link .meeting-seam {
+  width: 2.35rem;
+}
+
+.workspace-heading > .meeting-seam,
+.booking-dialog-header .meeting-seam {
+  margin-top: 0.75rem;
+}
+
+.mobile-primary-nav {
+  display: none;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Booking workspace refinements
+   ────────────────────────────────────────────────────────────── */
+
+.web-app-shell .workspace {
+  min-height: calc(100vh - var(--app-header-height));
+}
+
+.web-app-shell .rail {
+  top: var(--app-header-height);
+  height: calc(100vh - var(--app-header-height));
+}
+
+.workspace-heading {
+  min-width: 0;
+}
+
+.workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.workspace-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.workspace-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.web-app-shell .workspace-status-action {
+  min-height: 2.75rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0.35rem 0.5rem;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.web-app-shell .workspace-status-action:hover,
+.web-app-shell .workspace-status-action[aria-expanded="true"] {
+  border-color: var(--border);
+  background: var(--surface-sunk);
+  color: var(--text);
+}
+
+.identity-status-details-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.identity-status-details-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.workspace-mobile-nav {
+  display: none;
+}
+
+.web-app-shell :is(#bookings, #archive, #requests, #profile, #history, [id^="booking-"]) {
+  scroll-margin-top: calc(var(--app-header-height) + 1rem);
+}
+
+.booking-dialog-close {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Signed-in Home feed refinements
+   ────────────────────────────────────────────────────────────── */
+
+.web-app-shell .social-page {
+  width: min(100% - 2.5rem, 46rem);
+}
+
+.web-app-shell .social-timeline-header {
+  top: var(--app-header-height);
+  background: var(--surface);
+}
+
+.web-app-shell .social-icon-button,
+.web-app-shell .social-media-remove {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.web-app-shell .social-action {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .web-app-shell .rail {
+    display: none;
+  }
+
+  .workspace-mobile-nav {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.7rem clamp(1rem, 2.5vw, 1.5rem);
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface-rail);
+    scrollbar-width: none;
+  }
+
+  .workspace-mobile-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .workspace-mobile-nav-link {
+    display: inline-flex;
+    min-height: 2.75rem;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.55rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--text-muted);
+    padding: 0.5rem 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .workspace-mobile-nav-link:hover,
+  .workspace-mobile-nav-link.is-active {
+    border-color: var(--border);
+    background: var(--surface);
+    color: var(--text);
+  }
+}
+
+@media (max-width: 767px) {
+  .public-nav,
+  .primary-nav {
+    display: none;
+  }
+
+  .web-app-shell .app-header-inner {
+    gap: 0.65rem;
+  }
+
+  .mobile-primary-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 35;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    min-height: var(--mobile-primary-nav-height);
+    padding: 0.35rem max(0.35rem, env(safe-area-inset-right)) max(0.35rem, env(safe-area-inset-bottom)) max(0.35rem, env(safe-area-inset-left));
+    border-top: 1px solid var(--rule);
+    background: var(--surface);
+  }
+
+  .mobile-primary-nav + .app-frame-main {
+    padding-bottom: calc(var(--mobile-primary-nav-height) + env(safe-area-inset-bottom));
+  }
+
+  .mobile-primary-nav-item {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 4.25rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    padding: 0.35rem 0.15rem;
+    font-size: 0.68rem;
+    font-weight: 620;
+    line-height: 1.1;
+    text-decoration: none;
+  }
+
+  .mobile-primary-nav-item:hover,
+  .mobile-primary-nav-item[aria-current="page"],
+  .mobile-primary-nav-item[data-active="true"] {
+    background: var(--surface-sunk);
+    color: var(--text);
+  }
+
+  .mobile-primary-nav-item[data-kind="bookings"][aria-current="page"] {
+    color: var(--accent-social);
+  }
+
+  .mobile-primary-nav-item .meeting-seam {
+    position: absolute;
+    bottom: 0.18rem;
+    width: 2.4rem;
+    opacity: 0;
+  }
+
+  .mobile-primary-nav-item[aria-current="page"] .meeting-seam {
+    opacity: 1;
+  }
+
+  .account-navigation-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+  }
+
+  .account-navigation-backdrop {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    background: color-mix(in oklch, var(--text) 36%, transparent);
+  }
+
+  .web-app-shell .account-menu-panel {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: min(88dvh, 44rem);
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 18px 18px 0 0;
+    padding: 0.65rem 0.65rem max(0.65rem, env(safe-area-inset-bottom));
+    box-shadow: 0 -20px 60px color-mix(in oklch, var(--text) 18%, transparent);
+  }
+
+  .account-menu-heading {
+    display: flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.4rem 0.35rem 0.75rem;
+  }
+
+  .account-menu-mobile-title {
+    font-family: "Bricolage Grotesque Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 1.1rem;
+    font-weight: 650;
+  }
+
+  .account-menu-close {
+    display: inline-grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    place-items: center;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted);
+  }
+
+  .account-menu-close:hover {
+    background: var(--surface-sunk);
+    color: var(--text);
+  }
+
+  .web-app-shell .account-menu-item {
+    min-height: 2.75rem;
+  }
+
+  .workspace-header {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 1.5rem 1rem 1.1rem;
+  }
+
+  .workspace-actions,
+  .workspace-actions .btn {
+    width: 100%;
+  }
+
+  .workspace-actions .btn {
+    justify-content: center;
+  }
+
+  .workspace-body {
+    padding: 1.25rem 1rem 2rem;
+  }
+
+  .identity-status-details-body {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .identity-status-details-actions,
+  .identity-status-details-actions .btn {
+    width: 100%;
+  }
+
+  .identity-status-details-actions .btn {
+    justify-content: center;
+  }
+
+  .web-app-shell .social-page {
+    width: 100%;
+    padding-bottom: 1rem;
+  }
+
+  .web-app-shell .social-timeline-header {
+    padding-inline: 0.9rem;
+  }
+
+  .web-app-shell .social-timeline-header .btn {
+    min-height: 2.75rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .web-app-shell .brand-link span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .mobile-primary-nav-item {
+    font-size: 0.64rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .skeleton {
+    animation: none !important;
+  }
 }

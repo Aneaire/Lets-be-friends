@@ -14,9 +14,9 @@ const trustGates = [
     when: 'Every Friend Host application is held until a reviewer decides approve or reject.',
   },
   {
-    what: 'Identity check',
-    who: 'Persona inquiry',
-    when: 'Bookings sit in verification_required until both parties pass the identity check.',
+    what: 'Member identity review',
+    who: 'Safety review queue',
+    when: 'Members request manual identity review during early access. Booking unlocks only after approval.',
   },
   {
     what: 'Location privacy',
@@ -39,7 +39,7 @@ function SafetyPage() {
       </h1>
       <p className="lede mt-6">
         Let&apos;s Be Friends is built around explicit trust gates. Each one decides whether a
-        booking moves forward and is visible to everyone in the flow.
+        member can request a booking or a Friend Host can appear in discovery.
       </p>
 
       <section className="mt-12">
@@ -64,8 +64,8 @@ function SafetyPage() {
 
       <section className="mt-12 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-body muted max-w-[60ch]">
-          Early access runs entirely on these gates. Persona is a placeholder while keys are in
-          test mode; safety review is real.
+          Early access uses manual identity and safety review. We will describe any future
+          verification provider here before it becomes part of the process.
         </p>
         <div className="flex gap-2">
           <Link to="/discover" className="btn btn-neutral btn-sm">Open discovery</Link>

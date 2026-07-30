@@ -1,4 +1,4 @@
-import { canBookHost } from '@lets-be-friends/shared'
+import { bookingEligibility, canBookHost } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
@@ -48,6 +48,11 @@ export const listApproved = query({
         _id: host._id,
         bookable: true,
         viewerCanBook: canBookHost(viewer ? String(viewer._id) : null, String(host.userId)),
+        viewerBookingEligibility: bookingEligibility(
+          viewer ? String(viewer._id) : null,
+          viewer?.verificationStatus,
+          String(host.userId),
+        ),
         demo: false,
         saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
         following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
@@ -70,6 +75,11 @@ export const getPublic = query({
       profileImageUrl: user ? await profileImageUrl(ctx, user) : undefined,
       bio: user?.bio,
       viewerCanBook: canBookHost(viewer ? String(viewer._id) : null, String(host.userId)),
+      viewerBookingEligibility: bookingEligibility(
+        viewer ? String(viewer._id) : null,
+        viewer?.verificationStatus,
+        String(host.userId),
+      ),
       saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
       following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
     }

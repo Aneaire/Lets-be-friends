@@ -105,13 +105,13 @@ export function SocialPage() {
 
   return (
     <main className="social-page">
-      <section className="social-timeline" aria-label="Community posts">
+      <section className="social-timeline" aria-label="Home feed">
         <header className="social-timeline-header">
           <div>
-            <p className="eyebrow">Social</p>
-            <h1 className="text-h2 mt-1">Community posts</h1>
+            <p className="eyebrow">Community</p>
+            <h1 className="text-h2 mt-1">Home</h1>
           </div>
-          <Link to="/discover" className="btn btn-neutral btn-sm">Find hosts</Link>
+          <Link to="/discover" className="btn btn-neutral btn-sm">Find Friend Hosts</Link>
         </header>
 
         <div className="social-feed-tabs" role="tablist" aria-label="Social feed">
@@ -124,6 +124,7 @@ export function SocialPage() {
               className="social-feed-tab"
               data-active={feedFilter === filter}
               disabled={filter !== 'all' && !viewer}
+              title={filter !== 'all' && !viewer ? 'Sign in to use this feed' : undefined}
               onClick={() => {
                 setError('')
                 setFeedFilter(filter)
@@ -135,13 +136,13 @@ export function SocialPage() {
         </div>
 
         {notice && (
-          <div className="notice notice-success social-notice">
+          <div className="notice notice-success social-notice" role="status" aria-live="polite">
             <span className="notice-icon">✓</span>
             <span>{notice}</span>
           </div>
         )}
         {error && (
-          <div className="notice notice-danger social-notice">
+          <div className="notice notice-danger social-notice" role="alert">
             <span className="notice-icon">!</span>
             <span>{error}</span>
           </div>

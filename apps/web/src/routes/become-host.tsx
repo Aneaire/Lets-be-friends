@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import type React from 'react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { ApproximateLocationMap } from '../components/ApproximateLocationMap'
 
 export const Route = createFileRoute('/become-host')({ component: BecomeHostPage })
 
@@ -97,8 +98,7 @@ function HostAuthPanel() {
           <div className="notice notice-success mb-6">
             <span className="notice-icon">✓</span>
             <span>
-              Application saved. Identity is represented by a placeholder Persona inquiry until
-              real credentials are wired up.
+              Application saved. Safety reviewers will assess your Friend Host profile during early access.
             </span>
           </div>
         )}
@@ -130,7 +130,7 @@ function HostAuthPanel() {
               <div className="flex gap-2 flex-wrap">
                 <button
                   type="button"
-                  className="btn btn-social btn-sm"
+                  className="btn btn-self btn-sm"
                   onClick={() => {
                     if (!navigator.geolocation) {
                       setLocationStatus('Location is not available in this browser.')
@@ -151,7 +151,7 @@ function HostAuthPanel() {
                     )
                   }}
                 >
-                  Add approximate location
+                  {approxLocation ? 'Update approximate location' : 'Add approximate location'}
                 </button>
                 {approxLocation && (
                   <button type="button" className="btn btn-neutral btn-sm" onClick={() => { setApproxLocation(null); setLocationStatus('Approximate location removed.') }}>
@@ -160,7 +160,12 @@ function HostAuthPanel() {
                 )}
               </div>
             </div>
-            {locationStatus && <p className="text-meta mt-3">{locationStatus}</p>}
+            {locationStatus && (
+              <p className="text-meta mt-3" role="status" aria-live="polite">
+                {locationStatus}
+              </p>
+            )}
+            {approxLocation && <ApproximateLocationMap location={approxLocation} />}
           </div>
         </NumberedSection>
 
@@ -250,7 +255,7 @@ function ReviewStatusPanel({ status }: { status?: string }) {
   const steps = [
     { id: 'submit', label: 'Application submitted', done: !!status },
     { id: 'review', label: 'Safety review', done: status === 'approved' || status === 'rejected', active: status === 'pending' },
-    { id: 'identity', label: 'Identity check (Persona)', done: false, active: status === 'pending' },
+    { id: 'identity', label: 'Identity and safety review', done: status === 'approved' || status === 'rejected', active: status === 'pending' },
     { id: 'live', label: 'Visible in discovery', done: status === 'approved' },
   ]
 

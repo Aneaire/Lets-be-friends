@@ -30,7 +30,7 @@ export default defineSchema({
   }).index('by_clerk_user_id', ['clerkUserId']).index('by_role', ['role']),
   verificationRequests: defineTable({
     userId: v.id('users'),
-    reason: v.union(v.literal('booking'), v.literal('host_application'), v.literal('reverification')),
+    reason: v.union(v.literal('member'), v.literal('booking'), v.literal('host_application'), v.literal('reverification')),
     personaInquiryId: v.optional(v.string()),
     personaStatus: verificationStatus,
     adminStatus: verificationStatus,
@@ -40,7 +40,13 @@ export default defineSchema({
     reviewerNote: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_user', ['userId']).index('by_admin_status', ['adminStatus']).index('by_booking', ['bookingId']).index('by_host_profile', ['hostProfileId']),
+  })
+    .index('by_user', ['userId'])
+    .index('by_user_reason', ['userId', 'reason'])
+    .index('by_admin_status', ['adminStatus'])
+    .index('by_reason_admin_status', ['reason', 'adminStatus'])
+    .index('by_booking', ['bookingId'])
+    .index('by_host_profile', ['hostProfileId']),
   hostProfiles: defineTable({
     userId: v.id('users'),
     displayName: v.string(),
