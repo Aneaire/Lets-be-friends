@@ -4,12 +4,14 @@ import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import { goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
+import { useIdentityVerification } from '../components/IdentityVerificationFlow'
+import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 
 export const Route = createFileRoute('/onboarding')({ component: OnboardingPage })
 
 const memberJourney = [
-  ['Request identity review', 'Early access uses a manual identity review before booking is available.'],
-  ['Receive approval', 'Your Bookings workspace shows when review is complete and booking access is unlocked.'],
+  ['Complete Persona identity verification', 'Securely submit a government ID and live selfie/liveness check.'],
+  ['Receive safety-team approval', 'Every completed Persona result is reviewed by an admin before booking access is unlocked.'],
   ['Discover an approved Friend Host', 'Compare strengths, modes, boundaries, and reviews before choosing.'],
   ['Send a booking request', 'Choose a category, mode, and time for the Friend Host to accept or decline.'],
   ['Have the experience and leave a review', 'Messages support safe coordination, and afterward you can share feedback.'],
@@ -25,9 +27,10 @@ const hostJourney = [
 function OnboardingPage() {
   const { isSignedIn } = useAuth()
   const viewer = useQuery(api.users.viewer, isSignedIn ? {} : 'skip')
+  const latestIdentityVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const updateProfile = useMutation(api.users.updateProfile)
   const completeOnboarding = useMutation(api.users.completeOnboarding)
-  const startIdentityVerification = useMutation(api.users.startIdentityVerification)
+  const identityFlow = useIdentityVerification('member')
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [goal, setGoal] = useState<OnboardingGoal | undefined>()
@@ -95,27 +98,39 @@ function OnboardingPage() {
     }
   }
 
+  const verification = memberVerificationPresentation(
+    identityEntitlementStatus(viewer.verificationStatus, viewer.identityEligible),
+    latestIdentityVerification,
+  )
+
   const finishWithIdentityReview = async () => {
-    if (submitting) return
+    if (submitting || identityFlow.busy) return
     setSubmitting(true)
     setError('')
     try {
-      await startIdentityVerification({})
       await completeOnboarding({ goal: 'member' })
-      await navigate({ to: '/app' })
+      if (verification.state === 'approved' || verification.action === 'none') {
+        await navigate({ to: '/app' })
+        return
+      }
+      const result = await identityFlow.begin()
+      if (result?.mode !== 'launch') await navigate({ to: '/app' })
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Identity review could not be requested.')
+      setError(submitError instanceof Error ? submitError.message : 'Identity verification could not be started.')
+    } finally {
       setSubmitting(false)
     }
   }
 
-  const identityActionLabel = viewer.verificationStatus === 'approved'
+  const identityActionLabel = verification.state === 'approved'
     ? 'Open bookings'
-    : viewer.verificationStatus === 'pending'
-      ? 'View review status'
-      : viewer.verificationStatus === 'rejected'
-        ? 'Request another review'
-        : 'Verify identity'
+    : verification.action === 'none'
+      ? 'View verification status'
+      : verification.action === 'continue'
+        ? 'Continue identity check'
+        : verification.action === 'retry'
+          ? 'Start a new identity check'
+          : 'Verify identity with Persona'
 
   return (
     <main className="onboarding-page">
@@ -222,17 +237,18 @@ function OnboardingPage() {
             <p className="lede mt-3">
               {selectedGoal === 'friend_host'
                 ? 'Continue to your Friend Host profile. Applying starts review; it does not guarantee approval.'
-                : viewer.verificationStatus === 'approved'
-                  ? 'Your identity is verified. Continue to Bookings when you are ready to request a Friend Host.'
-                  : viewer.verificationStatus === 'pending'
-                    ? 'Your identity review is already pending. Continue to Bookings to follow its status, or skip for now and explore.'
-                    : 'Request manual identity review now so booking can unlock after approval, or skip for now and explore Friend Hosts.'}
+                : verification.state === 'approved'
+                  ? 'Your Persona identity check and safety-team review are approved. Continue to Bookings when you are ready.'
+                  : verification.action === 'none'
+                    ? `${verification.guidance} Continue to Bookings to follow its status, or skip for now and explore.`
+                    : 'Complete a secure Persona government-ID and live-selfie check now. Every result is reviewed by the safety team before booking unlocks.'}
             </p>
             {viewer.onboardingCompletedAt && <p className="text-meta mt-4">Your welcome guide is already complete. Finishing again keeps your account setup intact.</p>}
           </div>
         )}
 
-        {error && <div className="notice notice-danger mt-6"><span className="notice-icon">!</span><span>{error}</span></div>}
+        {identityFlow.message && <div className="notice notice-success mt-6" role="status"><span className="notice-icon">✓</span><span>{identityFlow.message}</span></div>}
+        {(error || identityFlow.error) && <div className="notice notice-danger mt-6"><span className="notice-icon">!</span><span>{identityFlow.error || error}</span></div>}
 
         <footer className="onboarding-actions">
           <button type="button" className="btn btn-ghost" disabled={submitting} onClick={() => void finish(goalForSkip(goal))}>
@@ -249,8 +265,8 @@ function OnboardingPage() {
               </button>
             )}
             {step === 4 && selectedGoal === 'member' && (
-              <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void finishWithIdentityReview()}>
-                {submitting ? 'Requesting review…' : identityActionLabel}
+              <button type="button" className="btn btn-self" disabled={submitting || identityFlow.busy} onClick={() => void finishWithIdentityReview()}>
+                {submitting || identityFlow.busy ? 'Opening Persona…' : identityActionLabel}
               </button>
             )}
           </div>

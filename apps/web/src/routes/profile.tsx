@@ -4,7 +4,8 @@ import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import { memberVerificationPresentation } from '../lib/memberVerification'
+import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
+import { useIdentityVerification } from '../components/IdentityVerificationFlow'
 
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
 
@@ -18,14 +19,13 @@ function ProfilePage() {
   const application = useQuery(api.hosts.myApplication)
   const latestMemberVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const posts = useQuery(api.social.byUser, viewer ? { userId: viewer._id } : 'skip') as ProfilePost[] | undefined
-  const startIdentityVerification = useMutation(api.users.startIdentityVerification)
+  const identityFlow = useIdentityVerification('member')
   const updateProfile = useMutation(api.users.updateProfile)
   const generateProfileImageUploadUrl = useMutation(api.users.generateProfileImageUploadUrl)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [identityRequestBusy, setIdentityRequestBusy] = useState(false)
   const [selectedProfileImage, setSelectedProfileImage] = useState<File | null>(null)
   const closeEdit = () => {
     setEditOpen(false)
@@ -57,45 +57,22 @@ function ProfilePage() {
   const bio = viewer?.bio ?? ''
   const hostStatus = application?.status ?? 'not started'
   const verification = memberVerificationPresentation(
-    viewer?.verificationStatus ?? 'not_started',
-    latestMemberVerification?.adminStatus,
+    identityEntitlementStatus(viewer?.verificationStatus ?? 'not_started', viewer?.identityEligible ?? false),
+    latestMemberVerification,
   )
-
-  const requestIdentityReview = async () => {
-    setIdentityRequestBusy(true)
-    setError('')
-    try {
-      const result = await startIdentityVerification({})
-      setNotice(
-        result.status === 'approved'
-          ? 'Identity is already verified.'
-          : result.created
-            ? 'Identity review requested.'
-            : 'Your identity review is already pending.',
-      )
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Identity review could not be requested. Try again.',
-      )
-    } finally {
-      setIdentityRequestBusy(false)
-    }
-  }
 
   return (
     <main className="profile-page">
-      {notice && (
+      {(notice || identityFlow.message) && (
         <div className="notice notice-success mb-6" role="status" aria-live="polite">
           <span className="notice-icon">✓</span>
-          <span>{notice}</span>
+          <span>{identityFlow.message || notice}</span>
         </div>
       )}
-      {error && (
+      {(error || identityFlow.error) && (
         <div className="notice notice-danger mb-6" role="alert">
           <span className="notice-icon">!</span>
-          <span>{error}</span>
+          <span>{identityFlow.error || error}</span>
         </div>
       )}
 
@@ -155,18 +132,20 @@ function ProfilePage() {
               <span className="status-pill" data-tone={verification.tone}>{verification.label}</span>
             </div>
             <p className="text-body muted">{verification.guidance}</p>
-            {(verification.state === 'not_started' || verification.state === 'rejected') && (
+            {verification.action !== 'none' && (
               <button
                 type="button"
                 className="btn btn-self btn-sm"
-                onClick={() => void requestIdentityReview()}
-                disabled={identityRequestBusy}
+                onClick={() => void identityFlow.begin()}
+                disabled={identityFlow.busy}
               >
-                {identityRequestBusy
-                  ? 'Requesting review…'
-                  : verification.state === 'rejected'
-                    ? 'Request another review'
-                    : 'Request identity review'}
+                {identityFlow.busy
+                  ? 'Opening Persona…'
+                  : verification.action === 'continue'
+                    ? 'Continue identity check'
+                    : verification.action === 'retry'
+                      ? 'Start a new identity check'
+                      : 'Verify identity with Persona'}
               </button>
             )}
             {verification.state === 'approved' && (

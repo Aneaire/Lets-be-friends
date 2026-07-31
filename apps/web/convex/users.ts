@@ -1,7 +1,7 @@
-import { isMemberVerificationReason } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireViewer, writeAudit } from './lib'
+import { requireViewer } from './lib'
+import { hasCurrentPersonaApproval } from './identityVerification'
 
 async function getClerkUserId(ctx: { auth: { getUserIdentity: () => Promise<{ subject: string } | null> } }) {
   const identity = await ctx.auth.getUserIdentity()
@@ -17,6 +17,7 @@ export const viewer = query({
     if (!user) return null
     return {
       ...user,
+      identityEligible: hasCurrentPersonaApproval(user),
       profileImageUrl: await profileImageUrl(ctx, user),
     }
   },
@@ -27,57 +28,28 @@ export const latestMemberVerification = query({
   handler: async (ctx) => {
     const viewer = await requireViewer(ctx)
     const requests = await memberVerificationRequests(ctx, viewer._id)
-    const latest = requests.slice().sort((a: any, b: any) => b.updatedAt - a.updatedAt)[0]
+    const latest = requests.slice().sort((a: any, b: any) => {
+      if (a.isCurrent === true && b.isCurrent !== true) return -1
+      if (b.isCurrent === true && a.isCurrent !== true) return 1
+      return b.updatedAt - a.updatedAt
+    })[0]
     if (!latest) return null
     return {
       _id: latest._id,
       reason: latest.reason,
+      personaInquiryId: latest.personaInquiryId,
+      personaStatus: latest.personaStatus,
+      personaDecision: latest.personaDecision ?? 'unknown',
       adminStatus: latest.adminStatus,
+      isCurrent: latest.isCurrent,
+      attempt: latest.attempt,
+      providerCompletedAt: latest.providerCompletedAt,
+      adminQueuedAt: latest.adminQueuedAt,
+      reviewedAt: latest.reviewedAt,
+      providerFailureCode: latest.providerFailureCode,
       createdAt: latest.createdAt,
       updatedAt: latest.updatedAt,
     }
-  },
-})
-
-export const startIdentityVerification = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const viewer = await requireViewer(ctx)
-    if (viewer.verificationStatus === 'approved') {
-      return { requestId: null, status: 'approved' as const, created: false }
-    }
-
-    const requests = await memberVerificationRequests(ctx, viewer._id)
-    const pending = requests.find((request) => request.adminStatus === 'pending')
-    if (pending) {
-      if (viewer.verificationStatus !== 'pending') {
-        await ctx.db.patch(viewer._id, { verificationStatus: 'pending', updatedAt: Date.now() })
-      }
-      return { requestId: pending._id, status: 'pending' as const, created: false }
-    }
-
-    const latest = requests.slice().sort((a: any, b: any) => b.updatedAt - a.updatedAt)[0]
-    const reason: 'member' | 'reverification' =
-      viewer.verificationStatus === 'rejected' || latest?.adminStatus === 'rejected'
-        ? 'reverification'
-        : 'member'
-    const now = Date.now()
-    const requestId = await ctx.db.insert('verificationRequests', {
-      userId: viewer._id,
-      reason,
-      personaStatus: 'not_started',
-      adminStatus: 'pending',
-      createdAt: now,
-      updatedAt: now,
-    })
-    await ctx.db.patch(viewer._id, { verificationStatus: 'pending', updatedAt: now })
-    await writeAudit(ctx, {
-      actorUserId: viewer._id,
-      action: reason === 'reverification' ? 'member_verification.retried' : 'member_verification.started',
-      targetType: 'verificationRequest',
-      targetId: String(requestId),
-    })
-    return { requestId, status: 'pending' as const, created: true }
   },
 })
 
@@ -184,14 +156,7 @@ export const generateProfileImageUploadUrl = mutation({
 })
 
 async function memberVerificationRequests(ctx: any, userId: any) {
-  const reasons = ['member', 'reverification', 'booking'] as const
-  const groups = await Promise.all(reasons.map((reason) =>
-    ctx.db
-      .query('verificationRequests')
-      .withIndex('by_user_reason', (q: any) => q.eq('userId', userId).eq('reason', reason))
-      .collect(),
-  ))
-  return groups.flat().filter((request: any) => isMemberVerificationReason(request.reason))
+  return await ctx.db.query('verificationRequests').withIndex('by_user', (q: any) => q.eq('userId', userId)).collect()
 }
 
 function normalizeOptional(value: string | undefined, maxLength: number) {

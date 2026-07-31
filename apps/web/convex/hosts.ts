@@ -2,6 +2,7 @@ import { bookingEligibility, canBookHost } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
+import { hasCurrentPersonaApproval, isIdentityVerificationReason } from './identityVerification'
 
 const demoHosts = [
   { _id: 'demo-1', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee or meal companion', 'Local walk or city guide'], bookable: false, viewerCanBook: true, demo: true },
@@ -36,14 +37,16 @@ export const listApproved = query({
         return (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY)
       })
 
-    return await Promise.all(withDistance.map(async ({ host, distanceKm }) => {
+    const results = []
+    for (const { host, distanceKm } of withDistance) {
       const user = await ctx.db.get(host.userId)
+      if (!user || user.suspended || !hasCurrentPersonaApproval(user)) continue
       const { approximateArea: _approximateArea, approximateLatitude: _approximateLatitude, approximateLongitude: _approximateLongitude, ...publicHost } = host
-      return {
+      results.push({
         ...publicHost,
-        displayName: user?.displayName ?? host.displayName,
-        profileImageUrl: user ? await profileImageUrl(ctx, user) : undefined,
-        bio: user?.bio,
+        displayName: user.displayName,
+        profileImageUrl: await profileImageUrl(ctx, user),
+        bio: user.bio,
         distanceKm: typeof distanceKm === 'number' ? Math.round(distanceKm * 10) / 10 : undefined,
         _id: host._id,
         bookable: true,
@@ -52,12 +55,14 @@ export const listApproved = query({
           viewer ? String(viewer._id) : null,
           viewer?.verificationStatus,
           String(host.userId),
+          viewer ? hasCurrentPersonaApproval(viewer) : false,
         ),
         demo: false,
         saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
         following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
-      }
-    }))
+      })
+    }
+    return results
   },
 })
 
@@ -68,17 +73,19 @@ export const getPublic = query({
     const host = await ctx.db.get(args.hostProfileId)
     if (!host || host.status !== 'approved') return null
     const user = await ctx.db.get(host.userId)
+    if (!user || user.suspended || !hasCurrentPersonaApproval(user)) return null
     const { approximateArea: _approximateArea, approximateLatitude: _approximateLatitude, approximateLongitude: _approximateLongitude, ...publicHost } = host
     return {
       ...publicHost,
-      displayName: user?.displayName ?? host.displayName,
-      profileImageUrl: user ? await profileImageUrl(ctx, user) : undefined,
-      bio: user?.bio,
+      displayName: user.displayName,
+      profileImageUrl: await profileImageUrl(ctx, user),
+      bio: user.bio,
       viewerCanBook: canBookHost(viewer ? String(viewer._id) : null, String(host.userId)),
       viewerBookingEligibility: bookingEligibility(
         viewer ? String(viewer._id) : null,
         viewer?.verificationStatus,
         String(host.userId),
+        viewer ? hasCurrentPersonaApproval(viewer) : false,
       ),
       saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
       following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
@@ -111,11 +118,26 @@ export const myApplication = query({
     if (!viewer) return null
     const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
     if (!host) return null
+    const identityRequests = await ctx.db.query('verificationRequests').withIndex('by_user', (q) => q.eq('userId', viewer._id)).collect()
+    const identityVerification = identityRequests
+      .filter((request) => isIdentityVerificationReason(request.reason))
+      .sort((a, b) => {
+        if (a.isCurrent === true && b.isCurrent !== true) return -1
+        if (b.isCurrent === true && a.isCurrent !== true) return 1
+        return b.updatedAt - a.updatedAt
+      })[0]
     return {
       ...host,
       displayName: viewer.displayName,
       profileImageUrl: await profileImageUrl(ctx, viewer),
       bio: viewer.bio,
+      identityEligible: hasCurrentPersonaApproval(viewer),
+      identityVerification: identityVerification ? {
+        _id: identityVerification._id,
+        personaStatus: identityVerification.personaStatus,
+        personaDecision: identityVerification.personaDecision ?? 'unknown',
+        adminStatus: identityVerification.adminStatus,
+      } : null,
     }
   },
 })
@@ -144,17 +166,13 @@ export const submitApplication = mutation({
       ? (await ctx.db.patch(existing._id, patch), existing._id)
       : await ctx.db.insert('hostProfiles', { userId: viewer._id, ...patch, createdAt: now })
 
-    const verificationId = await ctx.db.insert('verificationRequests', {
-      userId: viewer._id,
-      reason: 'host_application',
-      personaInquiryId: `persona_dummy_host_${hostProfileId}`,
-      personaStatus: 'pending',
-      adminStatus: 'pending',
-      hostProfileId,
-      createdAt: now,
-      updatedAt: now,
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'host_application.submitted',
+      targetType: 'hostProfile',
+      targetId: String(hostProfileId),
+      after: { status: 'pending_review', identityApproved: hasCurrentPersonaApproval(viewer) },
     })
-    await writeAudit(ctx, { actorUserId: viewer._id, action: 'host_application.submitted', targetType: 'hostProfile', targetId: String(hostProfileId), note: `Verification placeholder ${verificationId}` })
     return hostProfileId
   },
 })

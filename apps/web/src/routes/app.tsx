@@ -9,7 +9,8 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { WorkspaceShell } from '../components/AppShell'
 import { MeetingSeam } from '../components/AppNavigation'
-import { memberVerificationPresentation } from '../lib/memberVerification'
+import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
+import { useIdentityVerification } from '../components/IdentityVerificationFlow'
 
 export const Route = createFileRoute('/app')({
   validateSearch: (search: Record<string, unknown>): { hostProfileId?: string } => (
@@ -57,7 +58,7 @@ function AppPage() {
   const viewer = useQuery(api.users.viewer)
   const latestMemberVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const bookings = useQuery(api.bookings.mine, viewer ? {} : 'skip')
-  const startIdentityVerification = useMutation(api.users.startIdentityVerification)
+  const identityFlow = useIdentityVerification('member')
   const createDraft = useMutation(api.bookings.createDraft)
   const sendMessage = useMutation(api.bookings.sendMessage)
   const cancelBooking = useMutation(api.bookings.cancel)
@@ -67,7 +68,6 @@ function AppPage() {
   const navigate = useNavigate()
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
-  const [identityRequestBusy, setIdentityRequestBusy] = useState(false)
   const [identityDetailsOpen, setIdentityDetailsOpen] = useState(false)
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
   const bookingTriggerRef = useRef<HTMLButtonElement>(null)
@@ -75,10 +75,10 @@ function AppPage() {
 
   const verification = viewer
     ? memberVerificationPresentation(
-        viewer.verificationStatus,
-        latestMemberVerification?.adminStatus,
+        identityEntitlementStatus(viewer.verificationStatus, viewer.identityEligible),
+        latestMemberVerification,
       )
-    : { state: 'not_started' as const, label: 'Loading', tone: 'self' as const, guidance: 'Loading identity status…' }
+    : { state: 'not_started' as const, label: 'Loading', tone: 'self' as const, guidance: 'Loading identity status…', action: 'none' as const }
   const canBook = verification.state === 'approved'
   const viewerLoading = viewer === undefined
   const approvedHosts = useQuery(
@@ -116,8 +116,7 @@ function AppPage() {
     if (!canBook) {
       setBookingDialogOpen(false)
       setIdentityDetailsOpen(true)
-      setError('Verify your identity before requesting this booking.')
-      void navigate({ to: '/app', search: {}, replace: true })
+      setError('Verify your identity before requesting this booking. Your selected Friend Host will remain ready after approval.')
       return
     }
 
@@ -148,30 +147,6 @@ function AppPage() {
   ).length
 
   const heldBooking = (bookings ?? []).find((booking) => booking.status === 'verification_required')
-
-  const requestIdentityReview = async () => {
-    setIdentityRequestBusy(true)
-    setError('')
-    try {
-      const result = await startIdentityVerification({})
-      setNotice(
-        result.status === 'approved'
-          ? 'Identity is already verified.'
-          : result.created
-            ? 'Identity review requested.'
-            : 'Your identity review is already pending.',
-      )
-      setIdentityDetailsOpen(true)
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Identity review could not be requested. Try again.',
-      )
-    } finally {
-      setIdentityRequestBusy(false)
-    }
-  }
 
   return (
     <WorkspaceShell
@@ -204,18 +179,20 @@ function AppPage() {
         >
           Start a booking
         </button>
-      ) : verification.state === 'pending' ? null : (
+      ) : verification.action === 'none' ? null : (
         <button
           type="button"
           className="btn btn-self"
-          onClick={() => void requestIdentityReview()}
-          disabled={!viewer || identityRequestBusy}
+          onClick={() => void identityFlow.begin()}
+          disabled={!viewer || identityFlow.busy}
         >
-          {identityRequestBusy
-            ? 'Requesting review…'
-            : verification.state === 'rejected'
-              ? 'Request another review'
-              : 'Request identity review'}
+          {identityFlow.busy
+            ? 'Opening Persona…'
+            : verification.action === 'continue'
+              ? 'Continue identity check'
+              : verification.action === 'retry'
+                ? 'Start a new identity check'
+                : 'Verify identity with Persona'}
         </button>
       )}
       mobileNavigation={
@@ -266,8 +243,8 @@ function AppPage() {
               <p className="text-meta">Identity verification</p>
               <h2 className="text-h3 mt-1">{verification.label}</h2>
               <p className="text-body muted mt-1">{verification.guidance}</p>
-              {verification.state === 'pending' && (
-                <p className="text-meta mt-2">No additional action is needed right now.</p>
+              {verification.state === 'admin_pending' && (
+                <p className="text-meta mt-2">No additional action is needed while the safety team reviews the completed Persona result.</p>
               )}
             </div>
             <div className="identity-status-details-actions">
@@ -283,21 +260,23 @@ function AppPage() {
                   Start a booking
                 </button>
               )}
-              {(verification.state === 'not_started' || verification.state === 'rejected') && (
+              {verification.action !== 'none' && (
                 <button
                   type="button"
                   className="btn btn-self btn-sm"
-                  onClick={() => void requestIdentityReview()}
-                  disabled={!viewer || identityRequestBusy}
+                  onClick={() => void identityFlow.begin()}
+                  disabled={!viewer || identityFlow.busy}
                 >
-                  {identityRequestBusy
-                    ? 'Requesting review…'
-                    : verification.state === 'rejected'
-                      ? 'Request another review'
-                      : 'Request identity review'}
+                  {identityFlow.busy
+                    ? 'Opening Persona…'
+                    : verification.action === 'continue'
+                      ? 'Continue identity check'
+                      : verification.action === 'retry'
+                        ? 'Start a new identity check'
+                        : 'Verify identity with Persona'}
                 </button>
               )}
-              {verification.state === 'pending' && heldBooking && (
+              {verification.state === 'admin_pending' && heldBooking && (
                 <a href={`#booking-${heldBooking._id}`} className="btn btn-neutral btn-sm">
                   View legacy held booking
                 </a>
@@ -307,16 +286,16 @@ function AppPage() {
         </section>
       )}
 
-      {notice && (
+      {(notice || identityFlow.message) && (
         <div className="notice notice-success mb-6" role="status" aria-live="polite">
           <span className="notice-icon">✓</span>
-          <span>{notice}</span>
+          <span>{identityFlow.message || notice}</span>
         </div>
       )}
-      {error && (
+      {(error || identityFlow.error) && (
         <div className="notice notice-danger mb-6" role="alert">
           <span className="notice-icon">!</span>
-          <span>{error}</span>
+          <span>{identityFlow.error || error}</span>
         </div>
       )}
 
@@ -347,18 +326,20 @@ function AppPage() {
               >
                 Start your first booking
               </button>
-            ) : verification.state !== 'pending' ? (
+            ) : verification.action !== 'none' ? (
               <button
                 type="button"
                 className="btn btn-self btn-sm mt-2"
-                onClick={() => void requestIdentityReview()}
-                disabled={identityRequestBusy}
+                onClick={() => void identityFlow.begin()}
+                disabled={identityFlow.busy}
               >
-                {identityRequestBusy
-                  ? 'Requesting review…'
-                  : verification.state === 'rejected'
-                    ? 'Request another review'
-                    : 'Request identity review'}
+                {identityFlow.busy
+                  ? 'Opening Persona…'
+                  : verification.action === 'continue'
+                    ? 'Continue identity check'
+                    : verification.action === 'retry'
+                      ? 'Start a new identity check'
+                      : 'Verify identity with Persona'}
               </button>
             ) : null}
           </div>

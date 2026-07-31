@@ -11,7 +11,10 @@
 import type * as admin from "../admin.js";
 import type * as bookings from "../bookings.js";
 import type * as hosts from "../hosts.js";
+import type * as http from "../http.js";
+import type * as identityVerification from "../identityVerification.js";
 import type * as lib from "../lib.js";
+import type * as persona from "../persona.js";
 import type * as reports from "../reports.js";
 import type * as reviews from "../reviews.js";
 import type * as social from "../social.js";
@@ -27,7 +30,10 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   bookings: typeof bookings;
   hosts: typeof hosts;
+  http: typeof http;
+  identityVerification: typeof identityVerification;
   lib: typeof lib;
+  persona: typeof persona;
   reports: typeof reports;
   reviews: typeof reviews;
   social: typeof social;

@@ -6,7 +6,7 @@ const trustGates = [
   {
     what: 'Adult-only access',
     who: 'Account creation',
-    when: '18+ self-attestation today, age verification before public discovery in v2.',
+    when: 'Persona checks date of birth from a government ID before booking or public discovery can unlock.',
   },
   {
     what: 'Host approval',
@@ -14,9 +14,9 @@ const trustGates = [
     when: 'Every Friend Host application is held until a reviewer decides approve or reject.',
   },
   {
-    what: 'Member identity review',
-    who: 'Safety review queue',
-    when: 'Members request manual identity review during early access. Booking unlocks only after approval.',
+    what: 'Identity verification',
+    who: 'Persona + safety review queue',
+    when: 'Persona checks a government ID, live selfie, liveness, and face match. Every completed result then receives an explicit admin decision.',
   },
   {
     what: 'Location privacy',
@@ -64,8 +64,7 @@ function SafetyPage() {
 
       <section className="mt-12 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-body muted max-w-[60ch]">
-          Early access uses manual identity and safety review. We will describe any future
-          verification provider here before it becomes part of the process.
+          Persona securely collects identity evidence; Let&apos;s Be Friends stores only the verification outcome and operational metadata. Raw government-ID and selfie media are not copied into this app.
         </p>
         <div className="flex gap-2">
           <Link to="/discover" className="btn btn-neutral btn-sm">Open discovery</Link>

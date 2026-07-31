@@ -1,11 +1,11 @@
-import { isMemberVerificationReason } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
-import type { Doc, Id } from './_generated/dataModel'
+import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
+import { canAdminApproveIdentity, hasCurrentPersonaApproval, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason, isRealPersonaInquiryId } from './identityVerification'
 
 const roleOrAll = v.union(v.literal('member'), v.literal('friend_host'), v.literal('reviewer'), v.literal('owner'), v.literal('all'))
-const verificationStatusOrAll = v.union(v.literal('not_started'), v.literal('pending'), v.literal('approved'), v.literal('rejected'), v.literal('all'))
+const verificationStatusOrAll = v.union(v.literal('not_ready'), v.literal('pending'), v.literal('approved'), v.literal('rejected'), v.literal('not_started'), v.literal('all'))
 const hostStatusOrAll = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'), v.literal('all'))
 const reportStatus = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'))
 const reportStatusOrAll = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'), v.literal('all'))
@@ -42,7 +42,7 @@ export const overview = query({
       viewerRole: viewer.role,
       counts: {
         hostApplicationsPending: hostApplications.filter((host) => host.status === 'pending_review').length,
-        memberVerificationsPending: verificationRequests.filter((request) => isMemberVerificationReason(request.reason) && request.adminStatus === 'pending').length,
+        memberVerificationsPending: verificationRequests.filter((request) => isIdentityVerificationReason(request.reason) && isIdentityReadyForAdminReview(request)).length,
         reportsOpen: reports.filter((report) => report.status === 'open').length,
         usersTotal: users.length,
         usersSuspended: users.filter((user) => user.suspended).length,
@@ -76,15 +76,19 @@ export const hostApplications = query({
       : await ctx.db.query('hostProfiles').withIndex('by_status', (q) => q.eq('status', status)).collect()
     return await Promise.all(hosts.sort((a, b) => b.updatedAt - a.updatedAt).map(async (host) => {
       const user = await ctx.db.get(host.userId)
-      const verification = await ctx.db.query('verificationRequests').withIndex('by_host_profile', (q) => q.eq('hostProfileId', host._id)).first()
+      const verification = await currentIdentityVerificationForUser(ctx, host.userId)
       return {
         ...host,
         applicantDisplayName: user?.displayName ?? host.displayName,
         applicantVerificationStatus: user?.verificationStatus ?? 'not_started',
+        applicantIdentityEligible: user ? hasCurrentPersonaApproval(user) : false,
         applicantSuspended: user?.suspended ?? false,
+        verificationRequestId: verification?._id,
         verificationAdminStatus: verification?.adminStatus,
         verificationPersonaStatus: verification?.personaStatus,
+        verificationPersonaDecision: verification?.personaDecision,
         personaInquiryId: verification?.personaInquiryId,
+        personaDashboardUrl: personaDashboardUrl(verification?.personaInquiryId),
       }
     }))
   },
@@ -96,7 +100,7 @@ export const memberVerifications = query({
     await requireAdmin(ctx)
     const status = args.status ?? 'pending'
     const requests = status === 'all'
-      ? (await ctx.db.query('verificationRequests').collect()).filter((request) => isMemberVerificationReason(request.reason))
+      ? (await ctx.db.query('verificationRequests').collect()).filter((request) => isIdentityVerificationReason(request.reason))
       : await memberVerificationRequestsByStatus(ctx, status)
     return await Promise.all(requests.sort((a, b) => b.updatedAt - a.updatedAt).map(async (request) => {
       const user = await ctx.db.get(request.userId)
@@ -106,10 +110,14 @@ export const memberVerifications = query({
       return {
         ...request,
         requestType: request.reason === 'member'
-          ? 'Initial review'
+          ? 'Initial member verification'
           : request.reason === 'reverification'
-            ? 'Another review'
-            : 'Legacy booking review',
+            ? 'Identity reverification'
+            : request.reason === 'host_application'
+              ? 'Friend Host identity verification'
+              : 'Legacy booking verification',
+        approvalAllowed: canAdminApproveIdentity(request),
+        personaDashboardUrl: personaDashboardUrl(request.personaInquiryId),
         memberDisplayName: user?.displayName ?? 'Member',
         memberVerificationStatus: user?.verificationStatus ?? 'not_started',
         bookingStatus: booking?.status,
@@ -226,23 +234,20 @@ export const reviewHostApplication = mutation({
     const admin = await requireAdmin(ctx)
     const host = await ctx.db.get(args.hostProfileId)
     if (!host) throw new Error('Host profile not found')
+    if (host.status !== 'pending_review') throw new Error('This Friend Host application has already been reviewed')
+    const user = await ctx.db.get(host.userId)
+    if (!user) throw new Error('Applicant account not found')
+    if (args.decision === 'approved' && user.suspended) throw new Error('A suspended member cannot be approved as a Friend Host')
+    if (args.decision === 'approved' && !hasCurrentPersonaApproval(user)) {
+      throw new Error('Identity verification must be approved before the Friend Host application can be approved')
+    }
+
     const note = args.decision === 'rejected' ? requireNote(args.note, 'Rejecting a host application') : normalizeNote(args.note)
     const now = Date.now()
     const after = { ...host, status: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now }
     await ctx.db.patch(args.hostProfileId, { status: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now })
     if (args.decision === 'approved') {
-      await ctx.db.patch(host.userId, { role: 'friend_host', verificationStatus: 'approved', updatedAt: now })
-      await approvePendingMemberVerifications(ctx, host.userId, admin._id, note, now)
-    }
-    const verification = await ctx.db.query('verificationRequests').withIndex('by_host_profile', (q) => q.eq('hostProfileId', args.hostProfileId)).first()
-    if (verification) {
-      await ctx.db.patch(verification._id, {
-        adminStatus: args.decision === 'approved' ? 'approved' : 'rejected',
-        personaStatus: args.decision === 'approved' ? 'approved' : verification.personaStatus,
-        reviewerUserId: admin._id,
-        reviewerNote: note,
-        updatedAt: now,
-      })
+      await ctx.db.patch(host.userId, { role: 'friend_host', updatedAt: now })
     }
     await writeAudit(ctx, { actorUserId: admin._id, action: `host_application.${args.decision}`, targetType: 'hostProfile', targetId: String(args.hostProfileId), before: host, after, note })
   },
@@ -254,21 +259,42 @@ export const reviewMemberVerification = mutation({
     const admin = await requireAdmin(ctx)
     const verification = await ctx.db.get(args.verificationRequestId)
     if (!verification) throw new Error('Verification request not found')
-    if (!isMemberVerificationReason(verification.reason)) throw new Error('This request belongs to the Friend Host review flow')
-    if (verification.adminStatus !== 'pending') throw new Error('This member verification request has already been reviewed')
+    if (!isIdentityVerificationReason(verification.reason)) throw new Error('This is not an identity verification request')
+    if (!isIdentityReadyForAdminReview(verification)) {
+      throw new Error('Only the current completed Persona attempt can receive an admin decision')
+    }
+    if (args.decision === 'approved' && !canAdminApproveIdentity(verification)) {
+      throw new Error('Persona declined or did not complete this identity. Start a new attempt instead of overriding it.')
+    }
 
-    const note = args.decision === 'rejected' ? requireNote(args.note, 'Rejecting member verification') : normalizeNote(args.note)
+    const note = args.decision === 'rejected' ? requireNote(args.note, 'Rejecting identity verification') : normalizeNote(args.note)
     const now = Date.now()
-    const after = { ...verification, adminStatus: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now }
+    const after = { ...verification, adminStatus: args.decision, reviewerUserId: admin._id, reviewerNote: note, reviewedAt: now, updatedAt: now }
+    await ctx.db.patch(args.verificationRequestId, {
+      adminStatus: args.decision,
+      reviewerUserId: admin._id,
+      reviewerNote: note,
+      reviewedAt: now,
+      updatedAt: now,
+    })
 
     if (args.decision === 'approved') {
-      await approvePendingMemberVerifications(ctx, verification.userId, admin._id, note, now)
-      await ctx.db.patch(verification.userId, { verificationStatus: 'approved', updatedAt: now })
+      await ctx.db.patch(verification.userId, {
+        verificationStatus: 'approved',
+        verificationSource: 'persona',
+        identityVerifiedAt: now,
+        identityExpiresAt: identityExpiry(now),
+        updatedAt: now,
+      })
+      if (verification.bookingId) {
+        const booking = await ctx.db.get(verification.bookingId)
+        if (booking?.status === 'verification_required') {
+          await ctx.db.patch(verification.bookingId, { status: 'request_sent', updatedAt: now })
+        }
+      }
     } else {
-      await ctx.db.patch(args.verificationRequestId, {
-        adminStatus: 'rejected',
-        reviewerUserId: admin._id,
-        reviewerNote: note,
+      await ctx.db.patch(verification.userId, {
+        verificationStatus: 'rejected',
         updatedAt: now,
       })
       if (verification.bookingId) {
@@ -277,15 +303,6 @@ export const reviewMemberVerification = mutation({
           await ctx.db.patch(verification.bookingId, { status: 'cancelled', updatedAt: now })
         }
       }
-
-      const user = await ctx.db.get(verification.userId)
-      if (user?.verificationStatus !== 'approved') {
-        const pending = await memberVerificationRequestsForUser(ctx, verification.userId, 'pending')
-        await ctx.db.patch(verification.userId, {
-          verificationStatus: pending.length > 0 ? 'pending' : 'rejected',
-          updatedAt: now,
-        })
-      }
     }
 
     await writeAudit(ctx, {
@@ -293,8 +310,18 @@ export const reviewMemberVerification = mutation({
       action: `member_verification.${args.decision}`,
       targetType: 'verificationRequest',
       targetId: String(args.verificationRequestId),
-      before: verification,
-      after,
+      before: {
+        adminStatus: verification.adminStatus,
+        personaStatus: verification.personaStatus,
+        personaDecision: verification.personaDecision,
+        inquiryId: verification.personaInquiryId,
+      },
+      after: {
+        adminStatus: args.decision,
+        personaStatus: verification.personaStatus,
+        personaDecision: verification.personaDecision,
+        inquiryId: verification.personaInquiryId,
+      },
       note,
     })
   },
@@ -403,58 +430,41 @@ export const setReviewHidden = mutation({
   },
 })
 
-const memberVerificationReasons = ['member', 'reverification', 'booking'] as const
-
 async function memberVerificationRequestsByStatus(
   ctx: any,
-  status: 'not_started' | 'pending' | 'approved' | 'rejected',
+  status: 'not_ready' | 'pending' | 'approved' | 'rejected' | 'not_started',
 ): Promise<Array<Doc<'verificationRequests'>>> {
-  const groups = await Promise.all(memberVerificationReasons.map((reason) =>
+  const groups = await Promise.all(identityVerificationReasons.map((reason) =>
     ctx.db
       .query('verificationRequests')
       .withIndex('by_reason_admin_status', (q: any) => q.eq('reason', reason).eq('adminStatus', status))
       .collect(),
   ))
-  return groups.flat() as Array<Doc<'verificationRequests'>>
-}
-
-async function memberVerificationRequestsForUser(
-  ctx: any,
-  userId: Id<'users'>,
-  status?: 'not_started' | 'pending' | 'approved' | 'rejected',
-): Promise<Array<Doc<'verificationRequests'>>> {
-  const groups = await Promise.all(memberVerificationReasons.map((reason) =>
-    ctx.db
-      .query('verificationRequests')
-      .withIndex('by_user_reason', (q: any) => q.eq('userId', userId).eq('reason', reason))
-      .collect(),
-  ))
   const requests = groups.flat() as Array<Doc<'verificationRequests'>>
-  return status ? requests.filter((request) => request.adminStatus === status) : requests
+  return status === 'pending' ? requests.filter(isIdentityReadyForAdminReview) : requests
 }
 
-async function approvePendingMemberVerifications(
-  ctx: any,
-  userId: Id<'users'>,
-  reviewerUserId: Id<'users'>,
-  reviewerNote: string | undefined,
-  now: number,
-) {
-  const pending = await memberVerificationRequestsForUser(ctx, userId, 'pending')
-  for (const request of pending) {
-    await ctx.db.patch(request._id, {
-      adminStatus: 'approved',
-      reviewerUserId,
-      reviewerNote,
-      updatedAt: now,
-    })
-    if (request.bookingId) {
-      const booking = await ctx.db.get(request.bookingId)
-      if (booking?.status === 'verification_required') {
-        await ctx.db.patch(request.bookingId, { status: 'request_sent', updatedAt: now })
-      }
-    }
-  }
+async function currentIdentityVerificationForUser(ctx: any, userId: any) {
+  const requests = await ctx.db.query('verificationRequests').withIndex('by_user', (q: any) => q.eq('userId', userId)).collect()
+  return requests
+    .filter((request: Doc<'verificationRequests'>) => isIdentityVerificationReason(request.reason))
+    .sort((a: Doc<'verificationRequests'>, b: Doc<'verificationRequests'>) => {
+      if (a.isCurrent === true && b.isCurrent !== true) return -1
+      if (b.isCurrent === true && a.isCurrent !== true) return 1
+      return b.updatedAt - a.updatedAt
+    })[0]
+}
+
+function personaDashboardUrl(inquiryId: string | undefined) {
+  if (typeof inquiryId !== 'string' || !isRealPersonaInquiryId(inquiryId)) return undefined
+  const baseUrl = process.env.PERSONA_DASHBOARD_BASE_URL?.trim() || 'https://app.withpersona.com/dashboard/inquiries'
+  return `${baseUrl.replace(/\/$/, '')}/${encodeURIComponent(inquiryId)}`
+}
+
+function identityExpiry(now: number) {
+  const configuredDays = Number(process.env.PERSONA_VERIFICATION_TTL_DAYS)
+  const days = Number.isFinite(configuredDays) && configuredDays > 0 ? configuredDays : 730
+  return now + days * 24 * 60 * 60 * 1000
 }
 
 async function updateReportStatusHandler(ctx: any, args: { reportId: any; status: 'open' | 'reviewing' | 'resolved' | 'dismissed'; note?: string }) {

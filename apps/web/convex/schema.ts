@@ -3,6 +3,29 @@ import { v } from 'convex/values'
 
 const role = v.union(v.literal('member'), v.literal('friend_host'), v.literal('reviewer'), v.literal('owner'))
 const verificationStatus = v.union(v.literal('not_started'), v.literal('pending'), v.literal('approved'), v.literal('rejected'))
+const personaStatus = v.union(
+  v.literal('not_started'),
+  v.literal('created'),
+  v.literal('in_progress'),
+  v.literal('processing'),
+  v.literal('completed'),
+  v.literal('failed'),
+  v.literal('expired'),
+  // Legacy values remain readable while existing records are reconciled.
+  v.literal('pending'),
+  v.literal('approved'),
+  v.literal('rejected'),
+)
+const personaDecision = v.union(v.literal('unknown'), v.literal('passed'), v.literal('needs_review'), v.literal('declined'))
+const verificationAdminStatus = v.union(
+  v.literal('not_ready'),
+  v.literal('pending'),
+  v.literal('approved'),
+  v.literal('rejected'),
+  // Legacy records used this value before provider and admin state were separated.
+  v.literal('not_started'),
+)
+const verificationSource = v.union(v.literal('persona'), v.literal('legacy_manual'))
 const hostStatus = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'))
 const bookingStatus = v.union(v.literal('draft'), v.literal('verification_required'), v.literal('pending_admin_review'), v.literal('request_sent'), v.literal('accepted'), v.literal('declined'), v.literal('cancelled'), v.literal('completed'), v.literal('review_window'), v.literal('closed'))
 const mode = v.union(v.literal('online'), v.literal('in_person'), v.literal('both'))
@@ -24,6 +47,9 @@ export default defineSchema({
     onboardingCompletedAt: v.optional(v.number()),
     role,
     verificationStatus,
+    verificationSource: v.optional(verificationSource),
+    identityVerifiedAt: v.optional(v.number()),
+    identityExpiresAt: v.optional(v.number()),
     suspended: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -32,8 +58,23 @@ export default defineSchema({
     userId: v.id('users'),
     reason: v.union(v.literal('member'), v.literal('booking'), v.literal('host_application'), v.literal('reverification')),
     personaInquiryId: v.optional(v.string()),
-    personaStatus: verificationStatus,
-    adminStatus: verificationStatus,
+    personaAccountId: v.optional(v.string()),
+    personaTemplateId: v.optional(v.string()),
+    personaEnvironmentId: v.optional(v.string()),
+    personaStatus,
+    personaDecision: v.optional(personaDecision),
+    verificationSource: v.optional(verificationSource),
+    adminStatus: verificationAdminStatus,
+    isCurrent: v.optional(v.boolean()),
+    attempt: v.optional(v.number()),
+    providerCreatedAt: v.optional(v.number()),
+    providerStartedAt: v.optional(v.number()),
+    providerCompletedAt: v.optional(v.number()),
+    providerLastEventAt: v.optional(v.number()),
+    adminQueuedAt: v.optional(v.number()),
+    reviewedAt: v.optional(v.number()),
+    supersededAt: v.optional(v.number()),
+    providerFailureCode: v.optional(v.string()),
     bookingId: v.optional(v.id('bookings')),
     hostProfileId: v.optional(v.id('hostProfiles')),
     reviewerUserId: v.optional(v.id('users')),
@@ -43,10 +84,21 @@ export default defineSchema({
   })
     .index('by_user', ['userId'])
     .index('by_user_reason', ['userId', 'reason'])
+    .index('by_user_current', ['userId', 'isCurrent'])
+    .index('by_persona_inquiry_id', ['personaInquiryId'])
     .index('by_admin_status', ['adminStatus'])
     .index('by_reason_admin_status', ['reason', 'adminStatus'])
     .index('by_booking', ['bookingId'])
     .index('by_host_profile', ['hostProfileId']),
+  personaWebhookEvents: defineTable({
+    eventId: v.string(),
+    eventName: v.string(),
+    inquiryId: v.optional(v.string()),
+    providerCreatedAt: v.optional(v.number()),
+    receivedAt: v.number(),
+    processedAt: v.number(),
+    outcome: v.union(v.literal('processed'), v.literal('duplicate'), v.literal('ignored')),
+  }).index('by_event_id', ['eventId']).index('by_inquiry_id', ['inquiryId']),
   hostProfiles: defineTable({
     userId: v.id('users'),
     displayName: v.string(),

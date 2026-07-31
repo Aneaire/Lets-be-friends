@@ -95,12 +95,12 @@ export function bookingStatusAfterReview(otherParticipantHasReviewed: boolean): 
   return otherParticipantHasReviewed ? 'closed' : 'review_window'
 }
 
-export function canCreateBooking(status: VerificationStatus) {
-  return status === 'approved'
+export function canCreateBooking(status: VerificationStatus, identityEligible: boolean) {
+  return status === 'approved' && identityEligible
 }
 
-export function requiresVerificationForBooking(status: VerificationStatus) {
-  return !canCreateBooking(status)
+export function requiresVerificationForBooking(status: VerificationStatus, identityEligible: boolean) {
+  return !canCreateBooking(status, identityEligible)
 }
 
 export function isMemberVerificationReason(reason: VerificationRequestReason) {
@@ -111,10 +111,11 @@ export function bookingEligibility(
   viewerUserId: string | null | undefined,
   verificationStatus: VerificationStatus | null | undefined,
   hostOwnerUserId: string,
+  identityEligible: boolean,
 ): BookingEligibility {
   if (viewerUserId == null) return 'sign_in_required'
   if (viewerUserId === hostOwnerUserId) return 'own_profile'
-  return verificationStatus === 'approved' ? 'eligible' : 'verification_required'
+  return verificationStatus === 'approved' && identityEligible ? 'eligible' : 'verification_required'
 }
 
 export function canBookHost(viewerUserId: string | null | undefined, hostOwnerUserId: string) {

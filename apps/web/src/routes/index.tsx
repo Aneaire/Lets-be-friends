@@ -21,7 +21,7 @@ type HomeHost = {
 const trustGates = [
   {
     label: 'Verify',
-    body: 'Request manual identity review during early access. Booking unlocks after approval.',
+    body: 'Complete Persona government-ID and live-selfie checks, then receive an explicit safety-team decision.',
   },
   {
     label: 'Discover',

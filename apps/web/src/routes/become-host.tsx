@@ -6,6 +6,8 @@ import type React from 'react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { ApproximateLocationMap } from '../components/ApproximateLocationMap'
+import { useIdentityVerification } from '../components/IdentityVerificationFlow'
+import { identityEntitlementStatus, memberVerificationPresentation, type MemberVerificationPresentation } from '../lib/memberVerification'
 
 export const Route = createFileRoute('/become-host')({ component: BecomeHostPage })
 
@@ -30,10 +32,14 @@ function HostAuthPanel() {
   const { isSignedIn } = useAuth()
   const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.hosts.myApplication)
+  const latestIdentityVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const submit = useMutation(api.hosts.submitApplication)
+  const identityFlow = useIdentityVerification('host_application')
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>(['Good listener'])
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['Online conversation'])
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const [approxLocation, setApproxLocation] = useState<{ latitude: number; longitude: number } | null>(
     typeof application?.approximateLatitude === 'number' && typeof application?.approximateLongitude === 'number'
       ? { latitude: application.approximateLatitude, longitude: application.approximateLongitude }
@@ -66,11 +72,15 @@ function HostAuthPanel() {
     )
   }
 
-  if (viewer === undefined || application === undefined) {
+  if (viewer === undefined || application === undefined || latestIdentityVerification === undefined) {
     return <div className="empty-state">Loading host profile...</div>
   }
 
   const status = application?.status
+  const verification = memberVerificationPresentation(
+    identityEntitlementStatus(viewer?.verificationStatus ?? 'not_started', viewer?.identityEligible ?? false),
+    latestIdentityVerification,
+  )
 
   return (
     <div className="drawer-host">
@@ -78,46 +88,57 @@ function HostAuthPanel() {
         className="min-w-0"
         onSubmit={async (event) => {
           event.preventDefault()
-          const form = new FormData(event.currentTarget)
-          await submit({
-            intro: String(form.get('intro') || ''),
-            city: String(form.get('city') || ''),
-            approximateArea: String(form.get('approximateArea') || '') || undefined,
-            approximateLatitude: approxLocation?.latitude,
-            approximateLongitude: approxLocation?.longitude,
-            strengths: selectedStrengths,
-            categories: selectedCategories,
-            boundaries: String(form.get('boundaries') || '').split('\n').map((item) => item.trim()).filter(Boolean),
-            mode: form.get('mode') as 'online' | 'in_person' | 'both',
-            applicationNote: String(form.get('applicationNote') || '') || undefined,
-          })
-          setSaved(true)
+          setSaving(true)
+          setSaved(false)
+          setError('')
+          try {
+            const form = new FormData(event.currentTarget)
+            await submit({
+              intro: String(form.get('intro') || ''),
+              city: String(form.get('city') || ''),
+              approximateLatitude: approxLocation?.latitude,
+              approximateLongitude: approxLocation?.longitude,
+              strengths: selectedStrengths,
+              categories: selectedCategories,
+              boundaries: String(form.get('boundaries') || '').split('\n').map((item) => item.trim()).filter(Boolean),
+              mode: form.get('mode') as 'online' | 'in_person' | 'both',
+              applicationNote: String(form.get('applicationNote') || '') || undefined,
+            })
+            setSaved(true)
+          } catch (submitError) {
+            setError(submitError instanceof Error ? submitError.message : 'Friend Host application could not be saved.')
+          } finally {
+            setSaving(false)
+          }
         }}
       >
         {saved && (
           <div className="notice notice-success mb-6">
             <span className="notice-icon">✓</span>
             <span>
-              Application saved. Safety reviewers will assess your Friend Host profile during early access.
+              Application saved. Complete Persona identity verification next; identity and the Friend Host profile are reviewed separately.
             </span>
+          </div>
+        )}
+        {identityFlow.message && (
+          <div className="notice notice-success mb-6" role="status" aria-live="polite">
+            <span className="notice-icon">✓</span>
+            <span>{identityFlow.message}</span>
+          </div>
+        )}
+        {(error || identityFlow.error) && (
+          <div className="notice notice-danger mb-6" role="alert">
+            <span className="notice-icon">!</span>
+            <span>{identityFlow.error || error}</span>
           </div>
         )}
 
         <NumberedSection
           n={1}
           title="Location"
-          rationale="The public host card uses your normal profile name. Host review checks location privacy and public availability details."
+          rationale="Share a city or online region for useful context. Near-me discovery is optional and uses rounded coordinates instead of a neighborhood or address."
         >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FieldRow name="city" label="City or online region" defaultValue={application?.city ?? ''} />
-            <FieldRow
-              name="approximateArea"
-              label="Approximate area"
-              aux="Optional, hidden until booking accepted"
-              required={false}
-              defaultValue={application?.approximateArea ?? ''}
-            />
-          </div>
+          <FieldRow name="city" label="City or online region" defaultValue={application?.city ?? ''} />
           <div className="panel p-4">
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
@@ -240,23 +261,42 @@ function HostAuthPanel() {
           <p className="text-meta">
             Submitting again replaces the pending review packet.
           </p>
-          <button className="btn btn-self">
-            {status ? 'Update application' : 'Submit for review'}
+          <button className="btn btn-self" disabled={saving}>
+            {saving ? 'Saving…' : status ? 'Update application' : 'Submit for review'}
           </button>
         </div>
       </form>
 
-      <ReviewStatusPanel status={status} />
+      <ReviewStatusPanel
+        status={status}
+        verification={verification}
+        canStartIdentity={Boolean(application)}
+        identityBusy={identityFlow.busy}
+        onStartIdentity={() => void identityFlow.begin()}
+      />
     </div>
   )
 }
 
-function ReviewStatusPanel({ status }: { status?: string }) {
+function ReviewStatusPanel({
+  status,
+  verification,
+  canStartIdentity,
+  identityBusy,
+  onStartIdentity,
+}: {
+  status?: string
+  verification: MemberVerificationPresentation
+  canStartIdentity: boolean
+  identityBusy: boolean
+  onStartIdentity: () => void
+}) {
+  const identityApproved = verification.state === 'approved'
   const steps = [
     { id: 'submit', label: 'Application submitted', done: !!status },
-    { id: 'review', label: 'Safety review', done: status === 'approved' || status === 'rejected', active: status === 'pending' },
-    { id: 'identity', label: 'Identity and safety review', done: status === 'approved' || status === 'rejected', active: status === 'pending' },
-    { id: 'live', label: 'Visible in discovery', done: status === 'approved' },
+    { id: 'identity', label: 'Persona identity and safety review', done: identityApproved, active: !!status && !identityApproved },
+    { id: 'review', label: 'Friend Host profile review', done: status === 'approved' || status === 'rejected', active: status === 'pending_review' && identityApproved },
+    { id: 'live', label: 'Visible in discovery', done: status === 'approved' && identityApproved },
   ]
 
   return (
@@ -296,6 +336,18 @@ function ReviewStatusPanel({ status }: { status?: string }) {
             </li>
           ))}
         </ol>
+        {canStartIdentity && verification.action !== 'none' && (
+          <button type="button" className="btn btn-self btn-sm" disabled={identityBusy} onClick={onStartIdentity}>
+            {identityBusy
+              ? 'Opening Persona…'
+              : verification.action === 'continue'
+                ? 'Continue identity check'
+                : verification.action === 'retry'
+                  ? 'Start a new identity check'
+                  : 'Verify identity with Persona'}
+          </button>
+        )}
+        <p className="text-meta">{verification.guidance}</p>
         <hr className="divider" />
         <p className="text-meta">
           Need a refresher on what reviewers check?
@@ -309,7 +361,7 @@ function ReviewStatusPanel({ status }: { status?: string }) {
 function statusTone(status: string): 'self' | 'success' | 'warning' | 'danger' {
   if (status === 'approved') return 'success'
   if (status === 'rejected') return 'danger'
-  if (status === 'pending') return 'warning'
+  if (status === 'pending_review') return 'warning'
   return 'self'
 }
 

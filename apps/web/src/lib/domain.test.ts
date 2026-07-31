@@ -55,19 +55,22 @@ describe('shared early access domain constants', () => {
   })
 
   it('requires approved identity status before creating a booking', () => {
-    expect(canCreateBooking('approved')).toBe(true)
-    expect(canCreateBooking('not_started')).toBe(false)
-    expect(canCreateBooking('pending')).toBe(false)
-    expect(canCreateBooking('rejected')).toBe(false)
-    expect(requiresVerificationForBooking('approved')).toBe(false)
-    expect(requiresVerificationForBooking('pending')).toBe(true)
+    expect(canCreateBooking('approved', true)).toBe(true)
+    expect(canCreateBooking('approved', false)).toBe(false)
+    expect(canCreateBooking('not_started', false)).toBe(false)
+    expect(canCreateBooking('pending', false)).toBe(false)
+    expect(canCreateBooking('rejected', false)).toBe(false)
+    expect(requiresVerificationForBooking('approved', true)).toBe(false)
+    expect(requiresVerificationForBooking('approved', false)).toBe(true)
+    expect(requiresVerificationForBooking('pending', false)).toBe(true)
   })
 
   it('classifies viewer booking eligibility explicitly', () => {
-    expect(bookingEligibility(null, undefined, 'host-1')).toBe('sign_in_required')
-    expect(bookingEligibility('host-1', 'approved', 'host-1')).toBe('own_profile')
-    expect(bookingEligibility('member-1', 'pending', 'host-1')).toBe('verification_required')
-    expect(bookingEligibility('member-1', 'approved', 'host-1')).toBe('eligible')
+    expect(bookingEligibility(null, undefined, 'host-1', false)).toBe('sign_in_required')
+    expect(bookingEligibility('host-1', 'approved', 'host-1', true)).toBe('own_profile')
+    expect(bookingEligibility('member-1', 'pending', 'host-1', false)).toBe('verification_required')
+    expect(bookingEligibility('member-1', 'approved', 'host-1', false)).toBe('verification_required')
+    expect(bookingEligibility('member-1', 'approved', 'host-1', true)).toBe('eligible')
   })
 
   it('keeps member review reasons separate from host applications', () => {

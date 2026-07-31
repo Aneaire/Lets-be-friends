@@ -1,7 +1,8 @@
-import { canBookHost, canCancelBooking, canCompleteBooking, canCreateBooking, canReadBookingMessages } from '@lets-be-friends/shared'
+import { canBookHost, canCancelBooking, canCompleteBooking, canReadBookingMessages } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
+import { hasCurrentPersonaApproval } from './identityVerification'
 
 export const mine = query({
   args: {},
@@ -60,11 +61,15 @@ export const createDraft = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (!canCreateBooking(viewer.verificationStatus)) {
-      throw new Error('Identity verification must be approved before you can request a booking.')
+    if (!hasCurrentPersonaApproval(viewer)) {
+      throw new Error('A current Persona identity check and safety review are required before you can request a booking.')
     }
     const host = await ctx.db.get(args.hostProfileId)
     if (!host || host.status !== 'approved') throw new Error('Friend Host is not available for booking')
+    const hostUser = await ctx.db.get(host.userId)
+    if (!hostUser || hostUser.suspended || !hasCurrentPersonaApproval(hostUser)) {
+      throw new Error('Friend Host is not currently available for new bookings')
+    }
     if (!canBookHost(String(viewer._id), String(host.userId))) throw new Error('You cannot book your own Friend Host profile.')
     const now = Date.now()
     const bookingId = await ctx.db.insert('bookings', {
@@ -88,6 +93,15 @@ export const hostDecision = mutation({
     const host = await ctx.db.get(booking.hostProfileId)
     if (!host || host.userId !== viewer._id) throw new Error('Only the booked Friend Host can decide')
     if (booking.status !== 'request_sent') throw new Error('Booking is not awaiting host decision')
+    if (args.decision === 'accepted') {
+      if (host.status !== 'approved' || !hasCurrentPersonaApproval(viewer)) {
+        throw new Error('A current Persona identity check and approved Friend Host profile are required before accepting new bookings')
+      }
+      const member = await ctx.db.get(booking.memberId)
+      if (!member || member.suspended || !hasCurrentPersonaApproval(member)) {
+        throw new Error('The member must renew identity approval before this booking can be accepted')
+      }
+    }
     await ctx.db.patch(args.bookingId, { status: args.decision, hostDecisionNote: args.note, updatedAt: Date.now() })
     await writeAudit(ctx, { actorUserId: viewer._id, action: `booking.${args.decision}`, targetType: 'booking', targetId: String(args.bookingId), note: args.note })
   },
@@ -169,6 +183,20 @@ export const sendMessage = mutation({
     const host = await ctx.db.get(booking.hostProfileId)
     if (booking.memberId !== viewer._id && host?.userId !== viewer._id) throw new Error('Not your booking')
     if (!canChatForStatus(booking.status)) throw new Error('Chat unlocks after verification/admin review sends the booking request')
+    if (booking.status === 'request_sent') {
+      const member = await ctx.db.get(booking.memberId)
+      const hostUser = host ? await ctx.db.get(host.userId) : null
+      if (
+        !member
+        || member.suspended
+        || !hasCurrentPersonaApproval(member)
+        || !hostUser
+        || hostUser.suspended
+        || !hasCurrentPersonaApproval(hostUser)
+      ) {
+        throw new Error('Both participants need current identity approval before pre-acceptance messaging can continue')
+      }
+    }
     const body = args.body.trim()
     if (!body) throw new Error('Message cannot be empty')
     return await ctx.db.insert('messages', { bookingId: args.bookingId, senderId: viewer._id, body, reportable: true, createdAt: Date.now() })

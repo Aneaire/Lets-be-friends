@@ -19,7 +19,7 @@ function HostApplicationsPage() {
         <div>
           <p className="eyebrow">Safety review</p>
           <h1 className="text-h1 mt-2">Host applications</h1>
-          <p className="lede mt-2">Review identity posture, Strengths, categories, boundaries, and application notes.</p>
+          <p className="lede mt-2">Review Strengths, categories, boundaries, and application notes. Identity is decided separately in the mandatory Persona queue.</p>
         </div>
       </header>
 
@@ -56,14 +56,16 @@ function HostApplicationsPage() {
                       <span className="dot" aria-hidden="true" />
                       <span className="status-pill" data-tone={statusTone(host.status)}>{host.status}</span>
                       <span className="dot" aria-hidden="true" />
-                      <span>Persona {host.verificationPersonaStatus ?? 'none'}</span>
+                      <span>Identity {host.applicantIdentityEligible ? 'approved' : 'not approved'}</span>
+                      <span className="dot" aria-hidden="true" />
+                      <span>Persona {formatStatus(host.verificationPersonaStatus ?? 'not started')}</span>
                     </div>
                   </div>
                   <div className="admin-action-stack">
                     <ActionNote
                       label="Approve"
                       submitLabel="Approve"
-                      disabled={host.status === 'approved'}
+                      disabled={host.status !== 'pending_review' || !host.applicantIdentityEligible || host.applicantSuspended}
                       onSubmit={(note) => reviewHost({ hostProfileId: host._id, decision: 'approved', note })}
                     />
                     <ActionNote
@@ -71,11 +73,15 @@ function HostApplicationsPage() {
                       submitLabel="Reject"
                       tone="danger"
                       requireNote
-                      disabled={host.status === 'rejected'}
+                      disabled={host.status !== 'pending_review'}
                       onSubmit={(note) => reviewHost({ hostProfileId: host._id, decision: 'rejected', note })}
                     />
                   </div>
                 </div>
+                {host.applicantSuspended && <p className="text-meta">Approval remains disabled while this member account is suspended.</p>}
+                {!host.applicantIdentityEligible && host.status === 'pending_review' && (
+                  <p className="text-meta">Approval remains disabled until this member completes Persona verification and the identity reviewer explicitly approves it.</p>
+                )}
                 <p className="text-body muted max-w-[76ch]">{host.intro}</p>
                 <div className="worklist-row-meta">
                   <span>Strengths: {host.strengths.join(', ') || 'none'}</span>
@@ -85,6 +91,17 @@ function HostApplicationsPage() {
                 </div>
                 <div className="worklist-row-meta">
                   <span>Boundaries: {host.boundaries.join(', ') || 'none'}</span>
+                </div>
+                <div className="worklist-row-meta">
+                  <span>Persona decision: {formatStatus(host.verificationPersonaDecision ?? 'unknown')}</span>
+                  <span className="dot" aria-hidden="true" />
+                  <span>Identity review: {formatStatus(host.verificationAdminStatus ?? 'not started')}</span>
+                  {host.personaDashboardUrl && (
+                    <>
+                      <span className="dot" aria-hidden="true" />
+                      <a href={host.personaDashboardUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">Open in Persona</a>
+                    </>
+                  )}
                 </div>
                 {host.applicationNote && <p className="text-meta">Reviewer note from applicant: {host.applicationNote}</p>}
                 {host.reviewerNote && <p className="text-meta">Last internal note: {host.reviewerNote}</p>}
@@ -102,6 +119,10 @@ function statusTone(status: string): 'success' | 'warning' | 'danger' | undefine
   if (status === 'pending_review') return 'warning'
   if (status === 'rejected' || status === 'suspended') return 'danger'
   return undefined
+}
+
+function formatStatus(status: string) {
+  return status.charAt(0).toUpperCase() + status.slice(1).replaceAll('_', ' ')
 }
 
 function formatMode(mode: string) {
