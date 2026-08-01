@@ -191,12 +191,12 @@ Recommended route group:
 
 Roles:
 
-- `owner`
+- `admin`
 - `reviewer`
 
-Owner permissions:
+Admin permissions:
 
-- Manage reviewers.
+- Manage admins and reviewers.
 - Manage categories.
 - Manage platform settings.
 - Suspend or reinstate users.
@@ -700,7 +700,7 @@ Fields:
 ## Important Status Types
 
 ```ts
-type UserRole = "member" | "friendHost" | "owner" | "reviewer";
+type UserRole = "member" | "friendHost" | "admin" | "reviewer";
 
 type VerificationStatus =
   | "none"

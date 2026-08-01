@@ -39,7 +39,7 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
     return (
       <AdminStandalone
         title="Admin sign in"
-        body="Owner or reviewer access is required for safety review and moderation."
+        body="Admin or reviewer access is required for safety review and moderation."
         action={(
           <SignInButton mode="modal">
             <button className="btn btn-neutral">Sign in</button>
@@ -143,7 +143,7 @@ function AdminShell({
             <p className="text-tiny">Signed in as</p>
             <p className="admin-user-name">{displayName}</p>
           </div>
-          <span className="status-pill" data-tone={viewerRole === 'owner' ? 'success' : undefined}>{viewerRole}</span>
+          <span className="status-pill" data-tone={viewerRole === 'admin' ? 'success' : undefined}>{viewerRole}</span>
           <ThemeToggle />
           <a className="btn btn-ghost btn-sm" href={`${userAppUrl}/app`}>User app</a>
           <button type="button" className="btn btn-neutral btn-sm" onClick={() => void signOut()}>

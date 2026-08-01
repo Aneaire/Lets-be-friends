@@ -1,6 +1,6 @@
 import { isAdminRole, type UserRole } from '@lets-be-friends/shared'
 
-export type AdminRole = Extract<UserRole, 'owner' | 'reviewer'>
+export type AdminRole = Extract<UserRole, 'admin' | 'reviewer'>
 
 export type AdminRoute =
   | '/overview'
@@ -19,7 +19,7 @@ export type AdminNavItem = {
   to: AdminRoute
   label: string
   countKey?: string
-  ownerOnly?: boolean
+  fullAdminOnly?: boolean
 }
 
 export type AdminNavSection = {
@@ -40,7 +40,7 @@ const adminNavSections: AdminNavSection[] = [
   {
     title: 'Moderation',
     items: [
-      { to: '/users', label: 'Users', ownerOnly: true },
+      { to: '/users', label: 'Users', fullAdminOnly: true },
       { to: '/posts', label: 'Posts' },
       { to: '/reviews', label: 'Reviews' },
     ],
@@ -55,8 +55,8 @@ const adminNavSections: AdminNavSection[] = [
     title: 'System',
     items: [
       { to: '/categories', label: 'Categories' },
-      { to: '/audit-logs', label: 'Audit logs', ownerOnly: true },
-      { to: '/settings', label: 'Settings', ownerOnly: true },
+      { to: '/audit-logs', label: 'Audit logs', fullAdminOnly: true },
+      { to: '/settings', label: 'Settings', fullAdminOnly: true },
     ],
   },
 ]
@@ -65,7 +65,7 @@ export function getAdminNavSections(role: AdminRole): AdminNavSection[] {
   return adminNavSections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => role === 'owner' || !item.ownerOnly),
+      items: section.items.filter((item) => role === 'admin' || !item.fullAdminOnly),
     }))
     .filter((section) => section.items.length > 0)
 }

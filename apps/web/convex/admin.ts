@@ -4,7 +4,7 @@ import { v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
 import { canAdminApproveIdentity, hasCurrentPersonaApproval, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason, isRealPersonaInquiryId } from './identityVerification'
 
-const roleOrAll = v.union(v.literal('member'), v.literal('friend_host'), v.literal('reviewer'), v.literal('owner'), v.literal('all'))
+const roleOrAll = v.union(v.literal('member'), v.literal('friend_host'), v.literal('reviewer'), v.literal('admin'), v.literal('all'))
 const verificationStatusOrAll = v.union(v.literal('not_ready'), v.literal('pending'), v.literal('approved'), v.literal('rejected'), v.literal('not_started'), v.literal('all'))
 const hostStatusOrAll = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'), v.literal('all'))
 const reportStatus = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'))
@@ -14,14 +14,22 @@ const visibility = v.union(v.literal('visible'), v.literal('hidden'), v.literal(
 
 async function requireAdmin(ctx: any) {
   const viewer = await requireViewer(ctx)
-  if (viewer.role !== 'owner' && viewer.role !== 'reviewer') throw new Error('Admin role required')
+  if (!isFullAdminRole(viewer.role) && viewer.role !== 'reviewer') throw new Error('Admin role required')
   return viewer
 }
 
-async function requireOwner(ctx: any) {
+async function requireFullAdmin(ctx: any) {
   const viewer = await requireAdmin(ctx)
-  if (viewer.role !== 'owner') throw new Error('Owner role required')
+  if (!isFullAdminRole(viewer.role)) throw new Error('Full admin role required')
   return viewer
+}
+
+function isFullAdminRole(role: string) {
+  return role === 'admin' || role === 'owner'
+}
+
+function publicRole(role: Doc<'users'>['role']): 'member' | 'friend_host' | 'reviewer' | 'admin' {
+  return role === 'owner' ? 'admin' : role
 }
 
 export const overview = query({
@@ -35,11 +43,11 @@ export const overview = query({
       ctx.db.query('users').collect(),
       ctx.db.query('posts').collect(),
       ctx.db.query('reviews').collect(),
-      ctx.db.query('auditLogs').withIndex('by_created_at').order('desc').take(viewer.role === 'owner' ? 8 : 4),
+      ctx.db.query('auditLogs').withIndex('by_created_at').order('desc').take(isFullAdminRole(viewer.role) ? 8 : 4),
     ])
 
     return {
-      viewerRole: viewer.role,
+      viewerRole: publicRole(viewer.role),
       counts: {
         hostApplicationsPending: hostApplications.filter((host) => host.status === 'pending_review').length,
         memberVerificationsPending: verificationRequests.filter((request) => isIdentityVerificationReason(request.reason) && isIdentityReadyForAdminReview(request)).length,
@@ -161,17 +169,23 @@ export const users = query({
     query: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx)
+    await requireFullAdmin(ctx)
     const roleFilter = args.role ?? 'all'
     const rows = roleFilter === 'all'
       ? await ctx.db.query('users').collect()
-      : await ctx.db.query('users').withIndex('by_role', (q) => q.eq('role', roleFilter)).collect()
+      : roleFilter === 'admin'
+        ? [
+            ...await ctx.db.query('users').withIndex('by_role', (q) => q.eq('role', 'admin')).collect(),
+            ...await ctx.db.query('users').withIndex('by_role', (q) => q.eq('role', 'owner')).collect(),
+          ]
+        : await ctx.db.query('users').withIndex('by_role', (q) => q.eq('role', roleFilter)).collect()
     const search = normalizeSearch(args.query)
     return rows
       .filter((user) => typeof args.suspended !== 'boolean' || user.suspended === args.suspended)
       .filter((user) => !search || user.displayName.toLowerCase().includes(search) || user.clerkUserId.toLowerCase().includes(search))
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 100)
+      .map((user) => ({ ...user, role: publicRole(user.role) }))
   },
 })
 
@@ -221,7 +235,7 @@ export const reviews = query({
 export const auditLogs = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    await requireOwner(ctx)
+    await requireFullAdmin(ctx)
     const limit = Math.min(Math.max(args.limit ?? 50, 1), 100)
     const logs = await ctx.db.query('auditLogs').withIndex('by_created_at').order('desc').take(limit)
     return await enrichAuditLogs(ctx, logs)
@@ -340,15 +354,15 @@ export const resolveReport = mutation({
 export const setUserSuspended = mutation({
   args: { userId: v.id('users'), suspended: v.boolean(), note: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const owner = await requireOwner(ctx)
+    const fullAdmin = await requireFullAdmin(ctx)
     const user = await ctx.db.get(args.userId)
     if (!user) throw new Error('User not found')
-    if (args.suspended && user._id === owner._id) throw new Error('Owners cannot suspend their own account')
+    if (args.suspended && user._id === fullAdmin._id) throw new Error('Admins cannot suspend their own account')
     const note = args.suspended ? requireNote(args.note, 'Suspending a user') : normalizeNote(args.note)
     const after = { ...user, suspended: args.suspended, updatedAt: Date.now() }
     await ctx.db.patch(args.userId, { suspended: args.suspended, updatedAt: after.updatedAt })
     await writeAudit(ctx, {
-      actorUserId: owner._id,
+      actorUserId: fullAdmin._id,
       action: args.suspended ? 'user.suspended' : 'user.reinstated',
       targetType: 'user',
       targetId: String(args.userId),
@@ -362,17 +376,41 @@ export const setUserSuspended = mutation({
 export const setReviewerStatus = mutation({
   args: { userId: v.id('users'), reviewer: v.boolean(), note: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const owner = await requireOwner(ctx)
+    const fullAdmin = await requireFullAdmin(ctx)
     const user = await ctx.db.get(args.userId)
     if (!user) throw new Error('User not found')
-    if (user.role === 'owner') throw new Error('Owner role cannot be changed here')
+    if (isFullAdminRole(user.role)) throw new Error('Admin role cannot be changed here')
     const note = normalizeNote(args.note)
     const nextRole = args.reviewer ? 'reviewer' : 'member'
     const after = { ...user, role: nextRole, updatedAt: Date.now() }
     await ctx.db.patch(args.userId, { role: nextRole, updatedAt: after.updatedAt })
     await writeAudit(ctx, {
-      actorUserId: owner._id,
+      actorUserId: fullAdmin._id,
       action: args.reviewer ? 'reviewer.granted' : 'reviewer.revoked',
+      targetType: 'user',
+      targetId: String(args.userId),
+      before: user,
+      after,
+      note,
+    })
+  },
+})
+
+export const setAdminStatus = mutation({
+  args: { userId: v.id('users'), admin: v.boolean(), note: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const fullAdmin = await requireFullAdmin(ctx)
+    const user = await ctx.db.get(args.userId)
+    if (!user) throw new Error('User not found')
+    if (user._id === fullAdmin._id) throw new Error('Admins cannot change their own admin role')
+    if (args.admin === isFullAdminRole(user.role)) return
+    const note = normalizeNote(args.note)
+    const nextRole = args.admin ? 'admin' : 'member'
+    const after = { ...user, role: nextRole, updatedAt: Date.now() }
+    await ctx.db.patch(args.userId, { role: nextRole, updatedAt: after.updatedAt })
+    await writeAudit(ctx, {
+      actorUserId: fullAdmin._id,
+      action: args.admin ? 'admin.granted' : 'admin.revoked',
       targetType: 'user',
       targetId: String(args.userId),
       before: user,

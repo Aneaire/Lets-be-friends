@@ -32,7 +32,7 @@ function ProfilePage() {
               <h2 className="text-h2">{viewer?.displayName ?? clerkName}</h2>
               <p className="text-meta mt-1">{email}</p>
               <div className="worklist-row-meta mt-3">
-                <span className="status-pill" data-tone={viewer?.role === 'owner' ? 'success' : undefined}>
+                <span className="status-pill" data-tone={viewer?.role === 'admin' ? 'success' : undefined}>
                   {viewer?.role ?? 'loading'}
                 </span>
                 <span className="status-pill" data-tone={viewer?.suspended ? 'danger' : 'success'}>

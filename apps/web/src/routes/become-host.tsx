@@ -7,6 +7,7 @@ import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { ApproximateLocationMap } from '../components/ApproximateLocationMap'
 import { useIdentityVerification } from '../components/IdentityVerificationFlow'
+import { roundCoordinates, type Coordinates } from '../lib/geo'
 import { identityEntitlementStatus, memberVerificationPresentation, type MemberVerificationPresentation } from '../lib/memberVerification'
 
 export const Route = createFileRoute('/become-host')({ component: BecomeHostPage })
@@ -40,11 +41,14 @@ function HostAuthPanel() {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [approxLocation, setApproxLocation] = useState<{ latitude: number; longitude: number } | null>(
+  const [approxLocation, setApproxLocation] = useState<Coordinates | null>(
     typeof application?.approximateLatitude === 'number' && typeof application?.approximateLongitude === 'number'
       ? { latitude: application.approximateLatitude, longitude: application.approximateLongitude }
       : null,
   )
+  const [approximateArea, setApproximateArea] = useState(application?.approximateArea ?? '')
+  const [nearbyDiscoveryEnabled, setNearbyDiscoveryEnabled] = useState(application?.nearbyDiscoveryEnabled === true)
+  const [pendingDeviceLocation, setPendingDeviceLocation] = useState<Coordinates | null>(null)
   const [locationStatus, setLocationStatus] = useState('')
 
   useEffect(() => {
@@ -56,6 +60,8 @@ function HostAuthPanel() {
         ? { latitude: application.approximateLatitude, longitude: application.approximateLongitude }
         : null,
     )
+    setApproximateArea(application.approximateArea ?? '')
+    setNearbyDiscoveryEnabled(application.nearbyDiscoveryEnabled === true)
   }, [application?._id])
 
   if (!isSignedIn) {
@@ -96,8 +102,10 @@ function HostAuthPanel() {
             await submit({
               intro: String(form.get('intro') || ''),
               city: String(form.get('city') || ''),
+              approximateArea: approximateArea.trim() || undefined,
               approximateLatitude: approxLocation?.latitude,
               approximateLongitude: approxLocation?.longitude,
+              nearbyDiscoveryEnabled: Boolean(approxLocation && nearbyDiscoveryEnabled),
               strengths: selectedStrengths,
               categories: selectedCategories,
               boundaries: String(form.get('boundaries') || '').split('\n').map((item) => item.trim()).filter(Boolean),
@@ -144,8 +152,8 @@ function HostAuthPanel() {
               <div>
                 <p className="label">Near-me discovery</p>
                 <p className="text-meta max-w-[54ch]">
-                  Optional. We store only rounded coordinates for distance sorting, not your exact address.
-                  Members see an approximate distance, never your coordinates.
+                  Optional. Set a broad area by clicking or dragging the blue pin. We round coordinates again
+                  when saving. Members see only approximate distance, never this area or your coordinates.
                 </p>
               </div>
               <div className="flex gap-2 flex-wrap">
@@ -157,36 +165,113 @@ function HostAuthPanel() {
                       setLocationStatus('Location is not available in this browser.')
                       return
                     }
-                    setLocationStatus('Asking for your approximate location…')
+                    setLocationStatus('Asking for your device location…')
                     navigator.geolocation.getCurrentPosition(
                       (position) => {
-                        const rounded = {
-                          latitude: Math.round(position.coords.latitude * 100) / 100,
-                          longitude: Math.round(position.coords.longitude * 100) / 100,
-                        }
-                        setApproxLocation(rounded)
-                        setLocationStatus('Approximate location added to your review packet.')
+                        setPendingDeviceLocation({
+                          latitude: position.coords.latitude,
+                          longitude: position.coords.longitude,
+                        })
+                        setLocationStatus('Review the location warning before applying this pin.')
                       },
                       () => setLocationStatus('Location permission was not granted.'),
                       { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
                     )
                   }}
                 >
-                  {approxLocation ? 'Update approximate location' : 'Add approximate location'}
+                  Use device location
                 </button>
                 {approxLocation && (
-                  <button type="button" className="btn btn-neutral btn-sm" onClick={() => { setApproxLocation(null); setLocationStatus('Approximate location removed.') }}>
-                    Remove
+                  <button
+                    type="button"
+                    className="btn btn-neutral btn-sm"
+                    onClick={() => {
+                      setApproxLocation(null)
+                      setNearbyDiscoveryEnabled(false)
+                      setPendingDeviceLocation(null)
+                      setLocationStatus('Approximate location removed and nearby discovery turned off.')
+                    }}
+                  >
+                    Remove pin
                   </button>
                 )}
               </div>
             </div>
+
+            {pendingDeviceLocation && (
+              <div className="notice notice-warning mt-3" role="alert">
+                <span className="notice-icon">!</span>
+                <span>
+                  <strong>Exact home/current locations are not recommended.</strong>{' '}
+                  Your device may provide an exact position. Apply it only if this is a safe general area,
+                  then move the pin away from a home or private meeting point before saving.
+                  <span className="flex gap-2 flex-wrap mt-2">
+                    <button
+                      type="button"
+                      className="btn btn-self btn-sm"
+                      onClick={() => {
+                        setApproxLocation(roundCoordinates(pendingDeviceLocation))
+                        setPendingDeviceLocation(null)
+                        setLocationStatus('Rounded device location applied. Move the pin to a broad, safe area before saving.')
+                      }}
+                    >
+                      Apply rounded location
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-neutral btn-sm"
+                      onClick={() => {
+                        setPendingDeviceLocation(null)
+                        setLocationStatus('Device location was not applied.')
+                      }}
+                    >
+                      Do not apply
+                    </button>
+                  </span>
+                </span>
+              </div>
+            )}
+
+            <label className="field-row mt-3">
+              <span className="label">Area label <span className="label-aux">optional, private</span></span>
+              <input
+                className="field"
+                value={approximateArea}
+                onChange={(event) => setApproximateArea(event.currentTarget.value)}
+                placeholder="For example, central Cebu or a travel area"
+              />
+            </label>
+
+            <ApproximateLocationMap
+              location={approxLocation}
+              onChange={(location) => {
+                setApproxLocation(location)
+                setLocationStatus('Pin updated. Coordinates will be rounded again when you save.')
+              }}
+              title={approxLocation ? 'Your approximate area' : 'Choose a broad area'}
+              description={approxLocation
+                ? 'Drag, click, or use the N/W/S/E controls to reposition the pin.'
+                : 'Pan and zoom, then click the map to place a privacy-safe pin.'}
+            />
+
+            <label className="nearby-visibility-toggle mt-3" data-disabled={!approxLocation}>
+              <input
+                type="checkbox"
+                checked={nearbyDiscoveryEnabled && Boolean(approxLocation)}
+                disabled={!approxLocation}
+                onChange={(event) => setNearbyDiscoveryEnabled(event.currentTarget.checked)}
+              />
+              <span>
+                <strong>Appear in nearby search</strong>
+                <small>Off by default. Turning this off does not remove your profile from ordinary discovery.</small>
+              </span>
+            </label>
+
             {locationStatus && (
               <p className="text-meta mt-3" role="status" aria-live="polite">
                 {locationStatus}
               </p>
             )}
-            {approxLocation && <ApproximateLocationMap location={approxLocation} />}
           </div>
         </NumberedSection>
 

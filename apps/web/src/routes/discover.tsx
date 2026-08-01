@@ -2,9 +2,11 @@ import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LayoutGrid, SlidersHorizontal, X } from 'lucide-react'
+import { LayoutGrid, MapPin, SlidersHorizontal, X } from 'lucide-react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { ApproximateLocationMap } from '../components/ApproximateLocationMap'
+import { nearbyRadiusOptions, type Coordinates, type NearbyRadiusKm } from '../lib/geo'
 
 export const Route = createFileRoute('/discover')({ component: DiscoverPage })
 
@@ -33,9 +35,11 @@ type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 
 function DiscoverPage() {
   const { isSignedIn } = useAuth()
-  const [nearby, setNearby] = useState<{ latitude: number; longitude: number } | null>(null)
-  const [radiusKm, setRadiusKm] = useState(25)
-  const [locationStatus, setLocationStatus] = useState('')
+  const [nearby, setNearby] = useState<Coordinates | null>(null)
+  const [radiusKm, setRadiusKm] = useState<NearbyRadiusKm>(25)
+  const [originMode, setOriginMode] = useState<'device' | 'custom' | null>(null)
+  const [customOriginLabel, setCustomOriginLabel] = useState('')
+  const [locationStatus, setLocationStatus] = useState('Choose your current location or place a travel pin. Search origins stay in this browser session.')
   const hosts = (useQuery(api.hosts.listApproved, nearby ? { ...nearby, radiusKm } : {}) ?? []) as DiscoveryHost[]
   const toggleSaveProfile = useMutation(api.hosts.toggleSaveProfile)
   const toggleFollow = useMutation(api.social.toggleFollow)
@@ -60,7 +64,7 @@ function DiscoverPage() {
 
   const verifiedCount = filtered.filter((host) => host.bookable && !host.demo).length
   const demoCount = filtered.length - verifiedCount
-  const moreFilterCount = (strength ? 1 : 0) + (nearby ? 1 : 0)
+  const moreFilterCount = strength ? 1 : 0
   const anyFiltered = mode !== 'all' || category !== null || strength !== null || bookableOnly || nearby !== null
 
   const clearAllFilters = () => {
@@ -69,7 +73,9 @@ function DiscoverPage() {
     setStrength(null)
     setBookableOnly(false)
     setNearby(null)
-    setLocationStatus('')
+    setOriginMode(null)
+    setCustomOriginLabel('')
+    setLocationStatus('Nearby search cleared. Search origins are never saved.')
   }
 
   useEffect(() => {
@@ -271,6 +277,121 @@ function DiscoverPage() {
         )}
       </div>
 
+      <section className="nearby-discovery-panel" aria-labelledby="nearby-discovery-title">
+        <div className="nearby-discovery-copy">
+          <div>
+            <p className="eyebrow">Nearby</p>
+            <h2 id="nearby-discovery-title" className="text-h2 mt-1">Search from a place you choose</h2>
+            <p className="text-meta mt-1 max-w-[62ch]">
+              Use your current browser location or place a travel pin. The origin stays in this session and is
+              sent only with nearby searches. Friend Host pins and approximate areas are never shown.
+            </p>
+          </div>
+          <div className="nearby-origin-actions">
+            <button
+              type="button"
+              className="btn btn-social btn-sm"
+              onClick={() => {
+                if (!navigator.geolocation) {
+                  setLocationStatus('Location is not available in this browser. Use a travel pin instead.')
+                  return
+                }
+                setLocationStatus('Asking for your current browser location…')
+                navigator.geolocation.getCurrentPosition(
+                  (position) => {
+                    setNearby({
+                      latitude: position.coords.latitude,
+                      longitude: position.coords.longitude,
+                    })
+                    setOriginMode('device')
+                    setLocationStatus(`Showing opted-in hosts within ${radiusKm} km. Online-only hosts appear after nearby matches.`)
+                  },
+                  () => setLocationStatus('Location permission was not granted. Use a travel pin instead.'),
+                  { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
+                )
+              }}
+            >
+              <MapPin size={14} aria-hidden="true" />
+              Use current location
+            </button>
+            <button
+              type="button"
+              className="btn btn-social-quiet btn-sm"
+              onClick={() => {
+                setOriginMode('custom')
+                setLocationStatus(nearby
+                  ? 'Drag or click the map to reposition your travel pin.'
+                  : 'Pan and zoom the map, then click to place a travel pin.')
+              }}
+            >
+              Choose travel pin
+            </button>
+            {nearby && (
+              <button
+                type="button"
+                className="btn btn-neutral btn-sm"
+                onClick={() => {
+                  setNearby(null)
+                  setOriginMode(null)
+                  setCustomOriginLabel('')
+                  setLocationStatus('Nearby search cleared. Search origins are never saved.')
+                }}
+              >
+                Clear nearby
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="nearby-radius-row" role="group" aria-label="Nearby radius">
+          <span className="label">Radius</span>
+          {nearbyRadiusOptions.map((value) => (
+            <button
+              type="button"
+              key={value}
+              className="chip nearby-radius-chip"
+              data-selected={radiusKm === value}
+              onClick={() => {
+                setRadiusKm(value)
+                if (nearby) setLocationStatus(`Showing opted-in hosts within ${value} km. Online-only hosts appear after nearby matches.`)
+              }}
+            >
+              {value} km
+            </button>
+          ))}
+        </div>
+
+        {originMode === 'custom' && (
+          <label className="field-row nearby-origin-label">
+            <span className="label">Travel place label <span className="label-aux">optional, stays local</span></span>
+            <input
+              className="field"
+              value={customOriginLabel}
+              onChange={(event) => setCustomOriginLabel(event.currentTarget.value)}
+              placeholder="For example, Cebu trip"
+            />
+          </label>
+        )}
+
+        <ApproximateLocationMap
+          location={nearby}
+          radiusKm={radiusKm}
+          tone="social"
+          onChange={(location) => {
+            setNearby(location)
+            setOriginMode('custom')
+            setLocationStatus(`Travel pin updated. Showing opted-in hosts within ${radiusKm} km.`)
+          }}
+          title={nearby
+            ? `${originMode === 'custom' && customOriginLabel.trim() ? customOriginLabel.trim() : originMode === 'device' ? 'Current location' : 'Selected origin'} · ${radiusKm} km`
+            : 'Choose a search origin'}
+          description={nearby
+            ? 'Drag, click, or use the N/W/S/E controls to reposition the pink pin.'
+            : 'Pan and zoom, then click the map to place a custom travel pin.'}
+        />
+        <p className="text-meta" role="status" aria-live="polite">{locationStatus}</p>
+      </section>
+
       <section aria-label="Results" className="mt-5">
         {filtered.length === 0 ? (
           <div className="empty-state">
@@ -395,53 +516,6 @@ function DiscoverPage() {
                     {value}
                   </ToggleChip>
                 ))}
-              </FilterSection>
-
-              <FilterSection title="Near me">
-                <div className="flex flex-col gap-3 w-full">
-                  <label className="field-row">
-                    <span className="label">Distance radius</span>
-                    <select className="field" value={radiusKm} onChange={(event) => setRadiusKm(Number(event.currentTarget.value))}>
-                      <option value={5}>5 km</option>
-                      <option value={10}>10 km</option>
-                      <option value={25}>25 km</option>
-                      <option value={50}>50 km</option>
-                      <option value={100}>100 km</option>
-                    </select>
-                  </label>
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      className="btn btn-social btn-sm"
-                      onClick={() => {
-                        if (!navigator.geolocation) {
-                          setLocationStatus('Location is not available in this browser.')
-                          return
-                        }
-                        setLocationStatus('Asking for your approximate location…')
-                        navigator.geolocation.getCurrentPosition(
-                          (position) => {
-                            setNearby({
-                              latitude: position.coords.latitude,
-                              longitude: position.coords.longitude,
-                            })
-                            setLocationStatus(`Showing nearby in-person hosts within ${radiusKm} km. Online-only hosts appear after nearby matches.`)
-                          },
-                          () => setLocationStatus('Location permission was not granted.'),
-                          { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
-                        )
-                      }}
-                    >
-                      Use my location
-                    </button>
-                    {nearby && (
-                      <button type="button" className="btn btn-neutral btn-sm" onClick={() => { setNearby(null); setLocationStatus('Near-me filter cleared.') }}>
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  {locationStatus && <p className="text-meta">{locationStatus}</p>}
-                </div>
               </FilterSection>
             </div>
 

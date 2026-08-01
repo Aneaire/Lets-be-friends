@@ -35,8 +35,8 @@ describe('shared early access domain constants', () => {
   })
 
   it('keeps roles and admin semantics explicit', () => {
-    expect(userRoles).toEqual(['member', 'friend_host', 'reviewer', 'owner'])
-    expect(isAdminRole('owner')).toBe(true)
+    expect(userRoles).toEqual(['member', 'friend_host', 'reviewer', 'admin'])
+    expect(isAdminRole('admin')).toBe(true)
     expect(isAdminRole('reviewer')).toBe(true)
     expect(isAdminRole('member')).toBe(false)
     expect(isAdminRole('friend_host')).toBe(false)

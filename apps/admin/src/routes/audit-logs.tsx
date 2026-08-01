@@ -7,15 +7,15 @@ export const Route = createFileRoute('/audit-logs')({ component: AuditLogsPage }
 
 function AuditLogsPage() {
   const viewer = useQuery(api.users.viewer)
-  const rows = useQuery(api.admin.auditLogs, viewer?.role === 'owner' ? { limit: 50 } : 'skip')
+  const rows = useQuery(api.admin.auditLogs, viewer?.role === 'admin' ? { limit: 50 } : 'skip')
 
-  if (viewer && viewer.role !== 'owner') return <div className="admin-empty">Audit logs are owner-only.</div>
+  if (viewer && viewer.role !== 'admin') return <div className="admin-empty">Audit logs are admin-only.</div>
 
   return (
     <>
       <header className="admin-page-header">
         <div>
-          <p className="eyebrow">Owner controls</p>
+          <p className="eyebrow">Admin controls</p>
           <h1 className="text-h1 mt-2">Audit logs</h1>
           <p className="lede mt-2">Latest admin and member actions captured for operational traceability.</p>
         </div>

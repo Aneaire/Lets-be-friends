@@ -1,7 +1,14 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 
-const role = v.union(v.literal('member'), v.literal('friend_host'), v.literal('reviewer'), v.literal('owner'))
+const role = v.union(
+  v.literal('member'),
+  v.literal('friend_host'),
+  v.literal('reviewer'),
+  v.literal('admin'),
+  // Accepted only until existing owner records are migrated to admin.
+  v.literal('owner'),
+)
 const verificationStatus = v.union(v.literal('not_started'), v.literal('pending'), v.literal('approved'), v.literal('rejected'))
 const personaStatus = v.union(
   v.literal('not_started'),
@@ -107,6 +114,7 @@ export default defineSchema({
     approximateArea: v.optional(v.string()),
     approximateLatitude: v.optional(v.number()),
     approximateLongitude: v.optional(v.number()),
+    nearbyDiscoveryEnabled: v.optional(v.boolean()),
     strengths: v.array(v.string()),
     categories: v.array(v.string()),
     boundaries: v.array(v.string()),

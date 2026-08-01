@@ -17,6 +17,7 @@ export const viewer = query({
     if (!user) return null
     return {
       ...user,
+      role: user.role === 'owner' ? 'admin' as const : user.role,
       identityEligible: hasCurrentPersonaApproval(user),
       profileImageUrl: await profileImageUrl(ctx, user),
     }
@@ -68,11 +69,11 @@ export const ensureViewer = mutation({
     if (existing) return existing._id
 
     const now = Date.now()
-    const existingOwner = await ctx.db.query('users').withIndex('by_role', (q) => q.eq('role', 'owner')).first()
+    const existingAdmin = await hasAdminAccount(ctx)
     return await ctx.db.insert('users', {
       clerkUserId,
       displayName: args.displayName.trim() || 'New friend',
-      role: existingOwner ? 'member' : 'owner',
+      role: existingAdmin ? 'member' : 'admin',
       verificationStatus: 'not_started',
       suspended: false,
       createdAt: now,
@@ -131,13 +132,13 @@ export const updateProfile = mutation({
       return existing._id
     }
 
-    const existingOwner = await ctx.db.query('users').withIndex('by_role', (q) => q.eq('role', 'owner')).first()
+    const existingAdmin = await hasAdminAccount(ctx)
     return await ctx.db.insert('users', {
       clerkUserId,
       displayName,
       profileImageStorageId: args.profileImageStorageId,
       bio,
-      role: existingOwner ? 'member' : 'owner',
+      role: existingAdmin ? 'member' : 'admin',
       verificationStatus: 'not_started',
       suspended: false,
       createdAt: now,
@@ -157,6 +158,13 @@ export const generateProfileImageUploadUrl = mutation({
 
 async function memberVerificationRequests(ctx: any, userId: any) {
   return await ctx.db.query('verificationRequests').withIndex('by_user', (q: any) => q.eq('userId', userId)).collect()
+}
+
+async function hasAdminAccount(ctx: any) {
+  const admin = await ctx.db.query('users').withIndex('by_role', (q: any) => q.eq('role', 'admin')).first()
+  if (admin) return true
+  const legacyOwner = await ctx.db.query('users').withIndex('by_role', (q: any) => q.eq('role', 'owner')).first()
+  return Boolean(legacyOwner)
 }
 
 function normalizeOptional(value: string | undefined, maxLength: number) {

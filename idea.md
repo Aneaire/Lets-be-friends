@@ -68,11 +68,11 @@ Friend Hosts can:
 - Rate and review members after completed bookings.
 - Share experience posts from completed sessions.
 
-### Admin Owner
+### Admin
 
-The owner manages the platform, policies, categories, reviewers, and high-risk actions.
+Admins manage the platform, policies, categories, reviewers, and high-risk actions.
 
-The owner can:
+Admins can:
 
 - Manage admin users.
 - Manage curated categories.
@@ -351,7 +351,7 @@ Admin actions:
 - Suspend user
 - Hide post
 - Remove review
-- Escalate to owner
+- Escalate to admin
 - Add internal note
 
 Every admin action must create an audit log entry.

@@ -43,7 +43,7 @@ export const bookingStatuses = [
 
 export const verificationStatuses = ['not_started', 'pending', 'approved', 'rejected'] as const
 export const verificationRequestReasons = ['member', 'booking', 'host_application', 'reverification'] as const
-export const userRoles = ['member', 'friend_host', 'reviewer', 'owner'] as const
+export const userRoles = ['member', 'friend_host', 'reviewer', 'admin'] as const
 export const hostApplicationStatuses = ['draft', 'pending_review', 'approved', 'rejected', 'suspended'] as const
 export const reportStatuses = ['open', 'reviewing', 'resolved', 'dismissed'] as const
 
@@ -123,7 +123,7 @@ export function canBookHost(viewerUserId: string | null | undefined, hostOwnerUs
 }
 
 export function isAdminRole(role: UserRole) {
-  return role === 'owner' || role === 'reviewer'
+  return role === 'admin' || role === 'reviewer'
 }
 
 export function isModerationVisible(item: { hidden?: boolean }) {

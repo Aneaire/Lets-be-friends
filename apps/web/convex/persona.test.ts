@@ -5,7 +5,7 @@ import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
 
-async function insertUser(t: ReturnType<typeof convexTest>, input: { clerkUserId: string; role?: 'member' | 'reviewer' | 'owner'; verificationStatus?: 'not_started' | 'pending' | 'approved' | 'rejected' }) {
+async function insertUser(t: ReturnType<typeof convexTest>, input: { clerkUserId: string; role?: 'member' | 'reviewer' | 'admin'; verificationStatus?: 'not_started' | 'pending' | 'approved' | 'rejected' }) {
   return await t.run(async (ctx) => {
     const now = Date.now()
     return await ctx.db.insert('users', {
@@ -483,7 +483,7 @@ describe('mandatory admin identity review', () => {
 
   it('blocks an approval override for a Persona decline but permits a noted rejection', async () => {
     const t = convexTest(schema, modules)
-    await insertUser(t, { clerkUserId: 'admin-decline', role: 'owner', verificationStatus: 'not_started' })
+    await insertUser(t, { clerkUserId: 'admin-decline', role: 'admin', verificationStatus: 'not_started' })
     const userId = await insertUser(t, { clerkUserId: 'member-declined' })
     const requestId = await insertAttempt(t, userId, { inquiryId: 'inq_declined', decision: 'declined' })
     const admin = t.withIdentity({ subject: 'admin-decline' })

@@ -6,9 +6,9 @@ export const Route = createFileRoute('/settings')({ component: SettingsPage })
 
 function SettingsPage() {
   const viewer = useQuery(api.users.viewer)
-  const overview = useQuery(api.admin.overview, viewer?.role === 'owner' ? {} : 'skip')
+  const overview = useQuery(api.admin.overview, viewer?.role === 'admin' ? {} : 'skip')
 
-  if (viewer && viewer.role !== 'owner') return <div className="admin-empty">Settings are owner-only.</div>
+  if (viewer && viewer.role !== 'admin') return <div className="admin-empty">Settings are admin-only.</div>
 
   return (
     <>
@@ -23,7 +23,7 @@ function SettingsPage() {
       <div className="admin-stat-grid">
         <ReadOnlySetting label="Admin app" value="Separate TanStack Start app" />
         <ReadOnlySetting label="Local port" value="3001" />
-        <ReadOnlySetting label="Permissions" value="Owner and reviewer split" />
+        <ReadOnlySetting label="Permissions" value="Admin and reviewer split" />
         <ReadOnlySetting label="Categories" value="Code-backed" />
       </div>
 

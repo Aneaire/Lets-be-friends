@@ -14,6 +14,7 @@ import type * as hosts from "../hosts.js";
 import type * as http from "../http.js";
 import type * as identityVerification from "../identityVerification.js";
 import type * as lib from "../lib.js";
+import type * as migrations from "../migrations.js";
 import type * as persona from "../persona.js";
 import type * as reports from "../reports.js";
 import type * as reviews from "../reviews.js";
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   identityVerification: typeof identityVerification;
   lib: typeof lib;
+  migrations: typeof migrations;
   persona: typeof persona;
   reports: typeof reports;
   reviews: typeof reviews;

@@ -1,8 +1,11 @@
 import { bookingEligibility, canBookHost } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
+import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
 import { hasCurrentPersonaApproval, isIdentityVerificationReason } from './identityVerification'
+
+const nearbyRadiusOptions = [5, 10, 25, 50, 100] as const
 
 const demoHosts = [
   { _id: 'demo-1', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee or meal companion', 'Local walk or city guide'], bookable: false, viewerCanBook: true, demo: true },
@@ -17,21 +20,23 @@ export const listApproved = query({
     radiusKm: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const origin = validateNearbyOrigin(args)
     const viewer = await getViewer(ctx)
     const hosts = await ctx.db.query('hostProfiles').withIndex('by_status', (q) => q.eq('status', 'approved')).collect()
-    if (hosts.length === 0) return demoHosts as any
-    const radiusKm = Math.min(Math.max(args.radiusKm ?? 25, 1), 200)
-    const hasOrigin = typeof args.latitude === 'number' && typeof args.longitude === 'number'
+    if (hosts.length === 0) return origin ? [] : demoHosts as any
+
+    const radiusKm = args.radiusKm ?? 25
     const withDistance = hosts
+      .filter((host) => !origin || host.nearbyDiscoveryEnabled === true)
       .map((host) => ({
         host,
-        distanceKm: hasOrigin && typeof host.approximateLatitude === 'number' && typeof host.approximateLongitude === 'number'
-          ? distanceKm(args.latitude!, args.longitude!, host.approximateLatitude, host.approximateLongitude)
+        distanceKm: origin && typeof host.approximateLatitude === 'number' && typeof host.approximateLongitude === 'number'
+          ? distanceKm(origin.latitude, origin.longitude, host.approximateLatitude, host.approximateLongitude)
           : undefined,
       }))
-      .filter(({ host, distanceKm }) => !hasOrigin || host.mode === 'online' || (typeof distanceKm === 'number' && distanceKm <= radiusKm))
+      .filter(({ host, distanceKm }) => !origin || host.mode === 'online' || (typeof distanceKm === 'number' && distanceKm <= radiusKm))
       .sort((a, b) => {
-        if (!hasOrigin) return b.host.rating - a.host.rating
+        if (!origin) return b.host.rating - a.host.rating
         if (a.host.mode === 'online' && b.host.mode !== 'online') return 1
         if (b.host.mode === 'online' && a.host.mode !== 'online') return -1
         return (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY)
@@ -41,9 +46,8 @@ export const listApproved = query({
     for (const { host, distanceKm } of withDistance) {
       const user = await ctx.db.get(host.userId)
       if (!user || user.suspended || !hasCurrentPersonaApproval(user)) continue
-      const { approximateArea: _approximateArea, approximateLatitude: _approximateLatitude, approximateLongitude: _approximateLongitude, ...publicHost } = host
       results.push({
-        ...publicHost,
+        ...publicHostProfile(host),
         displayName: user.displayName,
         profileImageUrl: await profileImageUrl(ctx, user),
         bio: user.bio,
@@ -74,9 +78,8 @@ export const getPublic = query({
     if (!host || host.status !== 'approved') return null
     const user = await ctx.db.get(host.userId)
     if (!user || user.suspended || !hasCurrentPersonaApproval(user)) return null
-    const { approximateArea: _approximateArea, approximateLatitude: _approximateLatitude, approximateLongitude: _approximateLongitude, ...publicHost } = host
     return {
-      ...publicHost,
+      ...publicHostProfile(host),
       displayName: user.displayName,
       profileImageUrl: await profileImageUrl(ctx, user),
       bio: user.bio,
@@ -149,6 +152,7 @@ export const submitApplication = mutation({
     approximateArea: v.optional(v.string()),
     approximateLatitude: v.optional(v.number()),
     approximateLongitude: v.optional(v.number()),
+    nearbyDiscoveryEnabled: v.optional(v.boolean()),
     strengths: v.array(v.string()),
     categories: v.array(v.string()),
     boundaries: v.array(v.string()),
@@ -158,10 +162,23 @@ export const submitApplication = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const now = Date.now()
+    validateCoordinatePair(args.approximateLatitude, args.approximateLongitude)
     const approximateLatitude = typeof args.approximateLatitude === 'number' ? roundCoordinate(args.approximateLatitude) : undefined
     const approximateLongitude = typeof args.approximateLongitude === 'number' ? roundCoordinate(args.approximateLongitude) : undefined
     const existing = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
-    const patch = { ...args, displayName: viewer.displayName, approximateLatitude, approximateLongitude, status: 'pending_review' as const, rating: existing?.rating ?? 0, reviewCount: existing?.reviewCount ?? 0, updatedAt: now }
+    const patch = {
+      ...args,
+      displayName: viewer.displayName,
+      approximateArea: args.approximateArea?.trim() || undefined,
+      approximateLatitude,
+      approximateLongitude,
+      // Missing values opt out so legacy records are never exposed to a new nearby search by surprise.
+      nearbyDiscoveryEnabled: args.nearbyDiscoveryEnabled === true,
+      status: 'pending_review' as const,
+      rating: existing?.rating ?? 0,
+      reviewCount: existing?.reviewCount ?? 0,
+      updatedAt: now,
+    }
     const hostProfileId = existing
       ? (await ctx.db.patch(existing._id, patch), existing._id)
       : await ctx.db.insert('hostProfiles', { userId: viewer._id, ...patch, createdAt: now })
@@ -176,6 +193,39 @@ export const submitApplication = mutation({
     return hostProfileId
   },
 })
+
+function validateNearbyOrigin(args: { latitude?: number; longitude?: number; radiusKm?: number }) {
+  if (args.radiusKm !== undefined && !nearbyRadiusOptions.includes(args.radiusKm as typeof nearbyRadiusOptions[number])) {
+    throw new Error('Radius must be 5, 10, 25, 50, or 100 km')
+  }
+  validateCoordinatePair(args.latitude, args.longitude)
+  if (args.latitude === undefined || args.longitude === undefined) return null
+  return { latitude: args.latitude, longitude: args.longitude }
+}
+
+function validateCoordinatePair(latitude?: number, longitude?: number) {
+  if ((latitude === undefined) !== (longitude === undefined)) {
+    throw new Error('Latitude and longitude must be provided together')
+  }
+  if (latitude === undefined || longitude === undefined) return
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    throw new Error('Latitude must be between -90 and 90')
+  }
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new Error('Longitude must be between -180 and 180')
+  }
+}
+
+function publicHostProfile(host: Doc<'hostProfiles'>) {
+  const {
+    approximateArea: _approximateArea,
+    approximateLatitude: _approximateLatitude,
+    approximateLongitude: _approximateLongitude,
+    nearbyDiscoveryEnabled: _nearbyDiscoveryEnabled,
+    ...publicHost
+  } = host
+  return publicHost
+}
 
 function roundCoordinate(value: number) {
   return Math.round(value * 100) / 100

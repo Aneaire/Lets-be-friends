@@ -1314,14 +1314,43 @@ textarea.field {
   line-height: 1.45;
 }
 
+.approx-location-caption > span:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  min-width: 0;
+}
+
 .approx-location-caption strong {
   flex: 0 0 auto;
   color: var(--text);
   font-weight: 600;
 }
 
+.map-pin-nudge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+}
+
+.map-pin-nudge button {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.map-pin-nudge button:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
 .approx-location-map-marker-host {
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .approx-location-map-marker {
@@ -1341,6 +1370,52 @@ textarea.field {
   border-radius: 999px;
   background: var(--accent-self-button);
   box-shadow: 0 1px 4px rgb(0 0 0 / 28%);
+}
+
+.approx-location-map-marker[data-tone="social"] {
+  border-color: color-mix(in oklch, var(--accent-social-button) 42%, transparent);
+  background: color-mix(in oklch, var(--accent-social-button) 18%, transparent);
+}
+
+.approx-location-map-marker[data-tone="social"] .approx-location-map-marker-dot {
+  background: var(--accent-social-button);
+}
+
+.nearby-visibility-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.nearby-visibility-toggle input {
+  margin-top: 0.2rem;
+  accent-color: var(--accent-self);
+}
+
+.nearby-visibility-toggle span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.nearby-visibility-toggle strong {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.nearby-visibility-toggle small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.nearby-visibility-toggle[data-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .approx-location-map-frame .maplibregl-canvas:focus {
@@ -1376,7 +1451,8 @@ textarea.field {
     height: 13rem;
   }
 
-  .approx-location-caption {
+  .approx-location-caption,
+  .approx-location-caption > span:first-child {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -1470,6 +1546,63 @@ textarea.field {
 /* ──────────────────────────────────────────────────────────────
    Discover (filter rail + list)
    ────────────────────────────────────────────────────────────── */
+
+.nearby-discovery-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.nearby-discovery-copy {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.nearby-origin-actions,
+.nearby-radius-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.nearby-origin-actions {
+  justify-content: flex-end;
+}
+
+.nearby-radius-row {
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--rule);
+}
+
+.nearby-radius-row .label {
+  margin-right: 0.25rem;
+}
+
+.nearby-radius-chip[data-selected="true"] {
+  border-color: color-mix(in oklch, var(--accent-social) 35%, var(--border));
+  background: var(--accent-social-soft);
+  color: var(--accent-social);
+}
+
+.nearby-origin-label {
+  max-width: 28rem;
+}
+
+.nearby-discovery-panel .approx-location-figure {
+  margin-top: 0;
+}
+
+.nearby-discovery-panel .approx-location-map-frame {
+  height: clamp(15rem, 34vw, 22rem);
+}
 
 .discover-grid {
   display: grid;
@@ -1778,6 +1911,24 @@ textarea.field {
 }
 
 @media (max-width: 640px) {
+  .nearby-discovery-panel {
+    padding: 0.85rem;
+    border-radius: 12px;
+  }
+
+  .nearby-discovery-copy {
+    flex-direction: column;
+  }
+
+  .nearby-origin-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .nearby-discovery-panel .approx-location-map-frame {
+    height: 15rem;
+  }
+
   .discover-toolbar {
     padding: 0.75rem;
     border-radius: 12px;

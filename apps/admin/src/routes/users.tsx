@@ -6,7 +6,7 @@ import { api } from '../../../web/convex/_generated/api'
 import { ActionNote } from '../components/ActionNote'
 import { AdminTable } from '../components/AdminTable'
 
-type RoleFilter = 'all' | 'member' | 'friend_host' | 'reviewer' | 'owner'
+type RoleFilter = 'all' | 'member' | 'friend_host' | 'reviewer' | 'admin'
 type SuspendedFilter = 'all' | 'active' | 'suspended'
 
 export const Route = createFileRoute('/users')({ component: UsersPage })
@@ -16,23 +16,24 @@ function UsersPage() {
   const [role, setRole] = useState<RoleFilter>('all')
   const [suspended, setSuspended] = useState<SuspendedFilter>('all')
   const [search, setSearch] = useState('')
-  const rows = useQuery(api.admin.users, {
+  const rows = useQuery(api.admin.users, viewer?.role === 'admin' ? {
     role,
     suspended: suspended === 'all' ? undefined : suspended === 'suspended',
     query: search || undefined,
-  })
+  } : 'skip')
   const setSuspendedStatus = useMutation(api.admin.setUserSuspended)
   const setReviewerStatus = useMutation(api.admin.setReviewerStatus)
+  const setAdminStatus = useMutation(api.admin.setAdminStatus)
 
-  if (viewer && viewer.role !== 'owner') return <OwnerOnly title="Users" />
+  if (viewer && viewer.role !== 'admin') return <AdminOnly title="Users" />
 
   return (
     <>
       <header className="admin-page-header">
         <div>
-          <p className="eyebrow">Owner controls</p>
+          <p className="eyebrow">Admin controls</p>
           <h1 className="text-h1 mt-2">Users</h1>
-          <p className="lede mt-2">Suspend accounts and manage reviewer access. Role changes use the single-role model.</p>
+          <p className="lede mt-2">Suspend accounts and manage admin or reviewer access. Role changes use the single-role model.</p>
         </div>
       </header>
 
@@ -44,7 +45,7 @@ function UsersPage() {
             <option value="member">Members</option>
             <option value="friend_host">Friend Hosts</option>
             <option value="reviewer">Reviewers</option>
-            <option value="owner">Owners</option>
+            <option value="admin">Admins</option>
           </select>
         </label>
         <label className="field-row">
@@ -96,17 +97,28 @@ function UsersPage() {
             header: 'Actions',
             render: (row) => (
               <div className="admin-action-stack">
-                {row.suspended ? (
-                  <ActionNote label="Reinstate" submitLabel="Reinstate" onSubmit={(note) => setSuspendedStatus({ userId: row._id, suspended: false, note })} />
+                {row._id === viewer?._id ? (
+                  <span className="admin-cell-muted">Current admin</span>
                 ) : (
-                  <ActionNote label="Suspend" submitLabel="Suspend" tone="danger" requireNote onSubmit={(note) => setSuspendedStatus({ userId: row._id, suspended: true, note })} />
-                )}
-                {row.role !== 'owner' && (
-                  row.role === 'reviewer' ? (
-                    <ActionNote label="Revoke reviewer" submitLabel="Revoke reviewer" onSubmit={(note) => setReviewerStatus({ userId: row._id, reviewer: false, note })} />
-                  ) : (
-                    <ActionNote label="Make reviewer" submitLabel="Make reviewer" onSubmit={(note) => setReviewerStatus({ userId: row._id, reviewer: true, note })} />
-                  )
+                  <>
+                    {row.suspended ? (
+                      <ActionNote label="Reinstate" submitLabel="Reinstate" onSubmit={(note) => setSuspendedStatus({ userId: row._id, suspended: false, note })} />
+                    ) : (
+                      <ActionNote label="Suspend" submitLabel="Suspend" tone="danger" requireNote onSubmit={(note) => setSuspendedStatus({ userId: row._id, suspended: true, note })} />
+                    )}
+                    {row.role === 'admin' ? (
+                      <ActionNote label="Revoke admin" submitLabel="Revoke admin" onSubmit={(note) => setAdminStatus({ userId: row._id, admin: false, note })} />
+                    ) : (
+                      <>
+                        <ActionNote label="Make admin" submitLabel="Make admin" onSubmit={(note) => setAdminStatus({ userId: row._id, admin: true, note })} />
+                        {row.role === 'reviewer' ? (
+                          <ActionNote label="Revoke reviewer" submitLabel="Revoke reviewer" onSubmit={(note) => setReviewerStatus({ userId: row._id, reviewer: false, note })} />
+                        ) : (
+                          <ActionNote label="Make reviewer" submitLabel="Make reviewer" onSubmit={(note) => setReviewerStatus({ userId: row._id, reviewer: true, note })} />
+                        )}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
             ),
@@ -117,10 +129,10 @@ function UsersPage() {
   )
 }
 
-function OwnerOnly({ title }: { title: string }) {
+function AdminOnly({ title }: { title: string }) {
   return (
     <div className="admin-empty">
-      {title} is owner-only.
+      {title} is admin-only.
     </div>
   )
 }
