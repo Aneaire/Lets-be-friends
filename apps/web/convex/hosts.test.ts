@@ -1,9 +1,16 @@
 import { convexTest } from 'convex-test'
+import geospatialTest from '@convex-dev/geospatial/test'
 import { describe, expect, it } from 'vitest'
-import { api } from './_generated/api'
+import { api, internal } from './_generated/api'
 import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
+
+function createTest() {
+  const t = convexTest(schema, modules)
+  geospatialTest.register(t)
+  return t
+}
 
 async function insertApprovedHost(
   t: ReturnType<typeof convexTest>,
@@ -50,10 +57,11 @@ async function insertApprovedHost(
 
 describe('nearby host discovery privacy', () => {
   it('keeps opted-out and legacy hosts in ordinary discovery but excludes them from nearby', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     await insertApprovedHost(t, 'nearby-opted-in', { latitude: 10.31, longitude: 123.89 }, true)
     await insertApprovedHost(t, 'nearby-opted-out', { latitude: 10.32, longitude: 123.90 }, false)
     await insertApprovedHost(t, 'nearby-legacy-default', { latitude: 10.33, longitude: 123.91 })
+    await t.mutation(internal.migrations.backfillHostLocationIndex, {})
 
     const ordinary = await t.query(api.hosts.listApproved, {})
     expect(ordinary.map((host: { displayName: string }) => host.displayName)).toEqual(expect.arrayContaining([
@@ -71,13 +79,14 @@ describe('nearby host discovery privacy', () => {
   })
 
   it('never returns private location fields from discovery or public profiles', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     const { hostProfileId } = await insertApprovedHost(
       t,
       'privacy-host',
       { latitude: 10.31, longitude: 123.89 },
       true,
     )
+    await t.mutation(internal.migrations.backfillHostLocationIndex, {})
 
     const [discoveryHost] = await t.query(api.hosts.listApproved, {
       latitude: 10.31,
@@ -96,7 +105,7 @@ describe('nearby host discovery privacy', () => {
   })
 
   it('validates nearby radius and coordinate ranges', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
 
     await expect(t.query(api.hosts.listApproved, { latitude: 91, longitude: 0, radiusKm: 25 }))
       .rejects.toThrow('Latitude must be between -90 and 90')
@@ -107,7 +116,7 @@ describe('nearby host discovery privacy', () => {
   })
 
   it('rounds application coordinates and defaults nearby visibility to off', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     const now = Date.now()
     await t.run(async (ctx) => {
       await ctx.db.insert('users', {

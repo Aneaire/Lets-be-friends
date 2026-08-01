@@ -4,6 +4,7 @@ import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
 import { hasCurrentPersonaApproval, isIdentityVerificationReason } from './identityVerification'
+import { findNearbyHostLocations, syncHostLocation } from './hostLocations'
 
 const nearbyRadiusOptions = [5, 10, 25, 50, 100] as const
 
@@ -22,19 +23,15 @@ export const listApproved = query({
   handler: async (ctx, args) => {
     const origin = validateNearbyOrigin(args)
     const viewer = await getViewer(ctx)
-    const hosts = await ctx.db.query('hostProfiles').withIndex('by_status', (q) => q.eq('status', 'approved')).collect()
-    if (hosts.length === 0) return origin ? [] : demoHosts as any
-
     const radiusKm = args.radiusKm ?? 25
-    const withDistance = hosts
-      .filter((host) => !origin || host.nearbyDiscoveryEnabled === true)
-      .map((host) => ({
-        host,
-        distanceKm: origin && typeof host.approximateLatitude === 'number' && typeof host.approximateLongitude === 'number'
-          ? distanceKm(origin.latitude, origin.longitude, host.approximateLatitude, host.approximateLongitude)
-          : undefined,
-      }))
-      .filter(({ host, distanceKm }) => !origin || host.mode === 'online' || (typeof distanceKm === 'number' && distanceKm <= radiusKm))
+    const withDistance = origin
+      ? await indexedNearbyHosts(ctx, origin, radiusKm)
+      : (await ctx.db.query('hostProfiles').withIndex('by_status', (q) => q.eq('status', 'approved')).collect())
+          .map((host) => ({ host, distanceKm: undefined }))
+
+    if (!origin && withDistance.length === 0) return demoHosts as any
+
+    withDistance
       .sort((a, b) => {
         if (!origin) return b.host.rating - a.host.rating
         if (a.host.mode === 'online' && b.host.mode !== 'online') return 1
@@ -42,14 +39,18 @@ export const listApproved = query({
         return (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY)
       })
 
-    const results = []
-    for (const { host, distanceKm } of withDistance) {
+    const results = await Promise.all(withDistance.map(async ({ host, distanceKm }) => {
       const user = await ctx.db.get(host.userId)
-      if (!user || user.suspended || !hasCurrentPersonaApproval(user)) continue
-      results.push({
+      if (!user || user.suspended || !hasCurrentPersonaApproval(user)) return null
+      const [profileImage, savedProfile, followedUser] = await Promise.all([
+        profileImageUrl(ctx, user),
+        viewer ? ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first() : null,
+        viewer ? ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first() : null,
+      ])
+      return {
         ...publicHostProfile(host),
         displayName: user.displayName,
-        profileImageUrl: await profileImageUrl(ctx, user),
+        profileImageUrl: profileImage,
         bio: user.bio,
         distanceKm: typeof distanceKm === 'number' ? Math.round(distanceKm * 10) / 10 : undefined,
         _id: host._id,
@@ -62,11 +63,11 @@ export const listApproved = query({
           viewer ? hasCurrentPersonaApproval(viewer) : false,
         ),
         demo: false,
-        saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
-        following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
-      })
-    }
-    return results
+        saved: Boolean(savedProfile),
+        following: Boolean(followedUser),
+      }
+    }))
+    return results.filter((host) => host !== null)
   },
 })
 
@@ -183,6 +184,10 @@ export const submitApplication = mutation({
       ? (await ctx.db.patch(existing._id, patch), existing._id)
       : await ctx.db.insert('hostProfiles', { userId: viewer._id, ...patch, createdAt: now })
 
+    const host = await ctx.db.get(hostProfileId)
+    if (!host) throw new Error('Friend Host profile was not saved')
+    await syncHostLocation(ctx, host, viewer)
+
     await writeAudit(ctx, {
       actorUserId: viewer._id,
       action: 'host_application.submitted',
@@ -231,16 +236,35 @@ function roundCoordinate(value: number) {
   return Math.round(value * 100) / 100
 }
 
-function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const earthRadiusKm = 6371
-  const dLat = toRadians(lat2 - lat1)
-  const dLon = toRadians(lon2 - lon1)
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2
-  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
+async function indexedNearbyHosts(
+  ctx: Parameters<typeof findNearbyHostLocations>[0],
+  origin: { latitude: number; longitude: number },
+  radiusKm: number,
+) {
+  const [locations, onlineHosts] = await Promise.all([
+    findNearbyHostLocations(ctx, origin, radiusKm),
+    ctx.db
+      .query('hostProfiles')
+      .withIndex('by_nearby_status_mode', (q) => q
+        .eq('status', 'approved')
+        .eq('nearbyDiscoveryEnabled', true)
+        .eq('mode', 'online'))
+      .collect(),
+  ])
+  const locatedHosts = await Promise.all(locations.map(async ({ key, distance }) => ({
+    host: await ctx.db.get(key),
+    distanceKm: distance / 1_000,
+  })))
 
-function toRadians(value: number) {
-  return value * Math.PI / 180
+  return [
+    ...locatedHosts.flatMap(({ host, distanceKm }) => host
+      && host.status === 'approved'
+      && host.nearbyDiscoveryEnabled === true
+      && host.mode !== 'online'
+      ? [{ host, distanceKm }]
+      : []),
+    ...onlineHosts.map((host) => ({ host, distanceKm: undefined })),
+  ]
 }
 
 async function profileImageUrl(ctx: any, user: { profileImageStorageId?: any; profileImageUrl?: string }) {

@@ -127,7 +127,10 @@ export default defineSchema({
     reviewCount: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_user', ['userId']).index('by_status', ['status']),
+  })
+    .index('by_user', ['userId'])
+    .index('by_status', ['status'])
+    .index('by_nearby_status_mode', ['status', 'nearbyDiscoveryEnabled', 'mode']),
   bookings: defineTable({
     memberId: v.id('users'),
     hostProfileId: v.id('hostProfiles'),

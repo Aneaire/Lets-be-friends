@@ -1,9 +1,16 @@
 import { convexTest } from 'convex-test'
+import geospatialTest from '@convex-dev/geospatial/test'
 import { describe, expect, it } from 'vitest'
 import { api, internal } from './_generated/api'
 import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
+
+function createTest() {
+  const t = convexTest(schema, modules)
+  geospatialTest.register(t)
+  return t
+}
 
 async function insertUser(t: ReturnType<typeof convexTest>, input: { clerkUserId: string; role?: 'member' | 'reviewer' | 'admin'; verificationStatus?: 'not_started' | 'pending' | 'approved' | 'rejected' }) {
   return await t.run(async (ctx) => {
@@ -49,7 +56,7 @@ async function insertAttempt(
 
 describe('Persona webhook state transitions', () => {
   it('queues a provider pass without approving the member and handles duplicate delivery idempotently', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     const userId = await insertUser(t, { clerkUserId: 'member-webhook' })
     const requestId = await t.run(async (ctx) => {
       const now = Date.now()
@@ -104,7 +111,7 @@ describe('Persona webhook state transitions', () => {
   })
 
   it('ignores a terminal event with the wrong account reference', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     const userId = await insertUser(t, { clerkUserId: 'member-reference' })
     const requestId = await insertAttempt(t, userId, { inquiryId: 'inq_reference', decision: 'passed', adminStatus: 'not_ready' })
 
@@ -122,7 +129,7 @@ describe('Persona webhook state transitions', () => {
   })
 
   it('revokes an approved entitlement and reopens admin review after a newer provider decline', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     await insertUser(t, { clerkUserId: 'admin-reversal', role: 'reviewer', verificationStatus: 'not_started' })
     const userId = await insertUser(t, { clerkUserId: 'member-reversal' })
     const requestId = await insertAttempt(t, userId, { inquiryId: 'inq_reversal', decision: 'passed' })
@@ -171,7 +178,7 @@ describe('Persona webhook state transitions', () => {
   })
 
   it('ignores equal-time and newer lifecycle regressions', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     const userId = await insertUser(t, { clerkUserId: 'member-ordering' })
     const requestId = await t.run(async (ctx) => {
       const now = Date.now()
@@ -221,7 +228,7 @@ describe('Persona webhook state transitions', () => {
 
 describe('inquiry preparation and legacy enforcement', () => {
   it('reuses one active inquiry attempt and rejects suspended accounts', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     const userId = await insertUser(t, { clerkUserId: 'member-start', verificationStatus: 'not_started' })
 
     const first = await t.mutation(internal.persona.prepareInquiry, { clerkUserId: 'member-start', intent: 'member' })
@@ -240,7 +247,7 @@ describe('inquiry preparation and legacy enforcement', () => {
   })
 
   it('labels an expired prior approval as reverification', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     const userId = await insertUser(t, { clerkUserId: 'expired-member', verificationStatus: 'approved' })
     await t.run(async (ctx) => {
       const now = Date.now()
@@ -270,7 +277,7 @@ describe('inquiry preparation and legacy enforcement', () => {
   })
 
   it('blocks a legacy manual approval from creating a new booking', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     const hostUserId = await insertUser(t, { clerkUserId: 'verified-host', verificationStatus: 'approved' })
     const legacyMemberId = await insertUser(t, { clerkUserId: 'legacy-member', verificationStatus: 'approved' })
     await t.run(async (ctx) => ctx.db.patch(hostUserId, {
@@ -311,7 +318,7 @@ describe('inquiry preparation and legacy enforcement', () => {
 
 describe('booking identity eligibility', () => {
   it('blocks acceptance and pre-acceptance chat after the member loses eligibility', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     const hostUserId = await insertUser(t, { clerkUserId: 'booking-host', role: 'member', verificationStatus: 'approved' })
     const memberId = await insertUser(t, { clerkUserId: 'booking-member', verificationStatus: 'approved' })
     await t.run(async (ctx) => {
@@ -380,7 +387,7 @@ describe('booking identity eligibility', () => {
 
 describe('mandatory admin identity review', () => {
   it('approves only the exact current Persona-passed attempt', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     await insertUser(t, { clerkUserId: 'admin-reviewer', role: 'reviewer', verificationStatus: 'not_started' })
     const userId = await insertUser(t, { clerkUserId: 'member-approved' })
     const requestId = await insertAttempt(t, userId, { inquiryId: 'inq_approved', decision: 'passed' })
@@ -405,7 +412,7 @@ describe('mandatory admin identity review', () => {
   })
 
   it('keeps Friend Host profile approval separate from identity approval', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     await insertUser(t, { clerkUserId: 'admin-host', role: 'reviewer', verificationStatus: 'not_started' })
     const applicantId = await insertUser(t, { clerkUserId: 'host-applicant', verificationStatus: 'pending' })
     const hostProfileId = await t.run(async (ctx) => {
@@ -458,7 +465,7 @@ describe('mandatory admin identity review', () => {
   })
 
   it('keeps legacy manual requests out of the actionable identity queue', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     await insertUser(t, { clerkUserId: 'admin-legacy-queue', role: 'reviewer', verificationStatus: 'not_started' })
     const userId = await insertUser(t, { clerkUserId: 'legacy-queue-member', verificationStatus: 'approved' })
     await t.run(async (ctx) => {
@@ -482,7 +489,7 @@ describe('mandatory admin identity review', () => {
   })
 
   it('blocks an approval override for a Persona decline but permits a noted rejection', async () => {
-    const t = convexTest(schema, modules)
+    const t = createTest()
     await insertUser(t, { clerkUserId: 'admin-decline', role: 'admin', verificationStatus: 'not_started' })
     const userId = await insertUser(t, { clerkUserId: 'member-declined' })
     const requestId = await insertAttempt(t, userId, { inquiryId: 'inq_declined', decision: 'declined' })

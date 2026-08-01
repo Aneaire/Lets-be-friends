@@ -2,7 +2,7 @@ import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LayoutGrid, MapPin, SlidersHorizontal, X } from 'lucide-react'
+import { Heart, LayoutGrid, MapPin, SlidersHorizontal, Star, X } from 'lucide-react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { ApproximateLocationMap } from '../components/ApproximateLocationMap'
@@ -41,7 +41,6 @@ function DiscoverPage() {
   const [customOriginLabel, setCustomOriginLabel] = useState('')
   const [locationStatus, setLocationStatus] = useState('Choose your current location or place a travel pin. Search origins stay in this browser session.')
   const hosts = (useQuery(api.hosts.listApproved, nearby ? { ...nearby, radiusKm } : {}) ?? []) as DiscoveryHost[]
-  const toggleSaveProfile = useMutation(api.hosts.toggleSaveProfile)
   const toggleFollow = useMutation(api.social.toggleFollow)
   const [mode, setMode] = useState<ModeFilter>('all')
   const [category, setCategory] = useState<string | null>(null)
@@ -406,10 +405,6 @@ function DiscoverPage() {
                   key={host._id}
                   host={host}
                   signedIn={Boolean(isSignedIn)}
-                  onSave={async () => {
-                    if (!host.bookable || host.demo) return
-                    await toggleSaveProfile({ hostProfileId: host._id as any })
-                  }}
                   onFollow={async () => {
                     if (!host.userId) return
                     await toggleFollow({ userId: host.userId as any })
@@ -534,91 +529,95 @@ function DiscoverPage() {
   )
 }
 
-function HostRow({ host, signedIn, onSave, onFollow }: { host: DiscoveryHost; signedIn: boolean; onSave: () => Promise<void>; onFollow: () => Promise<void> }) {
+function HostRow({ host, signedIn, onFollow }: { host: DiscoveryHost; signedIn: boolean; onFollow: () => Promise<void> }) {
+  const hasDistance = typeof host.distanceKm === 'number'
+
   return (
-    <article className="worklist-row" role="listitem">
-      <div className="worklist-row-head">
-        <div className="flex items-start gap-3 min-w-0">
-          <ProfilePhoto imageUrl={host.profileImageUrl} name={host.displayName} size="lg" />
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-h3">{host.displayName}</h2>
-              <TrustChip state={host.demo ? 'demo' : host.bookable ? 'verified' : 'awaiting'} />
-            </div>
-            <div className="worklist-row-meta mt-1">
-              <span>{host.city}</span>
-              {typeof host.distanceKm === 'number' && (
-                <>
-                  <span className="dot" aria-hidden="true" />
-                  <span>{host.distanceKm} km away</span>
-                </>
-              )}
-              <span className="dot" aria-hidden="true" />
-              <span>{formatMode(host.mode)}</span>
-              <span className="dot" aria-hidden="true" />
-              <span className="tabular" aria-label={`${host.rating.toFixed(1)} out of 5 stars`}>
-                {host.rating.toFixed(1)}★ · {host.reviewCount ?? 0} {(host.reviewCount ?? 0) === 1 ? 'review' : 'reviews'}
-              </span>
-              {host.strengths.length > 0 && (
-                <>
-                  <span className="dot" aria-hidden="true" />
-                  <span className="truncate max-w-[44ch]">
-                    {host.strengths.slice(0, 4).join(' · ')}
-                  </span>
-                </>
-              )}
-            </div>
+    <article className="discover-host-row" data-nearby={hasDistance} role="listitem">
+      <div className="discover-host-avatar">
+        <ProfilePhoto imageUrl={host.profileImageUrl} name={host.displayName} size="lg" />
+      </div>
+
+      <div className="discover-host-main">
+        <header className="discover-host-identity">
+          <div className="discover-host-name-row">
+            <h2>{host.displayName}</h2>
+            <TrustChip state={host.demo ? 'demo' : host.bookable ? 'verified' : 'awaiting'} />
           </div>
-        </div>
-        <div className="shrink-0">
-          {host.bookable ? (
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-neutral btn-sm">
-                View profile
-              </Link>
-              <BookingEligibilityAction host={host} />
-              {signedIn && host.viewerBookingEligibility !== 'own_profile' && (
-                <>
-                  <button onClick={onFollow} className="btn btn-social-quiet btn-sm">{host.following ? 'Following' : 'Follow'}</button>
-                  <button onClick={onSave} className="btn btn-neutral btn-sm">{host.saved ? 'Saved' : 'Save'}</button>
-                </>
-              )}
-            </div>
-          ) : (
-            <span className="text-meta">Not bookable yet</span>
-          )}
+          <div className="discover-host-context">
+            <span>{host.city}</span>
+            <span aria-hidden="true">/</span>
+            <span>{formatMode(host.mode)}</span>
+          </div>
+        </header>
+
+        <p className="discover-host-intro">{host.intro}</p>
+
+        {host.strengths.length > 0 && (
+          <ul className="discover-host-strengths" aria-label={`${host.displayName}'s Strengths`}>
+            {host.strengths.slice(0, 3).map((strength) => <li key={strength}>{strength}</li>)}
+          </ul>
+        )}
+
+        <div className="discover-host-mobile-facts">
+          {hasDistance && <DistanceStamp distanceKm={host.distanceKm!} compact />}
+          <RatingSummary rating={host.rating} reviewCount={host.reviewCount ?? 0} />
         </div>
       </div>
-      <p className="text-body muted max-w-[68ch]">{host.intro}</p>
+
+      <aside className="discover-host-side" aria-label={`Actions and proximity for ${host.displayName}`}>
+        <div className="discover-host-desktop-facts">
+          {hasDistance && <DistanceStamp distanceKm={host.distanceKm!} />}
+          <RatingSummary rating={host.rating} reviewCount={host.reviewCount ?? 0} />
+        </div>
+
+        <div className="discover-host-actions">
+          <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-neutral btn-sm">
+            View profile
+          </Link>
+          {signedIn ? (
+            <button
+              type="button"
+              onClick={onFollow}
+              className="btn btn-social-quiet btn-sm"
+              data-active={host.following}
+              disabled={!host.userId || host.viewerBookingEligibility === 'own_profile'}
+            >
+              <Heart size={14} fill={host.following ? 'currentColor' : 'none'} aria-hidden="true" />
+              {host.following ? 'Following' : 'Follow'}
+            </button>
+          ) : (
+            <SignInButton mode="modal">
+              <button type="button" className="btn btn-social-quiet btn-sm">
+                <Heart size={14} aria-hidden="true" />
+                Follow
+              </button>
+            </SignInButton>
+          )}
+        </div>
+      </aside>
     </article>
   )
 }
 
-function BookingEligibilityAction({ host }: { host: DiscoveryHost }) {
-  if (host.viewerBookingEligibility === 'own_profile') {
-    return <span className="status-pill" data-tone="self">Your profile</span>
-  }
-
-  if (host.viewerBookingEligibility === 'eligible') {
-    return (
-      <Link to="/app" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
-        Request booking
-      </Link>
-    )
-  }
-
-  if (host.viewerBookingEligibility === 'verification_required') {
-    return (
-      <Link to="/app" search={{}} className="btn btn-self btn-sm">
-        Verify to book
-      </Link>
-    )
-  }
-
+function DistanceStamp({ distanceKm, compact = false }: { distanceKm: number; compact?: boolean }) {
   return (
-    <SignInButton mode="modal">
-      <button type="button" className="btn btn-self btn-sm">Sign in to book</button>
-    </SignInButton>
+    <div className="discover-host-distance" data-compact={compact} aria-label={`${distanceKm} kilometers away`}>
+      <span>Nearby</span>
+      <strong className="tabular">{distanceKm}</strong>
+      <small>km away</small>
+    </div>
+  )
+}
+
+function RatingSummary({ rating, reviewCount }: { rating: number; reviewCount: number }) {
+  return (
+    <div className="discover-host-rating">
+      <Star size={14} fill="currentColor" aria-hidden="true" />
+      <strong className="tabular" aria-label={`${rating.toFixed(1)} out of 5 stars`}>{rating.toFixed(1)}</strong>
+      <span>·</span>
+      <span className="tabular">{reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}</span>
+    </div>
   )
 }
 

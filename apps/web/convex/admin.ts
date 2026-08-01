@@ -3,6 +3,7 @@ import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
 import { canAdminApproveIdentity, hasCurrentPersonaApproval, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason, isRealPersonaInquiryId } from './identityVerification'
+import { syncHostLocation } from './hostLocations'
 
 const roleOrAll = v.union(v.literal('member'), v.literal('friend_host'), v.literal('reviewer'), v.literal('admin'), v.literal('all'))
 const verificationStatusOrAll = v.union(v.literal('not_ready'), v.literal('pending'), v.literal('approved'), v.literal('rejected'), v.literal('not_started'), v.literal('all'))
@@ -263,6 +264,7 @@ export const reviewHostApplication = mutation({
     if (args.decision === 'approved') {
       await ctx.db.patch(host.userId, { role: 'friend_host', updatedAt: now })
     }
+    await syncHostLocation(ctx, after, user)
     await writeAudit(ctx, { actorUserId: admin._id, action: `host_application.${args.decision}`, targetType: 'hostProfile', targetId: String(args.hostProfileId), before: host, after, note })
   },
 })
@@ -361,6 +363,8 @@ export const setUserSuspended = mutation({
     const note = args.suspended ? requireNote(args.note, 'Suspending a user') : normalizeNote(args.note)
     const after = { ...user, suspended: args.suspended, updatedAt: Date.now() }
     await ctx.db.patch(args.userId, { suspended: args.suspended, updatedAt: after.updatedAt })
+    const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', args.userId)).first()
+    if (host) await syncHostLocation(ctx, host, after)
     await writeAudit(ctx, {
       actorUserId: fullAdmin._id,
       action: args.suspended ? 'user.suspended' : 'user.reinstated',

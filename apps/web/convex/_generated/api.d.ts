@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as bookings from "../bookings.js";
+import type * as hostLocations from "../hostLocations.js";
 import type * as hosts from "../hosts.js";
 import type * as http from "../http.js";
 import type * as identityVerification from "../identityVerification.js";
@@ -18,6 +19,7 @@ import type * as migrations from "../migrations.js";
 import type * as persona from "../persona.js";
 import type * as reports from "../reports.js";
 import type * as reviews from "../reviews.js";
+import type * as seeds from "../seeds.js";
 import type * as social from "../social.js";
 import type * as users from "../users.js";
 
@@ -30,6 +32,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   bookings: typeof bookings;
+  hostLocations: typeof hostLocations;
   hosts: typeof hosts;
   http: typeof http;
   identityVerification: typeof identityVerification;
@@ -38,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   persona: typeof persona;
   reports: typeof reports;
   reviews: typeof reviews;
+  seeds: typeof seeds;
   social: typeof social;
   users: typeof users;
 }>;
@@ -68,4 +72,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  geospatial: import("@convex-dev/geospatial/_generated/component.js").ComponentApi<"geospatial">;
+};

@@ -12,7 +12,8 @@
     "test": "pnpm --filter @lets-be-friends/web --filter @lets-be-friends/admin test",
     "typecheck": "pnpm --filter @lets-be-friends/web --filter @lets-be-friends/admin typecheck",
     "convex:dev": "pnpm --filter @lets-be-friends/web convex:dev",
-    "convex:codegen": "pnpm --filter @lets-be-friends/web convex:codegen"
+    "convex:codegen": "pnpm --filter @lets-be-friends/web convex:codegen",
+    "seed:pampanga": "pnpm --filter @lets-be-friends/web seed:pampanga"
   },
   "devDependencies": {
     "pnpm": "^10.24.0"
