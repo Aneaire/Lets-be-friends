@@ -352,84 +352,32 @@ Notification events:
 
 Push notifications should wait until mobile or a later web push phase.
 
-## Payments
+## Booking Commission And Platform-Fee Balance
 
-Payments are not part of MVP, but the Phase 2 payment plan should use **PayMongo QR Ph** first.
+Members pay the locked booking amount directly to the Friend Host in cash. PayMongo is not used for member booking checkout. It is used only for Friend Hosts to top up a prepaid platform-fee balance through dynamic QR Ph Payment Intents.
 
-Primary payment method:
+Financial rules:
 
-- PayMongo QR Ph.
-- Dynamic online QR Ph generated per booking payment.
-- Payment Intent workflow with `qrph` as an allowed payment method.
-- PayMongo webhooks for payment confirmation.
+1. A Friend Host sets an hourly PHP cash rate.
+2. The server derives and freezes the booking price in integer centavos when the member submits the request.
+3. The booking freezes a 10% commission (`1000` basis points); later rate changes never alter it.
+4. Member and Friend Host confirm completion separately. Only both confirmations create one commission obligation.
+5. The obligation is due at the next Saturday 09:00 Asia/Manila collection (Saturday 01:00 UTC).
+6. The weekly job applies available balance to due obligations and carries any unpaid remainder as past due.
+7. A Friend Host with past-due commission cannot accept new bookings.
+8. A webhook-confirmed top-up credits the immutable ledger exactly once and immediately applies credit FIFO to already-past-due obligations.
 
-Why PayMongo QR Ph first:
+Platform-fee credits are nonwithdrawable and nontransferable. Top-ups are balance liabilities, not booking revenue; commission ledger debits record collected platform fees. Withdrawals, transfers, Friend Host payouts, member digital checkout, refunds, and chargeback workflows are outside this phase.
 
-- Strong fit for a Philippines-first launch.
-- Supports payment through many local banks and e-wallets through the QR Ph standard.
-- Better local payment familiarity than card-only checkout.
-- Lets the product start with local digital payments before adding card, e-wallet-specific, or BNPL methods.
+PayMongo safety requirements:
 
-Recommended Phase 2 booking payment flow:
-
-1. Member creates a booking request.
-2. Friend Host accepts the request.
-3. App creates a PayMongo Payment Intent for the accepted booking amount.
-4. App creates or attaches a QR Ph payment method.
-5. Member scans/pays the dynamic QR Ph code.
-6. PayMongo webhook confirms payment.
-7. Convex updates the booking payment state.
-8. Final meeting details unlock only after valid payment confirmation.
-9. After completion and review/cancellation window, admin or payout workflow settles the Friend Host payable amount.
-
-Payment state fields to add later:
-
-- `paymentProvider`
-- `paymentIntentId`
-- `paymentMethod`
-- `paymentStatus`
-- `amount`
-- `currency`
-- `platformFeeAmount`
-- `hostPayableAmount`
-- `paidAt`
-- `expiresAt`
-- `refundedAt`
-- `payoutStatus`
-
-Suggested payment statuses:
-
-```ts
-type PaymentProvider = "paymongo";
-type PaymentMethod = "qrph";
-
-type PaymentStatus =
-  | "not_required"
-  | "pending"
-  | "qr_generated"
-  | "paid"
-  | "expired"
-  | "failed"
-  | "refund_pending"
-  | "refunded";
-
-type PayoutStatus =
-  | "not_started"
-  | "pending"
-  | "processing"
-  | "paid_out"
-  | "failed"
-  | "manual_review";
-```
-
-Important implementation notes:
-
-- Use PayMongo webhook confirmation as the source of truth, not screenshots or user claims.
-- Dynamic online QR Ph codes are preferred for booking checkout because they are tied to a specific transaction.
-- Static QR Ph should only be considered for manual/in-store-style fallback flows.
-- QR Ph code expiry must be handled in the UI and booking state.
-- Before implementation, verify PayMongo account activation, QR Ph eligibility, wallet status, settlement timing, payout options, refund behavior, and marketplace compliance.
-- Keep payout accounting in Convex even if payouts start as manual operations.
+- Secret-key calls create and retrieve Payment Intents. Public-key calls create the QR Ph Payment Method and attach it with the Payment Intent client key.
+- Provider idempotency keys protect all creation/attachment writes.
+- The exact bounded raw webhook body is HMAC-verified before JSON parsing.
+- Test/live mode, canonical intent ID, amount, PHP currency, and QR Ph method are revalidated from PayMongo before credit.
+- Provider event IDs plus raw-body hashes prevent duplicate or conflicting settlement.
+- `payment.paid`, `payment.failed`, and `qrph.expired` update retained attempts; scheduled reconciliation repairs missed webhooks.
+- QR expiry permits a new attempt without deleting history.
 
 ## UI Stack
 
@@ -759,9 +707,11 @@ Critical test scenarios:
 - Completed booking allows mutual ratings.
 - Experience post requires a completed booking.
 - Admin actions write audit logs.
-- Phase 2: PayMongo QR Ph payment cannot unlock meeting details until webhook-confirmed.
-- Phase 2: Expired QR Ph payment returns booking to a payable state without duplicating charges.
-- Phase 2: Payment reconciliation and payout status changes are audit-logged.
+- Booking price and 10% commission are frozen server-side in integer centavos.
+- Both participants must confirm completion before commission accrues exactly once.
+- Saturday collection supports full and partial payment and restricts acceptance while past due.
+- PayMongo QR Ph top-up credit requires webhook or reconciliation confirmation and is idempotent.
+- Expired top-up QR attempts can be replaced without deleting financial history.
 
 ## Environment Variables
 
@@ -780,6 +730,7 @@ RESEND_API_KEY=
 PAYMONGO_SECRET_KEY=
 PAYMONGO_PUBLIC_KEY=
 PAYMONGO_WEBHOOK_SECRET=
+PAYMONGO_MODE=test
 ```
 
 Actual names may change during implementation based on provider SDK requirements.

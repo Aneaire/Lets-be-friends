@@ -3,6 +3,7 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { api } from '../../convex/_generated/api'
+import { formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
 
 export const Route = createFileRoute('/host-profile')({
@@ -87,6 +88,7 @@ function HostProfilePage() {
                 <HostBookingAction
                   eligibility={host.viewerBookingEligibility}
                   hostProfileId={host._id}
+                  bookable={host.bookable}
                 />
                 {isSignedIn ? (
                   <>
@@ -129,6 +131,14 @@ function HostProfilePage() {
         </div>
         {host.bio && <p className="text-body muted max-w-[72ch] mt-5">{host.bio}</p>}
         <p className="text-body muted max-w-[72ch] mt-5">{host.intro}</p>
+        {host.hourlyRateCentavos !== undefined ? (
+          <p className="text-meta mt-3">
+            Cash rate: <strong className="tabular text-[color:var(--text)]">{formatPhp(host.hourlyRateCentavos)} per hour</strong>.
+            The booking request locks the exact cash amount on the server.
+          </p>
+        ) : (
+          <p className="text-meta mt-3">This legacy profile must set an hourly cash rate before receiving booking requests.</p>
+        )}
         <div className="flex flex-wrap gap-2 mt-5">
           {host.strengths.map((strength) => <span key={strength} className="chip" data-selected="true">{strength}</span>)}
         </div>
@@ -208,10 +218,14 @@ function HostProfilePage() {
 function HostBookingAction({
   eligibility,
   hostProfileId,
+  bookable,
 }: {
   eligibility: 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
   hostProfileId: Id<'hostProfiles'>
+  bookable: boolean
 }) {
+  if (!bookable) return <span className="status-pill" data-tone="warning">Rate not configured</span>
+
   if (eligibility === 'eligible') {
     return (
       <Link to="/app" search={{ hostProfileId }} className="btn btn-social btn-sm">

@@ -112,6 +112,7 @@ describe('Pampanga development seed', () => {
       categories: ['Coffee or meal companion', 'Local walk or city guide'],
       boundaries: ['Public places only'],
       mode: 'both',
+      hourlyRateCentavos: 50_000,
     })
     expect((await t.query(api.hosts.listApproved, nearbyArgs)).map((host: { displayName: string }) => host.displayName)).not.toContain('Alyssa')
     expect(await t.mutation(internal.migrations.backfillHostLocationIndex, {})).toMatchObject({ removed: 0 })

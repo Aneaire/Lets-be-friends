@@ -1,4 +1,10 @@
-import { bookingEligibility, canBookHost } from '@lets-be-friends/shared'
+import {
+  MAX_HOST_HOURLY_RATE_CENTAVOS,
+  MIN_HOST_HOURLY_RATE_CENTAVOS,
+  bookingEligibility,
+  canBookHost,
+  validateHostHourlyRateCentavos,
+} from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
@@ -54,7 +60,7 @@ export const listApproved = query({
         bio: user.bio,
         distanceKm: typeof distanceKm === 'number' ? Math.round(distanceKm * 10) / 10 : undefined,
         _id: host._id,
-        bookable: true,
+        bookable: hasConfiguredHourlyRate(host.hourlyRateCentavos),
         viewerCanBook: canBookHost(viewer ? String(viewer._id) : null, String(host.userId)),
         viewerBookingEligibility: bookingEligibility(
           viewer ? String(viewer._id) : null,
@@ -84,6 +90,7 @@ export const getPublic = query({
       displayName: user.displayName,
       profileImageUrl: await profileImageUrl(ctx, user),
       bio: user.bio,
+      bookable: hasConfiguredHourlyRate(host.hourlyRateCentavos),
       viewerCanBook: canBookHost(viewer ? String(viewer._id) : null, String(host.userId)),
       viewerBookingEligibility: bookingEligibility(
         viewer ? String(viewer._id) : null,
@@ -158,11 +165,13 @@ export const submitApplication = mutation({
     categories: v.array(v.string()),
     boundaries: v.array(v.string()),
     mode: v.union(v.literal('online'), v.literal('in_person'), v.literal('both')),
+    hourlyRateCentavos: v.number(),
     applicationNote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const now = Date.now()
+    validateHostHourlyRateCentavos(args.hourlyRateCentavos)
     validateCoordinatePair(args.approximateLatitude, args.approximateLongitude)
     const approximateLatitude = typeof args.approximateLatitude === 'number' ? roundCoordinate(args.approximateLatitude) : undefined
     const approximateLongitude = typeof args.approximateLongitude === 'number' ? roundCoordinate(args.approximateLongitude) : undefined
@@ -199,6 +208,26 @@ export const submitApplication = mutation({
   },
 })
 
+export const updateHourlyRate = mutation({
+  args: { hourlyRateCentavos: v.number() },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const hourlyRateCentavos = validateHostHourlyRateCentavos(args.hourlyRateCentavos)
+    const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    if (!host) throw new Error('Create a Friend Host profile before setting an hourly rate')
+    await ctx.db.patch(host._id, { hourlyRateCentavos, updatedAt: Date.now() })
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'host_profile.hourly_rate_updated',
+      targetType: 'hostProfile',
+      targetId: String(host._id),
+      before: { hourlyRateCentavos: host.hourlyRateCentavos },
+      after: { hourlyRateCentavos },
+    })
+    return hourlyRateCentavos
+  },
+})
+
 function validateNearbyOrigin(args: { latitude?: number; longitude?: number; radiusKm?: number }) {
   if (args.radiusKm !== undefined && !nearbyRadiusOptions.includes(args.radiusKm as typeof nearbyRadiusOptions[number])) {
     throw new Error('Radius must be 5, 10, 25, 50, or 100 km')
@@ -230,6 +259,13 @@ function publicHostProfile(host: Doc<'hostProfiles'>) {
     ...publicHost
   } = host
   return publicHost
+}
+
+function hasConfiguredHourlyRate(value: number | undefined) {
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= MIN_HOST_HOURLY_RATE_CENTAVOS
+    && value <= MAX_HOST_HOURLY_RATE_CENTAVOS
 }
 
 function roundCoordinate(value: number) {

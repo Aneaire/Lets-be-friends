@@ -36,6 +36,16 @@ const verificationSource = v.union(v.literal('persona'), v.literal('legacy_manua
 const hostStatus = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'))
 const bookingStatus = v.union(v.literal('draft'), v.literal('verification_required'), v.literal('pending_admin_review'), v.literal('request_sent'), v.literal('accepted'), v.literal('declined'), v.literal('cancelled'), v.literal('completed'), v.literal('review_window'), v.literal('closed'))
 const mode = v.union(v.literal('online'), v.literal('in_person'), v.literal('both'))
+const paymongoMode = v.union(v.literal('test'), v.literal('live'))
+const topUpStatus = v.union(
+  v.literal('creating'),
+  v.literal('awaiting_payment'),
+  v.literal('processing'),
+  v.literal('paid'),
+  v.literal('failed'),
+  v.literal('expired'),
+)
+const ledgerEntryKind = v.union(v.literal('top_up_credit'), v.literal('commission_collection'))
 const postMedia = v.object({
   storageId: v.id('_storage'),
   kind: v.union(v.literal('image'), v.literal('video')),
@@ -140,6 +150,8 @@ export default defineSchema({
     categories: v.array(v.string()),
     boundaries: v.array(v.string()),
     mode,
+    // Optional so existing/demo Friend Host records remain readable. New cash bookings require it.
+    hourlyRateCentavos: v.optional(v.number()),
     status: hostStatus,
     applicationNote: v.optional(v.string()),
     reviewerUserId: v.optional(v.id('users')),
@@ -161,6 +173,17 @@ export default defineSchema({
     durationMinutes: v.number(),
     notes: v.optional(v.string()),
     status: bookingStatus,
+    // Financial and completion fields are optional only for safe compatibility with legacy bookings.
+    grossPriceCentavos: v.optional(v.number()),
+    currency: v.optional(v.literal('PHP')),
+    commissionBps: v.optional(v.number()),
+    commissionCentavos: v.optional(v.number()),
+    commissionDueAt: v.optional(v.number()),
+    commissionObligationId: v.optional(v.id('commissionObligations')),
+    commissionExemptReason: v.optional(v.literal('legacy_unpriced')),
+    memberCompletedAt: v.optional(v.number()),
+    hostCompletedAt: v.optional(v.number()),
+    jointlyCompletedAt: v.optional(v.number()),
     verificationRequestId: v.optional(v.id('verificationRequests')),
     hostDecisionNote: v.optional(v.string()),
     cancelledByUserId: v.optional(v.id('users')),
@@ -169,6 +192,71 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_member', ['memberId']).index('by_host', ['hostProfileId']).index('by_status', ['status']),
+  commissionObligations: defineTable({
+    bookingId: v.id('bookings'),
+    hostUserId: v.id('users'),
+    hostProfileId: v.id('hostProfiles'),
+    amountCentavos: v.number(),
+    currency: v.literal('PHP'),
+    commissionBps: v.number(),
+    dueAt: v.number(),
+    accruedAt: v.number(),
+  })
+    .index('by_booking', ['bookingId'])
+    .index('by_host', ['hostUserId'])
+    .index('by_due_at', ['dueAt'])
+    .index('by_host_due_at', ['hostUserId', 'dueAt']),
+  platformFeeLedger: defineTable({
+    hostUserId: v.id('users'),
+    direction: v.union(v.literal('credit'), v.literal('debit')),
+    amountCentavos: v.number(),
+    currency: v.literal('PHP'),
+    kind: ledgerEntryKind,
+    obligationId: v.optional(v.id('commissionObligations')),
+    topUpId: v.optional(v.id('paymongoTopUps')),
+    idempotencyKey: v.string(),
+    createdAt: v.number(),
+  })
+    .index('by_host', ['hostUserId'])
+    .index('by_host_created_at', ['hostUserId', 'createdAt'])
+    .index('by_obligation', ['obligationId'])
+    .index('by_top_up', ['topUpId'])
+    .index('by_idempotency_key', ['idempotencyKey']),
+  paymongoTopUps: defineTable({
+    hostUserId: v.id('users'),
+    amountCentavos: v.number(),
+    currency: v.literal('PHP'),
+    mode: paymongoMode,
+    status: topUpStatus,
+    providerIntentId: v.optional(v.string()),
+    providerClientKey: v.optional(v.string()),
+    providerPaymentMethodId: v.optional(v.string()),
+    providerStatus: v.optional(v.string()),
+    qrImageUrl: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    failedAt: v.optional(v.number()),
+    expiredAt: v.optional(v.number()),
+    failureCode: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_host', ['hostUserId'])
+    .index('by_host_created_at', ['hostUserId', 'createdAt'])
+    .index('by_provider_intent_id', ['providerIntentId'])
+    .index('by_status', ['status'])
+    .index('by_status_updated_at', ['status', 'updatedAt']),
+  paymongoWebhookEvents: defineTable({
+    eventId: v.string(),
+    rawBodyHash: v.string(),
+    eventType: v.string(),
+    mode: paymongoMode,
+    providerIntentId: v.optional(v.string()),
+    status: v.union(v.literal('received'), v.literal('processed'), v.literal('rejected')),
+    outcome: v.optional(v.string()),
+    receivedAt: v.number(),
+    processedAt: v.optional(v.number()),
+  }).index('by_event_id', ['eventId']).index('by_provider_intent_id', ['providerIntentId']),
   messages: defineTable({
     bookingId: v.id('bookings'),
     senderId: v.id('users'),

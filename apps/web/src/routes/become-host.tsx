@@ -110,6 +110,7 @@ function HostAuthPanel() {
               categories: selectedCategories,
               boundaries: String(form.get('boundaries') || '').split('\n').map((item) => item.trim()).filter(Boolean),
               mode: form.get('mode') as 'online' | 'in_person' | 'both',
+              hourlyRateCentavos: Math.round(Number(form.get('hourlyRatePesos')) * 100),
               applicationNote: String(form.get('applicationNote') || '') || undefined,
             })
             setSaved(true)
@@ -287,6 +288,20 @@ function HostAuthPanel() {
               <option value="online">Online only</option>
               <option value="in_person">In-person only</option>
             </select>
+          </label>
+          <label className="field-row">
+            <span className="label">Hourly cash rate <span className="label-aux">PHP</span></span>
+            <input
+              name="hourlyRatePesos"
+              type="number"
+              min="100"
+              max="10000"
+              step="0.01"
+              required
+              defaultValue={(application?.hourlyRateCentavos ?? 50_000) / 100}
+              className="field"
+            />
+            <span className="field-row-help">Members pay you in cash. The locked booking price uses this rate; the platform commission is 10%.</span>
           </label>
           <label className="field-row">
             <span className="label">Intro <span className="label-aux">40 chars minimum</span></span>

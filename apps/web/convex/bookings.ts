@@ -1,8 +1,19 @@
-import { canBookHost, canCancelBooking, canCompleteBooking, canReadBookingMessages } from '@lets-be-friends/shared'
+import {
+  BOOKING_CURRENCY,
+  calculateBookingPrice,
+  canBookHost,
+  canCancelBooking,
+  canCompleteBooking,
+  canReadBookingMessages,
+  nextSaturdayManilaCutoff,
+  validateBookingDurationMinutes,
+  validateHostHourlyRateCentavos,
+} from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
 import { hasCurrentPersonaApproval } from './identityVerification'
+import { pastDueCommissionCentavos } from './finance'
 
 export const mine = query({
   args: {},
@@ -71,16 +82,33 @@ export const createDraft = mutation({
       throw new Error('Friend Host is not currently available for new bookings')
     }
     if (!canBookHost(String(viewer._id), String(host.userId))) throw new Error('You cannot book your own Friend Host profile.')
+    if (!host.categories.includes(args.category)) throw new Error('This experience category is not offered by the Friend Host')
+    if (host.mode !== 'both' && host.mode !== args.mode) throw new Error('This booking mode is not offered by the Friend Host')
+    if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new Error('Booking time must be in the future')
+    const durationMinutes = validateBookingDurationMinutes(args.durationMinutes)
+    const hourlyRateCentavos = validateHostHourlyRateCentavos(host.hourlyRateCentavos ?? Number.NaN)
+    const price = calculateBookingPrice(hourlyRateCentavos, durationMinutes)
     const now = Date.now()
     const bookingId = await ctx.db.insert('bookings', {
       memberId: viewer._id,
       ...args,
+      durationMinutes,
+      grossPriceCentavos: price.grossPriceCentavos,
+      currency: price.currency,
+      commissionBps: price.commissionBps,
+      commissionCentavos: price.commissionCentavos,
       status: 'request_sent',
       createdAt: now,
       updatedAt: now,
     })
-    await writeAudit(ctx, { actorUserId: viewer._id, action: 'booking.request_sent', targetType: 'booking', targetId: String(bookingId) })
-    return bookingId
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'booking.request_sent',
+      targetType: 'booking',
+      targetId: String(bookingId),
+      after: price,
+    })
+    return { bookingId, grossPriceCentavos: price.grossPriceCentavos, currency: price.currency }
   },
 })
 
@@ -100,6 +128,9 @@ export const hostDecision = mutation({
       const member = await ctx.db.get(booking.memberId)
       if (!member || member.suspended || !hasCurrentPersonaApproval(member)) {
         throw new Error('The member must renew identity approval before this booking can be accepted')
+      }
+      if (await pastDueCommissionCentavos(ctx, viewer._id) > 0) {
+        throw new Error('Past-due platform commission must be settled before accepting a new booking')
       }
     }
     await ctx.db.patch(args.bookingId, { status: args.decision, hostDecisionNote: args.note, updatedAt: Date.now() })
@@ -146,10 +177,76 @@ export const markCompleted = mutation({
     const booking = await ctx.db.get(args.bookingId)
     if (!booking) throw new Error('Booking not found')
     const host = await ctx.db.get(booking.hostProfileId)
-    if (booking.memberId !== viewer._id && host?.userId !== viewer._id) throw new Error('Not your booking')
+    if (!host) throw new Error('Friend Host profile not found')
+    const isMember = booking.memberId === viewer._id
+    const isHost = host?.userId === viewer._id
+    if (!isMember && !isHost) throw new Error('Not your booking')
     if (!canCompleteBooking(booking.status)) throw new Error('Only accepted bookings can be completed')
-    await ctx.db.patch(args.bookingId, { status: 'review_window', updatedAt: Date.now() })
-    await writeAudit(ctx, { actorUserId: viewer._id, action: 'booking.review_window_opened', targetType: 'booking', targetId: String(args.bookingId) })
+
+    const now = Date.now()
+    const memberCompletedAt = isMember ? (booking.memberCompletedAt ?? now) : booking.memberCompletedAt
+    const hostCompletedAt = isHost ? (booking.hostCompletedAt ?? now) : booking.hostCompletedAt
+    if (!memberCompletedAt || !hostCompletedAt) {
+      await ctx.db.patch(args.bookingId, {
+        memberCompletedAt,
+        hostCompletedAt,
+        updatedAt: now,
+      })
+      await writeAudit(ctx, {
+        actorUserId: viewer._id,
+        action: isMember ? 'booking.member_completion_confirmed' : 'booking.host_completion_confirmed',
+        targetType: 'booking',
+        targetId: String(args.bookingId),
+      })
+      return { status: 'accepted' as const, awaitingOtherConfirmation: true }
+    }
+
+    let obligationId = booking.commissionObligationId
+    let commissionDueAt = booking.commissionDueAt
+    if (
+      booking.grossPriceCentavos !== undefined
+      && booking.currency === BOOKING_CURRENCY
+      && booking.commissionBps !== undefined
+      && booking.commissionCentavos !== undefined
+    ) {
+      const existing = await ctx.db.query('commissionObligations').withIndex('by_booking', (q) => q.eq('bookingId', booking._id)).unique()
+      if (existing) {
+        obligationId = existing._id
+        commissionDueAt = existing.dueAt
+      } else {
+        const dueAt = nextSaturdayManilaCutoff(now)
+        obligationId = await ctx.db.insert('commissionObligations', {
+          bookingId: booking._id,
+          hostUserId: host!.userId,
+          hostProfileId: host!._id,
+          amountCentavos: booking.commissionCentavos,
+          currency: BOOKING_CURRENCY,
+          commissionBps: booking.commissionBps,
+          dueAt,
+          accruedAt: now,
+        })
+        commissionDueAt = dueAt
+      }
+    }
+
+    await ctx.db.patch(args.bookingId, {
+      status: 'review_window',
+      memberCompletedAt,
+      hostCompletedAt,
+      jointlyCompletedAt: now,
+      commissionDueAt: obligationId ? commissionDueAt : undefined,
+      commissionObligationId: obligationId,
+      commissionExemptReason: obligationId ? undefined : 'legacy_unpriced',
+      updatedAt: now,
+    })
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'booking.review_window_opened',
+      targetType: 'booking',
+      targetId: String(args.bookingId),
+      after: { obligationId: obligationId ? String(obligationId) : undefined },
+    })
+    return { status: 'review_window' as const, awaitingOtherConfirmation: false }
   },
 })
 

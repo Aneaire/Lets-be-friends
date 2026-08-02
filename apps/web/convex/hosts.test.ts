@@ -139,6 +139,7 @@ describe('nearby host discovery privacy', () => {
       categories: ['Coffee or meal companion'],
       boundaries: ['Public places only'],
       mode: 'both',
+      hourlyRateCentavos: 50_000,
     })
 
     const host = await t.run(async (ctx) => ctx.db.query('hostProfiles').first())

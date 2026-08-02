@@ -185,6 +185,7 @@ export const seedPampangaHosts = internalMutation({
         categories: [...seed.categories],
         boundaries: ['Public places only', 'No dating or romantic expectations'],
         mode: seed.mode,
+        hourlyRateCentavos: 50_000,
         status: 'approved' as const,
         applicationNote: 'Development seed for Pampanga nearby-search testing.',
         rating: seed.rating,

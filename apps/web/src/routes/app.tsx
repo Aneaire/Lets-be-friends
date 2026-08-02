@@ -4,7 +4,7 @@ import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type React from 'react'
-import { activityCategories, canBookingChat, canCancelBooking, canCompleteBooking, canReadBookingMessages, canReviewBooking } from '@lets-be-friends/shared'
+import { activityCategories, calculateBookingPrice, canBookingChat, canCancelBooking, canCompleteBooking, canReadBookingMessages, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { WorkspaceShell } from '../components/AppShell'
@@ -25,6 +25,7 @@ type ApprovedHostOption = {
   city: string
   mode: 'online' | 'in_person' | 'both'
   categories?: string[]
+  hourlyRateCentavos?: number
   bookable?: boolean
   viewerCanBook?: boolean
   viewerBookingEligibility?: 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
@@ -366,8 +367,10 @@ function AppPage() {
                       setNotice('Booking cancelled.')
                     }}
                     onComplete={async () => {
-                      await completeBooking({ bookingId: booking._id })
-                      setNotice('Booking marked complete. The review window is open.')
+                      const result = await completeBooking({ bookingId: booking._id })
+                      setNotice(result.awaitingOtherConfirmation
+                        ? 'Completion confirmed. Waiting for the Friend Host to confirm separately.'
+                        : 'Both people confirmed completion. The review window is open.')
                     }}
                     onReview={async (rating, body) => {
                       await submitReview({ bookingId: booking._id, rating, body })
@@ -415,8 +418,10 @@ function AppPage() {
                       setNotice('Booking cancelled.')
                     }}
                     onComplete={async () => {
-                      await completeBooking({ bookingId: booking._id })
-                      setNotice('Booking marked complete. The review window is open.')
+                      const result = await completeBooking({ bookingId: booking._id })
+                      setNotice(result.awaitingOtherConfirmation
+                        ? 'Completion confirmed. Waiting for the Friend Host to confirm separately.'
+                        : 'Both people confirmed completion. The review window is open.')
                     }}
                     onReview={async (rating, body) => {
                       await submitReview({ bookingId: booking._id, rating, body })
@@ -506,6 +511,13 @@ function BookingRow({
         <span className="status-pill" data-tone={status.tone}>{status.label}</span>
       </div>
 
+      {booking.grossPriceCentavos !== undefined && booking.currency === 'PHP' && (
+        <p className="text-meta">
+          Locked cash amount: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.grossPriceCentavos)}</strong>
+          {' · '}10% Friend Host commission is charged from the prepaid platform-fee balance after both people confirm completion.
+        </p>
+      )}
+
       {booking.status === 'verification_required' && (
         <div className="notice notice-warning text-meta">
           <span className="notice-icon">!</span>
@@ -531,7 +543,8 @@ function BookingRow({
               <button className="btn btn-social btn-sm">Send</button>
             </form>
           )}
-          {canComplete && <button type="button" onClick={onComplete} className="btn btn-neutral btn-sm">Mark completed</button>}
+          {canComplete && !booking.memberCompletedAt && <button type="button" onClick={onComplete} className="btn btn-neutral btn-sm">Confirm completion</button>}
+          {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Friend Host</span>}
           {canReview && <ReviewForm onReview={onReview} />}
           {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
           {canCancel && <button type="button" onClick={onCancel} className="btn btn-danger btn-sm">Cancel booking</button>}
@@ -603,7 +616,7 @@ type BookingDialogProps = {
     requestedAt: number
     durationMinutes: number
     notes?: string
-  }) => Promise<Id<'bookings'>>
+  }) => Promise<{ bookingId: Id<'bookings'>; grossPriceCentavos: number; currency: 'PHP' }>
   onClose: () => void
   restoreFocusTo: HTMLElement | null
   setNotice: (notice: string) => void
@@ -627,6 +640,10 @@ function BookingDialog({
   const selectedHost = hosts.find((host) => host._id === selectedHostProfileId)
   const categoryOptions = selectedHost?.categories?.length ? selectedHost.categories : activityCategories
   const [selectedMode, setSelectedMode] = useState<'online' | 'in_person'>('online')
+  const [durationMinutes, setDurationMinutes] = useState(60)
+  const estimatedPrice = selectedHost?.hourlyRateCentavos && durationMinutes >= 15 && durationMinutes <= 720 && durationMinutes % 15 === 0
+    ? calculateBookingPrice(selectedHost.hourlyRateCentavos, durationMinutes).grossPriceCentavos
+    : undefined
   const modeOptions = useMemo<Array<'online' | 'in_person'>>(() => {
     if (selectedHost?.mode === 'in_person') return ['in_person']
     if (selectedHost?.mode === 'online') return ['online']
@@ -748,7 +765,7 @@ function BookingDialog({
             setIsSubmitting(true)
             const form = new FormData(event.currentTarget)
             try {
-              const bookingId = await createDraft({
+              const booking = await createDraft({
                 hostProfileId: selectedHostProfileId as Id<'hostProfiles'>,
                 category: String(form.get('category')),
                 mode: selectedMode,
@@ -758,7 +775,7 @@ function BookingDialog({
               })
               submittingRef.current = false
               setIsSubmitting(false)
-              setNotice(`Booking ${bookingId.toString().slice(-6)} saved. Check the bookings list for next steps.`)
+              setNotice(`Booking ${booking.bookingId.toString().slice(-6)} sent with a locked cash amount of ${formatPhp(booking.grossPriceCentavos)}.`)
               onClose()
             } catch (error) {
               submittingRef.current = false
@@ -828,7 +845,18 @@ function BookingDialog({
             </label>
             <label className="field-row">
               <span className="label">Duration <span className="label-aux">min</span></span>
-              <input name="durationMinutes" type="number" min={15} step={15} required defaultValue="60" className="field" disabled={isSubmitting} />
+              <input
+                name="durationMinutes"
+                type="number"
+                min={15}
+                max={720}
+                step={15}
+                required
+                value={durationMinutes}
+                onChange={(event) => setDurationMinutes(Number(event.currentTarget.value))}
+                className="field"
+                disabled={isSubmitting}
+              />
             </label>
           </div>
 
@@ -848,6 +876,16 @@ function BookingDialog({
             <span className="label">Notes <span className="label-aux">visible to host on accept</span></span>
             <textarea name="notes" className="field min-h-20" disabled={isSubmitting} />
           </label>
+
+          {estimatedPrice !== undefined && (
+            <div className="notice text-meta">
+              <span className="notice-icon">₱</span>
+              <span>
+                Cash amount locked when sent: <strong className="tabular">{formatPhp(estimatedPrice)}</strong>.
+                The server recalculates this from the Friend Host's current hourly rate; no amount is accepted from the browser.
+              </span>
+            </div>
+          )}
 
           <button disabled={!canSubmit} className="btn btn-social btn-block">
             {isSubmitting ? 'Sending request…' : 'Send booking request'}
