@@ -1,3 +1,4 @@
+import type { FeedInstrumentationAction } from '@lets-be-friends/shared'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
@@ -8,9 +9,11 @@ import type { Id } from '../../convex/_generated/dataModel'
 
 export const Route = createFileRoute('/social')({ component: SocialPage })
 
-type FeedPost = NonNullable<ReturnType<typeof useQuery<typeof api.social.feed>>>[number]
+type FeedItem = NonNullable<ReturnType<typeof useQuery<typeof api.social.feed>>>[number]
+type FeedPostItem = Extract<FeedItem, { kind: 'post' }>
+type FeedPost = FeedPostItem['post']
 type PostComment = NonNullable<ReturnType<typeof useQuery<typeof api.social.commentsForPost>>>[number]
-type FeedFilter = 'all' | 'following' | 'saved'
+type FeedFilter = 'for_you' | 'following' | 'saved'
 type PostMediaItem = {
   storageId: Id<'_storage'>
   kind: 'image' | 'video'
@@ -27,8 +30,8 @@ type SelectedMedia = {
 export function SocialPage() {
   const { isSignedIn } = useAuth()
   const viewer = useQuery(api.users.viewer)
-  const [feedFilter, setFeedFilter] = useState<FeedFilter>('all')
-  const posts = useQuery(api.social.feed, { filter: viewer ? feedFilter : 'all' }) as FeedPost[] | undefined
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>('for_you')
+  const feedItems = useQuery(api.social.feed, { filter: viewer ? feedFilter : 'for_you' }) as FeedItem[] | undefined
   const mediaUsage = useQuery(api.social.mediaUploadUsage)
   const createPost = useMutation(api.social.createPost)
   const editPost = useMutation(api.social.editPost)
@@ -40,7 +43,12 @@ export function SocialPage() {
   const toggleSave = useMutation(api.social.toggleSavePost)
   const toggleLike = useMutation(api.social.toggleLike)
   const toggleFollow = useMutation(api.social.toggleFollow)
+  const recordFeedImpressions = useMutation(api.social.recordFeedImpressions)
+  const recordFeedAction = useMutation(api.social.recordFeedAction)
   const report = useMutation(api.reports.create)
+  const feedSessionId = useRef(`feed-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const impressedItemKeys = useRef(new Set<string>())
+  const recordedActionKeys = useRef(new Set<string>())
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [posting, setPosting] = useState(false)
@@ -56,6 +64,41 @@ export function SocialPage() {
   useEffect(() => () => {
     selectedMediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
   }, [])
+
+  useEffect(() => {
+    if (!viewer || !feedItems) return
+    const newItems = feedItems
+      .map((item, position) => ({ item, position }))
+      .filter(({ item }) => !impressedItemKeys.current.has(`${feedFilter}:${item.itemKey}`))
+    newItems.forEach(({ item }) => impressedItemKeys.current.add(`${feedFilter}:${item.itemKey}`))
+    for (let index = 0; index < newItems.length; index += 20) {
+      void recordFeedImpressions({
+        sessionId: feedSessionId.current,
+        surface: feedFilter,
+        items: newItems.slice(index, index + 20).map(({ item, position }) => ({
+          itemKey: item.itemKey,
+          itemType: item.kind,
+          source: item.source,
+          position,
+        })),
+      }).catch(() => undefined)
+    }
+  }, [feedFilter, feedItems, recordFeedImpressions, viewer])
+
+  const recordAction = (item: FeedItem, action: FeedInstrumentationAction) => {
+    if (!viewer) return
+    const key = `${feedFilter}:${item.itemKey}:${action}`
+    if (recordedActionKeys.current.has(key)) return
+    recordedActionKeys.current.add(key)
+    void recordFeedAction({
+      sessionId: feedSessionId.current,
+      surface: feedFilter,
+      itemKey: item.itemKey,
+      itemType: item.kind,
+      source: item.source,
+      action,
+    }).catch(() => undefined)
+  }
 
   const clearSelectedMedia = () => {
     selectedMedia.forEach((item) => URL.revokeObjectURL(item.previewUrl))
@@ -115,7 +158,7 @@ export function SocialPage() {
         </header>
 
         <div className="social-feed-tabs" role="tablist" aria-label="Social feed">
-          {(['all', 'following', 'saved'] as const).map((filter) => (
+          {(['for_you', 'following', 'saved'] as const).map((filter) => (
             <button
               key={filter}
               type="button"
@@ -123,14 +166,14 @@ export function SocialPage() {
               aria-selected={feedFilter === filter}
               className="social-feed-tab"
               data-active={feedFilter === filter}
-              disabled={filter !== 'all' && !viewer}
-              title={filter !== 'all' && !viewer ? 'Sign in to use this feed' : undefined}
+              disabled={filter !== 'for_you' && !viewer}
+              title={filter !== 'for_you' && !viewer ? 'Sign in to use this feed' : undefined}
               onClick={() => {
                 setError('')
                 setFeedFilter(filter)
               }}
             >
-              {filter[0].toUpperCase() + filter.slice(1)}
+              {filter === 'for_you' ? 'For You' : filter[0].toUpperCase() + filter.slice(1)}
             </button>
           ))}
         </div>
@@ -243,57 +286,125 @@ export function SocialPage() {
           </div>
         )}
 
-        {posts === undefined && <SocialTimelineSkeleton />}
-        {posts && posts.length === 0 && (
+        {feedItems === undefined && <SocialTimelineSkeleton />}
+        {feedItems && feedItems.length === 0 && feedFilter !== 'for_you' && (
           <div className="empty-state social-feed-empty">
-            <p className="empty-state-title">No {feedFilter === 'all' ? 'posts' : `${feedFilter} posts`} yet.</p>
-            <p className="text-meta">{feedFilter === 'all' ? 'Share the first community update.' : `Posts in your ${feedFilter} feed will appear here.`}</p>
+            <p className="empty-state-title">No {feedFilter} posts yet.</p>
+            <p className="text-meta">Posts in your {feedFilter} feed will appear here.</p>
           </div>
         )}
-        {posts && posts.length > 0 && (
+        {feedItems && feedItems.length > 0 && (
           <div className="social-feed">
-            {posts.map((post) => (
-              <PostRow
-                key={post._id}
-                post={post}
-                viewerReady={Boolean(viewer)}
-                onComment={async (body) => {
+            {feedItems.map((item) => {
+              if (item.kind === 'host') {
+                return <HostRecommendationCard key={item.itemKey} item={item} onOpen={() => recordAction(item, 'open_host')} />
+              }
+              if (item.kind === 'guidance') {
+                return <GuidanceCard key={item.itemKey} item={item} onOpen={() => recordAction(item, 'open_guidance')} />
+              }
+              const post = item.post
+              return (
+                <PostRow
+                  key={item.itemKey}
+                  post={post}
+                  reason={item.reason}
+                  viewerReady={Boolean(viewer)}
+                  onComment={async (body) => {
                     await createComment({ postId: post._id, body })
-                  setNotice('Comment added.')
-                }}
-                onEdit={async (body) => {
-                  await editPost({ postId: post._id, body })
-                  setNotice('Post updated.')
-                }}
-                onDelete={async () => {
-                  await deletePost({ postId: post._id })
-                  setNotice('Post deleted.')
-                }}
-                onLike={async () => {
-                  await toggleLike({ postId: post._id })
-                }}
-                onSave={async () => {
-                  await toggleSave({ postId: post._id })
-                  setNotice(post.saved ? 'Post removed from saved.' : 'Post saved.')
-                }}
-                onFollow={async () => {
-                  await toggleFollow({ userId: post.authorId })
-                  setNotice(post.followingAuthor ? 'Member unfollowed.' : 'Member followed.')
-                }}
-                onReport={async () => {
-                  await report({ targetType: 'post', targetId: post._id, reason: 'Post needs safety review' })
-                  setNotice('Report sent to safety review.')
-                }}
-                onReportComment={async (commentId) => {
-                  await report({ targetType: 'comment', targetId: commentId, reason: 'Comment needs safety review' })
-                  setNotice('Comment report sent to safety review.')
-                }}
-              />
-            ))}
+                    recordAction(item, 'comment')
+                    setNotice('Comment added.')
+                  }}
+                  onEdit={async (body) => {
+                    await editPost({ postId: post._id, body })
+                    setNotice('Post updated.')
+                  }}
+                  onDelete={async () => {
+                    await deletePost({ postId: post._id })
+                    setNotice('Post deleted.')
+                  }}
+                  onLike={async () => {
+                    await toggleLike({ postId: post._id })
+                    recordAction(item, 'like')
+                  }}
+                  onSave={async () => {
+                    await toggleSave({ postId: post._id })
+                    recordAction(item, 'save')
+                    setNotice(post.saved ? 'Post removed from saved.' : 'Post saved.')
+                  }}
+                  onFollow={async () => {
+                    await toggleFollow({ userId: post.authorId })
+                    recordAction(item, 'follow')
+                    setNotice(post.followingAuthor ? 'Member unfollowed.' : 'Member followed.')
+                  }}
+                  onReport={async () => {
+                    await report({ targetType: 'post', targetId: post._id, reason: 'Post needs safety review' })
+                    recordAction(item, 'report')
+                    setNotice('Report sent to safety review.')
+                  }}
+                  onReportComment={async (commentId) => {
+                    await report({ targetType: 'comment', targetId: commentId, reason: 'Comment needs safety review' })
+                    recordAction(item, 'report_comment')
+                    setNotice('Comment report sent to safety review.')
+                  }}
+                />
+              )
+            })}
           </div>
         )}
       </section>
     </main>
+  )
+}
+
+function HostRecommendationCard({
+  item,
+  onOpen,
+}: {
+  item: Extract<FeedItem, { kind: 'host' }>
+  onOpen: () => void
+}) {
+  return (
+    <aside className="social-reserve-card" aria-label={`Recommended Friend Host: ${item.host.displayName}`}>
+      <div className="social-reserve-label">Friend Host recommendation</div>
+      <div className="social-reserve-head">
+        <div>
+          <h2 className="text-h3">{item.host.displayName}</h2>
+          <p className="text-meta">{item.host.mode.replace('_', ' ')} · {item.host.rating.toFixed(1)} from {item.host.reviewCount} reviews</p>
+        </div>
+        <Link
+          to="/host-profile"
+          search={{ hostProfileId: item.host._id }}
+          className="btn btn-social btn-sm"
+          onClick={onOpen}
+          aria-label={`View ${item.host.displayName}'s Friend Host profile`}
+        >
+          View profile
+        </Link>
+      </div>
+      <p className="social-reserve-copy">{item.host.intro}</p>
+      <p className="social-feed-reason">Why this fits: {item.reason}</p>
+      <div className="social-reserve-tags" aria-label="Categories and Strengths">
+        {[...item.host.categories, ...item.host.strengths].slice(0, 4).map((label) => <span key={label}>{label}</span>)}
+      </div>
+    </aside>
+  )
+}
+
+function GuidanceCard({
+  item,
+  onOpen,
+}: {
+  item: Extract<FeedItem, { kind: 'guidance' }>
+  onOpen: () => void
+}) {
+  return (
+    <aside className="social-reserve-card social-guidance-card" aria-label="Let's Be Friends guidance">
+      <div className="social-reserve-label">Let&apos;s Be Friends guide</div>
+      <h2 className="text-h3">{item.title}</h2>
+      <p className="social-reserve-copy">{item.body}</p>
+      <p className="social-feed-reason">Why this fits: {item.reason}</p>
+      <Link to={item.actionHref} className="btn btn-neutral btn-sm" onClick={onOpen}>{item.actionLabel}</Link>
+    </aside>
   )
 }
 
@@ -324,6 +435,7 @@ function SocialTimelineSkeleton() {
 
 function PostRow({
   post,
+  reason,
   viewerReady,
   onComment,
   onEdit,
@@ -335,6 +447,7 @@ function PostRow({
   onReportComment,
 }: {
   post: FeedPost
+  reason: string
   viewerReady: boolean
   onComment: (body: string) => Promise<void>
   onEdit: (body: string) => Promise<void>
@@ -411,6 +524,7 @@ function PostRow({
             ) : null}
           </div>
         </div>
+        <p className="social-feed-reason" aria-label={`Why this fits: ${reason}`}>Why this fits: {reason}</p>
         {editing ? (
           <form
             className="social-edit-form"

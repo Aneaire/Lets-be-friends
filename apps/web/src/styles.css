@@ -3478,6 +3478,70 @@ textarea.field {
   margin: 1rem;
 }
 
+.social-feed-reason {
+  margin: 0.45rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.social-reserve-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-social-line);
+  background: var(--surface);
+}
+
+.social-guidance-card {
+  border-left-color: var(--border-strong);
+}
+
+.social-reserve-label {
+  color: var(--accent-social);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.social-guidance-card .social-reserve-label {
+  color: var(--text-muted);
+}
+
+.social-reserve-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.social-reserve-copy {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.social-reserve-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.social-reserve-tags span {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.social-guidance-card .btn {
+  justify-self: start;
+}
+
 @media (max-width: 640px) {
   .social-page {
     width: 100%;
@@ -3519,6 +3583,10 @@ textarea.field {
 
   .social-comment-form {
     grid-template-columns: 1fr;
+  }
+
+  .social-reserve-head {
+    flex-direction: column;
   }
 }
 

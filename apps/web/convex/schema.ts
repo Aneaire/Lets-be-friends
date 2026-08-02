@@ -42,6 +42,27 @@ const postMedia = v.object({
   contentType: v.string(),
   size: v.number(),
 })
+const feedSource = v.union(
+  v.literal('followed'),
+  v.literal('interest'),
+  v.literal('completed_experience'),
+  v.literal('trending'),
+  v.literal('recent'),
+  v.literal('exploration'),
+  v.literal('host_fallback'),
+  v.literal('first_party_guidance'),
+)
+const feedAction = v.union(
+  v.literal('open_host'),
+  v.literal('open_guidance'),
+  v.literal('comment'),
+  v.literal('like'),
+  v.literal('save'),
+  v.literal('follow'),
+  v.literal('report'),
+  v.literal('report_comment'),
+)
+const feedSurface = v.union(v.literal('for_you'), v.literal('following'), v.literal('saved'))
 
 export default defineSchema({
   users: defineTable({
@@ -225,6 +246,20 @@ export default defineSchema({
     hostProfileId: v.id('hostProfiles'),
     createdAt: v.number(),
   }).index('by_user', ['userId']).index('by_host_profile', ['hostProfileId']).index('by_pair', ['userId', 'hostProfileId']),
+  feedEvents: defineTable({
+    userId: v.id('users'),
+    sessionId: v.string(),
+    itemKey: v.string(),
+    itemType: v.union(v.literal('post'), v.literal('host'), v.literal('guidance')),
+    source: feedSource,
+    surface: feedSurface,
+    algorithmVersion: v.string(),
+    eventType: v.union(v.literal('impression'), v.literal('action')),
+    action: v.optional(feedAction),
+    position: v.optional(v.number()),
+    dedupeKey: v.string(),
+    createdAt: v.number(),
+  }).index('by_dedupe_key', ['dedupeKey']).index('by_user_session', ['userId', 'sessionId']),
   reports: defineTable({
     reporterId: v.id('users'),
     targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user')),

@@ -1,7 +1,18 @@
-import { isModerationVisible } from '@lets-be-friends/shared'
+import {
+  boundedRatio,
+  engagementScore,
+  freshnessScore,
+  isModerationVisible,
+  rerankFeedCandidates,
+  type FeedCandidateSource,
+  type FeedInstrumentationAction,
+  type FeedInstrumentationSource,
+  type FeedRankingCandidate,
+} from '@lets-be-friends/shared'
 import { v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
+import { hasCurrentPersonaApproval } from './identityVerification'
 import { getViewer, requireViewer, writeAudit } from './lib'
 
 const MAX_MEDIA_UPLOADS_PER_DAY = 5
@@ -9,31 +20,160 @@ const MEDIA_UPLOAD_WINDOW_MS = 24 * 60 * 60 * 1000
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024
 const FEED_LIMIT = 50
+const FOR_YOU_PAGE_SIZE = 20
+const FOR_YOU_CANDIDATE_LIMIT = 120
+const MAX_INSTRUMENTATION_BATCH = 20
+const FEED_ALGORITHM_VERSION = 'feed_v1'
+
+const feedItemType = v.union(v.literal('post'), v.literal('host'), v.literal('guidance'))
+const feedSource = v.union(
+  v.literal('followed'),
+  v.literal('interest'),
+  v.literal('completed_experience'),
+  v.literal('trending'),
+  v.literal('recent'),
+  v.literal('exploration'),
+  v.literal('host_fallback'),
+  v.literal('first_party_guidance'),
+)
+const feedAction = v.union(
+  v.literal('open_host'),
+  v.literal('open_guidance'),
+  v.literal('comment'),
+  v.literal('like'),
+  v.literal('save'),
+  v.literal('follow'),
+  v.literal('report'),
+  v.literal('report_comment'),
+)
+const feedSurface = v.union(v.literal('for_you'), v.literal('following'), v.literal('saved'))
+
+type PostRankingCandidate = FeedRankingCandidate & {
+  post: Doc<'posts'>
+  reason: string
+}
 
 export const feed = query({
-  args: { filter: v.optional(v.union(v.literal('all'), v.literal('following'), v.literal('saved'))) },
+  args: {
+    filter: v.optional(v.union(v.literal('for_you'), v.literal('following'), v.literal('saved'))),
+    seenItemKeys: v.optional(v.array(v.string())),
+  },
   handler: async (ctx, args) => {
     const viewer = await getViewer(ctx)
     if (viewer?.suspended) throw new Error('Account is suspended')
-    const filter = args.filter ?? 'all'
-    if (filter !== 'all' && !viewer) throw new Error('Sign in to use this feed')
+    const filter = args.filter ?? 'for_you'
+    if (filter !== 'for_you' && !viewer) throw new Error('Sign in to use this feed')
+    validateSeenItemKeys(args.seenItemKeys)
 
-    let posts: Doc<'posts'>[]
     if (filter === 'saved' && viewer) {
-      const saves = await ctx.db.query('savedPosts').withIndex('by_user', (q) => q.eq('userId', viewer._id)).collect()
-      posts = (await Promise.all(saves.map((save) => ctx.db.get(save.postId))))
+      const saves = await ctx.db.query('savedPosts').withIndex('by_user', (q) => q.eq('userId', viewer._id)).order('desc').take(FEED_LIMIT)
+      const ordered = saves.sort((a, b) => b.createdAt - a.createdAt)
+      const posts = (await Promise.all(ordered.map((save) => ctx.db.get(save.postId))))
         .filter((post): post is Doc<'posts'> => post !== null)
-    } else if (filter === 'following' && viewer) {
-      const follows = await ctx.db.query('follows').withIndex('by_follower', (q) => q.eq('followerId', viewer._id)).collect()
+      return await postOnlyFeed(ctx, posts, viewer, 'recent', 'You saved this post')
+    }
+
+    if (filter === 'following' && viewer) {
+      const follows = await ctx.db.query('follows').withIndex('by_follower', (q) => q.eq('followerId', viewer._id)).take(50)
       const followedPosts = await Promise.all(follows.map((follow) => (
         ctx.db.query('posts').withIndex('by_author_hidden_created_at', (q) => q.eq('authorId', follow.followingId).eq('hidden', false)).order('desc').take(FEED_LIMIT)
       )))
-      posts = followedPosts.flat().sort((a, b) => b.createdAt - a.createdAt).slice(0, FEED_LIMIT)
-    } else {
-      posts = await ctx.db.query('posts').withIndex('by_created_at').order('desc').take(FEED_LIMIT)
+      const posts = followedPosts.flat().sort((a, b) => b.createdAt - a.createdAt).slice(0, FEED_LIMIT)
+      return await postOnlyFeed(ctx, posts, viewer, 'followed', 'From someone you follow')
     }
 
-    return await Promise.all(posts.filter(isModerationVisible).map((post) => enrichPost(ctx, post, viewer)))
+    const rankedPosts = await forYouPosts(ctx, viewer, new Set(args.seenItemKeys ?? []))
+    const postItems = await Promise.all(rankedPosts.map(async (candidate) => ({
+      kind: 'post' as const,
+      itemKey: `post:${candidate.post._id}`,
+      source: candidate.source,
+      reason: candidate.reason,
+      post: await enrichPost(ctx, candidate.post, viewer),
+    })))
+    if (postItems.length >= 8) return postItems
+    const hostItems = await approvedHostFallback(ctx, viewer, 3)
+    return [
+      ...postItems,
+      ...hostItems,
+      {
+        kind: 'guidance' as const,
+        itemKey: 'guidance:feed-basics',
+        source: 'first_party_guidance' as const,
+        reason: 'A quick way to shape your recommendations',
+        title: 'Make For You feel more like you',
+        body: 'Follow members, save useful posts, and book categories you enjoy. These signals help tune your feed without using exact location data.',
+        actionLabel: 'Find Friend Hosts',
+        actionHref: '/discover' as const,
+      },
+    ]
+  },
+})
+
+export const recordFeedImpressions = mutation({
+  args: {
+    sessionId: v.string(),
+    surface: feedSurface,
+    items: v.array(v.object({
+      itemKey: v.string(),
+      itemType: feedItemType,
+      source: feedSource,
+      position: v.number(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    validateInstrumentationInput(args.sessionId, args.items, true)
+    const uniqueItems = [...new Map(args.items.map((item) => [item.itemKey, item])).values()]
+    let inserted = 0
+    for (const item of uniqueItems) {
+      const dedupeKey = instrumentationKey(viewer._id, args.sessionId, args.surface, 'impression', item.itemKey)
+      const existing = await ctx.db.query('feedEvents').withIndex('by_dedupe_key', (q) => q.eq('dedupeKey', dedupeKey)).first()
+      if (existing) continue
+      await ctx.db.insert('feedEvents', {
+        userId: viewer._id,
+        sessionId: args.sessionId,
+        surface: args.surface,
+        algorithmVersion: FEED_ALGORITHM_VERSION,
+        ...item,
+        eventType: 'impression',
+        dedupeKey,
+        createdAt: Date.now(),
+      })
+      inserted += 1
+    }
+    return { inserted }
+  },
+})
+
+export const recordFeedAction = mutation({
+  args: {
+    sessionId: v.string(),
+    surface: feedSurface,
+    itemKey: v.string(),
+    itemType: feedItemType,
+    source: feedSource,
+    action: feedAction,
+  },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    validateInstrumentationInput(args.sessionId, [args], false)
+    const dedupeKey = instrumentationKey(viewer._id, args.sessionId, args.surface, 'action', args.itemKey, args.action)
+    const existing = await ctx.db.query('feedEvents').withIndex('by_dedupe_key', (q) => q.eq('dedupeKey', dedupeKey)).first()
+    if (existing) return { inserted: false }
+    await ctx.db.insert('feedEvents', {
+      userId: viewer._id,
+      sessionId: args.sessionId,
+      surface: args.surface,
+      algorithmVersion: FEED_ALGORITHM_VERSION,
+      itemKey: args.itemKey,
+      itemType: args.itemType,
+      source: args.source,
+      eventType: 'action',
+      action: args.action,
+      dedupeKey,
+      createdAt: Date.now(),
+    })
+    return { inserted: true }
   },
 })
 
@@ -294,6 +434,286 @@ export const toggleFollow = mutation({
     return true
   },
 })
+
+async function postOnlyFeed(
+  ctx: any,
+  posts: Doc<'posts'>[],
+  viewer: Doc<'users'>,
+  source: FeedCandidateSource,
+  reason: string,
+) {
+  const safePosts = await safeVisiblePosts(ctx, posts)
+  return await Promise.all(safePosts.map(async (post) => ({
+    kind: 'post' as const,
+    itemKey: `post:${post._id}`,
+    source,
+    reason,
+    post: await enrichPost(ctx, post, viewer),
+  })))
+}
+
+async function safeVisiblePosts(ctx: any, posts: Doc<'posts'>[]) {
+  const checked = await Promise.all(posts.map(async (post) => {
+    if (!isModerationVisible(post) || post.deletedAt) return null
+    const author = await ctx.db.get(post.authorId)
+    return author && !author.suspended ? post : null
+  }))
+  return checked.filter((post): post is Doc<'posts'> => post !== null)
+}
+
+async function forYouPosts(ctx: any, viewer: Doc<'users'> | null, seenItemKeys: Set<string>) {
+  const now = Date.now()
+  const recentPosts = await ctx.db.query('posts').withIndex('by_created_at').order('desc').take(80)
+  const follows = viewer
+    ? await ctx.db.query('follows').withIndex('by_follower', (q: any) => q.eq('followerId', viewer._id)).order('desc').take(30)
+    : []
+  const followedPosts = await Promise.all(follows.map((follow: Doc<'follows'>) => (
+    ctx.db.query('posts').withIndex('by_author_hidden_created_at', (q: any) => q.eq('authorId', follow.followingId).eq('hidden', false)).order('desc').take(4)
+  )))
+  const candidatePosts = [...new Map(
+    [...followedPosts.flat(), ...recentPosts].map((post: Doc<'posts'>) => [String(post._id), post]),
+  ).values()].slice(0, FOR_YOU_CANDIDATE_LIMIT) as Doc<'posts'>[]
+  const safePosts = await safeVisiblePosts(ctx, candidatePosts)
+  const followedAuthorIds = new Set(follows.map((follow: Doc<'follows'>) => String(follow.followingId)))
+  const interests = await viewerInterests(ctx, viewer)
+  const hostProfileCache = new Map<string, Doc<'hostProfiles'> | null>()
+
+  const candidates = (await Promise.all(safePosts.map(async (post): Promise<PostRankingCandidate | null> => {
+    const author = await ctx.db.get(post.authorId)
+    if (!author || author.suspended) return null
+    const [comments, reactions, saves, experienceBooking, authorHost] = await Promise.all([
+      ctx.db.query('postComments').withIndex('by_post', (q: any) => q.eq('postId', post._id)).take(50),
+      ctx.db.query('postReactions').withIndex('by_post', (q: any) => q.eq('postId', post._id)).take(100),
+      ctx.db.query('savedPosts').withIndex('by_post', (q: any) => q.eq('postId', post._id)).take(50),
+      post.experienceBookingId ? ctx.db.get(post.experienceBookingId) : null,
+      hostProfileForUser(ctx, post.authorId, hostProfileCache),
+    ])
+    const completedExperience = Boolean(experienceBooking && ['completed', 'review_window', 'closed'].includes(experienceBooking.status))
+    const topics = [
+      ...(completedExperience ? [experienceBooking!.category] : []),
+      ...(authorHost?.categories ?? []),
+      ...(authorHost?.strengths ?? []),
+    ]
+    const topicMatch = bestTopicMatch(topics, interests.categoryWeights, interests.maximumCategoryWeight)
+    const category = topicMatch.topic ?? topics[0]
+    const categorySignal = topicMatch.score
+    const engagement = engagementScore(
+      comments.filter(isModerationVisible).length,
+      reactions.length,
+      saves.length,
+    )
+    const followed = followedAuthorIds.has(String(post.authorId))
+    const relationship = followed
+      ? 1
+      : interests.bookedHostUserIds.has(String(post.authorId))
+        ? 0.85
+        : interests.savedHostUserIds.has(String(post.authorId))
+          ? 0.7
+          : interests.interactedAuthorIds.has(String(post.authorId))
+            ? 0.55
+            : 0
+    const approvedHost = Boolean(
+      authorHost?.status === 'approved'
+      && hasCurrentPersonaApproval(author, now),
+    )
+    const trustQuality = completedExperience
+      ? 0.9
+      : approvedHost && authorHost
+        ? 0.5 + boundedRatio(authorHost.rating, 5) * 0.25 + boundedRatio(authorHost.reviewCount, 20) * 0.25
+        : 0.25
+    const newAuthor = now - author.createdAt <= 30 * 24 * 60 * 60 * 1000
+    const underexposure = Math.max(newAuthor ? 0.8 : 0.35, 1 - engagement)
+    const source = candidateSource({ followed, categorySignal, completedExperience, engagement, underexposure })
+
+    return {
+      id: String(post._id),
+      authorId: String(post.authorId),
+      category,
+      source,
+      reason: reasonForSource(source, topicMatch.topic),
+      seen: seenItemKeys.has(`post:${post._id}`),
+      signals: {
+        relationship,
+        category: categorySignal,
+        freshness: freshnessScore(post.createdAt, now),
+        meaningfulEngagement: engagement,
+        trustQuality,
+        underexposure,
+      },
+      post,
+    }
+  }))).filter((candidate): candidate is PostRankingCandidate => candidate !== null)
+
+  return rerankFeedCandidates(candidates, {
+    pageSize: FOR_YOU_PAGE_SIZE,
+    maxPerAuthor: 2,
+    explorationShare: 0.2,
+  })
+}
+
+async function viewerInterests(ctx: any, viewer: Doc<'users'> | null) {
+  const categoryWeights = new Map<string, number>()
+  const bookedHostUserIds = new Set<string>()
+  const savedHostUserIds = new Set<string>()
+  const interactedAuthorIds = new Set<string>()
+  if (!viewer) return { categoryWeights, maximumCategoryWeight: 1, bookedHostUserIds, savedHostUserIds, interactedAuthorIds }
+
+  const [bookings, savedProfiles, savedPosts, reactions] = await Promise.all([
+    ctx.db.query('bookings').withIndex('by_member', (q: any) => q.eq('memberId', viewer._id)).order('desc').take(50),
+    ctx.db.query('savedProfiles').withIndex('by_user', (q: any) => q.eq('userId', viewer._id)).order('desc').take(50),
+    ctx.db.query('savedPosts').withIndex('by_user', (q: any) => q.eq('userId', viewer._id)).order('desc').take(50),
+    ctx.db.query('postReactions').withIndex('by_user', (q: any) => q.eq('userId', viewer._id)).order('desc').take(50),
+  ])
+  const bookingHosts = await Promise.all(bookings.map((booking: Doc<'bookings'>) => ctx.db.get(booking.hostProfileId)))
+  bookingHosts.forEach((host, index) => {
+    if (!host) return
+    bookedHostUserIds.add(String(host.userId))
+    addCategoryWeight(categoryWeights, bookings[index].category, 3)
+    host.strengths.forEach((strength: string) => addCategoryWeight(categoryWeights, strength, 0.5))
+  })
+  const savedHosts = await Promise.all(savedProfiles.map((saved: Doc<'savedProfiles'>) => ctx.db.get(saved.hostProfileId)))
+  savedHosts.forEach((host) => {
+    if (!host) return
+    savedHostUserIds.add(String(host.userId))
+    host.categories.forEach((category: string) => addCategoryWeight(categoryWeights, category, 2))
+    host.strengths.forEach((strength: string) => addCategoryWeight(categoryWeights, strength, 0.5))
+  })
+  const interactedPosts = await Promise.all([
+    ...savedPosts.map((saved: Doc<'savedPosts'>) => ctx.db.get(saved.postId)),
+    ...reactions.map((reaction: Doc<'postReactions'>) => ctx.db.get(reaction.postId)),
+  ])
+  const interactionHostCache = new Map<string, Doc<'hostProfiles'> | null>()
+  for (const post of interactedPosts) {
+    if (!post) continue
+    interactedAuthorIds.add(String(post.authorId))
+    const host = await hostProfileForUser(ctx, post.authorId, interactionHostCache)
+    host?.categories.forEach((category: string) => addCategoryWeight(categoryWeights, category, 1))
+    host?.strengths.forEach((strength: string) => addCategoryWeight(categoryWeights, strength, 0.25))
+  }
+  return {
+    categoryWeights,
+    maximumCategoryWeight: Math.max(1, ...categoryWeights.values()),
+    bookedHostUserIds,
+    savedHostUserIds,
+    interactedAuthorIds,
+  }
+}
+
+async function hostProfileForUser(ctx: any, userId: Id<'users'>, cache: Map<string, Doc<'hostProfiles'> | null>) {
+  const key = String(userId)
+  if (cache.has(key)) return cache.get(key) ?? null
+  const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q: any) => q.eq('userId', userId)).first()
+  cache.set(key, host)
+  return host
+}
+
+function addCategoryWeight(weights: Map<string, number>, category: string, amount: number) {
+  weights.set(category, Math.min(10, (weights.get(category) ?? 0) + amount))
+}
+
+function bestTopicMatch(topics: string[], weights: Map<string, number>, maximumWeight: number) {
+  const rankedTopics = [...new Set(topics)].map((topic) => ({
+    topic,
+    weight: weights.get(topic) ?? 0,
+  })).sort((left, right) => right.weight - left.weight || left.topic.localeCompare(right.topic))
+  const best = rankedTopics[0]
+  if (!best || best.weight <= 0) return { topic: undefined, score: 0 }
+  return { topic: best.topic, score: boundedRatio(best.weight, maximumWeight) }
+}
+
+function candidateSource(input: {
+  followed: boolean
+  categorySignal: number
+  completedExperience: boolean
+  engagement: number
+  underexposure: number
+}): FeedCandidateSource {
+  if (input.followed) return 'followed'
+  if (input.categorySignal > 0) return 'interest'
+  if (input.completedExperience) return 'completed_experience'
+  if (input.engagement >= 0.45) return 'trending'
+  if (input.underexposure >= 0.72) return 'exploration'
+  return 'recent'
+}
+
+function reasonForSource(source: FeedCandidateSource, category?: string) {
+  if (source === 'followed') return 'From someone you follow'
+  if (source === 'interest') return category ? `Matches your interest in ${category}` : 'Matches your activity interests'
+  if (source === 'completed_experience') return 'A recent completed experience'
+  if (source === 'trending') return 'A conversation members are joining'
+  if (source === 'exploration') return 'A newer voice to discover'
+  return 'Fresh from the community'
+}
+
+async function approvedHostFallback(ctx: any, viewer: Doc<'users'> | null, limit: number) {
+  const interests = await viewerInterests(ctx, viewer)
+  const hosts = await ctx.db.query('hostProfiles').withIndex('by_status', (q: any) => q.eq('status', 'approved')).take(20)
+  const safeHosts = (await Promise.all(hosts.map(async (host: Doc<'hostProfiles'>) => {
+    const user = await ctx.db.get(host.userId)
+    if (!user || user.suspended || !hasCurrentPersonaApproval(user) || user._id === viewer?._id) return null
+    const topicMatch = bestTopicMatch([...host.categories, ...host.strengths], interests.categoryWeights, interests.maximumCategoryWeight)
+    return {
+      overlap: topicMatch.score,
+      evidence: boundedRatio(host.rating, 5) * 0.7 + boundedRatio(host.reviewCount, 20) * 0.3,
+      item: {
+        kind: 'host' as const,
+        itemKey: `host:${host._id}`,
+        source: 'host_fallback' as const,
+        reason: topicMatch.topic ? `Matches your interest in ${topicMatch.topic}` : 'An approved Friend Host to explore',
+        host: {
+          _id: host._id,
+          displayName: user.displayName,
+          intro: host.intro,
+          strengths: host.strengths.slice(0, 3),
+          categories: host.categories.slice(0, 3),
+          mode: host.mode,
+          rating: host.rating,
+          reviewCount: host.reviewCount,
+        },
+      },
+    }
+  }))).filter((host) => host !== null)
+  return safeHosts
+    .sort((left, right) => (
+      right.overlap - left.overlap
+      || right.evidence - left.evidence
+      || String(left.item.host._id).localeCompare(String(right.item.host._id))
+    ))
+    .slice(0, limit)
+    .map(({ item }) => item)
+}
+
+function validateSeenItemKeys(itemKeys: string[] | undefined) {
+  if (!itemKeys) return
+  if (itemKeys.length > 100) throw new Error('Too many seen feed items')
+  if (itemKeys.some((key) => key.length < 1 || key.length > 96)) throw new Error('Invalid seen feed item key')
+}
+
+function validateInstrumentationInput(
+  sessionId: string,
+  items: Array<{ itemKey: string; source: FeedInstrumentationSource; position?: number }>,
+  requirePosition: boolean,
+) {
+  if (sessionId.length < 8 || sessionId.length > 64) throw new Error('Feed session ID must be between 8 and 64 characters')
+  if (items.length < 1 || items.length > MAX_INSTRUMENTATION_BATCH) throw new Error(`Feed events must include 1 to ${MAX_INSTRUMENTATION_BATCH} items`)
+  for (const item of items) {
+    if (item.itemKey.length < 1 || item.itemKey.length > 96) throw new Error('Feed item key must be between 1 and 96 characters')
+    if (requirePosition && (!Number.isInteger(item.position) || item.position! < 0 || item.position! > 99)) {
+      throw new Error('Feed impression position must be an integer from 0 to 99')
+    }
+  }
+}
+
+function instrumentationKey(
+  userId: Id<'users'>,
+  sessionId: string,
+  surface: 'for_you' | 'following' | 'saved',
+  eventType: 'impression' | 'action',
+  itemKey: string,
+  action: FeedInstrumentationAction | '' = '',
+) {
+  return `${userId}|${sessionId}|${surface}|${eventType}|${itemKey}|${action}`
+}
 
 async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | null) {
   const [author, comments, reactions, saved, following] = await Promise.all([

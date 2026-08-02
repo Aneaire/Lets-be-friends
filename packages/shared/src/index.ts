@@ -1,3 +1,5 @@
+export * from './feed'
+
 export const friendStrengths = [
   'Good listener',
   'Local tour buddy',
