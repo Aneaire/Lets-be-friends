@@ -7,23 +7,58 @@ import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { ApproximateLocationMap } from '../components/ApproximateLocationMap'
 import { useIdentityVerification } from '../components/IdentityVerificationFlow'
-import { roundCoordinates, type Coordinates } from '../lib/geo'
+import { geolocationErrorMessage, roundCoordinates, type Coordinates } from '../lib/geo'
 import { identityEntitlementStatus, memberVerificationPresentation, type MemberVerificationPresentation } from '../lib/memberVerification'
 
 export const Route = createFileRoute('/become-host')({ component: BecomeHostPage })
 
 function BecomeHostPage() {
   return (
-    <main className="marketing-page-wide">
-      <header className="mb-10">
-        <p className="eyebrow">Become a host</p>
-        <h1 className="text-h1 mt-2">Apply as a Friend Host.</h1>
-        <p className="lede mt-2">
-          Build a profile around what you offer: strengths, boundaries, online or in-person mode,
-          and safe activity categories. Identity verification and safety review happen before
-          public discovery.
-        </p>
+    <main className="marketing-page-wide hosting-page">
+      <header className="hosting-hero">
+        <div className="hosting-hero-copy">
+          <p className="eyebrow">Share what you enjoy</p>
+          <h1 className="text-display mt-4">Make time for something you love. Invite someone along.</h1>
+          <p className="lede mt-5">
+            Friend Hosts are verified members who make room for shared activities, conversation,
+            or local knowledge. You choose what you offer, when you are available, and where your boundaries are.
+          </p>
+        </div>
+        <div className="hosting-hero-visual">
+          <figure className="marketing-photo hosting-hero-photo">
+            <img
+              src="/images/marketing/photography-walk.webp"
+              alt="Two friends sharing a photography walk beside a colorful public mural"
+              loading="eager"
+              decoding="async"
+            />
+          </figure>
+          <div className="hosting-definition">
+            <span className="hosting-definition-label">What is a Friend Host?</span>
+            <p>A verified member who offers a clear, safe experience built around time together, with clear boundaries and no dating expectations.</p>
+          </div>
+        </div>
       </header>
+
+      <section className="hosting-benefit-grid" aria-label="What you control">
+        <article><span>01</span><h2>Start with your interests</h2><p>Choose the activities and Strengths that feel natural to you.</p></article>
+        <article><span>02</span><h2>Set the boundaries</h2><p>Decide online or in-person, your schedule, your rate, and what you do not offer.</p></article>
+        <article><span>03</span><h2>Get reviewed before going live</h2><p>Identity and profile review happen before anyone can discover or book you.</p></article>
+      </section>
+      <section className="hosting-ideas" aria-labelledby="hosting-ideas-title">
+        <div>
+          <p className="eyebrow">Your invitation can be simple</p>
+          <h2 id="hosting-ideas-title" className="text-display section-display">Share the part you already enjoy.</h2>
+        </div>
+        <div className="hosting-idea-list">
+          <span>Lead a photo walk</span>
+          <span>Practice a language</span>
+          <span>Co-work for an afternoon</span>
+          <span>Show someone around</span>
+          <span>Play a favorite game</span>
+          <span>Talk over coffee</span>
+        </div>
+      </section>
       <HostAuthPanel />
     </main>
   )
@@ -66,13 +101,16 @@ function HostAuthPanel() {
 
   if (!isSignedIn) {
     return (
-      <div className="empty-state">
-        <p className="empty-state-title">Sign in first</p>
-        <p className="text-meta max-w-[40ch]">
-          Host applications are tied to a verified account so safety review can reach back to you.
-        </p>
+      <div className="hosting-signin">
+        <div>
+          <p className="eyebrow">Ready when you are</p>
+          <h2 className="text-h1 mt-2">Create your hosting profile.</h2>
+          <p className="lede mt-2">
+            Sign in to save your ideas, set your boundaries, and complete the review steps at your own pace.
+          </p>
+        </div>
         <SignInButton mode="modal">
-          <button className="btn btn-self btn-sm mt-2">Sign in to apply</button>
+          <button className="btn btn-self btn-lg">Sign in to start</button>
         </SignInButton>
       </div>
     )
@@ -144,8 +182,8 @@ function HostAuthPanel() {
 
         <NumberedSection
           n={1}
-          title="Location"
-          rationale="Share a city or online region for useful context. Near-me discovery is optional and uses rounded coordinates instead of a neighborhood or address."
+        title="Where you are available"
+        rationale="Share a city or online region for context. Nearby discovery is optional and uses a rounded area, not a neighborhood or address."
         >
           <FieldRow name="city" label="City or online region" defaultValue={application?.city ?? ''} />
           <div className="panel p-4">
@@ -175,7 +213,7 @@ function HostAuthPanel() {
                         })
                         setLocationStatus('Review the location warning before applying this pin.')
                       },
-                      () => setLocationStatus('Location permission was not granted.'),
+                      (locationError) => setLocationStatus(geolocationErrorMessage(locationError.code)),
                       { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
                     )
                   }}
@@ -278,8 +316,8 @@ function HostAuthPanel() {
 
         <NumberedSection
           n={2}
-          title="Mode and intro"
-          rationale="Online, in-person, or either. Intro shows on the discovery list."
+          title="Your invitation"
+          rationale="Choose online, in-person, or both, then tell members what time with you could feel like."
         >
           <label className="field-row">
             <span className="label">Availability mode</span>
@@ -290,7 +328,7 @@ function HostAuthPanel() {
             </select>
           </label>
           <label className="field-row">
-            <span className="label">Hourly cash rate <span className="label-aux">PHP</span></span>
+            <span className="label">Listed hourly rate <span className="label-aux">PHP</span></span>
             <input
               name="hourlyRatePesos"
               type="number"
@@ -301,17 +339,17 @@ function HostAuthPanel() {
               defaultValue={(application?.hourlyRateCentavos ?? 50_000) / 100}
               className="field"
             />
-            <span className="field-row-help">Members pay you in cash. The locked booking price uses this rate; the platform commission is 10%.</span>
+            <span className="field-row-help">The member wallet funds this listed subtotal plus a separate 15% member booking fee. Your entitlement is 100% of the listed subtotal. Payouts await provider activation.</span>
           </label>
           <label className="field-row">
-            <span className="label">Intro <span className="label-aux">40 chars minimum</span></span>
+            <span className="label">How would you spend the time? <span className="label-aux">40 chars minimum</span></span>
             <textarea
               name="intro"
               required
               minLength={40}
               defaultValue={application?.intro}
               className="field min-h-28"
-              placeholder="Describe the safe, friendly experiences you offer."
+              placeholder="For example: Join me for an easy coffee, a walk through local history, or an unhurried online conversation."
             />
             <span className="field-row-help">Keep it specific. Avoid romantic, dating, or transactional framing.</span>
           </label>
@@ -319,24 +357,24 @@ function HostAuthPanel() {
 
         <NumberedSection
           n={3}
-          title="Strengths"
-          rationale="Members search by strength. Pick the ones you actually want to host around."
+          title="Strengths · what you are great at"
+          rationale="Choose the qualities you genuinely want to bring to a shared experience."
         >
           <ChipGroup values={friendStrengths} selected={selectedStrengths} setSelected={setSelectedStrengths} />
         </NumberedSection>
 
         <NumberedSection
           n={4}
-          title="Safe categories"
-          rationale="Early access supports the categories below. New ones are added through safety review."
+          title="Things you can do together"
+          rationale="Choose the activities you feel comfortable hosting. Every category is reviewed before it is offered."
         >
           <ChipGroup values={activityCategories} selected={selectedCategories} setSelected={setSelectedCategories} />
         </NumberedSection>
 
         <NumberedSection
           n={5}
-          title="Boundaries and reviewer note"
-          rationale="Boundaries are visible to members. The reviewer note stays internal."
+          title="Your boundaries"
+          rationale="Tell members what keeps the experience comfortable and clear. Notes for the review team stay private."
         >
           <label className="field-row">
             <span className="label">Boundaries <span className="label-aux">one per line</span></span>
@@ -362,7 +400,7 @@ function HostAuthPanel() {
             Submitting again replaces the pending review packet.
           </p>
           <button className="btn btn-self" disabled={saving}>
-            {saving ? 'Saving…' : status ? 'Update application' : 'Submit for review'}
+            {saving ? 'Saving…' : status ? 'Save hosting profile' : 'Send profile for review'}
           </button>
         </div>
       </form>

@@ -187,7 +187,7 @@ Experience posts should usually be connected to completed bookings. This keeps t
 
 ## Booking Flow
 
-The MVP booking model is **request first** and **no payments yet**.
+The approved booking model is **request first** with a server-controlled member wallet. New financial creation is fail-closed behind `MEMBER_WALLET_V2_ENABLED=true`; existing v2 balances and settlements continue regardless of the flag.
 
 Booking states:
 
@@ -204,31 +204,32 @@ Booking states:
 
 Flow:
 
-1. Member finds a Friend Host.
-2. Member chooses online or in-person.
-3. Member selects category, date, time, duration, and notes.
-4. If verification is missing, the request becomes a draft and verification starts.
-5. Persona handles government ID and selfie/liveness.
-6. Admin reviews the verification request.
-7. After approval, the booking request is sent to the Friend Host.
-8. Friend Host accepts or declines.
-9. If accepted, chat opens and safe meeting details can be shared.
-10. After completion, both sides rate and review each other.
-11. Either side can create an experience post if policy allows it.
+1. Member finds a Friend Host and selects category, mode, time, duration, and notes.
+2. The server freezes the listed service subtotal plus a 15% member booking fee; the Friend Host entitlement is 100% of the subtotal.
+3. The member needs enough available booking-wallet balance to send the request.
+4. The Friend Host accepts or declines. Acceptance atomically rechecks and reserves the total; insufficient balance leaves the request unchanged.
+5. The Friend Host chooses optional private start evidence or explicitly skips after a warning. The member makes the equivalent end-evidence decision.
+6. Chat and safe coordination continue under the existing booking permissions.
+7. Each participant must make their evidence decision before confirming completion. Mutual completion opens reviews and allocates reserved funds to pending Friend Host earnings and platform revenue.
+8. Settlement becomes eligible exactly 24 hours later. Due, unblocked funds move from pending to internal available balances once.
+9. A participant booking report blocks unsettled v2 funds without requiring evidence. Only a full admin with a note can release blocked funds or return them to the member wallet.
+10. Either side can review and create an experience post under the existing rules.
 
 ## Chat Model
 
-Chat should be tied to trust state.
+Chat should respect trust and moderation state without requiring a booking.
 
 MVP chat rules:
 
-- No open direct messages to any user by default.
-- Chat opens only after a booking reaches the allowed state.
-- Chat can be disabled if a report, cancellation, suspension, or admin action requires it.
+- Signed-in members can start a direct conversation from another member's visible profile or post.
+- Booking coordination remains available inside bookings when the booking reaches an allowed state.
+- Chat can be disabled if a suspension or admin action requires it.
 - Messages should be reportable.
 - Admin should be able to review reported message context.
+- Direct messages can include up to four photos, videos, or supported documents.
+- Photos and videos below 3 MB stay original; larger media is compressed in the browser using size-based targets before upload.
 
-Convex can power direct messages in the MVP so permissions, moderation, and booking state stay in one backend.
+Convex can power direct and booking messages in the MVP so permissions and moderation stay in one backend.
 
 ## Ratings And Reviews
 
@@ -379,8 +380,8 @@ MVP includes:
 
 MVP excludes:
 
-- Payments.
-- Escrow.
+- Live Friend Host payouts or withdrawals (available earnings remain internal until a provider is activated).
+- Post-settlement clawbacks and chargeback policy.
 - Mobile app.
 - Push notifications.
 - Advanced AI recommendations.
@@ -390,38 +391,9 @@ MVP excludes:
 
 ## Future Phases
 
-### Phase 2: Payments
+### Phase 2: Provider-Activated Payouts
 
-Add paid bookings with **PayMongo QR Ph** as the first planned payment method for the Philippines launch.
-
-Payment direction:
-
-- Use PayMongo QR Ph for local checkout.
-- Prefer dynamic online QR Ph codes per booking payment.
-- Keep static QR Ph as an operational fallback, not the default in-app booking checkout.
-- Collect payment only after the Friend Host accepts the booking or when the product has clear cancellation/refund rules.
-- Track payment state inside the booking.
-- Add platform fees, cancellation policy, refund policy, host payable balance, payout operations, and tax/business requirements.
-
-Payment states to add later:
-
-- Payment pending
-- QR generated
-- Paid
-- Expired
-- Failed
-- Refund pending
-- Refunded
-- Payout pending
-- Paid out
-
-Important payment rules:
-
-- Do not unlock final meeting details until the booking is accepted and the payment state is valid.
-- Do not treat a QR screenshot as proof of payment.
-- Use PayMongo webhook events as the source of truth for payment confirmation.
-- Add admin tools for payment disputes, failed payments, refunds, and manual reconciliation.
-- Re-check PayMongo account eligibility, wallet status, payout support, and business compliance before implementation.
+The member wallet uses provider-verified PayMongo QR Ph top-ups, but Friend Host earnings remain internal. A later phase may activate payouts only after provider eligibility, business compliance, withdrawal authorization, reconciliation, and operational support are approved. Do not infer payment from QR screenshots; canonical provider state, webhook deduplication, and reconciliation remain the source of truth.
 
 ### Phase 3: Mobile
 

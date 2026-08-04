@@ -1,16 +1,17 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
-import { useMutation, useQuery } from 'convex/react'
+import { useAction, useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type React from 'react'
-import { activityCategories, calculateBookingPrice, canBookingChat, canCancelBooking, canCompleteBooking, canReadBookingMessages, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
+import { activityCategories, calculateMemberWalletBookingPrice, canBookingChat, canCancelBooking, canCompleteBooking, canReadBookingMessages, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { WorkspaceShell } from '../components/AppShell'
 import { MeetingSeam } from '../components/AppNavigation'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../components/IdentityVerificationFlow'
+import { prepareEvidenceImage } from '../lib/chatAttachments'
 
 export const Route = createFileRoute('/app')({
   validateSearch: (search: Record<string, unknown>): { hostProfileId?: string } => (
@@ -59,8 +60,10 @@ function AppPage() {
   const viewer = useQuery(api.users.viewer)
   const latestMemberVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const bookings = useQuery(api.bookings.mine, viewer ? {} : 'skip')
+  const memberFinance = useQuery(api.finance.memberDashboard, viewer ? {} : 'skip')
   const identityFlow = useIdentityVerification('member')
   const createDraft = useMutation(api.bookings.createDraft)
+  const createMemberTopUp = useAction(api.paymongo.createMemberTopUp)
   const sendMessage = useMutation(api.bookings.sendMessage)
   const cancelBooking = useMutation(api.bookings.cancel)
   const completeBooking = useMutation(api.bookings.markCompleted)
@@ -129,8 +132,8 @@ function AppPage() {
     return (
       <main className="marketing-page">
         <p className="eyebrow">Sign in required</p>
-        <h1 className="text-h1 mt-2">Sign in to open your workspace.</h1>
-        <p className="lede mt-2">Bookings, messages, and identity status live in your signed-in workspace. Identity approval is required before booking.</p>
+        <h1 className="text-h1 mt-2">Sign in to see your plans.</h1>
+        <p className="lede mt-2">Booking requests, conversations, and identity status stay together behind your account.</p>
         <div className="mt-6">
           <SignInButton mode="modal">
             <button className="btn btn-self">Sign in</button>
@@ -152,9 +155,9 @@ function AppPage() {
   return (
     <WorkspaceShell
       variant="bookings"
-      eyebrow="Member bookings"
-      title="Bookings and messages"
-      description={viewer ? `Plan with approved Friend Hosts and keep every conversation in one place.` : 'Loading your bookings…'}
+      eyebrow="Your bookings"
+      title="Your plans"
+      description={viewer ? 'See what needs your attention, keep track of upcoming time, and revisit past experiences.' : 'Loading your plans…'}
       status={
         <button
           type="button"
@@ -178,7 +181,7 @@ function AppPage() {
           aria-expanded={bookingDialogOpen}
           aria-controls="booking-dialog"
         >
-          Start a booking
+          Plan a time
         </button>
       ) : verification.action === 'none' ? null : (
         <button
@@ -211,7 +214,7 @@ function AppPage() {
       rail={
         <>
           <div className="rail-section">
-            <div className="rail-section-title">Member bookings</div>
+            <div className="rail-section-title">Your plans</div>
             <a href="#bookings" className="rail-link is-active" aria-current="location">
               <span>Open</span>
               <span className="rail-link-count tabular">{openBookings}</span>
@@ -224,10 +227,10 @@ function AppPage() {
           <div className="rail-section">
             <div className="rail-section-title">Account</div>
             <Link to="/become-host" className="rail-link">
-              <span>Host application</span>
+              <span>Hosting profile</span>
             </Link>
             <Link to="/safety" className="rail-link">
-              <span>Safety model</span>
+              <span>How safety works</span>
             </Link>
           </div>
         </>
@@ -258,7 +261,7 @@ function AppPage() {
                   aria-expanded={bookingDialogOpen}
                   aria-controls="booking-dialog"
                 >
-                  Start a booking
+                  Plan a time
                 </button>
               )}
               {verification.action !== 'none' && (
@@ -300,20 +303,30 @@ function AppPage() {
         </div>
       )}
 
+      <MemberWalletPanel
+        finance={memberFinance}
+        onCreateTopUp={async (amountCentavos) => {
+          const result = await createMemberTopUp({ amountCentavos })
+          setNotice(result.qrImageUrl
+            ? `QR Ph top-up for ${formatPhp(result.amountCentavos)} is ready to scan.`
+            : 'PayMongo is confirming the QR Ph top-up. Your wallet will update only after provider verification.')
+        }}
+      />
+
       <section id="bookings">
         <header className="flex items-baseline justify-between gap-3 mb-3">
-          <h2 className="text-h2">Open bookings</h2>
+          <h2 className="text-h2">Open plans</h2>
           <span className="text-meta tabular">{openBookings} active</span>
         </header>
         {viewer === undefined && <div className="empty-state">Loading your profile…</div>}
         {viewer && (bookings ?? []).length === 0 && (
           <div className="empty-state">
             <p className="empty-state-title">
-              {canBook ? 'No bookings yet.' : 'Verify your identity before booking.'}
+              {canBook ? 'Nothing planned yet.' : 'Verify once before sending a booking request.'}
             </p>
             <p className="text-meta max-w-[44ch]">
               {canBook
-                ? 'Choose an approved Friend Host and send your first request.'
+                ? 'Explore people, find an experience that feels right, and request a time.'
                 : verification.guidance}
             </p>
             {canBook ? (
@@ -325,7 +338,7 @@ function AppPage() {
                 aria-expanded={bookingDialogOpen}
                 aria-controls="booking-dialog"
               >
-                Start your first booking
+                Find someone to join you
               </button>
             ) : verification.action !== 'none' ? (
               <button
@@ -457,6 +470,74 @@ function AppPage() {
   )
 }
 
+type MemberFinance = NonNullable<ReturnType<typeof useQuery<typeof api.finance.memberDashboard>>>
+
+function MemberWalletPanel({ finance, onCreateTopUp }: {
+  finance: MemberFinance | null | undefined
+  onCreateTopUp: (amountCentavos: number) => Promise<void>
+}) {
+  const [busy, setBusy] = useState(false)
+  const [walletError, setWalletError] = useState('')
+  const now = Date.now()
+  const activeTopUp = finance?.topUps.find((topUp) =>
+    ['creating', 'awaiting_payment', 'processing'].includes(topUp.status)
+    && (topUp.expiresAt === undefined || topUp.expiresAt > now),
+  )
+  const qrTopUp = activeTopUp ?? finance?.topUps.find((topUp) => topUp.qrImageUrl && topUp.status !== 'paid')
+
+  return (
+    <section id="member-wallet" className="mb-10">
+      <header className="flex items-baseline justify-between gap-3 mb-3">
+        <div>
+          <h2 className="text-h2">Booking balance</h2>
+          <p className="text-meta mt-1">Use this balance for booking requests. You will see the service subtotal and 15% booking fee before sending.</p>
+        </div>
+        {finance && <span className="status-pill" data-tone="social">{formatPhp(finance.availableCentavos)} available</span>}
+      </header>
+      {walletError && <div className="notice notice-danger mb-3" role="alert"><span className="notice-icon">!</span><span>{walletError}</span></div>}
+      {!finance && <div className="empty-state">Loading booking wallet…</div>}
+      {finance && (
+        <div className="panel p-5 space-y-5">
+          {!finance.enabled && (
+            <div className="notice notice-warning text-meta"><span className="notice-icon">!</span><span>New member-wallet bookings are disabled on this server. Existing balances and settlements remain readable.</span></div>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="wallet-metric wallet-metric-social"><p className="text-meta">Available to book</p><p className="text-h2 tabular mt-1">{formatPhp(finance.availableCentavos)}</p></div>
+            <div className="wallet-metric"><p className="text-meta">Reserved for accepted bookings</p><p className="text-h2 tabular mt-1">{formatPhp(finance.reservedCentavos)}</p></div>
+          </div>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <form
+              className="space-y-3"
+              onSubmit={async (event) => {
+                event.preventDefault()
+                setBusy(true)
+                setWalletError('')
+                try {
+                  const form = new FormData(event.currentTarget)
+                  await onCreateTopUp(Math.round(Number(form.get('topUpPesos')) * 100))
+                } catch (submitError) {
+                  setWalletError(submitError instanceof Error ? submitError.message : 'Top-up could not be started.')
+                } finally {
+                  setBusy(false)
+                }
+              }}
+            >
+              <div><p className="text-h3">Add balance with PayMongo QR Ph</p><p className="text-meta mt-1">Only a provider-verified paid intent credits this wallet.</p></div>
+              <label className="field-row"><span className="label">Top-up amount <span className="label-aux">PHP</span></span><input name="topUpPesos" type="number" min="100" max="100000" step="0.01" defaultValue="1000" required className="field" disabled={busy || Boolean(activeTopUp) || !finance.enabled} /></label>
+              <button className="btn btn-social" disabled={busy || Boolean(activeTopUp) || !finance.enabled}>{busy ? 'Creating QR…' : activeTopUp ? 'QR attempt still active' : 'Create QR Ph top-up'}</button>
+            </form>
+            <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-4">
+              <p className="text-h3">Current QR attempt</p>
+              {!qrTopUp && <p className="text-meta mt-2">No member-wallet top-up attempt yet.</p>}
+              {qrTopUp && <div className="mt-3 space-y-3"><div className="flex items-center justify-between gap-3"><strong className="tabular">{formatPhp(qrTopUp.amountCentavos)}</strong><span className="status-pill" data-tone={qrTopUp.status === 'paid' ? 'success' : qrTopUp.status === 'failed' || qrTopUp.status === 'expired' ? 'danger' : 'social'}>{qrTopUp.status.replace('_', ' ')}</span></div>{qrTopUp.qrImageUrl && qrTopUp.status === 'awaiting_payment' && <img src={qrTopUp.qrImageUrl} alt={`QR Ph code for ${formatPhp(qrTopUp.amountCentavos)} wallet top-up`} className="mx-auto max-w-64 rounded-lg bg-white p-3" />}</div>}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 type Booking = NonNullable<ReturnType<typeof useQuery<typeof api.bookings.mine>>>[number]
 
 function BookingRow({
@@ -511,18 +592,25 @@ function BookingRow({
         <span className="status-pill" data-tone={status.tone}>{status.label}</span>
       </div>
 
-      {booking.grossPriceCentavos !== undefined && booking.currency === 'PHP' && (
+      {booking.pricingModel === 'member_wallet_v2' && booking.memberTotalCentavos !== undefined ? (
         <p className="text-meta">
-          Locked cash amount: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.grossPriceCentavos)}</strong>
-          {' · '}10% Friend Host commission is charged from the prepaid platform-fee balance after both people confirm completion.
+          Booking total: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.memberTotalCentavos)}</strong>
+          {' · '}Service subtotal {formatPhp(booking.serviceSubtotalCentavos ?? 0)} + 15% member booking fee {formatPhp(booking.memberBookingFeeCentavos ?? 0)}.
+          {booking.settlementState === 'blocked' && ' Funds are held for admin resolution because this booking has a report.'}
         </p>
-      )}
+      ) : booking.grossPriceCentavos !== undefined && booking.currency === 'PHP' ? (
+        <p className="text-meta">Legacy locked cash amount: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.grossPriceCentavos)}</strong></p>
+      ) : null}
 
       {booking.status === 'verification_required' && (
         <div className="notice notice-warning text-meta">
           <span className="notice-icon">!</span>
           <span>This is a legacy held booking from the earlier verification flow. Approval will send it to the Friend Host; rejection will cancel it.</span>
         </div>
+      )}
+
+      {booking.pricingModel === 'member_wallet_v2' && booking.status === 'accepted' && (
+        <EvidenceDecision bookingId={booking._id} label="End evidence" />
       )}
 
       <div className="worklist-row-actions">
@@ -554,6 +642,74 @@ function BookingRow({
       </div>
       {canReadMessages && <MessageThread messages={messages ?? []} onReport={onReportMessage} />}
     </article>
+  )
+}
+
+function EvidenceDecision({ bookingId, label }: { bookingId: Id<'bookings'>; label: string }) {
+  const evidence = useQuery(api.bookingEvidence.status, { bookingId })
+  const uploadImage = useAction(api.bookingEvidence.uploadImage)
+  const skip = useMutation(api.bookingEvidence.skip)
+  const [busy, setBusy] = useState(false)
+  const [evidenceError, setEvidenceError] = useState('')
+
+  if (evidence?.decision) {
+    return <div className="evidence-decision"><p className="text-meta"><strong>{label}:</strong> {evidence.decision === 'uploaded' ? 'Private image saved' : 'Skipped after warning acknowledgement'}.</p></div>
+  }
+
+  return (
+    <div className="evidence-decision">
+      <div><p className="text-h3">{label}</p><p className="text-meta mt-1">Optional and private. A reviewer or admin can retrieve it only while a linked booking report is active, and each retrieval is audited. Your counterpart cannot access it.</p></div>
+      {evidenceError && <p className="text-meta text-[color:var(--danger)]">{evidenceError}</p>}
+      <div className="flex gap-2 flex-wrap">
+        <label className={`btn btn-social-quiet btn-sm ${busy ? 'pointer-events-none opacity-60' : ''}`}>
+          {busy ? 'Processing image…' : 'Upload private image'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+            className="sr-only"
+            disabled={busy}
+            onChange={async (event) => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ''
+              if (!file) return
+              setBusy(true)
+              setEvidenceError('')
+              try {
+                const processed = await prepareEvidenceImage(file)
+                await uploadImage({
+                  bookingId,
+                  bytes: await processed.arrayBuffer(),
+                  contentType: processed.type,
+                })
+              } catch (error) {
+                setEvidenceError(error instanceof Error ? error.message : 'Evidence image could not be saved.')
+              } finally {
+                setBusy(false)
+              }
+            }}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn btn-danger btn-sm"
+          disabled={busy}
+          onClick={async () => {
+            if (!window.confirm('Strict warning: skipping means no private image from your role will be available to help reviewers evaluate a later booking report. Skip anyway?')) return
+            setBusy(true)
+            setEvidenceError('')
+            try {
+              await skip({ bookingId, warningAcknowledged: true })
+            } catch (error) {
+              setEvidenceError(error instanceof Error ? error.message : 'Evidence decision could not be saved.')
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Skip after warning
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -616,7 +772,7 @@ type BookingDialogProps = {
     requestedAt: number
     durationMinutes: number
     notes?: string
-  }) => Promise<{ bookingId: Id<'bookings'>; grossPriceCentavos: number; currency: 'PHP' }>
+  }) => Promise<{ bookingId: Id<'bookings'>; memberTotalCentavos: number; serviceSubtotalCentavos: number; memberBookingFeeCentavos: number; currency: 'PHP' }>
   onClose: () => void
   restoreFocusTo: HTMLElement | null
   setNotice: (notice: string) => void
@@ -642,7 +798,7 @@ function BookingDialog({
   const [selectedMode, setSelectedMode] = useState<'online' | 'in_person'>('online')
   const [durationMinutes, setDurationMinutes] = useState(60)
   const estimatedPrice = selectedHost?.hourlyRateCentavos && durationMinutes >= 15 && durationMinutes <= 720 && durationMinutes % 15 === 0
-    ? calculateBookingPrice(selectedHost.hourlyRateCentavos, durationMinutes).grossPriceCentavos
+    ? calculateMemberWalletBookingPrice(selectedHost.hourlyRateCentavos, durationMinutes)
     : undefined
   const modeOptions = useMemo<Array<'online' | 'in_person'>>(() => {
     if (selectedHost?.mode === 'in_person') return ['in_person']
@@ -738,7 +894,7 @@ function BookingDialog({
           <div>
             <p className="eyebrow">New request</p>
             <MeetingSeam />
-            <h2 id="booking-dialog-title" className="text-h2 mt-1">Start a booking</h2>
+            <h2 id="booking-dialog-title" className="text-h2 mt-1">{selectedHost ? `Plan time with ${selectedHost.displayName}` : 'Plan a time'}</h2>
           </div>
           <button
             type="button"
@@ -775,7 +931,7 @@ function BookingDialog({
               })
               submittingRef.current = false
               setIsSubmitting(false)
-              setNotice(`Booking ${booking.bookingId.toString().slice(-6)} sent with a locked cash amount of ${formatPhp(booking.grossPriceCentavos)}.`)
+              setNotice(`Booking ${booking.bookingId.toString().slice(-6)} sent for ${formatPhp(booking.memberTotalCentavos)} from your booking wallet when the Friend Host accepts.`)
               onClose()
             } catch (error) {
               submittingRef.current = false
@@ -789,7 +945,7 @@ function BookingDialog({
               <span className="notice-icon">!</span>
               <span>
                 No approved hosts yet.{' '}
-                <Link to="/become-host" className="notice-link">Apply to become an approved host</Link>.
+                <Link to="/become-host" className="notice-link">Share what you enjoy as a Friend Host</Link>.
               </span>
             </div>
           )}
@@ -823,7 +979,7 @@ function BookingDialog({
           </label>
 
           <label className="field-row">
-            <span className="label">Category</span>
+            <span className="label">What would you like to do?</span>
             <select name="category" className="field" disabled={isSubmitting}>
               {categoryOptions.map((category) => <option key={category}>{category}</option>)}
             </select>
@@ -873,16 +1029,17 @@ function BookingDialog({
           </label>
 
           <label className="field-row">
-            <span className="label">Notes <span className="label-aux">visible to host on accept</span></span>
-            <textarea name="notes" className="field min-h-20" disabled={isSubmitting} />
+            <span className="label">Anything you would like them to know? <span className="label-aux">shared with the Friend Host</span></span>
+            <textarea name="notes" className="field min-h-20" placeholder="Share what you have in mind, what would make the time comfortable, or any useful context." disabled={isSubmitting} />
           </label>
 
           {estimatedPrice !== undefined && (
             <div className="notice text-meta">
               <span className="notice-icon">₱</span>
               <span>
-                Cash amount locked when sent: <strong className="tabular">{formatPhp(estimatedPrice)}</strong>.
-                The server recalculates this from the Friend Host's current hourly rate; no amount is accepted from the browser.
+                Required available balance: <strong className="tabular">{formatPhp(estimatedPrice.memberTotalCentavos)}</strong>
+                {' '}({formatPhp(estimatedPrice.serviceSubtotalCentavos)} service subtotal + {formatPhp(estimatedPrice.memberBookingFeeCentavos)} member booking fee).
+                The server freezes these amounts and rechecks your balance when the Friend Host accepts.
               </span>
             </div>
           )}

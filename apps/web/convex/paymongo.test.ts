@@ -138,4 +138,67 @@ describe('PayMongo trust boundary', () => {
     expect(state.topUp?.status).toBe('paid')
     expect(state.ledger.filter((entry) => entry.kind === 'top_up_credit')).toHaveLength(1)
   })
+
+  it('credits a provider-verified member top-up once without using the legacy host ledger', async () => {
+    const t = createTest()
+    const { memberId, topUpId } = await t.run(async (ctx) => {
+      const now = Date.now()
+      const memberId = await ctx.db.insert('users', {
+        clerkUserId: 'paymongo-wallet-member',
+        displayName: 'PayMongo Wallet Member',
+        role: 'member',
+        verificationStatus: 'approved',
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const topUpId = await ctx.db.insert('paymongoTopUps', {
+        beneficiaryUserId: memberId,
+        purpose: 'member_booking_balance',
+        amountCentavos: 25_000,
+        currency: 'PHP',
+        mode: 'test',
+        status: 'processing',
+        providerIntentId: 'pi_member_wallet',
+        createdAt: now,
+        updatedAt: now,
+      })
+      return { memberId, topUpId }
+    })
+    const intent = {
+      id: 'pi_member_wallet', amountCentavos: 25_000, currency: 'PHP', status: 'succeeded', mode: 'test' as const, methodTypes: ['qrph'],
+    }
+    await t.mutation(internal.paymongo.applyReconciliation, { topUpId, intent })
+    await t.mutation(internal.paymongo.applyReconciliation, { topUpId, intent })
+    const state = await t.run(async (ctx) => ({
+      account: await ctx.db.query('walletAccounts').withIndex('by_owner_type', (q) => q.eq('ownerUserId', memberId).eq('accountType', 'member_booking')).unique(),
+      transactions: await ctx.db.query('walletTransactions').collect(),
+      entries: await ctx.db.query('walletEntries').collect(),
+      legacyLedger: await ctx.db.query('platformFeeLedger').collect(),
+    }))
+    expect(state.account).toMatchObject({ availableCentavos: 25_000, reservedCentavos: 0, pendingCentavos: 0 })
+    expect(state.transactions.filter((row) => row.kind === 'paymongo_member_credit')).toHaveLength(1)
+    expect(state.entries).toHaveLength(1)
+    expect(state.legacyLedger).toHaveLength(0)
+  })
+
+  it('fails closed when preparing new member-wallet top-ups without the feature flag', async () => {
+    const previous = process.env.MEMBER_WALLET_V2_ENABLED
+    delete process.env.MEMBER_WALLET_V2_ENABLED
+    try {
+      const t = createTest()
+      await t.run(async (ctx) => {
+        const now = Date.now()
+        await ctx.db.insert('users', {
+          clerkUserId: 'flagged-member', displayName: 'Flagged Member', role: 'member', verificationStatus: 'approved', suspended: false, createdAt: now, updatedAt: now,
+        })
+      })
+      await expect(t.mutation(internal.paymongo.prepareTopUp, {
+        clerkUserId: 'flagged-member', amountCentavos: 10_000, mode: 'test', purpose: 'member_booking_balance',
+      })).rejects.toThrow('not enabled')
+    } finally {
+      if (previous === undefined) delete process.env.MEMBER_WALLET_V2_ENABLED
+      else process.env.MEMBER_WALLET_V2_ENABLED = previous
+    }
+  })
 })

@@ -4,6 +4,7 @@ import { v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
 import { canAdminApproveIdentity, hasCurrentPersonaApproval, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason, isRealPersonaInquiryId } from './identityVerification'
 import { syncHostLocation } from './hostLocations'
+import { resolveBlockedBookingFunds as applyBlockedBookingResolution } from './finance'
 
 const roleOrAll = v.union(v.literal('member'), v.literal('friend_host'), v.literal('reviewer'), v.literal('admin'), v.literal('all'))
 const verificationStatusOrAll = v.union(v.literal('not_ready'), v.literal('pending'), v.literal('approved'), v.literal('rejected'), v.literal('not_started'), v.literal('all'))
@@ -145,7 +146,7 @@ export const reports = query({
     targetType: v.optional(reportTargetTypeOrAll),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx)
+    const admin = await requireAdmin(ctx)
     const status = args.status ?? 'open'
     const rows = status === 'all'
       ? await ctx.db.query('reports').collect()
@@ -154,10 +155,16 @@ export const reports = query({
     const filtered = targetType === 'all' ? rows : rows.filter((report) => report.targetType === targetType)
     return await Promise.all(filtered.sort((a, b) => b.updatedAt - a.updatedAt).map(async (report) => {
       const reporter = await ctx.db.get(report.reporterId)
+      const booking = report.bookingId ? await ctx.db.get(report.bookingId) : null
+      const evidence = booking ? await ctx.db.query('bookingEvidenceDecisions').withIndex('by_booking_role', (q) => q.eq('bookingId', booking._id)).collect() : []
       return {
         ...report,
         reporterDisplayName: reporter?.displayName ?? 'Member',
         targetSummary: await describeReportTarget(ctx, report),
+        bookingSettlementState: booking?.settlementState,
+        bookingSettlementEligibleAt: booking?.settlementEligibleAt,
+        evidence: evidence.map((decision) => ({ role: decision.role, decision: decision.decision })),
+        canResolveBlockedFunds: isFullAdminRole(admin.role) && booking?.settlementState === 'blocked',
       }
     }))
   },
@@ -351,6 +358,66 @@ export const updateReportStatus = mutation({
 export const resolveReport = mutation({
   args: { reportId: v.id('reports'), status: v.union(v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed')), note: v.optional(v.string()) },
   handler: updateReportStatusHandler,
+})
+
+export const resolveBlockedBookingFunds = mutation({
+  args: {
+    bookingId: v.id('bookings'),
+    resolution: v.union(v.literal('release_to_host'), v.literal('return_to_member')),
+    note: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const admin = await requireFullAdmin(ctx)
+    const note = requireNote(args.note, 'Resolving blocked booking funds')
+    const booking = await ctx.db.get(args.bookingId)
+    if (!booking) throw new Error('Booking not found')
+    const requestedResolution = args.resolution === 'release_to_host' ? 'released' as const : 'returned_to_member' as const
+    if (booking.settlementState === 'settled' || booking.settlementState === 'refunded') {
+      if (booking.settlementResolution !== requestedResolution) {
+        throw new Error('Booking funds were already resolved with a conflicting outcome')
+      }
+      return {
+        settlementState: booking.settlementState,
+        settlementResolution: booking.settlementResolution,
+        idempotent: true,
+      }
+    }
+
+    const before = { settlementState: booking.settlementState, settlementResolution: booking.settlementResolution }
+    const result = await applyBlockedBookingResolution(ctx, booking, admin._id, args.resolution, note)
+    const now = Date.now()
+    const settlementState = result.outcome === 'settled' ? 'settled' as const : 'refunded' as const
+    const settlementResolution = result.outcome === 'settled' ? 'released' as const : 'returned_to_member' as const
+    const cancelledBeforeCompletion = settlementState === 'refunded' && !booking.jointlyCompletedAt
+    await ctx.db.patch(booking._id, {
+      settlementState,
+      settlementResolution,
+      settlementResolvedAt: booking.settlementResolvedAt ?? now,
+      status: cancelledBeforeCompletion ? 'cancelled' : booking.status,
+      cancelledByUserId: cancelledBeforeCompletion ? admin._id : booking.cancelledByUserId,
+      cancelledAt: cancelledBeforeCompletion ? (booking.cancelledAt ?? now) : booking.cancelledAt,
+      cancellationReason: cancelledBeforeCompletion
+        ? 'Cancelled by a full admin after a booking report; reserved funds were returned to the member.'
+        : booking.cancellationReason,
+      updatedAt: now,
+    })
+    const reports = await ctx.db.query('reports').withIndex('by_booking', (q) => q.eq('bookingId', booking._id)).collect()
+    for (const report of reports) {
+      if (report.settlementHoldAppliedAt && !report.settlementHoldReleasedAt) {
+        await ctx.db.patch(report._id, { settlementHoldReleasedAt: now, updatedAt: now })
+      }
+    }
+    await writeAudit(ctx, {
+      actorUserId: admin._id,
+      action: settlementResolution === 'released' ? 'booking_funds.admin_released' : 'booking_funds.admin_returned_to_member',
+      targetType: 'booking',
+      targetId: String(booking._id),
+      before,
+      after: { settlementState, settlementResolution, applied: result.applied, cancelledBeforeCompletion },
+      note,
+    })
+    return { settlementState, settlementResolution, idempotent: !result.applied }
+  },
 })
 
 export const setUserSuspended = mutation({

@@ -4,6 +4,12 @@
 
 This repo is for Let's Be Friends, a trust-first friend hosting and booking product. Keep the product language respectful: use Friend Host, member, Strengths, booking, experience, online session, and in-person session. Do not describe people as rented objects.
 
+## Writing Rules
+
+- Do not use em dashes in user-facing copy.
+- Rewrite the sentence with a period, comma, colon, or parentheses instead.
+- Before handing back copy or UI work, search the web and admin source for em dashes and remove any user-facing occurrences.
+
 ## Theme Rules
 
 - Preserve the black-and-white light/dark theme.

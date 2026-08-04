@@ -6,6 +6,19 @@ export type Coordinates = {
 export const nearbyRadiusOptions = [5, 10, 25, 50, 100] as const
 export type NearbyRadiusKm = (typeof nearbyRadiusOptions)[number]
 
+export function geolocationErrorMessage(code: number) {
+  if (code === 1) {
+    return 'Location permission is blocked. Allow location in your browser site settings, reload, then try again. You can also place a pin on the map.'
+  }
+  if (code === 2) {
+    return 'Your browser could not determine your location. Try again, use another browser, or place a pin on the map.'
+  }
+  if (code === 3) {
+    return 'Finding your location timed out. Try again or place a pin on the map.'
+  }
+  return 'Device location could not be read. Try again or place a pin on the map.'
+}
+
 const earthRadiusKm = 6371
 
 export function clampCoordinates({ latitude, longitude }: Coordinates): Coordinates {

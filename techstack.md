@@ -4,7 +4,7 @@
 
 Let's Be Friends will start as a web application and later expand to mobile. The first build should use a pnpm monorepo so the future React Native app can share types, validation schemas, category constants, and search scoring helpers with the web app.
 
-The first web version should focus on trust, search, booking workflow, admin review, chat, ratings, and experience posts. Payments are intentionally out of scope for MVP, but the planned first payment method for the Philippines launch is PayMongo QR Ph.
+The first web version focuses on trust, search, booking workflow, admin review, chat, ratings, experience posts, and the approved member-wallet booking flow. PayMongo QR Ph is used for provider-verified wallet top-ups; Friend Host payouts remain disabled until a provider is activated.
 
 ## Project Structure
 
@@ -295,18 +295,19 @@ Use **Convex Chat** built on Convex tables and realtime queries.
 
 Reasons:
 
-- Keeps booking permissions close to messages.
+- Keeps direct and booking-message permissions in the same backend.
 - Avoids a separate chat vendor in MVP.
 - Makes moderation and reporting easier.
 - Works with the same auth and admin model.
 
 Chat rules:
 
-- Chat opens only after booking reaches an allowed state.
-- No unrestricted direct messages in MVP.
+- Signed-in users can start a direct conversation from another user's visible profile or post.
+- Booking chat remains scoped to allowed booking states.
 - Messages can be reported.
 - Admin can review reported conversation context.
 - Suspended users cannot send messages.
+- Direct messages support up to four attachments. Images and videos below 3 MB are not compressed; larger media uses progressively stronger client-side compression based on its original size.
 
 ## Media Storage
 
@@ -352,32 +353,33 @@ Notification events:
 
 Push notifications should wait until mobile or a later web push phase.
 
-## Booking Commission And Platform-Fee Balance
+## Member Wallet, Booking Settlement, And Legacy Host Fees
 
-Members pay the locked booking amount directly to the Friend Host in cash. PayMongo is not used for member booking checkout. It is used only for Friend Hosts to top up a prepaid platform-fee balance through dynamic QR Ph Payment Intents.
+New bookings use the explicit `member_wallet_v2` model when `MEMBER_WALLET_V2_ENABLED=true`. The flag gates only new v2 booking and member top-up creation; runtime reads, reconciliation, evidence retention, and settlement for existing v2 rows are never gated.
 
 Financial rules:
 
-1. A Friend Host sets an hourly PHP cash rate.
-2. The server derives and freezes the booking price in integer centavos when the member submits the request.
-3. The booking freezes a 10% commission (`1000` basis points); later rate changes never alter it.
-4. Member and Friend Host confirm completion separately. Only both confirmations create one commission obligation.
-5. The obligation is due at the next Saturday 09:00 Asia/Manila collection (Saturday 01:00 UTC).
-6. The weekly job applies available balance to due obligations and carries any unpaid remainder as past due.
-7. A Friend Host with past-due commission cannot accept new bookings.
-8. A webhook-confirmed top-up credits the immutable ledger exactly once and immediately applies credit FIFO to already-past-due obligations.
+1. The server freezes the listed service subtotal plus a 15% member booking fee in integer centavos. Friend Host entitlement is 100% of the subtotal.
+2. A member needs available booking balance greater than or equal to the total to send a request.
+3. Friend Host acceptance atomically rechecks and transfers the total from member available to reserved. Insufficient balance leaves `request_sent` unchanged.
+4. Mutual completion opens reviews and atomically transfers reserved funds to Friend Host pending earnings and platform pending revenue.
+5. Settlement eligibility is exactly 24 hours after mutual completion. Durable scheduling plus bounded reconciliation moves due, unblocked pending balances to available idempotently.
+6. A booking report by either participant blocks unsettled v2 funds. Evidence is never required for a report. Only a full admin with a required note can release blocked host/platform funds or return them to member available balance.
+7. Wallet accounts use deterministic keys and materialized available/reserved/pending buckets. Immutable transactions and entries use unique idempotency keys, safe-integer/nonnegative checks, and balanced internal transfers.
+8. Allowed production financial writers are provider-verified member credit, booking accept reserve, cancellation release, mutual-completion allocation, internal settlement, and full-admin blocked-fund resolution.
+9. The older 10% cash-booking commission obligations, host fee ledger, PayMongo host top-ups, and Saturday collection remain only for legacy bookings whose pricing model/purpose is missing or legacy.
 
-Platform-fee credits are nonwithdrawable and nontransferable. Top-ups are balance liabilities, not booking revenue; commission ledger debits record collected platform fees. Withdrawals, transfers, Friend Host payouts, member digital checkout, refunds, and chargeback workflows are outside this phase.
+Optional booking evidence uses private image upload grants. The Friend Host decides start evidence and the member decides end evidence; either can upload or explicitly skip after a strict warning, and that role must decide before completion. The server validates MIME, size, ownership, grant age, and reuse. Ordinary booking/admin lists never expose evidence URLs. Reviewer/admin access requires a linked active booking report and creates an audit log. Bounded purge retains evidence while a report is active.
 
 PayMongo safety requirements:
 
 - Secret-key calls create and retrieve Payment Intents. Public-key calls create the QR Ph Payment Method and attach it with the Payment Intent client key.
 - Provider idempotency keys protect all creation/attachment writes.
 - The exact bounded raw webhook body is HMAC-verified before JSON parsing.
-- Test/live mode, canonical intent ID, amount, PHP currency, and QR Ph method are revalidated from PayMongo before credit.
+- Test/live mode, canonical intent ID, amount, PHP currency, QR Ph method, top-up purpose, and beneficiary are revalidated before credit.
 - Provider event IDs plus raw-body hashes prevent duplicate or conflicting settlement.
 - `payment.paid`, `payment.failed`, and `qrph.expired` update retained attempts; scheduled reconciliation repairs missed webhooks.
-- QR expiry permits a new attempt without deleting history.
+- Friend Host available earnings are internal only. Payouts and withdrawals await provider activation; there is no live payout mutation or UI.
 
 ## UI Stack
 
@@ -544,30 +546,30 @@ Fields:
 - `completedAt`
 - `cancelledAt`
 
-### `conversations`
+### `directConversations`
 
-Stores chat rooms tied to bookings.
+Stores one direct conversation for each pair of users.
 
 Fields:
 
-- `bookingId`
-- `participantIds`
-- `status`
-- `openedAt`
-- `closedAt`
+- `participantOneId`
+- `participantTwoId`
+- `pairKey`
+- `lastMessageAt`
+- `createdAt`
+- `updatedAt`
 
-### `messages`
+### `directMessages`
 
-Stores chat messages.
+Stores direct chat messages. Booking-scoped messages remain in `messages`.
 
 Fields:
 
 - `conversationId`
 - `senderId`
 - `body`
-- `attachmentStorageIds`
-- `reportedAt`
-- `deletedAt`
+- `attachments` (`storageId`, `kind`, `fileName`, `contentType`, `size`, `originalSize`, `compressionPercent`)
+- `reportable`
 - `createdAt`
 
 ### `ratings`
@@ -703,7 +705,7 @@ Critical test scenarios:
 - Pending Friend Host does not appear in search.
 - Suspended users cannot book, chat, post, or appear in discovery.
 - Map returns approximate locations only.
-- Chat opens only for allowed booking state.
+- Direct chat is available between active users; booking chat opens only for allowed booking states.
 - Completed booking allows mutual ratings.
 - Experience post requires a completed booking.
 - Admin actions write audit logs.

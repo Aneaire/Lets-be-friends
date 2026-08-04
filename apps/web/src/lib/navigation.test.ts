@@ -5,9 +5,9 @@ describe('application navigation', () => {
   it('keeps frequent member destinations in a stable order', () => {
     expect(primaryNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
       { label: 'Home', to: '/' },
-      { label: 'Discover', to: '/discover' },
+      { label: 'Explore', to: '/discover' },
+      { label: 'Messages', to: '/messages' },
       { label: 'Bookings', to: '/app' },
-      { label: 'Hosting', to: '/host' },
     ])
   })
 
@@ -16,11 +16,12 @@ describe('application navigation', () => {
     expect(activePrimaryNavigation('/social')).toBe('home')
   })
 
-  it('matches booking and hosting paths without confusing host profiles', () => {
+  it('matches messages and booking paths without confusing host profiles', () => {
+    expect(activePrimaryNavigation('/messages')).toBe('messages')
+    expect(activePrimaryNavigation('/messages/thread')).toBe('messages')
     expect(activePrimaryNavigation('/app')).toBe('bookings')
     expect(activePrimaryNavigation('/app/thread')).toBe('bookings')
-    expect(activePrimaryNavigation('/host')).toBe('hosting')
-    expect(activePrimaryNavigation('/host/request')).toBe('hosting')
+    expect(activePrimaryNavigation('/host')).toBeNull()
     expect(activePrimaryNavigation('/host-profile')).toBe('discover')
   })
 
@@ -34,6 +35,7 @@ describe('application navigation', () => {
   it('keeps operational routes off the public footer surface', () => {
     expect(isWorkspacePath('/app')).toBe(true)
     expect(isWorkspacePath('/profile')).toBe(true)
+    expect(isWorkspacePath('/messages')).toBe(true)
     expect(isWorkspacePath('/host')).toBe(true)
     expect(isWorkspacePath('/discover')).toBe(false)
   })

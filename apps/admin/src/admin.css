@@ -1,7 +1,7 @@
 @layer components {
   .admin-shell {
     display: grid;
-    grid-template-columns: 17.5rem minmax(0, 1fr);
+    grid-template-columns: 18.5rem minmax(0, 1fr);
     min-height: 100vh;
     background: var(--app-bg);
   }
@@ -12,8 +12,8 @@
     height: 100vh;
     overflow-y: auto;
     border-right: 1px solid var(--rule);
-    background: var(--surface-rail);
-    padding: 1rem 0.75rem 1.5rem;
+    background: var(--app-bg);
+    padding: 1.25rem 1rem 1.5rem;
   }
 
   .admin-sidebar-brand {
@@ -40,8 +40,9 @@
 
   .admin-brand-title {
     color: var(--text);
-    font-size: 0.9375rem;
-    font-weight: 650;
+    font-family: "Bricolage Grotesque Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 1.05rem;
+    font-weight: 680;
     line-height: 1.2;
   }
 
@@ -62,11 +63,12 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 8px;
+    min-height: 2.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 10px;
     color: var(--text-muted);
     text-decoration: none;
-    font-size: 0.875rem;
+    font-size: 0.9rem;
     font-weight: 500;
     transition: background-color 140ms ease, color 140ms ease;
   }
@@ -116,7 +118,9 @@
   }
 
   .admin-content {
-    padding: 1.75rem clamp(1rem, 2.5vw, 2.5rem) 3rem;
+    width: min(100%, 96rem);
+    margin-inline: auto;
+    padding: clamp(2rem, 4vw, 3.5rem) clamp(1rem, 3vw, 3rem) 4rem;
   }
 
   .admin-profile-layout {
@@ -186,7 +190,7 @@
     align-items: flex-end;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2.5rem;
   }
 
   .admin-page-header-actions {
@@ -206,9 +210,9 @@
 
   .admin-stat {
     border: 1px solid var(--rule);
-    border-radius: 10px;
+    border-radius: 14px;
     background: var(--surface);
-    padding: 1rem;
+    padding: 1.25rem;
   }
 
   .admin-stat-label {
@@ -222,7 +226,8 @@
   .admin-stat-value {
     margin-top: 0.35rem;
     color: var(--text);
-    font-size: 1.75rem;
+    font-family: "Bricolage Grotesque Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 2rem;
     line-height: 1;
     font-weight: 650;
     font-variant-numeric: tabular-nums;
@@ -244,7 +249,7 @@
   .admin-table-scroll {
     overflow-x: auto;
     border: 1px solid var(--rule);
-    border-radius: 10px;
+    border-radius: 14px;
     background: var(--surface);
   }
 

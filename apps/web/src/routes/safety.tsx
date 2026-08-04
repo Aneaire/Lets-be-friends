@@ -2,74 +2,107 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/safety')({ component: SafetyPage })
 
-const trustGates = [
+const safetySteps = [
   {
-    what: 'Adult-only access',
-    who: 'Account creation',
-    when: 'Persona checks date of birth from a government ID before booking or public discovery can unlock.',
+    title: 'Adults verify once',
+    body: 'A government ID and live selfie help confirm identity and age before someone can send a booking request.',
+    detail: 'Persona performs the identity check. Let’s Be Friends stores the outcome and review status, not a copy of the government ID or selfie.',
   },
   {
-    what: 'Host approval',
-    who: 'Safety review queue',
-    when: 'Every Friend Host application is held until a reviewer decides approve or reject.',
+    title: 'Every Friend Host is reviewed',
+    body: 'Hosting profiles stay out of Explore until identity and profile review are complete.',
+    detail: 'Reviewers check the hosting profile, activity categories, boundaries, and verification result before making it visible.',
   },
   {
-    what: 'Identity verification',
-    who: 'Persona + safety review queue',
-    when: 'Persona checks a government ID, live selfie, liveness, and face match. Every completed result then receives an explicit admin decision.',
+    title: 'You choose what to share',
+    body: 'Public profiles use a city or broad area. Exact meeting details stay private until a Friend Host accepts the booking.',
+    detail: 'Nearby search uses rounded locations and never reveals a Friend Host pin or saved approximate area.',
   },
   {
-    what: 'Location privacy',
-    who: 'Host & member',
-    when: 'Exact meeting details unlock only after the host accepts the booking.',
+    title: 'Money follows the plan',
+    body: 'You see the service subtotal and booking fee before sending. Funds are reserved only when the Friend Host accepts.',
+    detail: 'After both people confirm completion, funds remain pending for 24 hours before settlement can continue.',
   },
   {
-    what: 'Reportable everywhere',
-    who: 'Any signed-in user',
-    when: 'Profiles, posts, messages, bookings, and reviews each create a safety report.',
+    title: 'Help stays within reach',
+    body: 'Profiles, posts, messages, bookings, and reviews can all be reported. A booking report pauses unsettled funds for review.',
+    detail: 'Private check-in photos are optional. A reviewer can retrieve one only while a linked booking report is active, and access is audited.',
   },
 ] as const
 
 function SafetyPage() {
   return (
-    <main className="marketing-page">
-      <p className="eyebrow">Safety model</p>
-      <h1 className="text-display mt-5 max-w-[20ch]">
-        Safety is the product, not a page in the footer.
-      </h1>
-      <p className="lede mt-6">
-        Let&apos;s Be Friends is built around explicit trust gates. Each one decides whether a
-        member can request a booking or a Friend Host can appear in discovery.
-      </p>
-
-      <section className="mt-12">
-        <header className="flex items-baseline justify-between gap-4 mb-4">
-          <h2 className="text-h2">What is checked, who checks it, when it unlocks.</h2>
-        </header>
-        <dl className="definition-table">
-          <div className="definition-row" role="row" aria-hidden="true">
-            <dt className="text-meta uppercase tracking-wide">Check</dt>
-            <dt className="text-meta uppercase tracking-wide">Who</dt>
-            <dt className="text-meta uppercase tracking-wide">When</dt>
+    <main className="marketing-page-wide safety-page">
+      <section className="safety-hero">
+        <div className="safety-hero-copy">
+          <p className="eyebrow">How safety works</p>
+          <h1 className="text-display mt-4">
+            Know what happens before you meet.
+          </h1>
+          <p className="lede mt-5">
+            Safety should feel clear, not mysterious. Here is what we check, what stays private,
+            and what you control at every point in a booking.
+          </p>
+          <div className="safety-hero-actions">
+            <Link to="/discover" className="btn btn-social">Find someone to join you</Link>
+            <Link to="/become-host" className="btn btn-self">Share what you enjoy</Link>
           </div>
-          {trustGates.map((gate) => (
-            <div className="definition-row" key={gate.what}>
-              <dt>{gate.what}</dt>
-              <dd>{gate.who}</dd>
-              <dd>{gate.when}</dd>
-            </div>
-          ))}
-        </dl>
+        </div>
+        <figure className="marketing-photo safety-hero-photo">
+          <img
+            src="/images/marketing/public-cafe-meetup.webp"
+            alt="Two women having a relaxed first conversation in a bright public cafe"
+            loading="eager"
+            decoding="async"
+          />
+          <figcaption>
+            <strong>Start somewhere comfortable.</strong>
+            <span>A public place, a clear plan, and time to decide at your own pace.</span>
+          </figcaption>
+        </figure>
       </section>
 
-      <section className="mt-12 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-body muted max-w-[60ch]">
-          Persona securely collects identity evidence; Let&apos;s Be Friends stores only the verification outcome and operational metadata. Raw government-ID and selfie media are not copied into this app.
-        </p>
-        <div className="flex gap-2">
-          <Link to="/discover" className="btn btn-neutral btn-sm">Open discovery</Link>
-          <Link to="/become-host" className="btn btn-self btn-sm">Apply as a host</Link>
+      <section className="safety-journey">
+        <header className="section-heading-row">
+          <div>
+            <p className="eyebrow">Before, during, and after</p>
+            <h2 className="text-display section-display">Five promises, in plain language.</h2>
+          </div>
+        </header>
+        <ol className="safety-step-list">
+          {safetySteps.map((step, index) => (
+            <li className="safety-step" key={step.title}>
+              <span className="safety-step-number tabular">{String(index + 1).padStart(2, '0')}</span>
+              <div>
+                <h3 className="text-h2">{step.title}</h3>
+                <p className="text-body">{step.body}</p>
+                <p className="text-meta">{step.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="safety-control-grid" aria-label="Your controls">
+        <article><span>01</span><h3>Your boundaries stay visible</h3><p>Read what a Friend Host offers and what they do not offer before you request a time.</p></article>
+        <article><span>02</span><h3>Your location stays broad</h3><p>Nearby results can show approximate distance without revealing someone’s saved pin.</p></article>
+        <article><span>03</span><h3>You can report without evidence</h3><p>A private check-in photo is optional and is never required to raise a safety concern.</p></article>
+      </section>
+
+      <details className="safety-technical">
+        <summary>Technical and policy details</summary>
+        <div className="safety-technical-body">
+          <p><strong>Identity:</strong> Persona checks government ID, date of birth, live selfie, liveness, and face match. Every completed result then receives an explicit admin decision.</p>
+          <p><strong>Payments:</strong> The member funds the listed subtotal plus a 15% booking fee. Acceptance reserves the total; mutual completion begins a 24-hour pending period.</p>
+          <p><strong>Private booking evidence:</strong> The Friend Host decides at the start and the member decides at the end. Each may upload a private image or explicitly skip after a warning. Retrieval requires an active linked report and is audit-logged.</p>
+          <p><strong>Reports:</strong> Participant booking reports block unsettled wallet funds until a full admin records a resolution.</p>
         </div>
+      </details>
+
+      <section className="safety-closing">
+        <p className="eyebrow">A safer plan still starts with a good fit</p>
+        <h2 className="text-display section-display">Take your time. Read the profile. Ask questions.</h2>
+        <Link to="/discover" className="btn btn-social btn-lg">Explore people and experiences</Link>
       </section>
     </main>
   )

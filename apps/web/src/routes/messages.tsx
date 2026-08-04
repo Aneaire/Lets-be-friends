@@ -1,0 +1,493 @@
+import { SignInButton, useAuth } from '@clerk/react'
+import { Link, createFileRoute } from '@tanstack/react-router'
+import { useMutation, useQuery } from 'convex/react'
+import { FileText, Flag, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Send, ShieldCheck, Video, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import type { Id } from '../../convex/_generated/dataModel'
+import { api } from '../../convex/_generated/api'
+import { WorkspaceShell } from '../components/AppShell'
+import {
+  MAX_CHAT_ATTACHMENTS,
+  formatFileSize,
+  prepareChatAttachment,
+  type PreparedChatAttachment,
+} from '../lib/chatAttachments'
+
+export const Route = createFileRoute('/messages')({
+  validateSearch: (search: Record<string, unknown>): { conversationId?: string } => (
+    typeof search.conversationId === 'string' ? { conversationId: search.conversationId } : {}
+  ),
+  component: MessagesPage,
+})
+
+type Conversation = NonNullable<ReturnType<typeof useQuery<typeof api.conversations.list>>>[number]
+type Thread = NonNullable<ReturnType<typeof useQuery<typeof api.conversations.messages>>>
+type ThreadAttachment = Thread['messages'][number]['attachments'][number]
+type PendingAttachment = {
+  id: string
+  source: File
+  prepared?: PreparedChatAttachment
+  previewUrl?: string
+  progress: number
+  status: 'preparing' | 'ready' | 'error'
+  error?: string
+}
+
+function MessagesPage() {
+  const { isSignedIn } = useAuth()
+  const { conversationId } = Route.useSearch()
+  const conversations = useQuery(api.conversations.list, isSignedIn ? {} : 'skip') as Conversation[] | undefined
+  const selectedConversationId = conversationId
+    ? conversationId as Id<'directConversations'>
+    : conversations?.[0]?._id
+  const thread = useQuery(
+    api.conversations.messages,
+    isSignedIn && selectedConversationId ? { conversationId: selectedConversationId } : 'skip',
+  )
+  const report = useMutation(api.reports.create)
+  const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
+  const threadEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [thread?.messages.length])
+
+  if (!isSignedIn) {
+    return (
+      <main className="gate-state">
+        <div className="gate-state-inner">
+          <p className="eyebrow">Messages</p>
+          <h1 className="text-h1 mt-2">Sign in to continue the conversation.</h1>
+          <p className="lede mt-2">Your direct conversations stay between you and the other member and can be reported when needed.</p>
+          <SignInButton mode="modal"><button className="btn btn-self mt-5">Sign in</button></SignInButton>
+        </div>
+      </main>
+    )
+  }
+
+  return (
+    <WorkspaceShell
+      eyebrow="Your conversations"
+      title="Messages"
+      description="Say hello, ask a question, or keep in touch. Details for a booking stay with that booking."
+      railLabel="Conversations"
+      rail={<ConversationList conversations={conversations} selectedConversationId={selectedConversationId} />}
+      mobileNavigation={<ConversationMobileList conversations={conversations} selectedConversationId={selectedConversationId} />}
+    >
+      {(notice || error) && (
+        <div className={error ? 'notice notice-danger mb-4' : 'notice notice-success mb-4'} role={error ? 'alert' : 'status'}>
+          <span className="notice-icon">{error ? '!' : '✓'}</span>
+          <span>{error || notice}</span>
+        </div>
+      )}
+      {conversations === undefined ? (
+        <div className="empty-state">Loading conversations…</div>
+      ) : conversations.length === 0 ? (
+        <EmptyInbox />
+      ) : selectedConversationId && thread === undefined ? (
+        <div className="empty-state">Loading messages…</div>
+      ) : thread ? (
+        <section className="direct-thread" aria-label={`Conversation with ${thread.conversation.otherDisplayName}`}>
+          <header className="direct-thread-header">
+            <ProfileAvatar name={thread.conversation.otherDisplayName} imageUrl={thread.conversation.otherProfileImageUrl} />
+            <div className="min-w-0">
+              <h2 className="text-h2">{thread.conversation.otherDisplayName}</h2>
+              <p className="direct-thread-trust"><ShieldCheck size={13} aria-hidden="true" /> Private between members · Messages can be reported</p>
+            </div>
+          </header>
+
+          <div className="direct-message-list" aria-live="polite">
+            {thread.messages.length === 0 && (
+              <div className="direct-thread-empty">
+                <MessageCircle size={24} aria-hidden="true" />
+                <p>No messages yet. Say hello when you&apos;re ready.</p>
+              </div>
+            )}
+            {thread.messages.map((message) => (
+              <article key={message._id} className="direct-message" data-own={message.sentByViewer}>
+                <div className="direct-message-bubble">
+                  {message.attachments.length > 0 && <MessageAttachments attachments={message.attachments} />}
+                  {message.body && <p className="direct-message-copy whitespace-pre-wrap">{message.body}</p>}
+                  <time dateTime={new Date(message.createdAt).toISOString()}>{formatMessageTime(message.createdAt)}</time>
+                </div>
+                <button
+                  type="button"
+                  className="direct-message-report"
+                  aria-label="Report message"
+                  title="Report message"
+                  onClick={async () => {
+                    setError('')
+                    try {
+                      await report({ targetType: 'message', targetId: message._id, reason: 'Message needs safety review' })
+                      setNotice('Message sent to safety review.')
+                    } catch (reportError) {
+                      setError(reportError instanceof Error ? reportError.message : 'Message could not be reported.')
+                    }
+                  }}
+                >
+                  <Flag size={14} aria-hidden="true" />
+                </button>
+              </article>
+            ))}
+            <div ref={threadEndRef} />
+          </div>
+
+          {thread.conversation.otherUserSuspended ? (
+            <div className="notice notice-warning">This member is not currently available for messages.</div>
+          ) : (
+            <MessageComposer
+              conversationId={thread.conversation._id}
+              recipientName={thread.conversation.otherDisplayName}
+              onSent={() => {
+                setError('')
+                setNotice('Message sent.')
+              }}
+              onError={(message) => {
+                setNotice('')
+                setError(message)
+              }}
+            />
+          )}
+        </section>
+      ) : (
+        <div className="empty-state">Choose a conversation.</div>
+      )}
+    </WorkspaceShell>
+  )
+}
+
+function MessageAttachments({ attachments }: { attachments: ThreadAttachment[] }) {
+  return (
+    <div className="direct-attachment-grid" data-count={attachments.length}>
+      {attachments.map((attachment) => {
+        if (attachment.kind === 'image' && attachment.url) {
+          return (
+            <a key={attachment.storageId} href={attachment.url} target="_blank" rel="noreferrer" className="direct-attachment-media" aria-label={`Open ${attachment.fileName}`}>
+              <img src={attachment.url} alt={attachment.fileName} loading="lazy" />
+              <AttachmentMeta attachment={attachment} />
+            </a>
+          )
+        }
+        if (attachment.kind === 'video' && attachment.url) {
+          return (
+            <div key={attachment.storageId} className="direct-attachment-media">
+              <video src={attachment.url} controls playsInline preload="metadata" aria-label={attachment.fileName} />
+              <AttachmentMeta attachment={attachment} />
+            </div>
+          )
+        }
+        return (
+          <a key={attachment.storageId} href={attachment.url ?? undefined} download={attachment.fileName} className="direct-attachment-file">
+            <FileText size={20} aria-hidden="true" />
+            <span><strong>{attachment.fileName}</strong><small>{formatFileSize(attachment.size)}</small></span>
+          </a>
+        )
+      })}
+    </div>
+  )
+}
+
+function AttachmentMeta({ attachment }: { attachment: ThreadAttachment }) {
+  return (
+    <span className="direct-attachment-meta">
+      <span>{attachment.fileName}</span>
+      <small>{formatFileSize(attachment.size)}{attachment.compressionPercent > 0 ? ` · ${attachment.compressionPercent}% smaller` : ''}</small>
+    </span>
+  )
+}
+
+function MessageComposer({
+  conversationId,
+  recipientName,
+  onSent,
+  onError,
+}: {
+  conversationId: Id<'directConversations'>
+  recipientName: string
+  onSent: () => void
+  onError: (message: string) => void
+}) {
+  const generateUpload = useMutation(api.conversations.generateAttachmentUploadUrl)
+  const registerUpload = useMutation(api.conversations.registerAttachmentUpload)
+  const discardUpload = useMutation(api.conversations.discardAttachmentUpload)
+  const sendMessage = useMutation(api.conversations.sendMessage)
+  const [body, setBody] = useState('')
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+  const [sending, setSending] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const attachmentRef = useRef(attachments)
+  attachmentRef.current = attachments
+
+  useEffect(() => () => {
+    attachmentRef.current.forEach((attachment) => {
+      if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+    })
+  }, [])
+
+  const removeAttachment = (id: string) => {
+    setAttachments((current) => {
+      const removed = current.find((attachment) => attachment.id === id)
+      if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl)
+      return current.filter((attachment) => attachment.id !== id)
+    })
+  }
+
+  const addFiles = async (files: File[]) => {
+    const available = MAX_CHAT_ATTACHMENTS - attachments.length
+    if (available <= 0) {
+      onError('Messages can include up to 4 files.')
+      return
+    }
+    const accepted = files.slice(0, available)
+    if (files.length > available) onError('Only the first available files were added. Messages can include up to 4 files.')
+    const pending = accepted.map((source) => ({
+      id: crypto.randomUUID(),
+      source,
+      progress: 0,
+      status: 'preparing' as const,
+    }))
+    setAttachments((current) => [...current, ...pending])
+
+    for (const item of pending) {
+      try {
+        const prepared = await prepareChatAttachment(item.source, (progress) => {
+          setAttachments((current) => current.map((attachment) => attachment.id === item.id ? { ...attachment, progress } : attachment))
+        })
+        const previewUrl = prepared.kind === 'image' || prepared.kind === 'video' ? URL.createObjectURL(prepared.file) : undefined
+        setAttachments((current) => current.map((attachment) => attachment.id === item.id
+          ? { ...attachment, prepared, previewUrl, progress: 100, status: 'ready' }
+          : attachment))
+      } catch (caught) {
+        const message = caught instanceof Error ? caught.message : 'File could not be prepared.'
+        setAttachments((current) => current.map((attachment) => attachment.id === item.id
+          ? { ...attachment, status: 'error', error: message }
+          : attachment))
+        onError(message)
+      }
+    }
+  }
+
+  const hasPending = attachments.some((attachment) => attachment.status === 'preparing')
+  const hasErrors = attachments.some((attachment) => attachment.status === 'error')
+  const canSend = Boolean(body.trim() || attachments.length > 0) && !hasPending && !hasErrors && !sending
+
+  return (
+    <form
+      className="direct-message-composer"
+      onSubmit={async (event) => {
+        event.preventDefault()
+        if (!canSend) return
+        setSending(true)
+        onError('')
+        const grants: Array<{ uploadId: Id<'directMessageUploads'>; storageId?: Id<'_storage'>; claimed?: boolean }> = []
+        try {
+          for (const attachment of attachments) {
+            if (!attachment.prepared) throw new Error('Wait for every file to finish preparing.')
+            const grant = await generateUpload({})
+            const tracked = { uploadId: grant.uploadId, storageId: undefined as Id<'_storage'> | undefined, claimed: false }
+            grants.push(tracked)
+            const response = await fetch(grant.uploadUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': attachment.prepared.file.type },
+              body: attachment.prepared.file,
+            })
+            if (!response.ok) throw new Error(`${attachment.source.name} could not be uploaded.`)
+            const result = await response.json() as { storageId: Id<'_storage'> }
+            tracked.storageId = result.storageId
+            await registerUpload({
+              uploadId: grant.uploadId,
+              storageId: result.storageId,
+              fileName: attachment.prepared.file.name,
+              originalSize: attachment.prepared.originalSize,
+              compressionPercent: attachment.prepared.compressionPercent,
+            })
+          }
+          await sendMessage({
+            conversationId,
+            body,
+            attachmentUploadIds: grants.map((grant) => grant.uploadId),
+          })
+          grants.forEach((grant) => { grant.claimed = true })
+          attachments.forEach((attachment) => {
+            if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+          })
+          setAttachments([])
+          setBody('')
+          if (fileInputRef.current) fileInputRef.current.value = ''
+          onSent()
+        } catch (caught) {
+          await Promise.allSettled(grants.filter((grant) => !grant.claimed).map((grant) => discardUpload({
+            uploadId: grant.uploadId,
+            storageId: grant.storageId,
+          })))
+          onError(caught instanceof Error ? caught.message : 'Message could not be sent.')
+        } finally {
+          setSending(false)
+        }
+      }}
+    >
+      {attachments.length > 0 && (
+        <div className="direct-composer-tray" aria-label="Selected files">
+          {attachments.map((attachment) => (
+            <div key={attachment.id} className="direct-composer-file" data-state={attachment.status}>
+              <AttachmentPreview attachment={attachment} />
+              <span className="min-w-0">
+                <strong>{attachment.source.name}</strong>
+                <small>
+                  {attachment.status === 'preparing'
+                    ? `Compressing · ${attachment.progress}%`
+                    : attachment.status === 'error'
+                      ? attachment.error
+                      : attachment.prepared?.compressionPercent
+                        ? `${attachment.prepared.compressionPercent}% smaller · ${formatFileSize(attachment.prepared.file.size)} from ${formatFileSize(attachment.prepared.originalSize)}`
+                        : `Original · ${formatFileSize(attachment.source.size)}`}
+                </small>
+              </span>
+              <button type="button" onClick={() => removeAttachment(attachment.id)} aria-label={`Remove ${attachment.source.name}`}>
+                <X size={14} aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="direct-composer-controls">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="sr-only"
+          accept="image/*,video/*,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+          onChange={(event) => {
+            void addFiles(Array.from(event.currentTarget.files ?? []))
+            event.currentTarget.value = ''
+          }}
+        />
+        <button type="button" className="direct-attach-button" onClick={() => fileInputRef.current?.click()} disabled={sending || attachments.length >= MAX_CHAT_ATTACHMENTS} aria-label="Attach files" title="Attach files">
+          <Paperclip size={18} aria-hidden="true" />
+        </button>
+        <textarea
+          name="body"
+          className="field"
+          rows={1}
+          maxLength={2000}
+          value={body}
+          onChange={(event) => setBody(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              event.currentTarget.form?.requestSubmit()
+            }
+          }}
+          placeholder={`Message ${recipientName}`}
+          aria-label="Message"
+        />
+        <button className="btn btn-social direct-send-button" disabled={!canSend}>
+          {sending || hasPending ? <LoaderCircle className="direct-spinner" size={16} aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}
+          <span>{sending ? 'Sending…' : hasPending ? 'Preparing…' : 'Send'}</span>
+        </button>
+      </div>
+      <p className="direct-composer-hint">Enter to send · Shift+Enter for a new line · Media under 3 MB stays original</p>
+    </form>
+  )
+}
+
+function AttachmentPreview({ attachment }: { attachment: PendingAttachment }) {
+  if (attachment.status === 'preparing') return <LoaderCircle className="direct-spinner" size={18} aria-hidden="true" />
+  if (attachment.previewUrl && attachment.prepared?.kind === 'image') return <img src={attachment.previewUrl} alt="" />
+  if (attachment.prepared?.kind === 'video') return <Video size={18} aria-hidden="true" />
+  if (attachment.prepared?.kind === 'image') return <ImageIcon size={18} aria-hidden="true" />
+  return <FileText size={18} aria-hidden="true" />
+}
+
+function ConversationMobileList({
+  conversations,
+  selectedConversationId,
+}: {
+  conversations: Conversation[] | undefined
+  selectedConversationId?: Id<'directConversations'>
+}) {
+  if (!conversations?.length) return <Link to="/discover" className="workspace-mobile-nav-link">Find people</Link>
+  return conversations.map((conversation) => (
+    <Link
+      key={conversation._id}
+      to="/messages"
+      search={{ conversationId: conversation._id }}
+      className={`workspace-mobile-nav-link${conversation._id === selectedConversationId ? ' is-active' : ''}`}
+    >
+      <ProfileAvatar name={conversation.otherDisplayName} imageUrl={conversation.otherProfileImageUrl} />
+      {conversation.otherDisplayName}
+    </Link>
+  ))
+}
+
+function ConversationList({
+  conversations,
+  selectedConversationId,
+}: {
+  conversations: Conversation[] | undefined
+  selectedConversationId?: Id<'directConversations'>
+}) {
+  return (
+    <div className="conversation-rail">
+      <div className="rail-section-label">Conversations</div>
+      {conversations === undefined && <p className="text-meta px-2">Loading…</p>}
+      {conversations?.length === 0 && <p className="text-meta px-2">No conversations yet.</p>}
+      {conversations?.map((conversation) => (
+        <Link
+          key={conversation._id}
+          to="/messages"
+          search={{ conversationId: conversation._id }}
+          className="conversation-rail-link"
+          aria-current={conversation._id === selectedConversationId ? 'page' : undefined}
+        >
+          <ProfileAvatar name={conversation.otherDisplayName} imageUrl={conversation.otherProfileImageUrl} />
+          <span className="min-w-0">
+            <strong>{conversation.otherDisplayName}</strong>
+            <span>{conversation.lastMessageBody
+              ? `${conversation.lastMessageSentByViewer ? 'You: ' : ''}${conversation.lastMessageBody}`
+              : conversation.lastMessageAttachmentCount > 0
+                ? `${conversation.lastMessageSentByViewer ? 'You: ' : ''}${conversation.lastMessageAttachmentCount === 1 ? 'Sent a file' : `Sent ${conversation.lastMessageAttachmentCount} files`}`
+                : 'Start a conversation'}</span>
+          </span>
+        </Link>
+      ))}
+      <Link to="/discover" className="btn btn-social btn-sm mt-3">Find people</Link>
+    </div>
+  )
+}
+
+function EmptyInbox() {
+  return (
+    <div className="empty-state direct-inbox-empty">
+      <MessageCircle size={28} aria-hidden="true" />
+      <p className="empty-state-title">Your conversations will appear here.</p>
+      <p className="text-meta">Open someone’s profile or a community post when you are ready to say hello.</p>
+      <div className="flex gap-2 justify-center mt-4">
+        <Link to="/discover" className="btn btn-social btn-sm">Explore people</Link>
+        <Link to="/social" className="btn btn-neutral btn-sm">See community posts</Link>
+      </div>
+    </div>
+  )
+}
+
+function ProfileAvatar({ name, imageUrl }: { name: string; imageUrl?: string }) {
+  return (
+    <span className="avatar" aria-hidden="true">
+      {imageUrl ? <img src={imageUrl} alt="" /> : initials(name)}
+    </span>
+  )
+}
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?'
+}
+
+function formatMessageTime(timestamp: number) {
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(timestamp)
+}

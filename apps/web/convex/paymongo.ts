@@ -3,7 +3,7 @@ import { action, internalAction, internalMutation, internalQuery } from './_gene
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { v } from 'convex/values'
-import { settleTopUpInTransaction } from './finance'
+import { memberWalletV2Enabled, settleTopUpInTransaction } from './finance'
 import { writeAudit } from './lib'
 
 const PAYMONGO_API_BASE_URL = 'https://api.paymongo.com'
@@ -35,131 +35,148 @@ export type CanonicalPaymongoIntent = {
   expiresAt?: number
 }
 
+type TopUpPurpose = 'legacy_host_fee' | 'member_booking_balance'
+type TopUpResult = {
+  topUpId: Id<'paymongoTopUps'>
+  status: 'awaiting_payment' | 'processing'
+  amountCentavos: number
+  currency: 'PHP'
+  qrImageUrl?: string
+  expiresAt?: number
+}
+
 export const createTopUp = action({
   args: { amountCentavos: v.number() },
-  handler: async (ctx, args): Promise<{
-    topUpId: Id<'paymongoTopUps'>
-    status: 'awaiting_payment' | 'processing'
-    amountCentavos: number
-    currency: 'PHP'
-    qrImageUrl?: string
-    expiresAt?: number
-  }> => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error('Authentication required')
-    const amountCentavos = validateTopUpCentavos(args.amountCentavos)
-    const config = paymongoConfig()
-    const prepared = await ctx.runMutation(internal.paymongo.prepareTopUp, {
-      clerkUserId: identity.subject,
-      amountCentavos,
-      mode: config.mode,
-    })
+  handler: async (ctx, args): Promise<TopUpResult> => createTopUpForPurpose(ctx, args.amountCentavos, 'legacy_host_fee'),
+})
 
-    let providerIntentId: string | undefined
-    try {
-      const createdIntent = await paymongoRequest('/v1/payment_intents', {
-        method: 'POST',
-        config,
-        idempotencyKey: `topup:${prepared.topUpId}:intent`,
-        body: {
-          data: {
-            attributes: {
-              amount: amountCentavos,
-              payment_method_allowed: ['qrph'],
-              currency: BOOKING_CURRENCY,
-              description: 'Lets Be Friends platform-fee balance top-up',
-              metadata: { top_up_id: String(prepared.topUpId), host_user_id: String(prepared.hostUserId) },
+export const createMemberTopUp = action({
+  args: { amountCentavos: v.number() },
+  handler: async (ctx, args): Promise<TopUpResult> => {
+    if (!memberWalletV2Enabled()) throw new Error('Member-wallet top-ups are not enabled')
+    return await createTopUpForPurpose(ctx, args.amountCentavos, 'member_booking_balance')
+  },
+})
+
+async function createTopUpForPurpose(ctx: any, requestedAmountCentavos: number, purpose: TopUpPurpose): Promise<TopUpResult> {
+  const identity = await ctx.auth.getUserIdentity()
+  if (!identity) throw new Error('Authentication required')
+  const amountCentavos = validateTopUpCentavos(requestedAmountCentavos)
+  const config = paymongoConfig()
+  const prepared = await ctx.runMutation(internal.paymongo.prepareTopUp, {
+    clerkUserId: identity.subject,
+    amountCentavos,
+    mode: config.mode,
+    purpose,
+  })
+
+  let providerIntentId: string | undefined
+  try {
+    const createdIntent = await paymongoRequest('/v1/payment_intents', {
+      method: 'POST',
+      config,
+      idempotencyKey: `topup:${prepared.topUpId}:intent`,
+      body: {
+        data: {
+          attributes: {
+            amount: amountCentavos,
+            payment_method_allowed: ['qrph'],
+            currency: BOOKING_CURRENCY,
+            description: purpose === 'member_booking_balance'
+              ? 'Lets Be Friends member booking balance top-up'
+              : 'Lets Be Friends legacy platform-fee balance top-up',
+            metadata: {
+              top_up_id: String(prepared.topUpId),
+              beneficiary_user_id: String(prepared.beneficiaryUserId),
+              purpose,
             },
           },
         },
-      })
-      providerIntentId = providerResourceId(createdIntent, 'payment_intent')
-      const providerClientKey = paymentIntentClientKey(createdIntent)
-      if (!providerIntentId || !providerClientKey) throw new Error('PayMongo did not return a Payment Intent ID and client key')
-      await ctx.runMutation(internal.paymongo.attachProviderIntent, {
-        topUpId: prepared.topUpId,
-        providerIntentId,
-        providerClientKey,
-      })
+      },
+    })
+    providerIntentId = providerResourceId(createdIntent, 'payment_intent')
+    const providerClientKey = paymentIntentClientKey(createdIntent)
+    if (!providerIntentId || !providerClientKey) throw new Error('PayMongo did not return a Payment Intent ID and client key')
+    await ctx.runMutation(internal.paymongo.attachProviderIntent, { topUpId: prepared.topUpId, providerIntentId, providerClientKey })
 
-      const paymentMethod = await paymongoRequest('/v1/payment_methods', {
-        method: 'POST',
-        config,
-        idempotencyKey: `topup:${prepared.topUpId}:method`,
-        authorization: 'public',
-        body: { data: { attributes: { type: 'qrph', expiry_seconds: QR_FALLBACK_LIFETIME_MS / 1_000 } } },
-      })
-      const providerPaymentMethodId = providerResourceId(paymentMethod, 'payment_method')
-      if (!providerPaymentMethodId) throw new Error('PayMongo did not return a QR Ph Payment Method ID')
+    const paymentMethod = await paymongoRequest('/v1/payment_methods', {
+      method: 'POST',
+      config,
+      idempotencyKey: `topup:${prepared.topUpId}:method`,
+      authorization: 'public',
+      body: { data: { attributes: { type: 'qrph', expiry_seconds: QR_FALLBACK_LIFETIME_MS / 1_000 } } },
+    })
+    const providerPaymentMethodId = providerResourceId(paymentMethod, 'payment_method')
+    if (!providerPaymentMethodId) throw new Error('PayMongo did not return a QR Ph Payment Method ID')
 
-      await paymongoRequest(`/v1/payment_intents/${encodeURIComponent(providerIntentId)}/attach`, {
-        method: 'POST',
-        config,
-        idempotencyKey: `topup:${prepared.topUpId}:attach`,
-        authorization: 'public',
-        body: { data: { attributes: { payment_method: providerPaymentMethodId, client_key: providerClientKey } } },
-      })
-      const canonical = await retrievePaymongoIntent(providerIntentId, config)
-      validateCanonicalIntent(canonical, {
-        intentId: providerIntentId,
-        amountCentavos,
-        currency: BOOKING_CURRENCY,
-        mode: config.mode,
-      })
-      const expiresAt = canonical.expiresAt ?? Date.now() + QR_FALLBACK_LIFETIME_MS
-      await ctx.runMutation(internal.paymongo.markQrReady, {
-        topUpId: prepared.topUpId,
-        providerPaymentMethodId,
-        providerStatus: canonical.status,
-        qrImageUrl: canonical.qrImageUrl,
-        expiresAt,
-      })
-      return {
-        topUpId: prepared.topUpId,
-        status: 'awaiting_payment',
-        amountCentavos,
-        currency: BOOKING_CURRENCY,
-        qrImageUrl: canonical.qrImageUrl,
-        expiresAt,
-      }
-    } catch (error) {
-      await ctx.runMutation(internal.paymongo.recordCreationFailure, {
-        topUpId: prepared.topUpId,
-        failureCode: providerIntentId ? 'provider_result_unknown' : paymongoFailureCode(error),
-      })
-      if (providerIntentId) {
-        throw new Error('QR creation is still being confirmed with PayMongo. The balance screen will reconcile it automatically.')
-      }
-      throw new Error('PayMongo QR Ph top-up could not be started. Please try again shortly.')
+    await paymongoRequest(`/v1/payment_intents/${encodeURIComponent(providerIntentId)}/attach`, {
+      method: 'POST',
+      config,
+      idempotencyKey: `topup:${prepared.topUpId}:attach`,
+      authorization: 'public',
+      body: { data: { attributes: { payment_method: providerPaymentMethodId, client_key: providerClientKey } } },
+    })
+    const canonical = await retrievePaymongoIntent(providerIntentId, config)
+    validateCanonicalIntent(canonical, {
+      intentId: providerIntentId,
+      amountCentavos,
+      currency: BOOKING_CURRENCY,
+      mode: config.mode,
+    })
+    const expiresAt = canonical.expiresAt ?? Date.now() + QR_FALLBACK_LIFETIME_MS
+    await ctx.runMutation(internal.paymongo.markQrReady, {
+      topUpId: prepared.topUpId,
+      providerPaymentMethodId,
+      providerStatus: canonical.status,
+      qrImageUrl: canonical.qrImageUrl,
+      expiresAt,
+    })
+    return {
+      topUpId: prepared.topUpId,
+      status: 'awaiting_payment',
+      amountCentavos,
+      currency: BOOKING_CURRENCY,
+      qrImageUrl: canonical.qrImageUrl,
+      expiresAt,
     }
-  },
-})
+  } catch (error) {
+    await ctx.runMutation(internal.paymongo.recordCreationFailure, {
+      topUpId: prepared.topUpId,
+      failureCode: providerIntentId ? 'provider_result_unknown' : paymongoFailureCode(error),
+    })
+    if (providerIntentId) throw new Error('QR creation is still being confirmed with PayMongo. The balance screen will reconcile it automatically.')
+    throw new Error('PayMongo QR Ph top-up could not be started. Please try again shortly.')
+  }
+}
 
 export const prepareTopUp = internalMutation({
   args: {
     clerkUserId: v.string(),
     amountCentavos: v.number(),
     mode: v.union(v.literal('test'), v.literal('live')),
+    purpose: v.optional(v.union(v.literal('legacy_host_fee'), v.literal('member_booking_balance'))),
   },
   handler: async (ctx, args) => {
     validateTopUpCentavos(args.amountCentavos)
     const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId)).unique()
     if (!user) throw new Error('Profile sync required')
     if (user.suspended) throw new Error('Account is suspended')
-    const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).first()
-    if (!host || host.status !== 'approved') throw new Error('An approved Friend Host profile is required to top up')
+    const purpose = args.purpose ?? 'legacy_host_fee'
+    if (purpose === 'member_booking_balance' && !memberWalletV2Enabled()) throw new Error('Member-wallet top-ups are not enabled')
+    if (purpose === 'legacy_host_fee') {
+      const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).first()
+      if (!host || host.status !== 'approved') throw new Error('An approved Friend Host profile is required to top up')
+    }
 
     const now = Date.now()
-    const existing = await ctx.db.query('paymongoTopUps').withIndex('by_host_created_at', (q) => q.eq('hostUserId', user._id)).order('desc').take(10)
+    const existing = purpose === 'member_booking_balance'
+      ? await ctx.db.query('paymongoTopUps').withIndex('by_beneficiary_created_at', (q) => q.eq('beneficiaryUserId', user._id)).order('desc').take(10)
+      : await ctx.db.query('paymongoTopUps').withIndex('by_host_created_at', (q) => q.eq('hostUserId', user._id)).order('desc').take(10)
     for (const topUp of existing) {
+      if ((topUp.purpose ?? 'legacy_host_fee') !== purpose) continue
       if (!['creating', 'awaiting_payment', 'processing'].includes(topUp.status)) continue
       if (topUp.status === 'creating' && !topUp.providerIntentId && topUp.createdAt <= now - STALE_CREATION_MS) {
-        await ctx.db.patch(topUp._id, {
-          status: 'failed',
-          failedAt: now,
-          failureCode: 'stale_creation',
-          updatedAt: now,
-        })
+        await ctx.db.patch(topUp._id, { status: 'failed', failedAt: now, failureCode: 'stale_creation', updatedAt: now })
         continue
       }
       if (topUp.expiresAt !== undefined && topUp.expiresAt <= now) {
@@ -170,7 +187,9 @@ export const prepareTopUp = internalMutation({
     }
 
     const topUpId = await ctx.db.insert('paymongoTopUps', {
-      hostUserId: user._id,
+      hostUserId: purpose === 'legacy_host_fee' ? user._id : undefined,
+      beneficiaryUserId: user._id,
+      purpose,
       amountCentavos: args.amountCentavos,
       currency: BOOKING_CURRENCY,
       mode: args.mode,
@@ -180,12 +199,12 @@ export const prepareTopUp = internalMutation({
     })
     await writeAudit(ctx, {
       actorUserId: user._id,
-      action: 'platform_fee.top_up_started',
+      action: purpose === 'member_booking_balance' ? 'member_wallet.top_up_started' : 'platform_fee.top_up_started',
       targetType: 'paymongoTopUp',
       targetId: String(topUpId),
-      after: { amountCentavos: args.amountCentavos, currency: BOOKING_CURRENCY, mode: args.mode },
+      after: { amountCentavos: args.amountCentavos, currency: BOOKING_CURRENCY, mode: args.mode, purpose },
     })
-    return { topUpId, hostUserId: user._id }
+    return { topUpId, beneficiaryUserId: user._id }
   },
 })
 

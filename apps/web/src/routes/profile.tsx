@@ -81,7 +81,7 @@ function ProfilePage() {
         <div className="profile-hero-body">
           <ProfilePhoto imageUrl={profileImageUrl} name={displayName} size="xl" />
           <div className="profile-hero-copy">
-            <p className="eyebrow">Member profile</p>
+            <p className="eyebrow">Your public profile</p>
             <h1 className="text-h1 mt-2">{displayName}</h1>
             <p className="lede mt-2">{bio || 'No bio added yet.'}</p>
           </div>
@@ -89,9 +89,9 @@ function ProfilePage() {
             <button type="button" className="btn btn-self btn-sm" onClick={() => setEditOpen(true)}>
               Edit profile
             </button>
-            <Link to="/app" search={{}} className="btn btn-neutral btn-sm">Member workspace</Link>
+            <Link to="/app" search={{}} className="btn btn-neutral btn-sm">Your plans</Link>
             <Link to="/become-host" className="btn btn-neutral btn-sm">
-              {application ? 'Edit host profile' : 'Set up host profile'}
+              {application ? 'Edit hosting profile' : 'Share what you enjoy'}
             </Link>
           </div>
         </div>
@@ -102,7 +102,7 @@ function ProfilePage() {
           <div className="panel-header">
             <div>
               <h2 className="text-h2">About</h2>
-              <p className="text-meta mt-1">Visible profile details.</p>
+              <p className="text-meta mt-1">What other members can see about you.</p>
             </div>
           </div>
           <div className="panel-body">
@@ -150,7 +150,7 @@ function ProfilePage() {
             )}
             {verification.state === 'approved' && (
               <Link to="/app" search={{}} className="btn btn-social btn-sm">
-                Start a booking
+                Plan a time
               </Link>
             )}
             <div className="flex items-center justify-between gap-3">
@@ -158,10 +158,10 @@ function ProfilePage() {
               <span className="status-pill" data-tone={hostStatusTone(hostStatus)}>{hostStatusLabel(hostStatus)}</span>
             </div>
             <p className="text-body muted">
-              The host profile uses your member name. Strengths, mode, boundaries, city, and experience intro are managed separately and reviewed before your profile is listed.
+              Your hosting profile uses this name, then adds your Strengths, availability, boundaries, location, and the kinds of time you want to share.
             </p>
             <Link to="/become-host" className="btn btn-neutral btn-sm">
-              {application ? 'Edit host profile' : 'Set up host profile'}
+              {application ? 'Edit hosting profile' : 'Share what you enjoy'}
             </Link>
           </div>
         </aside>

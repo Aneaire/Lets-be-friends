@@ -17,4 +17,18 @@ crons.interval(
   {},
 )
 
+crons.interval(
+  'reconcile due member-wallet settlements',
+  { minutes: 15 },
+  internal.finance.reconcileSettlements,
+  {},
+)
+
+crons.daily(
+  'purge expired booking evidence',
+  { hourUTC: 3, minuteUTC: 0 },
+  internal.bookingEvidence.purgeExpired,
+  {},
+)
+
 export default crons

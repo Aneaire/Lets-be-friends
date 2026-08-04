@@ -1,5 +1,8 @@
 export const BOOKING_CURRENCY = 'PHP' as const
 export const FRIEND_HOST_COMMISSION_BPS = 1_000
+export const MEMBER_WALLET_PRICING_MODEL = 'member_wallet_v2' as const
+export const MEMBER_BOOKING_FEE_BPS = 1_500
+export const MEMBER_WALLET_SETTLEMENT_DELAY_MS = 24 * 60 * 60 * 1_000
 export const MIN_HOST_HOURLY_RATE_CENTAVOS = 10_000
 export const MAX_HOST_HOURLY_RATE_CENTAVOS = 1_000_000
 export const MIN_BOOKING_DURATION_MINUTES = 15
@@ -50,6 +53,35 @@ export function calculateBookingPrice(
     throw new Error('Calculated booking price is outside supported bounds')
   }
   return { grossPriceCentavos, commissionBps, commissionCentavos, currency: BOOKING_CURRENCY }
+}
+
+/** V2 member-wallet pricing. The legacy cash/host-commission helper above intentionally keeps its original meaning. */
+export function calculateMemberWalletBookingPrice(
+  hourlyRateCentavos: number,
+  durationMinutes: number,
+  memberBookingFeeBps = MEMBER_BOOKING_FEE_BPS,
+) {
+  validateHostHourlyRateCentavos(hourlyRateCentavos)
+  validateBookingDurationMinutes(durationMinutes)
+  if (!Number.isSafeInteger(memberBookingFeeBps) || memberBookingFeeBps < 0 || memberBookingFeeBps > 10_000) {
+    throw new Error('Member booking fee rate is invalid')
+  }
+
+  const serviceSubtotalCentavos = Math.round((hourlyRateCentavos * durationMinutes) / 60)
+  const memberBookingFeeCentavos = Math.round((serviceSubtotalCentavos * memberBookingFeeBps) / 10_000)
+  const memberTotalCentavos = serviceSubtotalCentavos + memberBookingFeeCentavos
+  for (const value of [serviceSubtotalCentavos, memberBookingFeeCentavos, memberTotalCentavos]) {
+    if (!Number.isSafeInteger(value) || value < 0) throw new Error('Calculated booking price is outside supported bounds')
+  }
+  return {
+    pricingModel: MEMBER_WALLET_PRICING_MODEL,
+    serviceSubtotalCentavos,
+    memberBookingFeeBps,
+    memberBookingFeeCentavos,
+    memberTotalCentavos,
+    hostEntitlementCentavos: serviceSubtotalCentavos,
+    currency: BOOKING_CURRENCY,
+  }
 }
 
 /** Returns the first Saturday 09:00 Asia/Manila strictly after the supplied instant. */

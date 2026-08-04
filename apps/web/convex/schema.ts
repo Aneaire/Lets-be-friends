@@ -46,11 +46,40 @@ const topUpStatus = v.union(
   v.literal('expired'),
 )
 const ledgerEntryKind = v.union(v.literal('top_up_credit'), v.literal('commission_collection'))
+const walletBucket = v.union(v.literal('available'), v.literal('reserved'), v.literal('pending'))
+const walletAccountType = v.union(v.literal('member_booking'), v.literal('host_earnings'), v.literal('platform_revenue'))
+const walletTransactionKind = v.union(
+  v.literal('paymongo_member_credit'),
+  v.literal('booking_reserve'),
+  v.literal('booking_release'),
+  v.literal('booking_complete'),
+  v.literal('booking_settle'),
+  v.literal('booking_admin_release'),
+  v.literal('booking_admin_refund'),
+)
+const bookingSettlementState = v.union(
+  v.literal('unreserved'),
+  v.literal('reserved'),
+  v.literal('pending'),
+  v.literal('blocked'),
+  v.literal('settled'),
+  v.literal('refunded'),
+)
+const evidenceRole = v.union(v.literal('host_start'), v.literal('member_end'))
 const postMedia = v.object({
   storageId: v.id('_storage'),
   kind: v.union(v.literal('image'), v.literal('video')),
   contentType: v.string(),
   size: v.number(),
+})
+const directAttachment = v.object({
+  storageId: v.id('_storage'),
+  kind: v.union(v.literal('image'), v.literal('video'), v.literal('file')),
+  fileName: v.string(),
+  contentType: v.string(),
+  size: v.number(),
+  originalSize: v.number(),
+  compressionPercent: v.number(),
 })
 const feedSource = v.union(
   v.literal('followed'),
@@ -181,6 +210,17 @@ export default defineSchema({
     commissionDueAt: v.optional(v.number()),
     commissionObligationId: v.optional(v.id('commissionObligations')),
     commissionExemptReason: v.optional(v.literal('legacy_unpriced')),
+    pricingModel: v.optional(v.literal('member_wallet_v2')),
+    serviceSubtotalCentavos: v.optional(v.number()),
+    memberBookingFeeBps: v.optional(v.number()),
+    memberBookingFeeCentavos: v.optional(v.number()),
+    memberTotalCentavos: v.optional(v.number()),
+    hostEntitlementCentavos: v.optional(v.number()),
+    settlementState: v.optional(bookingSettlementState),
+    settlementEligibleAt: v.optional(v.number()),
+    settlementBlockedAt: v.optional(v.number()),
+    settlementResolvedAt: v.optional(v.number()),
+    settlementResolution: v.optional(v.union(v.literal('released'), v.literal('returned_to_member'))),
     memberCompletedAt: v.optional(v.number()),
     hostCompletedAt: v.optional(v.number()),
     jointlyCompletedAt: v.optional(v.number()),
@@ -191,7 +231,11 @@ export default defineSchema({
     cancellationReason: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_member', ['memberId']).index('by_host', ['hostProfileId']).index('by_status', ['status']),
+  })
+    .index('by_member', ['memberId'])
+    .index('by_host', ['hostProfileId'])
+    .index('by_status', ['status'])
+    .index('by_settlement_state_eligible_at', ['settlementState', 'settlementEligibleAt']),
   commissionObligations: defineTable({
     bookingId: v.id('bookings'),
     hostUserId: v.id('users'),
@@ -222,8 +266,47 @@ export default defineSchema({
     .index('by_obligation', ['obligationId'])
     .index('by_top_up', ['topUpId'])
     .index('by_idempotency_key', ['idempotencyKey']),
+  walletAccounts: defineTable({
+    deterministicKey: v.string(),
+    accountType: walletAccountType,
+    ownerUserId: v.optional(v.id('users')),
+    currency: v.literal('PHP'),
+    availableCentavos: v.number(),
+    reservedCentavos: v.number(),
+    pendingCentavos: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_deterministic_key', ['deterministicKey'])
+    .index('by_owner_type', ['ownerUserId', 'accountType']),
+  walletTransactions: defineTable({
+    kind: walletTransactionKind,
+    idempotencyKey: v.string(),
+    bookingId: v.optional(v.id('bookings')),
+    topUpId: v.optional(v.id('paymongoTopUps')),
+    actorUserId: v.optional(v.id('users')),
+    amountCentavos: v.number(),
+    currency: v.literal('PHP'),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_idempotency_key', ['idempotencyKey'])
+    .index('by_booking', ['bookingId'])
+    .index('by_top_up', ['topUpId']),
+  walletEntries: defineTable({
+    transactionId: v.id('walletTransactions'),
+    accountId: v.id('walletAccounts'),
+    bucket: walletBucket,
+    direction: v.union(v.literal('debit'), v.literal('credit')),
+    amountCentavos: v.number(),
+    createdAt: v.number(),
+  })
+    .index('by_transaction', ['transactionId'])
+    .index('by_account_created_at', ['accountId', 'createdAt']),
   paymongoTopUps: defineTable({
-    hostUserId: v.id('users'),
+    hostUserId: v.optional(v.id('users')),
+    beneficiaryUserId: v.optional(v.id('users')),
+    purpose: v.optional(v.union(v.literal('legacy_host_fee'), v.literal('member_booking_balance'))),
     amountCentavos: v.number(),
     currency: v.literal('PHP'),
     mode: paymongoMode,
@@ -243,6 +326,7 @@ export default defineSchema({
   })
     .index('by_host', ['hostUserId'])
     .index('by_host_created_at', ['hostUserId', 'createdAt'])
+    .index('by_beneficiary_created_at', ['beneficiaryUserId', 'createdAt'])
     .index('by_provider_intent_id', ['providerIntentId'])
     .index('by_status', ['status'])
     .index('by_status_updated_at', ['status', 'updatedAt']),
@@ -264,6 +348,84 @@ export default defineSchema({
     reportable: v.boolean(),
     createdAt: v.number(),
   }).index('by_booking', ['bookingId']),
+  bookingEvidenceUploads: defineTable({
+    bookingId: v.id('bookings'),
+    userId: v.id('users'),
+    role: evidenceRole,
+    storageId: v.optional(v.id('_storage')),
+    contentType: v.optional(v.string()),
+    size: v.optional(v.number()),
+    createdAt: v.number(),
+    expiresAt: v.optional(v.number()),
+    registeredAt: v.optional(v.number()),
+    decisionId: v.optional(v.id('bookingEvidenceDecisions')),
+    discardedAt: v.optional(v.number()),
+    purgedAt: v.optional(v.number()),
+    purgeAfter: v.optional(v.number()),
+  })
+    .index('by_user_created_at', ['userId', 'createdAt'])
+    .index('by_created_at', ['createdAt'])
+    .index('by_booking_role', ['bookingId', 'role'])
+    .index('by_storage_id', ['storageId'])
+    .index('by_purge_after', ['purgeAfter'])
+    .index('by_active_purge_after', ['purgedAt', 'discardedAt', 'purgeAfter']),
+  bookingEvidenceDecisions: defineTable({
+    bookingId: v.id('bookings'),
+    userId: v.id('users'),
+    role: evidenceRole,
+    decision: v.union(v.literal('uploaded'), v.literal('skipped')),
+    uploadId: v.optional(v.id('bookingEvidenceUploads')),
+    warningAcknowledgedAt: v.optional(v.number()),
+    decidedAt: v.number(),
+  })
+    .index('by_booking_role', ['bookingId', 'role'])
+    .index('by_user', ['userId']),
+  bookingEvidenceAccessGrants: defineTable({
+    reportId: v.id('reports'),
+    bookingId: v.id('bookings'),
+    decisionId: v.id('bookingEvidenceDecisions'),
+    reviewerUserId: v.id('users'),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index('by_reviewer', ['reviewerUserId'])
+    .index('by_report', ['reportId']),
+  directConversations: defineTable({
+    participantOneId: v.id('users'),
+    participantTwoId: v.id('users'),
+    pairKey: v.string(),
+    lastMessageAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_pair', ['pairKey'])
+    .index('by_participant_one', ['participantOneId', 'updatedAt'])
+    .index('by_participant_two', ['participantTwoId', 'updatedAt']),
+  directMessages: defineTable({
+    conversationId: v.id('directConversations'),
+    senderId: v.id('users'),
+    body: v.string(),
+    attachments: v.optional(v.array(directAttachment)),
+    reportable: v.boolean(),
+    createdAt: v.number(),
+  }).index('by_conversation_created_at', ['conversationId', 'createdAt']),
+  directMessageUploads: defineTable({
+    userId: v.id('users'),
+    storageId: v.optional(v.id('_storage')),
+    messageId: v.optional(v.id('directMessages')),
+    kind: v.optional(v.union(v.literal('image'), v.literal('video'), v.literal('file'))),
+    fileName: v.optional(v.string()),
+    contentType: v.optional(v.string()),
+    size: v.optional(v.number()),
+    originalSize: v.optional(v.number()),
+    compressionPercent: v.optional(v.number()),
+    createdAt: v.number(),
+    registeredAt: v.optional(v.number()),
+    discardedAt: v.optional(v.number()),
+  })
+    .index('by_user_created_at', ['userId', 'createdAt'])
+    .index('by_storage_id', ['storageId'])
+    .index('by_message', ['messageId']),
   reviews: defineTable({
     bookingId: v.id('bookings'),
     reviewerId: v.id('users'),
@@ -352,13 +514,16 @@ export default defineSchema({
     reporterId: v.id('users'),
     targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user')),
     targetId: v.string(),
+    bookingId: v.optional(v.id('bookings')),
     reason: v.string(),
     status: v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed')),
+    settlementHoldAppliedAt: v.optional(v.number()),
+    settlementHoldReleasedAt: v.optional(v.number()),
     reviewerUserId: v.optional(v.id('users')),
     reviewerNote: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_status', ['status']).index('by_reporter', ['reporterId']),
+  }).index('by_status', ['status']).index('by_reporter', ['reporterId']).index('by_booking', ['bookingId']),
   auditLogs: defineTable({
     actorUserId: v.optional(v.id('users')),
     action: v.string(),

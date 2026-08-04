@@ -1,6 +1,7 @@
 import {
   BOOKING_CURRENCY,
-  calculateBookingPrice,
+  MEMBER_WALLET_PRICING_MODEL,
+  calculateMemberWalletBookingPrice,
   canBookHost,
   canCancelBooking,
   canCompleteBooking,
@@ -13,7 +14,15 @@ import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
 import { hasCurrentPersonaApproval } from './identityVerification'
-import { pastDueCommissionCentavos } from './finance'
+import {
+  allocateCompletedBookingFunds,
+  availableMemberBookingBalance,
+  hasActiveBookingReport,
+  memberWalletV2Enabled,
+  pastDueCommissionCentavos,
+  releaseBookingFunds,
+  reserveBookingFunds,
+} from './finance'
 
 export const mine = query({
   args: {},
@@ -87,16 +96,26 @@ export const createDraft = mutation({
     if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new Error('Booking time must be in the future')
     const durationMinutes = validateBookingDurationMinutes(args.durationMinutes)
     const hourlyRateCentavos = validateHostHourlyRateCentavos(host.hourlyRateCentavos ?? Number.NaN)
-    const price = calculateBookingPrice(hourlyRateCentavos, durationMinutes)
+    if (!memberWalletV2Enabled()) throw new Error('Member-wallet bookings are not enabled')
+    const price = calculateMemberWalletBookingPrice(hourlyRateCentavos, durationMinutes)
+    const availableCentavos = await availableMemberBookingBalance(ctx, viewer._id)
+    if (availableCentavos < price.memberTotalCentavos) {
+      throw new Error(`Insufficient booking balance. Add at least ${price.memberTotalCentavos - availableCentavos} more centavos before sending.`)
+    }
+
     const now = Date.now()
     const bookingId = await ctx.db.insert('bookings', {
       memberId: viewer._id,
       ...args,
       durationMinutes,
-      grossPriceCentavos: price.grossPriceCentavos,
+      pricingModel: price.pricingModel,
+      serviceSubtotalCentavos: price.serviceSubtotalCentavos,
+      memberBookingFeeBps: price.memberBookingFeeBps,
+      memberBookingFeeCentavos: price.memberBookingFeeCentavos,
+      memberTotalCentavos: price.memberTotalCentavos,
+      hostEntitlementCentavos: price.hostEntitlementCentavos,
       currency: price.currency,
-      commissionBps: price.commissionBps,
-      commissionCentavos: price.commissionCentavos,
+      settlementState: 'unreserved',
       status: 'request_sent',
       createdAt: now,
       updatedAt: now,
@@ -108,7 +127,7 @@ export const createDraft = mutation({
       targetId: String(bookingId),
       after: price,
     })
-    return { bookingId, grossPriceCentavos: price.grossPriceCentavos, currency: price.currency }
+    return { bookingId, ...price }
   },
 })
 
@@ -120,7 +139,10 @@ export const hostDecision = mutation({
     if (!booking) throw new Error('Booking not found')
     const host = await ctx.db.get(booking.hostProfileId)
     if (!host || host.userId !== viewer._id) throw new Error('Only the booked Friend Host can decide')
+    if (booking.status === args.decision) return { status: booking.status, idempotent: true }
     if (booking.status !== 'request_sent') throw new Error('Booking is not awaiting host decision')
+    let v2SettlementState = booking.settlementState
+    let v2SettlementBlockedAt = booking.settlementBlockedAt
     if (args.decision === 'accepted') {
       if (host.status !== 'approved' || !hasCurrentPersonaApproval(viewer)) {
         throw new Error('A current Persona identity check and approved Friend Host profile are required before accepting new bookings')
@@ -129,12 +151,31 @@ export const hostDecision = mutation({
       if (!member || member.suspended || !hasCurrentPersonaApproval(member)) {
         throw new Error('The member must renew identity approval before this booking can be accepted')
       }
-      if (await pastDueCommissionCentavos(ctx, viewer._id) > 0) {
+      if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL) {
+        await reserveBookingFunds(ctx, booking)
+        const blocked = await hasActiveBookingReport(ctx, booking._id)
+        v2SettlementState = blocked ? 'blocked' : 'reserved'
+        v2SettlementBlockedAt = blocked ? (booking.settlementBlockedAt ?? Date.now()) : booking.settlementBlockedAt
+      } else if (await pastDueCommissionCentavos(ctx, viewer._id) > 0) {
         throw new Error('Past-due platform commission must be settled before accepting a new booking')
       }
     }
-    await ctx.db.patch(args.bookingId, { status: args.decision, hostDecisionNote: args.note, updatedAt: Date.now() })
+    const now = Date.now()
+    await ctx.db.patch(args.bookingId, {
+      status: args.decision,
+      hostDecisionNote: args.note,
+      settlementState:
+        booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && args.decision === 'accepted'
+          ? v2SettlementState
+          : booking.settlementState,
+      settlementBlockedAt:
+        booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && args.decision === 'accepted'
+          ? v2SettlementBlockedAt
+          : booking.settlementBlockedAt,
+      updatedAt: now,
+    })
     await writeAudit(ctx, { actorUserId: viewer._id, action: `booking.${args.decision}`, targetType: 'booking', targetId: String(args.bookingId), note: args.note })
+    return { status: args.decision, idempotent: false }
   },
 })
 
@@ -146,11 +187,25 @@ export const cancel = mutation({
     if (!booking) throw new Error('Booking not found')
     const host = await ctx.db.get(booking.hostProfileId)
     if (booking.memberId !== viewer._id && host?.userId !== viewer._id) throw new Error('Not your booking')
+    if (booking.status === 'cancelled') return { status: 'cancelled' as const, idempotent: true }
+    if (
+      booking.pricingModel === MEMBER_WALLET_PRICING_MODEL
+      && (booking.memberCompletedAt || booking.hostCompletedAt)
+    ) {
+      throw new Error('A completion confirmation has already been recorded. Use the report/dispute flow instead of cancelling.')
+    }
     if (!canCancelBooking(booking.status)) throw new Error('This booking can no longer be cancelled')
+    if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && booking.status === 'accepted') {
+      if (booking.settlementState === 'blocked' || await hasActiveBookingReport(ctx, booking._id)) {
+        throw new Error('This booking has an active safety hold. A full admin must resolve the reserved funds.')
+      }
+      await releaseBookingFunds(ctx, booking, viewer._id)
+    }
     const now = Date.now()
     const reason = args.reason?.trim() || undefined
     await ctx.db.patch(args.bookingId, {
       status: 'cancelled',
+      settlementState: booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && booking.status === 'accepted' ? 'refunded' : booking.settlementState,
       cancelledByUserId: viewer._id,
       cancelledAt: now,
       cancellationReason: reason,
@@ -167,6 +222,7 @@ export const cancel = mutation({
       }
     }
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'booking.cancelled', targetType: 'booking', targetId: String(args.bookingId), note: reason })
+    return { status: 'cancelled' as const, idempotent: false }
   },
 })
 
@@ -176,29 +232,73 @@ export const markCompleted = mutation({
     const viewer = await requireViewer(ctx)
     const booking = await ctx.db.get(args.bookingId)
     if (!booking) throw new Error('Booking not found')
+    if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && booking.settlementState === 'refunded') {
+      throw new Error('Refunded bookings cannot be completed')
+    }
     const host = await ctx.db.get(booking.hostProfileId)
     if (!host) throw new Error('Friend Host profile not found')
     const isMember = booking.memberId === viewer._id
-    const isHost = host?.userId === viewer._id
+    const isHost = host.userId === viewer._id
     if (!isMember && !isHost) throw new Error('Not your booking')
+    if (booking.status !== 'accepted') {
+      if (
+        booking.pricingModel === MEMBER_WALLET_PRICING_MODEL
+        && ['review_window', 'completed', 'closed'].includes(booking.status)
+        && (isMember ? booking.memberCompletedAt : booking.hostCompletedAt)
+      ) {
+        return { status: booking.status, awaitingOtherConfirmation: false, idempotent: true }
+      }
+      throw new Error('Only accepted bookings can be completed')
+    }
     if (!canCompleteBooking(booking.status)) throw new Error('Only accepted bookings can be completed')
+
+    if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL) {
+      const role = isHost ? 'host_start' : 'member_end'
+      const decision = await ctx.db.query('bookingEvidenceDecisions')
+        .withIndex('by_booking_role', (q) => q.eq('bookingId', booking._id).eq('role', role))
+        .unique()
+      if (!decision || decision.userId !== viewer._id) {
+        throw new Error(isHost
+          ? 'Choose start evidence or explicitly skip it before confirming completion.'
+          : 'Choose end evidence or explicitly skip it before confirming completion.')
+      }
+    }
 
     const now = Date.now()
     const memberCompletedAt = isMember ? (booking.memberCompletedAt ?? now) : booking.memberCompletedAt
     const hostCompletedAt = isHost ? (booking.hostCompletedAt ?? now) : booking.hostCompletedAt
     if (!memberCompletedAt || !hostCompletedAt) {
-      await ctx.db.patch(args.bookingId, {
-        memberCompletedAt,
-        hostCompletedAt,
-        updatedAt: now,
-      })
+      await ctx.db.patch(args.bookingId, { memberCompletedAt, hostCompletedAt, updatedAt: now })
       await writeAudit(ctx, {
         actorUserId: viewer._id,
         action: isMember ? 'booking.member_completion_confirmed' : 'booking.host_completion_confirmed',
         targetType: 'booking',
         targetId: String(args.bookingId),
       })
-      return { status: 'accepted' as const, awaitingOtherConfirmation: true }
+      return { status: 'accepted' as const, awaitingOtherConfirmation: true, idempotent: false }
+    }
+
+    if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL) {
+      const allocation = await allocateCompletedBookingFunds(ctx, booking, host.userId, now)
+      const blocked = await hasActiveBookingReport(ctx, booking._id)
+      await ctx.db.patch(args.bookingId, {
+        status: 'review_window',
+        memberCompletedAt,
+        hostCompletedAt,
+        jointlyCompletedAt: booking.jointlyCompletedAt ?? now,
+        settlementEligibleAt: booking.settlementEligibleAt ?? allocation.settlementEligibleAt,
+        settlementState: blocked ? 'blocked' : 'pending',
+        settlementBlockedAt: blocked ? (booking.settlementBlockedAt ?? now) : booking.settlementBlockedAt,
+        updatedAt: now,
+      })
+      await writeAudit(ctx, {
+        actorUserId: viewer._id,
+        action: 'booking.review_window_opened',
+        targetType: 'booking',
+        targetId: String(args.bookingId),
+        after: { settlementEligibleAt: allocation.settlementEligibleAt, settlementBlocked: blocked },
+      })
+      return { status: 'review_window' as const, awaitingOtherConfirmation: false, idempotent: !allocation.applied }
     }
 
     let obligationId = booking.commissionObligationId
@@ -217,8 +317,8 @@ export const markCompleted = mutation({
         const dueAt = nextSaturdayManilaCutoff(now)
         obligationId = await ctx.db.insert('commissionObligations', {
           bookingId: booking._id,
-          hostUserId: host!.userId,
-          hostProfileId: host!._id,
+          hostUserId: host.userId,
+          hostProfileId: host._id,
           amountCentavos: booking.commissionCentavos,
           currency: BOOKING_CURRENCY,
           commissionBps: booking.commissionBps,
@@ -246,7 +346,7 @@ export const markCompleted = mutation({
       targetId: String(args.bookingId),
       after: { obligationId: obligationId ? String(obligationId) : undefined },
     })
-    return { status: 'review_window' as const, awaitingOtherConfirmation: false }
+    return { status: 'review_window' as const, awaitingOtherConfirmation: false, idempotent: false }
   },
 })
 

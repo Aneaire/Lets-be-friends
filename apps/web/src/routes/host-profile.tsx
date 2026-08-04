@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
@@ -20,6 +20,7 @@ type HostPostMedia = { storageId: Id<'_storage'>; kind: 'image' | 'video'; url: 
 
 function HostProfilePage() {
   const { hostProfileId } = Route.useSearch()
+  const navigate = useNavigate()
   const { isSignedIn } = useAuth()
   const host = useQuery(api.hosts.getPublic, hostProfileId ? { hostProfileId: hostProfileId as Id<'hostProfiles'> } : 'skip') as HostProfile | null | undefined
   const reviews = useQuery(api.reviews.forHost, hostProfileId ? { hostProfileId: hostProfileId as Id<'hostProfiles'> } : 'skip') as HostReview[] | undefined
@@ -28,14 +29,17 @@ function HostProfilePage() {
   const toggleFollow = useMutation(api.social.toggleFollow)
   const toggleSaveReview = useMutation(api.reviews.toggleSave)
   const report = useMutation(api.reports.create)
+  const startConversation = useMutation(api.conversations.start)
   const [notice, setNotice] = useState('')
+  const [messageError, setMessageError] = useState('')
+  const [startingMessage, setStartingMessage] = useState(false)
 
   if (!hostProfileId) {
     return (
       <main className="marketing-page">
         <p className="eyebrow">Friend Host profile</p>
-        <h1 className="text-h1 mt-2">Choose a Friend Host from discovery.</h1>
-        <Link to="/discover" className="btn btn-neutral btn-sm mt-5">Open discovery</Link>
+        <h1 className="text-h1 mt-2">Choose someone from Explore first.</h1>
+        <Link to="/discover" className="btn btn-social btn-sm mt-5">Explore people</Link>
       </main>
     )
   }
@@ -46,27 +50,27 @@ function HostProfilePage() {
       <main className="marketing-page">
         <p className="eyebrow">Friend Host profile</p>
         <h1 className="text-h1 mt-2">Profile is not available.</h1>
-        <p className="lede mt-2">Only approved Friend Hosts appear publicly.</p>
-        <Link to="/discover" className="btn btn-neutral btn-sm mt-5">Back to discovery</Link>
+        <p className="lede mt-2">This profile may still be in review or no longer be available.</p>
+        <Link to="/discover" className="btn btn-neutral btn-sm mt-5">Back to Explore</Link>
       </main>
     )
   }
 
   return (
-    <main className="marketing-page-wide">
-      {notice && (
-        <div className="notice notice-success mb-6">
-          <span className="notice-icon">✓</span>
-          <span>{notice}</span>
+    <main className="marketing-page-wide host-profile-page">
+      {(notice || messageError) && (
+        <div className={messageError ? 'notice notice-danger mb-6' : 'notice notice-success mb-6'}>
+          <span className="notice-icon">{messageError ? '!' : '✓'}</span>
+          <span>{messageError || notice}</span>
         </div>
       )}
 
-      <section className="panel p-5 mb-8">
+      <section className="panel host-profile-hero mb-8">
         <div className="worklist-row-head">
           <div className="flex items-start gap-4 min-w-0">
             <ProfilePhoto imageUrl={host.profileImageUrl} name={host.displayName} size="lg" />
             <div className="min-w-0">
-              <p className="eyebrow">Friend Host profile</p>
+              <p className="eyebrow">An invitation from</p>
               <h1 className="text-h1 mt-2">{host.displayName}</h1>
               <div className="worklist-row-meta mt-2">
                 <span>{host.city}</span>
@@ -81,7 +85,7 @@ function HostProfilePage() {
             {host.viewerBookingEligibility === 'own_profile' ? (
               <>
                 <span className="status-pill" data-tone="self">Your profile</span>
-                <Link to="/become-host" className="btn btn-self btn-sm">Edit host profile</Link>
+                <Link to="/become-host" className="btn btn-self btn-sm">Edit hosting profile</Link>
               </>
             ) : (
               <>
@@ -92,6 +96,24 @@ function HostProfilePage() {
                 />
                 {isSignedIn ? (
                   <>
+                    <button
+                      type="button"
+                      disabled={startingMessage}
+                      onClick={async () => {
+                        setStartingMessage(true)
+                        setMessageError('')
+                        try {
+                          const conversationId = await startConversation({ otherUserId: host.userId })
+                          await navigate({ to: '/messages', search: { conversationId } })
+                        } catch (error) {
+                          setMessageError(error instanceof Error ? error.message : 'Conversation could not be opened.')
+                          setStartingMessage(false)
+                        }
+                      }}
+                      className="btn btn-social btn-sm"
+                    >
+                      {startingMessage ? 'Opening…' : 'Message'}
+                    </button>
                     <button
                       onClick={async () => {
                         await toggleFollow({ userId: host.userId })
@@ -129,28 +151,29 @@ function HostProfilePage() {
             )}
           </div>
         </div>
-        {host.bio && <p className="text-body muted max-w-[72ch] mt-5">{host.bio}</p>}
-        <p className="text-body muted max-w-[72ch] mt-5">{host.intro}</p>
+        {host.bio && <p className="host-profile-bio mt-6">{host.bio}</p>}
+        <p className="host-profile-intro mt-5">{host.intro}</p>
         {host.hourlyRateCentavos !== undefined ? (
           <p className="text-meta mt-3">
-            Cash rate: <strong className="tabular text-[color:var(--text)]">{formatPhp(host.hourlyRateCentavos)} per hour</strong>.
-            The booking request locks the exact cash amount on the server.
+            <strong className="tabular text-[color:var(--text)]">{formatPhp(host.hourlyRateCentavos)} per hour</strong> before the 15% member booking fee.
+            You will review the full total before sending a request.
           </p>
         ) : (
-          <p className="text-meta mt-3">This legacy profile must set an hourly cash rate before receiving booking requests.</p>
+          <p className="text-meta mt-3">This legacy profile must set a listed hourly rate before receiving member-wallet booking requests.</p>
         )}
-        <div className="flex flex-wrap gap-2 mt-5">
+        <p className="eyebrow mt-7">Strengths · what {host.displayName} is great at</p>
+        <div className="flex flex-wrap gap-2 mt-3">
           {host.strengths.map((strength) => <span key={strength} className="chip" data-selected="true">{strength}</span>)}
         </div>
         <div className="profile-detail-grid mt-6">
           <div>
-            <p className="eyebrow">Categories</p>
+            <p className="eyebrow">Things you could do together</p>
             <div className="flex flex-wrap gap-2 mt-3">
               {host.categories.map((category) => <span key={category} className="chip">{category}</span>)}
             </div>
           </div>
           <div>
-            <p className="eyebrow">Boundaries</p>
+            <p className="eyebrow">What keeps it comfortable</p>
             {host.boundaries.length > 0 ? (
               <ul className="profile-boundary-list mt-3">
                 {host.boundaries.map((boundary) => <li key={boundary}>{boundary}</li>)}
@@ -166,7 +189,7 @@ function HostProfilePage() {
         <section>
           <header className="mb-3">
             <p className="eyebrow">Ratings</p>
-            <h2 className="text-h2 mt-1">Reviews are separate from profile details.</h2>
+            <h2 className="text-h2 mt-1">What past plans felt like</h2>
           </header>
           {reviews === undefined && <div className="empty-state">Loading reviews...</div>}
           {reviews && reviews.length === 0 && <div className="empty-state">No reviews yet.</div>}
@@ -192,7 +215,7 @@ function HostProfilePage() {
         <aside>
           <header className="mb-3">
             <p className="eyebrow">Posts</p>
-            <h2 className="text-h2 mt-1">Recent posts</h2>
+            <h2 className="text-h2 mt-1">A little more about {host.displayName}</h2>
           </header>
           {posts === undefined && <div className="empty-state">Loading posts...</div>}
           {posts && posts.length === 0 && <div className="empty-state">No posts from this member yet.</div>}
@@ -229,7 +252,7 @@ function HostBookingAction({
   if (eligibility === 'eligible') {
     return (
       <Link to="/app" search={{ hostProfileId }} className="btn btn-social btn-sm">
-        Request booking
+        Request a time
       </Link>
     )
   }
@@ -237,14 +260,14 @@ function HostBookingAction({
   if (eligibility === 'verification_required') {
     return (
       <Link to="/app" search={{}} className="btn btn-self btn-sm">
-        Verify to book
+        Verify before planning
       </Link>
     )
   }
 
   return (
     <SignInButton mode="modal">
-      <button type="button" className="btn btn-self btn-sm">Sign in to book</button>
+      <button type="button" className="btn btn-self btn-sm">Sign in to plan</button>
     </SignInButton>
   )
 }

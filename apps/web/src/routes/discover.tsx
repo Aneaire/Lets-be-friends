@@ -194,28 +194,29 @@ function DiscoverPage() {
   }, [])
 
   return (
-    <main className="marketing-page-wide">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-6">
+    <main className="marketing-page-wide discover-page">
+      <header className="discover-page-header">
         <div>
-          <p className="eyebrow">Discovery</p>
-          <h1 className="text-h1 mt-2">Find a Friend Host</h1>
+          <p className="eyebrow">Explore together</p>
+          <h1 className="text-display mt-3">What are you up for?</h1>
           <p className="lede mt-2">
-            Approved hosts only. Demo profiles fill the page while the review queue is empty.
+            Start with the kind of company you want, then meet people whose interests,
+            availability, and boundaries fit the moment.
           </p>
         </div>
         <p className="text-meta tabular">
-          {filtered.length} {filtered.length === 1 ? 'profile' : 'profiles'}
-          {demoCount > 0 && <span className="soft"> · {verifiedCount} bookable · {demoCount} demo</span>}
+          {filtered.length} {filtered.length === 1 ? 'person' : 'people'}
+          {demoCount > 0 && <span className="soft"> · {verifiedCount} available · {demoCount} preview</span>}
         </p>
       </header>
 
       <div className="discover-toolbar" role="region" aria-label="Filters">
         <div className="discover-toolbar-primary">
           <div className="mode-pillgroup" role="tablist" aria-label="Mode">
-            <ModeChip value="all" current={mode} onChange={setMode}>Any</ModeChip>
+            <ModeChip value="all" current={mode} onChange={setMode}>Anywhere</ModeChip>
             <ModeChip value="online" current={mode} onChange={setMode}>Online</ModeChip>
             <ModeChip value="in_person" current={mode} onChange={setMode}>In-person</ModeChip>
-            <ModeChip value="both" current={mode} onChange={setMode}>Either</ModeChip>
+            <ModeChip value="both" current={mode} onChange={setMode}>Both</ModeChip>
           </div>
           <div className="discover-toolbar-trailing">
             <label className="bookable-toggle">
@@ -224,7 +225,7 @@ function DiscoverPage() {
                 checked={bookableOnly}
                 onChange={(event) => setBookableOnly(event.currentTarget.checked)}
               />
-              <span>Bookable only</span>
+              <span>Available to book</span>
             </label>
             <button
               type="button"
@@ -234,7 +235,7 @@ function DiscoverPage() {
               aria-controls="categories-dialog"
             >
               <LayoutGrid size={14} aria-hidden="true" />
-              <span>Categories</span>
+              <span>All activities</span>
               {category !== null && <span className="filters-trigger-badge tabular">1</span>}
             </button>
             <button
@@ -253,7 +254,7 @@ function DiscoverPage() {
 
         <div className="category-strip-wrap" ref={categoryWrapRef} data-start="true" data-end="false">
           <div className="category-strip" ref={categoryStripRef} role="tablist" aria-label="Activity category">
-            <ToggleChip selected={category === null} onClick={() => setCategory(null)}>Any category</ToggleChip>
+            <ToggleChip selected={category === null} onClick={() => setCategory(null)}>Everything</ToggleChip>
             {activityCategories.map((value) => (
               <ToggleChip
                 key={value}
@@ -276,14 +277,21 @@ function DiscoverPage() {
         )}
       </div>
 
-      <section className="nearby-discovery-panel" aria-labelledby="nearby-discovery-title">
+      <details className="nearby-discovery-panel nearby-discovery-details">
+        <summary className="nearby-discovery-summary">
+          <span>
+            <span className="eyebrow">Nearby is optional</span>
+            <strong id="nearby-discovery-title">Looking for someone close by?</strong>
+            <small>Choose a broad search area when distance matters. Your origin stays in this browser session.</small>
+          </span>
+          <span className="nearby-summary-action">Choose nearby</span>
+        </summary>
         <div className="nearby-discovery-copy">
           <div>
-            <p className="eyebrow">Nearby</p>
-            <h2 id="nearby-discovery-title" className="text-h2 mt-1">Search from a place you choose</h2>
+            <p className="eyebrow">Your search area</p>
+            <h2 className="text-h2 mt-1">Choose where you want to meet</h2>
             <p className="text-meta mt-1 max-w-[62ch]">
-              Use your current browser location or place a travel pin. The origin stays in this session and is
-              sent only with nearby searches. Friend Host pins and approximate areas are never shown.
+              Use your current location or place a travel pin. Friend Host pins and approximate areas are never shown.
             </p>
           </div>
           <div className="nearby-origin-actions">
@@ -389,13 +397,13 @@ function DiscoverPage() {
             : 'Pan and zoom, then click the map to place a custom travel pin.'}
         />
         <p className="text-meta" role="status" aria-live="polite">{locationStatus}</p>
-      </section>
+      </details>
 
       <section aria-label="Results" className="mt-5">
         {filtered.length === 0 ? (
           <div className="empty-state">
             <p className="empty-state-title">No matches with these filters.</p>
-            <p className="text-meta">Loosen a filter or clear all to see every approved host.</p>
+            <p className="text-meta">Try another activity or clear the filters to see everyone.</p>
           </div>
         ) : (
           <div className="panel">
@@ -433,7 +441,7 @@ function DiscoverPage() {
             <header className="filters-drawer-header">
               <div>
                 <p className="eyebrow">Filter</p>
-                <h2 id="categories-dialog-title" className="text-h2 mt-1">Activity categories</h2>
+            <h2 id="categories-dialog-title" className="text-h2 mt-1">Things you can do together</h2>
               </div>
               <button
                 type="button"
@@ -446,7 +454,7 @@ function DiscoverPage() {
             </header>
             <div className="categories-dialog-body">
               <div className="filter-section-row">
-                <ToggleChip selected={category === null} onClick={() => setCategory(null)}>Any category</ToggleChip>
+                <ToggleChip selected={category === null} onClick={() => setCategory(null)}>Everything</ToggleChip>
                 {activityCategories.map((value) => (
                   <ToggleChip
                     key={value}
@@ -573,7 +581,7 @@ function HostRow({ host, signedIn, onFollow }: { host: DiscoveryHost; signedIn: 
 
         <div className="discover-host-actions">
           <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-neutral btn-sm">
-            View profile
+            See their ideas
           </Link>
           {signedIn ? (
             <button
@@ -662,7 +670,7 @@ function ToggleChip({ selected, onClick, children }: { selected: boolean; onClic
 }
 
 function TrustChip({ state }: { state: 'verified' | 'awaiting' | 'demo' }) {
-  const label = state === 'verified' ? 'Verified' : state === 'awaiting' ? 'Awaiting review' : 'Demo'
+  const label = state === 'verified' ? 'Identity checked' : state === 'awaiting' ? 'Review in progress' : 'Preview profile'
   return (
     <span className="trust-chip" data-state={state}>
       <span className="trust-chip-dot" aria-hidden="true" />

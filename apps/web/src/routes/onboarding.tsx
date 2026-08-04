@@ -51,8 +51,8 @@ function OnboardingPage() {
       <main className="onboarding-page">
         <div className="onboarding-intro">
           <p className="eyebrow">Welcome guide</p>
-          <h1 className="text-display mt-4">Start with a clear, safer path.</h1>
-          <p className="lede mt-4">Sign in to choose what you want to do, confirm your profile, and review how requests move.</p>
+          <h1 className="text-display mt-4">What would you like to do together?</h1>
+          <p className="lede mt-4">Sign in to tell us what brings you here, create the profile people will see, and understand what happens before a booking.</p>
           <SignInButton mode="modal">
             <button className="btn btn-self btn-lg mt-6">Sign in to continue</button>
           </SignInButton>
@@ -136,8 +136,8 @@ function OnboardingPage() {
     <main className="onboarding-page">
       <header className="onboarding-intro">
         <p className="eyebrow">Welcome guide</p>
-        <h1 className="text-h1 mt-3">A trust-first start to Let&apos;s Be Friends.</h1>
-        <p className="lede mt-2">Four short steps explain the path before you discover or host.</p>
+        <h1 className="text-h1 mt-3">Let’s start with what brings you here.</h1>
+        <p className="lede mt-2">Four short steps set up your profile and show what happens next.</p>
       </header>
 
       <ol className="onboarding-progress" aria-label="Onboarding progress">
@@ -178,7 +178,7 @@ function OnboardingPage() {
                     onChange={() => setGoal('member')}
                   />
                   <span className="onboarding-choice-marker" aria-hidden="true">01</span>
-                  <span><strong>Find a Friend Host</strong><small>Discover approved people for online or local shared activities.</small></span>
+                  <span><strong>I want someone to join me</strong><small>Explore verified people for online or local shared activities.</small></span>
                 </label>
                 <label data-selected={selectedGoal === 'friend_host'}>
                   <input
@@ -190,7 +190,7 @@ function OnboardingPage() {
                     onChange={() => setGoal('friend_host')}
                   />
                   <span className="onboarding-choice-marker" aria-hidden="true">02</span>
-                  <span><strong>Become a Friend Host</strong><small>Prepare a profile for identity, safety, and approval review.</small></span>
+                  <span><strong>I’d like to share what I enjoy</strong><small>Create a hosting profile around your interests, schedule, and boundaries.</small></span>
                 </label>
               </div>
             </fieldset>
@@ -218,7 +218,7 @@ function OnboardingPage() {
         {step === 3 && (
           <div>
             <p className="eyebrow">Step 3</p>
-            <h2 className="text-h1 mt-2">{selectedGoal === 'friend_host' ? 'How becoming a Friend Host works.' : 'How a booking moves.'}</h2>
+            <h2 className="text-h1 mt-2">{selectedGoal === 'friend_host' ? 'How sharing an experience works.' : 'What happens before you meet.'}</h2>
             <ol className="onboarding-journey mt-6">
               {journey.map(([title, copy], index) => (
                 <li key={title}>
@@ -261,7 +261,7 @@ function OnboardingPage() {
             {step === 3 && <button type="button" className="btn btn-self" onClick={() => setStep(4)}>Continue</button>}
             {step === 4 && selectedGoal === 'friend_host' && (
               <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void finish(selectedGoal)}>
-                {submitting ? 'Saving…' : 'Set up host profile'}
+                {submitting ? 'Saving…' : 'Create hosting profile'}
               </button>
             )}
             {step === 4 && selectedGoal === 'member' && (

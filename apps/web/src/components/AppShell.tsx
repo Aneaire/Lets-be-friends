@@ -8,9 +8,9 @@ import { BrandLogo } from './BrandLogo'
 import { ThemeToggle } from './ThemeToggle'
 
 const publicNavigation = [
-  { to: '/discover', label: 'Discover' },
-  { to: '/become-host', label: 'Become a Friend Host' },
-  { to: '/safety', label: 'Safety' },
+  { to: '/discover', label: 'Explore' },
+  { to: '/safety', label: 'How it works' },
+  { to: '/become-host', label: 'Share an experience' },
 ] as const
 
 export function Header() {
@@ -42,9 +42,9 @@ export function Header() {
 
         <div className="app-header-actions">
           {!onboarding && (
-            <Link to="/discover" className="discover-header-link" aria-label="Discover Friend Hosts">
+            <Link to="/discover" className="discover-header-link" aria-label="Explore people and experiences">
               <Search size={17} aria-hidden="true" />
-              <span>Discover</span>
+              <span>Explore</span>
             </Link>
           )}
           <ThemeToggle />
@@ -74,9 +74,10 @@ export function Footer() {
           </span>
         </div>
         <div className="flex items-center gap-5">
-          <Link to="/safety" className="nav-link">Safety model</Link>
-          <Link to="/become-host" className="nav-link">Become a Friend Host</Link>
-          <span className="text-soft">Verification before booking.</span>
+          <Link to="/discover" className="nav-link">Explore</Link>
+          <Link to="/safety" className="nav-link">How safety works</Link>
+          <Link to="/become-host" className="nav-link">Share what you enjoy</Link>
+          <span className="text-soft">Good company, with safety built in.</span>
         </div>
       </div>
     </footer>

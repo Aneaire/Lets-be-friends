@@ -7,6 +7,7 @@ import {
   Compass,
   House,
   LogOut,
+  MessageCircle,
   ShieldCheck,
   UserRound,
   UserRoundCog,
@@ -189,6 +190,7 @@ function MobilePrimaryNavigation({
 function NavigationIcon({ id }: { id: (typeof primaryNavigation)[number]['id'] }) {
   if (id === 'home') return <House size={20} aria-hidden="true" />
   if (id === 'discover') return <Compass size={20} aria-hidden="true" />
+  if (id === 'messages') return <MessageCircle size={20} aria-hidden="true" />
   if (id === 'bookings') return <CalendarCheck size={20} aria-hidden="true" />
   return <UserRoundCog size={20} aria-hidden="true" />
 }
@@ -260,7 +262,8 @@ function AccountNavigation({
             <div className="account-menu-group">
               <AccountLink to="/" icon={<House size={17} />} onSelect={() => onClose(false)}>Home</AccountLink>
               <AccountLink to="/app" search={{}} icon={<CalendarCheck size={17} />} onSelect={() => onClose(false)}>Bookings</AccountLink>
-              <AccountLink to="/discover" icon={<Compass size={17} />} onSelect={() => onClose(false)}>Discover Friend Hosts</AccountLink>
+              <AccountLink to="/messages" icon={<MessageCircle size={17} />} onSelect={() => onClose(false)}>Messages</AccountLink>
+              <AccountLink to="/discover" icon={<Compass size={17} />} onSelect={() => onClose(false)}>Explore people</AccountLink>
             </div>
 
             <div className="account-menu-group">
@@ -318,7 +321,7 @@ function AccountLink({
   children,
   onSelect,
 }: {
-  to: '/' | '/app' | '/discover' | '/profile' | '/host-profile' | '/become-host' | '/host' | '/onboarding' | '/safety'
+  to: '/' | '/app' | '/messages' | '/discover' | '/profile' | '/host-profile' | '/become-host' | '/host' | '/onboarding' | '/safety'
   search?: Record<string, string>
   icon: React.ReactNode
   children: React.ReactNode

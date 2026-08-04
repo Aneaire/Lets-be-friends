@@ -3,6 +3,7 @@ import {
   activityCategories,
   bookingEligibility,
   bookingStatusAfterReview,
+  calculateMemberWalletBookingPrice,
   bookingStatuses,
   brandAccentColors,
   canBookingChat,
@@ -26,6 +27,18 @@ describe('shared early access domain constants', () => {
     expect(friendStrengths).toContain('Good listener')
     expect(activityCategories).toContain('Online conversation')
     expect(bookingStatuses).toContain('verification_required')
+  })
+
+  it('calculates the shared member-wallet subtotal, 15% fee, total, and host entitlement', () => {
+    expect(calculateMemberWalletBookingPrice(50_000, 90)).toEqual({
+      pricingModel: 'member_wallet_v2',
+      serviceSubtotalCentavos: 75_000,
+      memberBookingFeeBps: 1_500,
+      memberBookingFeeCentavos: 11_250,
+      memberTotalCentavos: 86_250,
+      hostEntitlementCentavos: 75_000,
+      currency: 'PHP',
+    })
   })
 
   it('exports the logo accent semantics for product actions', () => {
@@ -125,7 +138,7 @@ describe('shared early access domain constants', () => {
   })
 
   it('does not expose admin routes in the user navigation', () => {
-    expect(primaryNavigation.map(({ to }) => to)).toEqual(['/', '/discover', '/app', '/host'])
+    expect(primaryNavigation.map(({ to }) => to)).toEqual(['/', '/discover', '/messages', '/app'])
     expect(primaryNavigation.some(({ to }) => to.startsWith('/admin'))).toBe(false)
   })
 })

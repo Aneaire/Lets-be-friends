@@ -1,5 +1,5 @@
 import type { FeedInstrumentationAction } from '@lets-be-friends/shared'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { Bookmark, Flag, Heart, ImagePlus, MessageCircle, Pencil, Send, Trash2, UserPlus, X } from 'lucide-react'
@@ -29,6 +29,7 @@ type SelectedMedia = {
 
 export function SocialPage() {
   const { isSignedIn } = useAuth()
+  const navigate = useNavigate()
   const viewer = useQuery(api.users.viewer)
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('for_you')
   const feedItems = useQuery(api.social.feed, { filter: viewer ? feedFilter : 'for_you' }) as FeedItem[] | undefined
@@ -46,6 +47,7 @@ export function SocialPage() {
   const recordFeedImpressions = useMutation(api.social.recordFeedImpressions)
   const recordFeedAction = useMutation(api.social.recordFeedAction)
   const report = useMutation(api.reports.create)
+  const startConversation = useMutation(api.conversations.start)
   const feedSessionId = useRef(`feed-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const impressedItemKeys = useRef(new Set<string>())
   const recordedActionKeys = useRef(new Set<string>())
@@ -151,10 +153,10 @@ export function SocialPage() {
       <section className="social-timeline" aria-label="Home feed">
         <header className="social-timeline-header">
           <div>
-            <p className="eyebrow">Community</p>
-            <h1 className="text-h2 mt-1">Home</h1>
+            <p className="eyebrow">Your community</p>
+            <h1 className="text-h1 mt-1">What’s happening</h1>
           </div>
-          <Link to="/discover" className="btn btn-neutral btn-sm">Find Friend Hosts</Link>
+          <Link to="/discover" className="btn btn-social-quiet btn-sm">Explore people</Link>
         </header>
 
         <div className="social-feed-tabs" role="tablist" aria-label="Social feed">
@@ -173,7 +175,7 @@ export function SocialPage() {
                 setFeedFilter(filter)
               }}
             >
-              {filter === 'for_you' ? 'For You' : filter[0].toUpperCase() + filter.slice(1)}
+              {filter === 'for_you' ? 'For you' : filter[0].toUpperCase() + filter.slice(1)}
             </button>
           ))}
         </div>
@@ -229,7 +231,7 @@ export function SocialPage() {
                 name="body"
                 className="social-composer-input"
                 maxLength={1000}
-                placeholder="What would you like to share?"
+                placeholder="Share something from your day, a recent experience, or an idea for next time…"
                 aria-label="Create a post"
               />
               {selectedMedia.length > 0 && (
@@ -336,6 +338,10 @@ export function SocialPage() {
                     recordAction(item, 'follow')
                     setNotice(post.followingAuthor ? 'Member unfollowed.' : 'Member followed.')
                   }}
+                  onMessage={async () => {
+                    const conversationId = await startConversation({ otherUserId: post.authorId })
+                    await navigate({ to: '/messages', search: { conversationId } })
+                  }}
                   onReport={async () => {
                     await report({ targetType: 'post', targetId: post._id, reason: 'Post needs safety review' })
                     recordAction(item, 'report')
@@ -365,7 +371,7 @@ function HostRecommendationCard({
 }) {
   return (
     <aside className="social-reserve-card" aria-label={`Recommended Friend Host: ${item.host.displayName}`}>
-      <div className="social-reserve-label">Friend Host recommendation</div>
+      <div className="social-reserve-label">Someone you might enjoy meeting</div>
       <div className="social-reserve-head">
         <div>
           <h2 className="text-h3">{item.host.displayName}</h2>
@@ -378,11 +384,11 @@ function HostRecommendationCard({
           onClick={onOpen}
           aria-label={`View ${item.host.displayName}'s Friend Host profile`}
         >
-          View profile
+          See their ideas
         </Link>
       </div>
       <p className="social-reserve-copy">{item.host.intro}</p>
-      <p className="social-feed-reason">Why this fits: {item.reason}</p>
+      <p className="social-feed-reason">Because you might like: {item.reason}</p>
       <div className="social-reserve-tags" aria-label="Categories and Strengths">
         {[...item.host.categories, ...item.host.strengths].slice(0, 4).map((label) => <span key={label}>{label}</span>)}
       </div>
@@ -399,10 +405,10 @@ function GuidanceCard({
 }) {
   return (
     <aside className="social-reserve-card social-guidance-card" aria-label="Let's Be Friends guidance">
-      <div className="social-reserve-label">Let&apos;s Be Friends guide</div>
+      <div className="social-reserve-label">A helpful next step</div>
       <h2 className="text-h3">{item.title}</h2>
       <p className="social-reserve-copy">{item.body}</p>
-      <p className="social-feed-reason">Why this fits: {item.reason}</p>
+      <p className="social-feed-reason">Why you’re seeing this: {item.reason}</p>
       <Link to={item.actionHref} className="btn btn-neutral btn-sm" onClick={onOpen}>{item.actionLabel}</Link>
     </aside>
   )
@@ -443,6 +449,7 @@ function PostRow({
   onLike,
   onSave,
   onFollow,
+  onMessage,
   onReport,
   onReportComment,
 }: {
@@ -455,6 +462,7 @@ function PostRow({
   onLike: () => Promise<void>
   onSave: () => Promise<void>
   onFollow: () => Promise<void>
+  onMessage: () => Promise<void>
   onReport: () => Promise<void>
   onReportComment: (commentId: Id<'postComments'>) => Promise<void>
 }) {
@@ -513,6 +521,10 @@ function PostRow({
               </>
             ) : viewerReady ? (
               <>
+                <button type="button" onClick={onMessage} className="btn btn-social btn-sm">
+                  <Send size={14} />
+                  Message
+                </button>
                 <button type="button" onClick={onFollow} className="btn btn-social-quiet btn-sm">
                   <UserPlus size={14} />
                   {post.followingAuthor ? 'Following' : 'Follow'}
@@ -524,7 +536,7 @@ function PostRow({
             ) : null}
           </div>
         </div>
-        <p className="social-feed-reason" aria-label={`Why this fits: ${reason}`}>Why this fits: {reason}</p>
+        <p className="social-feed-reason" aria-label={`Why you are seeing this: ${reason}`}>Because you might like: {reason}</p>
         {editing ? (
           <form
             className="social-edit-form"

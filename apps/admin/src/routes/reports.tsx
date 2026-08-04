@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useMutation, useQuery } from 'convex/react'
+import { useAction, useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { api } from '../../../web/convex/_generated/api'
 import { ActionNote } from '../components/ActionNote'
@@ -12,8 +12,11 @@ export const Route = createFileRoute('/reports')({ component: ReportsPage })
 function ReportsPage() {
   const [status, setStatus] = useState<ReportStatus>('open')
   const [targetType, setTargetType] = useState<TargetType>('all')
+  const [evidenceError, setEvidenceError] = useState<{ reportId: string; message: string } | null>(null)
   const rows = useQuery(api.admin.reports, { status, targetType })
   const updateReport = useMutation(api.admin.updateReportStatus)
+  const resolveBlockedFunds = useMutation(api.admin.resolveBlockedBookingFunds)
+  const readAdminEvidence = useAction(api.bookingEvidence.readAdminEvidence)
 
   return (
     <>
@@ -97,6 +100,80 @@ function ReportsPage() {
                   </div>
                 </div>
                 <p className="text-body muted max-w-[76ch]">{report.reason}</p>
+                {report.bookingId && (
+                  <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <p className="text-meta">
+                        Settlement: <strong>{report.bookingSettlementState?.replaceAll('_', ' ') ?? 'legacy / not applicable'}</strong>
+                        {report.bookingSettlementEligibleAt ? ` · eligible ${new Date(report.bookingSettlementEligibleAt).toLocaleString()}` : ''}
+                      </p>
+                      {report.canResolveBlockedFunds && (
+                        <div className="admin-action-stack">
+                          <ActionNote
+                            label="Release to host/platform"
+                            submitLabel="Release blocked funds"
+                            requireNote
+                            onSubmit={(note) => resolveBlockedFunds({ bookingId: report.bookingId!, resolution: 'release_to_host', note: note! })}
+                          />
+                          <ActionNote
+                            label="Return to member"
+                            submitLabel="Return blocked funds"
+                            tone="danger"
+                            requireNote
+                            onSubmit={(note) => resolveBlockedFunds({ bookingId: report.bookingId!, resolution: 'return_to_member', note: note! })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-meta">Private evidence decisions · each retrieval requires an active report and is audited</p>
+                      {report.evidence.length === 0 ? (
+                        <p className="text-tiny mt-1">No evidence decision recorded. Evidence is not required to submit or validate this report.</p>
+                      ) : (
+                        <div className="flex gap-2 flex-wrap mt-2">
+                          {report.evidence.map((evidence) => evidence.decision === 'uploaded' ? (
+                            <button
+                              key={evidence.role}
+                              type="button"
+                              className="btn btn-neutral btn-sm"
+                              disabled={report.status !== 'open' && report.status !== 'reviewing'}
+                              onClick={async () => {
+                                setEvidenceError(null)
+                                try {
+                                  const access = await readAdminEvidence({ reportId: report._id, role: evidence.role })
+                                  const objectUrl = URL.createObjectURL(new Blob([access.bytes], { type: access.contentType }))
+                                  const evidenceWindow = window.open(objectUrl, '_blank', 'noopener,noreferrer')
+                                  if (!evidenceWindow) {
+                                    URL.revokeObjectURL(objectUrl)
+                                    throw new Error('Allow pop-ups to view this evidence image.')
+                                  }
+                                  window.setTimeout(
+                                    () => URL.revokeObjectURL(objectUrl),
+                                    Math.max(1_000, access.displayUntil - Date.now()),
+                                  )
+                                } catch (error) {
+                                  setEvidenceError({
+                                    reportId: String(report._id),
+                                    message: error instanceof Error ? error.message : 'Evidence access failed.',
+                                  })
+                                }
+                              }}
+                            >
+                              View {evidence.role === 'host_start' ? 'host start' : 'member end'} image
+                            </button>
+                          ) : (
+                            <span key={evidence.role} className="status-pill" data-tone="warning">
+                              {evidence.role === 'host_start' ? 'Host start' : 'Member end'} skipped
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {evidenceError?.reportId === String(report._id) && (
+                        <p className="text-tiny action-note-error mt-2">{evidenceError.message}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {report.reviewerNote && <p className="text-meta">Last internal note: {report.reviewerNote}</p>}
               </article>
             ))}

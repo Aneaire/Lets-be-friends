@@ -7,6 +7,7 @@ import { canBookingChat, canCancelBooking, canCompleteBooking, canReadBookingMes
 import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
 import { WorkspaceShell } from '../components/AppShell'
+import { prepareEvidenceImage } from '../lib/chatAttachments'
 
 export const Route = createFileRoute('/host')({ component: HostWorkspacePage })
 
@@ -53,8 +54,8 @@ function HostWorkspacePage() {
     return (
       <main className="marketing-page">
         <p className="eyebrow">Host workspace</p>
-        <h1 className="text-h1 mt-2">Sign in to manage host requests.</h1>
-        <p className="lede mt-2">Applications, booking decisions, and host messages stay behind your account.</p>
+        <h1 className="text-h1 mt-2">Sign in to manage your hosting.</h1>
+        <p className="lede mt-2">Requests, conversations, your hosting profile, and earnings stay behind your account.</p>
         <div className="mt-6">
           <SignInButton mode="modal">
             <button className="btn btn-self">Sign in</button>
@@ -72,10 +73,10 @@ function HostWorkspacePage() {
     <WorkspaceShell
       variant="hosting"
       eyebrow="Hosting"
-      title="Requests and host profile"
+      title="Your hosting"
       description={
         viewer
-          ? 'Manage booking requests, conversations, and the profile members see.'
+          ? 'See who wants to spend time together, keep your profile current, and follow your earnings.'
           : 'Loading your hosting workspace…'
       }
       status={
@@ -112,7 +113,7 @@ function HostWorkspacePage() {
               <span>Profile status</span>
             </a>
             <a href="#fee-balance" className="rail-link">
-              <span>Platform-fee balance</span>
+              <span>Earnings and legacy fee balance</span>
               {finance && <span className="rail-link-count tabular">{formatPhp(finance.availableBalanceCentavos)}</span>}
             </a>
             <a href="#history" className="rail-link">
@@ -123,10 +124,10 @@ function HostWorkspacePage() {
           <div className="rail-section">
             <div className="rail-section-title">Setup</div>
             <Link to="/become-host" className="rail-link">
-              <span>Edit application</span>
+              <span>Edit hosting profile</span>
             </Link>
             <Link to="/safety" className="rail-link">
-              <span>Safety model</span>
+              <span>How safety works</span>
             </Link>
           </div>
         </>
@@ -147,9 +148,9 @@ function HostWorkspacePage() {
         {!viewer && <div className="empty-state">Loading your profile…</div>}
         {viewer && !application && (
           <div className="empty-state">
-            <p className="empty-state-title">No host application yet.</p>
-            <p className="text-meta max-w-[44ch]">Create a host profile before receiving booking requests.</p>
-            <Link to="/become-host" className="btn btn-self btn-sm mt-3">Apply as a Friend Host</Link>
+            <p className="empty-state-title">Your hosting profile is ready to begin.</p>
+            <p className="text-meta max-w-[44ch]">Share what you enjoy, set your boundaries, and send the profile for review.</p>
+            <Link to="/become-host" className="btn btn-self btn-sm mt-3">Create hosting profile</Link>
           </div>
         )}
         {application && (
@@ -199,8 +200,8 @@ function HostWorkspacePage() {
         {bookings === undefined && <div className="empty-state">Loading requests…</div>}
         {bookings && bookings.filter((booking) => ['request_sent', 'accepted', 'verification_required', 'pending_admin_review'].includes(booking.status)).length === 0 && (
           <div className="empty-state">
-            <p className="empty-state-title">No active host requests.</p>
-            <p className="text-meta">Booking requests from verified members will appear here after they are sent.</p>
+            <p className="empty-state-title">No one is waiting on you right now.</p>
+            <p className="text-meta">New booking requests from verified members will appear here.</p>
           </div>
         )}
         {bookings && bookings.filter((booking) => ['request_sent', 'accepted', 'verification_required', 'pending_admin_review'].includes(booking.status)).length > 0 && (
@@ -228,7 +229,7 @@ function HostWorkspacePage() {
                       const result = await complete({ bookingId: booking._id })
                       setNotice(result.awaitingOtherConfirmation
                         ? 'Completion confirmed. Waiting for the member to confirm separately.'
-                        : 'Both people confirmed completion. The review window is open and commission was accrued once.')
+                        : 'Both people confirmed completion. The review window is open and member-wallet funds moved to pending earnings once.')
                     }}
                     onReview={async (rating, body) => {
                       await submitReview({ bookingId: booking._id, rating, body })
@@ -277,7 +278,7 @@ function HostWorkspacePage() {
                       const result = await complete({ bookingId: booking._id })
                       setNotice(result.awaitingOtherConfirmation
                         ? 'Completion confirmed. Waiting for the member to confirm separately.'
-                        : 'Both people confirmed completion. The review window is open and commission was accrued once.')
+                        : 'Both people confirmed completion. The review window is open and member-wallet funds moved to pending earnings once.')
                     }}
                     onReview={async (rating, body) => {
                       await submitReview({ bookingId: booking._id, rating, body })
@@ -332,12 +333,12 @@ function FinancePanel({
     <section id="fee-balance" className="mb-10">
       <header className="flex items-baseline justify-between gap-3 mb-3">
         <div>
-          <h2 className="text-h2">Platform-fee balance</h2>
-          <p className="text-meta mt-1">Prepaid credits are nonwithdrawable and nontransferable. They are used only for Friend Host commission.</p>
+          <h2 className="text-h2">Earnings and legacy fee balance</h2>
+          <p className="text-meta mt-1">Track member-wallet earnings and keep older host-fee obligations funded separately.</p>
         </div>
         {finance && (
           <span className="status-pill" data-tone={finance.pastDueCentavos > 0 ? 'danger' : 'success'}>
-            {finance.pastDueCentavos > 0 ? 'Acceptance paused' : 'Can accept'}
+            {finance.pastDueCentavos > 0 ? 'Legacy fee past due' : 'Legacy fees current'}
           </span>
         )}
       </header>
@@ -346,6 +347,22 @@ function FinancePanel({
       {!finance && <div className="empty-state">Loading fee balance…</div>}
       {finance && (
         <div className="panel p-5 space-y-5">
+          <div>
+            <div className="flex items-baseline justify-between gap-3">
+              <div><p className="text-h3">Member-wallet earnings</p><p className="text-meta mt-1">Friend Host entitlement is 100% of each listed service subtotal.</p></div>
+              <span className="status-pill" data-tone="self">Internal balance</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 mt-3">
+              <FinanceMetric label="Pending earnings" value={formatPhp(finance.pendingEarningsCentavos)} tone="social" />
+              <FinanceMetric label="Available earnings" value={formatPhp(finance.availableEarningsCentavos)} tone="self" />
+            </div>
+            <p className="text-meta mt-3">{finance.payoutNotice}</p>
+          </div>
+
+          <div className="border-t border-[color:var(--rule)] pt-4">
+            <p className="text-h3">Legacy platform-fee balance</p>
+            <p className="text-meta mt-1">Retained only for commission obligations created by older cash bookings.</p>
+          </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <FinanceMetric label="Available" value={formatPhp(finance.availableBalanceCentavos)} tone="self" />
             <FinanceMetric label="Due this Saturday" value={formatPhp(finance.dueThisSaturdayCentavos)} tone="social" />
@@ -421,7 +438,7 @@ function FinancePanel({
             }}
           >
             <label className="field-row flex-1 min-w-56">
-              <span className="label">Hourly cash rate <span className="label-aux">PHP</span></span>
+              <span className="label">Listed hourly rate <span className="label-aux">PHP</span></span>
               <input name="hourlyRatePesos" type="number" min="100" max="10000" step="0.01" defaultValue={(application.hourlyRateCentavos ?? 50_000) / 100} required className="field" disabled={busy} />
             </label>
             <button className="btn btn-self" disabled={busy}>Update rate</button>
@@ -534,13 +551,20 @@ function HostBookingRow({
         <span className="status-pill" data-tone={status.tone}>{status.label}</span>
       </div>
 
-      {booking.grossPriceCentavos !== undefined && booking.currency === 'PHP' && (
+      {booking.pricingModel === 'member_wallet_v2' && booking.memberTotalCentavos !== undefined ? (
         <p className="text-meta">
-          Locked cash amount: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.grossPriceCentavos)}</strong>
-          {' · '}Commission: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.commissionCentavos ?? 0)}</strong>
+          Your entitlement: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.hostEntitlementCentavos ?? 0)}</strong>
+          {' · '}Member total {formatPhp(booking.memberTotalCentavos)} includes a platform booking fee paid by the member.
+          {booking.settlementState === 'blocked' && ' Settlement is blocked for full-admin resolution.'}
         </p>
-      )}
+      ) : booking.grossPriceCentavos !== undefined && booking.currency === 'PHP' ? (
+        <p className="text-meta">Legacy cash amount: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.grossPriceCentavos)}</strong> · Legacy commission {formatPhp(booking.commissionCentavos ?? 0)}</p>
+      ) : null}
       {booking.notes && <p className="text-body muted max-w-[72ch]">{booking.notes}</p>}
+
+      {booking.pricingModel === 'member_wallet_v2' && booking.status === 'accepted' && (
+        <EvidenceDecision bookingId={booking._id} />
+      )}
 
       {canReadMessages && <MessageThread messages={messages ?? []} onReport={onReportMessage} />}
 
@@ -560,6 +584,74 @@ function HostBookingRow({
         <button onClick={onReport} className="btn btn-danger btn-sm">Report</button>
       </div>
     </article>
+  )
+}
+
+function EvidenceDecision({ bookingId }: { bookingId: Id<'bookings'> }) {
+  const evidence = useQuery(api.bookingEvidence.status, { bookingId })
+  const uploadImage = useAction(api.bookingEvidence.uploadImage)
+  const skip = useMutation(api.bookingEvidence.skip)
+  const [busy, setBusy] = useState(false)
+  const [evidenceError, setEvidenceError] = useState('')
+
+  if (evidence?.decision) {
+    return <div className="evidence-decision"><p className="text-meta"><strong>Start evidence:</strong> {evidence.decision === 'uploaded' ? 'Private image saved' : 'Skipped after warning acknowledgement'}.</p></div>
+  }
+
+  return (
+    <div className="evidence-decision">
+      <div><p className="text-h3">Start evidence</p><p className="text-meta mt-1">You make the start decision. The image is optional and private; a reviewer or admin can retrieve it only with an active linked booking report, and each retrieval is audited. The member cannot access it.</p></div>
+      {evidenceError && <p className="text-meta text-[color:var(--danger)]">{evidenceError}</p>}
+      <div className="flex gap-2 flex-wrap">
+        <label className={`btn btn-social-quiet btn-sm ${busy ? 'pointer-events-none opacity-60' : ''}`}>
+          {busy ? 'Processing image…' : 'Upload private image'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+            className="sr-only"
+            disabled={busy}
+            onChange={async (event) => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ''
+              if (!file) return
+              setBusy(true)
+              setEvidenceError('')
+              try {
+                const processed = await prepareEvidenceImage(file)
+                await uploadImage({
+                  bookingId,
+                  bytes: await processed.arrayBuffer(),
+                  contentType: processed.type,
+                })
+              } catch (error) {
+                setEvidenceError(error instanceof Error ? error.message : 'Evidence image could not be saved.')
+              } finally {
+                setBusy(false)
+              }
+            }}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn btn-danger btn-sm"
+          disabled={busy}
+          onClick={async () => {
+            if (!window.confirm('Strict warning: skipping means no private start image will be available to help reviewers evaluate a later booking report. Skip anyway?')) return
+            setBusy(true)
+            setEvidenceError('')
+            try {
+              await skip({ bookingId, warningAcknowledged: true })
+            } catch (error) {
+              setEvidenceError(error instanceof Error ? error.message : 'Evidence decision could not be saved.')
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Skip after warning
+        </button>
+      </div>
+    </div>
   )
 }
 

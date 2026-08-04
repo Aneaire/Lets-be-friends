@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { circleCoordinates, clampCoordinates, distanceKm, offsetCoordinates, roundCoordinates } from './geo'
+import {
+  circleCoordinates,
+  clampCoordinates,
+  distanceKm,
+  geolocationErrorMessage,
+  offsetCoordinates,
+  roundCoordinates,
+} from './geo'
 
 describe('privacy-safe geospatial helpers', () => {
   it('clamps and rounds coordinates before they are used as approximate pins', () => {
@@ -33,5 +40,12 @@ describe('privacy-safe geospatial helpers', () => {
       { latitude: 10, longitude: 120 },
       { latitude: ring[4][1], longitude: ring[4][0] },
     )).toBeCloseTo(25, 0)
+  })
+
+  it('gives actionable recovery guidance for device location failures', () => {
+    expect(geolocationErrorMessage(1)).toContain('browser site settings')
+    expect(geolocationErrorMessage(2)).toContain('could not determine your location')
+    expect(geolocationErrorMessage(3)).toContain('timed out')
+    expect(geolocationErrorMessage(99)).toContain('could not be read')
   })
 })
