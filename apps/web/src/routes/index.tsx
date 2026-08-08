@@ -69,6 +69,12 @@ const activityExamples = [
     alt: 'A woman photographs her friend posing beside a colorful public mural',
   },
   {
+    title: 'Gaming together',
+    description: 'Queue up from different places, share the reactions, and make the match feel social.',
+    image: '/images/marketing/valorant-remote-friends.webp',
+    alt: 'Two friends in separate webcam panels gaming together remotely',
+  },
+  {
     title: 'Board game night',
     description: 'Make room at the table for an easygoing game and a lot of laughs.',
     image: '/images/marketing/board-game-night.webp',
@@ -93,10 +99,10 @@ const activityExamples = [
     alt: 'Two women enjoying a friendly conversation in a bright public cafe',
   },
   {
-    title: 'Cook something new',
-    description: 'Choose one recipe, share the prep, and enjoy figuring it out together.',
-    image: '/images/marketing/cook-together.webp',
-    alt: 'Two friends laughing while cooking a vegetable dish together',
+    title: 'Celebrate with someone',
+    description: 'Mark a birthday, a milestone, or a small win with someone happy to share the moment.',
+    image: '/images/marketing/celebrate-with-someone.webp',
+    alt: 'Two friends celebrating together with a small cake in a bright public cafe',
   },
 ] as const
 
@@ -125,14 +131,14 @@ const experienceModes = [
     title: 'Make an ordinary outing feel more social.',
     body: 'Plan coffee in a public cafe, walk through a familiar neighborhood, visit a market, practice photography, or go to an event. You see the location, duration, boundaries, and price before sending a booking request.',
     examples: ['Coffee and meals', 'Local walks', 'Creative hobbies', 'Public events'],
-    activity: activityExamples[4],
+    activity: activityExamples[5],
   },
   {
     label: 'Meet online',
     title: 'Share the time, even from different places.',
     body: 'Choose an online conversation, a focused work session, language practice, or gaming. Online sessions can be a comfortable first step when you want company without planning a trip across town.',
     examples: ['Conversation', 'Co-working', 'Language practice', 'Gaming sessions'],
-    activity: activityExamples[3],
+    activity: activityExamples[4],
   },
 ] as const
 
@@ -232,7 +238,7 @@ function HomePage() {
             <p className="lede">Start with an activity you already enjoy, or try one that has been waiting on your list.</p>
           </div>
           <div className="activity-reel-grid">
-            {activityExamples.slice(0, 2).map((activity) => (
+            {activityExamples.slice(0, 3).map((activity) => (
               <Link
                 key={activity.title}
                 to="/discover"
@@ -279,7 +285,7 @@ function HomePage() {
             </div>
           </div>
           <ActivityStoryPhoto
-            activity={activityExamples[5]}
+            activity={activityExamples[6]}
             className="invitation-intent-photo"
             sizes="(max-width: 700px) calc(100vw - 1.75rem), calc(100vw - 4rem)"
           />
@@ -413,7 +419,7 @@ function HomePage() {
             </div>
           </div>
           <ActivityStoryPhoto
-            activity={activityExamples[2]}
+            activity={activityExamples[3]}
             className="invitation-final-photo"
             sizes="(max-width: 900px) calc(100vw - 3.75rem), 52vw"
           />

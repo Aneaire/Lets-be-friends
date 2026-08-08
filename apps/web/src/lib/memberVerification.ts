@@ -25,7 +25,17 @@ export function identityEntitlementStatus(status: MemberVerificationStatus, iden
 export function memberVerificationPresentation(
   status: MemberVerificationStatus,
   latestRequest?: LatestIdentityVerification,
+  testBypassActive = false,
 ): MemberVerificationPresentation {
+  if (testBypassActive) {
+    return {
+      state: 'approved',
+      label: 'Test access enabled',
+      tone: 'warning',
+      guidance: 'Identity verification is bypassed for this test account. This is not a real identity approval.',
+      action: 'none',
+    }
+  }
   if (status === 'approved') {
     return {
       state: 'approved',

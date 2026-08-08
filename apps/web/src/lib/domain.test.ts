@@ -25,7 +25,8 @@ import { primaryNavigation } from './navigation'
 describe('shared early access domain constants', () => {
   it('keeps safe discovery defaults available', () => {
     expect(friendStrengths).toContain('Good listener')
-    expect(activityCategories).toContain('Online conversation')
+    expect(activityCategories).toContain('Good company')
+    expect(new Set(activityCategories).size).toBe(activityCategories.length)
     expect(bookingStatuses).toContain('verification_required')
   })
 
@@ -67,8 +68,9 @@ describe('shared early access domain constants', () => {
     expect(canBookHost(null, 'user-1')).toBe(true)
   })
 
-  it('requires approved identity status before creating a booking', () => {
+  it('requires current booking identity eligibility before creating a booking', () => {
     expect(canCreateBooking('approved', true)).toBe(true)
+    expect(canCreateBooking('not_started', true)).toBe(true)
     expect(canCreateBooking('approved', false)).toBe(false)
     expect(canCreateBooking('not_started', false)).toBe(false)
     expect(canCreateBooking('pending', false)).toBe(false)
@@ -84,6 +86,7 @@ describe('shared early access domain constants', () => {
     expect(bookingEligibility('member-1', 'pending', 'host-1', false)).toBe('verification_required')
     expect(bookingEligibility('member-1', 'approved', 'host-1', false)).toBe('verification_required')
     expect(bookingEligibility('member-1', 'approved', 'host-1', true)).toBe('eligible')
+    expect(bookingEligibility('member-1', 'not_started', 'host-1', true)).toBe('eligible')
   })
 
   it('keeps member review reasons separate from host applications', () => {

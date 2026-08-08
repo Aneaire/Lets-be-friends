@@ -1,6 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useClerk, useUser } from '@clerk/react'
-import { useQuery } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import {
   CalendarCheck,
   CircleHelp,
@@ -212,6 +212,9 @@ function AccountNavigation({
   const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.hosts.myApplication)
+  const setNearbyVisibility = useMutation(api.hosts.setNearbyDiscoveryVisibility)
+  const [nearbySaving, setNearbySaving] = useState(false)
+  const [nearbyError, setNearbyError] = useState('')
   const displayName = viewer?.displayName ?? user?.fullName ?? user?.username ?? 'Account'
   const email = user?.primaryEmailAddress?.emailAddress
   const imageUrl = viewer?.profileImageUrl ?? user?.imageUrl
@@ -258,6 +261,49 @@ function AccountNavigation({
                 {email && <span className="account-menu-email">{email}</span>}
               </span>
             </div>
+
+            {application && (
+              <div className="account-menu-nearby">
+                <div className="account-menu-nearby-copy">
+                  <span className="account-menu-nearby-title">Nearby search</span>
+                  <span className="account-menu-nearby-status">
+                    {typeof application.approximateLatitude !== 'number' || typeof application.approximateLongitude !== 'number'
+                      ? 'Add an approximate location first'
+                      : application.nearbyDiscoveryEnabled
+                        ? application.status === 'approved' ? 'Visible to nearby members' : 'On after profile approval'
+                        : 'Not shown in nearby results'}
+                  </span>
+                  {nearbyError && <span className="account-menu-nearby-error" role="alert">{nearbyError}</span>}
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  className="account-menu-switch"
+                  aria-label="Show in nearby search"
+                  aria-checked={application.nearbyDiscoveryEnabled === true}
+                  disabled={nearbySaving || typeof application.approximateLatitude !== 'number' || typeof application.approximateLongitude !== 'number'}
+                  data-checked={application.nearbyDiscoveryEnabled === true}
+                  onClick={async () => {
+                    if (nearbySaving) return
+                    setNearbySaving(true)
+                    setNearbyError('')
+                    try {
+                      await setNearbyVisibility({ enabled: application.nearbyDiscoveryEnabled !== true })
+                    } catch (visibilityError) {
+                      setNearbyError(visibilityError instanceof Error ? visibilityError.message : 'Nearby search could not be updated.')
+                    } finally {
+                      setNearbySaving(false)
+                    }
+                  }}
+                >
+                  <span aria-hidden="true" />
+                  <strong>{nearbySaving ? 'Saving' : application.nearbyDiscoveryEnabled ? 'On' : 'Off'}</strong>
+                </button>
+                {(typeof application.approximateLatitude !== 'number' || typeof application.approximateLongitude !== 'number') && (
+                  <Link to="/become-host" className="account-menu-nearby-link" onClick={() => onClose(false)}>Add location</Link>
+                )}
+              </div>
+            )}
 
             <div className="account-menu-group">
               <AccountLink to="/" icon={<House size={17} />} onSelect={() => onClose(false)}>Home</AccountLink>

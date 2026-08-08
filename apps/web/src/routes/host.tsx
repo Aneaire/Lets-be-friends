@@ -3,7 +3,7 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import type React from 'react'
-import { canBookingChat, canCancelBooking, canCompleteBooking, canReadBookingMessages, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
+import { canCancelBooking, canCompleteBooking, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
 import { WorkspaceShell } from '../components/AppShell'
@@ -43,7 +43,6 @@ function HostWorkspacePage() {
   const decide = useMutation(api.bookings.hostDecision)
   const cancelBooking = useMutation(api.bookings.cancel)
   const complete = useMutation(api.bookings.markCompleted)
-  const sendMessage = useMutation(api.bookings.sendMessage)
   const submitReview = useMutation(api.reviews.submit)
   const report = useMutation(api.reports.create)
   const updateHourlyRate = useMutation(api.hosts.updateHourlyRate)
@@ -235,17 +234,9 @@ function HostWorkspacePage() {
                       await submitReview({ bookingId: booking._id, rating, body })
                       setNotice('Review submitted.')
                     }}
-                    onSendMessage={async (body) => {
-                      await sendMessage({ bookingId: booking._id, body })
-                      setNotice('Message sent.')
-                    }}
                     onReport={async () => {
                       await report({ targetType: 'booking', targetId: booking._id, reason: 'Host flagged this booking for safety review' })
                       setNotice('Report sent to safety review.')
-                    }}
-                    onReportMessage={async (messageId) => {
-                      await report({ targetType: 'message', targetId: messageId, reason: 'Message needs safety review' })
-                      setNotice('Message report sent to safety review.')
                     }}
                   />
                 ))}
@@ -284,17 +275,9 @@ function HostWorkspacePage() {
                       await submitReview({ bookingId: booking._id, rating, body })
                       setNotice('Review submitted.')
                     }}
-                    onSendMessage={async (body) => {
-                      await sendMessage({ bookingId: booking._id, body })
-                      setNotice('Message sent.')
-                    }}
                     onReport={async () => {
                       await report({ targetType: 'booking', targetId: booking._id, reason: 'Host flagged this booking for safety review' })
                       setNotice('Report sent to safety review.')
-                    }}
-                    onReportMessage={async (messageId) => {
-                      await report({ targetType: 'message', targetId: messageId, reason: 'Message needs safety review' })
-                      setNotice('Message report sent to safety review.')
                     }}
                   />
                 ))}
@@ -509,9 +492,7 @@ function HostBookingRow({
   onCancel,
   onComplete,
   onReview,
-  onSendMessage,
   onReport,
-  onReportMessage,
 }: {
   booking: HostBooking
   onAccept: () => Promise<void>
@@ -519,18 +500,14 @@ function HostBookingRow({
   onCancel: () => Promise<void>
   onComplete: () => Promise<void>
   onReview: (rating: number, body?: string) => Promise<void>
-  onSendMessage: (body: string) => Promise<void>
   onReport: () => Promise<void>
-  onReportMessage: (messageId: Id<'messages'>) => Promise<void>
 }) {
   const status = statusCopy[booking.status as HostBookingStatus] ?? { label: booking.status, tone: 'self' as const }
   const canDecide = booking.status === 'request_sent'
   const canCancel = canCancelBooking(booking.status)
   const canComplete = canCompleteBooking(booking.status)
   const canReview = canReviewBooking(booking.status) && !booking.viewerHasReviewed
-  const canChat = canBookingChat(booking.status)
-  const canReadMessages = canReadBookingMessages(booking.status)
-  const messages = useQuery(api.bookings.messages, canReadMessages ? { bookingId: booking._id } : 'skip')
+  const conversationId = useQuery(api.conversations.between, { otherUserId: booking.memberId })
 
   return (
     <article className="worklist-row">
@@ -566,7 +543,9 @@ function HostBookingRow({
         <EvidenceDecision bookingId={booking._id} />
       )}
 
-      {canReadMessages && <MessageThread messages={messages ?? []} onReport={onReportMessage} />}
+      {booking.pricingModel === 'member_wallet_v2' && booking.status === 'accepted' && (
+        <EvidenceDecision bookingId={booking._id} />
+      )}
 
       <div className="worklist-row-actions">
         {canDecide && (
@@ -580,7 +559,9 @@ function HostBookingRow({
         {canReview && <ReviewForm onReview={onReview} />}
         {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
         {canCancel && <button type="button" onClick={onCancel} className="btn btn-danger btn-sm">Cancel booking</button>}
-        {canChat && <MessageForm onSend={onSendMessage} />}
+        {conversationId && (
+          <Link to="/messages" search={{ conversationId }} className="btn btn-social btn-sm">Open conversation</Link>
+        )}
         <button onClick={onReport} className="btn btn-danger btn-sm">Report</button>
       </div>
     </article>
@@ -652,51 +633,6 @@ function EvidenceDecision({ bookingId }: { bookingId: Id<'bookings'> }) {
         </button>
       </div>
     </div>
-  )
-}
-
-function MessageThread({ messages, onReport }: {
-  messages: Array<{ _id: Id<'messages'>; body: string; createdAt: number; senderDisplayName: string; sentByViewer: boolean }>
-  onReport: (messageId: Id<'messages'>) => Promise<void>
-}) {
-  if (messages.length === 0) {
-    return <p className="text-meta">No messages yet. Chat opens only after the booking is allowed.</p>
-  }
-  return (
-    <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-3 space-y-2">
-      <p className="text-tiny uppercase tracking-wide text-[color:var(--text-soft)]">Messages</p>
-      {messages.map((message) => (
-        <div key={message._id} className="message-row text-meta">
-          <div className="min-w-0">
-            <strong>{message.sentByViewer ? 'You' : message.senderDisplayName}</strong>
-            <span className="mx-2 text-soft">·</span>
-            <span className="tabular text-soft">{formatRequestedAt(message.createdAt)}</span>
-            <p className="mt-1 whitespace-pre-wrap">{message.body}</p>
-          </div>
-          <button type="button" onClick={() => onReport(message._id)} className="btn btn-ghost btn-sm">Report</button>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function MessageForm({ onSend }: { onSend: (body: string) => Promise<void> }) {
-  return (
-    <form
-      className="flex items-center gap-2 flex-1 min-w-[260px]"
-      onSubmit={async (event) => {
-        event.preventDefault()
-        const form = event.currentTarget
-        const data = new FormData(form)
-        const body = String(data.get('body') ?? '').trim()
-        if (!body) return
-        await onSend(body)
-        form.reset()
-      }}
-    >
-      <input name="body" className="field" placeholder="Send a chat message" />
-      <button className="btn btn-social btn-sm">Send</button>
-    </form>
   )
 }
 

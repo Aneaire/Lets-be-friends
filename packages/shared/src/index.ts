@@ -17,18 +17,20 @@ export const friendStrengths = [
 ] as const
 
 export const activityCategories = [
-  'Coffee or meal companion',
-  'Local walk or city guide',
-  'Study or productivity buddy',
-  'Language practice',
-  'Gaming session',
-  'Hobby session',
-  'Event companion',
-  'Fitness or outdoor buddy',
-  'Online conversation',
-  'Online coworking',
-  'Travel or neighborhood guide',
-  'Photography or creative walk',
+  'Good company',
+  'Coffee and meals',
+  'Explore the city',
+  'Events and celebrations',
+  'Games and esports',
+  'Study and coworking',
+  'Language exchange',
+  'Arts and crafts',
+  'Photo walks',
+  'Fitness and sports',
+  'Nature and outdoors',
+  'Hobbies and skills',
+  'Shopping and errands',
+  'Tech help',
 ] as const
 
 export const bookingStatuses = [
@@ -98,8 +100,8 @@ export function bookingStatusAfterReview(otherParticipantHasReviewed: boolean): 
   return otherParticipantHasReviewed ? 'closed' : 'review_window'
 }
 
-export function canCreateBooking(status: VerificationStatus, identityEligible: boolean) {
-  return status === 'approved' && identityEligible
+export function canCreateBooking(_status: VerificationStatus, identityEligible: boolean) {
+  return identityEligible
 }
 
 export function requiresVerificationForBooking(status: VerificationStatus, identityEligible: boolean) {
@@ -112,13 +114,13 @@ export function isMemberVerificationReason(reason: VerificationRequestReason) {
 
 export function bookingEligibility(
   viewerUserId: string | null | undefined,
-  verificationStatus: VerificationStatus | null | undefined,
+  _verificationStatus: VerificationStatus | null | undefined,
   hostOwnerUserId: string,
   identityEligible: boolean,
 ): BookingEligibility {
   if (viewerUserId == null) return 'sign_in_required'
   if (viewerUserId === hostOwnerUserId) return 'own_profile'
-  return verificationStatus === 'approved' && identityEligible ? 'eligible' : 'verification_required'
+  return identityEligible ? 'eligible' : 'verification_required'
 }
 
 export function canBookHost(viewerUserId: string | null | undefined, hostOwnerUserId: string) {

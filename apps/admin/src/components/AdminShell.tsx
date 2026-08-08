@@ -27,6 +27,7 @@ const iconByRoute: Record<string, React.ReactNode> = {
 
 export function AdminGate({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth()
+  const { signOut } = useClerk()
   const { user } = useUser()
   const viewer = useQuery(api.users.viewer, isSignedIn ? {} : 'skip')
   const overview = useQuery(api.admin.overview, viewer && isAdminRole(viewer.role) ? {} : 'skip')
@@ -71,7 +72,15 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
       <AdminStandalone
         title="Admin access required"
         body="This site is limited to owners and reviewers. Use the member app for bookings, posts, and Friend Host tools."
-        action={<a className="btn btn-neutral" href={`${userAppUrl}/app`}>Open user app</a>}
+        action={(
+          <div className="admin-standalone-actions">
+            <button type="button" className="btn btn-neutral" onClick={() => void signOut()}>
+              <LogOut size={16} aria-hidden="true" />
+              Sign out and switch account
+            </button>
+            <a className="btn btn-ghost" href={`${userAppUrl}/app`}>Open user app</a>
+          </div>
+        )}
       />
     )
   }

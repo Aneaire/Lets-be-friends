@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { identityEntitlementStatus, memberVerificationPresentation } from './memberVerification'
 
 describe('member verification presentation', () => {
+  it('labels test bypass without claiming a provider approval', () => {
+    expect(memberVerificationPresentation('not_started', null, true)).toMatchObject({
+      state: 'approved',
+      label: 'Test access enabled',
+      tone: 'warning',
+      action: 'none',
+    })
+  })
+
   it('prompts a member to start Persona before any attempt exists', () => {
     expect(memberVerificationPresentation('not_started', null)).toMatchObject({
       state: 'not_started',

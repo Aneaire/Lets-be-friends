@@ -2,7 +2,7 @@ import { GeospatialIndex } from '@convex-dev/geospatial'
 import { components } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
-import { hasCurrentPersonaApproval } from './identityVerification'
+import { hasCurrentIdentityApproval } from './identityVerification'
 
 const nearbyResultLimit = 100
 
@@ -36,7 +36,7 @@ export async function syncHostLocation(
   const indexable = Boolean(
     user
     && !user.suspended
-    && hasCurrentPersonaApproval(user)
+    && hasCurrentIdentityApproval(user)
     && host.status === 'approved'
     && host.nearbyDiscoveryEnabled === true
     && host.mode !== 'online'

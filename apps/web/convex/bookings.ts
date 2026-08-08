@@ -13,7 +13,8 @@ import {
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
-import { hasCurrentPersonaApproval } from './identityVerification'
+import { ensureConversationBetween, sendBookingMessage } from './conversations'
+import { hasCurrentIdentityApproval } from './identityVerification'
 import {
   allocateCompletedBookingFunds,
   availableMemberBookingBalance,
@@ -37,6 +38,7 @@ export const mine = query({
       const reviews = await ctx.db.query('reviews').withIndex('by_booking', (q) => q.eq('bookingId', booking._id)).collect()
       return {
         ...booking,
+        hostUserId: host?.userId,
         hostDisplayName: hostUser?.displayName ?? host?.displayName ?? 'Friend Host',
         hostCity: host?.city ?? 'Unknown location',
         viewerHasReviewed: reviews.some((review) => review.reviewerId === viewer._id),
@@ -81,13 +83,13 @@ export const createDraft = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (!hasCurrentPersonaApproval(viewer)) {
+    if (!hasCurrentIdentityApproval(viewer)) {
       throw new Error('A current Persona identity check and safety review are required before you can request a booking.')
     }
     const host = await ctx.db.get(args.hostProfileId)
     if (!host || host.status !== 'approved') throw new Error('Friend Host is not available for booking')
     const hostUser = await ctx.db.get(host.userId)
-    if (!hostUser || hostUser.suspended || !hasCurrentPersonaApproval(hostUser)) {
+    if (!hostUser || hostUser.suspended || !hasCurrentIdentityApproval(hostUser)) {
       throw new Error('Friend Host is not currently available for new bookings')
     }
     if (!canBookHost(String(viewer._id), String(host.userId))) throw new Error('You cannot book your own Friend Host profile.')
@@ -127,7 +129,78 @@ export const createDraft = mutation({
       targetId: String(bookingId),
       after: price,
     })
+    const conversationId = await ensureConversationBetween(ctx, viewer._id, host.userId)
+    await sendBookingMessage(ctx, {
+      conversationId,
+      senderUserId: viewer._id,
+      bookingId,
+      body: bookingRequestMessage(viewer.displayName, args.category, args.mode, args.requestedAt, durationMinutes),
+    })
     return { bookingId, ...price }
+  },
+})
+
+export const editRequest = mutation({
+  args: {
+    bookingId: v.id('bookings'),
+    category: v.string(),
+    mode: v.union(v.literal('online'), v.literal('in_person')),
+    requestedAt: v.number(),
+    durationMinutes: v.number(),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const booking = await ctx.db.get(args.bookingId)
+    if (!booking) throw new Error('Booking not found')
+    if (booking.memberId !== viewer._id) throw new Error('Only the member who requested the booking can edit it')
+    if (booking.status !== 'request_sent') throw new Error('A request can only be edited while it is still awaiting the Friend Host decision')
+    const host = await ctx.db.get(booking.hostProfileId)
+    if (!host || host.status !== 'approved') throw new Error('Friend Host is not available for booking')
+    if (!host.categories.includes(args.category)) throw new Error('This experience category is not offered by the Friend Host')
+    if (host.mode !== 'both' && host.mode !== args.mode) throw new Error('This booking mode is not offered by the Friend Host')
+    if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new Error('Booking time must be in the future')
+    const durationMinutes = validateBookingDurationMinutes(args.durationMinutes)
+    const hourlyRateCentavos = validateHostHourlyRateCentavos(host.hourlyRateCentavos ?? Number.NaN)
+    if (!memberWalletV2Enabled()) throw new Error('Member-wallet bookings are not enabled')
+    const price = calculateMemberWalletBookingPrice(hourlyRateCentavos, durationMinutes)
+    const availableCentavos = await availableMemberBookingBalance(ctx, viewer._id)
+    if (availableCentavos < price.memberTotalCentavos) {
+      throw new Error(`Insufficient booking balance. Add at least ${price.memberTotalCentavos - availableCentavos} more centavos before updating.`)
+    }
+
+    const now = Date.now()
+    const notes = args.notes?.trim() || undefined
+    await ctx.db.patch(args.bookingId, {
+      category: args.category,
+      mode: args.mode,
+      requestedAt: args.requestedAt,
+      durationMinutes,
+      notes,
+      pricingModel: price.pricingModel,
+      serviceSubtotalCentavos: price.serviceSubtotalCentavos,
+      memberBookingFeeBps: price.memberBookingFeeBps,
+      memberBookingFeeCentavos: price.memberBookingFeeCentavos,
+      memberTotalCentavos: price.memberTotalCentavos,
+      hostEntitlementCentavos: price.hostEntitlementCentavos,
+      currency: price.currency,
+      updatedAt: now,
+    })
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'booking.request_updated',
+      targetType: 'booking',
+      targetId: String(args.bookingId),
+      after: price,
+    })
+    const conversationId = await ensureConversationBetween(ctx, viewer._id, host.userId)
+    await sendBookingMessage(ctx, {
+      conversationId,
+      senderUserId: viewer._id,
+      bookingId: args.bookingId,
+      body: bookingUpdatedMessage(viewer.displayName, args.category, args.mode, args.requestedAt, durationMinutes),
+    })
+    return { bookingId: args.bookingId, ...price }
   },
 })
 
@@ -144,11 +217,11 @@ export const hostDecision = mutation({
     let v2SettlementState = booking.settlementState
     let v2SettlementBlockedAt = booking.settlementBlockedAt
     if (args.decision === 'accepted') {
-      if (host.status !== 'approved' || !hasCurrentPersonaApproval(viewer)) {
+      if (host.status !== 'approved' || !hasCurrentIdentityApproval(viewer)) {
         throw new Error('A current Persona identity check and approved Friend Host profile are required before accepting new bookings')
       }
       const member = await ctx.db.get(booking.memberId)
-      if (!member || member.suspended || !hasCurrentPersonaApproval(member)) {
+      if (!member || member.suspended || !hasCurrentIdentityApproval(member)) {
         throw new Error('The member must renew identity approval before this booking can be accepted')
       }
       if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL) {
@@ -175,6 +248,13 @@ export const hostDecision = mutation({
       updatedAt: now,
     })
     await writeAudit(ctx, { actorUserId: viewer._id, action: `booking.${args.decision}`, targetType: 'booking', targetId: String(args.bookingId), note: args.note })
+    const conversationId = await ensureConversationBetween(ctx, viewer._id, booking.memberId)
+    await sendBookingMessage(ctx, {
+      conversationId,
+      senderUserId: viewer._id,
+      bookingId: args.bookingId,
+      body: bookingDecisionMessage(viewer.displayName, args.decision),
+    })
     return { status: args.decision, idempotent: false }
   },
 })
@@ -222,6 +302,16 @@ export const cancel = mutation({
       }
     }
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'booking.cancelled', targetType: 'booking', targetId: String(args.bookingId), note: reason })
+    const otherUserId = booking.memberId === viewer._id ? host?.userId : booking.memberId
+    if (otherUserId) {
+      const cancellationConversationId = await ensureConversationBetween(ctx, viewer._id, otherUserId)
+      await sendBookingMessage(ctx, {
+        conversationId: cancellationConversationId,
+        senderUserId: viewer._id,
+        bookingId: args.bookingId,
+        body: bookingCancelledMessage(viewer.displayName, viewer._id === booking.memberId, booking.category, reason),
+      })
+    }
     return { status: 'cancelled' as const, idempotent: false }
   },
 })
@@ -386,10 +476,10 @@ export const sendMessage = mutation({
       if (
         !member
         || member.suspended
-        || !hasCurrentPersonaApproval(member)
+        || !hasCurrentIdentityApproval(member)
         || !hostUser
         || hostUser.suspended
-        || !hasCurrentPersonaApproval(hostUser)
+        || !hasCurrentIdentityApproval(hostUser)
       ) {
         throw new Error('Both participants need current identity approval before pre-acceptance messaging can continue')
       }
@@ -399,3 +489,40 @@ export const sendMessage = mutation({
     return await ctx.db.insert('messages', { bookingId: args.bookingId, senderId: viewer._id, body, reportable: true, createdAt: Date.now() })
   },
 })
+
+function bookingRequestMessage(memberName: string, category: string, mode: 'online' | 'in_person', requestedAt: number, durationMinutes: number) {
+  return `${memberName} sent you a booking request for ${category} (${formatModeLabel(mode)}) on ${formatBookingDate(requestedAt)} for ${formatDurationLabel(durationMinutes)}. You can accept, decline, or talk it over here first.`
+}
+
+function bookingUpdatedMessage(memberName: string, category: string, mode: 'online' | 'in_person', requestedAt: number, durationMinutes: number) {
+  return `${memberName} updated this request: ${category} on ${formatBookingDate(requestedAt)} (${formatModeLabel(mode)}, ${formatDurationLabel(durationMinutes)}). Please take another look before deciding.`
+}
+
+function bookingDecisionMessage(hostName: string, decision: 'accepted' | 'declined') {
+  if (decision === 'accepted') return `${hostName} accepted this booking request.`
+  return `${hostName} declined this booking request.`
+}
+
+function bookingCancelledMessage(name: string, isMember: boolean, category: string, reason?: string) {
+  const who = isMember ? 'The member' : 'The Friend Host'
+  const reasonSuffix = reason ? ` Reason: ${reason}.` : ''
+  return `${who} (${name}) cancelled this ${category} request.${reasonSuffix}`
+}
+
+function formatModeLabel(mode: 'online' | 'in_person') {
+  return mode === 'in_person' ? 'in person' : 'online'
+}
+
+function formatDurationLabel(minutes: number) {
+  const hours = minutes / 60
+  if (minutes % 60 === 0) return `${hours} hour${hours === 1 ? '' : 's'}`
+  return `${minutes} minutes`
+}
+
+function formatBookingDate(timestamp: number) {
+  return new Intl.DateTimeFormat('en-PH', {
+    dateStyle: 'full',
+    timeStyle: 'short',
+    timeZone: 'Asia/Manila',
+  }).format(timestamp)
+}

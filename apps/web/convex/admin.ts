@@ -2,7 +2,7 @@ import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
-import { canAdminApproveIdentity, hasCurrentPersonaApproval, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason, isRealPersonaInquiryId } from './identityVerification'
+import { canAdminApproveIdentity, hasCurrentIdentityApproval, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason, isRealPersonaInquiryId } from './identityVerification'
 import { syncHostLocation } from './hostLocations'
 import { resolveBlockedBookingFunds as applyBlockedBookingResolution } from './finance'
 
@@ -91,7 +91,7 @@ export const hostApplications = query({
         ...host,
         applicantDisplayName: user?.displayName ?? host.displayName,
         applicantVerificationStatus: user?.verificationStatus ?? 'not_started',
-        applicantIdentityEligible: user ? hasCurrentPersonaApproval(user) : false,
+        applicantIdentityEligible: user ? hasCurrentIdentityApproval(user) : false,
         applicantSuspended: user?.suspended ?? false,
         verificationRequestId: verification?._id,
         verificationAdminStatus: verification?.adminStatus,
@@ -260,7 +260,7 @@ export const reviewHostApplication = mutation({
     const user = await ctx.db.get(host.userId)
     if (!user) throw new Error('Applicant account not found')
     if (args.decision === 'approved' && user.suspended) throw new Error('A suspended member cannot be approved as a Friend Host')
-    if (args.decision === 'approved' && !hasCurrentPersonaApproval(user)) {
+    if (args.decision === 'approved' && !hasCurrentIdentityApproval(user)) {
       throw new Error('Identity verification must be approved before the Friend Host application can be approved')
     }
 

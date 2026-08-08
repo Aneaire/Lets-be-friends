@@ -2,7 +2,7 @@ import { v } from 'convex/values'
 import { action, internalMutation } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
-import { hasCurrentPersonaApproval, isPersonaTerminal, isRealPersonaInquiryId, personaEventTransition, personaLifecycleRank } from './identityVerification'
+import { hasCurrentIdentityApproval, isPersonaTerminal, isRealPersonaInquiryId, personaEventTransition, personaLifecycleRank } from './identityVerification'
 import { writeAudit } from './lib'
 
 const personaIntent = v.union(v.literal('member'), v.literal('host_application'))
@@ -114,7 +114,7 @@ export const prepareInquiry = internalMutation({
     const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId)).unique()
     if (!user) throw new Error('Account setup is not complete')
     if (user.suspended) throw new Error('Account is suspended')
-    if (hasCurrentPersonaApproval(user)) return { mode: 'approved' as const }
+    if (hasCurrentIdentityApproval(user)) return { mode: 'approved' as const }
 
     const hostProfile = args.intent === 'host_application'
       ? await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).first()

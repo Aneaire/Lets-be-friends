@@ -1,11 +1,12 @@
 import { SignInButton, useAuth } from '@clerk/react'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
-import { FileText, Flag, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Send, ShieldCheck, Video, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, FileText, Flag, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Send, ShieldCheck, Video, X } from 'lucide-react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
-import { WorkspaceShell } from '../components/AppShell'
+import { BookingRequestCard } from '../components/BookingRequestCard'
+import { BookingRequestEditor, type EditableBookingRequest } from '../components/BookingRequestEditor'
 import {
   MAX_CHAT_ATTACHMENTS,
   formatFileSize,
@@ -35,23 +36,40 @@ type PendingAttachment = {
 
 function MessagesPage() {
   const { isSignedIn } = useAuth()
+  const navigate = useNavigate()
   const { conversationId } = Route.useSearch()
   const conversations = useQuery(api.conversations.list, isSignedIn ? {} : 'skip') as Conversation[] | undefined
-  const selectedConversationId = conversationId
-    ? conversationId as Id<'directConversations'>
-    : conversations?.[0]?._id
+  const viewer = useQuery(api.users.viewer, isSignedIn ? {} : 'skip')
+  const selectedConversationId = conversationId ? conversationId as Id<'directConversations'> : undefined
   const thread = useQuery(
     api.conversations.messages,
     isSignedIn && selectedConversationId ? { conversationId: selectedConversationId } : 'skip',
   )
+  const bookingLastIndex = new Map<string, number>()
+  if (thread) {
+    thread.messages.forEach((message, index) => {
+      if (message.booking) bookingLastIndex.set(message.booking.bookingId, index)
+    })
+  }
   const report = useMutation(api.reports.create)
+  const decideBooking = useMutation(api.bookings.hostDecision)
+  const updateBookingRequest = useMutation(api.bookings.editRequest)
+  const markRead = useMutation(api.conversations.markRead)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [editingBooking, setEditingBooking] = useState<EditableBookingRequest | null>(null)
+  const editingHost = useQuery(api.hosts.getPublic, editingBooking?.hostProfileId ? { hostProfileId: editingBooking.hostProfileId } : 'skip')
   const threadEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ block: 'nearest' })
   }, [thread?.messages.length])
+
+  useEffect(() => {
+    if (isSignedIn && selectedConversationId) {
+      void markRead({ conversationId: selectedConversationId })
+    }
+  }, [isSignedIn, markRead, selectedConversationId])
 
   if (!isSignedIn) {
     return (
@@ -67,20 +85,20 @@ function MessagesPage() {
   }
 
   return (
-    <WorkspaceShell
-      eyebrow="Your conversations"
-      title="Messages"
-      description="Say hello, ask a question, or keep in touch. Details for a booking stay with that booking."
-      railLabel="Conversations"
-      rail={<ConversationList conversations={conversations} selectedConversationId={selectedConversationId} />}
-      mobileNavigation={<ConversationMobileList conversations={conversations} selectedConversationId={selectedConversationId} />}
-    >
-      {(notice || error) && (
-        <div className={error ? 'notice notice-danger mb-4' : 'notice notice-success mb-4'} role={error ? 'alert' : 'status'}>
-          <span className="notice-icon">{error ? '!' : '✓'}</span>
-          <span>{error || notice}</span>
-        </div>
-      )}
+    <main className="messages-chat" data-thread-open={selectedConversationId ? 'true' : undefined}>
+      <aside className="messages-chat-rail" aria-label="Conversations">
+        <ConversationList conversations={conversations} selectedConversationId={selectedConversationId} />
+      </aside>
+      <nav className="workspace-mobile-nav" aria-label="Conversations">
+        <ConversationMobileList conversations={conversations} selectedConversationId={selectedConversationId} />
+      </nav>
+      <section className="messages-chat-pane" aria-label="Messages">
+        {(notice || error) && (
+          <div className={error ? 'notice notice-danger mb-4' : 'notice notice-success mb-4'} role={error ? 'alert' : 'status'}>
+            <span className="notice-icon">{error ? '!' : '✓'}</span>
+            <span>{error || notice}</span>
+          </div>
+        )}
       {conversations === undefined ? (
         <div className="empty-state">Loading conversations…</div>
       ) : conversations.length === 0 ? (
@@ -90,6 +108,14 @@ function MessagesPage() {
       ) : thread ? (
         <section className="direct-thread" aria-label={`Conversation with ${thread.conversation.otherDisplayName}`}>
           <header className="direct-thread-header">
+            <button
+              type="button"
+              className="direct-thread-back"
+              aria-label="Back to conversations"
+              onClick={() => navigate({ to: '/messages', search: {} })}
+            >
+              <ArrowLeft size={18} aria-hidden="true" />
+            </button>
             <ProfileAvatar name={thread.conversation.otherDisplayName} imageUrl={thread.conversation.otherProfileImageUrl} />
             <div className="min-w-0">
               <h2 className="text-h2">{thread.conversation.otherDisplayName}</h2>
@@ -104,31 +130,85 @@ function MessagesPage() {
                 <p>No messages yet. Say hello when you&apos;re ready.</p>
               </div>
             )}
-            {thread.messages.map((message) => (
-              <article key={message._id} className="direct-message" data-own={message.sentByViewer}>
-                <div className="direct-message-bubble">
-                  {message.attachments.length > 0 && <MessageAttachments attachments={message.attachments} />}
-                  {message.body && <p className="direct-message-copy whitespace-pre-wrap">{message.body}</p>}
-                  <time dateTime={new Date(message.createdAt).toISOString()}>{formatMessageTime(message.createdAt)}</time>
-                </div>
-                <button
-                  type="button"
-                  className="direct-message-report"
-                  aria-label="Report message"
-                  title="Report message"
-                  onClick={async () => {
-                    setError('')
-                    try {
-                      await report({ targetType: 'message', targetId: message._id, reason: 'Message needs safety review' })
-                      setNotice('Message sent to safety review.')
-                    } catch (reportError) {
-                      setError(reportError instanceof Error ? reportError.message : 'Message could not be reported.')
-                    }
-                  }}
-                >
-                  <Flag size={14} aria-hidden="true" />
-                </button>
-              </article>
+{thread.messages.map((message, index) => (
+              <Fragment key={message._id}>
+                {messageDayGroupChanged(thread.messages, index) && (
+                  <div className="direct-day-divider">{formatMessageDay(message.createdAt)}</div>
+                )}
+                {message.booking && bookingLastIndex.get(message.booking.bookingId) !== index ? (
+                  <div className="booking-update-line" data-own={message.sentByViewer}>
+                    <p>{message.body}</p>
+                    <time dateTime={new Date(message.createdAt).toISOString()}>{formatMessageTime(message.createdAt)}</time>
+                  </div>
+                ) : message.booking ? (
+                  <article className="direct-booking" data-own={message.sentByViewer}>
+                    <BookingRequestCard
+                      intro={message.body}
+                      booking={message.booking}
+                      viewerId={viewer?._id}
+                      onDecide={async (bookingId, decision) => {
+                        setError('')
+                        try {
+                          await decideBooking({
+                            bookingId,
+                            decision,
+                            note: decision === 'accepted' ? 'Accepted from Messages.' : 'Declined from Messages.',
+                          })
+                          setNotice(decision === 'accepted' ? 'Booking request accepted.' : 'Booking request declined.')
+                        } catch (decideError) {
+                          setNotice('')
+                          setError(decideError instanceof Error ? decideError.message : 'The decision could not be saved.')
+                        }
+                      }}
+                      onEdit={(booking) => setEditingBooking(booking)}
+                    />
+                    <button
+                      type="button"
+                      className="direct-message-report"
+                      aria-label="Report message"
+                      title="Report message"
+                      onClick={async () => {
+                        setError('')
+                        try {
+                          await report({ targetType: 'message', targetId: message._id, reason: 'Message needs safety review' })
+                          setNotice('Message sent to safety review.')
+                        } catch (reportError) {
+                          setNotice('')
+                          setError(reportError instanceof Error ? reportError.message : 'Message could not be reported.')
+                        }
+                      }}
+                    >
+                      <Flag size={14} aria-hidden="true" />
+                    </button>
+                  </article>
+                ) : (
+                  <article className="direct-message" data-own={message.sentByViewer}>
+                    <div className="direct-message-bubble">
+                      {message.attachments.length > 0 && <MessageAttachments attachments={message.attachments} />}
+                      {message.body && <p className="direct-message-copy whitespace-pre-wrap">{message.body}</p>}
+                      <time dateTime={new Date(message.createdAt).toISOString()}>{formatMessageTime(message.createdAt)}</time>
+                    </div>
+                    <button
+                      type="button"
+                      className="direct-message-report"
+                      aria-label="Report message"
+                      title="Report message"
+                      onClick={async () => {
+                        setError('')
+                        try {
+                          await report({ targetType: 'message', targetId: message._id, reason: 'Message needs safety review' })
+                          setNotice('Message sent to safety review.')
+                        } catch (reportError) {
+                          setNotice('')
+                          setError(reportError instanceof Error ? reportError.message : 'Message could not be reported.')
+                        }
+                      }}
+                    >
+                      <Flag size={14} aria-hidden="true" />
+                    </button>
+                  </article>
+                )}
+              </Fragment>
             ))}
             <div ref={threadEndRef} />
           </div>
@@ -153,7 +233,20 @@ function MessagesPage() {
       ) : (
         <div className="empty-state">Choose a conversation.</div>
       )}
-    </WorkspaceShell>
+        {editingBooking && (
+          <BookingRequestEditor
+            booking={editingBooking}
+            host={editingHost ?? undefined}
+            onClose={() => setEditingBooking(null)}
+            onSave={async (request) => {
+              await updateBookingRequest({ bookingId: editingBooking.bookingId, ...request })
+              setNotice('Request updated. The Friend Host will see the new details.')
+              setEditingBooking(null)
+            }}
+          />
+        )}
+      </section>
+    </main>
   )
 }
 
@@ -387,7 +480,7 @@ function MessageComposer({
           <span>{sending ? 'Sending…' : hasPending ? 'Preparing…' : 'Send'}</span>
         </button>
       </div>
-      <p className="direct-composer-hint">Enter to send · Shift+Enter for a new line · Media under 3 MB stays original</p>
+      <p className="direct-composer-hint">Press Enter to send · Shift+Enter for a new line · Large media is compressed automatically</p>
     </form>
   )
 }
@@ -417,6 +510,7 @@ function ConversationMobileList({
     >
       <ProfileAvatar name={conversation.otherDisplayName} imageUrl={conversation.otherProfileImageUrl} />
       {conversation.otherDisplayName}
+      {conversation.unreadCount > 0 && <span className="conversation-mobile-unread tabular" aria-label={`${conversation.unreadCount} unread`}>{conversation.unreadCount}</span>}
     </Link>
   ))
 }
@@ -450,6 +544,11 @@ function ConversationList({
                 ? `${conversation.lastMessageSentByViewer ? 'You: ' : ''}${conversation.lastMessageAttachmentCount === 1 ? 'Sent a file' : `Sent ${conversation.lastMessageAttachmentCount} files`}`
                 : 'Start a conversation'}</span>
           </span>
+          {conversation.unreadCount > 0 && (
+            <span className="conversation-unread-badge tabular" aria-label={`${conversation.unreadCount} unread message${conversation.unreadCount === 1 ? '' : 's'}`}>
+              {conversation.unreadCount}
+            </span>
+          )}
         </Link>
       ))}
       <Link to="/discover" className="btn btn-social btn-sm mt-3">Find people</Link>
@@ -490,4 +589,17 @@ function formatMessageTime(timestamp: number) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(timestamp)
+}
+
+function messageDayGroupChanged(messages: Array<{ createdAt: number }>, index: number) {
+  if (index === 0) return true
+  return new Date(messages[index - 1].createdAt).toDateString() !== new Date(messages[index].createdAt).toDateString()
+}
+
+function formatMessageDay(timestamp: number) {
+  const startOfDay = (value: number) => new Date(value).setHours(0, 0, 0, 0)
+  const daysAgo = Math.round((startOfDay(Date.now()) - startOfDay(timestamp)) / 86400000)
+  if (daysAgo === 0) return 'Today'
+  if (daysAgo === 1) return 'Yesterday'
+  return new Intl.DateTimeFormat('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }).format(timestamp)
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canAdminApproveIdentity,
+  hasCurrentIdentityApproval,
   hasCurrentPersonaApproval,
   isIdentityReadyForAdminReview,
   isRealPersonaInquiryId,
@@ -63,6 +64,24 @@ describe('identity verification policy helpers', () => {
     expect(hasCurrentPersonaApproval({ ...valid, verificationSource: 'legacy_manual' } as any, now)).toBe(false)
     expect(hasCurrentPersonaApproval({ ...valid, identityExpiresAt: 9_999 } as any, now)).toBe(false)
     expect(hasCurrentPersonaApproval({ ...valid, identityVerifiedAt: undefined } as any, now)).toBe(false)
+  })
+
+  it('allows test bypass only for an explicitly allowlisted account', () => {
+    const previous = process.env.IDENTITY_TEST_BYPASS_USER_IDS
+    process.env.IDENTITY_TEST_BYPASS_USER_IDS = 'allowed-user'
+    const user = {
+      clerkUserId: 'allowed-user',
+      verificationStatus: 'not_started',
+      identityTestBypass: true,
+    }
+    try {
+      expect(hasCurrentIdentityApproval(user as any)).toBe(true)
+      expect(hasCurrentIdentityApproval({ ...user, clerkUserId: 'another-user' } as any)).toBe(false)
+      expect(hasCurrentIdentityApproval({ ...user, identityTestBypass: false } as any)).toBe(false)
+    } finally {
+      if (previous === undefined) delete process.env.IDENTITY_TEST_BYPASS_USER_IDS
+      else process.env.IDENTITY_TEST_BYPASS_USER_IDS = previous
+    }
   })
 })
 

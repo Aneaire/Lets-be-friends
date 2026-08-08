@@ -9,15 +9,15 @@ import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
-import { hasCurrentPersonaApproval, isIdentityVerificationReason } from './identityVerification'
+import { hasCurrentIdentityApproval, isIdentityVerificationReason } from './identityVerification'
 import { findNearbyHostLocations, syncHostLocation } from './hostLocations'
 
 const nearbyRadiusOptions = [5, 10, 25, 50, 100] as const
 
 const demoHosts = [
-  { _id: 'demo-1', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee or meal companion', 'Local walk or city guide'], bookable: false, viewerCanBook: true, demo: true },
-  { _id: 'demo-2', displayName: 'Jo', city: 'Online', mode: 'online', rating: 4.8, reviewCount: 18, intro: 'Online coworking and study partner for people who want accountability without pressure.', strengths: ['Study partner', 'Online chat friend', 'Language practice'], categories: ['Online coworking', 'Language practice'], bookable: false, viewerCanBook: true, demo: true },
-  { _id: 'demo-3', displayName: 'Rafi', city: 'Bohol', mode: 'in_person', rating: 4.7, reviewCount: 12, intro: 'Photography walk partner for safe public routes, food stops, and relaxed creative exploration.', strengths: ['Photography walk partner', 'Food trip companion', 'Local tour buddy'], categories: ['Photography or creative walk', 'Travel or neighborhood guide'], bookable: false, viewerCanBook: true, demo: true },
+  { _id: 'demo-1', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee and meals', 'Explore the city'], bookable: false, viewerCanBook: true, demo: true },
+  { _id: 'demo-2', displayName: 'Jo', city: 'Online', mode: 'online', rating: 4.8, reviewCount: 18, intro: 'Online coworking and study partner for people who want accountability without pressure.', strengths: ['Study partner', 'Online chat friend', 'Language practice'], categories: ['Study and coworking', 'Language exchange'], bookable: false, viewerCanBook: true, demo: true },
+  { _id: 'demo-3', displayName: 'Rafi', city: 'Bohol', mode: 'in_person', rating: 4.7, reviewCount: 12, intro: 'Photography walk partner for safe public routes, food stops, and relaxed creative exploration.', strengths: ['Photography walk partner', 'Food trip companion', 'Local tour buddy'], categories: ['Photo walks', 'Explore the city'], bookable: false, viewerCanBook: true, demo: true },
 ] as const
 
 export const listApproved = query({
@@ -47,7 +47,7 @@ export const listApproved = query({
 
     const results = await Promise.all(withDistance.map(async ({ host, distanceKm }) => {
       const user = await ctx.db.get(host.userId)
-      if (!user || user.suspended || !hasCurrentPersonaApproval(user)) return null
+      if (!user || user.suspended || !hasCurrentIdentityApproval(user)) return null
       const [profileImage, savedProfile, followedUser] = await Promise.all([
         profileImageUrl(ctx, user),
         viewer ? ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first() : null,
@@ -66,7 +66,7 @@ export const listApproved = query({
           viewer ? String(viewer._id) : null,
           viewer?.verificationStatus,
           String(host.userId),
-          viewer ? hasCurrentPersonaApproval(viewer) : false,
+          viewer ? hasCurrentIdentityApproval(viewer) : false,
         ),
         demo: false,
         saved: Boolean(savedProfile),
@@ -84,10 +84,11 @@ export const getPublic = query({
     const host = await ctx.db.get(args.hostProfileId)
     if (!host || host.status !== 'approved') return null
     const user = await ctx.db.get(host.userId)
-    if (!user || user.suspended || !hasCurrentPersonaApproval(user)) return null
+    if (!user || user.suspended || !hasCurrentIdentityApproval(user)) return null
     return {
       ...publicHostProfile(host),
       displayName: user.displayName,
+      firstName: user.firstName ?? user.displayName,
       profileImageUrl: await profileImageUrl(ctx, user),
       bio: user.bio,
       bookable: hasConfiguredHourlyRate(host.hourlyRateCentavos),
@@ -96,7 +97,7 @@ export const getPublic = query({
         viewer ? String(viewer._id) : null,
         viewer?.verificationStatus,
         String(host.userId),
-        viewer ? hasCurrentPersonaApproval(viewer) : false,
+        viewer ? hasCurrentIdentityApproval(viewer) : false,
       ),
       saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
       following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
@@ -142,7 +143,7 @@ export const myApplication = query({
       displayName: viewer.displayName,
       profileImageUrl: await profileImageUrl(ctx, viewer),
       bio: viewer.bio,
-      identityEligible: hasCurrentPersonaApproval(viewer),
+      identityEligible: hasCurrentIdentityApproval(viewer),
       identityVerification: identityVerification ? {
         _id: identityVerification._id,
         personaStatus: identityVerification.personaStatus,
@@ -202,7 +203,7 @@ export const submitApplication = mutation({
       action: 'host_application.submitted',
       targetType: 'hostProfile',
       targetId: String(hostProfileId),
-      after: { status: 'pending_review', identityApproved: hasCurrentPersonaApproval(viewer) },
+      after: { status: 'pending_review', identityApproved: hasCurrentIdentityApproval(viewer) },
     })
     return hostProfileId
   },
@@ -225,6 +226,34 @@ export const updateHourlyRate = mutation({
       after: { hourlyRateCentavos },
     })
     return hourlyRateCentavos
+  },
+})
+
+export const setNearbyDiscoveryVisibility = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    if (!host) throw new Error('Create a Friend Host profile before changing nearby search visibility')
+    if (args.enabled && (typeof host.approximateLatitude !== 'number' || typeof host.approximateLongitude !== 'number')) {
+      throw new Error('Add an approximate location before turning on nearby search')
+    }
+    if (host.nearbyDiscoveryEnabled === args.enabled) return args.enabled
+
+    const now = Date.now()
+    await ctx.db.patch(host._id, { nearbyDiscoveryEnabled: args.enabled, updatedAt: now })
+    const updatedHost = await ctx.db.get(host._id)
+    if (!updatedHost) throw new Error('Friend Host profile was not updated')
+    await syncHostLocation(ctx, updatedHost, viewer)
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'host_profile.nearby_visibility_updated',
+      targetType: 'hostProfile',
+      targetId: String(host._id),
+      before: { nearbyDiscoveryEnabled: host.nearbyDiscoveryEnabled === true },
+      after: { nearbyDiscoveryEnabled: args.enabled },
+    })
+    return args.enabled
   },
 })
 

@@ -342,6 +342,13 @@
     padding-block: 20vh 4rem;
   }
 
+  .admin-standalone-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
   .admin-icon-button {
     display: inline-grid;
     place-items: center;

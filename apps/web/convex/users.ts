@@ -1,7 +1,8 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireViewer } from './lib'
-import { hasCurrentPersonaApproval } from './identityVerification'
+import { activityCategories } from '@lets-be-friends/shared'
+import { requireViewer, writeAudit } from './lib'
+import { hasCurrentIdentityApproval, identityTestBypassAllowed } from './identityVerification'
 
 async function getClerkUserId(ctx: { auth: { getUserIdentity: () => Promise<{ subject: string } | null> } }) {
   const identity = await ctx.auth.getUserIdentity()
@@ -18,9 +19,32 @@ export const viewer = query({
     return {
       ...user,
       role: user.role === 'owner' ? 'admin' as const : user.role,
-      identityEligible: hasCurrentPersonaApproval(user),
+      identityEligible: hasCurrentIdentityApproval(user),
+      identityTestBypassAvailable: identityTestBypassAllowed(user),
+      identityTestBypassActive: identityTestBypassAllowed(user) && user.identityTestBypass === true,
       profileImageUrl: await profileImageUrl(ctx, user),
     }
+  },
+})
+
+export const setIdentityTestBypass = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    if (!identityTestBypassAllowed(viewer)) throw new Error('Identity test bypass is not available for this account')
+    const before = viewer.identityTestBypass === true
+    if (before === args.enabled) return args.enabled
+    await ctx.db.patch(viewer._id, { identityTestBypass: args.enabled, updatedAt: Date.now() })
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: args.enabled ? 'identity.test_bypass_enabled' : 'identity.test_bypass_disabled',
+      targetType: 'user',
+      targetId: String(viewer._id),
+      before: { identityTestBypass: before },
+      after: { identityTestBypass: args.enabled },
+      note: 'Testing only. No provider or admin identity approval was created.',
+    })
+    return args.enabled
   },
 })
 
@@ -102,6 +126,9 @@ export const completeOnboarding = mutation({
 export const updateProfile = mutation({
   args: {
     displayName: v.string(),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    onboardingCategories: v.optional(v.array(v.string())),
     profileImageStorageId: v.optional(v.id('_storage')),
     bio: v.optional(v.string()),
   },
@@ -112,6 +139,15 @@ export const updateProfile = mutation({
     const displayName = args.displayName.trim()
     if (displayName.length < 1) throw new Error('Name is required')
     if (displayName.length > 80) throw new Error('Name is too long')
+    const firstName = normalizeOptional(args.firstName, 40)
+    const lastName = normalizeOptional(args.lastName, 40)
+    const onboardingCategories = args.onboardingCategories
+      ? [...new Set(args.onboardingCategories.map((category) => category.trim()).filter(Boolean))]
+      : undefined
+    if (onboardingCategories && onboardingCategories.length > 6) throw new Error('Choose up to 6 categories')
+    if (onboardingCategories?.some((category) => !(activityCategories as readonly string[]).includes(category))) {
+      throw new Error('Choose categories from the available list')
+    }
 
     const bio = normalizeOptional(args.bio, 500)
     const existing = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique()
@@ -120,6 +156,9 @@ export const updateProfile = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         displayName,
+        ...(args.firstName !== undefined ? { firstName } : {}),
+        ...(args.lastName !== undefined ? { lastName } : {}),
+        ...(args.onboardingCategories !== undefined ? { onboardingCategories } : {}),
         ...(args.profileImageStorageId ? { profileImageStorageId: args.profileImageStorageId, profileImageUrl: undefined } : {}),
         bio,
         updatedAt: now,
@@ -136,6 +175,9 @@ export const updateProfile = mutation({
     return await ctx.db.insert('users', {
       clerkUserId,
       displayName,
+      firstName,
+      lastName,
+      onboardingCategories,
       profileImageStorageId: args.profileImageStorageId,
       bio,
       role: existingAdmin ? 'member' : 'admin',

@@ -37,12 +37,20 @@ export const list = query({
       const otherUserId = conversation.participantOneId === viewer._id
         ? conversation.participantTwoId
         : conversation.participantOneId
-      const [otherUser, lastMessage] = await Promise.all([
+      const viewerLastReadAt = conversation.participantOneId === viewer._id
+        ? conversation.participantOneLastReadAt
+        : conversation.participantTwoLastReadAt
+      const [otherUser, lastMessage, messagesSinceRead] = await Promise.all([
         ctx.db.get(otherUserId),
         ctx.db.query('directMessages')
           .withIndex('by_conversation_created_at', (q) => q.eq('conversationId', conversation._id))
           .order('desc')
           .first(),
+        viewerLastReadAt
+          ? ctx.db.query('directMessages')
+            .withIndex('by_conversation_created_at', (q) => q.eq('conversationId', conversation._id).gt('createdAt', viewerLastReadAt))
+            .collect()
+          : Promise.resolve([] as Array<Doc<'directMessages'>>),
       ])
       return {
         ...conversation,
@@ -53,8 +61,32 @@ export const list = query({
         lastMessageBody: lastMessage?.body,
         lastMessageAttachmentCount: lastMessage?.attachments?.length ?? 0,
         lastMessageSentByViewer: lastMessage?.senderId === viewer._id,
+        unreadCount: messagesSinceRead.reduce((count, message) => count + (message.senderId !== viewer._id ? 1 : 0), 0),
       }
     }))
+  },
+})
+
+export const markRead = mutation({
+  args: { conversationId: v.id('directConversations') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const conversation = await requireParticipant(ctx, args.conversationId, viewer._id)
+    const update = conversation.participantOneId === viewer._id
+      ? { participantOneLastReadAt: Date.now() }
+      : { participantTwoLastReadAt: Date.now() }
+    await ctx.db.patch(conversation._id, update)
+  },
+})
+
+export const between = query({
+  args: { otherUserId: v.id('users') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    if (viewer._id === args.otherUserId) throw new Error('You cannot message yourself')
+    const pairKey = directPairKey(viewer._id, args.otherUserId)
+    const conversation = await ctx.db.query('directConversations').withIndex('by_pair', (q: any) => q.eq('pairKey', pairKey)).unique()
+    return conversation?._id ?? null
   },
 })
 
@@ -86,6 +118,7 @@ export const messages = query({
           ...attachment,
           url: await ctx.storage.getUrl(attachment.storageId),
         }))),
+        booking: message.bookingId ? await bookingSnapshot(ctx, message.bookingId) : null,
         sentByViewer: message.senderId === viewer._id,
       }))),
     }
@@ -101,7 +134,7 @@ export const start = mutation({
     if (!otherUser || otherUser.suspended) throw new Error('This member is not available for messages')
 
     const pairKey = directPairKey(viewer._id, args.otherUserId)
-    const existing = await ctx.db.query('directConversations').withIndex('by_pair', (q) => q.eq('pairKey', pairKey)).unique()
+const existing = await ctx.db.query('directConversations').withIndex('by_pair', (q: any) => q.eq('pairKey', pairKey)).unique()
     if (existing) return existing._id
 
     const now = Date.now()
@@ -292,4 +325,91 @@ async function profileImageUrl(ctx: { storage: { getUrl: (id: Id<'_storage'>) =>
   if (!user) return undefined
   if (user.profileImageStorageId) return await ctx.storage.getUrl(user.profileImageStorageId) ?? user.profileImageUrl
   return user.profileImageUrl
+}
+
+/**
+ * Returns the existing two-person conversation for a pair, creating it on first
+ * contact. Booking requests and status updates are automatically framed inside
+ * the members' direct messages so the request shows up in the friend's inbox.
+ */
+export async function ensureConversationBetween(
+  ctx: { db: any },
+  firstUserId: Id<'users'>,
+  secondUserId: Id<'users'>,
+) {
+  if (firstUserId === secondUserId) throw new Error('You cannot message yourself')
+  const pairKey = directPairKey(firstUserId, secondUserId)
+  const existing = await ctx.db.query('directConversations').withIndex('by_pair', (q: any) => q.eq('pairKey', pairKey)).unique()
+  if (existing) {
+    await ctx.db.patch(existing._id, { updatedAt: Date.now() })
+    return existing._id
+  }
+  const [participantOneId, participantTwoId] = orderedParticipants(firstUserId, secondUserId)
+  const conversationId = await ctx.db.insert('directConversations', {
+    participantOneId,
+    participantTwoId,
+    pairKey,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  })
+  await writeAudit(ctx, {
+    actorUserId: firstUserId,
+    action: 'conversation.started',
+    targetType: 'directConversation',
+    targetId: String(conversationId),
+  })
+  return conversationId
+}
+
+/** Sends a direct message that frames a booking request or its status. */
+export async function sendBookingMessage(
+  ctx: { db: any },
+  input: {
+    conversationId: Id<'directConversations'>
+    senderUserId: Id<'users'>
+    bookingId: Id<'bookings'>
+    body: string
+  },
+) {
+  const now = Date.now()
+  const messageId = await ctx.db.insert('directMessages', {
+    conversationId: input.conversationId,
+    senderId: input.senderUserId,
+    body: input.body,
+    reportable: true,
+    bookingId: input.bookingId,
+    createdAt: now,
+  })
+  await ctx.db.patch(input.conversationId, { lastMessageAt: now, updatedAt: now })
+  return messageId
+}
+
+/** A live, read-only summary of a booking for rendering its direct-message card. */
+export async function bookingSnapshot(ctx: { db: any }, bookingId: Id<'bookings'>) {
+  const booking = await ctx.db.get(bookingId)
+  if (!booking) return null
+  const [member, hostProfile] = await Promise.all([
+    ctx.db.get(booking.memberId),
+    ctx.db.get(booking.hostProfileId),
+  ])
+  const hostUser = hostProfile ? await ctx.db.get(hostProfile.userId) : null
+  return {
+    bookingId: booking._id,
+    status: booking.status,
+    category: booking.category,
+    mode: booking.mode,
+    requestedAt: booking.requestedAt,
+    durationMinutes: booking.durationMinutes,
+    notes: booking.notes,
+    memberId: booking.memberId,
+    memberDisplayName: member?.displayName ?? 'Member',
+    hostProfileId: hostProfile?._id,
+    hostUserId: hostUser?._id,
+    hostDisplayName: hostProfile?.displayName ?? hostUser?.displayName ?? 'Friend Host',
+    serviceSubtotalCentavos: booking.serviceSubtotalCentavos,
+    memberBookingFeeCentavos: booking.memberBookingFeeCentavos,
+    memberTotalCentavos: booking.memberTotalCentavos,
+    hostEntitlementCentavos: booking.hostEntitlementCentavos,
+    settlementBlocked: booking.settlementBlockedAt !== undefined,
+  }
 }

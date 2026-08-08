@@ -50,6 +50,7 @@ const walletBucket = v.union(v.literal('available'), v.literal('reserved'), v.li
 const walletAccountType = v.union(v.literal('member_booking'), v.literal('host_earnings'), v.literal('platform_revenue'))
 const walletTransactionKind = v.union(
   v.literal('paymongo_member_credit'),
+  v.literal('test_member_credit'),
   v.literal('booking_reserve'),
   v.literal('booking_release'),
   v.literal('booking_complete'),
@@ -107,6 +108,9 @@ export default defineSchema({
   users: defineTable({
     clerkUserId: v.string(),
     displayName: v.string(),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    onboardingCategories: v.optional(v.array(v.string())),
     profileImageStorageId: v.optional(v.id('_storage')),
     profileImageUrl: v.optional(v.string()),
     bio: v.optional(v.string()),
@@ -115,6 +119,7 @@ export default defineSchema({
     role,
     verificationStatus,
     verificationSource: v.optional(verificationSource),
+    identityTestBypass: v.optional(v.boolean()),
     identityVerifiedAt: v.optional(v.number()),
     identityExpiresAt: v.optional(v.number()),
     suspended: v.boolean(),
@@ -395,6 +400,8 @@ export default defineSchema({
     participantTwoId: v.id('users'),
     pairKey: v.string(),
     lastMessageAt: v.optional(v.number()),
+    participantOneLastReadAt: v.optional(v.number()),
+    participantTwoLastReadAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -407,6 +414,8 @@ export default defineSchema({
     body: v.string(),
     attachments: v.optional(v.array(directAttachment)),
     reportable: v.boolean(),
+    // Present on the automatic booking request and status messages that frame an experience.
+    bookingId: v.optional(v.id('bookings')),
     createdAt: v.number(),
   }).index('by_conversation_created_at', ['conversationId', 'createdAt']),
   directMessageUploads: defineTable({

@@ -149,4 +149,19 @@ describe('nearby host discovery privacy', () => {
       nearbyDiscoveryEnabled: false,
     })
   })
+
+  it('lets a Friend Host toggle nearby visibility without changing profile approval', async () => {
+    const t = createTest()
+    const { hostProfileId } = await insertApprovedHost(t, 'visibility-host', { latitude: 10.31, longitude: 123.89 }, false)
+
+    await t.withIdentity({ subject: 'visibility-host' }).mutation(api.hosts.setNearbyDiscoveryVisibility, { enabled: true })
+    const enabledHost = await t.run(async (ctx) => ctx.db.get(hostProfileId))
+    expect(enabledHost).toMatchObject({ nearbyDiscoveryEnabled: true, status: 'approved' })
+
+    const nearby = await t.query(api.hosts.listApproved, { latitude: 10.31, longitude: 123.89, radiusKm: 5 })
+    expect(nearby.map((host: { displayName: string }) => host.displayName)).toEqual(['visibility-host'])
+
+    await t.withIdentity({ subject: 'visibility-host' }).mutation(api.hosts.setNearbyDiscoveryVisibility, { enabled: false })
+    expect(await t.query(api.hosts.listApproved, { latitude: 10.31, longitude: 123.89, radiusKm: 5 })).toEqual([])
+  })
 })

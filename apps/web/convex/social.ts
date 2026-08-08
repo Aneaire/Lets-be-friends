@@ -12,7 +12,7 @@ import {
 import { v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
-import { hasCurrentPersonaApproval } from './identityVerification'
+import { hasCurrentIdentityApproval } from './identityVerification'
 import { getViewer, requireViewer, writeAudit } from './lib'
 
 const MAX_MEDIA_UPLOADS_PER_DAY = 5
@@ -514,7 +514,7 @@ async function forYouPosts(ctx: any, viewer: Doc<'users'> | null, seenItemKeys: 
             : 0
     const approvedHost = Boolean(
       authorHost?.status === 'approved'
-      && hasCurrentPersonaApproval(author, now),
+      && hasCurrentIdentityApproval(author, now),
     )
     const trustQuality = completedExperience
       ? 0.9
@@ -650,7 +650,7 @@ async function approvedHostFallback(ctx: any, viewer: Doc<'users'> | null, limit
   const hosts = await ctx.db.query('hostProfiles').withIndex('by_status', (q: any) => q.eq('status', 'approved')).take(20)
   const safeHosts = (await Promise.all(hosts.map(async (host: Doc<'hostProfiles'>) => {
     const user = await ctx.db.get(host.userId)
-    if (!user || user.suspended || !hasCurrentPersonaApproval(user) || user._id === viewer?._id) return null
+    if (!user || user.suspended || !hasCurrentIdentityApproval(user) || user._id === viewer?._id) return null
     const topicMatch = bestTopicMatch([...host.categories, ...host.strengths], interests.categoryWeights, interests.maximumCategoryWeight)
     return {
       overlap: topicMatch.score,

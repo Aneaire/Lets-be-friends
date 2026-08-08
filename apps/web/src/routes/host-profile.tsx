@@ -161,7 +161,7 @@ function HostProfilePage() {
         ) : (
           <p className="text-meta mt-3">This legacy profile must set a listed hourly rate before receiving member-wallet booking requests.</p>
         )}
-        <p className="eyebrow mt-7">Strengths · what {host.displayName} is great at</p>
+        <p className="eyebrow mt-7">What {host.firstName} can help you with</p>
         <div className="flex flex-wrap gap-2 mt-3">
           {host.strengths.map((strength) => <span key={strength} className="chip" data-selected="true">{strength}</span>)}
         </div>
@@ -252,7 +252,7 @@ function HostBookingAction({
   if (eligibility === 'eligible') {
     return (
       <Link to="/app" search={{ hostProfileId }} className="btn btn-social btn-sm">
-        Request a time
+        Book a time
       </Link>
     )
   }
@@ -260,7 +260,7 @@ function HostBookingAction({
   if (eligibility === 'verification_required') {
     return (
       <Link to="/app" search={{}} className="btn btn-self btn-sm">
-        Verify before planning
+        Verify before booking
       </Link>
     )
   }

@@ -66,6 +66,22 @@ export function hasCurrentPersonaApproval(
     && user.identityExpiresAt > now
 }
 
+export function identityTestBypassAllowed(user: Pick<Doc<'users'>, 'clerkUserId'>) {
+  const allowedUserIds = process.env.IDENTITY_TEST_BYPASS_USER_IDS
+    ?.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean) ?? []
+  return allowedUserIds.includes(user.clerkUserId)
+}
+
+export function hasCurrentIdentityApproval(
+  user: Pick<Doc<'users'>, 'clerkUserId' | 'verificationStatus' | 'verificationSource' | 'identityVerifiedAt' | 'identityExpiresAt' | 'identityTestBypass'>,
+  now = Date.now(),
+) {
+  return hasCurrentPersonaApproval(user, now)
+    || (identityTestBypassAllowed(user) && user.identityTestBypass === true)
+}
+
 export function personaEventTransition(eventName: string): {
   personaStatus: PersonaStatus
   personaDecision: PersonaDecision

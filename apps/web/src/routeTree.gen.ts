@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as BecomeHostRouteImport } from './routes/become-host'
+import { Route as CalendarDemoRouteImport } from './routes/calendar-demo'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as HostRouteImport } from './routes/host'
 import { Route as HostProfileRouteImport } from './routes/host-profile'
@@ -34,6 +35,11 @@ const AppRoute = AppRouteImport.update({
 const BecomeHostRoute = BecomeHostRouteImport.update({
   id: '/become-host',
   path: '/become-host',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarDemoRoute = CalendarDemoRouteImport.update({
+  id: '/calendar-demo',
+  path: '/calendar-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DiscoverRoute = DiscoverRouteImport.update({
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/become-host': typeof BecomeHostRoute
+  '/calendar-demo': typeof CalendarDemoRoute
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
   '/host-profile': typeof HostProfileRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/become-host': typeof BecomeHostRoute
+  '/calendar-demo': typeof CalendarDemoRoute
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
   '/host-profile': typeof HostProfileRoute
@@ -108,6 +116,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/become-host': typeof BecomeHostRoute
+  '/calendar-demo': typeof CalendarDemoRoute
   '/discover': typeof DiscoverRoute
   '/host': typeof HostRoute
   '/host-profile': typeof HostProfileRoute
@@ -123,6 +132,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/become-host'
+    | '/calendar-demo'
     | '/discover'
     | '/host'
     | '/host-profile'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/become-host'
+    | '/calendar-demo'
     | '/discover'
     | '/host'
     | '/host-profile'
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/become-host'
+    | '/calendar-demo'
     | '/discover'
     | '/host'
     | '/host-profile'
@@ -163,6 +175,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
   BecomeHostRoute: typeof BecomeHostRoute
+  CalendarDemoRoute: typeof CalendarDemoRoute
   DiscoverRoute: typeof DiscoverRoute
   HostRoute: typeof HostRoute
   HostProfileRoute: typeof HostProfileRoute
@@ -194,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/become-host'
       fullPath: '/become-host'
       preLoaderRoute: typeof BecomeHostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar-demo': {
+      id: '/calendar-demo'
+      path: '/calendar-demo'
+      fullPath: '/calendar-demo'
+      preLoaderRoute: typeof CalendarDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/discover': {
@@ -259,6 +279,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
   BecomeHostRoute: BecomeHostRoute,
+  CalendarDemoRoute: CalendarDemoRoute,
   DiscoverRoute: DiscoverRoute,
   HostRoute: HostRoute,
   HostProfileRoute: HostProfileRoute,

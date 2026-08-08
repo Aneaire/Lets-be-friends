@@ -4,11 +4,13 @@ import { useAction, useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type React from 'react'
-import { activityCategories, calculateMemberWalletBookingPrice, canBookingChat, canCancelBooking, canCompleteBooking, canReadBookingMessages, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
+import { activityCategories, calculateMemberWalletBookingPrice, canCancelBooking, canCompleteBooking, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { WorkspaceShell } from '../components/AppShell'
+import { BookingRequestEditor, type EditableBookingRequest } from '../components/BookingRequestEditor'
 import { MeetingSeam } from '../components/AppNavigation'
+import { BookingRequestFields } from '../components/BookingRequestFields'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../components/IdentityVerificationFlow'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
@@ -64,23 +66,29 @@ function AppPage() {
   const identityFlow = useIdentityVerification('member')
   const createDraft = useMutation(api.bookings.createDraft)
   const createMemberTopUp = useAction(api.paymongo.createMemberTopUp)
-  const sendMessage = useMutation(api.bookings.sendMessage)
+  const addTestCredit = useMutation(api.finance.addTestCredit)
   const cancelBooking = useMutation(api.bookings.cancel)
   const completeBooking = useMutation(api.bookings.markCompleted)
   const submitReview = useMutation(api.reviews.submit)
   const report = useMutation(api.reports.create)
+  const updateBookingRequest = useMutation(api.bookings.editRequest)
   const navigate = useNavigate()
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [editingBooking, setEditingBooking] = useState<EditableBookingRequest | null>(null)
+  const editingHost = useQuery(api.hosts.getPublic, editingBooking?.hostProfileId ? { hostProfileId: editingBooking.hostProfileId } : 'skip')
   const [identityDetailsOpen, setIdentityDetailsOpen] = useState(false)
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
+  const [walletDialogOpen, setWalletDialogOpen] = useState(false)
   const bookingTriggerRef = useRef<HTMLButtonElement>(null)
   const bookingOpenerRef = useRef<HTMLElement | null>(null)
+  const walletTriggerRef = useRef<HTMLButtonElement>(null)
 
   const verification = viewer
     ? memberVerificationPresentation(
         identityEntitlementStatus(viewer.verificationStatus, viewer.identityEligible),
         latestMemberVerification,
+        viewer.identityTestBypassActive,
       )
     : { state: 'not_started' as const, label: 'Loading', tone: 'self' as const, guidance: 'Loading identity status…', action: 'none' as const }
   const canBook = verification.state === 'approved'
@@ -113,6 +121,10 @@ function AppPage() {
       void navigate({ to: '/app', search: {}, replace: true })
     }
   }, [hostProfileId, navigate])
+
+  const closeWalletDialog = useCallback(() => {
+    setWalletDialogOpen(false)
+  }, [])
 
   useEffect(() => {
     if (!hostProfileId || viewerLoading) return
@@ -303,20 +315,23 @@ function AppPage() {
         </div>
       )}
 
-      <MemberWalletPanel
-        finance={memberFinance}
-        onCreateTopUp={async (amountCentavos) => {
-          const result = await createMemberTopUp({ amountCentavos })
-          setNotice(result.qrImageUrl
-            ? `QR Ph top-up for ${formatPhp(result.amountCentavos)} is ready to scan.`
-            : 'PayMongo is confirming the QR Ph top-up. Your wallet will update only after provider verification.')
-        }}
-      />
-
       <section id="bookings">
         <header className="flex items-baseline justify-between gap-3 mb-3">
           <h2 className="text-h2">Open plans</h2>
-          <span className="text-meta tabular">{openBookings} active</span>
+          <div className="flex items-center gap-2">
+            <span className="text-meta tabular">{openBookings} active</span>
+            <button
+              ref={walletTriggerRef}
+              type="button"
+              className="btn btn-wallet-balance btn-sm tabular"
+              onClick={() => setWalletDialogOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={walletDialogOpen}
+              aria-controls="booking-balance-dialog"
+            >
+              Booking balance {memberFinance ? formatPhp(memberFinance.availableCentavos) : '…'}
+            </button>
+          </div>
         </header>
         {viewer === undefined && <div className="empty-state">Loading your profile…</div>}
         {viewer && (bookings ?? []).length === 0 && (
@@ -371,10 +386,7 @@ function AppPage() {
                   <BookingRow
                     key={booking._id}
                     booking={booking}
-                    onSendMessage={async (body) => {
-                      await sendMessage({ bookingId: booking._id, body })
-                      setNotice('Message sent.')
-                    }}
+                    
                     onCancel={async () => {
                       await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by member.' })
                       setNotice('Booking cancelled.')
@@ -393,10 +405,7 @@ function AppPage() {
                       await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs safety review' })
                       setNotice('Report sent to the review queue.')
                     }}
-                    onReportMessage={async (messageId) => {
-                      await report({ targetType: 'message', targetId: messageId, reason: 'Message needs safety review' })
-                      setNotice('Message report sent to the review queue.')
-                    }}
+                    onEditRequest={(bookingRequest) => setEditingBooking(bookingRequest)}
                   />
                 ))}
             </div>
@@ -422,10 +431,7 @@ function AppPage() {
                   <BookingRow
                     key={booking._id}
                     booking={booking}
-                    onSendMessage={async (body) => {
-                      await sendMessage({ bookingId: booking._id, body })
-                      setNotice('Message sent.')
-                    }}
+                    
                     onCancel={async () => {
                       await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by member.' })
                       setNotice('Booking cancelled.')
@@ -443,10 +449,6 @@ function AppPage() {
                     onReport={async () => {
                       await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs safety review' })
                       setNotice('Report sent to the review queue.')
-                    }}
-                    onReportMessage={async (messageId) => {
-                      await report({ targetType: 'message', targetId: messageId, reason: 'Message needs safety review' })
-                      setNotice('Message report sent to the review queue.')
                     }}
                   />
                 ))}
@@ -466,15 +468,45 @@ function AppPage() {
           setNotice={setNotice}
         />
       )}
+      {walletDialogOpen && (
+        <WalletDialog
+          finance={memberFinance}
+          onClose={closeWalletDialog}
+          restoreFocusTo={walletTriggerRef.current}
+          onCreateTopUp={async (amountCentavos) => {
+            const result = await createMemberTopUp({ amountCentavos })
+            setNotice(result.qrImageUrl
+              ? `QR Ph top-up for ${formatPhp(result.amountCentavos)} is ready to scan.`
+              : 'PayMongo is confirming the QR Ph top-up. Your wallet will update only after provider verification.')
+          }}
+          onAddTestCredit={async (amountCentavos) => {
+            const result = await addTestCredit({ amountCentavos })
+            setNotice(`${formatPhp(result.amountCentavos)} test balance added. Available to book: ${formatPhp(result.availableCentavos)}.`)
+          }}
+        />
+      )}
+      {editingBooking && (
+        <BookingRequestEditor
+          booking={editingBooking}
+          host={editingHost ?? undefined}
+          onClose={() => setEditingBooking(null)}
+          onSave={async (request) => {
+            await updateBookingRequest({ bookingId: editingBooking.bookingId, ...request })
+            setNotice('Request updated. The Friend Host will see the new details.')
+            setEditingBooking(null)
+          }}
+        />
+      )}
     </WorkspaceShell>
   )
 }
 
 type MemberFinance = NonNullable<ReturnType<typeof useQuery<typeof api.finance.memberDashboard>>>
 
-function MemberWalletPanel({ finance, onCreateTopUp }: {
+function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
   finance: MemberFinance | null | undefined
   onCreateTopUp: (amountCentavos: number) => Promise<void>
+  onAddTestCredit: (amountCentavos: number) => Promise<void>
 }) {
   const [busy, setBusy] = useState(false)
   const [walletError, setWalletError] = useState('')
@@ -492,7 +524,7 @@ function MemberWalletPanel({ finance, onCreateTopUp }: {
           <h2 className="text-h2">Booking balance</h2>
           <p className="text-meta mt-1">Use this balance for booking requests. You will see the service subtotal and 15% booking fee before sending.</p>
         </div>
-        {finance && <span className="status-pill" data-tone="social">{formatPhp(finance.availableCentavos)} available</span>}
+        {finance && <span className="status-pill" data-tone="success">{formatPhp(finance.availableCentavos)} available</span>}
       </header>
       {walletError && <div className="notice notice-danger mb-3" role="alert"><span className="notice-icon">!</span><span>{walletError}</span></div>}
       {!finance && <div className="empty-state">Loading booking wallet…</div>}
@@ -502,10 +534,32 @@ function MemberWalletPanel({ finance, onCreateTopUp }: {
             <div className="notice notice-warning text-meta"><span className="notice-icon">!</span><span>New member-wallet bookings are disabled on this server. Existing balances and settlements remain readable.</span></div>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="wallet-metric wallet-metric-social"><p className="text-meta">Available to book</p><p className="text-h2 tabular mt-1">{formatPhp(finance.availableCentavos)}</p></div>
-            <div className="wallet-metric"><p className="text-meta">Reserved for accepted bookings</p><p className="text-h2 tabular mt-1">{formatPhp(finance.reservedCentavos)}</p></div>
+            <div className="wallet-metric wallet-metric-available"><p className="text-meta">Available to book</p><p className="text-h2 tabular mt-1">{formatPhp(finance.availableCentavos)}</p></div>
+            <div className="wallet-metric wallet-metric-pending"><p className="text-meta">Reserved for accepted bookings</p><p className="text-h2 tabular mt-1">{formatPhp(finance.reservedCentavos)}</p></div>
           </div>
           <div className="grid gap-5 lg:grid-cols-2">
+            {finance.testCreditEnabled && (
+              <form
+                className="space-y-3"
+                onSubmit={async (event) => {
+                  event.preventDefault()
+                  setBusy(true)
+                  setWalletError('')
+                  try {
+                    const form = new FormData(event.currentTarget)
+                    await onAddTestCredit(Math.round(Number(form.get('testCreditPesos')) * 100))
+                  } catch (submitError) {
+                    setWalletError(submitError instanceof Error ? submitError.message : 'Test balance could not be added.')
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              >
+                <div><p className="text-h3">Add test balance</p><p className="text-meta mt-1">For testing only. This adds internal booking credit and does not charge a payment method.</p></div>
+                <label className="field-row"><span className="label">Amount <span className="label-aux">PHP</span></span><input name="testCreditPesos" type="number" min="1" max="100000" step="0.01" defaultValue="1000" required className="field" disabled={busy} /></label>
+                <button className="btn btn-social" disabled={busy}>{busy ? 'Adding test balance…' : 'Add test balance'}</button>
+              </form>
+            )}
             <form
               className="space-y-3"
               onSubmit={async (event) => {
@@ -538,32 +592,77 @@ function MemberWalletPanel({ finance, onCreateTopUp }: {
   )
 }
 
+function WalletDialog({ finance, onClose, restoreFocusTo, onCreateTopUp, onAddTestCredit }: {
+  finance: MemberFinance | null | undefined
+  onClose: () => void
+  restoreFocusTo: HTMLElement | null
+  onCreateTopUp: (amountCentavos: number) => Promise<void>
+  onAddTestCredit: (amountCentavos: number) => Promise<void>
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const focusFrame = window.requestAnimationFrame(() => dialogRef.current?.focus())
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.cancelAnimationFrame(focusFrame)
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+      window.requestAnimationFrame(() => restoreFocusTo?.focus())
+    }
+  }, [onClose, restoreFocusTo])
+
+  return (
+    <div className="booking-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      <div ref={dialogRef} id="booking-balance-dialog" className="booking-dialog" role="dialog" aria-modal="true" aria-labelledby="booking-balance-dialog-title" tabIndex={-1}>
+        <header className="booking-dialog-header">
+          <div>
+            <p className="eyebrow">Your booking wallet</p>
+            <MeetingSeam />
+            <h2 id="booking-balance-dialog-title" className="text-h2 mt-1">Booking balance</h2>
+          </div>
+          <button type="button" className="social-icon-button booking-dialog-close" aria-label="Close booking balance" onClick={onClose}>
+            <X size={16} aria-hidden="true" />
+          </button>
+        </header>
+        <div className="booking-dialog-body">
+          <MemberWalletPanel finance={finance} onCreateTopUp={onCreateTopUp} onAddTestCredit={onAddTestCredit} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 type Booking = NonNullable<ReturnType<typeof useQuery<typeof api.bookings.mine>>>[number]
 
 function BookingRow({
   booking,
-  onSendMessage,
   onCancel,
   onComplete,
   onReview,
   onReport,
-  onReportMessage,
+  onEditRequest,
 }: {
   booking: Booking
-  onSendMessage: (body: string) => Promise<void>
   onCancel: () => Promise<void>
   onComplete: () => Promise<void>
   onReview: (rating: number, body?: string) => Promise<void>
   onReport: () => Promise<void>
-  onReportMessage: (messageId: Id<'messages'>) => Promise<void>
+  onEditRequest?: (request: EditableBookingRequest) => void
 }) {
   const status = statusCopy[booking.status as BookingStatus] ?? { label: booking.status, tone: 'self' as const }
-  const canChat = canBookingChat(booking.status)
   const canCancel = canCancelBooking(booking.status)
   const canComplete = canCompleteBooking(booking.status)
   const canReview = canReviewBooking(booking.status) && !booking.viewerHasReviewed
-  const canReadMessages = canReadBookingMessages(booking.status)
-  const messages = useQuery(api.bookings.messages, canReadMessages ? { bookingId: booking._id } : 'skip')
+  const conversationId = useQuery(
+    api.conversations.between,
+    booking.hostUserId ? { otherUserId: booking.hostUserId } : 'skip',
+  )
 
   return (
     <article id={`booking-${booking._id}`} className="worklist-row">
@@ -614,33 +713,38 @@ function BookingRow({
       )}
 
       <div className="worklist-row-actions">
-          {canChat && (
-            <form
-              className="flex items-center gap-2 flex-1 min-w-[260px]"
-              onSubmit={async (event) => {
-                event.preventDefault()
-                const form = event.currentTarget
-                const data = new FormData(form)
-                const body = String(data.get('body') ?? '').trim()
-                if (!body) return
-                await onSendMessage(body)
-                form.reset()
-              }}
-            >
-              <input name="body" className="field" placeholder="Send a chat message" />
-              <button className="btn btn-social btn-sm">Send</button>
-            </form>
+          {conversationId && (
+            <Link to="/messages" search={{ conversationId }} className="btn btn-social btn-sm">
+              Open conversation
+            </Link>
           )}
           {canComplete && !booking.memberCompletedAt && <button type="button" onClick={onComplete} className="btn btn-neutral btn-sm">Confirm completion</button>}
           {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Friend Host</span>}
           {canReview && <ReviewForm onReview={onReview} />}
           {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
           {canCancel && <button type="button" onClick={onCancel} className="btn btn-danger btn-sm">Cancel booking</button>}
+          {booking.status === 'request_sent' && onEditRequest && (
+            <button
+              type="button"
+              className="btn btn-self btn-sm"
+              onClick={() => onEditRequest({
+                bookingId: booking._id,
+                hostProfileId: booking.hostProfileId,
+                hostDisplayName: 'hostDisplayName' in booking ? String(booking.hostDisplayName) : 'Friend Host',
+                category: booking.category,
+                mode: booking.mode,
+                requestedAt: booking.requestedAt,
+                durationMinutes: booking.durationMinutes,
+                notes: booking.notes,
+              })}
+            >
+              Edit request
+            </button>
+          )}
           <button onClick={onReport} className="btn btn-danger btn-sm">
             Report
           </button>
       </div>
-      {canReadMessages && <MessageThread messages={messages ?? []} onReport={onReportMessage} />}
     </article>
   )
 }
@@ -713,29 +817,6 @@ function EvidenceDecision({ bookingId, label }: { bookingId: Id<'bookings'>; lab
   )
 }
 
-function MessageThread({ messages, onReport }: {
-  messages: Array<{ _id: Id<'messages'>; body: string; createdAt: number; senderDisplayName: string; sentByViewer: boolean }>
-  onReport: (messageId: Id<'messages'>) => Promise<void>
-}) {
-  if (messages.length === 0) return null
-  return (
-    <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-3 space-y-2">
-      <p className="text-tiny uppercase tracking-wide text-[color:var(--text-soft)]">Messages</p>
-      {messages.map((message) => (
-        <div key={message._id} className="message-row text-meta">
-          <div className="min-w-0">
-            <strong>{message.sentByViewer ? 'You' : message.senderDisplayName}</strong>
-            <span className="mx-2 text-soft">·</span>
-            <span className="tabular text-soft">{formatRequestedAt(message.createdAt)}</span>
-            <p className="mt-1 whitespace-pre-wrap">{message.body}</p>
-          </div>
-          <button type="button" onClick={() => onReport(message._id)} className="btn btn-ghost btn-sm">Report</button>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function ReviewForm({ onReview }: { onReview: (rating: number, body?: string) => Promise<void> }) {
   return (
     <form
@@ -796,7 +877,12 @@ function BookingDialog({
   const selectedHost = hosts.find((host) => host._id === selectedHostProfileId)
   const categoryOptions = selectedHost?.categories?.length ? selectedHost.categories : activityCategories
   const [selectedMode, setSelectedMode] = useState<'online' | 'in_person'>('online')
+  const [category, setCategory] = useState('')
+  const [notes, setNotes] = useState('')
   const [durationMinutes, setDurationMinutes] = useState(60)
+  const initialRequestedAt = useMemo(() => new Date(Date.now() + 86400000), [])
+  const [requestedAt, setRequestedAt] = useState<Date>(() => new Date(Date.now() + 86400000))
+  const [requestedTime, setRequestedTime] = useState(() => `${String(initialRequestedAt.getHours()).padStart(2, '0')}:${String(initialRequestedAt.getMinutes()).padStart(2, '0')}`)
   const estimatedPrice = selectedHost?.hourlyRateCentavos && durationMinutes >= 15 && durationMinutes <= 720 && durationMinutes % 15 === 0
     ? calculateMemberWalletBookingPrice(selectedHost.hourlyRateCentavos, durationMinutes)
     : undefined
@@ -805,6 +891,11 @@ function BookingDialog({
     if (selectedHost?.mode === 'online') return ['online']
     return ['online', 'in_person']
   }, [selectedHost?.mode])
+
+  useEffect(() => {
+    const options: readonly string[] = categoryOptions
+    if (!options.includes(category)) setCategory(categoryOptions[0] ?? '')
+  }, [categoryOptions, category])
 
   useEffect(() => {
     setSelectedHostProfileId((current) => {
@@ -892,9 +983,9 @@ function BookingDialog({
       >
         <header className="booking-dialog-header">
           <div>
-            <p className="eyebrow">New request</p>
+            <p className="eyebrow">New booking</p>
             <MeetingSeam />
-            <h2 id="booking-dialog-title" className="text-h2 mt-1">{selectedHost ? `Plan time with ${selectedHost.displayName}` : 'Plan a time'}</h2>
+            <h2 id="booking-dialog-title" className="text-h2 mt-1">{selectedHost ? `Book with ${selectedHost.displayName.trim().split(/\s+/)[0] ?? ''}` : 'Book a time'}</h2>
           </div>
           <button
             type="button"
@@ -912,22 +1003,30 @@ function BookingDialog({
           onSubmit={async (event) => {
             event.preventDefault()
             if (!selectedHostProfileId) {
-              setSubmitError('Choose an approved Friend Host before sending a booking request.')
+              setSubmitError('Choose an approved Friend Host before sending a booking.')
               return
             }
 
             setSubmitError('')
             submittingRef.current = true
             setIsSubmitting(true)
-            const form = new FormData(event.currentTarget)
+            const requestDate = new Date(requestedAt)
+            const [hours, minutes] = requestedTime.split(':').map(Number)
+            requestDate.setHours(hours || 0, minutes || 0, 0, 0)
+            if (requestDate.getTime() <= Date.now()) {
+              submittingRef.current = false
+              setIsSubmitting(false)
+              setSubmitError('Choose a time in the future.')
+              return
+            }
             try {
               const booking = await createDraft({
                 hostProfileId: selectedHostProfileId as Id<'hostProfiles'>,
-                category: String(form.get('category')),
+                category,
                 mode: selectedMode,
-                requestedAt: new Date(String(form.get('requestedAt'))).getTime(),
-                durationMinutes: Number(form.get('durationMinutes')),
-                notes: String(form.get('notes') || '') || undefined,
+                requestedAt: requestDate.getTime(),
+                durationMinutes,
+                notes: notes.trim() || undefined,
               })
               submittingRef.current = false
               setIsSubmitting(false)
@@ -936,7 +1035,7 @@ function BookingDialog({
             } catch (error) {
               submittingRef.current = false
               setIsSubmitting(false)
-              setSubmitError(error instanceof Error ? error.message : 'The booking request could not be sent. Try again.')
+              setSubmitError(error instanceof Error ? error.message : 'The booking could not be sent. Try again.')
             }
           }}
         >
@@ -978,77 +1077,35 @@ function BookingDialog({
             </select>
           </label>
 
-          <label className="field-row">
-            <span className="label">What would you like to do?</span>
-            <select name="category" className="field" disabled={isSubmitting}>
-              {categoryOptions.map((category) => <option key={category}>{category}</option>)}
-            </select>
-          </label>
-
-          <div className="booking-dialog-paired-fields">
-            <label className="field-row">
-              <span className="label">Mode</span>
-              <select
-                value={selectedMode}
-                onChange={(event) => setSelectedMode(event.currentTarget.value as 'online' | 'in_person')}
-                name="mode"
-                className="field"
-                disabled={isSubmitting}
-              >
-                {modeOptions.includes('online') && <option value="online">Online</option>}
-                {modeOptions.includes('in_person') && <option value="in_person">In person</option>}
-              </select>
-            </label>
-            <label className="field-row">
-              <span className="label">Duration <span className="label-aux">min</span></span>
-              <input
-                name="durationMinutes"
-                type="number"
-                min={15}
-                max={720}
-                step={15}
-                required
-                value={durationMinutes}
-                onChange={(event) => setDurationMinutes(Number(event.currentTarget.value))}
-                className="field"
-                disabled={isSubmitting}
-              />
-            </label>
-          </div>
-
-          <label className="field-row">
-            <span className="label">When</span>
-            <input
-              name="requestedAt"
-              type="datetime-local"
-              required
-              defaultValue={new Date(Date.now() + 86400000).toISOString().slice(0, 16)}
-              className="field"
-              disabled={isSubmitting}
-            />
-          </label>
-
-          <label className="field-row">
-            <span className="label">Anything you would like them to know? <span className="label-aux">shared with the Friend Host</span></span>
-            <textarea name="notes" className="field min-h-20" placeholder="Share what you have in mind, what would make the time comfortable, or any useful context." disabled={isSubmitting} />
-          </label>
-
-          {estimatedPrice !== undefined && (
-            <div className="notice text-meta">
-              <span className="notice-icon">₱</span>
-              <span>
-                Required available balance: <strong className="tabular">{formatPhp(estimatedPrice.memberTotalCentavos)}</strong>
-                {' '}({formatPhp(estimatedPrice.serviceSubtotalCentavos)} service subtotal + {formatPhp(estimatedPrice.memberBookingFeeCentavos)} member booking fee).
-                The server freezes these amounts and rechecks your balance when the Friend Host accepts.
-              </span>
-            </div>
-          )}
+          <BookingRequestFields
+            category={category}
+            categoryOptions={categoryOptions}
+            onCategoryChange={setCategory}
+            mode={selectedMode}
+            modeOptions={modeOptions}
+            onModeChange={setSelectedMode}
+            durationMinutes={durationMinutes}
+            onDurationMinutesChange={setDurationMinutes}
+            requestedAt={requestedAt}
+            requestedTime={requestedTime}
+            onRequestedDayChange={(date) => {
+              const [hours, minutes] = requestedTime.split(':').map(Number)
+              const next = new Date(date)
+              next.setHours(hours || 0, minutes || 0, 0, 0)
+              setRequestedAt(next)
+            }}
+            onRequestedTimeChange={setRequestedTime}
+            notes={notes}
+            onNotesChange={setNotes}
+            estimate={estimatedPrice}
+            disabled={isSubmitting}
+          />
 
           <button disabled={!canSubmit} className="btn btn-social btn-block">
-            {isSubmitting ? 'Sending request…' : 'Send booking request'}
+            {isSubmitting ? 'Sending…' : 'Send booking'}
           </button>
           <p className="text-tiny" id="booking-dialog-guidance">
-            Booking requests are available only after identity review is approved.
+            Bookings are available only after identity review is approved.
           </p>
         </form>
       </div>

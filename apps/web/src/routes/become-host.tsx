@@ -70,12 +70,15 @@ function HostAuthPanel() {
   const application = useQuery(api.hosts.myApplication)
   const latestIdentityVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const submit = useMutation(api.hosts.submitApplication)
+  const setIdentityTestBypass = useMutation(api.users.setIdentityTestBypass)
   const identityFlow = useIdentityVerification('host_application')
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>(['Good listener'])
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(['Online conversation'])
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [testBypassSaving, setTestBypassSaving] = useState(false)
+  const [testBypassError, setTestBypassError] = useState('')
   const [approxLocation, setApproxLocation] = useState<Coordinates | null>(
     typeof application?.approximateLatitude === 'number' && typeof application?.approximateLongitude === 'number'
       ? { latitude: application.approximateLatitude, longitude: application.approximateLongitude }
@@ -87,9 +90,12 @@ function HostAuthPanel() {
   const [locationStatus, setLocationStatus] = useState('')
 
   useEffect(() => {
-    if (!application) return
+    if (!application) {
+      if (viewer?.onboardingCategories?.length) setSelectedCategories(viewer.onboardingCategories)
+      return
+    }
     setSelectedStrengths(application.strengths.length > 0 ? application.strengths : ['Good listener'])
-    setSelectedCategories(application.categories.length > 0 ? application.categories : ['Online conversation'])
+    setSelectedCategories(application.categories)
     setApproxLocation(
       typeof application.approximateLatitude === 'number' && typeof application.approximateLongitude === 'number'
         ? { latitude: application.approximateLatitude, longitude: application.approximateLongitude }
@@ -97,7 +103,7 @@ function HostAuthPanel() {
     )
     setApproximateArea(application.approximateArea ?? '')
     setNearbyDiscoveryEnabled(application.nearbyDiscoveryEnabled === true)
-  }, [application?._id])
+  }, [application?._id, viewer?.onboardingCategories])
 
   if (!isSignedIn) {
     return (
@@ -124,6 +130,7 @@ function HostAuthPanel() {
   const verification = memberVerificationPresentation(
     identityEntitlementStatus(viewer?.verificationStatus ?? 'not_started', viewer?.identityEligible ?? false),
     latestIdentityVerification,
+    viewer?.identityTestBypassActive ?? false,
   )
 
   return (
@@ -411,6 +418,22 @@ function HostAuthPanel() {
         canStartIdentity={Boolean(application)}
         identityBusy={identityFlow.busy}
         onStartIdentity={() => void identityFlow.begin()}
+        testBypassAvailable={viewer?.identityTestBypassAvailable ?? false}
+        testBypassActive={viewer?.identityTestBypassActive ?? false}
+        testBypassSaving={testBypassSaving}
+        testBypassError={testBypassError}
+        onTestBypassChange={async (enabled) => {
+          if (testBypassSaving) return
+          setTestBypassSaving(true)
+          setTestBypassError('')
+          try {
+            await setIdentityTestBypass({ enabled })
+          } catch (bypassError) {
+            setTestBypassError(bypassError instanceof Error ? bypassError.message : 'Test bypass could not be updated.')
+          } finally {
+            setTestBypassSaving(false)
+          }
+        }}
       />
     </div>
   )
@@ -422,17 +445,27 @@ function ReviewStatusPanel({
   canStartIdentity,
   identityBusy,
   onStartIdentity,
+  testBypassAvailable,
+  testBypassActive,
+  testBypassSaving,
+  testBypassError,
+  onTestBypassChange,
 }: {
   status?: string
   verification: MemberVerificationPresentation
   canStartIdentity: boolean
   identityBusy: boolean
   onStartIdentity: () => void
+  testBypassAvailable: boolean
+  testBypassActive: boolean
+  testBypassSaving: boolean
+  testBypassError: string
+  onTestBypassChange: (enabled: boolean) => void
 }) {
   const identityApproved = verification.state === 'approved'
   const steps = [
     { id: 'submit', label: 'Application submitted', done: !!status },
-    { id: 'identity', label: 'Persona identity and safety review', done: identityApproved, active: !!status && !identityApproved },
+    { id: 'identity', label: testBypassActive ? 'Identity check bypassed for testing' : 'Identity and safety review', done: identityApproved, active: !!status && !identityApproved },
     { id: 'review', label: 'Friend Host profile review', done: status === 'approved' || status === 'rejected', active: status === 'pending_review' && identityApproved },
     { id: 'live', label: 'Visible in discovery', done: status === 'approved' && identityApproved },
   ]
@@ -474,6 +507,28 @@ function ReviewStatusPanel({
             </li>
           ))}
         </ol>
+        {testBypassAvailable && (
+          <div className="identity-test-bypass">
+            <span>
+              <strong>Testing only</strong>
+              <small>Skip identity verification for this account. This does not create a real approval.</small>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-label="Bypass identity verification for testing"
+              aria-checked={testBypassActive}
+              className="account-menu-switch"
+              data-checked={testBypassActive}
+              disabled={testBypassSaving}
+              onClick={() => onTestBypassChange(!testBypassActive)}
+            >
+              <span aria-hidden="true" />
+              <strong>{testBypassSaving ? 'Saving' : testBypassActive ? 'On' : 'Off'}</strong>
+            </button>
+            {testBypassError && <p className="text-meta" role="alert">{testBypassError}</p>}
+          </div>
+        )}
         {canStartIdentity && verification.action !== 'none' && (
           <button type="button" className="btn btn-self btn-sm" disabled={identityBusy} onClick={onStartIdentity}>
             {identityBusy

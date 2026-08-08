@@ -2,6 +2,7 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useState } from 'react'
+import { activityCategories } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
 import { useIdentityVerification } from '../components/IdentityVerificationFlow'
@@ -34,7 +35,9 @@ function OnboardingPage() {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [goal, setGoal] = useState<OnboardingGoal | undefined>()
-  const [displayName, setDisplayName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [bio, setBio] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -42,7 +45,10 @@ function OnboardingPage() {
   useEffect(() => {
     if (!viewer) return
     setGoal((current) => current ?? viewer.onboardingGoal)
-    setDisplayName((current) => current || viewer.displayName)
+    const fallbackName = splitExistingName(viewer.displayName)
+    setFirstName((current) => current || viewer.firstName || fallbackName.firstName)
+    setLastName((current) => current || viewer.lastName || fallbackName.lastName)
+    setSelectedCategories((current) => current.length > 0 ? current : viewer.onboardingCategories ?? [])
     setBio((current) => current || viewer.bio || '')
   }, [viewer])
 
@@ -81,15 +87,26 @@ function OnboardingPage() {
 
   const saveProfileAndContinue = async () => {
     if (submitting) return
-    const name = displayName.trim()
-    if (!name) {
-      setError('Enter the name you want people to see.')
+    const cleanFirstName = firstName.trim()
+    const cleanLastName = lastName.trim()
+    if (!cleanFirstName || !cleanLastName) {
+      setError('Enter your first and last name.')
+      return
+    }
+    if (selectedGoal === 'friend_host' && selectedCategories.length === 0) {
+      setError('Choose at least one category you would like to offer.')
       return
     }
     setSubmitting(true)
     setError('')
     try {
-      await updateProfile({ displayName: name, bio: bio.trim() || undefined })
+      await updateProfile({
+        displayName: `${cleanFirstName} ${cleanLastName}`,
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
+        bio: bio.trim() || undefined,
+        onboardingCategories: selectedGoal === 'friend_host' ? selectedCategories : undefined,
+      })
       setStep(3)
     } catch (profileError) {
       setError(profileError instanceof Error ? profileError.message : 'Your profile could not be updated.')
@@ -101,6 +118,7 @@ function OnboardingPage() {
   const verification = memberVerificationPresentation(
     identityEntitlementStatus(viewer.verificationStatus, viewer.identityEligible),
     latestIdentityVerification,
+    viewer.identityTestBypassActive,
   )
 
   const finishWithIdentityReview = async () => {
@@ -163,10 +181,10 @@ function OnboardingPage() {
         {step === 1 && (
           <div>
             <p className="eyebrow">Step 1</p>
-            <h2 className="text-h1 mt-2">What brings you here?</h2>
-            <p className="text-body muted mt-2">This choice guides your setup. It does not grant Friend Host approval or skip safety review.</p>
+            <h2 className="text-h1 mt-2">What would you like to do here?</h2>
+            <p className="text-body muted mt-2">Pick what fits you best. You can grow into the other side anytime, and every member still goes through a friendly safety review.</p>
             <fieldset className="onboarding-choice-group mt-6">
-              <legend>Choose your onboarding goal</legend>
+              <legend>How would you like to take part?</legend>
               <div className="onboarding-choice-list">
                 <label data-selected={selectedGoal === 'member'}>
                   <input
@@ -178,7 +196,7 @@ function OnboardingPage() {
                     onChange={() => setGoal('member')}
                   />
                   <span className="onboarding-choice-marker" aria-hidden="true">01</span>
-                  <span><strong>I want someone to join me</strong><small>Explore verified people for online or local shared activities.</small></span>
+                  <span><strong>I would love to make a friend</strong><small>Meet friendly, verified people for fun online or nearby plans together.</small></span>
                 </label>
                 <label data-selected={selectedGoal === 'friend_host'}>
                   <input
@@ -190,7 +208,7 @@ function OnboardingPage() {
                     onChange={() => setGoal('friend_host')}
                   />
                   <span className="onboarding-choice-marker" aria-hidden="true">02</span>
-                  <span><strong>I’d like to share what I enjoy</strong><small>Create a hosting profile around your interests, schedule, and boundaries.</small></span>
+                  <span><strong>I want to help others feel at home</strong><small>Open a friendly hosting profile with your interests and schedule.</small></span>
                 </label>
               </div>
             </fieldset>
@@ -201,16 +219,46 @@ function OnboardingPage() {
           <div>
             <p className="eyebrow">Step 2</p>
             <h2 className="text-h1 mt-2">Confirm your public profile.</h2>
-            <p className="text-body muted mt-2">Use the name and short introduction you want members to see. A profile photo can be added later from Profile.</p>
+            <p className="text-body muted mt-2">Add the name and short introduction you want members to see. A profile photo can be added later from Profile.</p>
             <div className="onboarding-fields mt-6">
-              <label className="field-row">
-                <span className="label">Display name</span>
-                <input className="field" value={displayName} maxLength={80} onChange={(event) => setDisplayName(event.currentTarget.value)} />
-              </label>
+              <div className="onboarding-name-fields">
+                <label className="field-row">
+                  <span className="label">First name</span>
+                  <input className="field" autoComplete="given-name" value={firstName} maxLength={40} onChange={(event) => setFirstName(event.currentTarget.value)} />
+                </label>
+                <label className="field-row">
+                  <span className="label">Last name</span>
+                  <input className="field" autoComplete="family-name" value={lastName} maxLength={40} onChange={(event) => setLastName(event.currentTarget.value)} />
+                </label>
+              </div>
               <label className="field-row">
                 <span className="label">Bio <span className="label-aux">optional</span></span>
-                <textarea className="field min-h-28" value={bio} maxLength={500} onChange={(event) => setBio(event.currentTarget.value)} placeholder="A few words about your interests and what feels comfortable." />
+                <textarea className="field min-h-28" value={bio} maxLength={500} onChange={(event) => setBio(event.currentTarget.value)} placeholder="I can join you for your grocery trip and make it more fun." />
               </label>
+              {selectedGoal === 'friend_host' && (
+                <fieldset className="onboarding-category-field">
+                  <legend className="label">What would you like to offer? <span className="label-aux">choose up to 6</span></legend>
+                  <p className="field-row-help">Choose the experiences that best describe the time you want to share. You can refine these before submitting your Friend Host profile.</p>
+                  <div className="onboarding-category-grid mt-3">
+                    {activityCategories.map((category) => {
+                      const selected = selectedCategories.includes(category)
+                      return (
+                        <label key={category} data-selected={selected}>
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            disabled={!selected && selectedCategories.length >= 6}
+                            onChange={() => setSelectedCategories((current) => selected
+                              ? current.filter((value) => value !== category)
+                              : [...current, category])}
+                          />
+                          <span>{category}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </fieldset>
+              )}
             </div>
           </div>
         )}
@@ -274,4 +322,15 @@ function OnboardingPage() {
       </section>
     </main>
   )
+}
+
+function splitExistingName(displayName: string) {
+  const name = displayName.trim()
+  if (name.includes(',')) {
+    const [lastName, ...firstParts] = name.split(',')
+    return { firstName: firstParts.join(',').trim(), lastName: lastName.trim() }
+  }
+  const parts = name.split(/\s+/)
+  if (parts.length < 2) return { firstName: name, lastName: '' }
+  return { firstName: parts.slice(0, -1).join(' '), lastName: parts.at(-1) ?? '' }
 }
