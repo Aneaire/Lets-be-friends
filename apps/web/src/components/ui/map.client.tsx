@@ -28,6 +28,10 @@ import { circleCoordinates, type Coordinates } from '../../lib/geo'
 
 const MapContext = createContext<maplibregl.Map | null>(null)
 
+export function useMap() {
+  return useContext(MapContext)
+}
+
 export function Map({
   center,
   zoom,
@@ -131,10 +135,8 @@ export function Map({
 
     instance.on('load', handleLoad)
     instance.on('error', handleError)
-    if (interactive) {
-      instance.on('click', handleClick)
-      canvas.addEventListener('keydown', handleKeyDown)
-    }
+    instance.on('click', handleClick)
+    canvas.addEventListener('keydown', handleKeyDown)
     setMap(instance)
 
     const resizeObserver = new ResizeObserver(() => instance.resize())

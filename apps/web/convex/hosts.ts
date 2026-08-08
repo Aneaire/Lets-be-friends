@@ -59,6 +59,8 @@ export const listApproved = query({
         profileImageUrl: profileImage,
         bio: user.bio,
         distanceKm: typeof distanceKm === 'number' ? Math.round(distanceKm * 10) / 10 : undefined,
+        latitude: typeof host.approximateLatitude === 'number' ? host.approximateLatitude : undefined,
+        longitude: typeof host.approximateLongitude === 'number' ? host.approximateLongitude : undefined,
         _id: host._id,
         bookable: hasConfiguredHourlyRate(host.hourlyRateCentavos),
         viewerCanBook: canBookHost(viewer ? String(viewer._id) : null, String(host.userId)),

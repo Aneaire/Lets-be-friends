@@ -1,8 +1,8 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Heart, LayoutGrid, MapPin, SlidersHorizontal, Star, X } from 'lucide-react'
+import { Heart, LayoutGrid, MapPin, Search, SlidersHorizontal, Star, X } from 'lucide-react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { ApproximateLocationMap } from '../components/ApproximateLocationMap'
@@ -29,12 +29,16 @@ type DiscoveryHost = {
   userId?: string
   profileImageUrl?: string
   distanceKm?: number
+  latitude?: number
+  longitude?: number
+  bio?: string
 }
 
 type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 
 function DiscoverPage() {
   const { isSignedIn } = useAuth()
+  const navigate = useNavigate()
   const [nearby, setNearby] = useState<Coordinates | null>(null)
   const [radiusKm, setRadiusKm] = useState<NearbyRadiusKm>(25)
   const [originMode, setOriginMode] = useState<'device' | 'custom' | null>(null)
@@ -46,31 +50,66 @@ function DiscoverPage() {
   const [category, setCategory] = useState<string | null>(null)
   const [strength, setStrength] = useState<string | null>(null)
   const [bookableOnly, setBookableOnly] = useState(false)
+  const [query, setQuery] = useState('')
+  const [nearbyOpen, setNearbyOpen] = useState(false)
+  const [mapExpanded, setMapExpanded] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const categoryStripRef = useRef<HTMLDivElement>(null)
   const categoryWrapRef = useRef<HTMLDivElement>(null)
 
   const filtered = useMemo(() => {
+    const searchTerm = query.trim().toLowerCase()
     return hosts.filter((host) => {
       if (mode !== 'all' && host.mode !== mode && !(mode === 'online' && host.mode === 'both')) return false
       if (category && !(host.categories ?? []).includes(category)) return false
       if (strength && !host.strengths.includes(strength)) return false
       if (bookableOnly && !host.bookable) return false
+      if (searchTerm) {
+        const haystack = [
+          host.displayName,
+          host.city,
+          host.intro,
+          host.bio ?? '',
+          ...(host.strengths ?? []),
+          ...(host.categories ?? []),
+        ].join(' ').toLowerCase()
+        if (!haystack.includes(searchTerm)) return false
+      }
       return true
     })
-  }, [hosts, mode, category, strength, bookableOnly])
+  }, [hosts, mode, category, strength, bookableOnly, query])
+
+  const mapPeople = useMemo(() => {
+    if (!nearby) return []
+    return filtered
+      .filter((host) => typeof host.latitude === 'number' && typeof host.longitude === 'number')
+      .map((host) => ({
+        key: host._id,
+        latitude: host.latitude!,
+        longitude: host.longitude!,
+        imageUrl: host.profileImageUrl,
+        name: host.displayName,
+        city: host.city,
+        intro: host.intro,
+        rating: host.rating,
+        reviewCount: host.reviewCount,
+        strengths: host.strengths,
+        status: host.demo ? ('demo' as const) : host.bookable ? ('verified' as const) : ('awaiting' as const),
+      }))
+  }, [filtered, nearby])
 
   const verifiedCount = filtered.filter((host) => host.bookable && !host.demo).length
   const demoCount = filtered.length - verifiedCount
   const moreFilterCount = strength ? 1 : 0
-  const anyFiltered = mode !== 'all' || category !== null || strength !== null || bookableOnly || nearby !== null
+  const anyFiltered = mode !== 'all' || category !== null || strength !== null || bookableOnly || nearby !== null || query.trim() !== ''
 
   const clearAllFilters = () => {
     setMode('all')
     setCategory(null)
     setStrength(null)
     setBookableOnly(false)
+    setQuery('')
     setNearby(null)
     setOriginMode(null)
     setCustomOriginLabel('')
@@ -212,6 +251,22 @@ function DiscoverPage() {
 
       <div className="discover-toolbar" role="region" aria-label="Filters">
         <div className="discover-toolbar-primary">
+          <div className="discover-search" role="search">
+            <Search size={15} aria-hidden="true" />
+            <input
+              type="search"
+              className="discover-search-input"
+              placeholder="Search by name, city, or activity"
+              aria-label="Search Friend Hosts"
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+            />
+            {query && (
+              <button type="button" className="discover-search-clear" aria-label="Clear search" onClick={() => setQuery('')}>
+                <X size={13} aria-hidden="true" />
+              </button>
+            )}
+          </div>
           <div className="mode-pillgroup" role="tablist" aria-label="Mode">
             <ModeChip value="all" current={mode} onChange={setMode}>Anywhere</ModeChip>
             <ModeChip value="online" current={mode} onChange={setMode}>Online</ModeChip>
@@ -277,7 +332,7 @@ function DiscoverPage() {
         )}
       </div>
 
-      <details className="nearby-discovery-panel nearby-discovery-details">
+      <details className="nearby-discovery-panel nearby-discovery-details" open={nearbyOpen} onToggle={(event) => setNearbyOpen((event.currentTarget as HTMLDetailsElement).open)}>
         <summary className="nearby-discovery-summary">
           <span>
             <span className="eyebrow">Nearby is optional</span>
@@ -306,6 +361,7 @@ function DiscoverPage() {
                 setLocationStatus('Asking for your current browser location…')
                 navigator.geolocation.getCurrentPosition(
                   (position) => {
+                    setNearbyOpen(true)
                     setNearby({
                       latitude: position.coords.latitude,
                       longitude: position.coords.longitude,
@@ -325,6 +381,7 @@ function DiscoverPage() {
               type="button"
               className="btn btn-social-quiet btn-sm"
               onClick={() => {
+                setNearbyOpen(true)
                 setOriginMode('custom')
                 setLocationStatus(nearby
                   ? 'Drag or click the map to reposition your travel pin.'
@@ -384,7 +441,13 @@ function DiscoverPage() {
           location={nearby}
           radiusKm={radiusKm}
           tone="social"
+          pinnable={originMode === 'custom'}
+          people={mapPeople}
+          expanded={mapExpanded}
+          onToggleExpand={() => setMapExpanded((value) => !value)}
+          onSelectPerson={(key) => navigate({ to: '/host-profile', search: { hostProfileId: key } })}
           onChange={(location) => {
+            setNearbyOpen(true)
             setNearby(location)
             setOriginMode('custom')
             setLocationStatus(`Travel pin updated. Showing opted-in hosts within ${radiusKm} km.`)
@@ -393,8 +456,10 @@ function DiscoverPage() {
             ? `${originMode === 'custom' && customOriginLabel.trim() ? customOriginLabel.trim() : originMode === 'device' ? 'Current location' : 'Selected origin'} · ${radiusKm} km`
             : 'Choose a search origin'}
           description={nearby
-            ? 'Drag, click, or use the N/W/S/E controls to reposition the pink pin.'
-            : 'Pan and zoom, then click the map to place a custom travel pin.'}
+            ? originMode === 'custom'
+              ? 'Click, drag, or use the N/W/S/E controls to reposition your pin.'
+              : 'Pan the map to browse. Choose a travel pin to reposition the origin.'
+            : 'Pan and zoom, then click the map to place a travel pin.'}
         />
         <p className="text-meta" role="status" aria-live="polite">{locationStatus}</p>
       </details>
