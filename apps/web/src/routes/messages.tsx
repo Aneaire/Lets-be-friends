@@ -75,9 +75,7 @@ function MessagesPage() {
     return (
       <main className="gate-state">
         <div className="gate-state-inner">
-          <p className="eyebrow">Messages</p>
           <h1 className="text-h1 mt-2">Sign in to continue the conversation.</h1>
-          <p className="lede mt-2">Your direct conversations stay between you and the other member and can be reported when needed.</p>
           <SignInButton mode="modal"><button className="btn btn-self mt-5">Sign in</button></SignInButton>
         </div>
       </main>
@@ -87,6 +85,10 @@ function MessagesPage() {
   return (
     <main className="messages-chat" data-thread-open={selectedConversationId ? 'true' : undefined}>
       <aside className="messages-chat-rail" aria-label="Conversations">
+        <div className="messages-rail-heading">
+          <h1>Messages</h1>
+          <p>Private conversations and plan updates</p>
+        </div>
         <ConversationList conversations={conversations} selectedConversationId={selectedConversationId} />
       </aside>
       <nav className="workspace-mobile-nav" aria-label="Conversations">
@@ -117,10 +119,11 @@ function MessagesPage() {
               <ArrowLeft size={18} aria-hidden="true" />
             </button>
             <ProfileAvatar name={thread.conversation.otherDisplayName} imageUrl={thread.conversation.otherProfileImageUrl} />
-            <div className="min-w-0">
+            <div className="min-w-0 direct-thread-identity">
               <h2 className="text-h2">{thread.conversation.otherDisplayName}</h2>
               <p className="direct-thread-trust"><ShieldCheck size={13} aria-hidden="true" /> Private between members · Messages can be reported</p>
             </div>
+            <Link to="/safety" className="direct-thread-safety-link">Safety</Link>
           </header>
 
           <div className="direct-message-list" aria-live="polite">
@@ -524,7 +527,7 @@ function ConversationList({
 }) {
   return (
     <div className="conversation-rail">
-      <div className="rail-section-label">Conversations</div>
+      <div className="rail-section-label">Recent</div>
       {conversations === undefined && <p className="text-meta px-2">Loading…</p>}
       {conversations?.length === 0 && <p className="text-meta px-2">No conversations yet.</p>}
       {conversations?.map((conversation) => (

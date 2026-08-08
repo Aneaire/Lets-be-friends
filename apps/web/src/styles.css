@@ -925,7 +925,7 @@ button:disabled {
   align-items: flex-end;
   justify-content: space-between;
   gap: 1.5rem;
-  padding: 2rem clamp(1.25rem, 2.5vw, 2.5rem) 1.5rem;
+  padding: 1.5rem clamp(1.25rem, 2.5vw, 2.5rem) 1rem;
   border-bottom: 1px solid var(--rule);
 }
 
@@ -1732,8 +1732,8 @@ textarea.field {
   z-index: 20;
   height: 4rem;
   border-bottom: 1px solid var(--rule);
-  background: color-mix(in oklch, var(--app-bg) 90%, transparent);
-  backdrop-filter: saturate(140%) blur(8px);
+  background: var(--surface);
+  backdrop-filter: none;
 }
 
 .app-header-inner {
@@ -2984,6 +2984,10 @@ textarea.field {
   }
 }
 
+.marketing-page-wide.discover-page {
+  padding-top: clamp(1.25rem, 3vw, 2rem);
+}
+
 .discover-toolbar {
   display: flex;
   flex-direction: column;
@@ -3153,13 +3157,13 @@ textarea.field {
 
 .category-strip-wrap::before {
   left: 0;
-  background: linear-gradient(to right, var(--surface), transparent);
+  background: transparent;
   opacity: 0;
 }
 
 .category-strip-wrap::after {
   right: 0;
-  background: linear-gradient(to left, var(--surface), transparent);
+  background: transparent;
 }
 
 .category-strip-wrap[data-start="false"]::before {
@@ -3260,7 +3264,7 @@ textarea.field {
   inset: 0;
   z-index: 60;
   background: color-mix(in oklch, var(--text) 35%, transparent);
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
   display: flex;
   justify-content: flex-end;
   animation: filters-backdrop-in 160ms ease-out;
@@ -3474,7 +3478,7 @@ textarea.field {
   display: flex;
   justify-content: flex-end;
   background: color-mix(in oklch, var(--text) 35%, transparent);
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
   animation: filters-backdrop-in 160ms ease-out;
 }
 
@@ -3931,7 +3935,7 @@ textarea.field {
 
 .onboarding-intro {
   max-width: 48rem;
-  padding-bottom: clamp(1.75rem, 4vw, 2.75rem);
+  padding-bottom: clamp(1.25rem, 3vw, 1.75rem);
 }
 
 .onboarding-progress {
@@ -4355,7 +4359,7 @@ textarea.field {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.95rem 1rem;
+  padding: 0.6rem 1rem;
   border-bottom: 1px solid var(--rule);
   background: color-mix(in oklch, var(--surface) 94%, transparent);
 }
@@ -5468,7 +5472,7 @@ textarea.field {
   .workspace-header {
     align-items: stretch;
     flex-direction: column;
-    padding: 1.5rem 1rem 1.1rem;
+    padding: 1.1rem 1rem 0.85rem;
   }
 
   .workspace-actions,
@@ -5588,8 +5592,8 @@ textarea.field {
 @layer components {
   .web-app-shell .app-header {
     height: 4.75rem;
-    background: color-mix(in oklch, var(--app-bg) 96%, transparent);
-    backdrop-filter: saturate(115%) blur(14px);
+    background: var(--surface);
+    backdrop-filter: none;
   }
 
   .web-app-shell .app-header-inner {
@@ -5661,6 +5665,7 @@ textarea.field {
     max-width: 10.5ch;
     margin-top: 1.4rem;
     text-wrap: balance;
+    font-size: clamp(2.4rem, 1.7rem + 2.4vw, 3.9rem);
   }
 
   .invitation-lede {
@@ -6298,12 +6303,12 @@ textarea.field {
     align-items: end;
     justify-content: space-between;
     gap: 2rem;
-    margin-bottom: 2.5rem;
+    margin-bottom: 1.4rem;
   }
 
   .discover-page-header .text-display {
     max-width: 10ch;
-    font-size: clamp(3rem, 2rem + 3vw, 5rem);
+    font-size: clamp(2rem, 1.6rem + 1.5vw, 2.8rem);
   }
 
   .discover-page-header .lede {
@@ -6401,12 +6406,12 @@ textarea.field {
     grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
     align-items: center;
     gap: clamp(2.5rem, 7vw, 7rem);
-    padding-bottom: clamp(3rem, 6vw, 5.5rem);
+    padding-bottom: clamp(2rem, 4vw, 3.5rem);
   }
 
   .hosting-hero h1 {
     max-width: 13ch;
-    font-size: clamp(3rem, 2rem + 3.5vw, 5.2rem);
+    font-size: clamp(2.3rem, 1.7rem + 2vw, 3.6rem);
   }
 
   .hosting-definition {
@@ -6569,11 +6574,12 @@ textarea.field {
     max-width: none;
     align-items: center;
     gap: clamp(2.5rem, 7vw, 6rem);
-    padding-block: clamp(4rem, 9vw, 8rem);
+    padding-block: clamp(2.5rem, 5vw, 4.5rem);
   }
 
   .safety-hero h1 {
     max-width: 12ch;
+    font-size: clamp(2.3rem, 1.7rem + 2vw, 3.6rem);
   }
 
   .safety-hero .lede {
@@ -6861,7 +6867,7 @@ textarea.field {
     }
 
     .invitation-title {
-      font-size: clamp(3rem, 14vw, 4.5rem);
+      font-size: clamp(2.4rem, 10vw, 3.4rem);
     }
 
     .invitation-actions,
@@ -7035,11 +7041,11 @@ textarea.field {
 @layer components {
   .web-app-shell .workspace-header {
     align-items: flex-end;
-    padding: clamp(2rem, 4vw, 3.5rem) clamp(1.25rem, 3vw, 3rem) 2rem;
+    padding: clamp(1.5rem, 3vw, 2.25rem) clamp(1.25rem, 3vw, 3rem) 1.25rem;
   }
 
   .web-app-shell .workspace-heading .text-h1 {
-    font-size: clamp(2.25rem, 1.75rem + 2vw, 3.5rem);
+    font-size: clamp(1.6rem, 1.4rem + 0.9vw, 2.15rem);
   }
 
   .web-app-shell .workspace-heading .lede {
@@ -7087,9 +7093,18 @@ textarea.field {
   }
 
   .web-app-shell .social-timeline-header {
-    min-height: 6rem;
-    padding: 1rem 0.25rem 1.25rem;
+    min-height: 4rem;
+    padding: 0.7rem 0.25rem 0.9rem;
     background: color-mix(in oklch, var(--app-bg) 96%, transparent);
+  }
+
+  .web-app-shell .social-timeline-header h1 {
+    font-size: 1.5rem;
+    line-height: 1.15;
+  }
+
+  .web-app-shell .discover-page-header .text-display {
+    font-size: clamp(1.9rem, 1.5rem + 1.5vw, 2.8rem);
   }
 
   .web-app-shell .social-feed-tabs {
@@ -7212,11 +7227,12 @@ textarea.field {
 
   .onboarding-intro .text-display {
     max-width: 11ch;
+    font-size: clamp(2rem, 1.6rem + 1.5vw, 2.9rem);
   }
 
   .onboarding-intro .text-h1 {
     max-width: 18ch;
-    font-size: clamp(2.25rem, 1.75rem + 2vw, 3.5rem);
+    font-size: clamp(1.6rem, 1.4rem + 0.9vw, 2.15rem);
   }
 
   .onboarding-progress {
@@ -7295,6 +7311,979 @@ textarea.field {
 
     .booking-dialog {
       border-radius: 1.5rem 1.5rem 0 0;
+    }
+  }
+}
+
+/* Common Ground signed-in application */
+@layer components {
+  .web-app-shell {
+    --app-header-height: 3.5rem;
+    --desktop-primary-rail-width: 13.5rem;
+    --mobile-primary-nav-height: 4.25rem;
+  }
+
+  .web-app-shell .app-header {
+    height: var(--app-header-height);
+    border-bottom-color: var(--border);
+    background: var(--surface);
+    backdrop-filter: none;
+  }
+
+  .web-app-shell .app-header-inner {
+    width: 100%;
+    max-width: none;
+    gap: 1rem;
+    padding-inline: 0.75rem 1rem;
+  }
+
+  .web-app-shell .brand-link {
+    width: calc(var(--desktop-primary-rail-width) - 0.75rem);
+    flex: 0 0 auto;
+    font-size: 0.95rem;
+  }
+
+  .app-header-context {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 1rem;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+  }
+
+  .app-header-context > strong {
+    flex: 0 0 auto;
+    color: var(--text);
+    font-family: "Bricolage Grotesque Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.9375rem;
+  }
+
+  .app-header-search {
+    display: flex;
+    width: min(26rem, 48vw);
+    min-height: 2.25rem;
+    align-items: center;
+    gap: 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--surface-sunk);
+    color: var(--text-soft);
+    padding: 0.4rem 0.7rem;
+    text-decoration: none;
+  }
+
+  .app-header-search:hover {
+    border-color: var(--border-strong);
+    color: var(--text);
+  }
+
+  .theme-toggle,
+  .web-app-shell .account-menu-trigger {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .desktop-primary-rail {
+    position: fixed;
+    top: var(--app-header-height);
+    bottom: 0;
+    left: 0;
+    z-index: 15;
+    display: flex;
+    width: var(--desktop-primary-rail-width);
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--surface-rail);
+    padding: 0.75rem;
+  }
+
+  .desktop-primary-rail .primary-nav {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.2rem;
+    margin: 0;
+  }
+
+  .desktop-primary-rail .primary-nav-link {
+    min-height: 2.75rem;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    padding: 0.6rem 0.7rem;
+    font-weight: 620;
+  }
+
+  .desktop-primary-rail .primary-nav-link svg {
+    flex: 0 0 auto;
+  }
+
+  .desktop-primary-rail .primary-nav-link[aria-current="page"] {
+    background: var(--surface-sunk);
+    box-shadow: inset 3px 0 0 var(--text);
+  }
+
+  .desktop-primary-rail .primary-nav-link[data-kind="bookings"] svg,
+  .desktop-primary-rail .primary-nav-link[data-kind="messages"] svg {
+    color: var(--accent-social);
+  }
+
+  .primary-rail-note {
+    margin: auto 0.65rem 0;
+    border-top: 1px solid var(--rule);
+    padding-top: 0.85rem;
+    color: var(--text-soft);
+    font-size: 0.7rem;
+    line-height: 1.5;
+  }
+
+  .web-app-shell:has(.desktop-primary-rail) .app-frame-main {
+    min-width: 0;
+    margin-left: var(--desktop-primary-rail-width);
+  }
+
+  .meeting-seam {
+    display: grid;
+    grid-template-columns: 0.65rem minmax(2.5rem, 1fr) 0.65rem;
+    width: min(100%, 11rem);
+    align-items: center;
+  }
+
+  .meeting-seam-self,
+  .meeting-seam-social {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 999px;
+  }
+
+  .meeting-seam-self {
+    background: var(--accent-self-button);
+  }
+
+  .meeting-seam-social {
+    background: var(--accent-social-button);
+  }
+
+  .meeting-seam-track {
+    display: grid;
+    height: 2px;
+    place-items: center;
+    background: var(--border-strong);
+  }
+
+  .meeting-seam-notch {
+    width: 0.42rem;
+    height: 0.42rem;
+    border: 2px solid var(--surface);
+    background: var(--text);
+    rotate: 45deg;
+  }
+
+  .workspace-heading > .meeting-seam,
+  .booking-dialog-header .meeting-seam {
+    margin-top: 0.35rem;
+  }
+
+  .web-app-shell .workspace {
+    grid-template-columns: minmax(0, 1fr) 17.5rem;
+    min-height: calc(100dvh - var(--app-header-height));
+  }
+
+  .web-app-shell .workspace-main {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  .web-app-shell .workspace > .rail {
+    position: sticky;
+    top: var(--app-header-height);
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    height: calc(100dvh - var(--app-header-height));
+    border-right: 0;
+    border-left: 1px solid var(--border);
+    background: var(--surface-rail);
+    padding: 1rem 0.75rem;
+  }
+
+  .web-app-shell .workspace-header,
+  .web-app-shell .workspace-body {
+    width: min(100%, 48rem);
+    margin-inline: auto;
+  }
+
+  .web-app-shell .workspace-header {
+    min-height: 5rem;
+    align-items: center;
+    padding: 1rem 1.25rem 0.8rem;
+  }
+
+  .web-app-shell .workspace-heading .text-h1 {
+    margin-top: 0.25rem;
+    font-size: 1.55rem;
+  }
+
+  .web-app-shell .workspace-body {
+    padding: 1rem 1.25rem 3rem;
+  }
+
+  .web-app-shell .workspace-body > section + section,
+  .web-app-shell .workspace-body > div + section {
+    margin-top: 2rem;
+  }
+
+  .web-app-shell .worklist-row {
+    gap: 0.7rem;
+    padding: 1rem;
+  }
+
+  .booking-plan-context,
+  .host-profile-planline,
+  .social-reserve-planline {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    color: var(--text-soft);
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 0.65rem;
+    line-height: 1.35;
+  }
+
+  .booking-plan-context .meeting-seam {
+    width: 7rem;
+    flex: 0 0 auto;
+  }
+
+  .booking-request-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 0.9rem;
+  }
+
+  .booking-request-card-head {
+    align-items: center;
+  }
+
+  .social-page,
+  .web-app-shell .social-page {
+    width: min(100% - 2rem, 42rem);
+    padding-block: 0.75rem 3rem;
+  }
+
+  .web-app-shell .social-timeline-header {
+    top: var(--app-header-height);
+    min-height: 3.75rem;
+    padding: 0.55rem 0.25rem 0.7rem;
+    border-bottom: 0;
+    background: var(--app-bg);
+  }
+
+  .web-app-shell .social-timeline-header h1 {
+    font-size: 1.35rem;
+  }
+
+  .social-timeline-header .text-meta {
+    margin-top: 0.05rem;
+    font-size: 0.75rem;
+  }
+
+  .web-app-shell .social-feed-tabs {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0;
+  }
+
+  .social-feed-tab {
+    min-height: 2.5rem;
+    font-size: 0.8125rem;
+  }
+
+  .web-app-shell .social-composer,
+  .web-app-shell .social-post,
+  .web-app-shell .social-reserve-card,
+  .web-app-shell .social-signin {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+
+  .web-app-shell .social-composer,
+  .web-app-shell .social-post {
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    gap: 0.7rem;
+    padding: 0.9rem;
+  }
+
+  .social-composer {
+    margin-top: 0.65rem;
+  }
+
+  .social-composer-intents {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+  }
+
+  .social-composer-intents strong {
+    color: var(--text);
+  }
+
+  .social-composer-intents a {
+    color: var(--accent-social);
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .social-composer-input {
+    min-height: 3.5rem;
+    padding: 0.25rem 0 0.5rem;
+    font-size: 0.9375rem;
+  }
+
+  .social-composer-toolbar {
+    padding-top: 0.55rem;
+  }
+
+  .social-feed {
+    gap: 0.65rem;
+    padding-top: 0.65rem;
+  }
+
+  .web-app-shell .social-post-copy {
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
+
+  .social-feed-reason {
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 0.66rem;
+  }
+
+  .web-app-shell .social-reserve-card {
+    gap: 0.6rem;
+    border-left: 1px solid var(--border);
+    padding: 0.9rem;
+  }
+
+  .social-reserve-planline .meeting-seam {
+    width: 6.5rem;
+    flex: 0 0 auto;
+  }
+
+  .social-action-bar {
+    max-width: none;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    border-top: 1px solid var(--rule);
+    padding-top: 0.45rem;
+  }
+
+  .web-app-shell .social-action {
+    min-width: 0;
+    min-height: 2.5rem;
+    padding-inline: 0.55rem;
+    border-radius: 8px;
+  }
+
+  .marketing-page-wide.discover-page {
+    width: min(100% - 2rem, 70rem);
+    padding-block: 1.25rem 3rem;
+  }
+
+  .discover-page-header {
+    align-items: center;
+    margin-bottom: 0.8rem;
+  }
+
+  .discover-page-header .text-h1 {
+    font-size: 1.55rem;
+  }
+
+  .discover-toolbar {
+    gap: 0.6rem;
+    border-radius: 12px;
+    padding: 0.7rem;
+  }
+
+  .discover-search {
+    min-width: min(22rem, 100%);
+    min-height: 2.5rem;
+  }
+
+  .discover-page .chip {
+    min-height: 2.25rem;
+    border-radius: 8px;
+    padding-inline: 0.65rem;
+  }
+
+  .category-strip-wrap::before,
+  .category-strip-wrap::after {
+    display: none;
+  }
+
+  .nearby-discovery-details {
+    margin-top: 0.75rem;
+    border-radius: 12px;
+  }
+
+  .nearby-discovery-summary {
+    min-height: 4.75rem;
+    padding: 0.9rem 1rem;
+  }
+
+  .nearby-discovery-summary strong {
+    font-size: 1rem;
+  }
+
+  .nearby-discovery-summary small {
+    font-size: 0.75rem;
+  }
+
+  .discover-host-row {
+    min-height: 0;
+    grid-template-columns: 3rem minmax(0, 1fr) 15rem;
+    padding: 0.95rem 1rem;
+  }
+
+  .discover-host-row .profile-photo-lg {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 999px;
+  }
+
+  .discover-host-intro {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+
+  .discover-host-actions .btn {
+    min-height: 2.5rem;
+  }
+
+  .messages-chat {
+    grid-template-columns: 17.5rem minmax(0, 1fr);
+    height: calc(100dvh - var(--app-header-height));
+  }
+
+  .messages-chat-rail {
+    padding: 0.8rem 0.65rem;
+  }
+
+  .messages-rail-heading {
+    padding: 0.25rem 0.65rem 0.8rem;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 0.55rem;
+  }
+
+  .messages-rail-heading h1 {
+    font-family: "Bricolage Grotesque Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 1.25rem;
+    font-weight: 650;
+  }
+
+  .messages-rail-heading p {
+    margin-top: 0.1rem;
+    color: var(--text-soft);
+    font-size: 0.7rem;
+  }
+
+  .conversation-rail-link {
+    min-height: 3.25rem;
+    border-radius: 8px;
+    padding: 0.55rem;
+  }
+
+  .web-app-shell .direct-thread-header {
+    min-height: 4rem;
+    padding: 0.65rem 0.9rem;
+  }
+
+  .direct-thread-identity {
+    flex: 1 1 auto;
+  }
+
+  .direct-thread-safety-link {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+    padding: 0.4rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .direct-thread-safety-link:hover {
+    color: var(--accent-social);
+  }
+
+  .web-app-shell .direct-message-list {
+    gap: 0.65rem;
+    padding: 0.9rem;
+  }
+
+  .web-app-shell .direct-message-bubble {
+    border-radius: 10px 10px 10px 3px;
+    padding: 0.65rem 0.75rem 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .web-app-shell .direct-message[data-own="true"] .direct-message-bubble {
+    border-radius: 10px 10px 3px 10px;
+  }
+
+  .web-app-shell .direct-message-composer {
+    padding: 0.65rem 0.75rem 0.5rem;
+  }
+
+  .host-profile-page {
+    width: min(100% - 2rem, 70rem);
+    padding-block: 1.25rem 3rem;
+  }
+
+  .host-profile-page .host-profile-hero {
+    padding: 0;
+    border-radius: 14px;
+  }
+
+  .host-profile-overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 18rem;
+  }
+
+  .host-profile-main,
+  .host-profile-decision {
+    padding: 1.25rem;
+  }
+
+  .host-profile-decision {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    border-left: 1px solid var(--rule);
+    background: var(--surface-rail);
+  }
+
+  .host-profile-identity {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+  }
+
+  .host-profile-identity .profile-photo-lg {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 999px;
+  }
+
+  .host-profile-bio {
+    margin-top: 1rem;
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .host-profile-intro {
+    margin-top: 0.7rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .host-profile-planline {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .host-profile-planline .meeting-seam {
+    width: 100%;
+  }
+
+  .host-profile-trust {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
+
+  .host-profile-rate {
+    display: grid;
+    gap: 0.1rem;
+    border-block: 1px solid var(--rule);
+    padding-block: 0.75rem;
+  }
+
+  .host-profile-rate strong {
+    font-family: "Bricolage Grotesque Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 1.35rem;
+  }
+
+  .host-profile-rate span {
+    color: var(--text-soft);
+    font-size: 0.7rem;
+    line-height: 1.4;
+  }
+
+  .host-profile-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .host-profile-actions > .btn,
+  .host-profile-actions > * > .btn {
+    width: 100%;
+  }
+
+  .host-profile-actions > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .host-profile-fit-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    border-top: 1px solid var(--rule);
+    padding: 1.25rem;
+  }
+
+  .host-profile-fit-grid > div + div {
+    border-left: 1px solid var(--rule);
+    padding-left: 1rem;
+  }
+
+  .profile-page {
+    width: min(100% - 2rem, 68rem);
+    padding-block: 1.25rem 3rem;
+  }
+
+  .profile-hero-panel {
+    border-radius: 14px;
+  }
+
+  .profile-hero-body {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .profile-hero-body .profile-photo-xl {
+    width: 4.5rem;
+    height: 4.5rem;
+    margin: 0;
+    border-radius: 999px;
+  }
+
+  .profile-hero-copy {
+    padding: 0;
+  }
+
+  .profile-public-grid {
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+
+  .profile-page > .panel {
+    margin-top: 0.75rem;
+  }
+
+  .profile-page .panel-header,
+  .profile-page .panel-body {
+    padding: 0.9rem 1rem;
+  }
+
+  .account-navigation-backdrop,
+  .filters-backdrop,
+  .booking-dialog-backdrop {
+    backdrop-filter: none;
+  }
+
+  @media (max-width: 1180px) {
+    .web-app-shell {
+      --desktop-primary-rail-width: 4.5rem;
+    }
+
+    .web-app-shell .brand-link {
+      width: 3.75rem;
+    }
+
+    .web-app-shell .brand-link > span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
+
+    .desktop-primary-rail .primary-nav-link {
+      justify-content: center;
+      padding-inline: 0;
+    }
+
+    .desktop-primary-rail .primary-nav-link > span,
+    .primary-rail-note {
+      display: none;
+    }
+
+    .web-app-shell .workspace {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .web-app-shell .workspace > .rail {
+      display: none;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .app-header-search {
+      width: min(22rem, 52vw);
+    }
+
+    .discover-host-row {
+      grid-template-columns: 3rem minmax(0, 1fr);
+    }
+
+    .host-profile-overview {
+      grid-template-columns: 1fr;
+    }
+
+    .host-profile-decision {
+      border-top: 1px solid var(--rule);
+      border-left: 0;
+    }
+
+    .host-profile-fit-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .host-profile-fit-grid > div + div {
+      border-top: 1px solid var(--rule);
+      border-left: 0;
+      padding-top: 1rem;
+      padding-left: 0;
+    }
+
+    .profile-hero-body,
+    .profile-public-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .profile-hero-actions {
+      justify-content: flex-start;
+      padding: 0;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .web-app-shell {
+      --app-header-height: 3.25rem;
+    }
+
+    .desktop-primary-rail {
+      display: none;
+    }
+
+    .web-app-shell:has(.desktop-primary-rail) .app-frame-main {
+      margin-left: 0;
+      padding-bottom: calc(var(--mobile-primary-nav-height) + env(safe-area-inset-bottom));
+    }
+
+    .web-app-shell .app-header-inner {
+      padding-inline: 0.75rem;
+    }
+
+    .web-app-shell .brand-link {
+      width: auto;
+    }
+
+    .web-app-shell .brand-link > span {
+      position: static;
+      width: auto;
+      height: auto;
+      margin: 0;
+      overflow: visible;
+      clip: auto;
+      white-space: nowrap;
+    }
+
+    .app-header-context > strong,
+    .app-header-search {
+      display: none;
+    }
+
+    .mobile-primary-nav {
+      min-height: var(--mobile-primary-nav-height);
+      padding-top: 0.2rem;
+    }
+
+    .mobile-primary-nav-item {
+      min-height: 3.65rem;
+      font-size: 0.64rem;
+    }
+
+    .web-app-shell .workspace-header,
+    .web-app-shell .workspace-body {
+      width: 100%;
+    }
+
+    .web-app-shell .workspace-header {
+      min-height: 0;
+      padding: 0.9rem 0.75rem 0.7rem;
+    }
+
+    .web-app-shell .workspace-body {
+      padding: 0.75rem 0.75rem 2rem;
+    }
+
+    .web-app-shell .social-page,
+    .marketing-page-wide.discover-page,
+    .host-profile-page,
+    .profile-page {
+      width: 100%;
+      padding: 0.65rem 0.75rem 1.5rem;
+    }
+
+    .web-app-shell .social-timeline-header {
+      top: var(--app-header-height);
+      padding: 0.35rem 0 0.55rem;
+    }
+
+    .web-app-shell .social-feed-tabs {
+      padding: 0;
+    }
+
+    .web-app-shell .social-composer,
+    .web-app-shell .social-post {
+      padding: 0.8rem;
+    }
+
+    .social-composer-toolbar {
+      align-items: center;
+      flex-direction: row;
+    }
+
+    .social-upload-actions .text-meta {
+      display: none;
+    }
+
+    .social-post-head {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .social-post-actions-top {
+      width: 100%;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .social-post-actions-top .btn {
+      width: auto;
+      max-width: 100%;
+      min-height: 2.5rem;
+      overflow: visible;
+      padding-inline: 0.6rem;
+      font-size: 0.75rem;
+      white-space: nowrap;
+    }
+
+    .social-post-actions-top .btn svg {
+      flex: 0 0 auto;
+    }
+
+    .discover-page-header {
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .discover-toolbar-trailing {
+      gap: 0.45rem;
+    }
+
+    .bookable-toggle {
+      min-height: 2.5rem;
+    }
+
+    .nearby-discovery-summary {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .messages-chat {
+      height: calc(100dvh - var(--app-header-height) - var(--mobile-primary-nav-height));
+    }
+
+    .messages-rail-heading {
+      padding-top: 0.5rem;
+    }
+
+    .direct-thread-safety-link {
+      display: none;
+    }
+
+    .host-profile-main,
+    .host-profile-decision,
+    .host-profile-fit-grid {
+      padding: 1rem;
+    }
+
+    .host-profile-actions {
+      grid-template-columns: 1fr;
+    }
+
+    .host-profile-actions > :first-child {
+      grid-column: auto;
+    }
+
+    .profile-hero-body {
+      align-items: flex-start;
+    }
+
+    .profile-hero-actions,
+    .profile-hero-actions .btn {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .web-app-shell .brand-link > span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
+
+    .social-timeline-header .text-meta {
+      display: none;
+    }
+
+    .social-action-bar {
+      justify-content: space-between;
+      gap: 0.2rem;
+    }
+
+    .web-app-shell .social-action {
+      gap: 0.25rem;
+      padding-inline: 0.3rem;
+      font-size: 0.72rem;
+      white-space: nowrap;
+    }
+
+    .profile-hero-actions {
+      display: grid;
+      grid-template-columns: 1fr;
     }
   }
 }

@@ -1,6 +1,7 @@
 import { formatPhp, type BookingStatus } from '@lets-be-friends/shared'
 import { useState } from 'react'
 import type { Id } from '../../convex/_generated/dataModel'
+import { MeetingSeam } from './AppNavigation'
 
 export type BookingRequestView = {
   bookingId: Id<'bookings'>
@@ -70,6 +71,11 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
         <span className="status-pill" data-tone={status.tone}>{status.label}</span>
       </div>
 
+      <div className="booking-plan-context">
+        <MeetingSeam />
+        <span>{status.label}</span>
+      </div>
+
       {intro && <p className="booking-request-card-body">{intro}</p>}
 
       {booking.memberTotalCentavos !== undefined && (
@@ -103,7 +109,7 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
       <div className="booking-request-card-actions">
         {canDecide && (
           <>
-            <button type="button" className="btn btn-neutral btn-sm" disabled={busy} onClick={() => void decide('accepted')}>
+            <button type="button" className="btn btn-social btn-sm" disabled={busy} onClick={() => void decide('accepted')}>
               {busy ? 'Saving…' : 'Accept request'}
             </button>
             <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void decide('declined')}>

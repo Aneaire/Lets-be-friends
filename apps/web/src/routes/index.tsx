@@ -182,14 +182,9 @@ function HomePage() {
     <main>
       <section className="invitation-hero">
         <div className="invitation-hero-copy">
-          <p className="eyebrow">Good company, with safety built in</p>
           <h1 className="text-display invitation-title">
             What would feel better with company?
           </h1>
-          <p className="lede invitation-lede">
-            Meet verified people who are up for coffee, a walk, study time, gaming, or a
-            conversation, online or nearby.
-          </p>
           <div className="invitation-prompt-list" aria-label="Things you can do together">
             {invitationPrompts.map((prompt, index) => (
               <Link

@@ -35,14 +35,9 @@ function SafetyPage() {
     <main className="marketing-page-wide safety-page">
       <section className="safety-hero">
         <div className="safety-hero-copy">
-          <p className="eyebrow">How safety works</p>
           <h1 className="text-display mt-4">
             Know what happens before you meet.
           </h1>
-          <p className="lede mt-5">
-            Safety should feel clear, not mysterious. Here is what we check, what stays private,
-            and what you control at every point in a booking.
-          </p>
           <div className="safety-hero-actions">
             <Link to="/discover" className="btn btn-social">Find someone to join you</Link>
             <Link to="/become-host" className="btn btn-self">Share what you enjoy</Link>

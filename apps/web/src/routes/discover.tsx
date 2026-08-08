@@ -236,12 +236,8 @@ function DiscoverPage() {
     <main className="marketing-page-wide discover-page">
       <header className="discover-page-header">
         <div>
-          <p className="eyebrow">Explore together</p>
-          <h1 className="text-display mt-3">What are you up for?</h1>
-          <p className="lede mt-2">
-            Start with the kind of company you want, then meet people whose interests,
-            availability, and boundaries fit the moment.
-          </p>
+          <h1 className="text-h1">Explore people</h1>
+          <p className="text-meta mt-1">Search by activity, Strength, city, or name.</p>
         </div>
         <p className="text-meta tabular">
           {filtered.length} {filtered.length === 1 ? 'person' : 'people'}
@@ -645,8 +641,8 @@ function HostRow({ host, signedIn, onFollow }: { host: DiscoveryHost; signedIn: 
         </div>
 
         <div className="discover-host-actions">
-          <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-neutral btn-sm">
-            See their ideas
+          <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
+            View fit and ideas
           </Link>
           {signedIn ? (
             <button

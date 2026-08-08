@@ -143,9 +143,7 @@ function AppPage() {
   if (!isSignedIn) {
     return (
       <main className="marketing-page">
-        <p className="eyebrow">Sign in required</p>
         <h1 className="text-h1 mt-2">Sign in to see your plans.</h1>
-        <p className="lede mt-2">Booking requests, conversations, and identity status stay together behind your account.</p>
         <div className="mt-6">
           <SignInButton mode="modal">
             <button className="btn btn-self">Sign in</button>
@@ -167,9 +165,7 @@ function AppPage() {
   return (
     <WorkspaceShell
       variant="bookings"
-      eyebrow="Your bookings"
       title="Your plans"
-      description={viewer ? 'See what needs your attention, keep track of upcoming time, and revisit past experiences.' : 'Loading your plans…'}
       status={
         <button
           type="button"
@@ -323,7 +319,7 @@ function AppPage() {
             <button
               ref={walletTriggerRef}
               type="button"
-              className="btn btn-wallet-balance btn-sm tabular"
+              className="btn btn-self-quiet btn-sm tabular"
               onClick={() => setWalletDialogOpen(true)}
               aria-haspopup="dialog"
               aria-expanded={walletDialogOpen}
@@ -557,7 +553,7 @@ function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
               >
                 <div><p className="text-h3">Add test balance</p><p className="text-meta mt-1">For testing only. This adds internal booking credit and does not charge a payment method.</p></div>
                 <label className="field-row"><span className="label">Amount <span className="label-aux">PHP</span></span><input name="testCreditPesos" type="number" min="1" max="100000" step="0.01" defaultValue="1000" required className="field" disabled={busy} /></label>
-                <button className="btn btn-social" disabled={busy}>{busy ? 'Adding test balance…' : 'Add test balance'}</button>
+                <button className="btn btn-self" disabled={busy}>{busy ? 'Adding test balance…' : 'Add test balance'}</button>
               </form>
             )}
             <form
@@ -578,7 +574,7 @@ function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
             >
               <div><p className="text-h3">Add balance with PayMongo QR Ph</p><p className="text-meta mt-1">Only a provider-verified paid intent credits this wallet.</p></div>
               <label className="field-row"><span className="label">Top-up amount <span className="label-aux">PHP</span></span><input name="topUpPesos" type="number" min="100" max="100000" step="0.01" defaultValue="1000" required className="field" disabled={busy || Boolean(activeTopUp) || !finance.enabled} /></label>
-              <button className="btn btn-social" disabled={busy || Boolean(activeTopUp) || !finance.enabled}>{busy ? 'Creating QR…' : activeTopUp ? 'QR attempt still active' : 'Create QR Ph top-up'}</button>
+              <button className="btn btn-self" disabled={busy || Boolean(activeTopUp) || !finance.enabled}>{busy ? 'Creating QR…' : activeTopUp ? 'QR attempt still active' : 'Create QR Ph top-up'}</button>
             </form>
             <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-4">
               <p className="text-h3">Current QR attempt</p>
@@ -691,6 +687,11 @@ function BookingRow({
         <span className="status-pill" data-tone={status.tone}>{status.label}</span>
       </div>
 
+      <div className="booking-plan-context">
+        <MeetingSeam />
+        <span>{status.label}</span>
+      </div>
+
       {booking.pricingModel === 'member_wallet_v2' && booking.memberTotalCentavos !== undefined ? (
         <p className="text-meta">
           Booking total: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.memberTotalCentavos)}</strong>
@@ -718,7 +719,7 @@ function BookingRow({
               Open conversation
             </Link>
           )}
-          {canComplete && !booking.memberCompletedAt && <button type="button" onClick={onComplete} className="btn btn-neutral btn-sm">Confirm completion</button>}
+          {canComplete && !booking.memberCompletedAt && <button type="button" onClick={onComplete} className="btn btn-social-quiet btn-sm">Confirm completion</button>}
           {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Friend Host</span>}
           {canReview && <ReviewForm onReview={onReview} />}
           {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}

@@ -52,9 +52,7 @@ function HostWorkspacePage() {
   if (!isSignedIn) {
     return (
       <main className="marketing-page">
-        <p className="eyebrow">Host workspace</p>
         <h1 className="text-h1 mt-2">Sign in to manage your hosting.</h1>
-        <p className="lede mt-2">Requests, conversations, your hosting profile, and earnings stay behind your account.</p>
         <div className="mt-6">
           <SignInButton mode="modal">
             <button className="btn btn-self">Sign in</button>
@@ -71,13 +69,7 @@ function HostWorkspacePage() {
   return (
     <WorkspaceShell
       variant="hosting"
-      eyebrow="Hosting"
       title="Your hosting"
-      description={
-        viewer
-          ? 'See who wants to spend time together, keep your profile current, and follow your earnings.'
-          : 'Loading your hosting workspace…'
-      }
       status={
         <span className="workspace-status-item">
           <span>Host profile</span>

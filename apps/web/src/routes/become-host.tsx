@@ -17,12 +17,7 @@ function BecomeHostPage() {
     <main className="marketing-page-wide hosting-page">
       <header className="hosting-hero">
         <div className="hosting-hero-copy">
-          <p className="eyebrow">Share what you enjoy</p>
           <h1 className="text-display mt-4">Make time for something you love. Invite someone along.</h1>
-          <p className="lede mt-5">
-            Friend Hosts are verified members who make room for shared activities, conversation,
-            or local knowledge. You choose what you offer, when you are available, and where your boundaries are.
-          </p>
         </div>
         <div className="hosting-hero-visual">
           <figure className="marketing-photo hosting-hero-photo">
@@ -109,11 +104,7 @@ function HostAuthPanel() {
     return (
       <div className="hosting-signin">
         <div>
-          <p className="eyebrow">Ready when you are</p>
           <h2 className="text-h1 mt-2">Create your hosting profile.</h2>
-          <p className="lede mt-2">
-            Sign in to save your ideas, set your boundaries, and complete the review steps at your own pace.
-          </p>
         </div>
         <SignInButton mode="modal">
           <button className="btn btn-self btn-lg">Sign in to start</button>

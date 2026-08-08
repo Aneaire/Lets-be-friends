@@ -35,9 +35,7 @@ function ProfilePage() {
   if (!isSignedIn) {
     return (
       <main className="marketing-page">
-        <p className="eyebrow">Profile</p>
         <h1 className="text-h1 mt-2">Sign in to edit your profile.</h1>
-        <p className="lede mt-2">Your normal profile is separate from the Friend Host application review.</p>
         <div className="mt-6">
           <SignInButton mode="modal">
             <button className="btn btn-self">Sign in</button>
@@ -78,13 +76,12 @@ function ProfilePage() {
       )}
 
       <section className="profile-hero-panel">
-        <div className="profile-cover" aria-hidden="true" />
         <div className="profile-hero-body">
           <ProfilePhoto imageUrl={profileImageUrl} name={displayName} size="xl" />
           <div className="profile-hero-copy">
-            <p className="eyebrow">Your public profile</p>
-            <h1 className="text-h1 mt-2">{displayName}</h1>
-            <p className="lede mt-2">{bio || 'No bio added yet.'}</p>
+            <p className="text-meta">Personal setup and trust</p>
+            <h1 className="text-h1">{displayName}</h1>
+            <p className="text-body muted mt-1">{bio || 'No bio added yet.'}</p>
           </div>
           <div className="profile-hero-actions">
             <button type="button" className="btn btn-self btn-sm" onClick={() => setEditOpen(true)}>

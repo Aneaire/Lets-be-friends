@@ -8,6 +8,7 @@ import {
   House,
   LogOut,
   MessageCircle,
+  Search,
   ShieldCheck,
   UserRound,
   UserRoundCog,
@@ -95,9 +96,15 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
           </Link>
 
           {onboarding ? (
-            <span className="text-meta hidden sm:inline">Welcome guide</span>
+            <span className="app-header-context">Welcome guide</span>
           ) : (
-            <PrimaryNavigation activeItem={activeItem} />
+            <div className="app-header-context">
+              <strong>{primaryNavigation.find((item) => item.id === activeItem)?.label ?? 'Account'}</strong>
+              <Link to="/discover" className="app-header-search" aria-label="Search people, Strengths, or activities">
+                <Search size={16} aria-hidden="true" />
+                <span>Search people, Strengths, or activities</span>
+              </Link>
+            </div>
           )}
 
           <div className="app-header-actions">
@@ -114,34 +121,40 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
       </header>
 
       {!onboarding && (
-        <MobilePrimaryNavigation
-          activeItem={activeItem}
-          accountOpen={accountOpen}
-          onOpenAccount={openAccount}
-          accountActive={isAccountPath(pathname)}
-        />
+        <>
+          <DesktopPrimaryNavigation activeItem={activeItem} />
+          <MobilePrimaryNavigation
+            activeItem={activeItem}
+            accountOpen={accountOpen}
+            onOpenAccount={openAccount}
+            accountActive={isAccountPath(pathname)}
+          />
+        </>
       )}
     </>
   )
 }
 
-function PrimaryNavigation({ activeItem }: { activeItem: ReturnType<typeof activePrimaryNavigation> }) {
+function DesktopPrimaryNavigation({ activeItem }: { activeItem: ReturnType<typeof activePrimaryNavigation> }) {
   return (
-    <nav className="primary-nav" aria-label="Primary navigation">
-      {primaryNavigation.map((item) => (
-        <Link
-          key={item.id}
-          to={item.to}
-          search={item.to === '/app' ? {} : undefined}
-          className="primary-nav-link"
-          data-kind={item.id}
-          aria-current={activeItem === item.id ? 'page' : undefined}
-        >
-          {item.id === 'bookings' && <MeetingSeam />}
-          <span>{item.label}</span>
-        </Link>
-      ))}
-    </nav>
+    <aside className="desktop-primary-rail">
+      <nav className="primary-nav" aria-label="Primary navigation">
+        {primaryNavigation.map((item) => (
+          <Link
+            key={item.id}
+            to={item.to}
+            search={item.to === '/app' ? {} : undefined}
+            className="primary-nav-link"
+            data-kind={item.id}
+            aria-current={activeItem === item.id ? 'page' : undefined}
+          >
+            <NavigationIcon id={item.id} />
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+      <p className="primary-rail-note">Find useful company, review trust, then make a clear plan.</p>
+    </aside>
   )
 }
 
@@ -169,7 +182,6 @@ function MobilePrimaryNavigation({
         >
           <NavigationIcon id={item.id} />
           <span>{item.label}</span>
-          {item.id === 'bookings' && <MeetingSeam />}
         </Link>
       ))}
       <button
@@ -385,7 +397,7 @@ export function MeetingSeam() {
   return (
     <span className="meeting-seam" aria-hidden="true">
       <span className="meeting-seam-self" />
-      <span className="meeting-seam-notch" />
+      <span className="meeting-seam-track"><span className="meeting-seam-notch" /></span>
       <span className="meeting-seam-social" />
     </span>
   )
