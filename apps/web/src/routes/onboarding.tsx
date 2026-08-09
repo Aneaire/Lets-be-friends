@@ -2,7 +2,8 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useState } from 'react'
-import { activityCategories } from '@lets-be-friends/shared'
+import { Check } from 'lucide-react'
+import { activityCategories, normalizeUsername, usernameValidationError } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
 import { useIdentityVerification } from '../components/IdentityVerificationFlow'
@@ -30,10 +31,12 @@ function OnboardingPage() {
   const viewer = useQuery(api.users.viewer, isSignedIn ? {} : 'skip')
   const latestIdentityVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const updateProfile = useMutation(api.users.updateProfile)
+  const claimUsername = useMutation(api.users.claimUsername)
   const completeOnboarding = useMutation(api.users.completeOnboarding)
   const identityFlow = useIdentityVerification('member')
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
+  const [username, setUsername] = useState('')
   const [goal, setGoal] = useState<OnboardingGoal | undefined>()
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -41,9 +44,16 @@ function OnboardingPage() {
   const [bio, setBio] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const normalizedUsername = normalizeUsername(username)
+  const localUsernameError = usernameValidationError(username)
+  const usernameAvailability = useQuery(
+    api.users.usernameAvailability,
+    isSignedIn && viewer && !viewer.username && !localUsernameError ? { username: normalizedUsername } : 'skip',
+  )
 
   useEffect(() => {
     if (!viewer) return
+    setUsername((current) => current || viewer.username || '')
     setGoal((current) => current ?? viewer.onboardingGoal)
     const fallbackName = splitExistingName(viewer.displayName)
     setFirstName((current) => current || viewer.firstName || fallbackName.firstName)
@@ -69,6 +79,38 @@ function OnboardingPage() {
 
   const selectedGoal = goal ?? 'member'
   const journey = selectedGoal === 'friend_host' ? hostJourney : memberJourney
+
+  const saveUsernameAndContinue = async () => {
+    if (submitting) return
+    if (viewer?.username) {
+      setStep(2)
+      return
+    }
+    if (localUsernameError) {
+      setError(localUsernameError)
+      return
+    }
+    if (usernameAvailability === undefined) {
+      setError('Wait while we check that username.')
+      return
+    }
+    if (!usernameAvailability.available) {
+      setError(usernameAvailability.validationError || 'That username is already taken.')
+      return
+    }
+
+    setSubmitting(true)
+    setError('')
+    try {
+      const savedUsername = await claimUsername({ username: normalizedUsername })
+      setUsername(savedUsername)
+      setStep(2)
+    } catch (usernameError) {
+      setError(usernameError instanceof Error ? usernameError.message : 'Your username could not be saved.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const finish = async (nextGoal: OnboardingGoal) => {
     if (submitting) return
@@ -105,7 +147,7 @@ function OnboardingPage() {
         bio: bio.trim() || undefined,
         onboardingCategories: selectedGoal === 'friend_host' ? selectedCategories : undefined,
       })
-      setStep(3)
+      setStep(4)
     } catch (profileError) {
       setError(profileError instanceof Error ? profileError.message : 'Your profile could not be updated.')
     } finally {
@@ -155,7 +197,7 @@ function OnboardingPage() {
       </header>
 
       <ol className="onboarding-progress" aria-label="Onboarding progress">
-        {['Your goal', 'Your profile', 'How it works', 'Ready'].map((label, index) => {
+        {['Username', 'Your goal', 'Your profile', 'How it works', 'Ready'].map((label, index) => {
           const number = index + 1
           return (
             <li key={label} data-active={number === step} data-complete={number < step}>
@@ -173,10 +215,75 @@ function OnboardingPage() {
         })}
       </ol>
 
-      <section className="onboarding-stage" aria-live="polite">
+      <section className="onboarding-stage" data-step={step} aria-live="polite">
         {step === 1 && (
           <div>
             <p className="eyebrow">Step 1</p>
+            <h2 className="text-h1 mt-2">Choose your unique username.</h2>
+            <p className="text-body muted mt-2">People can use it to find the right profile directly. Your username is public, unique, and permanent once saved.</p>
+            <div className="onboarding-username-card mt-6">
+              {viewer.username ? (
+                <div className="onboarding-username-locked" aria-label={`Your permanent username is @${viewer.username}`}>
+                  <span className="label">Your username</span>
+                  <strong>@{viewer.username}</strong>
+                  <p>This username is set and cannot be changed.</p>
+                </div>
+              ) : (
+                <>
+                  <label className="field-row" htmlFor="onboarding-username">
+                    <span className="label">Username</span>
+                    <span className="onboarding-username-field" data-invalid={Boolean(username && localUsernameError)}>
+                      <span aria-hidden="true">@</span>
+                      <input
+                        id="onboarding-username"
+                        value={username}
+                        minLength={3}
+                        maxLength={24}
+                        autoComplete="username"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        aria-describedby="onboarding-username-status onboarding-username-rules"
+                        aria-invalid={Boolean(username && (localUsernameError || usernameAvailability?.available === false))}
+                        placeholder="your_username"
+                        onChange={(event) => {
+                          setUsername(event.currentTarget.value.replace(/^@+/, '').toLowerCase())
+                          setError('')
+                        }}
+                      />
+                    </span>
+                  </label>
+                  <p id="onboarding-username-rules" className="field-row-help">Use 3 to 24 letters, numbers, or underscores. Start and end with a letter or number.</p>
+                  <p
+                    id="onboarding-username-status"
+                    className="onboarding-username-status"
+                    data-tone={username && localUsernameError
+                      ? 'danger'
+                      : usernameAvailability?.available === false
+                        ? 'danger'
+                        : usernameAvailability?.available
+                          ? 'success'
+                          : 'neutral'}
+                    role="status"
+                  >
+                    {!username
+                      ? 'Enter the username people should search for.'
+                      : localUsernameError
+                        ? localUsernameError
+                        : usernameAvailability === undefined
+                          ? 'Checking availability…'
+                          : usernameAvailability.available
+                            ? `@${normalizedUsername} is available.`
+                            : usernameAvailability.validationError || `@${normalizedUsername} is already taken.`}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div>
+            <p className="eyebrow">Step 2</p>
             <h2 className="text-h1 mt-2">What would you like to do here?</h2>
             <p className="text-body muted mt-2">Pick what fits you best. You can grow into the other side anytime, and every member still goes through a friendly safety review.</p>
             <fieldset className="onboarding-choice-group mt-6">
@@ -192,7 +299,7 @@ function OnboardingPage() {
                     onChange={() => setGoal('member')}
                   />
                   <span className="onboarding-choice-marker" aria-hidden="true">01</span>
-                  <span><strong>I would love to make a friend</strong><small>Meet friendly, verified people for fun online or nearby plans together.</small></span>
+                  <span><strong>I need a friends</strong><small>Meet friendly, verified people for fun online or nearby plans together.</small></span>
                 </label>
                 <label data-selected={selectedGoal === 'friend_host'}>
                   <input
@@ -204,16 +311,16 @@ function OnboardingPage() {
                     onChange={() => setGoal('friend_host')}
                   />
                   <span className="onboarding-choice-marker" aria-hidden="true">02</span>
-                  <span><strong>I want to help others feel at home</strong><small>Open a friendly hosting profile with your interests and schedule.</small></span>
+                  <span><strong>Be a friend</strong><small>Open a friendly hosting profile with your interests and schedule.</small></span>
                 </label>
               </div>
             </fieldset>
           </div>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <div>
-            <p className="eyebrow">Step 2</p>
+            <p className="eyebrow">Step 3</p>
             <h2 className="text-h1 mt-2">Confirm your public profile.</h2>
             <p className="text-body muted mt-2">Add the name and short introduction you want members to see. A profile photo can be added later from Profile.</p>
             <div className="onboarding-fields mt-6">
@@ -259,9 +366,9 @@ function OnboardingPage() {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div>
-            <p className="eyebrow">Step 3</p>
+            <p className="eyebrow">Step 4</p>
             <h2 className="text-h1 mt-2">{selectedGoal === 'friend_host' ? 'How sharing an experience works.' : 'What happens before you meet.'}</h2>
             <ol className="onboarding-journey mt-6">
               {journey.map(([title, copy], index) => (
@@ -274,20 +381,23 @@ function OnboardingPage() {
           </div>
         )}
 
-        {step === 4 && (
-          <div>
-            <p className="eyebrow">Step 4</p>
-            <h2 className="text-h1 mt-2">You&apos;re ready for the next step.</h2>
-            <p className="lede mt-3">
-              {selectedGoal === 'friend_host'
-                ? 'Continue to your Friend Host profile. Applying starts review; it does not guarantee approval.'
-                : verification.state === 'approved'
-                  ? 'Your Persona identity check and safety-team review are approved. Continue to Bookings when you are ready.'
-                  : verification.action === 'none'
-                    ? `${verification.guidance} Continue to Bookings to follow its status, or skip for now and explore.`
-                    : 'Complete a secure Persona government-ID and live-selfie check now. Every result is reviewed by the safety team before booking unlocks.'}
-            </p>
-            {viewer.onboardingCompletedAt && <p className="text-meta mt-4">Your welcome guide is already complete. Finishing again keeps your account setup intact.</p>}
+        {step === 5 && (
+          <div className="onboarding-complete">
+            <span className="onboarding-complete-mark" aria-hidden="true"><Check size={22} strokeWidth={2.25} /></span>
+            <div>
+              <p className="eyebrow">Step 5</p>
+              <h2 className="text-h1 mt-2">You&apos;re ready for the next step.</h2>
+              <p className="lede mt-3">
+                {selectedGoal === 'friend_host'
+                  ? 'Continue to your Friend Host profile. Applying starts review; it does not guarantee approval.'
+                  : verification.state === 'approved'
+                    ? 'Your Persona identity check and safety-team review are approved. Continue to Bookings when you are ready.'
+                    : verification.action === 'none'
+                      ? `${verification.guidance} Continue to Bookings to follow its status, or skip for now and explore.`
+                      : 'Complete a secure Persona government-ID and live-selfie check now. Every result is reviewed by the safety team before booking unlocks.'}
+              </p>
+              {viewer.onboardingCompletedAt && <p className="onboarding-complete-note mt-4">Your welcome guide is already complete. Finishing again keeps your account setup intact.</p>}
+            </div>
           </div>
         )}
 
@@ -295,20 +405,23 @@ function OnboardingPage() {
         {(error || identityFlow.error) && <div className="notice notice-danger mt-6"><span className="notice-icon">!</span><span>{identityFlow.error || error}</span></div>}
 
         <footer className="onboarding-actions">
-          <button type="button" className="btn btn-ghost" disabled={submitting} onClick={() => void finish(goalForSkip(goal))}>
-            {submitting ? 'Saving…' : 'Skip for now'}
-          </button>
+          {step > 1
+            ? <button type="button" className="btn btn-ghost" disabled={submitting} onClick={() => void finish(goalForSkip(goal))}>
+                {submitting ? 'Saving…' : 'Skip for now'}
+              </button>
+            : <span />}
           <div className="flex items-center gap-2">
             {step > 1 && <button type="button" className="btn btn-neutral" disabled={submitting} onClick={() => { setError(''); setStep((current) => current - 1) }}>Back</button>}
-            {step === 1 && <button type="button" className="btn btn-self" onClick={() => setStep(2)}>Continue</button>}
-            {step === 2 && <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void saveProfileAndContinue()}>{submitting ? 'Saving…' : 'Save and continue'}</button>}
-            {step === 3 && <button type="button" className="btn btn-self" onClick={() => setStep(4)}>Continue</button>}
-            {step === 4 && selectedGoal === 'friend_host' && (
+            {step === 1 && <button type="button" className="btn btn-self" disabled={!viewer.username && (submitting || Boolean(localUsernameError) || usernameAvailability === undefined || !usernameAvailability.available)} onClick={() => void saveUsernameAndContinue()}>{viewer.username ? 'Continue' : submitting ? 'Saving…' : 'Save username'}</button>}
+            {step === 2 && <button type="button" className="btn btn-self" onClick={() => setStep(3)}>Continue</button>}
+            {step === 3 && <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void saveProfileAndContinue()}>{submitting ? 'Saving…' : 'Save and continue'}</button>}
+            {step === 4 && <button type="button" className="btn btn-self" onClick={() => setStep(5)}>Continue</button>}
+            {step === 5 && selectedGoal === 'friend_host' && (
               <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void finish(selectedGoal)}>
                 {submitting ? 'Saving…' : 'Create hosting profile'}
               </button>
             )}
-            {step === 4 && selectedGoal === 'member' && (
+            {step === 5 && selectedGoal === 'member' && (
               <button type="button" className="btn btn-self" disabled={submitting || identityFlow.busy} onClick={() => void finishWithIdentityReview()}>
                 {submitting || identityFlow.busy ? 'Opening Persona…' : identityActionLabel}
               </button>

@@ -28,6 +28,7 @@ describe('application navigation', () => {
 
   it('leaves account and admin destinations outside the primary navigation', () => {
     expect(activePrimaryNavigation('/profile')).toBeNull()
+    expect(activePrimaryNavigation('/settings')).toBeNull()
     expect(activePrimaryNavigation('/onboarding')).toBeNull()
     expect(activePrimaryNavigation('/admin')).toBeNull()
     expect(primaryNavigation.some(({ to }) => to.startsWith('/admin'))).toBe(false)
@@ -36,6 +37,7 @@ describe('application navigation', () => {
   it('keeps operational routes off the public footer surface', () => {
     expect(isWorkspacePath('/app')).toBe(true)
     expect(isWorkspacePath('/profile')).toBe(true)
+    expect(isWorkspacePath('/settings')).toBe(true)
     expect(isWorkspacePath('/messages')).toBe(true)
     expect(isWorkspacePath('/host')).toBe(true)
     expect(isWorkspacePath('/nearby')).toBe(true)

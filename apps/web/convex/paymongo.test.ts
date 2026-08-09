@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { internal } from './_generated/api'
 import schema from './schema'
 import {
+  normalizeCanonicalIntent,
   readPaymongoWebhookBody,
   validateCanonicalIntent,
   verifyPaymongoSignature,
@@ -58,6 +59,66 @@ describe('PayMongo trust boundary', () => {
     expect(() => validateCanonicalIntent({ ...intent, methodTypes: ['card'] }, {
       intentId: 'pi_test', amountCentavos: 50_000, currency: 'PHP', mode: 'test',
     })).toThrow('not QR Ph')
+  })
+
+  it('normalizes every supported PayMongo QR image response shape', () => {
+    const response = (attributes: Record<string, unknown>) => ({
+      data: {
+        id: 'pi_qr_variants',
+        type: 'payment_intent',
+        attributes: {
+          amount: 50_000,
+          currency: 'PHP',
+          status: 'awaiting_payment_method',
+          livemode: false,
+          payment_method_allowed: ['qrph'],
+          ...attributes,
+        },
+      },
+    })
+    const variants = [
+      { attributes: { next_action: { code: { image_url: 'https://example.test/code-image-url.png' } } }, expected: 'https://example.test/code-image-url.png' },
+      { attributes: { next_action: { code: { image: 'data:image/png;base64,Y29kZQ==' } } }, expected: 'data:image/png;base64,Y29kZQ==' },
+      { attributes: { next_action: { image_url: 'https://example.test/next-action.png' } }, expected: 'https://example.test/next-action.png' },
+      { attributes: { qr_image_url: 'https://example.test/attributes.png' }, expected: 'https://example.test/attributes.png' },
+    ]
+
+    for (const variant of variants) {
+      expect(normalizeCanonicalIntent(response(variant.attributes)).qrImageUrl).toBe(variant.expected)
+    }
+  })
+
+  it('authorizes refresh only for the owning member-wallet beneficiary', async () => {
+    const t = createTest()
+    const { memberTopUpId, otherTopUpId, legacyTopUpId } = await t.run(async (ctx) => {
+      const now = Date.now()
+      const memberId = await ctx.db.insert('users', {
+        clerkUserId: 'refresh-member', displayName: 'Refresh Member', role: 'member', verificationStatus: 'approved', suspended: false, createdAt: now, updatedAt: now,
+      })
+      const otherId = await ctx.db.insert('users', {
+        clerkUserId: 'other-member', displayName: 'Other Member', role: 'member', verificationStatus: 'approved', suspended: false, createdAt: now, updatedAt: now,
+      })
+      const memberTopUpId = await ctx.db.insert('paymongoTopUps', {
+        beneficiaryUserId: memberId, purpose: 'member_booking_balance', amountCentavos: 10_000, currency: 'PHP', mode: 'test', status: 'awaiting_payment', providerIntentId: 'pi_refresh_member', createdAt: now, updatedAt: now,
+      })
+      const otherTopUpId = await ctx.db.insert('paymongoTopUps', {
+        beneficiaryUserId: otherId, purpose: 'member_booking_balance', amountCentavos: 10_000, currency: 'PHP', mode: 'test', status: 'awaiting_payment', providerIntentId: 'pi_refresh_other', createdAt: now, updatedAt: now,
+      })
+      const legacyTopUpId = await ctx.db.insert('paymongoTopUps', {
+        hostUserId: memberId, beneficiaryUserId: memberId, purpose: 'legacy_host_fee', amountCentavos: 10_000, currency: 'PHP', mode: 'test', status: 'awaiting_payment', providerIntentId: 'pi_refresh_legacy', createdAt: now, updatedAt: now,
+      })
+      return { memberTopUpId, otherTopUpId, legacyTopUpId }
+    })
+
+    await expect(t.query(internal.paymongo.memberTopUpForRefresh, {
+      topUpId: memberTopUpId, clerkUserId: 'refresh-member',
+    })).resolves.toMatchObject({ providerIntentId: 'pi_refresh_member', purpose: 'member_booking_balance' })
+    await expect(t.query(internal.paymongo.memberTopUpForRefresh, {
+      topUpId: otherTopUpId, clerkUserId: 'refresh-member',
+    })).rejects.toThrow('not found')
+    await expect(t.query(internal.paymongo.memberTopUpForRefresh, {
+      topUpId: legacyTopUpId, clerkUserId: 'refresh-member',
+    })).rejects.toThrow('Only member-wallet top-ups')
   })
 
   it('requires JSON and bounds the exact raw body', async () => {

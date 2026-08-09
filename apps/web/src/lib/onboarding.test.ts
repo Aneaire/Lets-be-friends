@@ -48,6 +48,17 @@ describe('onboarding gate decisions', () => {
       viewer: { clerkUserId: 'clerk-current', onboardingCompletedAt: 1 },
     })).toBe('allow')
   })
+
+  it('requires completed legacy viewers without a username to return to onboarding', () => {
+    expect(onboardingGateDecision({
+      ...ready,
+      viewer: { clerkUserId: 'clerk-current', onboardingCompletedAt: 1 },
+    })).toBe('redirect_onboarding')
+    expect(onboardingGateDecision({
+      ...ready,
+      viewer: { clerkUserId: 'clerk-current', username: 'current_friend', onboardingCompletedAt: 1 },
+    })).toBe('allow')
+  })
 })
 
 describe('onboarding destinations', () => {

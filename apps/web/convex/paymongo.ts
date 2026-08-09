@@ -58,6 +58,39 @@ export const createMemberTopUp = action({
   },
 })
 
+export const refreshMemberTopUp = action({
+  args: { topUpId: v.id('paymongoTopUps') },
+  handler: async (ctx, args): Promise<{
+    topUpId: Id<'paymongoTopUps'>
+    providerStatus: string
+    qrImageUrl?: string
+    expiresAt?: number
+  }> => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error('Authentication required')
+    const topUp = await ctx.runQuery(internal.paymongo.memberTopUpForRefresh, {
+      topUpId: args.topUpId,
+      clerkUserId: identity.subject,
+    })
+    const config = paymongoConfig()
+    if (topUp.mode !== config.mode) throw new Error('PayMongo mode mismatch')
+    const intent = await retrievePaymongoIntent(topUp.providerIntentId, config)
+    validateCanonicalIntent(intent, {
+      intentId: topUp.providerIntentId,
+      amountCentavos: topUp.amountCentavos,
+      currency: topUp.currency,
+      mode: topUp.mode,
+    })
+    await ctx.runMutation(internal.paymongo.applyReconciliation, { topUpId: topUp._id, intent })
+    return {
+      topUpId: topUp._id,
+      providerStatus: intent.status,
+      qrImageUrl: intent.qrImageUrl,
+      expiresAt: intent.expiresAt,
+    }
+  },
+})
+
 async function createTopUpForPurpose(ctx: any, requestedAmountCentavos: number, purpose: TopUpPurpose): Promise<TopUpResult> {
   const identity = await ctx.auth.getUserIdentity()
   if (!identity) throw new Error('Authentication required')
@@ -205,6 +238,21 @@ export const prepareTopUp = internalMutation({
       after: { amountCentavos: args.amountCentavos, currency: BOOKING_CURRENCY, mode: args.mode, purpose },
     })
     return { topUpId, beneficiaryUserId: user._id }
+  },
+})
+
+export const memberTopUpForRefresh = internalQuery({
+  args: { topUpId: v.id('paymongoTopUps'), clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId)).unique()
+    if (!user) throw new Error('Profile sync required')
+    if (user.suspended) throw new Error('Account is suspended')
+    const topUp = await ctx.db.get(args.topUpId)
+    if (!topUp || topUp.beneficiaryUserId !== user._id) throw new Error('Member-wallet top-up not found')
+    if (topUp.purpose !== 'member_booking_balance') throw new Error('Only member-wallet top-ups can be refreshed here')
+    if (!['creating', 'awaiting_payment', 'processing'].includes(topUp.status)) throw new Error('Member-wallet top-up is no longer active')
+    if (!topUp.providerIntentId) throw new Error('PayMongo Payment Intent is not ready')
+    return { ...topUp, providerIntentId: topUp.providerIntentId }
   },
 })
 
@@ -681,6 +729,7 @@ export function normalizeCanonicalIntent(response: unknown): CanonicalPaymongoIn
   const qrImageUrl = stringValue(code?.image_url)
     ?? stringValue(code?.image)
     ?? stringValue(nextAction?.image_url)
+    ?? stringValue(attributes?.qr_image_url)
     ?? stringValue(redirect?.url)
   const expiresAtSeconds = numberValue(code?.expires_at)
     ?? numberValue(nextAction?.expires_at)

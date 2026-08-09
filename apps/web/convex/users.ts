@@ -1,6 +1,6 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { activityCategories } from '@lets-be-friends/shared'
+import { activityCategories, normalizeUsername, usernameValidationError } from '@lets-be-friends/shared'
 import { requireViewer, writeAudit } from './lib'
 import { hasCurrentIdentityApproval, identityTestBypassAllowed } from './identityVerification'
 
@@ -24,6 +24,43 @@ export const viewer = query({
       identityTestBypassActive: identityTestBypassAllowed(user) && user.identityTestBypass === true,
       profileImageUrl: await profileImageUrl(ctx, user),
     }
+  },
+})
+
+export const usernameAvailability = query({
+  args: { username: v.string() },
+  handler: async (ctx, args) => {
+    const username = normalizeUsername(args.username)
+    const validationError = usernameValidationError(username)
+    if (validationError) return { username, available: false, validationError }
+
+    const clerkUserId = await getClerkUserId(ctx)
+    const existing = await ctx.db.query('users').withIndex('by_username', (q) => q.eq('username', username)).unique()
+    return {
+      username,
+      available: !existing || existing.clerkUserId === clerkUserId,
+      validationError: null,
+    }
+  },
+})
+
+export const claimUsername = mutation({
+  args: { username: v.string() },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const username = normalizeUsername(args.username)
+    const validationError = usernameValidationError(username)
+    if (validationError) throw new Error(validationError)
+    if (viewer.username && viewer.username !== username) {
+      throw new Error('Your username is permanent and cannot be changed.')
+    }
+    if (viewer.username === username) return username
+
+    const existing = await ctx.db.query('users').withIndex('by_username', (q) => q.eq('username', username)).unique()
+    if (existing && existing._id !== viewer._id) throw new Error('That username is already taken.')
+
+    await ctx.db.patch(viewer._id, { username, updatedAt: Date.now() })
+    return username
   },
 })
 
@@ -113,6 +150,7 @@ export const completeOnboarding = mutation({
     if (!clerkUserId) throw new Error('Authentication required')
     const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique()
     if (!viewer) throw new Error('Account setup is not complete')
+    if (!viewer.username) throw new Error('Choose a username before completing your welcome guide')
     const now = Date.now()
     await ctx.db.patch(viewer._id, {
       onboardingGoal: args.goal,

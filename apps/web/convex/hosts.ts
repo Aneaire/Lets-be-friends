@@ -15,9 +15,9 @@ import { findNearbyHostLocations, syncHostLocation } from './hostLocations'
 const nearbyRadiusOptions = [5, 10, 25, 50, 100] as const
 
 const demoHosts = [
-  { _id: 'demo-1', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee and meals', 'Explore the city'], bookable: false, viewerCanBook: true, demo: true },
-  { _id: 'demo-2', displayName: 'Jo', city: 'Online', mode: 'online', rating: 4.8, reviewCount: 18, intro: 'Online coworking and study partner for people who want accountability without pressure.', strengths: ['Study partner', 'Online chat friend', 'Language practice'], categories: ['Study and coworking', 'Language exchange'], bookable: false, viewerCanBook: true, demo: true },
-  { _id: 'demo-3', displayName: 'Rafi', city: 'Bohol', mode: 'in_person', rating: 4.7, reviewCount: 12, intro: 'Photography walk partner for safe public routes, food stops, and relaxed creative exploration.', strengths: ['Photography walk partner', 'Food trip companion', 'Local tour buddy'], categories: ['Photo walks', 'Explore the city'], bookable: false, viewerCanBook: true, demo: true },
+  { _id: 'demo-1', username: 'maya_cebu', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee and meals', 'Explore the city'], bookable: false, viewerCanBook: true, demo: true },
+  { _id: 'demo-2', username: 'jo_online', displayName: 'Jo', city: 'Online', mode: 'online', rating: 4.8, reviewCount: 18, intro: 'Online coworking and study partner for people who want accountability without pressure.', strengths: ['Study partner', 'Online chat friend', 'Language practice'], categories: ['Study and coworking', 'Language exchange'], bookable: false, viewerCanBook: true, demo: true },
+  { _id: 'demo-3', username: 'rafi_bohol', displayName: 'Rafi', city: 'Bohol', mode: 'in_person', rating: 4.7, reviewCount: 12, intro: 'Photography walk partner for safe public routes, food stops, and relaxed creative exploration.', strengths: ['Photography walk partner', 'Food trip companion', 'Local tour buddy'], categories: ['Photo walks', 'Explore the city'], bookable: false, viewerCanBook: true, demo: true },
 ] as const
 
 export const listApproved = query({
@@ -55,6 +55,7 @@ export const listApproved = query({
       ])
       return {
         ...publicHostProfile(host),
+        username: user.username,
         displayName: user.displayName,
         profileImageUrl: profileImage,
         bio: user.bio,
@@ -89,6 +90,7 @@ export const getPublic = query({
     if (!user || user.suspended || !hasCurrentIdentityApproval(user)) return null
     return {
       ...publicHostProfile(host),
+      username: user.username,
       displayName: user.displayName,
       firstName: user.firstName ?? user.displayName,
       profileImageUrl: await profileImageUrl(ctx, user),

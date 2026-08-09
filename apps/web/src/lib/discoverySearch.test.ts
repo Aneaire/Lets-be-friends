@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { matchesFriendHostSearch, type SearchableFriendHost } from './discoverySearch'
+import { findFriendHosts, matchesFriendHostSearch, type SearchableFriendHost } from './discoverySearch'
 
 const host: SearchableFriendHost = {
+  username: 'maya_makati',
   displayName: 'Maya Santos',
   city: 'Makati',
   intro: 'I enjoy easygoing museum visits and coffee walks.',
@@ -16,6 +17,7 @@ describe('Friend Host search', () => {
     expect(matchesFriendHostSearch(host, 'MAKATI')).toBe(true)
     expect(matchesFriendHostSearch(host, 'good listener')).toBe(true)
     expect(matchesFriendHostSearch(host, 'arts culture')).toBe(true)
+    expect(matchesFriendHostSearch(host, '@maya_makati')).toBe(true)
   })
 
   it('requires every entered term to match the profile', () => {
@@ -25,5 +27,10 @@ describe('Friend Host search', () => {
 
   it('treats an empty query as unfiltered', () => {
     expect(matchesFriendHostSearch(host, '   ')).toBe(true)
+  })
+
+  it('puts an exact unique username match first', () => {
+    const broadMatch = { ...host, username: 'maya_coffee', bio: 'Mentions maya_makati in this profile.' }
+    expect(findFriendHosts([broadMatch, host], '@maya_makati')[0]).toBe(host)
   })
 })

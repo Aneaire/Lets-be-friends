@@ -2,7 +2,7 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import type React from 'react'
 import { activityCategories, calculateMemberWalletBookingPrice, canCancelBooking, canCompleteBooking, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
@@ -15,6 +15,7 @@ import { BookingActionsMenu } from '../components/BookingActionsMenu'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../components/IdentityVerificationFlow'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
+import { findFriendHosts } from '../lib/discoverySearch'
 
 export const Route = createFileRoute('/app')({
   validateSearch: (search: Record<string, unknown>): { hostProfileId?: string } => (
@@ -25,10 +26,15 @@ export const Route = createFileRoute('/app')({
 
 type ApprovedHostOption = {
   _id: string
+  username?: string
   displayName: string
   city: string
+  intro?: string
+  bio?: string
+  strengths?: string[]
   mode: 'online' | 'in_person' | 'both'
   categories?: string[]
+  profileImageUrl?: string
   hourlyRateCentavos?: number
   bookable?: boolean
   viewerCanBook?: boolean
@@ -505,14 +511,59 @@ function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
   onCreateTopUp: (amountCentavos: number) => Promise<void>
   onAddTestCredit: (amountCentavos: number) => Promise<void>
 }) {
+  const refreshMemberTopUp = useAction(api.paymongo.refreshMemberTopUp)
+  const refreshInFlightRef = useRef(false)
   const [busy, setBusy] = useState(false)
   const [walletError, setWalletError] = useState('')
-  const now = Date.now()
+  const [clockNow, setClockNow] = useState(() => Date.now())
   const activeTopUp = finance?.topUps.find((topUp) =>
     ['creating', 'awaiting_payment', 'processing'].includes(topUp.status)
-    && (topUp.expiresAt === undefined || topUp.expiresAt > now),
+    && (topUp.expiresAt === undefined || topUp.expiresAt > clockNow),
   )
   const qrTopUp = activeTopUp ?? finance?.topUps.find((topUp) => topUp.qrImageUrl && topUp.status !== 'paid')
+  const qrExpired = Boolean(qrTopUp?.expiresAt && qrTopUp.expiresAt <= clockNow)
+  const showPayableQr = Boolean(
+    qrTopUp?.qrImageUrl
+    && ['awaiting_payment', 'processing'].includes(qrTopUp.status)
+    && !qrExpired,
+  )
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 1_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    if (!activeTopUp?.providerIntentId) return
+    let cancelled = false
+    let timer: number | undefined
+
+    const poll = async () => {
+      if (cancelled) return
+      if (refreshInFlightRef.current) {
+        timer = window.setTimeout(() => void poll(), 250)
+        return
+      }
+      refreshInFlightRef.current = true
+      let terminal = false
+      try {
+        const refreshed = await refreshMemberTopUp({ topUpId: activeTopUp._id })
+        terminal = isTerminalProviderTopUpStatus(refreshed.providerStatus)
+          || (refreshed.expiresAt !== undefined && refreshed.expiresAt <= Date.now())
+      } catch {
+        // Provider or network failures are retried while this dialog remains open.
+      } finally {
+        refreshInFlightRef.current = false
+      }
+      if (!cancelled && !terminal) timer = window.setTimeout(() => void poll(), 3_000)
+    }
+
+    void poll()
+    return () => {
+      cancelled = true
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
+  }, [activeTopUp?._id, activeTopUp?.providerIntentId, refreshMemberTopUp])
 
   return (
     <section id="member-wallet" className="mb-10">
@@ -534,7 +585,7 @@ function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
             <div className="wallet-metric wallet-metric-available"><p className="text-meta">Available to book</p><p className="text-h2 tabular mt-1">{formatPhp(finance.availableCentavos)}</p></div>
             <div className="wallet-metric wallet-metric-pending"><p className="text-meta">Reserved for accepted bookings</p><p className="text-h2 tabular mt-1">{formatPhp(finance.reservedCentavos)}</p></div>
           </div>
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="member-wallet-actions-grid">
             {finance.testCreditEnabled && (
               <form
                 className="space-y-3"
@@ -577,16 +628,49 @@ function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
               <label className="field-row"><span className="label">Top-up amount <span className="label-aux">PHP</span></span><input name="topUpPesos" type="number" min="100" max="100000" step="0.01" defaultValue="1000" required className="field" disabled={busy || Boolean(activeTopUp) || !finance.enabled} /></label>
               <button className="btn btn-self" disabled={busy || Boolean(activeTopUp) || !finance.enabled}>{busy ? 'Creating QR…' : activeTopUp ? 'QR attempt still active' : 'Create QR Ph top-up'}</button>
             </form>
-            <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-4">
+            <div className="member-wallet-qr-card rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-4">
               <p className="text-h3">Current QR attempt</p>
               {!qrTopUp && <p className="text-meta mt-2">No member-wallet top-up attempt yet.</p>}
-              {qrTopUp && <div className="mt-3 space-y-3"><div className="flex items-center justify-between gap-3"><strong className="tabular">{formatPhp(qrTopUp.amountCentavos)}</strong><span className="status-pill" data-tone={qrTopUp.status === 'paid' ? 'success' : qrTopUp.status === 'failed' || qrTopUp.status === 'expired' ? 'danger' : 'social'}>{qrTopUp.status.replace('_', ' ')}</span></div>{qrTopUp.qrImageUrl && qrTopUp.status === 'awaiting_payment' && <img src={qrTopUp.qrImageUrl} alt={`QR Ph code for ${formatPhp(qrTopUp.amountCentavos)} wallet top-up`} className="mx-auto max-w-64 rounded-lg bg-white p-3" />}</div>}
+              {qrTopUp && (
+                <div className="mt-3 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <strong className="tabular">{formatPhp(qrTopUp.amountCentavos)}</strong>
+                    <span className="status-pill" data-tone={qrTopUp.status === 'paid' ? 'success' : qrTopUp.status === 'failed' || qrTopUp.status === 'expired' || qrExpired ? 'danger' : 'social'}>
+                      {qrExpired && qrTopUp.status !== 'paid' ? 'expired' : qrTopUp.status.replaceAll('_', ' ')}
+                    </span>
+                  </div>
+                  {qrTopUp.expiresAt !== undefined && !qrExpired && ['awaiting_payment', 'processing'].includes(qrTopUp.status) && (
+                    <p className="text-meta tabular" role="timer">QR expires in {formatQrCountdown(qrTopUp.expiresAt - clockNow)}</p>
+                  )}
+                  {qrExpired && qrTopUp.status !== 'paid' && <p className="text-meta">This QR expired. You can create a fresh top-up.</p>}
+                  {showPayableQr && qrTopUp.qrImageUrl && (
+                    <>
+                      <img src={qrTopUp.qrImageUrl} alt={`QR Ph code for ${formatPhp(qrTopUp.amountCentavos)} wallet top-up`} className="mx-auto max-w-64 rounded-lg bg-white p-3" />
+                      <a href={qrTopUp.qrImageUrl} download={`lets-be-friends-qr-ph-${qrTopUp._id}.png`} className="btn btn-neutral btn-sm">
+                        Download QR
+                      </a>
+                      <p className="text-meta">Download the QR if you need to pay from this phone.</p>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
     </section>
   )
+}
+
+function isTerminalProviderTopUpStatus(status: string) {
+  return ['succeeded', 'paid', 'failed', 'cancelled', 'expired'].includes(status)
+}
+
+function formatQrCountdown(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1_000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
 function WalletDialog({ finance, onClose, restoreFocusTo, onCreateTopUp, onAddTestCredit }: {
@@ -615,8 +699,8 @@ function WalletDialog({ finance, onClose, restoreFocusTo, onCreateTopUp, onAddTe
   }, [onClose, restoreFocusTo])
 
   return (
-    <div className="booking-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <div ref={dialogRef} id="booking-balance-dialog" className="booking-dialog" role="dialog" aria-modal="true" aria-labelledby="booking-balance-dialog-title" tabIndex={-1}>
+    <div className="booking-dialog-backdrop booking-wallet-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      <div ref={dialogRef} id="booking-balance-dialog" className="booking-dialog booking-wallet-dialog" role="dialog" aria-modal="true" aria-labelledby="booking-balance-dialog-title" tabIndex={-1}>
         <header className="booking-dialog-header">
           <div>
             <p className="eyebrow">Your booking wallet</p>
@@ -870,9 +954,24 @@ function BookingDialog({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const dialogRef = useRef<HTMLDivElement>(null)
-  const hostSelectRef = useRef<HTMLSelectElement>(null)
+  const hostSearchRef = useRef<HTMLInputElement>(null)
+  const hostSearchRootRef = useRef<HTMLDivElement>(null)
+  const hostSearchOpenRef = useRef(false)
   const submittingRef = useRef(false)
+  const [hostQuery, setHostQuery] = useState('')
+  const [hostSearchOpen, setHostSearchOpenState] = useState(false)
+  const setHostSearchOpen = useCallback((open: boolean) => {
+    hostSearchOpenRef.current = open
+    setHostSearchOpenState(open)
+  }, [])
   const selectedHost = hosts.find((host) => host._id === selectedHostProfileId)
+  const hostSearchResults = useMemo(() => {
+    if (!hostQuery.trim()) return []
+    return findFriendHosts(hosts.map((host) => ({
+      ...host,
+      intro: host.intro ?? '',
+    })), hostQuery).slice(0, 6)
+  }, [hostQuery, hosts])
   const categoryOptions = selectedHost?.categories?.length ? selectedHost.categories : activityCategories
   const [selectedMode, setSelectedMode] = useState<'online' | 'in_person'>('online')
   const [category, setCategory] = useState('')
@@ -897,11 +996,26 @@ function BookingDialog({
 
   useEffect(() => {
     setSelectedHostProfileId((current) => {
-      if (initialHostProfileId && hosts.some((host) => host._id === initialHostProfileId)) return initialHostProfileId
+      if (initialHostProfileId && hosts.some((host) => host._id === initialHostProfileId)) {
+        const initialHost = hosts.find((host) => host._id === initialHostProfileId)
+        setHostQuery(initialHost?.displayName ?? '')
+        return initialHostProfileId
+      }
       if (current && hosts.some((host) => host._id === current)) return current
-      return hosts[0]?._id ?? ''
+      return ''
     })
   }, [hosts, initialHostProfileId])
+
+  useEffect(() => {
+    if (!hostSearchOpen) return
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!hostSearchRootRef.current?.contains(event.target as Node)) setHostSearchOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [hostSearchOpen])
 
   useEffect(() => {
     if (!modeOptions.includes(selectedMode)) setSelectedMode(modeOptions[0])
@@ -912,8 +1026,8 @@ function BookingDialog({
     document.body.style.overflow = 'hidden'
 
     const focusFrame = window.requestAnimationFrame(() => {
-      if (hostSelectRef.current && !hostSelectRef.current.disabled) {
-        hostSelectRef.current.focus()
+      if (hostSearchRef.current && !hostSearchRef.current.disabled) {
+        hostSearchRef.current.focus()
       } else {
         dialogRef.current?.focus()
       }
@@ -921,6 +1035,12 @@ function BookingDialog({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (hostSearchOpenRef.current) {
+          event.preventDefault()
+          hostSearchOpenRef.current = false
+          setHostSearchOpen(false)
+          return
+        }
         if (submittingRef.current) return
         event.preventDefault()
         onClose()
@@ -1054,26 +1174,101 @@ function BookingDialog({
             </div>
           )}
 
-          <label className="field-row">
-            <span className="label">Friend Host</span>
-            <select
-              ref={hostSelectRef}
-              name="hostProfileId"
-              value={selectedHostProfileId}
-              onChange={(event) => setSelectedHostProfileId(event.currentTarget.value)}
-              disabled={hostsLoading || hosts.length === 0 || isSubmitting}
-              className="field"
-              required
-            >
-              {hostsLoading && <option value="">Loading…</option>}
-              {!hostsLoading && hosts.length === 0 && <option value="">No approved hosts</option>}
-              {hosts.map((host) => (
-                <option key={host._id} value={host._id}>
-                  {host.displayName} · {host.city}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="field-row booking-host-search-root" ref={hostSearchRootRef}>
+            <label className="label" htmlFor="booking-host-search">Friend Host</label>
+            <div className="booking-host-search" role="search">
+              <Search size={18} aria-hidden="true" />
+              <input
+                ref={hostSearchRef}
+                id="booking-host-search"
+                type="search"
+                value={hostQuery}
+                placeholder="Search by username, name, Strength, activity, or city"
+                aria-label="Search Friend Hosts"
+                aria-expanded={hostSearchOpen}
+                aria-controls="booking-host-search-results"
+                aria-autocomplete="list"
+                autoComplete="off"
+                disabled={hostsLoading || hosts.length === 0 || isSubmitting}
+                required
+                onFocus={() => setHostSearchOpen(true)}
+                onClick={() => setHostSearchOpen(true)}
+                onChange={(event) => {
+                  setHostQuery(event.currentTarget.value)
+                  setSelectedHostProfileId('')
+                  setHostSearchOpen(true)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown' && hostSearchResults.length > 0) {
+                    event.preventDefault()
+                    hostSearchRootRef.current?.querySelector<HTMLButtonElement>('[role="option"]')?.focus()
+                  }
+                }}
+              />
+              {hostQuery && (
+                <button
+                  type="button"
+                  className="booking-host-search-clear"
+                  aria-label="Clear Friend Host search"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    setHostQuery('')
+                    setSelectedHostProfileId('')
+                    setHostSearchOpen(true)
+                    hostSearchRef.current?.focus()
+                  }}
+                >
+                  <X size={15} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+
+            {hostSearchOpen && (
+              <div id="booking-host-search-results" className="booking-host-search-panel">
+                {!hostQuery.trim() ? (
+                  <p className="booking-host-search-guidance">Search Friend Hosts by username, name, Strength, activity, or city.</p>
+                ) : hostsLoading ? (
+                  <p className="booking-host-search-guidance" role="status">Searching…</p>
+                ) : hostSearchResults.length === 0 ? (
+                  <p className="booking-host-search-guidance" role="status">No Friend Hosts match “{hostQuery.trim()}”.</p>
+                ) : (
+                  <>
+                    <p className="booking-host-search-summary" role="status">
+                      {hostSearchResults.length} {hostSearchResults.length === 1 ? 'match' : 'matches'}
+                    </p>
+                    <ul className="booking-host-search-list" role="listbox" aria-label="Friend Host search results">
+                      {hostSearchResults.map((host) => (
+                        <li key={host._id}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={host._id === selectedHostProfileId}
+                            className="booking-host-search-result"
+                            onClick={() => {
+                              setSelectedHostProfileId(host._id)
+                              setHostQuery(host.displayName)
+                              hostSearchRef.current?.focus()
+                              setHostSearchOpen(false)
+                            }}
+                          >
+                            <span className="booking-host-search-avatar" aria-hidden="true">
+                              {host.profileImageUrl
+                                ? <img src={host.profileImageUrl} alt="" />
+                                : initials(host.displayName)}
+                            </span>
+                            <span>
+                              <strong>{host.displayName}</strong>
+                              <small>{[host.username ? `@${host.username}` : undefined, host.city, host.strengths?.[0] ?? host.categories?.[0]].filter(Boolean).join(' · ')}</small>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
 
           <BookingRequestFields
             category={category}

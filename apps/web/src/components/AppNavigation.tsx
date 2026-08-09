@@ -1,14 +1,14 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useClerk, useUser } from '@clerk/react'
-import { useMutation, useQuery } from 'convex/react'
+import { useQuery } from 'convex/react'
 import {
   CalendarCheck,
-  CircleHelp,
   Compass,
   House,
   LogOut,
   MessageCircle,
   Search,
+  Settings,
   ShieldCheck,
   UserRound,
   UserRoundCog,
@@ -17,7 +17,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { api } from '../../convex/_generated/api'
-import { matchesFriendHostSearch } from '../lib/discoverySearch'
+import { findFriendHosts } from '../lib/discoverySearch'
 import { activePrimaryNavigation, primaryNavigation } from '../lib/navigation'
 import { BrandLogo } from './BrandLogo'
 import { ThemeToggle } from './ThemeToggle'
@@ -26,6 +26,7 @@ const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]
 
 type HeaderSearchHost = {
   _id: string
+  username?: string
   displayName: string
   city: string
   intro: string
@@ -47,7 +48,7 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
   const searchRootRef = useRef<HTMLDivElement>(null)
   const searchHosts = useQuery(api.hosts.listApproved, {}) as HeaderSearchHost[] | undefined
   const searchResults = searchQuery.trim()
-    ? (searchHosts ?? []).filter((host) => matchesFriendHostSearch(host, searchQuery)).slice(0, 6)
+    ? findFriendHosts(searchHosts ?? [], searchQuery).slice(0, 6)
     : []
 
   const closeAccount = useCallback((restoreFocus = true) => {
@@ -144,8 +145,8 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
                   <input
                     type="search"
                     value={searchQuery}
-                    placeholder="Search people, Strengths, or activities"
-                    aria-label="Search people, Strengths, or activities"
+                    placeholder="Search username, people, Strengths, or activities"
+                    aria-label="Search username, people, Strengths, or activities"
                     aria-expanded={searchOpen}
                     aria-controls="header-search-results"
                     autoComplete="off"
@@ -170,7 +171,7 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
                 {searchOpen && (
                   <div id="header-search-results" className="app-header-search-panel">
                     {!searchQuery.trim() ? (
-                      <p className="app-header-search-guidance">Search Friend Hosts by name, Strength, activity, or city.</p>
+                    <p className="app-header-search-guidance">Search Friend Hosts by username, name, Strength, activity, or city.</p>
                     ) : searchHosts === undefined ? (
                       <p className="app-header-search-guidance" role="status">Searching…</p>
                     ) : searchResults.length === 0 ? (
@@ -195,7 +196,7 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
                                 <AccountAvatar imageUrl={host.profileImageUrl} initials={getInitials(host.displayName)} />
                                 <span>
                                   <strong>{host.displayName}</strong>
-                                  <small>{[host.city, host.strengths?.[0] ?? host.categories?.[0]].filter(Boolean).join(' · ')}</small>
+                                  <small>{[host.username ? `@${host.username}` : undefined, host.city, host.strengths?.[0] ?? host.categories?.[0]].filter(Boolean).join(' · ')}</small>
                                 </span>
                               </Link>
                             </li>
@@ -326,9 +327,6 @@ function AccountNavigation({
   const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.hosts.myApplication)
-  const setNearbyVisibility = useMutation(api.hosts.setNearbyDiscoveryVisibility)
-  const [nearbySaving, setNearbySaving] = useState(false)
-  const [nearbyError, setNearbyError] = useState('')
   const displayName = viewer?.displayName ?? user?.fullName ?? user?.username ?? 'Account'
   const email = user?.primaryEmailAddress?.emailAddress
   const imageUrl = viewer?.profileImageUrl ?? user?.imageUrl
@@ -376,68 +374,21 @@ function AccountNavigation({
               </span>
             </div>
 
-            {application && (
-              <div className="account-menu-nearby">
-                <div className="account-menu-nearby-copy">
-                  <span className="account-menu-nearby-title">Nearby search</span>
-                  <span className="account-menu-nearby-status">
-                    {typeof application.approximateLatitude !== 'number' || typeof application.approximateLongitude !== 'number'
-                      ? 'Add an approximate location first'
-                      : application.nearbyDiscoveryEnabled
-                        ? application.status === 'approved' ? 'Visible to nearby members' : 'On after profile approval'
-                        : 'Not shown in nearby results'}
-                  </span>
-                  {nearbyError && <span className="account-menu-nearby-error" role="alert">{nearbyError}</span>}
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  className="account-menu-switch"
-                  aria-label="Show in nearby search"
-                  aria-checked={application.nearbyDiscoveryEnabled === true}
-                  disabled={nearbySaving || typeof application.approximateLatitude !== 'number' || typeof application.approximateLongitude !== 'number'}
-                  data-checked={application.nearbyDiscoveryEnabled === true}
-                  onClick={async () => {
-                    if (nearbySaving) return
-                    setNearbySaving(true)
-                    setNearbyError('')
-                    try {
-                      await setNearbyVisibility({ enabled: application.nearbyDiscoveryEnabled !== true })
-                    } catch (visibilityError) {
-                      setNearbyError(visibilityError instanceof Error ? visibilityError.message : 'Nearby search could not be updated.')
-                    } finally {
-                      setNearbySaving(false)
-                    }
-                  }}
-                >
-                  <span aria-hidden="true" />
-                  <strong>{nearbySaving ? 'Saving' : application.nearbyDiscoveryEnabled ? 'On' : 'Off'}</strong>
-                </button>
-                {(typeof application.approximateLatitude !== 'number' || typeof application.approximateLongitude !== 'number') && (
-                  <Link to="/become-host" className="account-menu-nearby-link" onClick={() => onClose(false)}>Add location</Link>
-                )}
-              </div>
-            )}
-
             <div className="account-menu-group">
-              <AccountLink to="/" icon={<House size={17} />} onSelect={() => onClose(false)}>Home</AccountLink>
-              <AccountLink to="/app" search={{}} icon={<CalendarCheck size={17} />} onSelect={() => onClose(false)}>Bookings</AccountLink>
-              <AccountLink to="/messages" icon={<MessageCircle size={17} />} onSelect={() => onClose(false)}>Messages</AccountLink>
-              <AccountLink to="/discover" icon={<Compass size={17} />} onSelect={() => onClose(false)}>Explore people</AccountLink>
-            </div>
-
-            <div className="account-menu-group">
-              <AccountLink to="/profile" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Profile</AccountLink>
+              <AccountLink to="/profile" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Edit profile</AccountLink>
               {publicProfileSearch ? (
                 <AccountLink to="/host-profile" search={publicProfileSearch} icon={<UserRound size={17} />} onSelect={() => onClose(false)}>
-                  Public host profile
+                  View public host profile
                 </AccountLink>
               ) : (
                 <AccountLink to="/become-host" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Host profile</AccountLink>
               )}
               <AccountLink to="/host" icon={<UserRoundCog size={17} />} onSelect={() => onClose(false)}>Hosting</AccountLink>
-              <AccountLink to="/onboarding" icon={<CircleHelp size={17} />} onSelect={() => onClose(false)}>How it works</AccountLink>
-              <AccountLink to="/safety" icon={<ShieldCheck size={17} />} onSelect={() => onClose(false)}>Safety model</AccountLink>
+              <AccountLink to="/settings" icon={<Settings size={17} />} onSelect={() => onClose(false)}>Settings</AccountLink>
+            </div>
+
+            <div className="account-menu-group account-menu-support">
+              <AccountLink to="/safety" icon={<ShieldCheck size={17} />} onSelect={() => onClose(false)}>Safety and help</AccountLink>
             </div>
 
             <button
@@ -481,7 +432,7 @@ function AccountLink({
   children,
   onSelect,
 }: {
-  to: '/' | '/app' | '/messages' | '/discover' | '/profile' | '/host-profile' | '/become-host' | '/host' | '/onboarding' | '/safety'
+  to: '/profile' | '/host-profile' | '/become-host' | '/host' | '/settings' | '/safety'
   search?: Record<string, string>
   icon: React.ReactNode
   children: React.ReactNode
@@ -507,6 +458,7 @@ export function MeetingSeam() {
 
 function isAccountPath(pathname: string) {
   return pathname === '/profile'
+    || pathname === '/settings'
     || pathname === '/become-host'
     || pathname === '/onboarding'
     || pathname === '/safety'

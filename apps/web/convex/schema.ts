@@ -107,6 +107,7 @@ const feedSurface = v.union(v.literal('for_you'), v.literal('following'), v.lite
 export default defineSchema({
   users: defineTable({
     clerkUserId: v.string(),
+    username: v.optional(v.string()),
     displayName: v.string(),
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
@@ -125,7 +126,10 @@ export default defineSchema({
     suspended: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_clerk_user_id', ['clerkUserId']).index('by_role', ['role']),
+  })
+    .index('by_clerk_user_id', ['clerkUserId'])
+    .index('by_username', ['username'])
+    .index('by_role', ['role']),
   verificationRequests: defineTable({
     userId: v.id('users'),
     reason: v.union(v.literal('member'), v.literal('booking'), v.literal('host_application'), v.literal('reverification')),

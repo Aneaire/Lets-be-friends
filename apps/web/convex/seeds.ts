@@ -149,6 +149,7 @@ export const seedPampangaHosts = internalMutation({
         .unique()
 
       const userFields = {
+        username: seed.key.replaceAll('-', '_'),
         displayName: seed.displayName,
         bio: seed.bio,
         role: 'friend_host' as const,

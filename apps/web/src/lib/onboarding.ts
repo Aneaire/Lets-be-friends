@@ -22,7 +22,7 @@ export function onboardingGateDecision({
   clerkUserId: string | null | undefined
   convexLoading: boolean
   convexAuthenticated: boolean
-  viewer: undefined | null | { clerkUserId: string; onboardingCompletedAt?: number }
+  viewer: undefined | null | { clerkUserId: string; username?: string; onboardingCompletedAt?: number }
   pathname: string
 }): OnboardingGateDecision {
   if (!clerkLoaded) return 'loading'
@@ -32,7 +32,7 @@ export function onboardingGateDecision({
   if (viewer === undefined) return 'loading'
   if (viewer !== null && viewer.clerkUserId !== clerkUserId) return 'identity_mismatch'
   if (viewer === null) return 'provision'
-  if (!viewer.onboardingCompletedAt && pathname !== '/onboarding') return 'redirect_onboarding'
+  if ((!viewer.username || !viewer.onboardingCompletedAt) && pathname !== '/onboarding') return 'redirect_onboarding'
   return 'allow'
 }
 

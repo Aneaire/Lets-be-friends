@@ -2,20 +2,21 @@ import { Moon, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 const themeStorageKey = 'lets-be-friends-theme'
-type ThemeChoice = 'light' | 'dark'
+const themeChangeEvent = 'lets-be-friends-theme-change'
+export type ThemeChoice = 'light' | 'dark'
 
 function getSystemTheme(): ThemeChoice {
   if (typeof window === 'undefined') return 'light'
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
-function applyTheme(theme: ThemeChoice) {
+export function applyTheme(theme: ThemeChoice) {
   if (typeof document === 'undefined') return
   document.documentElement.classList.toggle('dark', theme === 'dark')
   document.documentElement.dataset.theme = theme
 }
 
-function readStoredTheme(): ThemeChoice {
+export function readStoredTheme(): ThemeChoice {
   if (typeof window === 'undefined') return 'light'
 
   try {
@@ -28,14 +29,36 @@ function readStoredTheme(): ThemeChoice {
   return getSystemTheme()
 }
 
-export function ThemeToggle() {
+export function saveTheme(theme: ThemeChoice) {
+  applyTheme(theme)
+  try {
+    window.localStorage.setItem(themeStorageKey, theme)
+  } catch {
+    // The visual theme still changes even if storage is blocked.
+  }
+  window.dispatchEvent(new CustomEvent<ThemeChoice>(themeChangeEvent, { detail: theme }))
+}
+
+export function useThemeChoice() {
   const [theme, setTheme] = useState<ThemeChoice>('light')
 
   useEffect(() => {
     const resolved = readStoredTheme()
     setTheme(resolved)
     applyTheme(resolved)
+
+    const syncTheme = (event: Event) => {
+      setTheme((event as CustomEvent<ThemeChoice>).detail)
+    }
+    window.addEventListener(themeChangeEvent, syncTheme)
+    return () => window.removeEventListener(themeChangeEvent, syncTheme)
   }, [])
+
+  return { theme, setTheme: saveTheme }
+}
+
+export function ThemeToggle() {
+  const { theme, setTheme } = useThemeChoice()
 
   const nextTheme = theme === 'dark' ? 'light' : 'dark'
 
@@ -47,12 +70,6 @@ export function ThemeToggle() {
       title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
       onClick={() => {
         setTheme(nextTheme)
-        applyTheme(nextTheme)
-        try {
-          window.localStorage.setItem(themeStorageKey, nextTheme)
-        } catch {
-          // The visual theme still changes even if storage is blocked.
-        }
       }}
     >
       {theme === 'dark' ? <Sun aria-hidden="true" size={18} /> : <Moon aria-hidden="true" size={18} />}

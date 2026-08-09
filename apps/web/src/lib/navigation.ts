@@ -20,6 +20,7 @@ export function isWorkspacePath(pathname: string) {
     || pathname.startsWith('/app/')
     || pathname === '/profile'
     || pathname.startsWith('/profile/')
+    || pathname === '/settings'
     || pathname === '/messages'
     || pathname.startsWith('/messages/')
     || pathname === '/host'

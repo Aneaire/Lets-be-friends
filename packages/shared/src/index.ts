@@ -1,5 +1,6 @@
 export * from './feed'
 export * from './finance'
+export * from './username'
 
 export const friendStrengths = [
   'Good listener',
