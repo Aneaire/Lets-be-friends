@@ -11,6 +11,7 @@ import { WorkspaceShell } from '../components/AppShell'
 import { BookingRequestEditor, type EditableBookingRequest } from '../components/BookingRequestEditor'
 import { MeetingSeam } from '../components/AppNavigation'
 import { BookingRequestFields } from '../components/BookingRequestFields'
+import { BookingActionsMenu } from '../components/BookingActionsMenu'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../components/IdentityVerificationFlow'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
@@ -143,9 +144,7 @@ function AppPage() {
   if (!isSignedIn) {
     return (
       <main className="marketing-page">
-        <p className="eyebrow">Sign in required</p>
         <h1 className="text-h1 mt-2">Sign in to see your plans.</h1>
-        <p className="lede mt-2">Booking requests, conversations, and identity status stay together behind your account.</p>
         <div className="mt-6">
           <SignInButton mode="modal">
             <button className="btn btn-self">Sign in</button>
@@ -167,9 +166,7 @@ function AppPage() {
   return (
     <WorkspaceShell
       variant="bookings"
-      eyebrow="Your bookings"
       title="Your plans"
-      description={viewer ? 'See what needs your attention, keep track of upcoming time, and revisit past experiences.' : 'Loading your plans…'}
       status={
         <button
           type="button"
@@ -323,7 +320,7 @@ function AppPage() {
             <button
               ref={walletTriggerRef}
               type="button"
-              className="btn btn-wallet-balance btn-sm tabular"
+              className="btn btn-self-quiet btn-sm tabular"
               onClick={() => setWalletDialogOpen(true)}
               aria-haspopup="dialog"
               aria-expanded={walletDialogOpen}
@@ -522,7 +519,7 @@ function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
       <header className="flex items-baseline justify-between gap-3 mb-3">
         <div>
           <h2 className="text-h2">Booking balance</h2>
-          <p className="text-meta mt-1">Use this balance for booking requests. You will see the service subtotal and 15% booking fee before sending.</p>
+          <p className="text-meta mt-1">Use this balance for booking requests. You will see the complete booking total, including the service fee, before sending.</p>
         </div>
         {finance && <span className="status-pill" data-tone="success">{formatPhp(finance.availableCentavos)} available</span>}
       </header>
@@ -557,7 +554,7 @@ function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
               >
                 <div><p className="text-h3">Add test balance</p><p className="text-meta mt-1">For testing only. This adds internal booking credit and does not charge a payment method.</p></div>
                 <label className="field-row"><span className="label">Amount <span className="label-aux">PHP</span></span><input name="testCreditPesos" type="number" min="1" max="100000" step="0.01" defaultValue="1000" required className="field" disabled={busy} /></label>
-                <button className="btn btn-social" disabled={busy}>{busy ? 'Adding test balance…' : 'Add test balance'}</button>
+                <button className="btn btn-self" disabled={busy}>{busy ? 'Adding test balance…' : 'Add test balance'}</button>
               </form>
             )}
             <form
@@ -578,7 +575,7 @@ function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
             >
               <div><p className="text-h3">Add balance with PayMongo QR Ph</p><p className="text-meta mt-1">Only a provider-verified paid intent credits this wallet.</p></div>
               <label className="field-row"><span className="label">Top-up amount <span className="label-aux">PHP</span></span><input name="topUpPesos" type="number" min="100" max="100000" step="0.01" defaultValue="1000" required className="field" disabled={busy || Boolean(activeTopUp) || !finance.enabled} /></label>
-              <button className="btn btn-social" disabled={busy || Boolean(activeTopUp) || !finance.enabled}>{busy ? 'Creating QR…' : activeTopUp ? 'QR attempt still active' : 'Create QR Ph top-up'}</button>
+              <button className="btn btn-self" disabled={busy || Boolean(activeTopUp) || !finance.enabled}>{busy ? 'Creating QR…' : activeTopUp ? 'QR attempt still active' : 'Create QR Ph top-up'}</button>
             </form>
             <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-4">
               <p className="text-h3">Current QR attempt</p>
@@ -688,13 +685,36 @@ function BookingRow({
             </div>
           </div>
         </div>
-        <span className="status-pill" data-tone={status.tone}>{status.label}</span>
+        <div className="booking-card-head-actions">
+          <span className="status-pill" data-tone={status.tone}>{status.label}</span>
+          <BookingActionsMenu
+            onCancel={canCancel ? () => void onCancel() : undefined}
+            onEditRequest={booking.status === 'request_sent' && onEditRequest
+              ? () => onEditRequest({
+                  bookingId: booking._id,
+                  hostProfileId: booking.hostProfileId,
+                  hostDisplayName: 'hostDisplayName' in booking ? String(booking.hostDisplayName) : 'Friend Host',
+                  category: booking.category,
+                  mode: booking.mode,
+                  requestedAt: booking.requestedAt,
+                  durationMinutes: booking.durationMinutes,
+                  notes: booking.notes,
+                })
+              : undefined}
+            onReport={() => void onReport()}
+          />
+        </div>
+      </div>
+
+      <div className="booking-plan-context">
+        <MeetingSeam />
+        <span>{status.label}</span>
       </div>
 
       {booking.pricingModel === 'member_wallet_v2' && booking.memberTotalCentavos !== undefined ? (
         <p className="text-meta">
           Booking total: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.memberTotalCentavos)}</strong>
-          {' · '}Service subtotal {formatPhp(booking.serviceSubtotalCentavos ?? 0)} + 15% member booking fee {formatPhp(booking.memberBookingFeeCentavos ?? 0)}.
+          {' · '}Includes service fee.
           {booking.settlementState === 'blocked' && ' Funds are held for admin resolution because this booking has a report.'}
         </p>
       ) : booking.grossPriceCentavos !== undefined && booking.currency === 'PHP' ? (
@@ -713,37 +733,15 @@ function BookingRow({
       )}
 
       <div className="worklist-row-actions">
-          {conversationId && (
-            <Link to="/messages" search={{ conversationId }} className="btn btn-social btn-sm">
-              Open conversation
-            </Link>
-          )}
-          {canComplete && !booking.memberCompletedAt && <button type="button" onClick={onComplete} className="btn btn-neutral btn-sm">Confirm completion</button>}
-          {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Friend Host</span>}
-          {canReview && <ReviewForm onReview={onReview} />}
-          {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
-          {canCancel && <button type="button" onClick={onCancel} className="btn btn-danger btn-sm">Cancel booking</button>}
-          {booking.status === 'request_sent' && onEditRequest && (
-            <button
-              type="button"
-              className="btn btn-self btn-sm"
-              onClick={() => onEditRequest({
-                bookingId: booking._id,
-                hostProfileId: booking.hostProfileId,
-                hostDisplayName: 'hostDisplayName' in booking ? String(booking.hostDisplayName) : 'Friend Host',
-                category: booking.category,
-                mode: booking.mode,
-                requestedAt: booking.requestedAt,
-                durationMinutes: booking.durationMinutes,
-                notes: booking.notes,
-              })}
-            >
-              Edit request
-            </button>
-          )}
-          <button onClick={onReport} className="btn btn-danger btn-sm">
-            Report
-          </button>
+        {conversationId && (
+          <Link to="/messages" search={{ conversationId }} className="btn btn-social btn-sm">
+            Open conversation
+          </Link>
+        )}
+        {canComplete && !booking.memberCompletedAt && <button type="button" onClick={onComplete} className="btn btn-social-quiet btn-sm">Confirm completion</button>}
+        {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Friend Host</span>}
+        {canReview && <ReviewForm onReview={onReview} />}
+        {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
       </div>
     </article>
   )

@@ -9,7 +9,7 @@ export type PrimaryNavigationId = (typeof primaryNavigation)[number]['id']
 
 export function activePrimaryNavigation(pathname: string): PrimaryNavigationId | null {
   if (pathname === '/' || pathname === '/social') return 'home'
-  if (pathname === '/discover' || pathname === '/host-profile') return 'discover'
+  if (pathname === '/discover' || pathname === '/nearby' || pathname === '/host-profile') return 'discover'
   if (pathname === '/messages' || pathname.startsWith('/messages/')) return 'messages'
   if (pathname === '/app' || pathname.startsWith('/app/')) return 'bookings'
   return null
@@ -24,4 +24,5 @@ export function isWorkspacePath(pathname: string) {
     || pathname.startsWith('/messages/')
     || pathname === '/host'
     || pathname.startsWith('/host/')
+    || pathname === '/nearby'
 }

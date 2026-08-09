@@ -1,18 +1,21 @@
 import { SignInButton, useAuth } from '@clerk/react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
-import { ArrowLeft, FileText, Flag, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Send, ShieldCheck, Video, X } from 'lucide-react'
+import { ArrowLeft, CircleCheck, FileText, Flag, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Send, ShieldCheck, Video, X } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
 import { BookingRequestCard } from '../components/BookingRequestCard'
 import { BookingRequestEditor, type EditableBookingRequest } from '../components/BookingRequestEditor'
+import { MessageDeliveryStatus } from '../components/MessageDeliveryStatus'
+import { MessageImageGallery, MessageImageViewer, type MessageImage } from '../components/MessageImages'
 import {
   MAX_CHAT_ATTACHMENTS,
   formatFileSize,
   prepareChatAttachment,
   type PreparedChatAttachment,
 } from '../lib/chatAttachments'
+import { bookingMessagePresentation } from '../lib/messageBookings'
 
 export const Route = createFileRoute('/messages')({
   validateSearch: (search: Record<string, unknown>): { conversationId?: string } => (
@@ -33,6 +36,12 @@ type PendingAttachment = {
   status: 'preparing' | 'ready' | 'error'
   error?: string
 }
+type PendingOutgoingMessage = {
+  body: string
+  attachmentNames: string[]
+  createdAt: number
+  messageId?: Id<'directMessages'>
+}
 
 function MessagesPage() {
   const { isSignedIn } = useAuth()
@@ -45,25 +54,27 @@ function MessagesPage() {
     api.conversations.messages,
     isSignedIn && selectedConversationId ? { conversationId: selectedConversationId } : 'skip',
   )
-  const bookingLastIndex = new Map<string, number>()
-  if (thread) {
-    thread.messages.forEach((message, index) => {
-      if (message.booking) bookingLastIndex.set(message.booking.bookingId, index)
-    })
-  }
+  const { lastIndexByBookingId: bookingLastIndex, floatingBookingIndex, latestBookingStatus } = bookingMessagePresentation(thread?.messages ?? [])
+  const latestBookingEnded = latestBookingStatus === 'completed' || latestBookingStatus === 'review_window' || latestBookingStatus === 'closed'
   const report = useMutation(api.reports.create)
   const decideBooking = useMutation(api.bookings.hostDecision)
   const updateBookingRequest = useMutation(api.bookings.editRequest)
   const markRead = useMutation(api.conversations.markRead)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [pendingOutgoing, setPendingOutgoing] = useState<PendingOutgoingMessage | null>(null)
   const [editingBooking, setEditingBooking] = useState<EditableBookingRequest | null>(null)
+  const [openImage, setOpenImage] = useState<MessageImage | null>(null)
   const editingHost = useQuery(api.hosts.getPublic, editingBooking?.hostProfileId ? { hostProfileId: editingBooking.hostProfileId } : 'skip')
   const threadEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [thread?.messages.length])
+  }, [pendingOutgoing, thread?.messages.length])
+
+  useEffect(() => {
+    setPendingOutgoing(null)
+  }, [selectedConversationId])
 
   useEffect(() => {
     if (isSignedIn && selectedConversationId) {
@@ -75,9 +86,7 @@ function MessagesPage() {
     return (
       <main className="gate-state">
         <div className="gate-state-inner">
-          <p className="eyebrow">Messages</p>
           <h1 className="text-h1 mt-2">Sign in to continue the conversation.</h1>
-          <p className="lede mt-2">Your direct conversations stay between you and the other member and can be reported when needed.</p>
           <SignInButton mode="modal"><button className="btn btn-self mt-5">Sign in</button></SignInButton>
         </div>
       </main>
@@ -87,11 +96,12 @@ function MessagesPage() {
   return (
     <main className="messages-chat" data-thread-open={selectedConversationId ? 'true' : undefined}>
       <aside className="messages-chat-rail" aria-label="Conversations">
+        <div className="messages-rail-heading">
+          <h1>Messages</h1>
+          <p>Private conversations and plan updates</p>
+        </div>
         <ConversationList conversations={conversations} selectedConversationId={selectedConversationId} />
       </aside>
-      <nav className="workspace-mobile-nav" aria-label="Conversations">
-        <ConversationMobileList conversations={conversations} selectedConversationId={selectedConversationId} />
-      </nav>
       <section className="messages-chat-pane" aria-label="Messages">
         {(notice || error) && (
           <div className={error ? 'notice notice-danger mb-4' : 'notice notice-success mb-4'} role={error ? 'alert' : 'status'}>
@@ -117,10 +127,19 @@ function MessagesPage() {
               <ArrowLeft size={18} aria-hidden="true" />
             </button>
             <ProfileAvatar name={thread.conversation.otherDisplayName} imageUrl={thread.conversation.otherProfileImageUrl} />
-            <div className="min-w-0">
-              <h2 className="text-h2">{thread.conversation.otherDisplayName}</h2>
+            <div className="min-w-0 direct-thread-identity">
+              <div className="direct-thread-name-row">
+                <h2 className="text-h2">{thread.conversation.otherDisplayName}</h2>
+                {latestBookingEnded && (
+                  <span className="direct-thread-booking-complete" aria-label="Booking completed" title="Booking completed">
+                    <CircleCheck size={13} strokeWidth={2.4} aria-hidden="true" />
+                    Completed
+                  </span>
+                )}
+              </div>
               <p className="direct-thread-trust"><ShieldCheck size={13} aria-hidden="true" /> Private between members · Messages can be reported</p>
             </div>
+            <Link to="/safety" className="direct-thread-safety-link">Safety</Link>
           </header>
 
           <div className="direct-message-list" aria-live="polite">
@@ -141,7 +160,11 @@ function MessagesPage() {
                     <time dateTime={new Date(message.createdAt).toISOString()}>{formatMessageTime(message.createdAt)}</time>
                   </div>
                 ) : message.booking ? (
-                  <article className="direct-booking" data-own={message.sentByViewer}>
+                  <article
+                    className="direct-booking"
+                    data-own={message.sentByViewer}
+                    data-floating={index === floatingBookingIndex ? 'true' : undefined}
+                  >
                     <BookingRequestCard
                       intro={message.body}
                       booking={message.booking}
@@ -183,11 +206,13 @@ function MessagesPage() {
                   </article>
                 ) : (
                   <article className="direct-message" data-own={message.sentByViewer}>
-                    <div className="direct-message-bubble">
-                      {message.attachments.length > 0 && <MessageAttachments attachments={message.attachments} />}
-                      {message.body && <p className="direct-message-copy whitespace-pre-wrap">{message.body}</p>}
-                      <time dateTime={new Date(message.createdAt).toISOString()}>{formatMessageTime(message.createdAt)}</time>
-                    </div>
+                    <DirectMessageContent
+                      attachments={message.attachments}
+                      body={message.body}
+                      createdAt={message.createdAt}
+                      onOpenImage={setOpenImage}
+                    />
+                    {message.sentByViewer && <MessageDeliveryStatus state="sent" />}
                     <button
                       type="button"
                       className="direct-message-report"
@@ -210,6 +235,18 @@ function MessagesPage() {
                 )}
               </Fragment>
             ))}
+            {pendingOutgoing && !thread.messages.some((message) => message._id === pendingOutgoing.messageId) && (
+              <article className="direct-message" data-own="true" data-pending="true">
+                <div className="direct-message-bubble">
+                  {pendingOutgoing.body && <p className="direct-message-copy whitespace-pre-wrap">{pendingOutgoing.body}</p>}
+                  {pendingOutgoing.attachmentNames.length > 0 && (
+                    <p className="direct-message-pending-files">{pendingOutgoing.attachmentNames.join(', ')}</p>
+                  )}
+                  <time dateTime={new Date(pendingOutgoing.createdAt).toISOString()}>{formatMessageTime(pendingOutgoing.createdAt)}</time>
+                </div>
+                <MessageDeliveryStatus state={pendingOutgoing.messageId ? 'sent' : 'sending'} />
+              </article>
+            )}
             <div ref={threadEndRef} />
           </div>
 
@@ -219,10 +256,16 @@ function MessagesPage() {
             <MessageComposer
               conversationId={thread.conversation._id}
               recipientName={thread.conversation.otherDisplayName}
-              onSent={() => {
-                setError('')
-                setNotice('Message sent.')
+              onSending={(message) => {
+                setNotice('')
+                setPendingOutgoing(message)
               }}
+              onSent={(messageId) => {
+                setError('')
+                setNotice('')
+                setPendingOutgoing((current) => current ? { ...current, messageId } : null)
+              }}
+              onSendFailed={() => setPendingOutgoing(null)}
               onError={(message) => {
                 setNotice('')
                 setError(message)
@@ -245,8 +288,45 @@ function MessagesPage() {
             }}
           />
         )}
+        {openImage && <MessageImageViewer image={openImage} onClose={() => setOpenImage(null)} />}
       </section>
     </main>
+  )
+}
+
+function DirectMessageContent({
+  attachments,
+  body,
+  createdAt,
+  onOpenImage,
+}: {
+  attachments: ThreadAttachment[]
+  body?: string
+  createdAt: number
+  onOpenImage: (image: MessageImage) => void
+}) {
+  const images = attachments.flatMap((attachment) => (
+    attachment.kind === 'image' && attachment.url
+      ? [{ storageId: String(attachment.storageId), url: attachment.url, fileName: attachment.fileName }]
+      : []
+  ))
+  const otherAttachments = attachments.filter((attachment) => attachment.kind !== 'image' || !attachment.url)
+  const hasBubble = Boolean(body || otherAttachments.length > 0)
+
+  return (
+    <div className="direct-message-content" data-images={images.length > 0 ? 'true' : undefined}>
+      {images.length > 0 && <MessageImageGallery images={images} onOpen={onOpenImage} />}
+      {hasBubble && (
+        <div className="direct-message-bubble">
+          {otherAttachments.length > 0 && <MessageAttachments attachments={otherAttachments} />}
+          {body && <p className="direct-message-copy whitespace-pre-wrap">{body}</p>}
+          {images.length === 0 && <time dateTime={new Date(createdAt).toISOString()}>{formatMessageTime(createdAt)}</time>}
+        </div>
+      )}
+      {images.length > 0 && (
+        <time className="direct-message-media-time" dateTime={new Date(createdAt).toISOString()}>{formatMessageTime(createdAt)}</time>
+      )}
+    </div>
   )
 }
 
@@ -254,14 +334,6 @@ function MessageAttachments({ attachments }: { attachments: ThreadAttachment[] }
   return (
     <div className="direct-attachment-grid" data-count={attachments.length}>
       {attachments.map((attachment) => {
-        if (attachment.kind === 'image' && attachment.url) {
-          return (
-            <a key={attachment.storageId} href={attachment.url} target="_blank" rel="noreferrer" className="direct-attachment-media" aria-label={`Open ${attachment.fileName}`}>
-              <img src={attachment.url} alt={attachment.fileName} loading="lazy" />
-              <AttachmentMeta attachment={attachment} />
-            </a>
-          )
-        }
         if (attachment.kind === 'video' && attachment.url) {
           return (
             <div key={attachment.storageId} className="direct-attachment-media">
@@ -293,12 +365,16 @@ function AttachmentMeta({ attachment }: { attachment: ThreadAttachment }) {
 function MessageComposer({
   conversationId,
   recipientName,
+  onSending,
   onSent,
+  onSendFailed,
   onError,
 }: {
   conversationId: Id<'directConversations'>
   recipientName: string
-  onSent: () => void
+  onSending: (message: PendingOutgoingMessage) => void
+  onSent: (messageId: Id<'directMessages'>) => void
+  onSendFailed: () => void
   onError: (message: string) => void
 }) {
   const generateUpload = useMutation(api.conversations.generateAttachmentUploadUrl)
@@ -373,6 +449,11 @@ function MessageComposer({
         if (!canSend) return
         setSending(true)
         onError('')
+        onSending({
+          body: body.trim(),
+          attachmentNames: attachments.map((attachment) => attachment.source.name),
+          createdAt: Date.now(),
+        })
         const grants: Array<{ uploadId: Id<'directMessageUploads'>; storageId?: Id<'_storage'>; claimed?: boolean }> = []
         try {
           for (const attachment of attachments) {
@@ -396,7 +477,7 @@ function MessageComposer({
               compressionPercent: attachment.prepared.compressionPercent,
             })
           }
-          await sendMessage({
+          const messageId = await sendMessage({
             conversationId,
             body,
             attachmentUploadIds: grants.map((grant) => grant.uploadId),
@@ -408,12 +489,13 @@ function MessageComposer({
           setAttachments([])
           setBody('')
           if (fileInputRef.current) fileInputRef.current.value = ''
-          onSent()
+          onSent(messageId)
         } catch (caught) {
           await Promise.allSettled(grants.filter((grant) => !grant.claimed).map((grant) => discardUpload({
             uploadId: grant.uploadId,
             storageId: grant.storageId,
           })))
+          onSendFailed()
           onError(caught instanceof Error ? caught.message : 'Message could not be sent.')
         } finally {
           setSending(false)
@@ -493,28 +575,6 @@ function AttachmentPreview({ attachment }: { attachment: PendingAttachment }) {
   return <FileText size={18} aria-hidden="true" />
 }
 
-function ConversationMobileList({
-  conversations,
-  selectedConversationId,
-}: {
-  conversations: Conversation[] | undefined
-  selectedConversationId?: Id<'directConversations'>
-}) {
-  if (!conversations?.length) return <Link to="/discover" className="workspace-mobile-nav-link">Find people</Link>
-  return conversations.map((conversation) => (
-    <Link
-      key={conversation._id}
-      to="/messages"
-      search={{ conversationId: conversation._id }}
-      className={`workspace-mobile-nav-link${conversation._id === selectedConversationId ? ' is-active' : ''}`}
-    >
-      <ProfileAvatar name={conversation.otherDisplayName} imageUrl={conversation.otherProfileImageUrl} />
-      {conversation.otherDisplayName}
-      {conversation.unreadCount > 0 && <span className="conversation-mobile-unread tabular" aria-label={`${conversation.unreadCount} unread`}>{conversation.unreadCount}</span>}
-    </Link>
-  ))
-}
-
 function ConversationList({
   conversations,
   selectedConversationId,
@@ -524,7 +584,7 @@ function ConversationList({
 }) {
   return (
     <div className="conversation-rail">
-      <div className="rail-section-label">Conversations</div>
+      <div className="rail-section-label">Recent</div>
       {conversations === undefined && <p className="text-meta px-2">Loading…</p>}
       {conversations?.length === 0 && <p className="text-meta px-2">No conversations yet.</p>}
       {conversations?.map((conversation) => (
@@ -544,11 +604,18 @@ function ConversationList({
                 ? `${conversation.lastMessageSentByViewer ? 'You: ' : ''}${conversation.lastMessageAttachmentCount === 1 ? 'Sent a file' : `Sent ${conversation.lastMessageAttachmentCount} files`}`
                 : 'Start a conversation'}</span>
           </span>
-          {conversation.unreadCount > 0 && (
-            <span className="conversation-unread-badge tabular" aria-label={`${conversation.unreadCount} unread message${conversation.unreadCount === 1 ? '' : 's'}`}>
-              {conversation.unreadCount}
-            </span>
-          )}
+          <span className="conversation-card-trailing">
+            {conversation.lastMessageCreatedAt !== undefined && (
+              <time dateTime={new Date(conversation.lastMessageCreatedAt).toISOString()}>
+                {formatConversationListTime(conversation.lastMessageCreatedAt)}
+              </time>
+            )}
+            {conversation.unreadCount > 0 && (
+              <span className="conversation-unread-badge tabular" aria-label={`${conversation.unreadCount} unread message${conversation.unreadCount === 1 ? '' : 's'}`}>
+                {conversation.unreadCount}
+              </span>
+            )}
+          </span>
         </Link>
       ))}
       <Link to="/discover" className="btn btn-social btn-sm mt-3">Find people</Link>
@@ -589,6 +656,19 @@ function formatMessageTime(timestamp: number) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(timestamp)
+}
+
+function formatConversationListTime(timestamp: number) {
+  const date = new Date(timestamp)
+  const today = new Date()
+  const time = new Intl.DateTimeFormat('en-PH', { hour: 'numeric', minute: '2-digit' }).format(date)
+  if (date.toDateString() === today.toDateString()) return time
+  const day = new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric',
+  }).format(date)
+  return `${day} · ${time}`
 }
 
 function messageDayGroupChanged(messages: Array<{ createdAt: number }>, index: number) {

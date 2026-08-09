@@ -56,9 +56,7 @@ function OnboardingPage() {
     return (
       <main className="onboarding-page">
         <div className="onboarding-intro">
-          <p className="eyebrow">Welcome guide</p>
           <h1 className="text-display mt-4">What would you like to do together?</h1>
-          <p className="lede mt-4">Sign in to tell us what brings you here, create the profile people will see, and understand what happens before a booking.</p>
           <SignInButton mode="modal">
             <button className="btn btn-self btn-lg mt-6">Sign in to continue</button>
           </SignInButton>
@@ -153,9 +151,7 @@ function OnboardingPage() {
   return (
     <main className="onboarding-page">
       <header className="onboarding-intro">
-        <p className="eyebrow">Welcome guide</p>
         <h1 className="text-h1 mt-3">Let’s start with what brings you here.</h1>
-        <p className="lede mt-2">Four short steps set up your profile and show what happens next.</p>
       </header>
 
       <ol className="onboarding-progress" aria-label="Onboarding progress">

@@ -1,6 +1,7 @@
 import { formatPhp, type BookingStatus } from '@lets-be-friends/shared'
 import { useState } from 'react'
 import type { Id } from '../../convex/_generated/dataModel'
+import { MeetingSeam } from './AppNavigation'
 
 export type BookingRequestView = {
   bookingId: Id<'bookings'>
@@ -53,7 +54,7 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
   }
 
   return (
-    <div className="booking-request-card">
+    <div className="booking-request-card" data-density={pending ? 'full' : 'compact'}>
       <div className="booking-request-card-head">
         <div className="min-w-0">
           <p className="text-h3">{booking.category}</p>
@@ -63,39 +64,44 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
             <span className="tabular">{formatBookingDate(booking.requestedAt)}</span>
             <span className="dot" aria-hidden="true" />
             <span>{formatDuration(booking.durationMinutes)}</span>
-            <span className="dot" aria-hidden="true" />
-            <span>with {booking.hostDisplayName}</span>
+            {pending && (
+              <>
+                <span className="dot" aria-hidden="true" />
+                <span>with {booking.hostDisplayName}</span>
+              </>
+            )}
           </div>
         </div>
         <span className="status-pill" data-tone={status.tone}>{status.label}</span>
       </div>
 
-      {intro && <p className="booking-request-card-body">{intro}</p>}
+      {pending && (
+        <>
+          <div className="booking-plan-context">
+            <MeetingSeam />
+            <span>{status.label}</span>
+          </div>
 
-      {booking.memberTotalCentavos !== undefined && (
-        <p className="text-meta">
-          {isRequester ? (
-            <>
-              Member total <strong className="tabular">{formatPhp(booking.memberTotalCentavos)}</strong>
-              {' · '}service subtotal {formatPhp(booking.serviceSubtotalCentavos ?? 0)} + {formatPhp(booking.memberBookingFeeCentavos ?? 0)} member booking fee.
-            </>
-          ) : (
-            <>
-              Your entitlement <strong className="tabular">{formatPhp(booking.hostEntitlementCentavos ?? 0)}</strong>
-              {' · '}the member paid {formatPhp(booking.memberTotalCentavos)} total, which includes a booking fee.
-            </>
+          {intro && <p className="booking-request-card-body">{intro}</p>}
+
+          {booking.memberTotalCentavos !== undefined && (
+            <p className="text-meta">
+              {isRequester ? (
+                <>
+                  Booking total <strong className="tabular">{formatPhp(booking.memberTotalCentavos)}</strong>
+                  {' · '}Includes service fee.
+                </>
+              ) : (
+                <>
+                  Your entitlement <strong className="tabular">{formatPhp(booking.hostEntitlementCentavos ?? 0)}</strong>
+                  {' · '}the member paid {formatPhp(booking.memberTotalCentavos)} total, which includes the service fee.
+                </>
+              )}
+            </p>
           )}
-        </p>
-      )}
 
-      {booking.notes && <p className="text-meta">Note: {booking.notes}</p>}
-
-      {booking.status === 'accepted' && (
-        <p className="booking-request-card-next">
-          {isRequester
-            ? 'Next: meet for the session, confirm completion when it ends, then leave a review.'
-            : 'Next: host the session, record start evidence, then confirm completion when it ends.'}
-        </p>
+          {booking.notes && <p className="text-meta">Note: {booking.notes}</p>}
+        </>
       )}
 
       {actionError && <p className="booking-request-card-error" role="alert">{actionError}</p>}
@@ -103,7 +109,7 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
       <div className="booking-request-card-actions">
         {canDecide && (
           <>
-            <button type="button" className="btn btn-neutral btn-sm" disabled={busy} onClick={() => void decide('accepted')}>
+            <button type="button" className="btn btn-social btn-sm" disabled={busy} onClick={() => void decide('accepted')}>
               {busy ? 'Saving…' : 'Accept request'}
             </button>
             <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void decide('declined')}>

@@ -1,12 +1,10 @@
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Heart, LayoutGrid, MapPin, Search, SlidersHorizontal, Star, X } from 'lucide-react'
+import { ArrowUpRight, Heart, LayoutGrid, MapPin, Search, SlidersHorizontal, Star, X } from 'lucide-react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
-import { ApproximateLocationMap } from '../components/ApproximateLocationMap'
-import { nearbyRadiusOptions, type Coordinates, type NearbyRadiusKm } from '../lib/geo'
 
 export const Route = createFileRoute('/discover')({ component: DiscoverPage })
 
@@ -38,21 +36,13 @@ type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 
 function DiscoverPage() {
   const { isSignedIn } = useAuth()
-  const navigate = useNavigate()
-  const [nearby, setNearby] = useState<Coordinates | null>(null)
-  const [radiusKm, setRadiusKm] = useState<NearbyRadiusKm>(25)
-  const [originMode, setOriginMode] = useState<'device' | 'custom' | null>(null)
-  const [customOriginLabel, setCustomOriginLabel] = useState('')
-  const [locationStatus, setLocationStatus] = useState('Choose your current location or place a travel pin. Search origins stay in this browser session.')
-  const hosts = (useQuery(api.hosts.listApproved, nearby ? { ...nearby, radiusKm } : {}) ?? []) as DiscoveryHost[]
+  const hosts = (useQuery(api.hosts.listApproved, {}) ?? []) as DiscoveryHost[]
   const toggleFollow = useMutation(api.social.toggleFollow)
   const [mode, setMode] = useState<ModeFilter>('all')
   const [category, setCategory] = useState<string | null>(null)
   const [strength, setStrength] = useState<string | null>(null)
   const [bookableOnly, setBookableOnly] = useState(false)
   const [query, setQuery] = useState('')
-  const [nearbyOpen, setNearbyOpen] = useState(false)
-  const [mapExpanded, setMapExpanded] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const categoryStripRef = useRef<HTMLDivElement>(null)
@@ -80,29 +70,10 @@ function DiscoverPage() {
     })
   }, [hosts, mode, category, strength, bookableOnly, query])
 
-  const mapPeople = useMemo(() => {
-    if (!nearby) return []
-    return filtered
-      .filter((host) => typeof host.latitude === 'number' && typeof host.longitude === 'number')
-      .map((host) => ({
-        key: host._id,
-        latitude: host.latitude!,
-        longitude: host.longitude!,
-        imageUrl: host.profileImageUrl,
-        name: host.displayName,
-        city: host.city,
-        intro: host.intro,
-        rating: host.rating,
-        reviewCount: host.reviewCount,
-        strengths: host.strengths,
-        status: host.demo ? ('demo' as const) : host.bookable ? ('verified' as const) : ('awaiting' as const),
-      }))
-  }, [filtered, nearby])
-
   const verifiedCount = filtered.filter((host) => host.bookable && !host.demo).length
   const demoCount = filtered.length - verifiedCount
   const moreFilterCount = strength ? 1 : 0
-  const anyFiltered = mode !== 'all' || category !== null || strength !== null || bookableOnly || nearby !== null || query.trim() !== ''
+  const anyFiltered = mode !== 'all' || category !== null || strength !== null || bookableOnly || query.trim() !== ''
 
   const clearAllFilters = () => {
     setMode('all')
@@ -110,10 +81,6 @@ function DiscoverPage() {
     setStrength(null)
     setBookableOnly(false)
     setQuery('')
-    setNearby(null)
-    setOriginMode(null)
-    setCustomOriginLabel('')
-    setLocationStatus('Nearby search cleared. Search origins are never saved.')
   }
 
   useEffect(() => {
@@ -236,12 +203,8 @@ function DiscoverPage() {
     <main className="marketing-page-wide discover-page">
       <header className="discover-page-header">
         <div>
-          <p className="eyebrow">Explore together</p>
-          <h1 className="text-display mt-3">What are you up for?</h1>
-          <p className="lede mt-2">
-            Start with the kind of company you want, then meet people whose interests,
-            availability, and boundaries fit the moment.
-          </p>
+          <h1 className="text-h1">Explore people</h1>
+          <p className="text-meta mt-1">Search by activity, Strength, city, or name.</p>
         </div>
         <p className="text-meta tabular">
           {filtered.length} {filtered.length === 1 ? 'person' : 'people'}
@@ -267,7 +230,7 @@ function DiscoverPage() {
               </button>
             )}
           </div>
-          <div className="mode-pillgroup" role="tablist" aria-label="Mode">
+          <div className="mode-pillgroup" role="group" aria-label="Mode">
             <ModeChip value="all" current={mode} onChange={setMode}>Anywhere</ModeChip>
             <ModeChip value="online" current={mode} onChange={setMode}>Online</ModeChip>
             <ModeChip value="in_person" current={mode} onChange={setMode}>In-person</ModeChip>
@@ -290,7 +253,7 @@ function DiscoverPage() {
               aria-controls="categories-dialog"
             >
               <LayoutGrid size={14} aria-hidden="true" />
-              <span>All activities</span>
+              <span>Things to do</span>
               {category !== null && <span className="filters-trigger-badge tabular">1</span>}
             </button>
             <button
@@ -301,14 +264,14 @@ function DiscoverPage() {
               aria-controls="discover-filters-drawer"
             >
               <SlidersHorizontal size={14} aria-hidden="true" />
-              <span>More filters</span>
+              <span>Strengths</span>
               {moreFilterCount > 0 && <span className="filters-trigger-badge tabular">{moreFilterCount}</span>}
             </button>
           </div>
         </div>
 
         <div className="category-strip-wrap" ref={categoryWrapRef} data-start="true" data-end="false">
-          <div className="category-strip" ref={categoryStripRef} role="tablist" aria-label="Activity category">
+          <div className="category-strip" ref={categoryStripRef} role="group" aria-label="Activity category">
             <ToggleChip selected={category === null} onClick={() => setCategory(null)}>Everything</ToggleChip>
             {activityCategories.map((value) => (
               <ToggleChip
@@ -332,137 +295,17 @@ function DiscoverPage() {
         )}
       </div>
 
-      <details className="nearby-discovery-panel nearby-discovery-details" open={nearbyOpen} onToggle={(event) => setNearbyOpen((event.currentTarget as HTMLDetailsElement).open)}>
-        <summary className="nearby-discovery-summary">
-          <span>
-            <span className="eyebrow">Nearby is optional</span>
-            <strong id="nearby-discovery-title">Looking for someone close by?</strong>
-            <small>Choose a broad search area when distance matters. Your origin stays in this browser session.</small>
-          </span>
-          <span className="nearby-summary-action">Choose nearby</span>
-        </summary>
-        <div className="nearby-discovery-copy">
-          <div>
-            <p className="eyebrow">Your search area</p>
-            <h2 className="text-h2 mt-1">Choose where you want to meet</h2>
-            <p className="text-meta mt-1 max-w-[62ch]">
-              Use your current location or place a travel pin. Friend Host pins and approximate areas are never shown.
-            </p>
-          </div>
-          <div className="nearby-origin-actions">
-            <button
-              type="button"
-              className="btn btn-social btn-sm"
-              onClick={() => {
-                if (!navigator.geolocation) {
-                  setLocationStatus('Location is not available in this browser. Use a travel pin instead.')
-                  return
-                }
-                setLocationStatus('Asking for your current browser location…')
-                navigator.geolocation.getCurrentPosition(
-                  (position) => {
-                    setNearbyOpen(true)
-                    setNearby({
-                      latitude: position.coords.latitude,
-                      longitude: position.coords.longitude,
-                    })
-                    setOriginMode('device')
-                    setLocationStatus(`Showing opted-in hosts within ${radiusKm} km. Online-only hosts appear after nearby matches.`)
-                  },
-                  () => setLocationStatus('Location permission was not granted. Use a travel pin instead.'),
-                  { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
-                )
-              }}
-            >
-              <MapPin size={14} aria-hidden="true" />
-              Use current location
-            </button>
-            <button
-              type="button"
-              className="btn btn-social-quiet btn-sm"
-              onClick={() => {
-                setNearbyOpen(true)
-                setOriginMode('custom')
-                setLocationStatus(nearby
-                  ? 'Drag or click the map to reposition your travel pin.'
-                  : 'Pan and zoom the map, then click to place a travel pin.')
-              }}
-            >
-              Choose travel pin
-            </button>
-            {nearby && (
-              <button
-                type="button"
-                className="btn btn-neutral btn-sm"
-                onClick={() => {
-                  setNearby(null)
-                  setOriginMode(null)
-                  setCustomOriginLabel('')
-                  setLocationStatus('Nearby search cleared. Search origins are never saved.')
-                }}
-              >
-                Clear nearby
-              </button>
-            )}
-          </div>
+      <section className="nearby-search-entry" aria-labelledby="nearby-search-entry-title">
+        <div>
+          <span className="eyebrow">Nearby is optional</span>
+          <h2 id="nearby-search-entry-title">Looking for someone close by?</h2>
+          <p>Open a dedicated map workspace to choose an area, adjust filters, and review opted-in Friend Hosts.</p>
         </div>
-
-        <div className="nearby-radius-row" role="group" aria-label="Nearby radius">
-          <span className="label">Radius</span>
-          {nearbyRadiusOptions.map((value) => (
-            <button
-              type="button"
-              key={value}
-              className="chip nearby-radius-chip"
-              data-selected={radiusKm === value}
-              onClick={() => {
-                setRadiusKm(value)
-                if (nearby) setLocationStatus(`Showing opted-in hosts within ${value} km. Online-only hosts appear after nearby matches.`)
-              }}
-            >
-              {value} km
-            </button>
-          ))}
-        </div>
-
-        {originMode === 'custom' && (
-          <label className="field-row nearby-origin-label">
-            <span className="label">Travel place label <span className="label-aux">optional, stays local</span></span>
-            <input
-              className="field"
-              value={customOriginLabel}
-              onChange={(event) => setCustomOriginLabel(event.currentTarget.value)}
-              placeholder="For example, Cebu trip"
-            />
-          </label>
-        )}
-
-        <ApproximateLocationMap
-          location={nearby}
-          radiusKm={radiusKm}
-          tone="social"
-          pinnable={originMode === 'custom'}
-          people={mapPeople}
-          expanded={mapExpanded}
-          onToggleExpand={() => setMapExpanded((value) => !value)}
-          onSelectPerson={(key) => navigate({ to: '/host-profile', search: { hostProfileId: key } })}
-          onChange={(location) => {
-            setNearbyOpen(true)
-            setNearby(location)
-            setOriginMode('custom')
-            setLocationStatus(`Travel pin updated. Showing opted-in hosts within ${radiusKm} km.`)
-          }}
-          title={nearby
-            ? `${originMode === 'custom' && customOriginLabel.trim() ? customOriginLabel.trim() : originMode === 'device' ? 'Current location' : 'Selected origin'} · ${radiusKm} km`
-            : 'Choose a search origin'}
-          description={nearby
-            ? originMode === 'custom'
-              ? 'Click, drag, or use the N/W/S/E controls to reposition your pin.'
-              : 'Pan the map to browse. Choose a travel pin to reposition the origin.'
-            : 'Pan and zoom, then click the map to place a travel pin.'}
-        />
-        <p className="text-meta" role="status" aria-live="polite">{locationStatus}</p>
-      </details>
+        <Link to="/nearby" className="btn btn-social btn-sm">
+          <MapPin size={14} aria-hidden="true" />
+          Open nearby search
+        </Link>
+      </section>
 
       <section aria-label="Results" className="mt-5">
         {filtered.length === 0 ? (
@@ -505,13 +348,13 @@ function DiscoverPage() {
           >
             <header className="filters-drawer-header">
               <div>
-                <p className="eyebrow">Filter</p>
-            <h2 id="categories-dialog-title" className="text-h2 mt-1">Things you can do together</h2>
+                <p className="eyebrow">Things to do</p>
+                <h2 id="categories-dialog-title" className="text-h2 mt-1">Choose an activity</h2>
               </div>
               <button
                 type="button"
                 className="social-icon-button"
-                aria-label="Close categories"
+                aria-label="Close Things to do"
                 onClick={() => setCategoriesOpen(false)}
               >
                 <X size={16} />
@@ -559,13 +402,13 @@ function DiscoverPage() {
           >
             <header className="filters-drawer-header">
               <div>
-                <p className="eyebrow">Filters</p>
-                <h2 id="discover-filters-title" className="text-h2 mt-1">More filters</h2>
+                <p className="eyebrow">Strengths</p>
+                <h2 id="discover-filters-title" className="text-h2 mt-1">What someone brings</h2>
               </div>
               <button
                 type="button"
                 className="social-icon-button"
-                aria-label="Close filters"
+                aria-label="Close Strengths"
                 onClick={() => setFiltersOpen(false)}
               >
                 <X size={16} />
@@ -573,7 +416,7 @@ function DiscoverPage() {
             </header>
 
             <div className="filters-drawer-body">
-              <FilterSection title="Strength">
+              <FilterSection title="Choose a Strength">
                 <ToggleChip selected={strength === null} onClick={() => setStrength(null)}>Any</ToggleChip>
                 {friendStrengths.map((value) => (
                   <ToggleChip
@@ -608,13 +451,29 @@ function HostRow({ host, signedIn, onFollow }: { host: DiscoveryHost; signedIn: 
   return (
     <article className="discover-host-row" data-nearby={hasDistance} role="listitem">
       <div className="discover-host-avatar">
-        <ProfilePhoto imageUrl={host.profileImageUrl} name={host.displayName} size="lg" />
+        <Link
+          to="/host-profile"
+          search={{ hostProfileId: host._id }}
+          className="discover-host-avatar-link"
+          aria-label={`View ${host.displayName}'s profile`}
+        >
+          <ProfilePhoto imageUrl={host.profileImageUrl} name={host.displayName} size="lg" />
+        </Link>
       </div>
 
       <div className="discover-host-main">
         <header className="discover-host-identity">
           <div className="discover-host-name-row">
-            <h2>{host.displayName}</h2>
+            <h2>
+              <Link
+                to="/host-profile"
+                search={{ hostProfileId: host._id }}
+                className="discover-host-name-link"
+              >
+                <span>{host.displayName}</span>
+                <ArrowUpRight size={13} aria-hidden="true" />
+              </Link>
+            </h2>
             <TrustChip state={host.demo ? 'demo' : host.bookable ? 'verified' : 'awaiting'} />
           </div>
           <div className="discover-host-context">
@@ -645,8 +504,8 @@ function HostRow({ host, signedIn, onFollow }: { host: DiscoveryHost; signedIn: 
         </div>
 
         <div className="discover-host-actions">
-          <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-neutral btn-sm">
-            See their ideas
+          <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
+            View fit and ideas
           </Link>
           {signedIn ? (
             <button
@@ -719,6 +578,7 @@ function ModeChip<T extends ModeFilter>({
       type="button"
       className="chip"
       data-selected={current === value}
+      aria-pressed={current === value}
       onClick={() => onChange(value)}
     >
       {children}
@@ -728,7 +588,7 @@ function ModeChip<T extends ModeFilter>({
 
 function ToggleChip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" className="chip" data-selected={selected} onClick={onClick}>
+    <button type="button" className="chip" data-selected={selected} aria-pressed={selected} onClick={onClick}>
       {children}
     </button>
   )

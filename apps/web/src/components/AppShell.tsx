@@ -86,8 +86,6 @@ export function Footer() {
 
 type WorkspaceShellProps = {
   title: string
-  eyebrow?: string
-  description?: React.ReactNode
   status?: React.ReactNode
   actions?: React.ReactNode
   toolbar?: React.ReactNode
@@ -100,8 +98,6 @@ type WorkspaceShellProps = {
 
 export function WorkspaceShell({
   title,
-  eyebrow,
-  description,
   status,
   actions,
   toolbar,
@@ -113,16 +109,11 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   return (
     <main className="workspace" data-variant={variant}>
-      <aside className="rail" aria-label={railLabel ?? 'Workspace navigation'}>
-        {rail}
-      </aside>
       <div className="workspace-main">
         <div className="workspace-header">
           <div className="workspace-heading">
-            {eyebrow && <p className="eyebrow">{eyebrow}</p>}
             {variant === 'bookings' && <MeetingSeam />}
             <h1 className="text-h1 mt-2">{title}</h1>
-            {description && <p className="lede mt-2 max-w-[64ch]">{description}</p>}
             {status && <div className="workspace-status">{status}</div>}
           </div>
           {actions && <div className="workspace-actions">{actions}</div>}
@@ -131,6 +122,9 @@ export function WorkspaceShell({
         {toolbar && <div className="workspace-toolbar">{toolbar}</div>}
         <div className="workspace-body">{children}</div>
       </div>
+      <aside className="rail" aria-label={railLabel ?? 'Workspace navigation'}>
+        {rail}
+      </aside>
     </main>
   )
 }

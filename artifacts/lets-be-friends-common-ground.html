@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Common Ground: a clean-sheet UI direction for Let's Be Friends</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: #f6f6f6;
+      color: #171717;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    a { color: inherit; }
+
+    a:focus-visible {
+      outline: 3px solid #1093ed;
+      border-radius: 3px;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2, h3 { font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; letter-spacing: -0.035em; }
+    h1 { max-width: 900px; margin-bottom: 20px; font-size: clamp(2.4rem, 6vw, 5.7rem); line-height: 0.95; }
+    h2 { margin-bottom: 14px; font-size: clamp(1.7rem, 3vw, 2.7rem); line-height: 1.05; }
+    h3 { margin-bottom: 8px; font-size: 1.08rem; line-height: 1.25; }
+    p { margin-bottom: 14px; }
+
+    .wrap { width: min(1180px, calc(100% - 40px)); margin-left: auto; margin-right: auto; }
+    .section { padding-top: clamp(56px, 8vw, 96px); padding-bottom: clamp(56px, 8vw, 96px); border-top: 1px solid #d8d8d8; }
+    .section:first-of-type { border-top: 0; }
+    .section-head { display: grid; grid-template-columns: minmax(0, 0.75fr) minmax(260px, 0.45fr); gap: 32px; align-items: end; margin-bottom: 34px; }
+    .section-head p { margin: 0; color: #666666; }
+
+    .eyebrow {
+      margin-bottom: 12px;
+      color: #666666;
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .hero { padding-top: clamp(54px, 10vw, 120px); padding-bottom: 64px; }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 48px; align-items: end; }
+    .hero-lede { max-width: 760px; color: #666666; font-size: clamp(1.05rem, 2vw, 1.35rem); line-height: 1.55; }
+    .hero-aside { border-top: 4px solid #171717; padding-top: 16px; }
+    .hero-aside strong { display: block; margin-bottom: 7px; font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; font-size: 1.2rem; }
+    .hero-aside p { margin: 0; color: #666666; font-size: 0.9rem; }
+
+    .status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    .status {
+      display: inline-flex;
+      min-height: 28px;
+      align-items: center;
+      border: 1px solid #d8d8d8;
+      border-radius: 999px;
+      background: #ffffff;
+      padding: 4px 10px;
+      color: #666666;
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+    .status.recommend { border-color: #171717; color: #171717; }
+
+    .decision {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+      margin-top: 40px;
+      border: 1px solid #d8d8d8;
+      border-radius: 14px;
+      background: #ffffff;
+      padding: 24px;
+      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.07);
+    }
+    .decision-mark {
+      display: grid;
+      width: 48px;
+      height: 48px;
+      place-items: center;
+      border-radius: 50%;
+      background: #171717;
+      color: #ffffff;
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-weight: 800;
+    }
+    .decision strong { display: block; margin-bottom: 5px; font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; font-size: 1.28rem; }
+    .decision p { margin: 0; color: #666666; }
+
+    .plan-line { display: grid; grid-template-columns: 12px minmax(48px, 1fr) 12px; align-items: center; width: 100%; }
+    .plan-line .node { width: 12px; height: 12px; border-radius: 50%; }
+    .plan-line .node.self { background: #1093ed; }
+    .plan-line .node.social { background: #c1519c; }
+    .plan-line .track { display: grid; height: 2px; place-items: center; background: #a9a9a9; }
+    .plan-line .checkpoint { display: block; width: 7px; height: 7px; border: 2px solid #ffffff; background: #171717; transform: rotate(45deg); }
+    .signature { margin-top: 32px; border-radius: 14px; background: #171717; padding: 26px; color: #ffffff; }
+    .signature-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 30px; align-items: center; }
+    .signature p { margin: 8px 0 0; color: #cfcfcf; }
+    .signature .plan-line .track { background: #6e6e6e; }
+    .signature .plan-line .checkpoint { border-color: #171717; background: #ffffff; }
+    .signature-labels { display: flex; justify-content: space-between; margin-top: 10px; color: #cfcfcf; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.68rem; text-transform: uppercase; }
+
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .card { border: 1px solid #d8d8d8; border-radius: 14px; background: #ffffff; padding: 22px; }
+    .card p:last-child { margin-bottom: 0; }
+    .card-kicker { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+    .brand-tag { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    .evidence-count { color: #8a8a8a; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.68rem; }
+    .take { border-top: 3px solid #1093ed; }
+    .adapt { border-top: 3px solid #c1519c; }
+    .reject { border-top: 3px solid #b52e35; }
+    .take ul, .adapt ul, .reject ul, .check-list, .plain-list { margin: 14px 0 0; padding-left: 18px; }
+    li + li { margin-top: 8px; }
+
+    .research-card { display: flex; min-height: 100%; flex-direction: column; }
+    .research-card .source-note { margin-top: auto; padding-top: 18px; color: #8a8a8a; font-size: 0.76rem; }
+    .research-card .source-note a { color: #666666; }
+
+    .matrix { overflow: hidden; border: 1px solid #d8d8d8; border-radius: 14px; background: #ffffff; }
+    .matrix-row { display: grid; grid-template-columns: 0.9fr 1.2fr 1.2fr 1.35fr; }
+    .matrix-row > div { min-width: 0; padding: 15px 16px; border-top: 1px solid #d8d8d8; }
+    .matrix-row > div + div { border-left: 1px solid #d8d8d8; }
+    .matrix-row:first-child > div { border-top: 0; background: #171717; color: #ffffff; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .matrix-row strong { font-size: 0.9rem; }
+    .matrix-row p { margin: 4px 0 0; color: #666666; font-size: 0.84rem; line-height: 1.45; }
+
+    .concept-stage { border: 1px solid #a9a9a9; border-radius: 18px; background: #ededed; padding: 16px; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.07); }
+    .concept-label { margin-bottom: 10px; color: #666666; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .app-window { overflow: hidden; border: 1px solid #bcbcbc; border-radius: 12px; background: #ffffff; }
+    .app-top { display: grid; grid-template-columns: 208px minmax(0, 1fr) 240px; height: 52px; align-items: center; border-bottom: 1px solid #d8d8d8; padding-left: 14px; padding-right: 14px; }
+    .app-brand { display: flex; align-items: center; gap: 8px; font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; font-size: 0.88rem; font-weight: 750; }
+    .logo-mark { display: grid; grid-template-columns: 8px 8px; gap: 2px; transform: rotate(-5deg); }
+    .logo-mark i { display: block; width: 8px; height: 13px; border-radius: 4px 4px 2px 2px; }
+    .logo-mark i:first-child { background: #1093ed; }
+    .logo-mark i:last-child { background: #c1519c; }
+    .search-static { justify-self: center; width: min(360px, 90%); border: 1px solid #d8d8d8; border-radius: 999px; background: #f6f6f6; padding: 7px 13px; color: #8a8a8a; font-size: 0.72rem; }
+    .top-meta { justify-self: end; color: #666666; font-size: 0.7rem; }
+    .app-body { display: grid; grid-template-columns: 208px minmax(0, 1fr) 240px; min-height: 600px; }
+    .side-nav { border-right: 1px solid #d8d8d8; background: #fafafa; padding: 14px 10px; }
+    .nav-mini { display: flex; min-height: 36px; align-items: center; gap: 10px; border-radius: 8px; padding: 7px 9px; color: #666666; font-size: 0.75rem; font-weight: 650; }
+    .nav-mini + .nav-mini { margin-top: 3px; }
+    .nav-mini.active { background: #eeeeee; color: #171717; }
+    .nav-icon { display: grid; width: 20px; height: 20px; place-items: center; border: 1px solid #a9a9a9; border-radius: 6px; font-size: 0.58rem; }
+    .nav-mini.book .nav-icon { border-color: #c1519c; color: #c1519c; }
+    .side-note { margin: 22px 8px 0; border-top: 1px solid #d8d8d8; padding-top: 14px; color: #8a8a8a; font-size: 0.64rem; line-height: 1.5; }
+    .feed { min-width: 0; background: #f6f6f6; padding: 18px 20px 30px; }
+    .feed-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+    .feed-head strong { font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; font-size: 1.1rem; }
+    .feed-tabs { display: flex; gap: 6px; color: #666666; font-size: 0.64rem; }
+    .feed-tabs span { border-radius: 999px; padding: 5px 8px; }
+    .feed-tabs .active { background: #171717; color: #ffffff; }
+    .composer-static { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 9px; align-items: center; margin-bottom: 12px; border: 1px solid #d8d8d8; border-radius: 12px; background: #ffffff; padding: 10px; }
+    .avatar { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%; background: #171717; color: #ffffff; font-size: 0.62rem; font-weight: 800; }
+    .composer-copy { color: #8a8a8a; font-size: 0.7rem; }
+    .intent-label { border: 1px solid #c1519c; border-radius: 999px; padding: 4px 7px; color: #c1519c; font-size: 0.58rem; font-weight: 750; }
+    .post { border: 1px solid #d8d8d8; border-radius: 12px; background: #ffffff; padding: 13px; }
+    .post + .post { margin-top: 10px; }
+    .post-author { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 9px; align-items: center; }
+    .post-name { font-size: 0.72rem; font-weight: 750; }
+    .post-meta { color: #8a8a8a; font-size: 0.58rem; }
+    .trust-badge { border: 1px solid #d8d8d8; border-radius: 999px; padding: 4px 6px; color: #666666; font-size: 0.55rem; }
+    .post-copy { margin: 11px 0; font-size: 0.72rem; line-height: 1.5; }
+    .photo-strip { display: grid; height: 100px; place-items: center; border-radius: 8px; background: #dcdcdc; color: #666666; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.6rem; }
+    .reason { margin-top: 8px; color: #8a8a8a; font-size: 0.56rem; }
+    .post-actions { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 10px; border-top: 1px solid #d8d8d8; padding-top: 8px; color: #666666; font-size: 0.6rem; text-align: center; }
+    .plan-card { border-left: 3px solid #c1519c; }
+    .mini-plan { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; margin-top: 10px; border-radius: 8px; background: #f8edf4; padding: 10px; }
+    .mini-plan strong { display: block; font-size: 0.7rem; }
+    .mini-plan p { margin: 3px 0 0; color: #666666; font-size: 0.58rem; }
+    .pink-label { color: #c1519c; font-size: 0.6rem; font-weight: 800; }
+    .context-rail { border-left: 1px solid #d8d8d8; background: #fafafa; padding: 16px 12px; }
+    .context-card { border: 1px solid #d8d8d8; border-radius: 10px; background: #ffffff; padding: 12px; }
+    .context-card + .context-card { margin-top: 10px; }
+    .context-card h3 { font-size: 0.78rem; }
+    .context-card p { margin-bottom: 9px; color: #666666; font-size: 0.62rem; }
+    .context-line { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid #d8d8d8; padding-top: 8px; color: #666666; font-size: 0.58rem; }
+
+    .mobile-window { width: min(330px, 100%); margin-left: auto; margin-right: auto; overflow: hidden; border: 1px solid #bcbcbc; border-radius: 24px; background: #f6f6f6; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.07); }
+    .mobile-top { display: flex; height: 48px; align-items: center; justify-content: space-between; border-bottom: 1px solid #d8d8d8; background: #ffffff; padding: 0 13px; }
+    .mobile-title { font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; font-size: 0.82rem; font-weight: 750; }
+    .mobile-avatar { width: 28px; height: 28px; border-radius: 50%; background: #e8f4fd; color: #1093ed; display: grid; place-items: center; font-size: 0.6rem; font-weight: 800; }
+    .mobile-content { padding: 10px 10px 14px; }
+    .mobile-content .composer-static { grid-template-columns: 28px minmax(0, 1fr); }
+    .mobile-content .intent-label { grid-column: 2; justify-self: start; }
+    .mobile-content .post { padding: 11px; }
+    .mobile-bottom { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid #d8d8d8; background: #ffffff; padding: 5px 3px 7px; }
+    .mobile-nav { position: relative; display: grid; min-height: 44px; place-items: center; color: #666666; font-size: 0.52rem; }
+    .mobile-nav strong { display: block; color: inherit; font-size: 0.72rem; line-height: 1; text-align: center; }
+    .mobile-nav.active { color: #171717; }
+    .mobile-nav.book { color: #c1519c; }
+
+    .blueprint { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 20px; align-items: start; }
+    .phone-stack { display: grid; gap: 14px; }
+
+    .spec-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .spec { border-top: 2px solid #171717; padding-top: 12px; }
+    .spec strong { display: block; margin-bottom: 4px; font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; }
+    .spec p { margin: 0; color: #666666; font-size: 0.82rem; }
+
+    .screen-map { display: grid; grid-template-columns: 165px minmax(0, 1fr) 230px; border: 1px solid #d8d8d8; border-radius: 14px; background: #ffffff; overflow: hidden; }
+    .screen-map > div { padding: 16px; }
+    .screen-map > div + div { border-left: 1px solid #d8d8d8; }
+    .screen-map + .screen-map { margin-top: 10px; }
+    .screen-name { font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; font-weight: 800; }
+    .screen-job { color: #666666; font-size: 0.86rem; }
+    .screen-details { color: #666666; font-size: 0.82rem; }
+    .screen-pattern { color: #8a8a8a; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.68rem; line-height: 1.5; }
+
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid #d8d8d8; border-radius: 14px; overflow: hidden; background: #ffffff; }
+    .flow-step { position: relative; min-height: 160px; padding: 18px; }
+    .flow-step + .flow-step { border-left: 1px solid #d8d8d8; }
+    .flow-step .n { display: block; margin-bottom: 28px; color: #8a8a8a; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.7rem; }
+    .flow-step strong { display: block; margin-bottom: 6px; font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; }
+    .flow-step p { margin: 0; color: #666666; font-size: 0.78rem; }
+    .flow-step.self-step { box-shadow: inset 0 4px 0 #1093ed; }
+    .flow-step.social-step { box-shadow: inset 0 4px 0 #c1519c; }
+
+    .token-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 20px; padding-top: 18px; padding-bottom: 18px; border-top: 1px solid #d8d8d8; }
+    .token-row:first-child { border-top: 0; padding-top: 0; }
+    .token-name { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.7rem; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; }
+    .swatches { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+    .swatch { min-height: 82px; border: 1px solid #d8d8d8; border-radius: 9px; padding: 9px; font-size: 0.65rem; font-weight: 700; }
+    .swatch small { display: block; margin-top: 4px; opacity: 0.72; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.58rem; }
+    .swatch.canvas { background: #f6f6f6; }
+    .swatch.surface { background: #ffffff; }
+    .swatch.ink { background: #171717; color: #ffffff; }
+    .swatch.rule { background: #d8d8d8; }
+    .swatch.self { background: #1093ed; color: #ffffff; }
+    .swatch.social { background: #c1519c; color: #ffffff; }
+    .type-sample { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .type-box { border: 1px solid #d8d8d8; border-radius: 9px; padding: 14px; }
+    .type-box strong { display: block; margin-bottom: 10px; }
+    .type-box.display strong { font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; font-size: 1.45rem; letter-spacing: -0.035em; }
+    .type-box.body strong { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 1rem; }
+    .type-box.utility strong { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; }
+    .type-box p { margin: 0; color: #666666; font-size: 0.73rem; }
+
+    .density-table { border: 1px solid #d8d8d8; border-radius: 14px; overflow: hidden; background: #ffffff; }
+    .density-row { display: grid; grid-template-columns: 1fr 1fr 1.25fr; }
+    .density-row > div { padding: 14px 16px; border-top: 1px solid #d8d8d8; }
+    .density-row > div + div { border-left: 1px solid #d8d8d8; }
+    .density-row:first-child > div { border-top: 0; background: #eeeeee; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.68rem; font-weight: 750; text-transform: uppercase; }
+    .density-row p { margin: 0; color: #666666; font-size: 0.82rem; }
+
+    .phase { display: grid; grid-template-columns: 120px minmax(0, 1fr) 240px; gap: 22px; padding: 24px 0; border-top: 1px solid #d8d8d8; }
+    .phase:first-child { border-top: 0; padding-top: 0; }
+    .phase-label { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.7rem; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; }
+    .phase strong { display: block; margin-bottom: 5px; font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; font-size: 1.1rem; }
+    .phase p { margin: 0; color: #666666; font-size: 0.84rem; }
+    .phase-files { color: #8a8a8a; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.66rem; line-height: 1.55; overflow-wrap: anywhere; }
+
+    .risk { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 18px; padding: 18px 0; border-top: 1px solid #d8d8d8; }
+    .risk:first-child { border-top: 0; padding-top: 0; }
+    .risk-level { align-self: start; border-radius: 999px; padding: 5px 8px; background: #fbecee; color: #b52e35; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.68rem; font-weight: 800; text-align: center; text-transform: uppercase; }
+    .risk strong { display: block; margin-bottom: 4px; }
+    .risk p { margin: 0; color: #666666; font-size: 0.84rem; }
+
+    .sources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 36px; }
+    .source { break-inside: avoid; margin-bottom: 18px; border-top: 1px solid #d8d8d8; padding-top: 12px; }
+    .source strong { display: block; font-size: 0.86rem; }
+    .source p { margin: 4px 0 0; color: #666666; font-size: 0.76rem; }
+
+    .provenance { background: #171717; color: #ffffff; }
+    .provenance .section { border: 0; }
+    .prov-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+    .prov-block { border-top: 1px solid #5a5a5a; padding-top: 14px; }
+    .prov-block dt { color: #aaaaaa; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.68rem; letter-spacing: 0.07em; text-transform: uppercase; }
+    .prov-block dd { margin: 4px 0 14px; font-size: 0.84rem; }
+    .canonical { margin-top: 26px; border: 1px solid #5a5a5a; border-radius: 10px; padding: 16px; color: #d2d2d2; font-size: 0.82rem; }
+
+    @media (max-width: 960px) {
+      .hero-grid, .section-head, .blueprint { grid-template-columns: 1fr; }
+      .hero-aside { max-width: 600px; }
+      .grid-3 { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .app-top, .app-body { grid-template-columns: 74px minmax(0, 1fr); }
+      .app-top .top-meta, .context-rail { display: none; }
+      .app-brand span { display: none; }
+      .side-nav { padding-left: 8px; padding-right: 8px; }
+      .nav-mini { justify-content: center; }
+      .nav-mini > span:last-child { display: none; }
+      .screen-map { grid-template-columns: 145px minmax(0, 1fr); }
+      .screen-map > div:nth-child(3) { grid-column: 1 / -1; border-top: 1px solid #d8d8d8; border-left: 0; }
+      .flow { grid-template-columns: 1fr 1fr; }
+      .flow-step + .flow-step { border-left: 0; border-top: 1px solid #d8d8d8; }
+      .flow-step:nth-child(even) { border-left: 1px solid #d8d8d8; }
+      .flow-step:last-child { grid-column: 1 / -1; }
+      .spec-grid { grid-template-columns: 1fr 1fr; }
+      .phase { grid-template-columns: 100px minmax(0, 1fr); }
+      .phase-files { grid-column: 2; }
+    }
+
+    @media (max-width: 680px) {
+      .wrap { width: min(100% - 24px, 1180px); }
+      .hero { padding-top: 42px; }
+      h1 { font-size: clamp(2.25rem, 15vw, 4rem); }
+      .decision { grid-template-columns: 1fr; }
+      .decision-mark { width: 40px; height: 40px; }
+      .signature-grid { grid-template-columns: 1fr; }
+      .matrix { overflow: visible; border: 0; background: transparent; }
+      .matrix-row { display: block; margin-bottom: 12px; border: 1px solid #d8d8d8; border-radius: 10px; overflow: hidden; background: #ffffff; }
+      .matrix-row:first-child { display: none; }
+      .matrix-row > div { border-top: 1px solid #d8d8d8; }
+      .matrix-row > div:first-child { border-top: 0; background: #eeeeee; }
+      .matrix-row > div + div { border-left: 0; }
+      .concept-stage { display: none; }
+      .blueprint { display: block; }
+      .phone-stack { width: 100%; }
+      .screen-map { display: block; }
+      .screen-map > div + div { border-top: 1px solid #d8d8d8; border-left: 0; }
+      .flow { display: block; }
+      .flow-step { min-height: auto; }
+      .flow-step + .flow-step, .flow-step:nth-child(even) { border-top: 1px solid #d8d8d8; border-left: 0; }
+      .flow-step:last-child { grid-column: auto; }
+      .spec-grid { grid-template-columns: 1fr; }
+      .token-row { grid-template-columns: 1fr; }
+      .swatches { grid-template-columns: 1fr 1fr; }
+      .type-sample { grid-template-columns: 1fr; }
+      .density-table { overflow: visible; border: 0; background: transparent; }
+      .density-row { display: block; margin-bottom: 10px; border: 1px solid #d8d8d8; border-radius: 9px; overflow: hidden; background: #ffffff; }
+      .density-row:first-child { display: none; }
+      .density-row > div { border-top: 1px solid #d8d8d8; }
+      .density-row > div:first-child { border-top: 0; background: #eeeeee; font-weight: 750; }
+      .density-row > div + div { border-left: 0; }
+      .phase { grid-template-columns: 1fr; gap: 8px; }
+      .phase-files { grid-column: auto; }
+      .risk { grid-template-columns: 90px minmax(0, 1fr); }
+      .sources { grid-template-columns: 1fr; }
+      .prov-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <div class="status-row">
+          <span class="status recommend">Recommended direction</span>
+          <span class="status">Clean-sheet redesign</span>
+          <span class="status">Static concept</span>
+          <span class="status">Updated 8 August 2026</span>
+        </div>
+        <div class="hero-grid">
+          <div>
+            <p class="eyebrow">Let's Be Friends product design research</p>
+            <h1>Common Ground</h1>
+            <p class="hero-lede">A compact, trust-first social application that borrows Facebook's predictable app grammar and Nextdoor's local usefulness, then replaces engagement clutter with clearer planning, safety, and real-world connection.</p>
+          </div>
+          <aside class="hero-aside">
+            <strong>The design decision</strong>
+            <p>Do not reskin the current UI. Rebuild the application shell and its core surfaces around one job: help a member move confidently from discovery to a shared plan.</p>
+          </aside>
+        </div>
+        <div class="decision">
+          <div class="decision-mark">01</div>
+          <div>
+            <strong>Use a familiar shell, not familiar incentives.</strong>
+            <p>Facebook proves the value of stable navigation, a central feed, a lightweight composer, and a dedicated messaging workspace. Nextdoor proves the value of local context, verified participation, useful recommendations, and safety-aware community prompts. Let's Be Friends should adopt those interaction principles without copying their brand, visual language, ad patterns, or attention loops.</p>
+          </div>
+        </div>
+        <div class="signature">
+          <div class="signature-grid">
+            <div>
+              <div class="eyebrow" style="color:#bdbdbd">Signature system</div>
+              <h2 style="margin:0;color:#ffffff;font-size:1.7rem">The Plan Line</h2>
+              <p>A structural marker for any flow that moves from personal setup to a shared action.</p>
+            </div>
+            <div>
+              <div class="plan-line" aria-label="Plan Line from your setup to a shared plan">
+                <span class="node self"></span><span class="track"><span class="checkpoint"></span></span><span class="node social"></span>
+              </div>
+              <div class="signature-labels"><span>Your readiness</span><span>Trust checkpoint</span><span>Shared plan</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Research synthesis</p>
+            <h2>What each product teaches us</h2>
+          </div>
+          <p>The useful overlap is not a generic social feed. It is a dependable application frame, clear relevance context, and a short path from seeing something useful to acting on it.</p>
+        </div>
+        <div class="grid-3">
+          <article class="card research-card take">
+            <div class="card-kicker"><span class="brand-tag">Nextdoor</span><span class="evidence-count">Local utility</span></div>
+            <h3>Trust is strongest when context is visible.</h3>
+            <p>Nextdoor's 2025 redesign reorganized the product around Alerts, News, and Ask. The important pattern is prioritization by local utility, not the specific modules.</p>
+            <ul class="plain-list">
+              <li>Show why something is relevant nearby.</li>
+              <li>Place verified identity and source context near the content.</li>
+              <li>Use recommendations to answer a real need.</li>
+              <li>Add respectful friction before harmful community actions.</li>
+            </ul>
+            <p class="source-note">Evidence: <a href="https://about.nextdoor.com/press-releases/meet-the-new-nextdoor?hs_amp=true">Nextdoor's July 2025 redesign</a>, <a href="https://about.nextdoor.com/kindness/">Kindness and moderation features</a>.</p>
+          </article>
+          <article class="card research-card adapt">
+            <div class="card-kicker"><span class="brand-tag">Facebook</span><span class="evidence-count">App grammar</span></div>
+            <h3>Consistency lets a large product feel learnable.</h3>
+            <p>Facebook separates algorithmic Home from connection-led Feeds, keeps core destinations in a shortcut bar, and treats messaging as its own focused workspace.</p>
+            <ul class="plain-list">
+              <li>Keep primary destinations stable on every screen.</li>
+              <li>Separate discovery from content a member deliberately follows.</li>
+              <li>Expose feed reasons and preference controls in context.</li>
+              <li>Make the common creation path obvious and advanced tools secondary.</li>
+            </ul>
+            <p class="source-note">Evidence: <a href="https://about.fb.com/news/2022/07/home-and-feeds-on-facebook/">Home and Feeds</a>, <a href="https://about.fb.com/news/2025/12/making-it-easier-to-create-discover-and-share-content-on-facebook/amp/">2025 Feed and navigation update</a>.</p>
+          </article>
+          <article class="card research-card reject">
+            <div class="card-kicker"><span class="brand-tag">Deliberate rejection</span><span class="evidence-count">Product fit</span></div>
+            <h3>Do not import attention economics.</h3>
+            <p>Let's Be Friends succeeds when members make safe, suitable plans, not when they maximize time in a feed.</p>
+            <ul class="plain-list">
+              <li>No Stories or Reels rail.</li>
+              <li>No public popularity race or oversized reaction counts.</li>
+              <li>No generic local news, marketplace, or alert subsystem.</li>
+              <li>No exact location exposure in social discovery.</li>
+              <li>No growing menu of weakly related destinations.</li>
+            </ul>
+            <p class="source-note">Recommendation based on the product principles in <strong>PRODUCT.md</strong> and <strong>DESIGN.md</strong>.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Pattern transfer</p>
+            <h2>Borrow, translate, or leave behind</h2>
+          </div>
+          <p>This map prevents “inspired by” from turning into a visual copy. Every borrowed pattern is translated into the trust-first booking model.</p>
+        </div>
+        <div class="matrix">
+          <div class="matrix-row">
+            <div>Pattern</div><div>Nextdoor signal</div><div>Facebook signal</div><div>Let's Be Friends translation</div>
+          </div>
+          <div class="matrix-row">
+            <div><strong>Home</strong></div>
+            <div><p>Nearby, timely, useful information.</p></div>
+            <div><p>Ranked discovery plus a separate connection-led feed.</p></div>
+            <div><p>A quiet feed of member posts, Friend Host ideas, and safety guidance with visible “why this is here” labels.</p></div>
+          </div>
+          <div class="matrix-row">
+            <div><strong>Creation</strong></div>
+            <div><p>Ask the community around a concrete local need.</p></div>
+            <div><p>Common tools first, advanced options deeper.</p></div>
+            <div><p>A compact “What would feel better with company?” launcher with two intents: share an update or suggest a plan.</p></div>
+          </div>
+          <div class="matrix-row">
+            <div><strong>Discovery</strong></div>
+            <div><p>Location and neighborhood recommendations.</p></div>
+            <div><p>Interest-led Explore and Local aggregation.</p></div>
+            <div><p>People-first Explore filtered by activity, Strengths, mode, availability, and approximate distance.</p></div>
+          </div>
+          <div class="matrix-row">
+            <div><strong>Trust</strong></div>
+            <div><p>Verified neighbors, source labels, kindness friction.</p></div>
+            <div><p>Context controls, reporting, and “why am I seeing this?”</p></div>
+            <div><p>Verification status, shared boundaries, feed reason, report access, and a pre-send reflection prompt when language may be harmful.</p></div>
+          </div>
+          <div class="matrix-row">
+            <div><strong>Messaging</strong></div>
+            <div><p>Local conversations attached to useful context.</p></div>
+            <div><p>Dedicated private conversation workspace.</p></div>
+            <div><p>Master-detail inbox with the booking, safety context, and plan history embedded in the thread.</p></div>
+          </div>
+          <div class="matrix-row">
+            <div><strong>Navigation</strong></div>
+            <div><p>Utility destinations tied to neighborhood jobs.</p></div>
+            <div><p>Persistent shortcut bar and mobile tab bar.</p></div>
+            <div><p>Four desktop destinations: Home, Explore, Messages, Bookings. Account remains an avatar action. Mobile adds Account as the fifth tab.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Clean-sheet concept</p>
+            <h2>The Common Ground shell</h2>
+          </div>
+          <p>A desktop utility frame with a restrained feed and contextual rail. On mobile, it becomes a single-column application with a five-item bottom bar. The mockups are static design explanations.</p>
+        </div>
+        <div class="blueprint">
+          <div class="concept-stage">
+            <div class="concept-label">Desktop concept, static</div>
+            <div class="app-window">
+              <div class="app-top">
+                <div class="app-brand"><span class="logo-mark"><i></i><i></i></span><span>Let's Be Friends</span></div>
+                <div class="search-static">Search people, Strengths, or activities</div>
+                <div class="top-meta">Help&nbsp;&nbsp; Notifications&nbsp;&nbsp; AR</div>
+              </div>
+              <div class="app-body">
+                <aside class="side-nav">
+                  <div class="nav-mini active"><span class="nav-icon">H</span><span>Home</span></div>
+                  <div class="nav-mini"><span class="nav-icon">E</span><span>Explore</span></div>
+                  <div class="nav-mini"><span class="nav-icon">M</span><span>Messages</span></div>
+                  <div class="nav-mini book"><span class="nav-icon">B</span><span>Bookings</span></div>
+                  <div class="side-note">One stable destination per core job. No hidden “more” menu for essential tasks.</div>
+                </aside>
+                <section class="feed">
+                  <div class="feed-head"><strong>Home</strong><div class="feed-tabs"><span class="active">For you</span><span>Following</span><span>Nearby</span></div></div>
+                  <div class="composer-static">
+                    <div class="avatar">AR</div>
+                    <div class="composer-copy">What would feel better with company?</div>
+                    <div class="intent-label">Suggest a plan</div>
+                  </div>
+                  <article class="post">
+                    <div class="post-author"><div class="avatar">MC</div><div><div class="post-name">Maya C.</div><div class="post-meta">Makati · 2 hours ago</div></div><div class="trust-badge">Identity checked</div></div>
+                    <div class="post-copy">I found a quiet cafe with a long table near the park. It could be good for a weekend sketching session.</div>
+                    <div class="photo-strip">ACTIVITY PHOTO</div>
+                    <div class="reason">Why you are seeing this: you follow Creative hobbies and prefer in-person plans nearby.</div>
+                    <div class="post-actions"><span>Appreciate</span><span>Comment</span><span>Save</span></div>
+                  </article>
+                  <article class="post plan-card">
+                    <div class="post-author"><div class="avatar">JL</div><div><div class="post-name">Jordan L. · Friend Host</div><div class="post-meta">Online and in person · 4.9 from 18 reviews</div></div><div class="trust-badge">Approved</div></div>
+                    <div class="post-copy">A low-pressure first plan for anyone who wants company while getting a small creative project started.</div>
+                    <div class="mini-plan"><div><strong>Co-work and reset</strong><p>60 minutes · Online · Available Thursday</p></div><div class="pink-label">See the plan</div></div>
+                  </article>
+                </section>
+                <aside class="context-rail">
+                  <div class="context-card">
+                    <h3>Your next plan</h3>
+                    <p>Coffee and conversation with Sam. Saturday at 3:00 PM.</p>
+                    <div class="plan-line"><span class="node self"></span><span class="track"><span class="checkpoint"></span></span><span class="node social"></span></div>
+                  </div>
+                  <div class="context-card">
+                    <h3>Ready to meet</h3>
+                    <p>Your identity check is complete. Review your comfort settings before an in-person session.</p>
+                    <div class="context-line"><span>Safety checklist</span><strong>3 of 4</strong></div>
+                  </div>
+                  <div class="context-card">
+                    <h3>Explore nearby</h3>
+                    <p>Six Friend Hosts match your saved activities within your approximate area.</p>
+                    <div class="context-line"><span>View people</span><strong>6</strong></div>
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </div>
+          <div class="phone-stack">
+            <div class="concept-label">Mobile concept, static</div>
+            <div class="mobile-window">
+              <div class="mobile-top"><span class="logo-mark"><i></i><i></i></span><span class="mobile-title">Home</span><span class="mobile-avatar">AR</span></div>
+              <div class="mobile-content">
+                <div class="feed-tabs" style="margin-bottom:9px"><span class="active">For you</span><span>Following</span><span>Nearby</span></div>
+                <div class="composer-static"><div class="avatar">AR</div><div class="composer-copy">What would feel better with company?</div><div class="intent-label">Suggest a plan</div></div>
+                <article class="post">
+                  <div class="post-author"><div class="avatar">MC</div><div><div class="post-name">Maya C.</div><div class="post-meta">Makati · 2h</div></div><div class="trust-badge">Checked</div></div>
+                  <div class="post-copy">A quiet cafe near the park could be good for sketching this weekend.</div>
+                  <div class="photo-strip">ACTIVITY PHOTO</div>
+                  <div class="reason">Because you follow Creative hobbies.</div>
+                  <div class="post-actions"><span>Appreciate</span><span>Comment</span><span>Save</span></div>
+                </article>
+              </div>
+              <div class="mobile-bottom">
+                <div class="mobile-nav active"><span><strong>⌂</strong>Home</span></div>
+                <div class="mobile-nav"><span><strong>◇</strong>Explore</span></div>
+                <div class="mobile-nav"><span><strong>○</strong>Messages</span></div>
+                <div class="mobile-nav book"><span><strong>□</strong>Bookings</span></div>
+                <div class="mobile-nav"><span><strong>●</strong>Account</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="spec-grid" style="margin-top:28px">
+          <div class="spec"><strong>Desktop</strong><p>56px header, 216px left rail, 620 to 680px main column, 280px contextual rail, 20 to 24px gutters.</p></div>
+          <div class="spec"><strong>Tablet</strong><p>56px header, 72px icon rail, centered main column. Context becomes an inline card or sheet.</p></div>
+          <div class="spec"><strong>Mobile</strong><p>48px header, 64px bottom navigation, 12px page inset, 10 to 12px stack gaps, edge-aware cards.</p></div>
+          <div class="spec"><strong>Compact rule</strong><p>Reduce chrome and repeated prose first. Do not reduce tap targets, text readability, or safety context.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Information architecture</p>
+            <h2>Five jobs, one application</h2>
+          </div>
+          <p>Each destination has a distinct job and interaction model. This keeps the product compact without forcing unrelated features into the feed.</p>
+        </div>
+        <div class="screen-map"><div class="screen-name">Home</div><div class="screen-job">Catch up, share, and notice useful opportunities.</div><div class="screen-pattern">Central feed · plan launcher · feed reasons · low-emphasis reactions</div></div>
+        <div class="screen-map"><div class="screen-name">Explore</div><div class="screen-job">Find a suitable Friend Host or experience with clear filters.</div><div class="screen-pattern">Search-first list · Strengths · approximate proximity · compare and save</div></div>
+        <div class="screen-map"><div class="screen-name">Messages</div><div class="screen-job">Talk privately and keep plan context close to the conversation.</div><div class="screen-pattern">Master-detail inbox · booking events · safety controls · focused composer</div></div>
+        <div class="screen-map"><div class="screen-name">Bookings</div><div class="screen-job">Act on requests and understand the current state of every plan.</div><div class="screen-pattern">Needs action · upcoming · history · Plan Line status · no social feed</div></div>
+        <div class="screen-map"><div class="screen-name">Account</div><div class="screen-job">Manage personal identity, preferences, hosting, and safety settings.</div><div class="screen-pattern">Self-blue actions · verification · profile · hosting · notifications</div></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Core journey</p>
+            <h2>Design around the plan, not the post</h2>
+          </div>
+          <p>The main product journey should remain legible across feed, discovery, profile, booking, and messaging. The Plan Line supplies continuity.</p>
+        </div>
+        <div class="flow">
+          <div class="flow-step self-step"><span class="n">01</span><strong>Set intent</strong><p>Choose an activity, mode, time, and comfort preference.</p></div>
+          <div class="flow-step"><span class="n">02</span><strong>Explore people</strong><p>Compare Friend Hosts using fit, Strengths, boundaries, and availability.</p></div>
+          <div class="flow-step"><span class="n">03</span><strong>Review trust</strong><p>See identity, review, safety, price, and location privacy context together.</p></div>
+          <div class="flow-step social-step"><span class="n">04</span><strong>Suggest a plan</strong><p>Send a complete booking request with a plain-language summary.</p></div>
+          <div class="flow-step social-step"><span class="n">05</span><strong>Coordinate</strong><p>Continue in Messages where changes and booking state stay visible.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Visual system</p>
+            <h2>Quiet surfaces, meaningful accents</h2>
+          </div>
+          <p>The aesthetic risk is structural, not decorative: the Plan Line becomes a recognizable product motif. Everything else stays disciplined and neutral.</p>
+        </div>
+        <div class="card">
+          <div class="token-row">
+            <div class="token-name">Palette</div>
+            <div class="swatches">
+              <div class="swatch canvas">Canvas<small>#F6F6F6</small></div>
+              <div class="swatch surface">Surface<small>#FFFFFF</small></div>
+              <div class="swatch ink">Ink<small>#171717</small></div>
+              <div class="swatch rule">Rule<small>#D8D8D8</small></div>
+              <div class="swatch self">Self<small>#1093ED</small></div>
+              <div class="swatch social">Social<small>#C1519C</small></div>
+            </div>
+          </div>
+          <div class="token-row">
+            <div class="token-name">Typography</div>
+            <div class="type-sample">
+              <div class="type-box display"><strong>Common Ground</strong><p>Rounded system display voice for major orientation and warm confidence.</p></div>
+              <div class="type-box body"><strong>Clear everyday language</strong><p>System sans for dense application reading and platform continuity.</p></div>
+              <div class="type-box utility"><strong>Status · 3 of 4</strong><p>Monospaced utility labels for dates, states, counts, and provenance.</p></div>
+            </div>
+          </div>
+          <div class="token-row">
+            <div class="token-name">Shape</div>
+            <div><p style="margin:0;color:#666666">14px cards, 9px controls, circular avatars, one-pixel neutral rules. Reserve pills for filters, states, and compact metadata. Avoid ornamental containers, glass effects, and gradients.</p></div>
+          </div>
+          <div class="token-row">
+            <div class="token-name">Accent logic</div>
+            <div><p style="margin:0;color:#666666"><strong style="color:#1093ed">Blue</strong> marks identity, account, setup, and personal configuration. <strong style="color:#c1519c">Pink</strong> marks booking, messaging, following, reviewing, and other member-to-member actions. Neutral is the default. Danger remains red and explicit.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Density and spacing</p>
+            <h2>Compact means less repetition</h2>
+          </div>
+          <p>The design becomes denser by removing ceremony and duplicate labels. Important controls remain comfortably operable and content keeps a readable rhythm.</p>
+        </div>
+        <div class="density-table">
+          <div class="density-row"><div>Layer</div><div>Target rhythm</div><div>Rule</div></div>
+          <div class="density-row"><div><strong>Application chrome</strong></div><div><p>48 to 56px bars</p></div><div><p>Persistent but visually quiet. Only primary destinations and account status remain visible.</p></div></div>
+          <div class="density-row"><div><strong>Interactive target</strong></div><div><p>40 to 44px preferred</p></div><div><p>Never trade compactness for hard-to-hit controls. WCAG 2.2 sets a 24 by 24 CSS pixel minimum or sufficient spacing.</p></div></div>
+          <div class="density-row"><div><strong>Card padding</strong></div><div><p>12 to 16px mobile, 16 to 20px desktop</p></div><div><p>Use spacing to separate information groups inside the card, not to make every card feel oversized.</p></div></div>
+          <div class="density-row"><div><strong>Stack gap</strong></div><div><p>10 to 12px feed, 16 to 24px sections</p></div><div><p>Frequent items stay close. A larger gap signals a new task or context.</p></div></div>
+          <div class="density-row"><div><strong>Body copy</strong></div><div><p>15 to 16px, 1.5 to 1.6 line height</p></div><div><p>Keep feed text readable and cap long excerpts. Expand only on deliberate entry to detail.</p></div></div>
+          <div class="density-row"><div><strong>Responsive behavior</strong></div><div><p>One-dimensional at 320px</p></div><div><p>Cards, filters, and flows must reflow without a horizontal reading dependency.</p></div></div>
+        </div>
+        <p style="margin:16px 0 0;color:#666666;font-size:0.8rem">Accessibility references: <a href="https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html">WCAG 2.2 target size</a>, <a href="https://www.w3.org/WAI/WCAG22/Understanding/reflow.html">WCAG 2.2 reflow</a>, and <a href="https://www.w3.org/WAI/WCAG22/Understanding/consistent-navigation.html">consistent navigation</a>.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Interaction details</p>
+            <h2>Small choices that change the feel</h2>
+          </div>
+          <p>These details make the application feel purpose-built rather than like a neutral social template.</p>
+        </div>
+        <div class="grid-2">
+          <article class="card">
+            <h3>Feed cards explain themselves</h3>
+            <p>Every recommended item gets one short reason, such as “Because you saved Board games” or “Available near your approximate area.” That reason opens directly into preference controls in the implemented product.</p>
+          </article>
+          <article class="card">
+            <h3>Plans are a content type</h3>
+            <p>A member can suggest a plan from Home without creating a generic post first. Plan cards contain activity, mode, time range, approximate place, and desired company.</p>
+          </article>
+          <article class="card">
+            <h3>Trust stays next to the decision</h3>
+            <p>Identity, Friend Host approval, boundaries, price, and privacy are summarized beside the booking action. Safety information does not live only on a separate page.</p>
+          </article>
+          <article class="card">
+            <h3>Reactions remain human-scale</h3>
+            <p>Use “Appreciate” instead of a competitive reaction set. Hide aggregate counts until there is meaningful activity. Emphasize replies and next steps over popularity.</p>
+          </article>
+          <article class="card">
+            <h3>Notifications have jobs</h3>
+            <p>Group activity into Needs action, Conversations, and Community. Only Needs action may create a persistent dot. Let members choose a digest for lower-priority activity.</p>
+          </article>
+          <article class="card">
+            <h3>Kindness adds one useful pause</h3>
+            <p>If a message or comment appears harmful, show a neutral reflection prompt before sending. Keep report and block controls reachable without making every conversation feel alarmed.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Integration plan</p>
+            <h2>Replace the frame first</h2>
+          </div>
+          <p>This proposal is intentionally implementation-ready, but it does not authorize or perform the refactor. Repository behavior remains canonical until a separate implementation task is approved.</p>
+        </div>
+        <div class="roadmap">
+          <div class="phase"><div class="phase-label">Phase 1 · Shell</div><div><strong>Establish Common Ground</strong><p>Replace the signed-in application chrome, responsive navigation, container system, spacing scale, and semantic surface tokens. Preserve current routes and data.</p></div><div class="phase-files">apps/web/src/components/AppNavigation.tsx<br>apps/web/src/components/AppShell.tsx<br>apps/web/src/styles.css</div></div>
+          <div class="phase"><div class="phase-label">Phase 2 · Core</div><div><strong>Rebuild Home and Explore</strong><p>Introduce the compact intent launcher, visible feed reasons, plan-forward cards, and a search-first Friend Host result list.</p></div><div class="phase-files">apps/web/src/routes/social.tsx<br>apps/web/src/routes/discover.tsx<br>apps/web/src/routes/index.tsx</div></div>
+          <div class="phase"><div class="phase-label">Phase 3 · Trust</div><div><strong>Unify profile and booking decisions</strong><p>Recompose Friend Host profiles around fit, ideas, boundaries, reviews, and a persistent booking summary with the Plan Line.</p></div><div class="phase-files">apps/web/src/routes/host-profile.tsx<br>apps/web/src/routes/app.tsx<br>apps/web/src/components/BookingRequestCard.tsx</div></div>
+          <div class="phase"><div class="phase-label">Phase 4 · Conversation</div><div><strong>Make Messages the coordination workspace</strong><p>Keep the master-detail inbox, then integrate a clearer booking timeline, safety summary, and compact composer.</p></div><div class="phase-files">apps/web/src/routes/messages.tsx<br>apps/web/src/components/BookingRequestEditor.tsx</div></div>
+          <div class="phase"><div class="phase-label">Phase 5 · Polish</div><div><strong>Validate the whole app</strong><p>Test mobile reflow, focus order, keyboard operation, dark mode, empty states, loading states, and compact density with real content extremes.</p></div><div class="phase-files">pnpm typecheck<br>pnpm test<br>pnpm build<br>browser-visible route checks</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Risks and decisions</p>
+            <h2>What to protect during implementation</h2>
+          </div>
+          <p>A clean-sheet visual refactor can still preserve the product's working trust model. These are the main failure modes to watch.</p>
+        </div>
+        <div class="card">
+          <div class="risk"><div class="risk-level">High</div><div><strong>A feed becomes the product instead of the doorway.</strong><p>Measure success by profile consideration, suitable booking requests, completed plans, and safe repeat interactions. Do not optimize for raw session time.</p></div></div>
+          <div class="risk"><div class="risk-level">High</div><div><strong>Local context exposes too much location information.</strong><p>Use city, approximate distance, and member-controlled discovery visibility. Do not adopt Nextdoor's address model or a precise social map.</p></div></div>
+          <div class="risk"><div class="risk-level">Medium</div><div><strong>Compact density hides trust information.</strong><p>Compress repeated explanation, not verification, boundaries, price, cancellation, reporting, or location privacy.</p></div></div>
+          <div class="risk"><div class="risk-level">Medium</div><div><strong>Facebook familiarity makes the product feel copied.</strong><p>The Plan Line, intent-led composer, person-first Explore, neutral palette, and restrained reactions must remain visibly specific to Let's Be Friends.</p></div></div>
+          <div class="risk"><div class="risk-level">Medium</div><div><strong>A visual rewrite accidentally changes contracts.</strong><p>First implementation should reuse existing routes, queries, mutations, and booking states. Any new plan-post schema or notification persistence needs separate approval.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Evidence</p>
+            <h2>Sources reviewed</h2>
+          </div>
+          <p>First-party product and help materials were prioritized. Research was reviewed on 8 August 2026. Product announcements describe stated behavior and direction, not independent usability test results.</p>
+        </div>
+        <div class="sources">
+          <div class="source"><strong><a href="https://about.nextdoor.com/press-releases/meet-the-new-nextdoor?hs_amp=true">Nextdoor: Meet the new Nextdoor</a></strong><p>15 July 2025. Alerts, News, Ask, streamlined utility, vetted local sources, and map-based alerts.</p></div>
+          <div class="source"><strong><a href="https://about.nextdoor.com/">Nextdoor: About the product</a></strong><p>Current overview of news, alerts, Ask, local recommendations, events, groups, and neighborhood focus.</p></div>
+          <div class="source"><strong><a href="https://play.google.com/store/apps/details?id=com.nextdoor">Nextdoor on Google Play</a></strong><p>Current mobile product listing reviewed for the feature hierarchy, verified neighbors, privacy statements, and app positioning.</p></div>
+          <div class="source"><strong><a href="https://about.nextdoor.com/kindness/">Nextdoor: Cultivating kindness</a></strong><p>Kindness Reminder, Constructive Conversations Reminder, true identity, moderation, and community norms.</p></div>
+          <div class="source"><strong><a href="https://about.fb.com/news/2022/07/home-and-feeds-on-facebook/">Meta: Introducing Home and Feeds</a></strong><p>Separation of discovery-led Home and connection-led Feeds, Favorites, chronological content, and shortcut bar behavior.</p></div>
+          <div class="source"><strong><a href="https://about.fb.com/news/2025/12/making-it-easier-to-create-discover-and-share-content-on-facebook/amp/">Meta: Easier creation, discovery, and sharing</a></strong><p>2025 update on simplified Feed, streamlined navigation, a focused composer, clearer comments, and tab prominence.</p></div>
+          <div class="source"><strong><a href="https://about.fb.com/news/2024/10/facebook-local-tab-messenger-communities-ai/">Meta: Local, Explore, and Messenger Communities</a></strong><p>Local aggregation, interest-led Explore, event digests, shared-interest communities, and the relationship between discovery and messaging.</p></div>
+          <div class="source"><strong><a href="https://about.fb.com/news/2019/03/why-am-i-seeing-this/amp/">Meta: Why am I seeing this?</a></strong><p>In-context explanation of ranking signals paired with direct feed controls.</p></div>
+          <div class="source"><strong><a href="https://about.fb.com/news/2023/06/how-ai-ranks-content-on-facebook-and-instagram/amp/">Meta: How AI influences what you see</a></strong><p>Feed preferences, suggested-content controls, ranking transparency, and access to a chronological feed.</p></div>
+          <div class="source"><strong><a href="https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html">W3C: Target Size (Minimum)</a></strong><p>WCAG 2.2 Level AA guidance on 24 by 24 CSS pixel minimum targets or sufficient spacing.</p></div>
+          <div class="source"><strong><a href="https://www.w3.org/WAI/WCAG22/Understanding/reflow.html">W3C: Reflow</a></strong><p>Content should remain usable at a 320 CSS pixel width without two-dimensional scrolling.</p></div>
+          <div class="source"><strong><a href="https://www.w3.org/WAI/WCAG22/Understanding/consistent-navigation.html">W3C: Consistent Navigation</a></strong><p>Repeated navigation should retain the same relative order so the application remains predictable.</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="provenance">
+    <section class="section">
+      <div class="wrap">
+        <p class="eyebrow" style="color:#aaaaaa">Artifact provenance</p>
+        <h2 style="color:#ffffff">Derivative design proposal</h2>
+        <div class="prov-grid">
+          <dl class="prov-block">
+            <dt>Repository</dt><dd>Let's Be Friends</dd>
+            <dt>Branch and ref</dt><dd>main · 3bc7e4fb6e8151d243d7040447dc14217062491d</dd>
+            <dt>Generated</dt><dd>8 August 2026, Asia/Manila</dd>
+            <dt>Status</dt><dd>Recommendation for review. Not implemented and not deployed.</dd>
+            <dt>Working tree</dt><dd>Pre-existing uncommitted web UI changes were present and preserved. This research task added only this derivative artifact source.</dd>
+          </dl>
+          <dl class="prov-block">
+            <dt>Repository sources inspected</dt>
+            <dd>PRODUCT.md; DESIGN.md; apps/web/src/components/AppShell.tsx; apps/web/src/components/AppNavigation.tsx; apps/web/src/lib/navigation.ts; apps/web/src/routes/index.tsx; apps/web/src/routes/social.tsx; apps/web/src/routes/discover.tsx; apps/web/src/routes/host-profile.tsx; apps/web/src/routes/messages.tsx; apps/web/src/routes/app.tsx; apps/web/src/styles.css</dd>
+            <dt>Decisions represented</dt><dd>Clean-sheet Common Ground shell, Plan Line signature, compact responsive density, feed and discovery model, trust patterns, and phased integration approach.</dd>
+          </dl>
+        </div>
+        <div class="canonical">Repository sources remain canonical. This private HiGantic artifact is a static, sandboxed, disposable presentation of research and recommendations. It does not change application behavior, establish a schema contract, or authorize implementation or deployment.</div>
+      </div>
+    </section>
+  </footer>
+</body>
+</html>

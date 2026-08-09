@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import { formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
+import { MeetingSeam } from '../components/AppNavigation'
 
 export const Route = createFileRoute('/host-profile')({
   validateSearch: (search: Record<string, unknown>): { hostProfileId?: string } => (
@@ -37,7 +38,6 @@ function HostProfilePage() {
   if (!hostProfileId) {
     return (
       <main className="marketing-page">
-        <p className="eyebrow">Friend Host profile</p>
         <h1 className="text-h1 mt-2">Choose someone from Explore first.</h1>
         <Link to="/discover" className="btn btn-social btn-sm mt-5">Explore people</Link>
       </main>
@@ -48,7 +48,6 @@ function HostProfilePage() {
   if (host === null) {
     return (
       <main className="marketing-page">
-        <p className="eyebrow">Friend Host profile</p>
         <h1 className="text-h1 mt-2">Profile is not available.</h1>
         <p className="lede mt-2">This profile may still be in review or no longer be available.</p>
         <Link to="/discover" className="btn btn-neutral btn-sm mt-5">Back to Explore</Link>
@@ -66,114 +65,123 @@ function HostProfilePage() {
       )}
 
       <section className="panel host-profile-hero mb-8">
-        <div className="worklist-row-head">
-          <div className="flex items-start gap-4 min-w-0">
-            <ProfilePhoto imageUrl={host.profileImageUrl} name={host.displayName} size="lg" />
-            <div className="min-w-0">
-              <p className="eyebrow">An invitation from</p>
-              <h1 className="text-h1 mt-2">{host.displayName}</h1>
-              <div className="worklist-row-meta mt-2">
-                <span>{host.city}</span>
-                <span className="dot" aria-hidden="true" />
-                <span>{formatMode(host.mode)}</span>
-                <span className="dot" aria-hidden="true" />
-                <span>{host.rating.toFixed(1)} rating · {host.reviewCount} reviews</span>
+        <div className="host-profile-overview">
+          <div className="host-profile-main">
+            <div className="host-profile-identity">
+              <ProfilePhoto imageUrl={host.profileImageUrl} name={host.displayName} size="lg" />
+              <div className="min-w-0">
+                <p className="text-meta">Friend Host</p>
+                <h1 className="text-h1">{host.displayName}</h1>
+                <div className="worklist-row-meta mt-1">
+                  <span>{host.city}</span>
+                  <span className="dot" aria-hidden="true" />
+                  <span>{formatMode(host.mode)}</span>
+                  <span className="dot" aria-hidden="true" />
+                  <span>{host.rating.toFixed(1)} from {host.reviewCount} reviews</span>
+                </div>
               </div>
             </div>
+            {host.bio && <p className="host-profile-bio">{host.bio}</p>}
+            <p className="host-profile-intro">{host.intro}</p>
           </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            {host.viewerBookingEligibility === 'own_profile' ? (
-              <>
-                <span className="status-pill" data-tone="self">Your profile</span>
-                <Link to="/become-host" className="btn btn-self btn-sm">Edit hosting profile</Link>
-              </>
+
+          <aside className="host-profile-decision" aria-label={`Plan with ${host.displayName}`}>
+            <div className="host-profile-planline"><MeetingSeam /><span>Fit · Trust · Shared plan</span></div>
+            <p className="host-profile-trust">Identity checked and Friend Host profile reviewed.</p>
+            {host.hourlyRateCentavos !== undefined ? (
+              <p className="host-profile-rate">
+                <strong className="tabular">{formatPhp(host.hourlyRateCentavos)}</strong>
+                <span>per hour. Your final booking total includes the service fee.</span>
+              </p>
             ) : (
-              <>
-                <HostBookingAction
-                  eligibility={host.viewerBookingEligibility}
-                  hostProfileId={host._id}
-                  bookable={host.bookable}
-                />
-                {isSignedIn ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={startingMessage}
-                      onClick={async () => {
-                        setStartingMessage(true)
-                        setMessageError('')
-                        try {
-                          const conversationId = await startConversation({ otherUserId: host.userId })
-                          await navigate({ to: '/messages', search: { conversationId } })
-                        } catch (error) {
-                          setMessageError(error instanceof Error ? error.message : 'Conversation could not be opened.')
-                          setStartingMessage(false)
-                        }
-                      }}
-                      className="btn btn-social btn-sm"
-                    >
-                      {startingMessage ? 'Opening…' : 'Message'}
-                    </button>
-                    <button
-                      onClick={async () => {
-                        await toggleFollow({ userId: host.userId })
-                        setNotice(host.following ? 'Member unfollowed.' : 'Member followed.')
-                      }}
-                      className="btn btn-social-quiet btn-sm"
-                    >
-                      {host.following ? 'Following' : 'Follow'}
-                    </button>
-                    <button
-                      onClick={async () => {
-                        await toggleSaveProfile({ hostProfileId: host._id })
-                        setNotice(host.saved ? 'Profile removed from saved.' : 'Profile saved.')
-                      }}
-                      className="btn btn-neutral btn-sm"
-                    >
-                      {host.saved ? 'Saved profile' : 'Save profile'}
-                    </button>
-                    <button
-                      onClick={async () => {
-                        await report({ targetType: 'profile', targetId: host._id, reason: 'Profile needs safety review' })
-                        setNotice('Report sent to safety review.')
-                      }}
-                      className="btn btn-danger btn-sm"
-                    >
-                      Report
-                    </button>
-                  </>
-                ) : (
-                  <SignInButton mode="modal">
-                    <button className="btn btn-self btn-sm">Sign in to save</button>
-                  </SignInButton>
-                )}
-              </>
+              <p className="text-meta">This legacy profile must set a listed hourly rate before receiving member-wallet booking requests.</p>
             )}
-          </div>
+            <div className="host-profile-actions">
+              {host.viewerBookingEligibility === 'own_profile' ? (
+                <>
+                  <span className="status-pill" data-tone="self">Your profile</span>
+                  <Link to="/become-host" className="btn btn-self btn-sm">Edit hosting profile</Link>
+                </>
+              ) : (
+                <>
+                  <HostBookingAction eligibility={host.viewerBookingEligibility} hostProfileId={host._id} bookable={host.bookable} />
+                  {isSignedIn ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={startingMessage}
+                        onClick={async () => {
+                          setStartingMessage(true)
+                          setMessageError('')
+                          try {
+                            const conversationId = await startConversation({ otherUserId: host.userId })
+                            await navigate({ to: '/messages', search: { conversationId } })
+                          } catch (error) {
+                            setMessageError(error instanceof Error ? error.message : 'Conversation could not be opened.')
+                            setStartingMessage(false)
+                          }
+                        }}
+                        className="btn btn-social btn-sm"
+                      >
+                        {startingMessage ? 'Opening…' : 'Message'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await toggleFollow({ userId: host.userId })
+                          setNotice(host.following ? 'Member unfollowed.' : 'Member followed.')
+                        }}
+                        className="btn btn-social-quiet btn-sm"
+                      >
+                        {host.following ? 'Following' : 'Follow'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await toggleSaveProfile({ hostProfileId: host._id })
+                          setNotice(host.saved ? 'Profile removed from saved.' : 'Profile saved.')
+                        }}
+                        className="btn btn-neutral btn-sm"
+                      >
+                        {host.saved ? 'Saved profile' : 'Save profile'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await report({ targetType: 'profile', targetId: host._id, reason: 'Profile needs safety review' })
+                          setNotice('Report sent to safety review.')
+                        }}
+                        className="btn btn-danger btn-sm"
+                      >
+                        Report
+                      </button>
+                    </>
+                  ) : (
+                    <SignInButton mode="modal">
+                      <button className="btn btn-self btn-sm">Sign in to save</button>
+                    </SignInButton>
+                  )}
+                </>
+              )}
+            </div>
+          </aside>
         </div>
-        {host.bio && <p className="host-profile-bio mt-6">{host.bio}</p>}
-        <p className="host-profile-intro mt-5">{host.intro}</p>
-        {host.hourlyRateCentavos !== undefined ? (
-          <p className="text-meta mt-3">
-            <strong className="tabular text-[color:var(--text)]">{formatPhp(host.hourlyRateCentavos)} per hour</strong> before the 15% member booking fee.
-            You will review the full total before sending a request.
-          </p>
-        ) : (
-          <p className="text-meta mt-3">This legacy profile must set a listed hourly rate before receiving member-wallet booking requests.</p>
-        )}
-        <p className="eyebrow mt-7">What {host.firstName} can help you with</p>
-        <div className="flex flex-wrap gap-2 mt-3">
-          {host.strengths.map((strength) => <span key={strength} className="chip" data-selected="true">{strength}</span>)}
-        </div>
-        <div className="profile-detail-grid mt-6">
+
+        <div className="host-profile-fit-grid">
           <div>
-            <p className="eyebrow">Things you could do together</p>
+            <p className="eyebrow">Strengths</p>
+            <h2 className="text-h3 mt-1">What {host.firstName} brings to the time</h2>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {host.strengths.map((strength) => <span key={strength} className="chip" data-selected="true">{strength}</span>)}
+            </div>
+          </div>
+          <div>
+            <p className="eyebrow">Ideas</p>
+            <h2 className="text-h3 mt-1">Things you could do together</h2>
             <div className="flex flex-wrap gap-2 mt-3">
               {host.categories.map((category) => <span key={category} className="chip">{category}</span>)}
             </div>
           </div>
           <div>
-            <p className="eyebrow">What keeps it comfortable</p>
+            <p className="eyebrow">Boundaries</p>
+            <h2 className="text-h3 mt-1">What keeps it comfortable</h2>
             {host.boundaries.length > 0 ? (
               <ul className="profile-boundary-list mt-3">
                 {host.boundaries.map((boundary) => <li key={boundary}>{boundary}</li>)}

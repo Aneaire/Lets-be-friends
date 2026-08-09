@@ -6,6 +6,7 @@ import { Bookmark, Flag, Heart, ImagePlus, MessageCircle, Pencil, Send, Trash2, 
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
+import { MeetingSeam } from '../components/AppNavigation'
 
 export const Route = createFileRoute('/social')({ component: SocialPage })
 
@@ -153,8 +154,8 @@ export function SocialPage() {
       <section className="social-timeline" aria-label="Home feed">
         <header className="social-timeline-header">
           <div>
-            <p className="eyebrow">Your community</p>
-            <h1 className="text-h1 mt-1">What’s happening</h1>
+            <h1 className="text-h1">Home</h1>
+            <p className="text-meta">Useful updates and people worth planning with.</p>
           </div>
           <Link to="/discover" className="btn btn-social-quiet btn-sm">Explore people</Link>
         </header>
@@ -227,11 +228,15 @@ export function SocialPage() {
           >
             <span className="avatar avatar-lg" aria-hidden="true">{initials(fallbackName)}</span>
             <div className="social-composer-body">
+              <div className="social-composer-intents">
+                <strong>Share an update</strong>
+                <Link to="/discover">Find a shared plan</Link>
+              </div>
               <textarea
                 name="body"
                 className="social-composer-input"
                 maxLength={1000}
-                placeholder="Share something from your day, a recent experience, or an idea for next time…"
+                placeholder="What would feel better with company?"
                 aria-label="Create a post"
               />
               {selectedMedia.length > 0 && (
@@ -371,7 +376,8 @@ function HostRecommendationCard({
 }) {
   return (
     <aside className="social-reserve-card" aria-label={`Recommended Friend Host: ${item.host.displayName}`}>
-      <div className="social-reserve-label">Someone you might enjoy meeting</div>
+      <div className="social-reserve-planline"><MeetingSeam /><span>From a good fit to a shared plan</span></div>
+      <div className="social-reserve-label">Friend Host idea</div>
       <div className="social-reserve-head">
         <div>
           <h2 className="text-h3">{item.host.displayName}</h2>
@@ -583,7 +589,7 @@ function PostRow({
             }}
           >
             <Heart size={17} fill={post.liked ? 'currentColor' : 'none'} />
-            <span>{post.likeCount}</span>
+            <span>{post.liked ? 'Appreciated' : 'Appreciate'}{post.likeCount > 0 ? ` · ${post.likeCount}` : ''}</span>
           </button>
           <button type="button" className="social-action" onClick={() => setCommentsOpen((open) => !open)}>
             <MessageCircle size={17} />

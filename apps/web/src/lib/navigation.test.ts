@@ -23,6 +23,7 @@ describe('application navigation', () => {
     expect(activePrimaryNavigation('/app/thread')).toBe('bookings')
     expect(activePrimaryNavigation('/host')).toBeNull()
     expect(activePrimaryNavigation('/host-profile')).toBe('discover')
+    expect(activePrimaryNavigation('/nearby')).toBe('discover')
   })
 
   it('leaves account and admin destinations outside the primary navigation', () => {
@@ -37,6 +38,7 @@ describe('application navigation', () => {
     expect(isWorkspacePath('/profile')).toBe(true)
     expect(isWorkspacePath('/messages')).toBe(true)
     expect(isWorkspacePath('/host')).toBe(true)
+    expect(isWorkspacePath('/nearby')).toBe(true)
     expect(isWorkspacePath('/discover')).toBe(false)
   })
 })

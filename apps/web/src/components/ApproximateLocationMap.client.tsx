@@ -13,6 +13,11 @@ const mapStyles: Record<ThemeChoice, string> = {
   dark: 'https://tiles.openfreemap.org/styles/dark',
 }
 
+const philippinesInitialView = {
+  center: [121.774, 12.8797] as [longitude: number, latitude: number],
+  zoom: 5.2,
+}
+
 function currentTheme(): ThemeChoice {
   if (typeof document === 'undefined') return 'light'
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
@@ -36,7 +41,6 @@ export default function ApproximateLocationMapClient({
   onChange,
   people,
   onSelectPerson,
-  expanded,
 }: {
   location: Coordinates | null
   radiusKm?: number
@@ -46,7 +50,6 @@ export default function ApproximateLocationMapClient({
   onChange?: (location: Coordinates) => void
   people?: MapPerson[]
   onSelectPerson?: (key: string) => void
-  expanded?: boolean
 }) {
   const [theme, setTheme] = useState<ThemeChoice>(currentTheme)
   const [mapUnavailable, setMapUnavailable] = useState(false)
@@ -80,12 +83,12 @@ export default function ApproximateLocationMapClient({
 
   const center: [number, number] = location
     ? [location.longitude, location.latitude]
-    : [0, 20]
+    : philippinesInitialView.center
 
   return (
     <Map
       center={center}
-      zoom={location ? zoomForRadius(radiusKm) : 1.4}
+      zoom={location ? zoomForRadius(radiusKm) : philippinesInitialView.zoom}
       styleUrl={mapStyles[theme]}
       interactive={interactive}
       ariaLabel={pinnable
@@ -116,19 +119,19 @@ export default function ApproximateLocationMapClient({
       {people?.map((person) => (
         <PersonPin key={person.key} person={person} onSelect={onSelectPerson} />
       ))}
-      <MapResizer expanded={expanded} />
+      <MapResizer />
     </Map>
   )
 }
 
-function MapResizer({ expanded }: { expanded?: boolean }) {
+function MapResizer() {
   const map = useMap()
 
   useEffect(() => {
     if (!map) return
     const frame = requestAnimationFrame(() => map.resize())
     return () => cancelAnimationFrame(frame)
-  }, [expanded, map])
+  }, [map])
 
   return null
 }
