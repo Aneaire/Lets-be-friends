@@ -3,6 +3,7 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search, X } from 'lucide-react'
+import { toast } from 'sonner'
 import type React from 'react'
 import { activityCategories, calculateMemberWalletBookingPrice, canCancelBooking, canCompleteBooking, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
@@ -80,7 +81,7 @@ function AppPage() {
   const report = useMutation(api.reports.create)
   const updateBookingRequest = useMutation(api.bookings.editRequest)
   const navigate = useNavigate()
-  const [notice, setNotice] = useState('')
+  const setNotice = useCallback((message: string) => toast.success(message), [])
   const [error, setError] = useState('')
   const [editingBooking, setEditingBooking] = useState<EditableBookingRequest | null>(null)
   const editingHost = useQuery(api.hosts.getPublic, editingBooking?.hostProfileId ? { hostProfileId: editingBooking.hostProfileId } : 'skip')
@@ -150,7 +151,7 @@ function AppPage() {
   if (!isSignedIn) {
     return (
       <main className="marketing-page">
-        <h1 className="text-h1 mt-2">Sign in to see your plans.</h1>
+        <h1 className="text-h1 mt-2">Sign in to see your bookings.</h1>
         <div className="mt-6">
           <SignInButton mode="modal">
             <button className="btn btn-self">Sign in</button>
@@ -170,9 +171,10 @@ function AppPage() {
   const heldBooking = (bookings ?? []).find((booking) => booking.status === 'verification_required')
 
   return (
+    <>
     <WorkspaceShell
       variant="bookings"
-      title="Your plans"
+      title="Your bookings"
       status={
         <button
           type="button"
@@ -196,7 +198,7 @@ function AppPage() {
           aria-expanded={bookingDialogOpen}
           aria-controls="booking-dialog"
         >
-          Plan a time
+          Create booking
         </button>
       ) : verification.action === 'none' ? null : (
         <button
@@ -206,12 +208,12 @@ function AppPage() {
           disabled={!viewer || identityFlow.busy}
         >
           {identityFlow.busy
-            ? 'Opening Persona…'
+            ? 'Opening identity check...'
             : verification.action === 'continue'
               ? 'Continue identity check'
               : verification.action === 'retry'
                 ? 'Start a new identity check'
-                : 'Verify identity with Persona'}
+                : 'Verify identity'}
         </button>
       )}
       mobileNavigation={
@@ -229,7 +231,7 @@ function AppPage() {
       rail={
         <>
           <div className="rail-section">
-            <div className="rail-section-title">Your plans</div>
+            <div className="rail-section-title">Your bookings</div>
             <a href="#bookings" className="rail-link is-active" aria-current="location">
               <span>Open</span>
               <span className="rail-link-count tabular">{openBookings}</span>
@@ -263,7 +265,7 @@ function AppPage() {
               <h2 className="text-h3 mt-1">{verification.label}</h2>
               <p className="text-body muted mt-1">{verification.guidance}</p>
               {verification.state === 'admin_pending' && (
-                <p className="text-meta mt-2">No additional action is needed while the safety team reviews the completed Persona result.</p>
+                <p className="text-meta mt-2">No additional action is needed while the safety team reviews the completed identity submission.</p>
               )}
             </div>
             <div className="identity-status-details-actions">
@@ -276,7 +278,7 @@ function AppPage() {
                   aria-expanded={bookingDialogOpen}
                   aria-controls="booking-dialog"
                 >
-                  Plan a time
+                  Create booking
                 </button>
               )}
               {verification.action !== 'none' && (
@@ -287,12 +289,12 @@ function AppPage() {
                   disabled={!viewer || identityFlow.busy}
                 >
                   {identityFlow.busy
-                    ? 'Opening Persona…'
+                    ? 'Opening identity check...'
                     : verification.action === 'continue'
                       ? 'Continue identity check'
                       : verification.action === 'retry'
                         ? 'Start a new identity check'
-                        : 'Verify identity with Persona'}
+                        : 'Verify identity'}
                 </button>
               )}
               {verification.state === 'admin_pending' && heldBooking && (
@@ -305,10 +307,10 @@ function AppPage() {
         </section>
       )}
 
-      {(notice || identityFlow.message) && (
+      {identityFlow.message && (
         <div className="notice notice-success mb-6" role="status" aria-live="polite">
           <span className="notice-icon">✓</span>
-          <span>{identityFlow.message || notice}</span>
+          <span>{identityFlow.message}</span>
         </div>
       )}
       {(error || identityFlow.error) && (
@@ -320,7 +322,7 @@ function AppPage() {
 
       <section id="bookings">
         <header className="flex items-baseline justify-between gap-3 mb-3">
-          <h2 className="text-h2">Open plans</h2>
+          <h2 className="text-h2">Open bookings</h2>
           <div className="flex items-center gap-2">
             <span className="text-meta tabular">{openBookings} active</span>
             <button
@@ -332,7 +334,7 @@ function AppPage() {
               aria-expanded={walletDialogOpen}
               aria-controls="booking-balance-dialog"
             >
-              Booking balance {memberFinance ? formatPhp(memberFinance.availableCentavos) : '…'}
+              Balance {memberFinance ? formatPhp(memberFinance.availableCentavos) : '…'}
             </button>
           </div>
         </header>
@@ -340,7 +342,7 @@ function AppPage() {
         {viewer && (bookings ?? []).length === 0 && (
           <div className="empty-state">
             <p className="empty-state-title">
-              {canBook ? 'Nothing planned yet.' : 'Verify once before sending a booking request.'}
+              {canBook ? 'No bookings yet.' : 'Verify once before sending a booking request.'}
             </p>
             <p className="text-meta max-w-[44ch]">
               {canBook
@@ -366,12 +368,12 @@ function AppPage() {
                 disabled={identityFlow.busy}
               >
                 {identityFlow.busy
-                  ? 'Opening Persona…'
+                  ? 'Opening identity check...'
                   : verification.action === 'continue'
                     ? 'Continue identity check'
                     : verification.action === 'retry'
                       ? 'Start a new identity check'
-                      : 'Verify identity with Persona'}
+                      : 'Verify identity'}
               </button>
             ) : null}
           </div>
@@ -501,6 +503,8 @@ function AppPage() {
         />
       )}
     </WorkspaceShell>
+    {identityFlow.dialog}
+    </>
   )
 }
 
@@ -569,7 +573,7 @@ function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
     <section id="member-wallet" className="mb-10">
       <header className="flex items-baseline justify-between gap-3 mb-3">
         <div>
-          <h2 className="text-h2">Booking balance</h2>
+          <h2 className="text-h2">Balance</h2>
           <p className="text-meta mt-1">Use this balance for booking requests. You will see the complete booking total, including the service fee, before sending.</p>
         </div>
         {finance && <span className="status-pill" data-tone="success">{formatPhp(finance.availableCentavos)} available</span>}
@@ -705,9 +709,9 @@ function WalletDialog({ finance, onClose, restoreFocusTo, onCreateTopUp, onAddTe
           <div>
             <p className="eyebrow">Your booking wallet</p>
             <MeetingSeam />
-            <h2 id="booking-balance-dialog-title" className="text-h2 mt-1">Booking balance</h2>
+            <h2 id="booking-balance-dialog-title" className="text-h2 mt-1">Balance</h2>
           </div>
-          <button type="button" className="social-icon-button booking-dialog-close" aria-label="Close booking balance" onClick={onClose}>
+          <button type="button" className="social-icon-button booking-dialog-close" aria-label="Close balance" onClick={onClose}>
             <X size={16} aria-hidden="true" />
           </button>
         </header>
