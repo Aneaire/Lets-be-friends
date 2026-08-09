@@ -16,6 +16,8 @@
     "seed:pampanga": "pnpm --filter @lets-be-friends/web seed:pampanga"
   },
   "devDependencies": {
-    "pnpm": "^10.24.0"
+    "pnpm": "^10.24.0",
+    "youch": "^4.1.1",
+    "youch-core": "^0.3.3"
   }
 }

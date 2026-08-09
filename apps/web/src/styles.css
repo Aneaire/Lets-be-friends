@@ -2733,6 +2733,35 @@ textarea.field {
   font-weight: 700;
 }
 
+/* Transient action feedback uses the global Sonner viewport. */
+.app-toast[data-sonner-toast] {
+  border: 1px solid var(--border-strong);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 14px 36px color-mix(in oklch, var(--text) 14%, transparent);
+  font-family: inherit;
+}
+
+.app-toast[data-sonner-toast][data-type="success"] {
+  border-left: 3px solid var(--accent-social);
+}
+
+.app-toast-title {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.app-toast-description {
+  color: var(--text-muted);
+}
+
+.app-toast-close[data-close-button] {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
 /* ──────────────────────────────────────────────────────────────
    Headers
    ────────────────────────────────────────────────────────────── */
@@ -10124,6 +10153,10 @@ textarea.field {
   }
 
   .host-profile-actions > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .host-profile-edit-action {
     grid-column: 1 / -1;
   }
 

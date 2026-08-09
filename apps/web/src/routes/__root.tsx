@@ -4,6 +4,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import { Header, Footer } from '../components/AppShell'
 import { OnboardingGate } from '../components/OnboardingGate'
 import { AppProviders } from '../components/Providers'
+import { Toaster } from '../components/ui/sonner'
 import appCss from '../styles.css?url'
 
 export const Route = createRootRoute({
@@ -43,6 +44,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               <Footer />
             </div>
           </OnboardingGate>
+          <Toaster />
         </AppProviders>
         {import.meta.env.DEV && <TanStackDevtools config={{ position: 'bottom-right' }} plugins={[{ name: 'Tanstack Router', render: <TanStackRouterDevtoolsPanel /> }]} />}
         <Scripts />
