@@ -91,7 +91,7 @@ function HostProfilePage() {
             {host.hourlyRateCentavos !== undefined ? (
               <p className="host-profile-rate">
                 <strong className="tabular">{formatPhp(host.hourlyRateCentavos)}</strong>
-                <span>per hour before the 15% member booking fee</span>
+                <span>per hour. Your final booking total includes the service fee.</span>
               </p>
             ) : (
               <p className="text-meta">This legacy profile must set a listed hourly rate before receiving member-wallet booking requests.</p>

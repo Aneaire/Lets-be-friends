@@ -116,9 +116,8 @@ export function BookingRequestFields(props: Props) {
         <div className="notice text-meta">
           <span className="notice-icon">₱</span>
           <span>
-            Estimated member total: <strong className="tabular">{formatPhp(estimate.memberTotalCentavos)}</strong>
-            {' '}({formatPhp(estimate.serviceSubtotalCentavos)} service subtotal + {formatPhp(estimate.memberBookingFeeCentavos)} member booking fee).
-            This does not charge your balance. The amount is reserved from your wallet only if the Friend Host accepts.
+            Estimated booking total: <strong className="tabular">{formatPhp(estimate.memberTotalCentavos)}</strong>
+            {' · '}Includes service fee. This does not charge your balance. The amount is reserved from your wallet only if the Friend Host accepts.
           </span>
         </div>
       )}

@@ -17,19 +17,38 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { api } from '../../convex/_generated/api'
+import { matchesFriendHostSearch } from '../lib/discoverySearch'
 import { activePrimaryNavigation, primaryNavigation } from '../lib/navigation'
 import { BrandLogo } from './BrandLogo'
 import { ThemeToggle } from './ThemeToggle'
 
 const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+type HeaderSearchHost = {
+  _id: string
+  displayName: string
+  city: string
+  intro: string
+  bio?: string
+  strengths?: string[]
+  categories?: string[]
+  profileImageUrl?: string
+}
+
 export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const activeItem = activePrimaryNavigation(pathname)
   const [accountOpen, setAccountOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
   const accountRootRef = useRef<HTMLDivElement>(null)
   const accountPanelRef = useRef<HTMLElement>(null)
   const accountOpenerRef = useRef<HTMLButtonElement | null>(null)
+  const searchRootRef = useRef<HTMLDivElement>(null)
+  const searchHosts = useQuery(api.hosts.listApproved, {}) as HeaderSearchHost[] | undefined
+  const searchResults = searchQuery.trim()
+    ? (searchHosts ?? []).filter((host) => matchesFriendHostSearch(host, searchQuery)).slice(0, 6)
+    : []
 
   const closeAccount = useCallback((restoreFocus = true) => {
     setAccountOpen(false)
@@ -86,6 +105,25 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
     }
   }, [accountOpen, closeAccount])
 
+  useEffect(() => {
+    if (!searchOpen) return
+
+    function onPointerDown(event: PointerEvent) {
+      if (!searchRootRef.current?.contains(event.target as Node)) setSearchOpen(false)
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSearchOpen(false)
+    }
+
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [searchOpen])
+
   return (
     <>
       <header className="app-header">
@@ -100,10 +138,74 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
           ) : (
             <div className="app-header-context">
               <strong>{primaryNavigation.find((item) => item.id === activeItem)?.label ?? 'Account'}</strong>
-              <Link to="/discover" className="app-header-search" aria-label="Search people, Strengths, or activities">
-                <Search size={16} aria-hidden="true" />
-                <span>Search people, Strengths, or activities</span>
-              </Link>
+              <div className="app-header-search-root" ref={searchRootRef}>
+                <div className="app-header-search" role="search">
+                  <Search size={16} aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    placeholder="Search people, Strengths, or activities"
+                    aria-label="Search people, Strengths, or activities"
+                    aria-expanded={searchOpen}
+                    aria-controls="header-search-results"
+                    autoComplete="off"
+                    onFocus={() => setSearchOpen(true)}
+                    onChange={(event) => {
+                      setSearchQuery(event.currentTarget.value)
+                      setSearchOpen(true)
+                    }}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className="app-header-search-clear"
+                      aria-label="Clear search"
+                      onClick={() => setSearchQuery('')}
+                    >
+                      <X size={14} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+
+                {searchOpen && (
+                  <div id="header-search-results" className="app-header-search-panel">
+                    {!searchQuery.trim() ? (
+                      <p className="app-header-search-guidance">Search Friend Hosts by name, Strength, activity, or city.</p>
+                    ) : searchHosts === undefined ? (
+                      <p className="app-header-search-guidance" role="status">Searching…</p>
+                    ) : searchResults.length === 0 ? (
+                      <p className="app-header-search-guidance" role="status">No Friend Hosts match “{searchQuery.trim()}”.</p>
+                    ) : (
+                      <>
+                        <p className="app-header-search-summary" role="status">
+                          {searchResults.length} {searchResults.length === 1 ? 'match' : 'matches'}
+                        </p>
+                        <ul className="app-header-search-list">
+                          {searchResults.map((host) => (
+                            <li key={host._id}>
+                              <Link
+                                to="/host-profile"
+                                search={{ hostProfileId: host._id }}
+                                className="app-header-search-result"
+                                onClick={() => {
+                                  setSearchOpen(false)
+                                  setSearchQuery('')
+                                }}
+                              >
+                                <AccountAvatar imageUrl={host.profileImageUrl} initials={getInitials(host.displayName)} />
+                                <span>
+                                  <strong>{host.displayName}</strong>
+                                  <small>{[host.city, host.strengths?.[0] ?? host.categories?.[0]].filter(Boolean).join(' · ')}</small>
+                                </span>
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

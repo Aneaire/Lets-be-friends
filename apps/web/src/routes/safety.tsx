@@ -20,7 +20,7 @@ const safetySteps = [
   },
   {
     title: 'Money follows the plan',
-    body: 'You see the service subtotal and booking fee before sending. Funds are reserved only when the Friend Host accepts.',
+    body: 'You see the complete booking total, including the service fee, before sending. Funds are reserved only when the Friend Host accepts.',
     detail: 'After both people confirm completion, funds remain pending for 24 hours before settlement can continue.',
   },
   {
@@ -88,7 +88,7 @@ function SafetyPage() {
         <summary>Technical and policy details</summary>
         <div className="safety-technical-body">
           <p><strong>Identity:</strong> Persona checks government ID, date of birth, live selfie, liveness, and face match. Every completed result then receives an explicit admin decision.</p>
-          <p><strong>Payments:</strong> The member funds the listed subtotal plus a 15% booking fee. Acceptance reserves the total; mutual completion begins a 24-hour pending period.</p>
+          <p><strong>Payments:</strong> The member sees one booking total that includes the service fee. Acceptance reserves the total; mutual completion begins a 24-hour pending period.</p>
           <p><strong>Private booking evidence:</strong> The Friend Host decides at the start and the member decides at the end. Each may upload a private image or explicitly skip after a warning. Retrieval requires an active linked report and is audit-logged.</p>
           <p><strong>Reports:</strong> Participant booking reports block unsettled wallet funds until a full admin records a resolution.</p>
         </div>

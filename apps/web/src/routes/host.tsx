@@ -523,7 +523,7 @@ function HostBookingRow({
       {booking.pricingModel === 'member_wallet_v2' && booking.memberTotalCentavos !== undefined ? (
         <p className="text-meta">
           Your entitlement: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.hostEntitlementCentavos ?? 0)}</strong>
-          {' · '}Member total {formatPhp(booking.memberTotalCentavos)} includes a platform booking fee paid by the member.
+          {' · '}Member total {formatPhp(booking.memberTotalCentavos)} includes the service fee paid by the member.
           {booking.settlementState === 'blocked' && ' Settlement is blocked for full-admin resolution.'}
         </p>
       ) : booking.grossPriceCentavos !== undefined && booking.currency === 'PHP' ? (

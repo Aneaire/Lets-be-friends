@@ -17,6 +17,7 @@ import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as HostRouteImport } from './routes/host'
 import { Route as HostProfileRouteImport } from './routes/host-profile'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as NearbyRouteImport } from './routes/nearby'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SafetyRouteImport } from './routes/safety'
@@ -62,6 +63,11 @@ const MessagesRoute = MessagesRouteImport.update({
   path: '/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NearbyRoute = NearbyRouteImport.update({
+  id: '/nearby',
+  path: '/nearby',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/host': typeof HostRoute
   '/host-profile': typeof HostProfileRoute
   '/messages': typeof MessagesRoute
+  '/nearby': typeof NearbyRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/host': typeof HostRoute
   '/host-profile': typeof HostProfileRoute
   '/messages': typeof MessagesRoute
+  '/nearby': typeof NearbyRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/host': typeof HostRoute
   '/host-profile': typeof HostProfileRoute
   '/messages': typeof MessagesRoute
+  '/nearby': typeof NearbyRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/host'
     | '/host-profile'
     | '/messages'
+    | '/nearby'
     | '/onboarding'
     | '/profile'
     | '/safety'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/host'
     | '/host-profile'
     | '/messages'
+    | '/nearby'
     | '/onboarding'
     | '/profile'
     | '/safety'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/host'
     | '/host-profile'
     | '/messages'
+    | '/nearby'
     | '/onboarding'
     | '/profile'
     | '/safety'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   HostRoute: typeof HostRoute
   HostProfileRoute: typeof HostProfileRoute
   MessagesRoute: typeof MessagesRoute
+  NearbyRoute: typeof NearbyRoute
   OnboardingRoute: typeof OnboardingRoute
   ProfileRoute: typeof ProfileRoute
   SafetyRoute: typeof SafetyRoute
@@ -244,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/nearby': {
+      id: '/nearby'
+      path: '/nearby'
+      fullPath: '/nearby'
+      preLoaderRoute: typeof NearbyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   HostRoute: HostRoute,
   HostProfileRoute: HostProfileRoute,
   MessagesRoute: MessagesRoute,
+  NearbyRoute: NearbyRoute,
   OnboardingRoute: OnboardingRoute,
   ProfileRoute: ProfileRoute,
   SafetyRoute: SafetyRoute,

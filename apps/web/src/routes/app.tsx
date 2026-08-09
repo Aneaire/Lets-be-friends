@@ -11,6 +11,7 @@ import { WorkspaceShell } from '../components/AppShell'
 import { BookingRequestEditor, type EditableBookingRequest } from '../components/BookingRequestEditor'
 import { MeetingSeam } from '../components/AppNavigation'
 import { BookingRequestFields } from '../components/BookingRequestFields'
+import { BookingActionsMenu } from '../components/BookingActionsMenu'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../components/IdentityVerificationFlow'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
@@ -518,7 +519,7 @@ function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
       <header className="flex items-baseline justify-between gap-3 mb-3">
         <div>
           <h2 className="text-h2">Booking balance</h2>
-          <p className="text-meta mt-1">Use this balance for booking requests. You will see the service subtotal and 15% booking fee before sending.</p>
+          <p className="text-meta mt-1">Use this balance for booking requests. You will see the complete booking total, including the service fee, before sending.</p>
         </div>
         {finance && <span className="status-pill" data-tone="success">{formatPhp(finance.availableCentavos)} available</span>}
       </header>
@@ -684,7 +685,25 @@ function BookingRow({
             </div>
           </div>
         </div>
-        <span className="status-pill" data-tone={status.tone}>{status.label}</span>
+        <div className="booking-card-head-actions">
+          <span className="status-pill" data-tone={status.tone}>{status.label}</span>
+          <BookingActionsMenu
+            onCancel={canCancel ? () => void onCancel() : undefined}
+            onEditRequest={booking.status === 'request_sent' && onEditRequest
+              ? () => onEditRequest({
+                  bookingId: booking._id,
+                  hostProfileId: booking.hostProfileId,
+                  hostDisplayName: 'hostDisplayName' in booking ? String(booking.hostDisplayName) : 'Friend Host',
+                  category: booking.category,
+                  mode: booking.mode,
+                  requestedAt: booking.requestedAt,
+                  durationMinutes: booking.durationMinutes,
+                  notes: booking.notes,
+                })
+              : undefined}
+            onReport={() => void onReport()}
+          />
+        </div>
       </div>
 
       <div className="booking-plan-context">
@@ -695,7 +714,7 @@ function BookingRow({
       {booking.pricingModel === 'member_wallet_v2' && booking.memberTotalCentavos !== undefined ? (
         <p className="text-meta">
           Booking total: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.memberTotalCentavos)}</strong>
-          {' · '}Service subtotal {formatPhp(booking.serviceSubtotalCentavos ?? 0)} + 15% member booking fee {formatPhp(booking.memberBookingFeeCentavos ?? 0)}.
+          {' · '}Includes service fee.
           {booking.settlementState === 'blocked' && ' Funds are held for admin resolution because this booking has a report.'}
         </p>
       ) : booking.grossPriceCentavos !== undefined && booking.currency === 'PHP' ? (
@@ -714,37 +733,15 @@ function BookingRow({
       )}
 
       <div className="worklist-row-actions">
-          {conversationId && (
-            <Link to="/messages" search={{ conversationId }} className="btn btn-social btn-sm">
-              Open conversation
-            </Link>
-          )}
-          {canComplete && !booking.memberCompletedAt && <button type="button" onClick={onComplete} className="btn btn-social-quiet btn-sm">Confirm completion</button>}
-          {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Friend Host</span>}
-          {canReview && <ReviewForm onReview={onReview} />}
-          {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
-          {canCancel && <button type="button" onClick={onCancel} className="btn btn-danger btn-sm">Cancel booking</button>}
-          {booking.status === 'request_sent' && onEditRequest && (
-            <button
-              type="button"
-              className="btn btn-self btn-sm"
-              onClick={() => onEditRequest({
-                bookingId: booking._id,
-                hostProfileId: booking.hostProfileId,
-                hostDisplayName: 'hostDisplayName' in booking ? String(booking.hostDisplayName) : 'Friend Host',
-                category: booking.category,
-                mode: booking.mode,
-                requestedAt: booking.requestedAt,
-                durationMinutes: booking.durationMinutes,
-                notes: booking.notes,
-              })}
-            >
-              Edit request
-            </button>
-          )}
-          <button onClick={onReport} className="btn btn-danger btn-sm">
-            Report
-          </button>
+        {conversationId && (
+          <Link to="/messages" search={{ conversationId }} className="btn btn-social btn-sm">
+            Open conversation
+          </Link>
+        )}
+        {canComplete && !booking.memberCompletedAt && <button type="button" onClick={onComplete} className="btn btn-social-quiet btn-sm">Confirm completion</button>}
+        {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Friend Host</span>}
+        {canReview && <ReviewForm onReview={onReview} />}
+        {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
       </div>
     </article>
   )

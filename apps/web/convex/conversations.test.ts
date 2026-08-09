@@ -46,6 +46,7 @@ describe('direct conversations', () => {
       otherDisplayName: 'sam',
       lastMessageBody: 'Hi Alex',
       lastMessageSentByViewer: false,
+      lastMessageCreatedAt: expect.any(Number),
     }])
   })
 

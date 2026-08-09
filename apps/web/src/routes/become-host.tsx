@@ -337,7 +337,7 @@ function HostAuthPanel() {
               defaultValue={(application?.hourlyRateCentavos ?? 50_000) / 100}
               className="field"
             />
-            <span className="field-row-help">The member wallet funds this listed subtotal plus a separate 15% member booking fee. Your entitlement is 100% of the listed subtotal. Payouts await provider activation.</span>
+            <span className="field-row-help">The member wallet funds this listed subtotal plus a separate service fee. Your entitlement is 100% of the listed subtotal. Payouts await provider activation.</span>
           </label>
           <label className="field-row">
             <span className="label">How would you spend the time? <span className="label-aux">40 chars minimum</span></span>
