@@ -860,6 +860,11 @@ button:disabled {
   border-radius: 6px;
 }
 
+.onboarding-username-field input:focus-visible {
+  box-shadow: none;
+  border-radius: 0;
+}
+
 @layer base {
   a {
     color: inherit;
