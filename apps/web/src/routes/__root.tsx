@@ -57,7 +57,7 @@ function ThemeBootScript() {
   return (
     <script
       dangerouslySetInnerHTML={{
-        __html: `(function(){try{var key='lets-be-friends-theme';var saved=localStorage.getItem(key);var dark=saved==='dark'||(!saved&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',dark);document.documentElement.dataset.theme=dark?'dark':'light';}catch(e){document.documentElement.dataset.theme='light';}})();`,
+        __html: `(function(){try{var themeKey='lets-be-friends-theme';var saved=localStorage.getItem(themeKey);var dark=saved==='dark'||(!saved&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',dark);document.documentElement.dataset.theme=dark?'dark':'light';var accent=localStorage.getItem('lets-be-friends-accent-theme');document.documentElement.dataset.accentTheme=accent==='reversed'||accent==='blue'||accent==='pink'?accent:'default';}catch(e){document.documentElement.dataset.theme='light';document.documentElement.dataset.accentTheme='default';}})();`,
       }}
     />
   )
