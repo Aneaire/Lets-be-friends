@@ -31,4 +31,11 @@ crons.daily(
   {},
 )
 
+crons.daily(
+  'purge expired identity records',
+  { hourUTC: 3, minuteUTC: 30 },
+  internal.identityRecords.purgeExpired,
+  {},
+)
+
 export default crons

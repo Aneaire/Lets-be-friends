@@ -5,8 +5,8 @@ export const Route = createFileRoute('/safety')({ component: SafetyPage })
 const safetySteps = [
   {
     title: 'Adults verify once',
-    body: 'A government ID and live selfie help confirm identity and age before someone can send a booking request.',
-    detail: 'Persona performs the identity check. Let’s Be Friends stores the outcome and review status, not a copy of the government ID or selfie.',
+    body: 'A government ID and current camera selfie support identity and age review before someone can send a booking request.',
+    detail: 'AI extracts editable details from the ID only. Let’s Be Friends privately stores the ID and current selfie for safety review and incident records for up to 730 days, subject to incident or legal holds.',
   },
   {
     title: 'Every Friend Host is reviewed',
@@ -87,7 +87,7 @@ function SafetyPage() {
       <details className="safety-technical">
         <summary>Technical and policy details</summary>
         <div className="safety-technical-body">
-          <p><strong>Identity:</strong> Persona checks government ID, date of birth, live selfie, liveness, and face match. Every completed result then receives an explicit admin decision.</p>
+          <p><strong>Identity:</strong> AI extracts editable fields from the government ID, then the member takes a current camera selfie. The selfie is not sent to the AI, face matched, or treated as biometric liveness proof. Every completed submission receives an explicit safety-team decision.</p>
           <p><strong>Payments:</strong> The member sees one booking total that includes the service fee. Acceptance reserves the total; mutual completion begins a 24-hour pending period.</p>
           <p><strong>Private booking evidence:</strong> The Friend Host decides at the start and the member decides at the end. Each may upload a private image or explicitly skip after a warning. Retrieval requires an active linked report and is audit-logged.</p>
           <p><strong>Reports:</strong> Participant booking reports block unsettled wallet funds until a full admin records a resolution.</p>

@@ -19,7 +19,7 @@ function HostApplicationsPage() {
         <div>
           <p className="eyebrow">Safety review</p>
           <h1 className="text-h1 mt-2">Host applications</h1>
-          <p className="lede mt-2">Review Strengths, categories, boundaries, and application notes. Identity is decided separately in the mandatory Persona queue.</p>
+          <p className="lede mt-2">Review Strengths, categories, boundaries, and application notes. Identity is decided separately in the identity review queue.</p>
         </div>
       </header>
 
@@ -58,7 +58,7 @@ function HostApplicationsPage() {
                       <span className="dot" aria-hidden="true" />
                       <span>Identity {host.applicantIdentityEligible ? 'approved' : 'not approved'}</span>
                       <span className="dot" aria-hidden="true" />
-                      <span>Persona {formatStatus(host.verificationPersonaStatus ?? 'not started')}</span>
+                      <span>{host.verificationSource === 'in_app' ? 'In-app identity' : `Identity provider ${formatStatus(host.verificationPersonaStatus ?? 'not started')}`}</span>
                     </div>
                   </div>
                   <div className="admin-action-stack">
@@ -80,7 +80,7 @@ function HostApplicationsPage() {
                 </div>
                 {host.applicantSuspended && <p className="text-meta">Approval remains disabled while this member account is suspended.</p>}
                 {!host.applicantIdentityEligible && host.status === 'pending_review' && (
-                  <p className="text-meta">Approval remains disabled until this member completes Persona verification and the identity reviewer explicitly approves it.</p>
+                  <p className="text-meta">Approval remains disabled until this member completes identity verification and the identity reviewer explicitly approves it.</p>
                 )}
                 <p className="text-body muted max-w-[76ch]">{host.intro}</p>
                 <div className="worklist-row-meta">
@@ -93,7 +93,7 @@ function HostApplicationsPage() {
                   <span>Boundaries: {host.boundaries.join(', ') || 'none'}</span>
                 </div>
                 <div className="worklist-row-meta">
-                  <span>Persona decision: {formatStatus(host.verificationPersonaDecision ?? 'unknown')}</span>
+                  <span>Provider decision: {formatStatus(host.verificationPersonaDecision ?? 'unknown')}</span>
                   <span className="dot" aria-hidden="true" />
                   <span>Identity review: {formatStatus(host.verificationAdminStatus ?? 'not started')}</span>
                   {host.personaDashboardUrl && (

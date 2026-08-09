@@ -84,7 +84,7 @@ export const createDraft = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     if (!hasCurrentIdentityApproval(viewer)) {
-      throw new Error('A current Persona identity check and safety review are required before you can request a booking.')
+      throw new Error('A current identity check and safety review are required before you can request a booking.')
     }
     const host = await ctx.db.get(args.hostProfileId)
     if (!host || host.status !== 'approved') throw new Error('Friend Host is not available for booking')
@@ -218,7 +218,7 @@ export const hostDecision = mutation({
     let v2SettlementBlockedAt = booking.settlementBlockedAt
     if (args.decision === 'accepted') {
       if (host.status !== 'approved' || !hasCurrentIdentityApproval(viewer)) {
-        throw new Error('A current Persona identity check and approved Friend Host profile are required before accepting new bookings')
+        throw new Error('A current identity check and approved Friend Host profile are required before accepting new bookings')
       }
       const member = await ctx.db.get(booking.memberId)
       if (!member || member.suspended || !hasCurrentIdentityApproval(member)) {

@@ -16,6 +16,7 @@ export type PersonaStatus =
 
 export type PersonaDecision = 'unknown' | 'passed' | 'needs_review' | 'declined'
 export type IdentityAdminStatus = 'not_ready' | 'pending' | 'approved' | 'rejected' | 'not_started'
+export type IdentityRecordStage = 'draft' | 'extracting' | 'confirmation_required' | 'ready_for_review' | 'failed' | 'approved' | 'rejected' | 'purged'
 
 export function isRealPersonaInquiryId(value: string | undefined) {
   return Boolean(value?.startsWith('inq_') && !value.startsWith('persona_dummy_'))
@@ -38,21 +39,23 @@ export function personaLifecycleRank(status: PersonaStatus) {
 }
 
 export function isIdentityReadyForAdminReview(
-  request: Pick<Doc<'verificationRequests'>, 'adminStatus' | 'personaStatus' | 'personaInquiryId' | 'verificationSource' | 'isCurrent'>,
+  request: Pick<Doc<'verificationRequests'>, 'adminStatus' | 'personaStatus' | 'personaInquiryId' | 'verificationSource' | 'identityStage' | 'isCurrent'>,
 ) {
-  return request.adminStatus === 'pending'
-    && (request.personaStatus === 'completed' || request.personaStatus === 'failed')
+  if (request.adminStatus !== 'pending' || request.isCurrent !== true) return false
+  if (request.verificationSource === 'in_app') return request.identityStage === 'ready_for_review'
+  return (request.personaStatus === 'completed' || request.personaStatus === 'failed')
     && request.verificationSource === 'persona'
-    && request.isCurrent === true
     && isRealPersonaInquiryId(request.personaInquiryId)
 }
 
 export function canAdminApproveIdentity(
-  request: Pick<Doc<'verificationRequests'>, 'adminStatus' | 'personaStatus' | 'personaDecision' | 'personaInquiryId' | 'verificationSource' | 'isCurrent'>,
+  request: Pick<Doc<'verificationRequests'>, 'adminStatus' | 'personaStatus' | 'personaDecision' | 'personaInquiryId' | 'verificationSource' | 'identityStage' | 'isCurrent'>,
 ) {
   return isIdentityReadyForAdminReview(request)
-    && request.personaStatus === 'completed'
-    && (request.personaDecision === 'passed' || request.personaDecision === 'needs_review')
+    && (request.verificationSource === 'in_app' || (
+      request.personaStatus === 'completed'
+      && (request.personaDecision === 'passed' || request.personaDecision === 'needs_review')
+    ))
 }
 
 export function hasCurrentPersonaApproval(
@@ -78,7 +81,11 @@ export function hasCurrentIdentityApproval(
   user: Pick<Doc<'users'>, 'clerkUserId' | 'verificationStatus' | 'verificationSource' | 'identityVerifiedAt' | 'identityExpiresAt' | 'identityTestBypass'>,
   now = Date.now(),
 ) {
-  return hasCurrentPersonaApproval(user, now)
+  return (user.verificationStatus === 'approved'
+      && (user.verificationSource === 'persona' || user.verificationSource === 'in_app')
+      && typeof user.identityVerifiedAt === 'number'
+      && typeof user.identityExpiresAt === 'number'
+      && user.identityExpiresAt > now)
     || (identityTestBypassAllowed(user) && user.identityTestBypass === true)
 }
 

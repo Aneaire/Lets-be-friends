@@ -17,6 +17,7 @@ import type * as finance from "../finance.js";
 import type * as hostLocations from "../hostLocations.js";
 import type * as hosts from "../hosts.js";
 import type * as http from "../http.js";
+import type * as identityRecords from "../identityRecords.js";
 import type * as identityVerification from "../identityVerification.js";
 import type * as lib from "../lib.js";
 import type * as migrations from "../migrations.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   hostLocations: typeof hostLocations;
   hosts: typeof hosts;
   http: typeof http;
+  identityRecords: typeof identityRecords;
   identityVerification: typeof identityVerification;
   lib: typeof lib;
   migrations: typeof migrations;

@@ -32,7 +32,25 @@ const verificationAdminStatus = v.union(
   // Legacy records used this value before provider and admin state were separated.
   v.literal('not_started'),
 )
-const verificationSource = v.union(v.literal('persona'), v.literal('legacy_manual'))
+const verificationSource = v.union(v.literal('persona'), v.literal('in_app'), v.literal('legacy_manual'))
+const identityRecordStage = v.union(
+  v.literal('draft'),
+  v.literal('extracting'),
+  v.literal('confirmation_required'),
+  v.literal('ready_for_review'),
+  v.literal('failed'),
+  v.literal('approved'),
+  v.literal('rejected'),
+  v.literal('purged'),
+)
+const identityDocumentType = v.union(
+  v.literal('passport'),
+  v.literal('drivers_license'),
+  v.literal('national_id'),
+  v.literal('residence_permit'),
+  v.literal('other_government_id'),
+)
+const identityFieldSignal = v.union(v.literal('high'), v.literal('medium'), v.literal('low'), v.literal('needs_review'))
 const hostStatus = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'))
 const bookingStatus = v.union(v.literal('draft'), v.literal('verification_required'), v.literal('pending_admin_review'), v.literal('request_sent'), v.literal('accepted'), v.literal('declined'), v.literal('cancelled'), v.literal('completed'), v.literal('review_window'), v.literal('closed'))
 const mode = v.union(v.literal('online'), v.literal('in_person'), v.literal('both'))
@@ -140,6 +158,9 @@ export default defineSchema({
     personaStatus,
     personaDecision: v.optional(personaDecision),
     verificationSource: v.optional(verificationSource),
+    identityRecordId: v.optional(v.id('identityRecords')),
+    identityStage: v.optional(identityRecordStage),
+    extractionNeedsReview: v.optional(v.boolean()),
     adminStatus: verificationAdminStatus,
     isCurrent: v.optional(v.boolean()),
     attempt: v.optional(v.number()),
@@ -166,6 +187,87 @@ export default defineSchema({
     .index('by_reason_admin_status', ['reason', 'adminStatus'])
     .index('by_booking', ['bookingId'])
     .index('by_host_profile', ['hostProfileId']),
+  identityRecords: defineTable({
+    userId: v.id('users'),
+    verificationRequestId: v.optional(v.id('verificationRequests')),
+    reason: v.union(v.literal('member'), v.literal('booking'), v.literal('host_application'), v.literal('reverification')),
+    source: v.literal('in_app'),
+    stage: identityRecordStage,
+    selectedIdType: identityDocumentType,
+    extraction: v.optional(v.object({
+      fullLegalName: v.optional(v.string()),
+      dateOfBirth: v.optional(v.string()),
+      idType: v.optional(identityDocumentType),
+      idNumberLast4: v.optional(v.string()),
+      expirationDate: v.optional(v.string()),
+      nationality: v.optional(v.string()),
+      signals: v.object({
+        fullLegalName: identityFieldSignal,
+        dateOfBirth: identityFieldSignal,
+        idType: identityFieldSignal,
+        idNumberLast4: identityFieldSignal,
+        expirationDate: identityFieldSignal,
+        nationality: identityFieldSignal,
+      }),
+      needsReview: v.boolean(),
+    })),
+    fullLegalName: v.optional(v.string()),
+    dateOfBirth: v.optional(v.string()),
+    idType: v.optional(identityDocumentType),
+    idNumberLast4: v.optional(v.string()),
+    expirationDate: v.optional(v.string()),
+    nationality: v.optional(v.string()),
+    extractionStartedAt: v.optional(v.number()),
+    extractionCompletedAt: v.optional(v.number()),
+    extractionFailureCode: v.optional(v.string()),
+    fieldsConfirmedAt: v.optional(v.number()),
+    thirdPartyProcessingConsentedAt: v.optional(v.number()),
+    reviewConsentedAt: v.optional(v.number()),
+    selfieCaptureToken: v.optional(v.string()),
+    selfieCaptureExpiresAt: v.optional(v.number()),
+    selfieCaptureUsedAt: v.optional(v.number()),
+    submittedAt: v.optional(v.number()),
+    reviewedAt: v.optional(v.number()),
+    reviewerUserId: v.optional(v.id('users')),
+    legalHoldSetAt: v.optional(v.number()),
+    legalHoldSetByUserId: v.optional(v.id('users')),
+    legalHoldNote: v.optional(v.string()),
+    legalHoldReleasedAt: v.optional(v.number()),
+    legalHoldReleasedByUserId: v.optional(v.id('users')),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_user_created_at', ['userId', 'createdAt'])
+    .index('by_verification_request', ['verificationRequestId'])
+    .index('by_stage', ['stage']),
+  identityRecordImages: defineTable({
+    identityRecordId: v.id('identityRecords'),
+    userId: v.id('users'),
+    kind: v.union(v.literal('id_front'), v.literal('id_back'), v.literal('selfie')),
+    storageId: v.optional(v.id('_storage')),
+    contentType: v.string(),
+    size: v.number(),
+    createdAt: v.number(),
+    retentionDueAt: v.number(),
+    purgeAfter: v.number(),
+    purgedAt: v.optional(v.number()),
+    purgeReason: v.optional(v.union(v.literal('retention_expired'), v.literal('storage_missing'))),
+  })
+    .index('by_record_kind', ['identityRecordId', 'kind'])
+    .index('by_user_created_at', ['userId', 'createdAt'])
+    .index('by_active_purge_after', ['purgedAt', 'purgeAfter']),
+  identityRecordAccessGrants: defineTable({
+    identityRecordId: v.id('identityRecords'),
+    imageId: v.id('identityRecordImages'),
+    reviewerUserId: v.id('users'),
+    verificationRequestId: v.optional(v.id('verificationRequests')),
+    reportId: v.optional(v.id('reports')),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index('by_record', ['identityRecordId'])
+    .index('by_reviewer', ['reviewerUserId']),
   personaWebhookEvents: defineTable({
     eventId: v.string(),
     eventName: v.string(),

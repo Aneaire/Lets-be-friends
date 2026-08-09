@@ -7,6 +7,8 @@ export type LatestIdentityVerification = {
   personaStatus?: PersonaStatus | null
   personaDecision?: PersonaDecision | null
   adminStatus?: AdminVerificationStatus | null
+  verificationSource?: 'persona' | 'in_app' | 'legacy_manual' | null
+  identityStage?: 'draft' | 'extracting' | 'confirmation_required' | 'ready_for_review' | 'failed' | 'approved' | 'rejected' | 'purged' | null
 } | null
 
 export type MemberVerificationPresentation = {
@@ -41,7 +43,7 @@ export function memberVerificationPresentation(
       state: 'approved',
       label: 'Identity approved',
       tone: 'success',
-      guidance: 'Persona completed your identity check and the safety team approved it. You can request bookings with Friend Hosts.',
+      guidance: 'Your identity check and safety review are approved. You can request bookings with Friend Hosts.',
       action: 'none',
     }
   }
@@ -51,7 +53,7 @@ export function memberVerificationPresentation(
       state: 'expired',
       label: 'Verification renewal needed',
       tone: 'warning',
-      guidance: 'Your previous identity approval is no longer current. Complete a new Persona check and safety review before booking or hosting again.',
+      guidance: 'Your previous identity approval is no longer current. Complete a new identity check and safety review before booking or hosting again.',
       action: 'retry',
     }
   }
@@ -61,7 +63,7 @@ export function memberVerificationPresentation(
       state: 'admin_rejected',
       label: 'Not approved',
       tone: 'danger',
-      guidance: 'The safety team did not approve this identity attempt. Start a new Persona check if another attempt is available.',
+      guidance: 'The safety team did not approve this identity attempt. Start a new identity check if another attempt is available.',
       action: 'retry',
     }
   }
@@ -72,7 +74,7 @@ export function memberVerificationPresentation(
         state: 'provider_declined',
         label: 'Review required',
         tone: 'danger',
-        guidance: 'Persona could not verify this identity. The safety team will review the result before closing the attempt.',
+        guidance: 'The identity provider could not verify this identity. The safety team will review the result before closing the attempt.',
         action: 'none',
       }
     }
@@ -80,7 +82,7 @@ export function memberVerificationPresentation(
       state: 'admin_pending',
       label: 'Safety review pending',
       tone: 'warning',
-      guidance: 'Your Persona identity check is complete. Every identity is reviewed by the safety team before access is approved.',
+      guidance: 'Your identity submission is complete. Every identity is reviewed by the safety team before access is approved.',
       action: 'none',
     }
   }
@@ -93,7 +95,7 @@ export function memberVerificationPresentation(
       state: 'provider_processing',
       label: 'Processing identity',
       tone: 'warning',
-      guidance: 'Persona is processing your government ID and live selfie. Booking remains locked until Persona finishes and an admin reviews it.',
+      guidance: 'Your government ID is being processed. Booking remains locked until processing finishes and a safety reviewer approves it.',
       action: 'none',
     }
   }
@@ -103,17 +105,17 @@ export function memberVerificationPresentation(
       state: 'expired',
       label: 'New attempt needed',
       tone: 'danger',
-      guidance: 'This Persona attempt could not be completed. Start a new identity check to continue.',
+      guidance: 'This identity attempt could not be completed. Start a new identity check to continue.',
       action: 'retry',
     }
   }
 
-  if (latestRequest?.personaStatus === 'created' || latestRequest?.personaStatus === 'in_progress' || status === 'pending') {
+  if (latestRequest?.identityStage === 'draft' || latestRequest?.identityStage === 'extracting' || latestRequest?.identityStage === 'confirmation_required' || latestRequest?.personaStatus === 'created' || latestRequest?.personaStatus === 'in_progress' || status === 'pending') {
     return {
       state: 'action_required',
       label: 'Identity check incomplete',
       tone: 'self',
-      guidance: 'Continue the secure Persona flow to submit your government ID and live selfie for safety review.',
+      guidance: 'Continue the private identity flow to confirm your government ID details and take a current selfie for safety review.',
       action: 'continue',
     }
   }
@@ -122,7 +124,7 @@ export function memberVerificationPresentation(
     state: 'not_started',
     label: 'Identity not started',
     tone: 'self',
-    guidance: 'Complete a secure Persona government ID and live-selfie check. The safety team reviews every result before booking access is approved.',
+    guidance: 'Complete a private government ID check and current selfie capture. The safety team reviews every submission before booking access is approved.',
     action: 'start',
   }
 }

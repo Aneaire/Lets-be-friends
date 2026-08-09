@@ -67,6 +67,7 @@ function ProfilePage() {
 
   return (
     <main className="profile-page">
+      {identityFlow.dialog}
       {(notice || identityFlow.message) && (
         <div className="notice notice-success mb-6" role="status" aria-live="polite">
           <span className="notice-icon">✓</span>
@@ -92,7 +93,7 @@ function ProfilePage() {
             <button type="button" className="btn btn-self btn-sm" onClick={() => setEditOpen(true)}>
               Edit profile
             </button>
-            <Link to="/app" search={{}} className="btn btn-neutral btn-sm">Your plans</Link>
+            <Link to="/app" search={{}} className="btn btn-neutral btn-sm">Your bookings</Link>
             <Link to="/become-host" className="btn btn-neutral btn-sm">
               {application ? 'Edit hosting profile' : 'Share what you enjoy'}
             </Link>
@@ -143,17 +144,17 @@ function ProfilePage() {
                 disabled={identityFlow.busy}
               >
                 {identityFlow.busy
-                  ? 'Opening Persona…'
+                  ? 'Opening identity check...'
                   : verification.action === 'continue'
                     ? 'Continue identity check'
                     : verification.action === 'retry'
                       ? 'Start a new identity check'
-                      : 'Verify identity with Persona'}
+                      : 'Verify identity'}
               </button>
             )}
             {verification.state === 'approved' && (
               <Link to="/app" search={{}} className="btn btn-social btn-sm">
-                Plan a time
+                Create booking
               </Link>
             )}
             <div className="flex items-center justify-between gap-3">

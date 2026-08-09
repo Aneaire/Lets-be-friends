@@ -311,7 +311,7 @@ describe('inquiry preparation and legacy enforcement', () => {
       mode: 'online',
       requestedAt: Date.now() + 3_600_000,
       durationMinutes: 60,
-    })).rejects.toThrow(/current Persona identity check/)
+    })).rejects.toThrow(/current identity check/)
     expect((await t.run(async (ctx) => ctx.db.get(legacyMemberId)))?.verificationStatus).toBe('approved')
   })
 })
@@ -499,7 +499,7 @@ describe('mandatory admin identity review', () => {
       verificationRequestId: requestId,
       decision: 'approved',
       note: 'Override attempt.',
-    })).rejects.toThrow(/Persona declined or did not complete/)
+    })).rejects.toThrow(/identity provider declined or did not complete/)
 
     await admin.mutation(api.admin.reviewMemberVerification, {
       verificationRequestId: requestId,

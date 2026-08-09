@@ -194,6 +194,7 @@ function HostAuthPanel() {
 
   return (
     <div className="drawer-host" id="host-profile-editor">
+      {identityFlow.dialog}
       <form
         ref={formRef}
         className="hosting-editor-form"
@@ -675,12 +676,12 @@ function ReviewStatusPanel({
         {canStartIdentity && verification.action !== 'none' && (
           <button type="button" className="btn btn-self btn-sm" disabled={identityBusy} onClick={onStartIdentity}>
             {identityBusy
-              ? 'Opening Persona…'
+              ? 'Opening identity check...'
               : verification.action === 'continue'
                 ? 'Continue identity check'
                 : verification.action === 'retry'
                   ? 'Start a new identity check'
-                  : 'Verify identity with Persona'}
+                  : 'Verify identity'}
           </button>
         )}
         <p className="text-meta">{verification.guidance}</p>

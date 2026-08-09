@@ -12,8 +12,8 @@ import { identityEntitlementStatus, memberVerificationPresentation } from '../li
 export const Route = createFileRoute('/onboarding')({ component: OnboardingPage })
 
 const memberJourney = [
-  ['Complete Persona identity verification', 'Securely submit a government ID and live selfie/liveness check.'],
-  ['Receive safety-team approval', 'Every completed Persona result is reviewed by an admin before booking access is unlocked.'],
+  ['Complete identity verification', 'Securely submit a government ID and take a current camera selfie.'],
+  ['Receive safety-team approval', 'Every completed identity submission is reviewed before booking access is unlocked.'],
   ['Discover an approved Friend Host', 'Compare strengths, modes, boundaries, and reviews before choosing.'],
   ['Send a booking request', 'Choose a category, mode, and time for the Friend Host to accept or decline.'],
   ['Have the experience and leave a review', 'Messages support safe coordination, and afterward you can share feedback.'],
@@ -188,10 +188,11 @@ function OnboardingPage() {
         ? 'Continue identity check'
         : verification.action === 'retry'
           ? 'Start a new identity check'
-          : 'Verify identity with Persona'
+          : 'Verify identity'
 
   return (
     <main className="onboarding-page">
+      {identityFlow.dialog}
       <header className="onboarding-intro">
         <h1 className="text-h1 mt-3">Let’s start with what brings you here.</h1>
       </header>
@@ -391,10 +392,10 @@ function OnboardingPage() {
                 {selectedGoal === 'friend_host'
                   ? 'Continue to your Friend Host profile. Applying starts review; it does not guarantee approval.'
                   : verification.state === 'approved'
-                    ? 'Your Persona identity check and safety-team review are approved. Continue to Bookings when you are ready.'
+                    ? 'Your identity check and safety review are approved. Continue to Bookings when you are ready.'
                     : verification.action === 'none'
                       ? `${verification.guidance} Continue to Bookings to follow its status, or skip for now and explore.`
-                      : 'Complete a secure Persona government-ID and live-selfie check now. Every result is reviewed by the safety team before booking unlocks.'}
+                      : 'Complete a private government ID check and current selfie capture now. Every submission is reviewed by the safety team before booking unlocks.'}
               </p>
               {viewer.onboardingCompletedAt && <p className="onboarding-complete-note mt-4">Your welcome guide is already complete. Finishing again keeps your account setup intact.</p>}
             </div>
@@ -423,7 +424,7 @@ function OnboardingPage() {
             )}
             {step === 5 && selectedGoal === 'member' && (
               <button type="button" className="btn btn-self" disabled={submitting || identityFlow.busy} onClick={() => void finishWithIdentityReview()}>
-                {submitting || identityFlow.busy ? 'Opening Persona…' : identityActionLabel}
+                {submitting || identityFlow.busy ? 'Opening identity check...' : identityActionLabel}
               </button>
             )}
           </div>

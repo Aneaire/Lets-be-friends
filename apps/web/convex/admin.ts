@@ -97,6 +97,7 @@ export const hostApplications = query({
         verificationAdminStatus: verification?.adminStatus,
         verificationPersonaStatus: verification?.personaStatus,
         verificationPersonaDecision: verification?.personaDecision,
+        verificationSource: verification?.verificationSource,
         personaInquiryId: verification?.personaInquiryId,
         personaDashboardUrl: personaDashboardUrl(verification?.personaInquiryId),
       }
@@ -117,6 +118,7 @@ export const memberVerifications = query({
       const booking = request.bookingId ? await ctx.db.get(request.bookingId) : null
       const host = booking ? await ctx.db.get(booking.hostProfileId) : null
       const hostUser = host ? await ctx.db.get(host.userId) : null
+      const identityRecord = request.identityRecordId ? await ctx.db.get(request.identityRecordId) : null
       return {
         ...request,
         requestType: request.reason === 'member'
@@ -127,6 +129,16 @@ export const memberVerifications = query({
               ? 'Friend Host identity verification'
               : 'Legacy booking verification',
         approvalAllowed: canAdminApproveIdentity(request),
+        identityRecord: identityRecord && isIdentityReadyForAdminReview(request) ? {
+          fullLegalName: identityRecord.fullLegalName,
+          dateOfBirth: identityRecord.dateOfBirth,
+          idType: identityRecord.idType,
+          idNumberLast4: identityRecord.idNumberLast4,
+          expirationDate: identityRecord.expirationDate,
+          nationality: identityRecord.nationality,
+          extractionNeedsReview: identityRecord.extraction?.needsReview ?? false,
+          legalHoldActive: Boolean(identityRecord.legalHoldSetAt && (!identityRecord.legalHoldReleasedAt || identityRecord.legalHoldReleasedAt < identityRecord.legalHoldSetAt)),
+        } : undefined,
         personaDashboardUrl: personaDashboardUrl(request.personaInquiryId),
         memberDisplayName: user?.displayName ?? 'Member',
         memberVerificationStatus: user?.verificationStatus ?? 'not_started',
@@ -284,10 +296,10 @@ export const reviewMemberVerification = mutation({
     if (!verification) throw new Error('Verification request not found')
     if (!isIdentityVerificationReason(verification.reason)) throw new Error('This is not an identity verification request')
     if (!isIdentityReadyForAdminReview(verification)) {
-      throw new Error('Only the current completed Persona attempt can receive an admin decision')
+      throw new Error('Only the current completed identity attempt can receive an admin decision')
     }
     if (args.decision === 'approved' && !canAdminApproveIdentity(verification)) {
-      throw new Error('Persona declined or did not complete this identity. Start a new attempt instead of overriding it.')
+      throw new Error('The identity provider declined or did not complete this attempt. Start a new attempt instead of overriding it.')
     }
 
     const note = args.decision === 'rejected' ? requireNote(args.note, 'Rejecting identity verification') : normalizeNote(args.note)
@@ -300,11 +312,19 @@ export const reviewMemberVerification = mutation({
       reviewedAt: now,
       updatedAt: now,
     })
+    if (verification.identityRecordId) {
+      await ctx.db.patch(verification.identityRecordId, {
+        stage: args.decision,
+        reviewedAt: now,
+        reviewerUserId: admin._id,
+        updatedAt: now,
+      })
+    }
 
     if (args.decision === 'approved') {
       await ctx.db.patch(verification.userId, {
         verificationStatus: 'approved',
-        verificationSource: 'persona',
+        verificationSource: verification.verificationSource === 'in_app' ? 'in_app' : 'persona',
         identityVerifiedAt: now,
         identityExpiresAt: identityExpiry(now),
         updatedAt: now,

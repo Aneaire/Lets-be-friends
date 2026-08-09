@@ -100,7 +100,7 @@ function HostProfilePage() {
               {host.viewerBookingEligibility === 'own_profile' ? (
                 <>
                   <span className="status-pill" data-tone="self">Your profile</span>
-                  <Link to="/become-host" className="btn btn-self btn-sm">Edit hosting profile</Link>
+                  <Link to="/become-host" className="btn btn-self btn-sm host-profile-edit-action">Edit hosting profile</Link>
                 </>
               ) : (
                 <>

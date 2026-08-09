@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useMutation, useQuery } from 'convex/react'
-import { useState } from 'react'
+import { useAction, useMutation, useQuery } from 'convex/react'
+import { useEffect, useState } from 'react'
 import { api } from '../../../web/convex/_generated/api'
 import { ActionNote } from '../components/ActionNote'
 
@@ -19,7 +19,7 @@ function BookingVerificationPage() {
         <div>
           <p className="eyebrow">Safety review</p>
           <h1 className="text-h1 mt-2">Identity verification</h1>
-          <p className="lede mt-2">Review every completed Persona identity before booking or Friend Host access becomes available.</p>
+          <p className="lede mt-2">Review every completed identity submission before booking or Friend Host access becomes available.</p>
         </div>
       </header>
 
@@ -28,7 +28,7 @@ function BookingVerificationPage() {
           <span className="label">Status</span>
           <select className="field" value={status} onChange={(event) => setStatus(event.currentTarget.value as VerificationStatus)}>
             <option value="pending">Awaiting admin review</option>
-            <option value="not_ready">Persona incomplete</option>
+            <option value="not_ready">Identity check incomplete</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
             <option value="all">All</option>
@@ -76,7 +76,8 @@ function BookingVerificationPage() {
                   </div>
                 </div>
                 <div className="worklist-row-meta">
-                  <span>Persona: {formatStatus(verification.personaStatus)}</span>
+                  <span>Source: {verification.verificationSource === 'in_app' ? 'In-app identity' : 'Persona'}</span>
+                  {verification.verificationSource !== 'in_app' && <><span className="dot" aria-hidden="true" /><span>Provider: {formatStatus(verification.personaStatus)}</span></>}
                   <span className="dot" aria-hidden="true" />
                   <span>Decision: {formatStatus(verification.personaDecision ?? 'unknown')}</span>
                   <span className="dot" aria-hidden="true" />
@@ -118,8 +119,18 @@ function BookingVerificationPage() {
                     </>
                   )}
                 </div>
+                {verification.identityRecord && (
+                  <div className="panel mt-3">
+                    <p className="text-meta">Confirmed name: {verification.identityRecord.fullLegalName ?? 'Not provided'}</p>
+                    <p className="text-meta">Date of birth: {verification.identityRecord.dateOfBirth ?? 'Not provided'}</p>
+                    <p className="text-meta">ID: {formatStatus(verification.identityRecord.idType ?? 'unknown')}{verification.identityRecord.idNumberLast4 ? ` ending ${verification.identityRecord.idNumberLast4}` : ''}</p>
+                    <p className="text-meta">Expiration: {verification.identityRecord.expirationDate ?? 'Not provided'} · Nationality: {verification.identityRecord.nationality ?? 'Not provided'}</p>
+                    {verification.identityRecord.extractionNeedsReview && <p className="text-meta">The AI marked one or more extracted fields for careful review.</p>}
+                    {verification.adminStatus === 'pending' && <IdentityImageReview verificationRequestId={verification._id} />}
+                  </div>
+                )}
                 {!verification.approvalAllowed && verification.adminStatus === 'pending' && (
-                  <p className="text-meta">Approval is blocked because Persona did not return an approvable result. Review and reject this attempt, then the member can start a new one.</p>
+                  <p className="text-meta">Approval is blocked because the provider did not return an approvable result. Review and reject this attempt, then the member can start a new one.</p>
                 )}
                 {verification.personaInquiryId && <p className="text-meta admin-code">Inquiry: {verification.personaInquiryId}</p>}
                 {verification.reviewerNote && <p className="text-meta">Last internal note: {verification.reviewerNote}</p>}
@@ -130,6 +141,50 @@ function BookingVerificationPage() {
       )}
     </>
   )
+}
+
+function IdentityImageReview({ verificationRequestId }: { verificationRequestId: any }) {
+  const readImage = useAction(api.identityRecords.readReviewImage)
+  const [preview, setPreview] = useState<{ url: string; label: string; displayUntil: number } | null>(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState('')
+
+  useEffect(() => {
+    if (!preview) return
+    const remaining = Math.max(0, preview.displayUntil - Date.now())
+    const timer = window.setTimeout(() => setPreview(null), remaining)
+    return () => {
+      window.clearTimeout(timer)
+      URL.revokeObjectURL(preview.url)
+    }
+  }, [preview])
+
+  const open = async (kind: 'id_front' | 'id_back' | 'selfie', label: string) => {
+    setLoading(kind)
+    setError('')
+    try {
+      const result = await readImage({ verificationRequestId, kind })
+      const url = URL.createObjectURL(new Blob([result.bytes], { type: result.contentType }))
+      setPreview((current) => {
+        if (current) URL.revokeObjectURL(current.url)
+        return { url, label, displayUntil: result.displayUntil }
+      })
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The identity image could not be opened.')
+    } finally {
+      setLoading('')
+    }
+  }
+
+  return <div className="mt-3">
+    <div className="admin-filter-row">
+      <button type="button" className="btn btn-neutral btn-sm" onClick={() => void open('id_front', 'ID front')} disabled={Boolean(loading)}>{loading === 'id_front' ? 'Opening...' : 'View ID front'}</button>
+      <button type="button" className="btn btn-neutral btn-sm" onClick={() => void open('id_back', 'ID back')} disabled={Boolean(loading)}>{loading === 'id_back' ? 'Opening...' : 'View ID back'}</button>
+      <button type="button" className="btn btn-neutral btn-sm" onClick={() => void open('selfie', 'Current selfie')} disabled={Boolean(loading)}>{loading === 'selfie' ? 'Opening...' : 'View current selfie'}</button>
+    </div>
+    {preview && <div className="mt-3"><p className="text-meta">{preview.label}. Access expires {formatTime(preview.displayUntil)}.</p><img src={preview.url} alt={preview.label} className="w-full" /></div>}
+    {error && <p className="text-meta">{error}</p>}
+  </div>
 }
 
 function adminStatusTone(status: string): 'self' | 'success' | 'warning' | 'danger' {

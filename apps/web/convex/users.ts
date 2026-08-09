@@ -102,6 +102,8 @@ export const latestMemberVerification = query({
       personaInquiryId: latest.personaInquiryId,
       personaStatus: latest.personaStatus,
       personaDecision: latest.personaDecision ?? 'unknown',
+      verificationSource: latest.verificationSource,
+      identityStage: latest.identityStage,
       adminStatus: latest.adminStatus,
       isCurrent: latest.isCurrent,
       attempt: latest.attempt,
