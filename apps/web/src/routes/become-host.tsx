@@ -194,7 +194,6 @@ function HostAuthPanel() {
 
   return (
     <div className="drawer-host" id="host-profile-editor">
-      {identityFlow.dialog}
       <form
         ref={formRef}
         className="hosting-editor-form"

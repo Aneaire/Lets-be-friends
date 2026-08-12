@@ -192,7 +192,6 @@ function OnboardingPage() {
 
   return (
     <main className="onboarding-page">
-      {identityFlow.dialog}
       <header className="onboarding-intro">
         <h1 className="text-h1 mt-3">Let’s start with what brings you here.</h1>
       </header>

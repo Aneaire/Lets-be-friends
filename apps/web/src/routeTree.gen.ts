@@ -23,6 +23,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SocialRouteImport } from './routes/social'
+import { Route as VerifyIdentityRouteImport } from './routes/verify-identity'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -94,6 +95,11 @@ const SocialRoute = SocialRouteImport.update({
   path: '/social',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VerifyIdentityRoute = VerifyIdentityRouteImport.update({
+  id: '/verify-identity',
+  path: '/verify-identity',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
+  '/verify-identity': typeof VerifyIdentityRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -126,6 +133,7 @@ export interface FileRoutesByTo {
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
+  '/verify-identity': typeof VerifyIdentityRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
+  '/verify-identity': typeof VerifyIdentityRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/safety'
     | '/settings'
     | '/social'
+    | '/verify-identity'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/safety'
     | '/settings'
     | '/social'
+    | '/verify-identity'
   id:
     | '__root__'
     | '/'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/safety'
     | '/settings'
     | '/social'
+    | '/verify-identity'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -210,6 +222,7 @@ export interface RootRouteChildren {
   SafetyRoute: typeof SafetyRoute
   SettingsRoute: typeof SettingsRoute
   SocialRoute: typeof SocialRoute
+  VerifyIdentityRoute: typeof VerifyIdentityRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -312,6 +325,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SocialRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/verify-identity': {
+      id: '/verify-identity'
+      path: '/verify-identity'
+      fullPath: '/verify-identity'
+      preLoaderRoute: typeof VerifyIdentityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -330,6 +350,7 @@ const rootRouteChildren: RootRouteChildren = {
   SafetyRoute: SafetyRoute,
   SettingsRoute: SettingsRoute,
   SocialRoute: SocialRoute,
+  VerifyIdentityRoute: VerifyIdentityRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

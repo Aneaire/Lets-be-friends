@@ -171,7 +171,6 @@ function AppPage() {
   const heldBooking = (bookings ?? []).find((booking) => booking.status === 'verification_required')
 
   return (
-    <>
     <WorkspaceShell
       variant="bookings"
       title="Your bookings"
@@ -503,8 +502,6 @@ function AppPage() {
         />
       )}
     </WorkspaceShell>
-    {identityFlow.dialog}
-    </>
   )
 }
 

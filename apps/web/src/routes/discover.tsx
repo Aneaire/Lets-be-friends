@@ -505,7 +505,7 @@ function HostRow({ host, signedIn, onFollow }: { host: DiscoveryHost; signedIn: 
 
         <div className="discover-host-actions">
           <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
-            View fit and ideas
+            Profile
           </Link>
           {signedIn ? (
             <button

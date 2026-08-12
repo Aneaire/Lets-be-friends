@@ -267,7 +267,11 @@ function HostBookingAction({
 
   if (eligibility === 'verification_required') {
     return (
-      <Link to="/app" search={{}} className="btn btn-self btn-sm">
+      <Link
+        to="/verify-identity"
+        search={{ intent: 'member', returnTo: '/app' }}
+        className="btn btn-self btn-sm"
+      >
         Verify before booking
       </Link>
     )

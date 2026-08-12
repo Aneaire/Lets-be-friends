@@ -67,7 +67,6 @@ function ProfilePage() {
 
   return (
     <main className="profile-page">
-      {identityFlow.dialog}
       {(notice || identityFlow.message) && (
         <div className="notice notice-success mb-6" role="status" aria-live="polite">
           <span className="notice-icon">✓</span>

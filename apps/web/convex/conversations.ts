@@ -1,4 +1,5 @@
 import { v } from 'convex/values'
+import { paginationOptsValidator } from 'convex/server'
 import type { Doc, Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
 import { requireViewer, writeAudit } from './lib'
@@ -50,7 +51,9 @@ export const list = query({
           ? ctx.db.query('directMessages')
             .withIndex('by_conversation_created_at', (q) => q.eq('conversationId', conversation._id).gt('createdAt', viewerLastReadAt))
             .collect()
-          : Promise.resolve([] as Array<Doc<'directMessages'>>),
+          : ctx.db.query('directMessages')
+            .withIndex('by_conversation_created_at', (q) => q.eq('conversationId', conversation._id))
+            .collect(),
       ])
       return {
         ...conversation,
@@ -119,6 +122,50 @@ export const messages = query({
           ...attachment,
           url: await ctx.storage.getUrl(attachment.storageId),
         }))),
+        booking: message.bookingId ? await bookingSnapshot(ctx, message.bookingId) : null,
+        sentByViewer: message.senderId === viewer._id,
+      }))),
+    }
+  },
+})
+
+export const conversation = query({
+  args: { conversationId: v.id('directConversations') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const conversation = await requireParticipant(ctx, args.conversationId, viewer._id)
+    const otherUserId = conversation.participantOneId === viewer._id
+      ? conversation.participantTwoId
+      : conversation.participantOneId
+    const otherUser = await ctx.db.get(otherUserId)
+    return {
+      _id: conversation._id,
+      otherUserId,
+      otherDisplayName: otherUser?.displayName ?? 'Member',
+      otherProfileImageUrl: await profileImageUrl(ctx, otherUser),
+      otherUserSuspended: otherUser?.suspended ?? true,
+    }
+  },
+})
+
+export const messagePage = query({
+  args: {
+    conversationId: v.id('directConversations'),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    await requireParticipant(ctx, args.conversationId, viewer._id)
+    const result = await ctx.db.query('directMessages')
+      .withIndex('by_conversation_created_at', (q) => q.eq('conversationId', args.conversationId))
+      .order('desc')
+      .paginate(args.paginationOpts)
+
+    return {
+      ...result,
+      page: await Promise.all(result.page.map(async (message) => ({
+        ...message,
+        attachments: message.attachments ?? [],
         booking: message.bookingId ? await bookingSnapshot(ctx, message.bookingId) : null,
         sentByViewer: message.senderId === viewer._id,
       }))),

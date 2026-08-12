@@ -47,7 +47,19 @@ describe('direct conversations', () => {
       lastMessageBody: 'Hi Alex',
       lastMessageSentByViewer: false,
       lastMessageCreatedAt: expect.any(Number),
+      unreadCount: 1,
     }])
+
+    const firstPage = await alex.query(api.conversations.messagePage, {
+      conversationId,
+      paginationOpts: { cursor: null, numItems: 1 },
+    })
+    expect(firstPage.page).toHaveLength(1)
+    expect(firstPage.page[0]).toMatchObject({ body: 'Hi Alex', sentByViewer: false })
+    expect(firstPage.isDone).toBe(false)
+
+    await alex.mutation(api.conversations.markRead, { conversationId })
+    expect(await alex.query(api.conversations.list, {})).toMatchObject([{ unreadCount: 0 }])
   })
 
   it('prevents self-chat, outsider access, empty messages, and suspended recipients', async () => {
@@ -63,6 +75,11 @@ describe('direct conversations', () => {
     await expect(alex.mutation(api.conversations.start, { otherUserId: suspendedId })).rejects.toThrow('not available')
     await expect(alex.mutation(api.conversations.sendMessage, { conversationId, body: '   ' })).rejects.toThrow('empty')
     await expect(t.withIdentity({ subject: 'outsider' }).query(api.conversations.messages, { conversationId })).rejects.toThrow('Not your conversation')
+    await expect(t.withIdentity({ subject: 'outsider' }).query(api.conversations.conversation, { conversationId })).rejects.toThrow('Not your conversation')
+    await expect(t.withIdentity({ subject: 'outsider' }).query(api.conversations.messagePage, {
+      conversationId,
+      paginationOpts: { cursor: null, numItems: 10 },
+    })).rejects.toThrow('Not your conversation')
 
     expect(outsiderId).toBeTruthy()
   })
