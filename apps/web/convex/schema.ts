@@ -121,6 +121,25 @@ const feedAction = v.union(
   v.literal('report_comment'),
 )
 const feedSurface = v.union(v.literal('for_you'), v.literal('following'), v.literal('saved'))
+const notificationKind = v.union(
+  v.literal('booking_request'),
+  v.literal('booking_request_updated'),
+  v.literal('booking_accepted'),
+  v.literal('booking_declined'),
+  v.literal('booking_cancelled'),
+  v.literal('booking_completion_confirmed'),
+  v.literal('booking_review_window_opened'),
+  v.literal('post_commented'),
+  v.literal('new_follower'),
+  v.literal('review_received'),
+  v.literal('companion_application_approved'),
+  v.literal('companion_application_rejected'),
+  v.literal('identity_verification_approved'),
+  v.literal('identity_verification_rejected'),
+  v.literal('report_reviewing'),
+  v.literal('report_resolved'),
+  v.literal('report_dismissed'),
+)
 
 export default defineSchema({
   users: defineTable({
@@ -529,6 +548,26 @@ export default defineSchema({
     bookingId: v.optional(v.id('bookings')),
     createdAt: v.number(),
   }).index('by_conversation_created_at', ['conversationId', 'createdAt']),
+  notifications: defineTable({
+    recipientUserId: v.id('users'),
+    actorUserId: v.optional(v.id('users')),
+    kind: notificationKind,
+    priority: v.union(v.literal('attention'), v.literal('standard')),
+    bookingId: v.optional(v.id('bookings')),
+    conversationId: v.optional(v.id('directConversations')),
+    postId: v.optional(v.id('posts')),
+    commentId: v.optional(v.id('postComments')),
+    reviewId: v.optional(v.id('reviews')),
+    companionProfileId: v.optional(v.id('companionProfiles')),
+    verificationRequestId: v.optional(v.id('verificationRequests')),
+    reportId: v.optional(v.id('reports')),
+    dedupeKey: v.string(),
+    readAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index('by_recipient_created_at', ['recipientUserId', 'createdAt'])
+    .index('by_recipient_read_at', ['recipientUserId', 'readAt'])
+    .index('by_recipient_dedupe', ['recipientUserId', 'dedupeKey']),
   directMessageUploads: defineTable({
     userId: v.id('users'),
     storageId: v.optional(v.id('_storage')),

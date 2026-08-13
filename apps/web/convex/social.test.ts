@@ -173,6 +173,24 @@ describe('social feed behavior', () => {
     expect(saved.every((item) => item.kind === 'post')).toBe(true)
   })
 
+  it('returns a safe requested post outside the ranked page and rejects unavailable targets', async () => {
+    const t = createTest()
+    const viewerId = await insertUser(t, 'viewer')
+    const safeAuthor = await insertUser(t, 'safe-author')
+    const suspendedAuthor = await insertUser(t, 'suspended-author', { suspended: true })
+    const safePostId = await insertPost(t, safeAuthor, 'requested safe post', { createdAt: 1 })
+    const hiddenPostId = await insertPost(t, safeAuthor, 'hidden', { hidden: true })
+    const suspendedPostId = await insertPost(t, suspendedAuthor, 'suspended')
+    for (let index = 0; index < 25; index += 1) await insertPost(t, safeAuthor, `newer ${index}`, { createdAt: 100 + index })
+
+    const viewer = t.withIdentity({ subject: 'viewer' })
+    expect(await viewer.query(api.social.requestedPost, { postId: String(safePostId) })).toMatchObject({ _id: safePostId, body: 'requested safe post', ownPost: false })
+    expect(await viewer.query(api.social.requestedPost, { postId: String(hiddenPostId) })).toBeNull()
+    expect(await viewer.query(api.social.requestedPost, { postId: String(suspendedPostId) })).toBeNull()
+    expect(await viewer.query(api.social.requestedPost, { postId: 'not-an-id' })).toBeNull()
+    expect(viewerId).toBeTruthy()
+  })
+
   it('uses guidance only as sparse-feed reserve content', async () => {
     const t = createTest()
     for (let index = 0; index < 8; index += 1) {

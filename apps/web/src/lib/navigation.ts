@@ -26,4 +26,5 @@ export function isWorkspacePath(pathname: string) {
     || pathname === '/companion'
     || pathname.startsWith('/companion/')
     || pathname === '/nearby'
+    || pathname === '/notifications'
 }

@@ -44,6 +44,14 @@ export const mobileApi = {
   reviews: {
     submit: generatedApi.reviews.submit,
   },
+  notifications: {
+    recent: generatedApi.notifications.recent,
+    list: generatedApi.notifications.list,
+    unreadCount: generatedApi.notifications.unreadCount,
+    markRead: generatedApi.notifications.markRead,
+    markUnread: generatedApi.notifications.markUnread,
+    markAllRead: generatedApi.notifications.markAllRead,
+  },
   conversations: {
     list: generatedApi.conversations.list,
     between: generatedApi.conversations.between,

@@ -65,7 +65,7 @@ export const list = query({
         lastMessageAttachmentCount: lastMessage?.attachments?.length ?? 0,
         lastMessageSentByViewer: lastMessage?.senderId === viewer._id,
         lastMessageCreatedAt: lastMessage?.createdAt,
-        unreadCount: messagesSinceRead.reduce((count, message) => count + (message.senderId !== viewer._id ? 1 : 0), 0),
+        unreadCount: messagesSinceRead.reduce((count, message) => count + (message.senderId !== viewer._id && !message.bookingId ? 1 : 0), 0),
       }
     }))
   },

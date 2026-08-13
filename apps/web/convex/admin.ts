@@ -6,6 +6,7 @@ import { canAdminApproveIdentity, hasCurrentIdentityApproval, identityVerificati
 import { syncUserCompanionLocation } from './companionLocations'
 import { syncCompanionLocation } from './companionLocations'
 import { resolveBlockedBookingFunds as applyBlockedBookingResolution } from './finance'
+import { createNotification } from './notifications'
 
 const roleOrAll = v.union(v.literal('member'), v.literal('companion'), v.literal('reviewer'), v.literal('admin'), v.literal('all'))
 const verificationStatusOrAll = v.union(v.literal('not_ready'), v.literal('pending'), v.literal('approved'), v.literal('rejected'), v.literal('not_started'), v.literal('all'))
@@ -286,6 +287,13 @@ export const reviewCompanionApplication = mutation({
     }
     await syncCompanionLocation(ctx, after, user)
     await writeAudit(ctx, { actorUserId: admin._id, action: `companion_application.${args.decision}`, targetType: 'companionProfile', targetId: String(args.companionProfileId), before: companion, after, note })
+    await createNotification(ctx, {
+      recipientUserId: companion.userId,
+      kind: args.decision === 'approved' ? 'companion_application_approved' : 'companion_application_rejected',
+      priority: 'attention',
+      companionProfileId: companion._id,
+      dedupeKey: `companion-application:${companion._id}:${args.decision}`,
+    })
   },
 })
 
@@ -350,6 +358,13 @@ export const reviewMemberVerification = mutation({
     }
     await syncUserCompanionLocation(ctx, verification.userId)
 
+    await createNotification(ctx, {
+      recipientUserId: verification.userId,
+      kind: args.decision === 'approved' ? 'identity_verification_approved' : 'identity_verification_rejected',
+      priority: 'attention',
+      verificationRequestId: verification._id,
+      dedupeKey: `identity-verification:${verification._id}:${args.decision}`,
+    })
     await writeAudit(ctx, {
       actorUserId: admin._id,
       action: `member_verification.${args.decision}`,
@@ -605,6 +620,16 @@ async function updateReportStatusHandler(ctx: any, args: { reportId: any; status
   const note = args.status === 'dismissed' ? requireNote(args.note, 'Dismissing a report') : normalizeNote(args.note)
   const after = { ...report, status: args.status, reviewerUserId: admin._id, reviewerNote: note, updatedAt: Date.now() }
   await ctx.db.patch(args.reportId, { status: args.status, reviewerUserId: admin._id, reviewerNote: note, updatedAt: after.updatedAt })
+  if (args.status !== 'open') {
+    await createNotification(ctx, {
+      recipientUserId: report.reporterId,
+      kind: args.status === 'reviewing' ? 'report_reviewing' : args.status === 'resolved' ? 'report_resolved' : 'report_dismissed',
+      priority: args.status === 'reviewing' ? 'standard' : 'attention',
+      reportId: report._id,
+      bookingId: report.bookingId,
+      dedupeKey: `report:${report._id}:${args.status}`,
+    })
+  }
   await writeAudit(ctx, {
     actorUserId: admin._id,
     action: `report.${args.status}`,

@@ -19,9 +19,10 @@ import { prepareEvidenceImage } from '../lib/chatAttachments'
 import { findCompanions } from '../lib/discoverySearch'
 
 export const Route = createFileRoute('/app')({
-  validateSearch: (search: Record<string, unknown>): { companionProfileId?: string } => (
-    typeof search.companionProfileId === 'string' ? { companionProfileId: search.companionProfileId } : {}
-  ),
+  validateSearch: (search: Record<string, unknown>): { companionProfileId?: string; bookingId?: string } => ({
+    ...(typeof search.companionProfileId === 'string' ? { companionProfileId: search.companionProfileId } : {}),
+    ...(typeof search.bookingId === 'string' ? { bookingId: search.bookingId } : {}),
+  }),
   component: AppPage,
 })
 
@@ -65,7 +66,7 @@ const statusCopy: Record<BookingStatus, { label: string; tone: 'self' | 'social'
 }
 
 function AppPage() {
-  const { companionProfileId } = Route.useSearch()
+  const { companionProfileId, bookingId } = Route.useSearch()
   const { isSignedIn } = useAuth()
   const viewer = useQuery(api.users.viewer)
   const latestMemberVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
@@ -133,6 +134,11 @@ function AppPage() {
   const closeWalletDialog = useCallback(() => {
     setWalletDialogOpen(false)
   }, [])
+
+  useEffect(() => {
+    if (!bookingId || !bookings?.some((booking) => String(booking._id) === bookingId)) return
+    requestAnimationFrame(() => document.getElementById(`booking-${bookingId}`)?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }))
+  }, [bookingId, bookings])
 
   useEffect(() => {
     if (!companionProfileId || viewerLoading) return
