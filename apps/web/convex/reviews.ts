@@ -2,6 +2,7 @@ import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { bookingStatusAfterReview, canReviewBooking, isModerationVisible } from '@lets-be-friends/shared'
 import { requireViewer, writeAudit } from './lib'
+import { createNotification } from './notifications'
 
 export const forCompanion = query({
   args: { companionProfileId: v.id('companionProfiles') },
@@ -64,6 +65,15 @@ export const submit = mutation({
     }
     await ctx.db.patch(args.bookingId, { status: bookingStatusAfterReview(Boolean(otherReview)), updatedAt: now })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'review.submitted', targetType: 'review', targetId: String(reviewId) })
+    await createNotification(ctx, {
+      recipientUserId: otherParticipantId,
+      actorUserId: viewer._id,
+      kind: 'review_received',
+      priority: 'standard',
+      bookingId: args.bookingId,
+      reviewId,
+      dedupeKey: `review:${reviewId}:received`,
+    })
     return reviewId
   },
 })

@@ -18,6 +18,7 @@ import { Route as CompanionProfileRouteImport } from './routes/companion-profile
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as NearbyRouteImport } from './routes/nearby'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SafetyRouteImport } from './routes/safety'
@@ -70,6 +71,11 @@ const NearbyRoute = NearbyRouteImport.update({
   path: '/nearby',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/discover': typeof DiscoverRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
+  '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByTo {
   '/discover': typeof DiscoverRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
+  '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/discover': typeof DiscoverRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
+  '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/messages'
     | '/nearby'
+    | '/notifications'
     | '/onboarding'
     | '/profile'
     | '/safety'
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/messages'
     | '/nearby'
+    | '/notifications'
     | '/onboarding'
     | '/profile'
     | '/safety'
@@ -199,6 +210,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/messages'
     | '/nearby'
+    | '/notifications'
     | '/onboarding'
     | '/profile'
     | '/safety'
@@ -217,6 +229,7 @@ export interface RootRouteChildren {
   DiscoverRoute: typeof DiscoverRoute
   MessagesRoute: typeof MessagesRoute
   NearbyRoute: typeof NearbyRoute
+  NotificationsRoute: typeof NotificationsRoute
   OnboardingRoute: typeof OnboardingRoute
   ProfileRoute: typeof ProfileRoute
   SafetyRoute: typeof SafetyRoute
@@ -290,6 +303,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NearbyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -345,6 +365,7 @@ const rootRouteChildren: RootRouteChildren = {
   DiscoverRoute: DiscoverRoute,
   MessagesRoute: MessagesRoute,
   NearbyRoute: NearbyRoute,
+  NotificationsRoute: NotificationsRoute,
   OnboardingRoute: OnboardingRoute,
   ProfileRoute: ProfileRoute,
   SafetyRoute: SafetyRoute,

@@ -36,6 +36,7 @@ export default function RootLayout() {
               <Stack.Screen name="companion-bookings" />
               <Stack.Screen name="companion-booking/[id]" />
               <Stack.Screen name="conversation/[id]" />
+              <Stack.Screen name="notifications" />
               <Stack.Screen name="wallet" />
             </Stack>
           </ThemeProvider>

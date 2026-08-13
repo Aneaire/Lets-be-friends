@@ -1,7 +1,7 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useAction, useMutation, useQuery } from 'convex/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type React from 'react'
 import { canCancelBooking, canCompleteBooking, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -9,7 +9,10 @@ import { api } from '../../convex/_generated/api'
 import { WorkspaceShell } from '../components/AppShell'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
 
-export const Route = createFileRoute('/companion')({ component: CompanionWorkspacePage })
+export const Route = createFileRoute('/companion')({
+  validateSearch: (search: Record<string, unknown>): { bookingId?: string } => typeof search.bookingId === 'string' ? { bookingId: search.bookingId } : {},
+  component: CompanionWorkspacePage,
+})
 
 type CompanionBookingStatus =
   | 'verification_required'
@@ -35,6 +38,7 @@ const statusCopy: Record<CompanionBookingStatus, { label: string; tone: 'self' |
 }
 
 function CompanionWorkspacePage() {
+  const { bookingId } = Route.useSearch()
   const { isSignedIn } = useAuth()
   const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.companions.myApplication)
@@ -48,6 +52,11 @@ function CompanionWorkspacePage() {
   const updateHourlyRate = useMutation(api.companions.updateHourlyRate)
   const createTopUp = useAction(api.paymongo.createTopUp)
   const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    if (!bookingId || !bookings?.some((booking) => String(booking._id) === bookingId)) return
+    requestAnimationFrame(() => document.getElementById(`companion-booking-${bookingId}`)?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }))
+  }, [bookingId, bookings])
 
   if (!isSignedIn) {
     return (
@@ -502,7 +511,7 @@ function CompanionBookingRow({
   const conversationId = useQuery(api.conversations.between, { otherUserId: booking.memberId })
 
   return (
-    <article className="worklist-row">
+    <article id={`companion-booking-${booking._id}`} className="worklist-row">
       <div className="worklist-row-head">
         <div className="flex items-center gap-3 min-w-0">
           <span className="avatar" aria-hidden="true">{initials(booking.memberDisplayName)}</span>

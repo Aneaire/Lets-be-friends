@@ -20,6 +20,15 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 
 type Booking = FunctionReturnType<typeof mobileApi.bookings.mine>[number]
 
+function NotificationBellGlyph({ color }: { color: string }) {
+  return (
+    <View style={styles.bellGlyph} accessible={false}>
+      <View style={[styles.bellDome, { borderColor: color }]} />
+      <View style={[styles.bellClapper, { backgroundColor: color }]} />
+    </View>
+  )
+}
+
 export default function HomeScreen() {
   const theme = useAppTheme()
   const auth = useMobileAuth()
@@ -27,6 +36,7 @@ export default function HomeScreen() {
   const backend = useMobileBackendConfiguration()
   const bookings = useQuery(mobileApi.bookings.mine, member.status === 'ready' ? {} : 'skip')
   const approvedCompanions = useQuery(mobileApi.companions.listApproved, backend.status === 'configured' ? {} : 'skip')
+  const notificationUnread = useQuery(mobileApi.notifications.unreadCount, member.status === 'ready' ? {} : 'skip') ?? 0
   const featuredCompanion = backend.status === 'configured'
     ? approvedCompanions?.[0] ? mapApprovedCompanion(approvedCompanions[0] as ApprovedCompanionRecord) : null
     : mapFixtureDiscoveryCompanion(companions[0])
@@ -43,13 +53,23 @@ export default function HomeScreen() {
     <Screen contentStyle={styles.content}>
       <View style={styles.topBar}>
         <Brand compact />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open profile"
-          onPress={() => router.navigate('/profile')}
-          style={({ pressed }) => [styles.memberButton, { borderColor: theme.colors.self }, pressed && styles.pressed]}>
-          <AppText variant="label" color={theme.colors.self}>{accountInitials}</AppText>
-        </Pressable>
+        <View style={styles.topBarActions}>
+          {member.status === 'ready' ? <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={notificationUnread ? `Open notifications, ${notificationUnread} unread` : 'Open notifications'}
+            onPress={() => router.push('/notifications' as never)}
+            style={({ pressed }) => [styles.bellButton, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
+            <NotificationBellGlyph color={theme.colors.text} />
+            {notificationUnread > 0 ? <View style={[styles.notificationBadge, { backgroundColor: theme.colors.inverse }]}><AppText variant="caption" color={theme.colors.inverseText}>{notificationUnread > 99 ? '99+' : notificationUnread}</AppText></View> : null}
+          </Pressable> : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open profile"
+            onPress={() => router.navigate('/profile')}
+            style={({ pressed }) => [styles.memberButton, { borderColor: theme.colors.self }, pressed && styles.pressed]}>
+            <AppText variant="label" color={theme.colors.self}>{accountInitials}</AppText>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.hero}>
@@ -146,7 +166,13 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 48 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
   topBar: { minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topBarActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   memberButton: { width: 46, height: 46, borderWidth: 2, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+  bellButton: { position: 'relative', width: 42, height: 42, borderWidth: 1, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  bellGlyph: { width: 20, height: 21, alignItems: 'center', justifyContent: 'flex-start' },
+  bellDome: { width: 16, height: 16, borderWidth: 2, borderTopLeftRadius: 8, borderTopRightRadius: 8, borderBottomLeftRadius: 4, borderBottomRightRadius: 4 },
+  bellClapper: { width: 5, height: 3, marginTop: 1, borderRadius: 2 },
+  notificationBadge: { position: 'absolute', top: -5, right: -7, minWidth: 20, height: 20, paddingHorizontal: 4, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.65 },
   hero: { paddingTop: 30, gap: 18 },
   sectionHeading: { gap: 4 },

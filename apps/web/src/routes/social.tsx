@@ -3,12 +3,15 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { Bookmark, Flag, Heart, ImagePlus, MessageCircle, Pencil, Send, Trash2, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { MeetingSeam } from '../components/AppNavigation'
 
-export const Route = createFileRoute('/social')({ component: SocialPage })
+export const Route = createFileRoute('/social')({
+  validateSearch: (search: Record<string, unknown>): { postId?: string } => typeof search.postId === 'string' ? { postId: search.postId } : {},
+  component: SocialPage,
+})
 
 type FeedItem = NonNullable<ReturnType<typeof useQuery<typeof api.social.feed>>>[number]
 type FeedPostItem = Extract<FeedItem, { kind: 'post' }>
@@ -29,11 +32,13 @@ type SelectedMedia = {
 }
 
 export function SocialPage() {
+  const { postId } = Route.useSearch()
   const { isSignedIn } = useAuth()
   const navigate = useNavigate()
   const viewer = useQuery(api.users.viewer)
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('for_you')
   const feedItems = useQuery(api.social.feed, { filter: viewer ? feedFilter : 'for_you' }) as FeedItem[] | undefined
+  const requestedPost = useQuery(api.social.requestedPost, postId ? { postId } : 'skip') as FeedPost | null | undefined
   const mediaUsage = useQuery(api.social.mediaUploadUsage)
   const createPost = useMutation(api.social.createPost)
   const editPost = useMutation(api.social.editPost)
@@ -59,6 +64,9 @@ export function SocialPage() {
   const fallbackName = viewer?.displayName ?? 'New friend'
   const mediaLimit = mediaUsage?.limit ?? 5
   const remainingUploads = mediaUsage?.remaining ?? mediaLimit
+  const displayedFeedItems = useMemo(() => feedItems && requestedPost && !feedItems.some((item) => item.kind === 'post' && String(item.post._id) === String(requestedPost._id))
+    ? [{ kind: 'post' as const, itemKey: `post:${requestedPost._id}`, source: 'recent' as const, reason: 'Opened from your notification', post: requestedPost }, ...feedItems]
+    : feedItems, [feedItems, requestedPost])
 
   selectedMediaRef.current = selectedMedia
 
@@ -67,8 +75,8 @@ export function SocialPage() {
   }, [])
 
   useEffect(() => {
-    if (!viewer || !feedItems) return
-    const newItems = feedItems
+    if (!viewer || !displayedFeedItems) return
+    const newItems = displayedFeedItems
       .map((item, position) => ({ item, position }))
       .filter(({ item }) => !impressedItemKeys.current.has(`${feedFilter}:${item.itemKey}`))
     newItems.forEach(({ item }) => impressedItemKeys.current.add(`${feedFilter}:${item.itemKey}`))
@@ -84,7 +92,7 @@ export function SocialPage() {
         })),
       }).catch(() => undefined)
     }
-  }, [feedFilter, feedItems, recordFeedImpressions, viewer])
+  }, [displayedFeedItems, feedFilter, recordFeedImpressions, viewer])
 
   const recordAction = (item: FeedItem, action: FeedInstrumentationAction) => {
     if (!viewer) return
@@ -291,16 +299,16 @@ export function SocialPage() {
           </div>
         )}
 
-        {feedItems === undefined && <SocialTimelineSkeleton />}
-        {feedItems && feedItems.length === 0 && feedFilter !== 'for_you' && (
+        {displayedFeedItems === undefined && <SocialTimelineSkeleton />}
+        {displayedFeedItems && displayedFeedItems.length === 0 && feedFilter !== 'for_you' && (
           <div className="empty-state social-feed-empty">
             <p className="empty-state-title">No {feedFilter} posts yet.</p>
             <p className="text-meta">Posts in your {feedFilter} feed will appear here.</p>
           </div>
         )}
-        {feedItems && feedItems.length > 0 && (
+        {displayedFeedItems && displayedFeedItems.length > 0 && (
           <div className="social-feed">
-            {feedItems.map((item) => {
+            {displayedFeedItems.map((item) => {
               if (item.kind === 'companion') {
                 return <CompanionRecommendationCard key={item.itemKey} item={item} onOpen={() => recordAction(item, 'open_companion')} />
               }
@@ -313,6 +321,7 @@ export function SocialPage() {
                   key={item.itemKey}
                   post={post}
                   reason={item.reason}
+                  focusComments={postId === String(post._id)}
                   viewerReady={Boolean(viewer)}
                   onComment={async (body) => {
                     await createComment({ postId: post._id, body })
@@ -437,6 +446,7 @@ function SocialTimelineSkeleton() {
 function PostRow({
   post,
   reason,
+  focusComments,
   viewerReady,
   onComment,
   onEdit,
@@ -448,6 +458,7 @@ function PostRow({
 }: {
   post: FeedPost
   reason: string
+  focusComments: boolean
   viewerReady: boolean
   onComment: (body: string) => Promise<void>
   onEdit: (body: string) => Promise<void>
@@ -464,9 +475,16 @@ function PostRow({
   const [actionPending, setActionPending] = useState('')
   const [actionError, setActionError] = useState('')
   const comments = useQuery(api.social.commentsForPost, commentsOpen ? { postId: post._id } : 'skip') as PostComment[] | undefined
+  const rowRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    if (!focusComments) return
+    setCommentsOpen(true)
+    requestAnimationFrame(() => rowRef.current?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }))
+  }, [focusComments])
 
   return (
-    <article className="social-post">
+    <article ref={rowRef} id={`post-${post._id}`} className="social-post" tabIndex={focusComments ? -1 : undefined}>
       {post.ownPost ? (
         <Link
           to="/profile"

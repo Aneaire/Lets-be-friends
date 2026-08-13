@@ -1,8 +1,10 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useClerk, useUser } from '@clerk/react'
-import { useQuery } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import {
+  Bell,
   CalendarCheck,
+  CheckCheck,
   Compass,
   House,
   LogOut,
@@ -19,6 +21,7 @@ import type React from 'react'
 import { api } from '../../convex/_generated/api'
 import { findCompanions } from '../lib/discoverySearch'
 import { activePrimaryNavigation, primaryNavigation } from '../lib/navigation'
+import { formatNotificationTime, webDestination, type NotificationDestination } from '../lib/notifications'
 import { BrandLogo } from './BrandLogo'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -211,6 +214,7 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
           )}
 
           <div className="app-header-actions">
+            {!onboarding && <NotificationNavigation />}
             <ThemeToggle />
             <AccountNavigation
               open={accountOpen}
@@ -238,7 +242,57 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
   )
 }
 
+function NotificationNavigation() {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const unreadCount = useQuery(api.notifications.unreadCount) ?? 0
+  const notifications = useQuery(api.notifications.recent, { limit: 6 })
+  const conversations = useQuery(api.conversations.list, {})
+  const markRead = useMutation(api.notifications.markRead)
+  const markAllRead = useMutation(api.notifications.markAllRead)
+  const messagesUnread = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0
+
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  return <div className="notification-navigation" ref={rootRef}>
+    <button type="button" className="notification-trigger" aria-label={unreadCount ? `Open notifications, ${unreadCount} unread` : 'Open notifications'} aria-expanded={open} aria-controls="notification-panel" onClick={() => setOpen((value) => !value)}>
+      <Bell size={19} aria-hidden="true" />
+      {unreadCount > 0 && <span className="notification-badge tabular">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+    </button>
+    {open && <section id="notification-panel" className="notification-panel" aria-label="Latest notifications">
+      <header><strong>Notifications</strong><button type="button" disabled={!unreadCount} onClick={() => void markAllRead()}><CheckCheck size={14} />Mark all as read</button></header>
+      {messagesUnread > 0 && <Link to="/messages" className="notification-message-summary" onClick={() => setOpen(false)}><MessageCircle size={16} /><span><strong>Messages</strong><small>{messagesUnread} unread {messagesUnread === 1 ? 'message' : 'messages'}</small></span></Link>}
+      <div className="notification-panel-list">
+        {notifications === undefined ? <p className="notification-panel-state">Loading...</p> : notifications.length === 0 ? <p className="notification-panel-state">You are all caught up.</p> : notifications.map((notification) => {
+          const destination = webDestination(notification.destination as NotificationDestination)
+          return <Link key={notification.id} {...destination} className="notification-panel-item" data-unread={!notification.readAt} data-tone={notification.tone} onClick={() => {
+            setOpen(false)
+            if (!notification.readAt) void markRead({ notificationId: notification.id as never })
+          }}><span className="notification-dot" /><span><strong>{notification.title}</strong><small>{notification.body}</small><time>{formatNotificationTime(notification.createdAt)}</time></span></Link>
+        })}
+      </div>
+      <Link to="/notifications" className="notification-panel-footer" onClick={() => setOpen(false)}>View all</Link>
+    </section>}
+  </div>
+}
+
 function DesktopPrimaryNavigation({ activeItem }: { activeItem: ReturnType<typeof activePrimaryNavigation> }) {
+  const conversations = useQuery(api.conversations.list, {})
+  const messagesUnread = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0
   return (
     <aside className="desktop-primary-rail">
       <nav className="primary-nav" aria-label="Primary navigation">
@@ -253,6 +307,7 @@ function DesktopPrimaryNavigation({ activeItem }: { activeItem: ReturnType<typeo
           >
             <NavigationIcon id={item.id} />
             <span>{item.label}</span>
+            {item.id === 'messages' && messagesUnread > 0 && <span className="primary-nav-badge tabular" aria-label={`${messagesUnread} unread messages`}>{messagesUnread > 99 ? '99+' : messagesUnread}</span>}
           </Link>
         ))}
       </nav>
@@ -272,6 +327,8 @@ function MobilePrimaryNavigation({
   accountActive: boolean
   onOpenAccount: (opener: HTMLButtonElement) => void
 }) {
+  const conversations = useQuery(api.conversations.list, {})
+  const messagesUnread = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0
   return (
     <nav className="mobile-primary-nav" aria-label="Mobile primary navigation">
       {primaryNavigation.map((item) => (
@@ -285,6 +342,7 @@ function MobilePrimaryNavigation({
         >
           <NavigationIcon id={item.id} />
           <span>{item.label}</span>
+          {item.id === 'messages' && messagesUnread > 0 && <span className="mobile-nav-badge tabular" aria-label={`${messagesUnread} unread messages`}>{messagesUnread > 99 ? '99+' : messagesUnread}</span>}
         </Link>
       ))}
       <button

@@ -14,6 +14,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { getViewer, requireViewer, writeAudit } from './lib'
+import { createNotification } from './notifications'
 
 const MAX_MEDIA_UPLOADS_PER_DAY = 5
 const MEDIA_UPLOAD_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -186,6 +187,24 @@ export const byUser = query({
   },
 })
 
+export const requestedPost = query({
+  args: { postId: v.string() },
+  handler: async (ctx, args) => {
+    const viewer = await getViewer(ctx)
+    if (viewer?.suspended) throw new Error('Account is suspended')
+    let post: Doc<'posts'> | null = null
+    try {
+      post = await ctx.db.get(args.postId as Id<'posts'>)
+    } catch {
+      return null
+    }
+    if (!post || !isModerationVisible(post) || post.deletedAt) return null
+    const author = await ctx.db.get(post.authorId)
+    if (!author || author.suspended) return null
+    return await enrichPost(ctx, post, viewer)
+  },
+})
+
 export const commentsForPost = query({
   args: { postId: v.id('posts') },
   handler: async (ctx, args) => {
@@ -322,6 +341,15 @@ export const createComment = mutation({
       updatedAt: now,
     })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'post.comment.created', targetType: 'post', targetId: String(args.postId) })
+    await createNotification(ctx, {
+      recipientUserId: post.authorId,
+      actorUserId: viewer._id,
+      kind: 'post_commented',
+      priority: 'standard',
+      postId: post._id,
+      commentId,
+      dedupeKey: `comment:${commentId}:created`,
+    })
     return commentId
   },
 })
@@ -429,8 +457,15 @@ export const toggleFollow = mutation({
       await writeAudit(ctx, { actorUserId: viewer._id, action: 'user.unfollowed', targetType: 'user', targetId: String(args.userId) })
       return false
     }
-    await ctx.db.insert('follows', { followerId: viewer._id, followingId: args.userId, createdAt: Date.now() })
+    const followId = await ctx.db.insert('follows', { followerId: viewer._id, followingId: args.userId, createdAt: Date.now() })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'user.followed', targetType: 'user', targetId: String(args.userId) })
+    await createNotification(ctx, {
+      recipientUserId: args.userId,
+      actorUserId: viewer._id,
+      kind: 'new_follower',
+      priority: 'standard',
+      dedupeKey: `follow:${followId}:created`,
+    })
     return true
   },
 })

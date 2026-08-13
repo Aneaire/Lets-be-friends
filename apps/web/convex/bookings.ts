@@ -15,6 +15,7 @@ import { v } from 'convex/values'
 import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
 import { ensureConversationBetween, sendBookingMessage } from './conversations'
 import { hasCurrentIdentityApproval } from './identityVerification'
+import { createNotification } from './notifications'
 import {
   allocateCompletedBookingFunds,
   availableMemberBookingBalance,
@@ -136,6 +137,15 @@ export const createDraft = mutation({
       bookingId,
       body: bookingRequestMessage(viewer.displayName, args.category, args.mode, args.requestedAt, durationMinutes),
     })
+    await createNotification(ctx, {
+      recipientUserId: companion.userId,
+      actorUserId: viewer._id,
+      kind: 'booking_request',
+      priority: 'attention',
+      bookingId,
+      conversationId,
+      dedupeKey: `booking:${bookingId}:request`,
+    })
     return { bookingId, ...price }
   },
 })
@@ -200,6 +210,15 @@ export const editRequest = mutation({
       bookingId: args.bookingId,
       body: bookingUpdatedMessage(viewer.displayName, args.category, args.mode, args.requestedAt, durationMinutes),
     })
+    await createNotification(ctx, {
+      recipientUserId: companion.userId,
+      actorUserId: viewer._id,
+      kind: 'booking_request_updated',
+      priority: 'attention',
+      bookingId: args.bookingId,
+      conversationId,
+      dedupeKey: `booking:${args.bookingId}:request-updated:${now}`,
+    })
     return { bookingId: args.bookingId, ...price }
   },
 })
@@ -254,6 +273,15 @@ export const companionDecision = mutation({
       senderUserId: viewer._id,
       bookingId: args.bookingId,
       body: bookingDecisionMessage(viewer.displayName, args.decision),
+    })
+    await createNotification(ctx, {
+      recipientUserId: booking.memberId,
+      actorUserId: viewer._id,
+      kind: args.decision === 'accepted' ? 'booking_accepted' : 'booking_declined',
+      priority: args.decision === 'accepted' ? 'standard' : 'attention',
+      bookingId: args.bookingId,
+      conversationId,
+      dedupeKey: `booking:${args.bookingId}:${args.decision}`,
     })
     return { status: args.decision, idempotent: false }
   },
@@ -311,6 +339,15 @@ export const cancel = mutation({
         bookingId: args.bookingId,
         body: bookingCancelledMessage(viewer.displayName, viewer._id === booking.memberId, booking.category, reason),
       })
+      await createNotification(ctx, {
+        recipientUserId: otherUserId,
+        actorUserId: viewer._id,
+        kind: 'booking_cancelled',
+        priority: 'attention',
+        bookingId: args.bookingId,
+        conversationId: cancellationConversationId,
+        dedupeKey: `booking:${args.bookingId}:cancelled`,
+      })
     }
     return { status: 'cancelled' as const, idempotent: false }
   },
@@ -365,6 +402,14 @@ export const markCompleted = mutation({
         targetType: 'booking',
         targetId: String(args.bookingId),
       })
+      await createNotification(ctx, {
+        recipientUserId: isMember ? companion.userId : booking.memberId,
+        actorUserId: viewer._id,
+        kind: 'booking_completion_confirmed',
+        priority: 'attention',
+        bookingId: args.bookingId,
+        dedupeKey: `booking:${args.bookingId}:completion:${isMember ? 'member' : 'companion'}`,
+      })
       return { status: 'accepted' as const, awaitingOtherConfirmation: true, idempotent: false }
     }
 
@@ -388,6 +433,7 @@ export const markCompleted = mutation({
         targetId: String(args.bookingId),
         after: { settlementEligibleAt: allocation.settlementEligibleAt, settlementBlocked: blocked },
       })
+      await notifyReviewWindowOpened(ctx, booking.memberId, companion.userId, viewer._id, args.bookingId)
       return { status: 'review_window' as const, awaitingOtherConfirmation: false, idempotent: !allocation.applied }
     }
 
@@ -436,9 +482,28 @@ export const markCompleted = mutation({
       targetId: String(args.bookingId),
       after: { obligationId: obligationId ? String(obligationId) : undefined },
     })
+    await notifyReviewWindowOpened(ctx, booking.memberId, companion.userId, viewer._id, args.bookingId)
     return { status: 'review_window' as const, awaitingOtherConfirmation: false, idempotent: false }
   },
 })
+
+async function notifyReviewWindowOpened(
+  ctx: { db: any },
+  memberId: any,
+  companionUserId: any,
+  actorUserId: any,
+  bookingId: any,
+) {
+  const recipientUserId = actorUserId === memberId ? companionUserId : memberId
+  await createNotification(ctx, {
+    recipientUserId,
+    actorUserId,
+    kind: 'booking_review_window_opened',
+    priority: 'attention',
+    bookingId,
+    dedupeKey: `booking:${bookingId}:review-window`,
+  })
+}
 
 export const messages = query({
   args: { bookingId: v.id('bookings') },

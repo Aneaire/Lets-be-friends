@@ -220,7 +220,11 @@ function SignedInProfile({
         <ActionButton label="View incoming bookings" onPress={() => router.push('/companion-bookings')} style={styles.sectionAction} />
       </Section>
 
-      <UnavailableNotifications liveUnread />
+      <Section>
+        <AppText variant="heading">Notifications</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>View your live in-app booking, social, account, and safety updates.</AppText>
+        <ActionButton label="Open notifications" onPress={() => router.push('/notifications' as never)} intent="self" secondary style={styles.sectionAction} />
+      </Section>
 
       <Section>
         <AppText variant="heading">Account</AppText>
