@@ -19,7 +19,7 @@ function BookingVerificationPage() {
         <div>
           <p className="eyebrow">Safety review</p>
           <h1 className="text-h1 mt-2">Identity verification</h1>
-          <p className="lede mt-2">Review every completed identity submission before booking or Friend Host access becomes available.</p>
+          <p className="lede mt-2">Review every completed identity submission before booking or Companion access becomes available.</p>
         </div>
       </header>
 
@@ -112,10 +112,10 @@ function BookingVerificationPage() {
                       <span>{formatMode(verification.bookingMode)}</span>
                     </>
                   )}
-                  {verification.hostDisplayName && (
+                  {verification.companionDisplayName && (
                     <>
                       <span className="dot" aria-hidden="true" />
-                      <span>{verification.hostDisplayName}</span>
+                      <span>{verification.companionDisplayName}</span>
                     </>
                   )}
                 </div>

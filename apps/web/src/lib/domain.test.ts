@@ -7,7 +7,7 @@ import {
   bookingStatuses,
   brandAccentColors,
   canBookingChat,
-  canBookHost,
+  canBookCompanion,
   canCreateBooking,
   canCancelBooking,
   canCompleteBooking,
@@ -30,14 +30,14 @@ describe('shared early access domain constants', () => {
     expect(bookingStatuses).toContain('verification_required')
   })
 
-  it('calculates the shared member-wallet subtotal, 15% fee, total, and host entitlement', () => {
+  it('calculates the shared member-wallet subtotal, 15% fee, total, and companion entitlement', () => {
     expect(calculateMemberWalletBookingPrice(50_000, 90)).toEqual({
       pricingModel: 'member_wallet_v2',
       serviceSubtotalCentavos: 75_000,
       memberBookingFeeBps: 1_500,
       memberBookingFeeCentavos: 11_250,
       memberTotalCentavos: 86_250,
-      hostEntitlementCentavos: 75_000,
+      companionEarningsCentavos: 75_000,
       currency: 'PHP',
     })
   })
@@ -49,11 +49,11 @@ describe('shared early access domain constants', () => {
   })
 
   it('keeps roles and admin semantics explicit', () => {
-    expect(userRoles).toEqual(['member', 'friend_host', 'reviewer', 'admin'])
+    expect(userRoles).toEqual(['member', 'companion', 'reviewer', 'admin'])
     expect(isAdminRole('admin')).toBe(true)
     expect(isAdminRole('reviewer')).toBe(true)
     expect(isAdminRole('member')).toBe(false)
-    expect(isAdminRole('friend_host')).toBe(false)
+    expect(isAdminRole('companion')).toBe(false)
   })
 
   it('keeps hidden moderation content out of public surfaces', () => {
@@ -63,9 +63,9 @@ describe('shared early access domain constants', () => {
   })
 
   it('prevents only self-booking regardless of account role', () => {
-    expect(canBookHost('user-1', 'user-1')).toBe(false)
-    expect(canBookHost('user-1', 'user-2')).toBe(true)
-    expect(canBookHost(null, 'user-1')).toBe(true)
+    expect(canBookCompanion('user-1', 'user-1')).toBe(false)
+    expect(canBookCompanion('user-1', 'user-2')).toBe(true)
+    expect(canBookCompanion(null, 'user-1')).toBe(true)
   })
 
   it('requires current booking identity eligibility before creating a booking', () => {
@@ -81,19 +81,19 @@ describe('shared early access domain constants', () => {
   })
 
   it('classifies viewer booking eligibility explicitly', () => {
-    expect(bookingEligibility(null, undefined, 'host-1', false)).toBe('sign_in_required')
-    expect(bookingEligibility('host-1', 'approved', 'host-1', true)).toBe('own_profile')
-    expect(bookingEligibility('member-1', 'pending', 'host-1', false)).toBe('verification_required')
-    expect(bookingEligibility('member-1', 'approved', 'host-1', false)).toBe('verification_required')
-    expect(bookingEligibility('member-1', 'approved', 'host-1', true)).toBe('eligible')
-    expect(bookingEligibility('member-1', 'not_started', 'host-1', true)).toBe('eligible')
+    expect(bookingEligibility(null, undefined, 'companion-1', false)).toBe('sign_in_required')
+    expect(bookingEligibility('companion-1', 'approved', 'companion-1', true)).toBe('own_profile')
+    expect(bookingEligibility('member-1', 'pending', 'companion-1', false)).toBe('verification_required')
+    expect(bookingEligibility('member-1', 'approved', 'companion-1', false)).toBe('verification_required')
+    expect(bookingEligibility('member-1', 'approved', 'companion-1', true)).toBe('eligible')
+    expect(bookingEligibility('member-1', 'not_started', 'companion-1', true)).toBe('eligible')
   })
 
-  it('keeps member review reasons separate from host applications', () => {
+  it('keeps member review reasons separate from companion applications', () => {
     expect(isMemberVerificationReason('member')).toBe(true)
     expect(isMemberVerificationReason('reverification')).toBe(true)
     expect(isMemberVerificationReason('booking')).toBe(true)
-    expect(isMemberVerificationReason('host_application')).toBe(false)
+    expect(isMemberVerificationReason('companion_application')).toBe(false)
   })
 
   it('allows participant cancellation only before completion starts', () => {

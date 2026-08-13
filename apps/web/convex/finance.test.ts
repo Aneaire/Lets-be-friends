@@ -24,16 +24,16 @@ async function insertParticipants(t: ReturnType<typeof convexTest>) {
       createdAt: now,
       updatedAt: now,
     }
-    const hostUserId = await ctx.db.insert('users', {
-      clerkUserId: 'finance-host', displayName: 'Finance Host', role: 'friend_host', ...identity,
+    const companionUserId = await ctx.db.insert('users', {
+      clerkUserId: 'finance-companion', displayName: 'Finance Companion', role: 'companion', ...identity,
     })
     const memberId = await ctx.db.insert('users', {
       clerkUserId: 'finance-member', displayName: 'Finance Member', role: 'member', ...identity,
     })
-    const hostProfileId = await ctx.db.insert('hostProfiles', {
-      userId: hostUserId,
-      displayName: 'Finance Host',
-      intro: 'A safe Friend Host profile used to verify booking commission accounting.',
+    const companionProfileId = await ctx.db.insert('companionProfiles', {
+      userId: companionUserId,
+      displayName: 'Finance Companion',
+      intro: 'A safe Companion profile used to verify booking commission accounting.',
       city: 'Test City',
       strengths: ['Good listener'],
       categories: ['Coffee or meal companion'],
@@ -46,7 +46,7 @@ async function insertParticipants(t: ReturnType<typeof convexTest>) {
       createdAt: now,
       updatedAt: now,
     })
-    return { now, hostUserId, memberId, hostProfileId }
+    return { now, companionUserId, memberId, companionProfileId }
   })
 }
 
@@ -56,7 +56,7 @@ async function insertAcceptedBooking(
 ) {
   return await t.run(async (ctx) => ctx.db.insert('bookings', {
     memberId: ids.memberId,
-    hostProfileId: ids.hostProfileId,
+    companionProfileId: ids.companionProfileId,
     category: 'Coffee or meal companion',
     mode: 'in_person',
     requestedAt: ids.now + 3_600_000,
@@ -71,7 +71,7 @@ async function insertAcceptedBooking(
   }))
 }
 
-describe('weekly Friend Host commission accounting', () => {
+describe('weekly Companion commission accounting', () => {
   it('requires dual completion and accrues one immutable obligation', async () => {
     const t = createTest()
     const ids = await insertParticipants(t)
@@ -81,12 +81,12 @@ describe('weekly Friend Host commission accounting', () => {
       .resolves.toMatchObject({ status: 'accepted', awaitingOtherConfirmation: true })
     expect(await t.run(async (ctx) => ctx.db.query('commissionObligations').collect())).toHaveLength(0)
 
-    await expect(t.withIdentity({ subject: 'finance-host' }).mutation(api.bookings.markCompleted, { bookingId }))
+    await expect(t.withIdentity({ subject: 'finance-companion' }).mutation(api.bookings.markCompleted, { bookingId }))
       .resolves.toMatchObject({ status: 'review_window', awaitingOtherConfirmation: false })
     const obligations = await t.run(async (ctx) => ctx.db.query('commissionObligations').collect())
     expect(obligations).toHaveLength(1)
-    expect(obligations[0]).toMatchObject({ bookingId, hostUserId: ids.hostUserId, amountCentavos: 5_000, commissionBps: 1_000 })
-    await expect(t.withIdentity({ subject: 'finance-host' }).mutation(api.bookings.markCompleted, { bookingId }))
+    expect(obligations[0]).toMatchObject({ bookingId, companionUserId: ids.companionUserId, amountCentavos: 5_000, commissionBps: 1_000 })
+    await expect(t.withIdentity({ subject: 'finance-companion' }).mutation(api.bookings.markCompleted, { bookingId }))
       .rejects.toThrow('Only accepted bookings can be completed')
     expect(await t.run(async (ctx) => ctx.db.query('commissionObligations').collect())).toHaveLength(1)
   })
@@ -97,31 +97,31 @@ describe('weekly Friend Host commission accounting', () => {
     const dueAt = Date.now() - 1
     await t.run(async (ctx) => {
       const bookingA = await ctx.db.insert('bookings', {
-        memberId: ids.memberId, hostProfileId: ids.hostProfileId, category: 'Coffee or meal companion', mode: 'in_person',
+        memberId: ids.memberId, companionProfileId: ids.companionProfileId, category: 'Coffee or meal companion', mode: 'in_person',
         requestedAt: dueAt - 86_400_000, durationMinutes: 60, status: 'review_window', createdAt: dueAt - 86_400_000, updatedAt: dueAt - 86_400_000,
       })
       const bookingB = await ctx.db.insert('bookings', {
-        memberId: ids.memberId, hostProfileId: ids.hostProfileId, category: 'Coffee or meal companion', mode: 'in_person',
+        memberId: ids.memberId, companionProfileId: ids.companionProfileId, category: 'Coffee or meal companion', mode: 'in_person',
         requestedAt: dueAt - 86_400_000, durationMinutes: 60, status: 'review_window', createdAt: dueAt - 86_400_000, updatedAt: dueAt - 86_400_000,
       })
       await ctx.db.insert('commissionObligations', {
-        bookingId: bookingA, hostUserId: ids.hostUserId, hostProfileId: ids.hostProfileId,
+        bookingId: bookingA, companionUserId: ids.companionUserId, companionProfileId: ids.companionProfileId,
         amountCentavos: 10_000, currency: 'PHP', commissionBps: 1_000, dueAt, accruedAt: dueAt - 1,
       })
       await ctx.db.insert('commissionObligations', {
-        bookingId: bookingB, hostUserId: ids.hostUserId, hostProfileId: ids.hostProfileId,
+        bookingId: bookingB, companionUserId: ids.companionUserId, companionProfileId: ids.companionProfileId,
         amountCentavos: 10_000, currency: 'PHP', commissionBps: 1_000, dueAt, accruedAt: dueAt - 1,
       })
       await ctx.db.insert('platformFeeLedger', {
-        hostUserId: ids.hostUserId, direction: 'credit', amountCentavos: 15_000, currency: 'PHP', kind: 'top_up_credit',
+        companionUserId: ids.companionUserId, direction: 'credit', amountCentavos: 15_000, currency: 'PHP', kind: 'top_up_credit',
         idempotencyKey: 'test-credit', createdAt: dueAt - 1,
       })
     })
 
     await t.mutation(internal.finance.collectWeekly, { now: dueAt })
-    const finance = await t.withIdentity({ subject: 'finance-host' }).query(api.finance.dashboard, {})
+    const finance = await t.withIdentity({ subject: 'finance-companion' }).query(api.finance.dashboard, {})
     expect(finance).toMatchObject({ availableBalanceCentavos: 0, pastDueCentavos: 5_000, canAcceptBookings: false })
-    const debits = await t.run(async (ctx) => ctx.db.query('platformFeeLedger').withIndex('by_host', (q) => q.eq('hostUserId', ids.hostUserId)).collect())
+    const debits = await t.run(async (ctx) => ctx.db.query('platformFeeLedger').withIndex('by_companion', (q) => q.eq('companionUserId', ids.companionUserId)).collect())
     expect(debits.filter((entry) => entry.direction === 'debit').reduce((sum, entry) => sum + entry.amountCentavos, 0)).toBe(15_000)
   })
 
@@ -130,20 +130,20 @@ describe('weekly Friend Host commission accounting', () => {
     const ids = await insertParticipants(t)
     const bookingId = await t.run(async (ctx) => {
       const booking = await ctx.db.insert('bookings', {
-        memberId: ids.memberId, hostProfileId: ids.hostProfileId, category: 'Coffee or meal companion', mode: 'in_person',
+        memberId: ids.memberId, companionProfileId: ids.companionProfileId, category: 'Coffee or meal companion', mode: 'in_person',
         requestedAt: ids.now + 3_600_000, durationMinutes: 60, status: 'request_sent', createdAt: ids.now, updatedAt: ids.now,
       })
       const completedBooking = await ctx.db.insert('bookings', {
-        memberId: ids.memberId, hostProfileId: ids.hostProfileId, category: 'Coffee or meal companion', mode: 'in_person',
+        memberId: ids.memberId, companionProfileId: ids.companionProfileId, category: 'Coffee or meal companion', mode: 'in_person',
         requestedAt: ids.now - 86_400_000, durationMinutes: 60, status: 'review_window', createdAt: ids.now - 86_400_000, updatedAt: ids.now,
       })
       await ctx.db.insert('commissionObligations', {
-        bookingId: completedBooking, hostUserId: ids.hostUserId, hostProfileId: ids.hostProfileId,
+        bookingId: completedBooking, companionUserId: ids.companionUserId, companionProfileId: ids.companionProfileId,
         amountCentavos: 5_000, currency: 'PHP', commissionBps: 1_000, dueAt: ids.now - 1, accruedAt: ids.now - 2,
       })
       return booking
     })
-    await expect(t.withIdentity({ subject: 'finance-host' }).mutation(api.bookings.hostDecision, {
+    await expect(t.withIdentity({ subject: 'finance-companion' }).mutation(api.bookings.companionDecision, {
       bookingId, decision: 'accepted',
     })).rejects.toThrow('Past-due platform commission')
   })
@@ -153,15 +153,15 @@ describe('weekly Friend Host commission accounting', () => {
     const ids = await insertParticipants(t)
     const { topUpId } = await t.run(async (ctx) => {
       const bookingId = await ctx.db.insert('bookings', {
-        memberId: ids.memberId, hostProfileId: ids.hostProfileId, category: 'Coffee or meal companion', mode: 'in_person',
+        memberId: ids.memberId, companionProfileId: ids.companionProfileId, category: 'Coffee or meal companion', mode: 'in_person',
         requestedAt: ids.now - 86_400_000, durationMinutes: 60, status: 'review_window', createdAt: ids.now - 86_400_000, updatedAt: ids.now,
       })
       await ctx.db.insert('commissionObligations', {
-        bookingId, hostUserId: ids.hostUserId, hostProfileId: ids.hostProfileId,
+        bookingId, companionUserId: ids.companionUserId, companionProfileId: ids.companionProfileId,
         amountCentavos: 7_000, currency: 'PHP', commissionBps: 1_000, dueAt: ids.now - 1, accruedAt: ids.now - 2,
       })
       const topUpId = await ctx.db.insert('paymongoTopUps', {
-        hostUserId: ids.hostUserId, amountCentavos: 10_000, currency: 'PHP', mode: 'test', status: 'processing',
+        companionUserId: ids.companionUserId, amountCentavos: 10_000, currency: 'PHP', mode: 'test', status: 'processing',
         providerIntentId: 'pi_paid', createdAt: ids.now, updatedAt: ids.now,
       })
       return { topUpId }
@@ -172,7 +172,7 @@ describe('weekly Friend Host commission accounting', () => {
     await t.mutation(internal.paymongo.applyReconciliation, { topUpId, intent })
     await t.mutation(internal.paymongo.applyReconciliation, { topUpId, intent })
 
-    const finance = await t.withIdentity({ subject: 'finance-host' }).query(api.finance.dashboard, {})
+    const finance = await t.withIdentity({ subject: 'finance-companion' }).query(api.finance.dashboard, {})
     expect(finance).toMatchObject({ availableBalanceCentavos: 3_000, pastDueCentavos: 0, canAcceptBookings: true })
     const ledger = await t.run(async (ctx) => ctx.db.query('platformFeeLedger').collect())
     expect(ledger.filter((entry) => entry.kind === 'top_up_credit')).toHaveLength(1)

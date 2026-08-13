@@ -16,7 +16,7 @@ export const Route = createFileRoute('/nearby')({ component: NearbySearchPage })
 
 type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 
-type NearbyHost = {
+type NearbyCompanion = {
   _id: string
   displayName: string
   city: string
@@ -47,47 +47,47 @@ function NearbySearchPage() {
   const [query, setQuery] = useState('')
   const [locationStatus, setLocationStatus] = useState('Use your location or place a travel pin to begin.')
 
-  const hostsQuery = useQuery(
-    api.hosts.listApproved,
+  const companionsQuery = useQuery(
+    api.companions.listApproved,
     location ? { ...location, radiusKm } : 'skip',
   )
-  const hosts = (hostsQuery ?? []) as NearbyHost[]
+  const companions = (companionsQuery ?? []) as NearbyCompanion[]
 
   const filtered = useMemo(() => {
     const searchTerm = query.trim().toLowerCase()
-    return hosts.filter((host) => {
-      if (mode !== 'all' && host.mode !== mode && !(mode === 'online' && host.mode === 'both')) return false
-      if (category && !(host.categories ?? []).includes(category)) return false
-      if (strength && !host.strengths.includes(strength)) return false
-      if (bookableOnly && !host.bookable) return false
+    return companions.filter((companion) => {
+      if (mode !== 'all' && companion.mode !== mode && !(mode === 'online' && companion.mode === 'both')) return false
+      if (category && !(companion.categories ?? []).includes(category)) return false
+      if (strength && !companion.strengths.includes(strength)) return false
+      if (bookableOnly && !companion.bookable) return false
       if (!searchTerm) return true
       return [
-        host.displayName,
-        host.city,
-        host.intro,
-        host.bio ?? '',
-        ...(host.strengths ?? []),
-        ...(host.categories ?? []),
+        companion.displayName,
+        companion.city,
+        companion.intro,
+        companion.bio ?? '',
+        ...(companion.strengths ?? []),
+        ...(companion.categories ?? []),
       ].join(' ').toLowerCase().includes(searchTerm)
     })
-  }, [bookableOnly, category, hosts, mode, query, strength])
+  }, [bookableOnly, category, companions, mode, query, strength])
 
   const mapPeople = useMemo(() => filtered
-    .filter((host) => typeof host.distanceKm === 'number'
-      && typeof host.latitude === 'number'
-      && typeof host.longitude === 'number')
-    .map((host) => ({
-      key: host._id,
-      latitude: host.latitude!,
-      longitude: host.longitude!,
-      imageUrl: host.profileImageUrl,
-      name: host.displayName,
-      city: host.city,
-      intro: host.intro,
-      rating: host.rating,
-      reviewCount: host.reviewCount,
-      strengths: host.strengths,
-      status: host.demo ? ('demo' as const) : host.bookable ? ('verified' as const) : ('awaiting' as const),
+    .filter((companion) => typeof companion.distanceKm === 'number'
+      && typeof companion.latitude === 'number'
+      && typeof companion.longitude === 'number')
+    .map((companion) => ({
+      key: companion._id,
+      latitude: companion.latitude!,
+      longitude: companion.longitude!,
+      imageUrl: companion.profileImageUrl,
+      name: companion.displayName,
+      city: companion.city,
+      intro: companion.intro,
+      rating: companion.rating,
+      reviewCount: companion.reviewCount,
+      strengths: companion.strengths,
+      status: companion.demo ? ('demo' as const) : companion.bookable ? ('verified' as const) : ('awaiting' as const),
     })), [filtered])
 
   const resetFilters = () => {
@@ -112,7 +112,7 @@ function NearbySearchPage() {
           longitude: position.coords.longitude,
         })
         setOriginMode('device')
-        setLocationStatus(`Showing opted-in Friend Hosts within ${radiusKm} km.`)
+        setLocationStatus(`Showing approved Companions within ${radiusKm} km.`)
       },
       (error) => setLocationStatus(geolocationErrorMessage(error.code)),
       { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
@@ -153,11 +153,11 @@ function NearbySearchPage() {
 
         <div className="nearby-search-filterbar" role="region" aria-label="Nearby search filters">
           <label className="nearby-filter-search">
-            <span className="sr-only">Search nearby Friend Hosts</span>
+            <span className="sr-only">Search nearby Companions</span>
             <Search size={15} aria-hidden="true" />
             <input
               type="search"
-              aria-label="Search nearby Friend Hosts"
+              aria-label="Search nearby Companions"
               value={query}
               placeholder="Search people or activities"
               onChange={(event) => setQuery(event.currentTarget.value)}
@@ -177,7 +177,7 @@ function NearbySearchPage() {
               onChange={(event) => {
                 const next = Number(event.currentTarget.value) as NearbyRadiusKm
                 setRadiusKm(next)
-                if (location) setLocationStatus(`Showing opted-in Friend Hosts within ${next} km.`)
+                if (location) setLocationStatus(`Showing approved Companions within ${next} km.`)
               }}
             >
               {nearbyRadiusOptions.map((value) => <option key={value} value={value}>{value} km</option>)}
@@ -235,11 +235,11 @@ function NearbySearchPage() {
             tone="social"
             pinnable={originMode === 'custom'}
             people={location ? mapPeople : []}
-            onSelectPerson={(key) => navigate({ to: '/host-profile', search: { hostProfileId: key } })}
+            onSelectPerson={(key) => navigate({ to: '/companion-profile', search: { companionProfileId: key } })}
             onChange={(next) => {
               setLocation(next)
               setOriginMode('custom')
-              setLocationStatus(`Travel pin updated. Showing opted-in Friend Hosts within ${radiusKm} km.`)
+              setLocationStatus(`Travel pin updated. Showing approved Companions within ${radiusKm} km.`)
             }}
             title={location
               ? `${originMode === 'device' ? 'Current location' : 'Travel pin'} · ${radiusKm} km`
@@ -250,7 +250,7 @@ function NearbySearchPage() {
           />
         </section>
 
-        <aside className="nearby-search-results" aria-label="Nearby Friend Hosts">
+        <aside className="nearby-search-results" aria-label="Nearby Companions">
           <header>
             <div>
               <p className="eyebrow">Results</p>
@@ -263,9 +263,9 @@ function NearbySearchPage() {
             <div className="nearby-results-empty">
               <MapPin size={20} aria-hidden="true" />
               <strong>Start with an area</strong>
-              <p>Use your location or place a travel pin. Only Friend Hosts who opted into nearby discovery can appear.</p>
+              <p>Use your location or place a travel pin. Approved Companions with current identity approval can appear.</p>
             </div>
-          ) : hostsQuery === undefined ? (
+          ) : companionsQuery === undefined ? (
             <div className="nearby-results-empty" role="status">Finding nearby people...</div>
           ) : filtered.length === 0 ? (
             <div className="nearby-results-empty">
@@ -274,7 +274,7 @@ function NearbySearchPage() {
             </div>
           ) : (
             <div className="nearby-results-list">
-              {filtered.map((host) => <NearbyResult key={host._id} host={host} />)}
+              {filtered.map((companion) => <NearbyResult key={companion._id} companion={companion} />)}
             </div>
           )}
         </aside>
@@ -283,33 +283,33 @@ function NearbySearchPage() {
   )
 }
 
-function NearbyResult({ host }: { host: NearbyHost }) {
+function NearbyResult({ companion }: { companion: NearbyCompanion }) {
   return (
     <Link
-      to="/host-profile"
-      search={{ hostProfileId: host._id }}
+      to="/companion-profile"
+      search={{ companionProfileId: companion._id }}
       className="nearby-result-card"
     >
       <span className="profile-photo" aria-hidden="true">
-        {host.profileImageUrl
-          ? <img src={host.profileImageUrl} alt="" />
-          : <span>{initials(host.displayName)}</span>}
+        {companion.profileImageUrl
+          ? <img src={companion.profileImageUrl} alt="" />
+          : <span>{initials(companion.displayName)}</span>}
       </span>
       <span className="nearby-result-body">
         <span className="nearby-result-name">
-          <strong>{host.displayName}</strong>
+          <strong>{companion.displayName}</strong>
           <ArrowUpRight size={13} aria-hidden="true" />
         </span>
         <span className="nearby-result-context">
-          {typeof host.distanceKm === 'number' ? `${host.distanceKm} km away` : 'Online'}
+          {typeof companion.distanceKm === 'number' ? `${companion.distanceKm} km away` : 'Online'}
           <span aria-hidden="true">·</span>
-          {host.city}
+          {companion.city}
         </span>
-        <span className="nearby-result-intro">{host.intro}</span>
+        <span className="nearby-result-intro">{companion.intro}</span>
         <span className="nearby-result-meta">
-          <strong>{host.rating.toFixed(1)}</strong>
-          <span>{host.reviewCount ?? 0} {host.reviewCount === 1 ? 'review' : 'reviews'}</span>
-          {host.bookable && <span>Available</span>}
+          <strong>{companion.rating.toFixed(1)}</strong>
+          <span>{companion.reviewCount ?? 0} {companion.reviewCount === 1 ? 'review' : 'reviews'}</span>
+          {companion.bookable && <span>Available</span>}
         </span>
       </span>
     </Link>

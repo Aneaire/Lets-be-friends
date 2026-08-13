@@ -46,13 +46,13 @@ async function insertPost(t: ReturnType<typeof convexTest>, authorId: any, body:
   })
 }
 
-async function insertHost(t: ReturnType<typeof convexTest>, userId: any, status: 'approved' | 'draft' = 'approved') {
+async function insertCompanion(t: ReturnType<typeof convexTest>, userId: any, status: 'approved' | 'draft' = 'approved') {
   return await t.run(async (ctx) => {
     const now = Date.now()
-    return await ctx.db.insert('hostProfiles', {
+    return await ctx.db.insert('companionProfiles', {
       userId,
-      displayName: 'Private host field',
-      intro: 'A thoughtful Friend Host profile for safe public activities.',
+      displayName: 'Private companion field',
+      intro: 'A thoughtful Companion profile for safe public activities.',
       city: 'Private city',
       approximateArea: 'Private area',
       approximateLatitude: 10.31,
@@ -118,24 +118,38 @@ describe('social feed behavior', () => {
     expect(items.at(-1)).toMatchObject({ kind: 'guidance', source: 'first_party_guidance' })
   })
 
-  it('uses only real approved, unsuspended, currently identity-approved hosts as fallback', async () => {
+  it('uses only real approved, unsuspended, currently identity-approved companions as fallback', async () => {
     const t = createTest()
-    const approvedUser = await insertUser(t, 'approved-host', { approvedIdentity: true })
-    const expiredUser = await insertUser(t, 'expired-host')
-    const suspendedUser = await insertUser(t, 'suspended-host', { approvedIdentity: true, suspended: true })
-    await insertHost(t, approvedUser)
-    await insertHost(t, expiredUser)
-    await insertHost(t, suspendedUser)
+    const approvedUser = await insertUser(t, 'approved-companion', { approvedIdentity: true })
+    const expiredUser = await insertUser(t, 'expired-companion')
+    const suspendedUser = await insertUser(t, 'suspended-companion', { approvedIdentity: true, suspended: true })
+    await insertCompanion(t, approvedUser)
+    await insertCompanion(t, expiredUser)
+    await insertCompanion(t, suspendedUser)
 
     const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
-    const hosts = items.filter((item) => item.kind === 'host')
-    expect(hosts).toHaveLength(1)
-    expect(hosts[0].host.displayName).toBe('approved-host')
-    expect(hosts[0].host).not.toHaveProperty('city')
-    expect(hosts[0].host).not.toHaveProperty('approximateArea')
-    expect(hosts[0].host).not.toHaveProperty('approximateLatitude')
-    expect(hosts[0].host).not.toHaveProperty('approximateLongitude')
+    const companions = items.filter((item) => item.kind === 'companion')
+    expect(companions).toHaveLength(1)
+    expect(companions[0].companion.displayName).toBe('approved-companion')
+    expect(companions[0].companion).not.toHaveProperty('city')
+    expect(companions[0].companion).not.toHaveProperty('approximateArea')
+    expect(companions[0].companion).not.toHaveProperty('approximateLatitude')
+    expect(companions[0].companion).not.toHaveProperty('approximateLongitude')
     expect(items.at(-1).kind).toBe('guidance')
+  })
+
+  it('adds a public profile target to posts only for eligible Companions', async () => {
+    const t = createTest()
+    const approvedUser = await insertUser(t, 'approved-post-author', { approvedIdentity: true })
+    const memberUser = await insertUser(t, 'member-post-author')
+    const approvedCompanionId = await insertCompanion(t, approvedUser)
+    await insertPost(t, approvedUser, 'companion post')
+    await insertPost(t, memberUser, 'member post')
+
+    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const posts = items.filter((item) => item.kind === 'post').map((item) => item.post)
+    expect(posts.find((post) => post.body === 'companion post').authorCompanionProfileId).toBe(approvedCompanionId)
+    expect(posts.find((post) => post.body === 'member post').authorCompanionProfileId).toBeUndefined()
   })
 
   it('keeps Following chronological and Following/Saved free of fallback items', async () => {
@@ -169,7 +183,7 @@ describe('social feed behavior', () => {
     const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
     expect(items.filter((item) => item.kind === 'post')).toHaveLength(8)
     expect(items.some((item) => item.kind === 'guidance')).toBe(false)
-    expect(items.some((item) => item.kind === 'host')).toBe(false)
+    expect(items.some((item) => item.kind === 'companion')).toBe(false)
   })
 })
 

@@ -17,14 +17,14 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { api } from '../../convex/_generated/api'
-import { findFriendHosts } from '../lib/discoverySearch'
+import { findCompanions } from '../lib/discoverySearch'
 import { activePrimaryNavigation, primaryNavigation } from '../lib/navigation'
 import { BrandLogo } from './BrandLogo'
 import { ThemeToggle } from './ThemeToggle'
 
 const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-type HeaderSearchHost = {
+type HeaderSearchCompanion = {
   _id: string
   username?: string
   displayName: string
@@ -46,9 +46,9 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
   const accountPanelRef = useRef<HTMLElement>(null)
   const accountOpenerRef = useRef<HTMLButtonElement | null>(null)
   const searchRootRef = useRef<HTMLDivElement>(null)
-  const searchHosts = useQuery(api.hosts.listApproved, {}) as HeaderSearchHost[] | undefined
+  const searchCompanions = useQuery(api.companions.listApproved, {}) as HeaderSearchCompanion[] | undefined
   const searchResults = searchQuery.trim()
-    ? findFriendHosts(searchHosts ?? [], searchQuery).slice(0, 6)
+    ? findCompanions(searchCompanions ?? [], searchQuery).slice(0, 6)
     : []
 
   const closeAccount = useCallback((restoreFocus = true) => {
@@ -171,32 +171,32 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
                 {searchOpen && (
                   <div id="header-search-results" className="app-header-search-panel">
                     {!searchQuery.trim() ? (
-                    <p className="app-header-search-guidance">Search Friend Hosts by username, name, Strength, activity, or city.</p>
-                    ) : searchHosts === undefined ? (
+                    <p className="app-header-search-guidance">Search Companions by username, name, Strength, activity, or city.</p>
+                    ) : searchCompanions === undefined ? (
                       <p className="app-header-search-guidance" role="status">Searching…</p>
                     ) : searchResults.length === 0 ? (
-                      <p className="app-header-search-guidance" role="status">No Friend Hosts match “{searchQuery.trim()}”.</p>
+                      <p className="app-header-search-guidance" role="status">No Companions match “{searchQuery.trim()}”.</p>
                     ) : (
                       <>
                         <p className="app-header-search-summary" role="status">
                           {searchResults.length} {searchResults.length === 1 ? 'match' : 'matches'}
                         </p>
                         <ul className="app-header-search-list">
-                          {searchResults.map((host) => (
-                            <li key={host._id}>
+                          {searchResults.map((companion) => (
+                            <li key={companion._id}>
                               <Link
-                                to="/host-profile"
-                                search={{ hostProfileId: host._id }}
+                                to="/companion-profile"
+                                search={{ companionProfileId: companion._id }}
                                 className="app-header-search-result"
                                 onClick={() => {
                                   setSearchOpen(false)
                                   setSearchQuery('')
                                 }}
                               >
-                                <AccountAvatar imageUrl={host.profileImageUrl} initials={getInitials(host.displayName)} />
+                                <AccountAvatar imageUrl={companion.profileImageUrl} initials={getInitials(companion.displayName)} />
                                 <span>
-                                  <strong>{host.displayName}</strong>
-                                  <small>{[host.username ? `@${host.username}` : undefined, host.city, host.strengths?.[0] ?? host.categories?.[0]].filter(Boolean).join(' · ')}</small>
+                                  <strong>{companion.displayName}</strong>
+                                  <small>{[companion.username ? `@${companion.username}` : undefined, companion.city, companion.strengths?.[0] ?? companion.categories?.[0]].filter(Boolean).join(' · ')}</small>
                                 </span>
                               </Link>
                             </li>
@@ -326,12 +326,12 @@ function AccountNavigation({
   const { signOut } = useClerk()
   const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
-  const application = useQuery(api.hosts.myApplication)
+  const application = useQuery(api.companions.myApplication)
   const displayName = viewer?.displayName ?? user?.fullName ?? user?.username ?? 'Account'
   const email = user?.primaryEmailAddress?.emailAddress
   const imageUrl = viewer?.profileImageUrl ?? user?.imageUrl
   const initials = getInitials(displayName)
-  const publicProfileSearch = application?.status === 'approved' ? { hostProfileId: application._id } : undefined
+  const publicProfileSearch = application?.status === 'approved' ? { companionProfileId: application._id } : undefined
 
   return (
     <div className="account-navigation" ref={rootRef}>
@@ -377,13 +377,13 @@ function AccountNavigation({
             <div className="account-menu-group">
               <AccountLink to="/profile" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Edit profile</AccountLink>
               {publicProfileSearch ? (
-                <AccountLink to="/host-profile" search={publicProfileSearch} icon={<UserRound size={17} />} onSelect={() => onClose(false)}>
-                  View public host profile
+                <AccountLink to="/companion-profile" search={publicProfileSearch} icon={<UserRound size={17} />} onSelect={() => onClose(false)}>
+                  View public companion profile
                 </AccountLink>
               ) : (
-                <AccountLink to="/become-host" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Host profile</AccountLink>
+                <AccountLink to="/become-companion" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Companion profile</AccountLink>
               )}
-              <AccountLink to="/host" icon={<UserRoundCog size={17} />} onSelect={() => onClose(false)}>Hosting</AccountLink>
+              <AccountLink to="/companion" icon={<UserRoundCog size={17} />} onSelect={() => onClose(false)}>Companion tools</AccountLink>
               <AccountLink to="/settings" icon={<Settings size={17} />} onSelect={() => onClose(false)}>Settings</AccountLink>
             </div>
 
@@ -432,7 +432,7 @@ function AccountLink({
   children,
   onSelect,
 }: {
-  to: '/profile' | '/host-profile' | '/become-host' | '/host' | '/settings' | '/safety'
+  to: '/profile' | '/companion-profile' | '/become-companion' | '/companion' | '/settings' | '/safety'
   search?: Record<string, string>
   icon: React.ReactNode
   children: React.ReactNode
@@ -459,7 +459,7 @@ export function MeetingSeam() {
 function isAccountPath(pathname: string) {
   return pathname === '/profile'
     || pathname === '/settings'
-    || pathname === '/become-host'
+    || pathname === '/become-companion'
     || pathname === '/onboarding'
     || pathname === '/safety'
 }

@@ -3,12 +3,13 @@ import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
 import { canAdminApproveIdentity, hasCurrentIdentityApproval, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason, isRealPersonaInquiryId } from './identityVerification'
-import { syncHostLocation } from './hostLocations'
+import { syncUserCompanionLocation } from './companionLocations'
+import { syncCompanionLocation } from './companionLocations'
 import { resolveBlockedBookingFunds as applyBlockedBookingResolution } from './finance'
 
-const roleOrAll = v.union(v.literal('member'), v.literal('friend_host'), v.literal('reviewer'), v.literal('admin'), v.literal('all'))
+const roleOrAll = v.union(v.literal('member'), v.literal('companion'), v.literal('reviewer'), v.literal('admin'), v.literal('all'))
 const verificationStatusOrAll = v.union(v.literal('not_ready'), v.literal('pending'), v.literal('approved'), v.literal('rejected'), v.literal('not_started'), v.literal('all'))
-const hostStatusOrAll = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'), v.literal('all'))
+const companionStatusOrAll = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'), v.literal('all'))
 const reportStatus = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'))
 const reportStatusOrAll = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'), v.literal('all'))
 const reportTargetTypeOrAll = v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('all'))
@@ -30,7 +31,7 @@ function isFullAdminRole(role: string) {
   return role === 'admin' || role === 'owner'
 }
 
-function publicRole(role: Doc<'users'>['role']): 'member' | 'friend_host' | 'reviewer' | 'admin' {
+function publicRole(role: Doc<'users'>['role']): 'member' | 'companion' | 'reviewer' | 'admin' {
   return role === 'owner' ? 'admin' : role
 }
 
@@ -38,8 +39,8 @@ export const overview = query({
   args: {},
   handler: async (ctx) => {
     const viewer = await requireAdmin(ctx)
-    const [hostApplications, verificationRequests, reports, users, posts, reviews, auditLogs] = await Promise.all([
-      ctx.db.query('hostProfiles').collect(),
+    const [companionApplications, verificationRequests, reports, users, posts, reviews, auditLogs] = await Promise.all([
+      ctx.db.query('companionProfiles').collect(),
       ctx.db.query('verificationRequests').collect(),
       ctx.db.query('reports').collect(),
       ctx.db.query('users').collect(),
@@ -51,7 +52,7 @@ export const overview = query({
     return {
       viewerRole: publicRole(viewer.role),
       counts: {
-        hostApplicationsPending: hostApplications.filter((host) => host.status === 'pending_review').length,
+        companionApplicationsPending: companionApplications.filter((companion) => companion.status === 'pending_review').length,
         memberVerificationsPending: verificationRequests.filter((request) => isIdentityVerificationReason(request.reason) && isIdentityReadyForAdminReview(request)).length,
         reportsOpen: reports.filter((report) => report.status === 'open').length,
         usersTotal: users.length,
@@ -68,28 +69,28 @@ export const queues = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx)
-    const hostApplications = await ctx.db.query('hostProfiles').withIndex('by_status', (q) => q.eq('status', 'pending_review')).collect()
+    const companionApplications = await ctx.db.query('companionProfiles').withIndex('by_status', (q) => q.eq('status', 'pending_review')).collect()
     const memberVerifications = await memberVerificationRequestsByStatus(ctx, 'pending')
     const reports = await ctx.db.query('reports').withIndex('by_status', (q) => q.eq('status', 'open')).collect()
     const auditLogs = await ctx.db.query('auditLogs').withIndex('by_created_at').order('desc').take(20)
-    return { hostApplications, memberVerifications, reports, auditLogs }
+    return { companionApplications, memberVerifications, reports, auditLogs }
   },
 })
 
-export const hostApplications = query({
-  args: { status: v.optional(hostStatusOrAll) },
+export const companionApplications = query({
+  args: { status: v.optional(companionStatusOrAll) },
   handler: async (ctx, args) => {
     await requireAdmin(ctx)
     const status = args.status ?? 'pending_review'
-    const hosts = status === 'all'
-      ? await ctx.db.query('hostProfiles').collect()
-      : await ctx.db.query('hostProfiles').withIndex('by_status', (q) => q.eq('status', status)).collect()
-    return await Promise.all(hosts.sort((a, b) => b.updatedAt - a.updatedAt).map(async (host) => {
-      const user = await ctx.db.get(host.userId)
-      const verification = await currentIdentityVerificationForUser(ctx, host.userId)
+    const companions = status === 'all'
+      ? await ctx.db.query('companionProfiles').collect()
+      : await ctx.db.query('companionProfiles').withIndex('by_status', (q) => q.eq('status', status)).collect()
+    return await Promise.all(companions.sort((a, b) => b.updatedAt - a.updatedAt).map(async (companion) => {
+      const user = await ctx.db.get(companion.userId)
+      const verification = await currentIdentityVerificationForUser(ctx, companion.userId)
       return {
-        ...host,
-        applicantDisplayName: user?.displayName ?? host.displayName,
+        ...companion,
+        applicantDisplayName: user?.displayName ?? companion.displayName,
         applicantVerificationStatus: user?.verificationStatus ?? 'not_started',
         applicantIdentityEligible: user ? hasCurrentIdentityApproval(user) : false,
         applicantSuspended: user?.suspended ?? false,
@@ -116,8 +117,8 @@ export const memberVerifications = query({
     return await Promise.all(requests.sort((a, b) => b.updatedAt - a.updatedAt).map(async (request) => {
       const user = await ctx.db.get(request.userId)
       const booking = request.bookingId ? await ctx.db.get(request.bookingId) : null
-      const host = booking ? await ctx.db.get(booking.hostProfileId) : null
-      const hostUser = host ? await ctx.db.get(host.userId) : null
+      const companion = booking ? await ctx.db.get(booking.companionProfileId) : null
+      const companionUser = companion ? await ctx.db.get(companion.userId) : null
       const identityRecord = request.identityRecordId ? await ctx.db.get(request.identityRecordId) : null
       return {
         ...request,
@@ -125,8 +126,8 @@ export const memberVerifications = query({
           ? 'Initial member verification'
           : request.reason === 'reverification'
             ? 'Identity reverification'
-            : request.reason === 'host_application'
-              ? 'Friend Host identity verification'
+            : request.reason === 'companion_application'
+              ? 'Companion identity verification'
               : 'Legacy booking verification',
         approvalAllowed: canAdminApproveIdentity(request),
         identityRecord: identityRecord && isIdentityReadyForAdminReview(request) ? {
@@ -146,7 +147,7 @@ export const memberVerifications = query({
         bookingCategory: booking?.category,
         bookingMode: booking?.mode,
         requestedAt: booking?.requestedAt,
-        hostDisplayName: hostUser?.displayName ?? host?.displayName,
+        companionDisplayName: companionUser?.displayName ?? companion?.displayName,
       }
     }))
   },
@@ -241,12 +242,12 @@ export const reviews = query({
     return await Promise.all(filtered.map(async (review) => {
       const reviewer = await ctx.db.get(review.reviewerId)
       const reviewee = await ctx.db.get(review.revieweeId)
-      const host = review.hostProfileId ? await ctx.db.get(review.hostProfileId) : null
+      const companion = review.companionProfileId ? await ctx.db.get(review.companionProfileId) : null
       return {
         ...review,
         reviewerDisplayName: reviewer?.displayName ?? 'Member',
         revieweeDisplayName: reviewee?.displayName ?? 'Member',
-        hostDisplayName: host?.displayName,
+        companionDisplayName: companion?.displayName,
       }
     }))
   },
@@ -262,29 +263,29 @@ export const auditLogs = query({
   },
 })
 
-export const reviewHostApplication = mutation({
-  args: { hostProfileId: v.id('hostProfiles'), decision: v.union(v.literal('approved'), v.literal('rejected')), note: v.optional(v.string()) },
+export const reviewCompanionApplication = mutation({
+  args: { companionProfileId: v.id('companionProfiles'), decision: v.union(v.literal('approved'), v.literal('rejected')), note: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const admin = await requireAdmin(ctx)
-    const host = await ctx.db.get(args.hostProfileId)
-    if (!host) throw new Error('Host profile not found')
-    if (host.status !== 'pending_review') throw new Error('This Friend Host application has already been reviewed')
-    const user = await ctx.db.get(host.userId)
+    const companion = await ctx.db.get(args.companionProfileId)
+    if (!companion) throw new Error('Companion profile not found')
+    if (companion.status !== 'pending_review') throw new Error('This Companion application has already been reviewed')
+    const user = await ctx.db.get(companion.userId)
     if (!user) throw new Error('Applicant account not found')
-    if (args.decision === 'approved' && user.suspended) throw new Error('A suspended member cannot be approved as a Friend Host')
+    if (args.decision === 'approved' && user.suspended) throw new Error('A suspended member cannot be approved as a Companion')
     if (args.decision === 'approved' && !hasCurrentIdentityApproval(user)) {
-      throw new Error('Identity verification must be approved before the Friend Host application can be approved')
+      throw new Error('Identity verification must be approved before the Companion application can be approved')
     }
 
-    const note = args.decision === 'rejected' ? requireNote(args.note, 'Rejecting a host application') : normalizeNote(args.note)
+    const note = args.decision === 'rejected' ? requireNote(args.note, 'Rejecting a companion application') : normalizeNote(args.note)
     const now = Date.now()
-    const after = { ...host, status: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now }
-    await ctx.db.patch(args.hostProfileId, { status: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now })
+    const after = { ...companion, status: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now }
+    await ctx.db.patch(args.companionProfileId, { status: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now })
     if (args.decision === 'approved') {
-      await ctx.db.patch(host.userId, { role: 'friend_host', updatedAt: now })
+      await ctx.db.patch(companion.userId, { role: 'companion', updatedAt: now })
     }
-    await syncHostLocation(ctx, after, user)
-    await writeAudit(ctx, { actorUserId: admin._id, action: `host_application.${args.decision}`, targetType: 'hostProfile', targetId: String(args.hostProfileId), before: host, after, note })
+    await syncCompanionLocation(ctx, after, user)
+    await writeAudit(ctx, { actorUserId: admin._id, action: `companion_application.${args.decision}`, targetType: 'companionProfile', targetId: String(args.companionProfileId), before: companion, after, note })
   },
 })
 
@@ -347,6 +348,7 @@ export const reviewMemberVerification = mutation({
         }
       }
     }
+    await syncUserCompanionLocation(ctx, verification.userId)
 
     await writeAudit(ctx, {
       actorUserId: admin._id,
@@ -383,7 +385,7 @@ export const resolveReport = mutation({
 export const resolveBlockedBookingFunds = mutation({
   args: {
     bookingId: v.id('bookings'),
-    resolution: v.union(v.literal('release_to_host'), v.literal('return_to_member')),
+    resolution: v.union(v.literal('release_to_companion'), v.literal('return_to_member')),
     note: v.string(),
   },
   handler: async (ctx, args) => {
@@ -391,7 +393,7 @@ export const resolveBlockedBookingFunds = mutation({
     const note = requireNote(args.note, 'Resolving blocked booking funds')
     const booking = await ctx.db.get(args.bookingId)
     if (!booking) throw new Error('Booking not found')
-    const requestedResolution = args.resolution === 'release_to_host' ? 'released' as const : 'returned_to_member' as const
+    const requestedResolution = args.resolution === 'release_to_companion' ? 'released' as const : 'returned_to_member' as const
     if (booking.settlementState === 'settled' || booking.settlementState === 'refunded') {
       if (booking.settlementResolution !== requestedResolution) {
         throw new Error('Booking funds were already resolved with a conflicting outcome')
@@ -450,8 +452,8 @@ export const setUserSuspended = mutation({
     const note = args.suspended ? requireNote(args.note, 'Suspending a user') : normalizeNote(args.note)
     const after = { ...user, suspended: args.suspended, updatedAt: Date.now() }
     await ctx.db.patch(args.userId, { suspended: args.suspended, updatedAt: after.updatedAt })
-    const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', args.userId)).first()
-    if (host) await syncHostLocation(ctx, host, after)
+    const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', args.userId)).first()
+    if (companion) await syncCompanionLocation(ctx, companion, after)
     await writeAudit(ctx, {
       actorUserId: fullAdmin._id,
       action: args.suspended ? 'user.suspended' : 'user.reinstated',
@@ -631,7 +633,7 @@ async function describeReportTarget(ctx: any, report: { targetType: string; targ
   }
   if (report.targetType === 'profile') {
     const profile = await safeGet(ctx, report.targetId)
-    return profile?.displayName ? `Friend Host profile: ${profile.displayName}` : 'Friend Host profile'
+    return profile?.displayName ? `Companion profile: ${profile.displayName}` : 'Companion profile'
   }
   if (report.targetType === 'post') {
     const post = await safeGet(ctx, report.targetId)

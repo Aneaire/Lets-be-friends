@@ -5,7 +5,7 @@ import { api, internal } from './_generated/api'
 import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
-type SeededDiscoveryHost = { displayName: string; approximateLatitude?: number }
+type SeededDiscoveryCompanion = { displayName: string; approximateLatitude?: number }
 
 function createTest() {
   const t = convexTest(schema, modules)
@@ -14,15 +14,15 @@ function createTest() {
 }
 
 describe('Pampanga development seed', () => {
-  it('creates its own approved hosts and is idempotent', async () => {
+  it('creates its own approved companions and is idempotent', async () => {
     const t = createTest()
 
-    await expect(t.mutation(internal.seeds.seedPampangaHosts, {})).resolves.toMatchObject({
+    await expect(t.mutation(internal.seeds.seedPampangaCompanions, {})).resolves.toMatchObject({
       created: 8,
       updated: 0,
       total: 8,
     })
-    await expect(t.mutation(internal.seeds.seedPampangaHosts, {})).resolves.toMatchObject({
+    await expect(t.mutation(internal.seeds.seedPampangaCompanions, {})).resolves.toMatchObject({
       created: 0,
       updated: 8,
       total: 8,
@@ -30,44 +30,44 @@ describe('Pampanga development seed', () => {
 
     const counts = await t.run(async (ctx) => ({
       users: (await ctx.db.query('users').collect()).length,
-      hosts: (await ctx.db.query('hostProfiles').collect()).length,
+      companions: (await ctx.db.query('companionProfiles').collect()).length,
     }))
-    expect(counts).toEqual({ users: 8, hosts: 8 })
+    expect(counts).toEqual({ users: 8, companions: 8 })
   })
 
-  it('supports Bacolor radius and nearby-privacy testing', async () => {
+  it('supports Bacolor radius and always-on nearby discovery', async () => {
     const t = createTest()
-    await t.mutation(internal.seeds.seedPampangaHosts, {})
+    await t.mutation(internal.seeds.seedPampangaCompanions, {})
 
-    const ordinary = await t.query(api.hosts.listApproved, {}) as SeededDiscoveryHost[]
+    const ordinary = await t.query(api.companions.listApproved, {}) as SeededDiscoveryCompanion[]
     expect(ordinary).toHaveLength(8)
-    expect(ordinary.map((host) => host.displayName)).toContain('Sam')
+    expect(ordinary.map((companion) => companion.displayName)).toContain('Sam')
 
-    const withinFiveKm = await t.query(api.hosts.listApproved, {
+    const withinFiveKm = await t.query(api.companions.listApproved, {
       latitude: 15.00,
       longitude: 120.65,
       radiusKm: 5,
-    }) as SeededDiscoveryHost[]
-    expect(withinFiveKm.map((host) => host.displayName)).toEqual(
+    }) as SeededDiscoveryCompanion[]
+    expect(withinFiveKm.map((companion) => companion.displayName)).toEqual(
       expect.arrayContaining(['Alyssa', 'Nico', 'Mara']),
     )
-    expect(withinFiveKm.map((host) => host.displayName)).not.toContain('Sam')
-    expect(withinFiveKm.every((host) => !('approximateLatitude' in host))).toBe(true)
+    expect(withinFiveKm.map((companion) => companion.displayName)).toContain('Sam')
+    expect(withinFiveKm.every((companion) => !('approximateLatitude' in companion))).toBe(true)
 
-    const withinTwentyFiveKm = await t.query(api.hosts.listApproved, {
+    const withinTwentyFiveKm = await t.query(api.companions.listApproved, {
       latitude: 15.00,
       longitude: 120.65,
       radiusKm: 25,
-    }) as SeededDiscoveryHost[]
-    expect(withinTwentyFiveKm.map((host) => host.displayName)).toEqual(
+    }) as SeededDiscoveryCompanion[]
+    expect(withinTwentyFiveKm.map((companion) => companion.displayName)).toEqual(
       expect.arrayContaining(['Alyssa', 'Nico', 'Mara', 'Paolo', 'Bea', 'Luis']),
     )
-    expect(withinTwentyFiveKm.map((host) => host.displayName)).not.toContain('Sam')
+    expect(withinTwentyFiveKm.map((companion) => companion.displayName)).toContain('Sam')
   })
 
-  it('keeps the spatial index synchronized with suspension and location privacy changes', async () => {
+  it('keeps the spatial index synchronized with suspension and companion resubmission', async () => {
     const t = createTest()
-    await t.mutation(internal.seeds.seedPampangaHosts, {})
+    await t.mutation(internal.seeds.seedPampangaCompanions, {})
     const { alyssaUserId } = await t.run(async (ctx) => {
       const alyssa = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', 'seed:pampanga:alyssa-bacolor')).unique()
       if (!alyssa) throw new Error('Alyssa seed user not found')
@@ -94,27 +94,23 @@ describe('Pampanga development seed', () => {
       suspended: true,
       note: 'Testing nearby index removal.',
     })
-    expect((await t.query(api.hosts.listApproved, nearbyArgs)).map((host: { displayName: string }) => host.displayName)).not.toContain('Alyssa')
-    expect(await t.mutation(internal.migrations.backfillHostLocationIndex, {})).toMatchObject({ removed: 0 })
+    expect((await t.query(api.companions.listApproved, nearbyArgs)).map((companion: { displayName: string }) => companion.displayName)).not.toContain('Alyssa')
+    expect(await t.mutation(internal.migrations.backfillCompanionLocationIndex, {})).toMatchObject({ removed: 0 })
 
     await admin.mutation(api.admin.setUserSuspended, { userId: alyssaUserId, suspended: false })
-    expect((await t.query(api.hosts.listApproved, nearbyArgs)).map((host: { displayName: string }) => host.displayName)).toContain('Alyssa')
-    expect(await t.mutation(internal.migrations.backfillHostLocationIndex, {})).toMatchObject({ updated: 0, inserted: 0 })
+    expect((await t.query(api.companions.listApproved, nearbyArgs)).map((companion: { displayName: string }) => companion.displayName)).toContain('Alyssa')
+    expect(await t.mutation(internal.migrations.backfillCompanionLocationIndex, {})).toMatchObject({ updated: 0, inserted: 0 })
 
-    await t.withIdentity({ subject: 'seed:pampanga:alyssa-bacolor' }).mutation(api.hosts.submitApplication, {
+    await t.withIdentity({ subject: 'seed:pampanga:alyssa-bacolor' }).mutation(api.companions.submitApplication, {
       intro: 'Coffee companion and local history buddy for relaxed public meetups around Bacolor.',
       city: 'Bacolor, Pampanga',
-      approximateArea: 'Bacolor town area',
-      approximateLatitude: 15.00,
-      approximateLongitude: 120.65,
-      nearbyDiscoveryEnabled: false,
       strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'],
       categories: ['Coffee or meal companion', 'Local walk or city guide'],
       boundaries: ['Public places only'],
       mode: 'both',
       hourlyRateCentavos: 50_000,
     })
-    expect((await t.query(api.hosts.listApproved, nearbyArgs)).map((host: { displayName: string }) => host.displayName)).not.toContain('Alyssa')
-    expect(await t.mutation(internal.migrations.backfillHostLocationIndex, {})).toMatchObject({ removed: 0 })
+    expect((await t.query(api.companions.listApproved, nearbyArgs)).map((companion: { displayName: string }) => companion.displayName)).not.toContain('Alyssa')
+    expect(await t.mutation(internal.migrations.backfillCompanionLocationIndex, {})).toMatchObject({ removed: 0 })
   })
 })

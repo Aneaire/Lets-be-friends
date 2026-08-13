@@ -1,22 +1,24 @@
 import type { FunctionReturnType } from 'convex/server'
-import { useMutation, useQuery } from 'convex/react'
+import { useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
-import { useRef, useState } from 'react'
-import { Alert, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { mobileApi, type BookingId } from '@/backend/client'
 import { ActionButton } from '@/components/ActionButton'
+import { BookingCancelAction } from '@/components/BookingCancelAction'
 import { BookingEvidencePanel } from '@/components/BookingEvidencePanel'
+import { BookingLifecycleDetails } from '@/components/BookingLifecycleDetails'
+import { BookingMessagesButton } from '@/components/BookingMessagesButton'
+import { BookingSafetyActions } from '@/components/BookingSafetyActions'
 import { Screen } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
+import { bookingActionVisibility } from '@/data/bookingLifecycle'
 import {
-  bookingActions,
   bookingStatusPresentation,
   formatBookingSchedule,
   formatBookingTotal,
   formatDuration,
 } from '@/data/bookingViewModels'
-import { safeProductError } from '@/data/productErrors'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -35,55 +37,26 @@ function ReadyBookingDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>()
   const bookingId = typeof params.id === 'string' ? params.id : ''
   const bookings = useQuery(mobileApi.bookings.mine, {})
-  const cancelBooking = useMutation(mobileApi.bookings.cancel)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const busyRef = useRef(false)
 
   if (bookings === undefined) return <DetailState title="Loading booking details" />
   const booking = bookings.find((item: Booking) => String(item._id) === bookingId)
   if (!booking) return <DetailState title="Booking not found" detail="This booking is not available in your member history." action="View all bookings" onPress={() => router.replace('/bookings')} />
 
-  const actions = bookingActions(booking.status, {
+  const actions = bookingActionVisibility({
+    status: booking.status,
+    viewerRole: 'member',
     memberCompletedAt: booking.memberCompletedAt,
-    hostCompletedAt: booking.hostCompletedAt,
+    companionCompletedAt: booking.companionCompletedAt,
+    settlementState: booking.settlementState,
   })
 
-  async function cancel() {
-    if (busyRef.current || !booking) return
-    busyRef.current = true
-    setBusy(true)
-    setError('')
-    try {
-      await cancelBooking({ bookingId: booking._id as BookingId, reason: 'Cancelled by member from the mobile app.' })
-    } catch (mutationError) {
-      setError(safeProductError('cancel_booking', mutationError))
-    } finally {
-      busyRef.current = false
-      setBusy(false)
-    }
-  }
-
-  function confirmCancel() {
-    Alert.alert(
-      'Cancel this booking?',
-      'The booking will be cancelled. This cannot be undone in the mobile app.',
-      [
-        { text: 'Keep booking', style: 'cancel' },
-        { text: 'Cancel booking', style: 'destructive', onPress: () => void cancel() },
-      ],
-    )
-  }
-
-  return <BookingDetail booking={booking} canCancel={actions.canCancel} busy={busy} error={error} onCancel={confirmCancel} />
+  return <BookingDetail booking={booking} canEditRequest={actions.canEditRequest} canCancel={actions.canCancel} />
 }
 
-function BookingDetail({ booking, canCancel, busy, error, onCancel }: {
+function BookingDetail({ booking, canEditRequest, canCancel }: {
   booking: Booking
+  canEditRequest: boolean
   canCancel: boolean
-  busy: boolean
-  error: string
-  onCancel: () => void
 }) {
   const theme = useAppTheme()
   const status = bookingStatusPresentation[booking.status]
@@ -94,7 +67,7 @@ function BookingDetail({ booking, canCancel, busy, error, onCancel }: {
       <View style={styles.header}>
         <AppText variant="label" color={theme.colors.social}>BOOKING DETAILS</AppText>
         <AppText variant="title">{booking.category}</AppText>
-        <AppText color={theme.colors.textMuted}>with {booking.hostDisplayName}</AppText>
+        <AppText color={theme.colors.textMuted}>with {booking.companionDisplayName}</AppText>
       </View>
       <View accessibilityLiveRegion="polite" style={[styles.status, { backgroundColor: theme.colors.socialSoft, borderColor: theme.colors.social }]}>
         <AppText variant="bodyStrong" color={theme.colors.social}>{status.label}</AppText>
@@ -105,21 +78,43 @@ function BookingDetail({ booking, canCancel, busy, error, onCancel }: {
         <Detail label="Format" value={booking.mode === 'in_person' ? 'In-person session' : 'Online session'} />
         <Detail label="Duration" value={formatDuration(booking.durationMinutes)} />
         {total ? <Detail label="Booking total" value={total} /> : null}
-        {booking.hostCity ? <Detail label="Friend Host location" value={booking.hostCity} /> : null}
+        {booking.companionCity ? <Detail label="Companion location" value={booking.companionCity} /> : null}
       </View>
       {booking.notes ? <View style={styles.notes}><AppText variant="heading">Your notes</AppText><AppText color={theme.colors.textMuted}>{booking.notes}</AppText></View> : null}
+      <BookingLifecycleDetails
+        status={booking.status}
+        viewerRole="member"
+        memberId={String(booking.memberId)}
+        companionUserId={booking.companionUserId ? String(booking.companionUserId) : undefined}
+        companionDisplayName={booking.companionDisplayName}
+        memberCompletedAt={booking.memberCompletedAt}
+        companionCompletedAt={booking.companionCompletedAt}
+        cancelledByUserId={booking.cancelledByUserId ? String(booking.cancelledByUserId) : undefined}
+        cancelledAt={booking.cancelledAt}
+        cancellationReason={booking.cancellationReason}
+        settlementState={booking.settlementState}
+        settlementEligibleAt={booking.settlementEligibleAt}
+        settlementBlockedAt={booking.settlementBlockedAt}
+        settlementResolvedAt={booking.settlementResolvedAt}
+        settlementResolution={booking.settlementResolution}
+      />
       <BookingEvidencePanel
         bookingId={booking._id as BookingId}
         status={booking.status}
         pricingModel={booking.pricingModel}
         participantCompletedAt={booking.memberCompletedAt}
-        otherParticipantCompletedAt={booking.hostCompletedAt}
+        otherParticipantCompletedAt={booking.companionCompletedAt}
         participantRole="member_end"
       />
-      {error ? <AppText accessibilityRole="alert" color={theme.colors.social}>{error}</AppText> : null}
+      <BookingSafetyActions
+        bookingId={booking._id as BookingId}
+        status={booking.status}
+        viewerHasReviewed={booking.viewerHasReviewed}
+      />
       <View style={styles.actions}>
-        {canCancel ? <ActionButton label={busy ? 'Cancelling booking' : 'Cancel booking'} onPress={onCancel} disabled={busy} secondary /> : null}
-        <ActionButton label="Open Messages" onPress={() => router.push('/messages')} />
+        {canEditRequest ? <ActionButton label="Edit request" onPress={() => router.push(`../booking-edit/${String(booking._id)}`)} intent="self" secondary /> : null}
+        {canCancel ? <BookingCancelAction bookingId={booking._id as BookingId} participantLabel="member" /> : null}
+        <BookingMessagesButton otherUserId={booking.companionUserId ? String(booking.companionUserId) : undefined} />
         <ActionButton label="View all bookings" onPress={() => router.replace('/bookings')} secondary />
       </View>
     </Screen>

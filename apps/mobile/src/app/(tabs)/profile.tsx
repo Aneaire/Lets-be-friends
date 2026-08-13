@@ -69,7 +69,7 @@ function DemoProfile() {
           <TrustThread items={[
             { title: 'Example profile', detail: 'This profile is clearly labeled and is not connected to a person.', tone: 'self' },
             { title: 'No identity approval', detail: 'No verification or booking eligibility is claimed.', tone: 'self' },
-            { title: 'Discovery examples', detail: 'Local Friend Host fixtures remain non-bookable.', tone: 'social' },
+            { title: 'Discovery examples', detail: 'Local Companion fixtures remain non-bookable.', tone: 'social' },
           ]} />
         </View>
       </Section>
@@ -208,10 +208,16 @@ function SignedInProfile({
       </Section>
 
       <Section>
-        <AppText variant="heading">Friend Host</AppText>
-        <AppText variant="caption" color={theme.colors.textMuted}>Apply, review profile status, manage your rate and nearby visibility, or respond to incoming bookings.</AppText>
-        <ActionButton label="Open Friend Host tools" onPress={() => router.push('/friend-host')} intent="self" secondary style={styles.sectionAction} />
-        <ActionButton label="View incoming bookings" onPress={() => router.push('/host-bookings')} style={styles.sectionAction} />
+        <AppText variant="heading">Booking wallet</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>View available, reserved, and pending balance or create a provider-confirmed QR Ph top-up.</AppText>
+        <ActionButton label="Open booking wallet" onPress={() => router.push('/wallet')} intent="self" style={styles.sectionAction} />
+      </Section>
+
+      <Section>
+        <AppText variant="heading">Companion</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>Apply, review profile status, manage your rate, or respond to incoming bookings.</AppText>
+        <ActionButton label="Open Companion tools" onPress={() => router.push('/companion')} intent="self" secondary style={styles.sectionAction} />
+        <ActionButton label="View incoming bookings" onPress={() => router.push('/companion-bookings')} style={styles.sectionAction} />
       </Section>
 
       <UnavailableNotifications liveUnread />

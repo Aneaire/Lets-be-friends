@@ -21,7 +21,7 @@ describe('booking input and view models', () => {
     expect(bookingActions('request_sent')).toEqual({ canCancel: true, canComplete: false, completionPending: false })
     expect(bookingActions('accepted')).toEqual({ canCancel: true, canComplete: false, completionPending: false })
     expect(bookingActions('accepted', { memberCompletedAt: now })).toEqual({ canCancel: false, canComplete: false, completionPending: true })
-    expect(bookingActions('accepted', { hostCompletedAt: now })).toEqual({ canCancel: false, canComplete: false, completionPending: false })
+    expect(bookingActions('accepted', { companionCompletedAt: now })).toEqual({ canCancel: false, canComplete: false, completionPending: false })
     expect(bookingActions('accepted', {
       requestedAt: now - 3_600_000,
       durationMinutes: 30,

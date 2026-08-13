@@ -16,7 +16,25 @@ describe('member onboarding decisions', () => {
   it('requires username, then goal, before completion', () => {
     expect(onboardingDecision({})).toBe('choose_username')
     expect(onboardingDecision({ username: 'alexrivera' })).toBe('choose_goal')
-    expect(onboardingDecision({ username: 'alexrivera', onboardingCompletedAt: 1 })).toBe('complete')
+    expect(onboardingDecision({ username: 'alexrivera', onboardingCompletedAt: 1 })).toBe('choose_goal')
+    expect(onboardingDecision({
+      username: 'alexrivera',
+      onboardingCompletedAt: 1,
+      approximateLatitude: 10.31,
+      approximateLongitude: 123.89,
+      approximateLocationConsentedAt: 1,
+      termsAcceptedAt: 1,
+      termsVersion: '2026-08-13',
+    })).toBe('complete')
+    expect(onboardingDecision({
+      username: 'alexrivera',
+      onboardingCompletedAt: 1,
+      approximateLatitude: 10.315699,
+      approximateLongitude: 123.89,
+      approximateLocationConsentedAt: 1,
+      termsAcceptedAt: 1,
+      termsVersion: '2026-08-13',
+    })).toBe('choose_goal')
   })
 })
 

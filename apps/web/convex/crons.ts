@@ -4,7 +4,7 @@ import { internal } from './_generated/api'
 const crons = cronJobs()
 
 crons.weekly(
-  'collect Friend Host commission balances',
+  'collect Companion commission balances',
   { dayOfWeek: 'saturday', hourUTC: 1, minuteUTC: 0 },
   internal.finance.collectWeekly,
   {},

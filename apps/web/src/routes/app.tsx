@@ -16,16 +16,16 @@ import { BookingActionsMenu } from '../components/BookingActionsMenu'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../components/IdentityVerificationFlow'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
-import { findFriendHosts } from '../lib/discoverySearch'
+import { findCompanions } from '../lib/discoverySearch'
 
 export const Route = createFileRoute('/app')({
-  validateSearch: (search: Record<string, unknown>): { hostProfileId?: string } => (
-    typeof search.hostProfileId === 'string' ? { hostProfileId: search.hostProfileId } : {}
+  validateSearch: (search: Record<string, unknown>): { companionProfileId?: string } => (
+    typeof search.companionProfileId === 'string' ? { companionProfileId: search.companionProfileId } : {}
   ),
   component: AppPage,
 })
 
-type ApprovedHostOption = {
+type ApprovedCompanionOption = {
   _id: string
   username?: string
   displayName: string
@@ -65,7 +65,7 @@ const statusCopy: Record<BookingStatus, { label: string; tone: 'self' | 'social'
 }
 
 function AppPage() {
-  const { hostProfileId } = Route.useSearch()
+  const { companionProfileId } = Route.useSearch()
   const { isSignedIn } = useAuth()
   const viewer = useQuery(api.users.viewer)
   const latestMemberVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
@@ -84,7 +84,7 @@ function AppPage() {
   const setNotice = useCallback((message: string) => toast.success(message), [])
   const [error, setError] = useState('')
   const [editingBooking, setEditingBooking] = useState<EditableBookingRequest | null>(null)
-  const editingHost = useQuery(api.hosts.getPublic, editingBooking?.hostProfileId ? { hostProfileId: editingBooking.hostProfileId } : 'skip')
+  const editingCompanion = useQuery(api.companions.getPublic, editingBooking?.companionProfileId ? { companionProfileId: editingBooking.companionProfileId } : 'skip')
   const [identityDetailsOpen, setIdentityDetailsOpen] = useState(false)
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
   const [walletDialogOpen, setWalletDialogOpen] = useState(false)
@@ -101,15 +101,15 @@ function AppPage() {
     : { state: 'not_started' as const, label: 'Loading', tone: 'self' as const, guidance: 'Loading identity status…', action: 'none' as const }
   const canBook = verification.state === 'approved'
   const viewerLoading = viewer === undefined
-  const approvedHosts = useQuery(
-    api.hosts.listApproved,
+  const approvedCompanions = useQuery(
+    api.companions.listApproved,
     canBook ? {} : 'skip',
-  ) as ApprovedHostOption[] | undefined
-  const bookableHosts = useMemo(
-    () => (approvedHosts ?? []).filter(
-      (host) => host.bookable && host.viewerBookingEligibility === 'eligible' && !host.demo,
+  ) as ApprovedCompanionOption[] | undefined
+  const bookableCompanions = useMemo(
+    () => (approvedCompanions ?? []).filter(
+      (companion) => companion.bookable && companion.viewerBookingEligibility === 'eligible' && !companion.demo,
     ),
-    [approvedHosts],
+    [approvedCompanions],
   )
 
   const openBookingDialog = useCallback((opener?: HTMLElement) => {
@@ -125,28 +125,28 @@ function AppPage() {
 
   const closeBookingDialog = useCallback(() => {
     setBookingDialogOpen(false)
-    if (hostProfileId) {
+    if (companionProfileId) {
       void navigate({ to: '/app', search: {}, replace: true })
     }
-  }, [hostProfileId, navigate])
+  }, [companionProfileId, navigate])
 
   const closeWalletDialog = useCallback(() => {
     setWalletDialogOpen(false)
   }, [])
 
   useEffect(() => {
-    if (!hostProfileId || viewerLoading) return
+    if (!companionProfileId || viewerLoading) return
 
     if (!canBook) {
       setBookingDialogOpen(false)
       setIdentityDetailsOpen(true)
-      setError('Verify your identity before requesting this booking. Your selected Friend Host will remain ready after approval.')
+      setError('Verify your identity before requesting this booking. Your selected Companion will remain ready after approval.')
       return
     }
 
     bookingOpenerRef.current = bookingTriggerRef.current
     setBookingDialogOpen(true)
-  }, [canBook, hostProfileId, navigate, viewerLoading])
+  }, [canBook, companionProfileId, navigate, viewerLoading])
 
   if (!isSignedIn) {
     return (
@@ -242,8 +242,8 @@ function AppPage() {
           </div>
           <div className="rail-section">
             <div className="rail-section-title">Account</div>
-            <Link to="/become-host" className="rail-link">
-              <span>Hosting profile</span>
+            <Link to="/become-companion" className="rail-link">
+              <span>Companion profile</span>
             </Link>
             <Link to="/safety" className="rail-link">
               <span>How safety works</span>
@@ -398,7 +398,7 @@ function AppPage() {
                     onComplete={async () => {
                       const result = await completeBooking({ bookingId: booking._id })
                       setNotice(result.awaitingOtherConfirmation
-                        ? 'Completion confirmed. Waiting for the Friend Host to confirm separately.'
+                        ? 'Completion confirmed. Waiting for the Companion to confirm separately.'
                         : 'Both people confirmed completion. The review window is open.')
                     }}
                     onReview={async (rating, body) => {
@@ -443,7 +443,7 @@ function AppPage() {
                     onComplete={async () => {
                       const result = await completeBooking({ bookingId: booking._id })
                       setNotice(result.awaitingOtherConfirmation
-                        ? 'Completion confirmed. Waiting for the Friend Host to confirm separately.'
+                        ? 'Completion confirmed. Waiting for the Companion to confirm separately.'
                         : 'Both people confirmed completion. The review window is open.')
                     }}
                     onReview={async (rating, body) => {
@@ -464,9 +464,9 @@ function AppPage() {
       {canBook && bookingDialogOpen && (
         <BookingDialog
           createDraft={createDraft}
-          hosts={bookableHosts}
-          hostsLoading={approvedHosts === undefined}
-          initialHostProfileId={hostProfileId}
+          companions={bookableCompanions}
+          companionsLoading={approvedCompanions === undefined}
+          initialCompanionProfileId={companionProfileId}
           onClose={closeBookingDialog}
           restoreFocusTo={bookingOpenerRef.current ?? bookingTriggerRef.current}
           setNotice={setNotice}
@@ -492,11 +492,11 @@ function AppPage() {
       {editingBooking && (
         <BookingRequestEditor
           booking={editingBooking}
-          host={editingHost ?? undefined}
+          companion={editingCompanion ?? undefined}
           onClose={() => setEditingBooking(null)}
           onSave={async (request) => {
             await updateBookingRequest({ bookingId: editingBooking.bookingId, ...request })
-            setNotice('Request updated. The Friend Host will see the new details.')
+            setNotice('Request updated. The Companion will see the new details.')
             setEditingBooking(null)
           }}
         />
@@ -743,7 +743,7 @@ function BookingRow({
   const canReview = canReviewBooking(booking.status) && !booking.viewerHasReviewed
   const conversationId = useQuery(
     api.conversations.between,
-    booking.hostUserId ? { otherUserId: booking.hostUserId } : 'skip',
+    booking.companionUserId ? { otherUserId: booking.companionUserId } : 'skip',
   )
 
   return (
@@ -751,18 +751,18 @@ function BookingRow({
       <div className="worklist-row-head">
         <div className="flex items-center gap-3 min-w-0">
           <span className="avatar" aria-hidden="true">
-            {'hostDisplayName' in booking ? initials(booking.hostDisplayName as string) : '?'}
+            {'companionDisplayName' in booking ? initials(booking.companionDisplayName as string) : '?'}
           </span>
           <div className="min-w-0">
-            <h3 className="text-h3">{'hostDisplayName' in booking ? booking.hostDisplayName : 'Friend Host'}</h3>
+            <h3 className="text-h3">{'companionDisplayName' in booking ? booking.companionDisplayName : 'Companion'}</h3>
             <div className="worklist-row-meta">
               <span>{booking.category}</span>
               <span className="dot" aria-hidden="true" />
               <span>{formatMode(booking.mode)}</span>
-              {'hostCity' in booking && (
+              {'companionCity' in booking && (
                 <>
                   <span className="dot" aria-hidden="true" />
-                  <span>{booking.hostCity}</span>
+                  <span>{booking.companionCity}</span>
                 </>
               )}
               <span className="dot" aria-hidden="true" />
@@ -777,8 +777,8 @@ function BookingRow({
             onEditRequest={booking.status === 'request_sent' && onEditRequest
               ? () => onEditRequest({
                   bookingId: booking._id,
-                  hostProfileId: booking.hostProfileId,
-                  hostDisplayName: 'hostDisplayName' in booking ? String(booking.hostDisplayName) : 'Friend Host',
+                  companionProfileId: booking.companionProfileId,
+                  companionDisplayName: 'companionDisplayName' in booking ? String(booking.companionDisplayName) : 'Companion',
                   category: booking.category,
                   mode: booking.mode,
                   requestedAt: booking.requestedAt,
@@ -809,7 +809,7 @@ function BookingRow({
       {booking.status === 'verification_required' && (
         <div className="notice notice-warning text-meta">
           <span className="notice-icon">!</span>
-          <span>This is a legacy held booking from the earlier verification flow. Approval will send it to the Friend Host; rejection will cancel it.</span>
+          <span>This is a legacy held booking from the earlier verification flow. Approval will send it to the Companion; rejection will cancel it.</span>
         </div>
       )}
 
@@ -824,7 +824,7 @@ function BookingRow({
           </Link>
         )}
         {canComplete && !booking.memberCompletedAt && <button type="button" onClick={onComplete} className="btn btn-social-quiet btn-sm">Confirm completion</button>}
-        {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Friend Host</span>}
+        {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Companion</span>}
         {canReview && <ReviewForm onReview={onReview} />}
         {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
       </div>
@@ -926,11 +926,11 @@ function ReviewForm({ onReview }: { onReview: (rating: number, body?: string) =>
 }
 
 type BookingDialogProps = {
-  hosts: ApprovedHostOption[]
-  hostsLoading: boolean
-  initialHostProfileId?: string
+  companions: ApprovedCompanionOption[]
+  companionsLoading: boolean
+  initialCompanionProfileId?: string
   createDraft: (args: {
-    hostProfileId: Id<'hostProfiles'>
+    companionProfileId: Id<'companionProfiles'>
     category: string
     mode: 'online' | 'in_person'
     requestedAt: number
@@ -943,37 +943,37 @@ type BookingDialogProps = {
 }
 
 function BookingDialog({
-  hosts,
-  hostsLoading,
-  initialHostProfileId,
+  companions,
+  companionsLoading,
+  initialCompanionProfileId,
   createDraft,
   onClose,
   restoreFocusTo,
   setNotice,
 }: BookingDialogProps) {
-  const [selectedHostProfileId, setSelectedHostProfileId] = useState('')
+  const [selectedCompanionProfileId, setSelectedCompanionProfileId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const dialogRef = useRef<HTMLDivElement>(null)
-  const hostSearchRef = useRef<HTMLInputElement>(null)
-  const hostSearchRootRef = useRef<HTMLDivElement>(null)
-  const hostSearchOpenRef = useRef(false)
+  const companionSearchRef = useRef<HTMLInputElement>(null)
+  const companionSearchRootRef = useRef<HTMLDivElement>(null)
+  const companionSearchOpenRef = useRef(false)
   const submittingRef = useRef(false)
-  const [hostQuery, setHostQuery] = useState('')
-  const [hostSearchOpen, setHostSearchOpenState] = useState(false)
-  const setHostSearchOpen = useCallback((open: boolean) => {
-    hostSearchOpenRef.current = open
-    setHostSearchOpenState(open)
+  const [companionQuery, setCompanionQuery] = useState('')
+  const [companionSearchOpen, setCompanionSearchOpenState] = useState(false)
+  const setCompanionSearchOpen = useCallback((open: boolean) => {
+    companionSearchOpenRef.current = open
+    setCompanionSearchOpenState(open)
   }, [])
-  const selectedHost = hosts.find((host) => host._id === selectedHostProfileId)
-  const hostSearchResults = useMemo(() => {
-    if (!hostQuery.trim()) return []
-    return findFriendHosts(hosts.map((host) => ({
-      ...host,
-      intro: host.intro ?? '',
-    })), hostQuery).slice(0, 6)
-  }, [hostQuery, hosts])
-  const categoryOptions = selectedHost?.categories?.length ? selectedHost.categories : activityCategories
+  const selectedCompanion = companions.find((companion) => companion._id === selectedCompanionProfileId)
+  const companionSearchResults = useMemo(() => {
+    if (!companionQuery.trim()) return []
+    return findCompanions(companions.map((companion) => ({
+      ...companion,
+      intro: companion.intro ?? '',
+    })), companionQuery).slice(0, 6)
+  }, [companionQuery, companions])
+  const categoryOptions = selectedCompanion?.categories?.length ? selectedCompanion.categories : activityCategories
   const [selectedMode, setSelectedMode] = useState<'online' | 'in_person'>('online')
   const [category, setCategory] = useState('')
   const [notes, setNotes] = useState('')
@@ -981,14 +981,14 @@ function BookingDialog({
   const initialRequestedAt = useMemo(() => new Date(Date.now() + 86400000), [])
   const [requestedAt, setRequestedAt] = useState<Date>(() => new Date(Date.now() + 86400000))
   const [requestedTime, setRequestedTime] = useState(() => `${String(initialRequestedAt.getHours()).padStart(2, '0')}:${String(initialRequestedAt.getMinutes()).padStart(2, '0')}`)
-  const estimatedPrice = selectedHost?.hourlyRateCentavos && durationMinutes >= 15 && durationMinutes <= 720 && durationMinutes % 15 === 0
-    ? calculateMemberWalletBookingPrice(selectedHost.hourlyRateCentavos, durationMinutes)
+  const estimatedPrice = selectedCompanion?.hourlyRateCentavos && durationMinutes >= 15 && durationMinutes <= 720 && durationMinutes % 15 === 0
+    ? calculateMemberWalletBookingPrice(selectedCompanion.hourlyRateCentavos, durationMinutes)
     : undefined
   const modeOptions = useMemo<Array<'online' | 'in_person'>>(() => {
-    if (selectedHost?.mode === 'in_person') return ['in_person']
-    if (selectedHost?.mode === 'online') return ['online']
+    if (selectedCompanion?.mode === 'in_person') return ['in_person']
+    if (selectedCompanion?.mode === 'online') return ['online']
     return ['online', 'in_person']
-  }, [selectedHost?.mode])
+  }, [selectedCompanion?.mode])
 
   useEffect(() => {
     const options: readonly string[] = categoryOptions
@@ -996,27 +996,27 @@ function BookingDialog({
   }, [categoryOptions, category])
 
   useEffect(() => {
-    setSelectedHostProfileId((current) => {
-      if (initialHostProfileId && hosts.some((host) => host._id === initialHostProfileId)) {
-        const initialHost = hosts.find((host) => host._id === initialHostProfileId)
-        setHostQuery(initialHost?.displayName ?? '')
-        return initialHostProfileId
+    setSelectedCompanionProfileId((current) => {
+      if (initialCompanionProfileId && companions.some((companion) => companion._id === initialCompanionProfileId)) {
+        const initialCompanion = companions.find((companion) => companion._id === initialCompanionProfileId)
+        setCompanionQuery(initialCompanion?.displayName ?? '')
+        return initialCompanionProfileId
       }
-      if (current && hosts.some((host) => host._id === current)) return current
+      if (current && companions.some((companion) => companion._id === current)) return current
       return ''
     })
-  }, [hosts, initialHostProfileId])
+  }, [companions, initialCompanionProfileId])
 
   useEffect(() => {
-    if (!hostSearchOpen) return
+    if (!companionSearchOpen) return
 
     function handlePointerDown(event: PointerEvent) {
-      if (!hostSearchRootRef.current?.contains(event.target as Node)) setHostSearchOpen(false)
+      if (!companionSearchRootRef.current?.contains(event.target as Node)) setCompanionSearchOpen(false)
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
     return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [hostSearchOpen])
+  }, [companionSearchOpen])
 
   useEffect(() => {
     if (!modeOptions.includes(selectedMode)) setSelectedMode(modeOptions[0])
@@ -1027,8 +1027,8 @@ function BookingDialog({
     document.body.style.overflow = 'hidden'
 
     const focusFrame = window.requestAnimationFrame(() => {
-      if (hostSearchRef.current && !hostSearchRef.current.disabled) {
-        hostSearchRef.current.focus()
+      if (companionSearchRef.current && !companionSearchRef.current.disabled) {
+        companionSearchRef.current.focus()
       } else {
         dialogRef.current?.focus()
       }
@@ -1036,10 +1036,10 @@ function BookingDialog({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        if (hostSearchOpenRef.current) {
+        if (companionSearchOpenRef.current) {
           event.preventDefault()
-          hostSearchOpenRef.current = false
-          setHostSearchOpen(false)
+          companionSearchOpenRef.current = false
+          setCompanionSearchOpen(false)
           return
         }
         if (submittingRef.current) return
@@ -1081,7 +1081,7 @@ function BookingDialog({
     }
   }, [onClose, restoreFocusTo])
 
-  const canSubmit = selectedHostProfileId.length > 0 && !isSubmitting
+  const canSubmit = selectedCompanionProfileId.length > 0 && !isSubmitting
 
   return (
     <div
@@ -1104,7 +1104,7 @@ function BookingDialog({
           <div>
             <p className="eyebrow">New booking</p>
             <MeetingSeam />
-            <h2 id="booking-dialog-title" className="text-h2 mt-1">{selectedHost ? `Book with ${selectedHost.displayName.trim().split(/\s+/)[0] ?? ''}` : 'Book a time'}</h2>
+            <h2 id="booking-dialog-title" className="text-h2 mt-1">{selectedCompanion ? `Book with ${selectedCompanion.displayName.trim().split(/\s+/)[0] ?? ''}` : 'Book a time'}</h2>
           </div>
           <button
             type="button"
@@ -1121,8 +1121,8 @@ function BookingDialog({
           className="booking-dialog-body"
           onSubmit={async (event) => {
             event.preventDefault()
-            if (!selectedHostProfileId) {
-              setSubmitError('Choose an approved Friend Host before sending a booking.')
+            if (!selectedCompanionProfileId) {
+              setSubmitError('Choose an approved Companion before sending a booking.')
               return
             }
 
@@ -1140,7 +1140,7 @@ function BookingDialog({
             }
             try {
               const booking = await createDraft({
-                hostProfileId: selectedHostProfileId as Id<'hostProfiles'>,
+                companionProfileId: selectedCompanionProfileId as Id<'companionProfiles'>,
                 category,
                 mode: selectedMode,
                 requestedAt: requestDate.getTime(),
@@ -1149,7 +1149,7 @@ function BookingDialog({
               })
               submittingRef.current = false
               setIsSubmitting(false)
-              setNotice(`Booking ${booking.bookingId.toString().slice(-6)} sent for ${formatPhp(booking.memberTotalCentavos)} from your booking wallet when the Friend Host accepts.`)
+              setNotice(`Booking ${booking.bookingId.toString().slice(-6)} sent for ${formatPhp(booking.memberTotalCentavos)} from your booking wallet when the Companion accepts.`)
               onClose()
             } catch (error) {
               submittingRef.current = false
@@ -1158,12 +1158,12 @@ function BookingDialog({
             }
           }}
         >
-          {!hostsLoading && hosts.length === 0 && (
+          {!companionsLoading && companions.length === 0 && (
             <div className="notice notice-warning text-meta">
               <span className="notice-icon">!</span>
               <span>
-                No approved hosts yet.{' '}
-                <Link to="/become-host" className="notice-link">Share what you enjoy as a Friend Host</Link>.
+                No approved companions yet.{' '}
+                <Link to="/become-companion" className="notice-link">Share what you enjoy as a Companion</Link>.
               </span>
             </div>
           )}
@@ -1175,48 +1175,48 @@ function BookingDialog({
             </div>
           )}
 
-          <div className="field-row booking-host-search-root" ref={hostSearchRootRef}>
-            <label className="label" htmlFor="booking-host-search">Friend Host</label>
-            <div className="booking-host-search" role="search">
+          <div className="field-row booking-companion-search-root" ref={companionSearchRootRef}>
+            <label className="label" htmlFor="booking-companion-search">Companion</label>
+            <div className="booking-companion-search" role="search">
               <Search size={18} aria-hidden="true" />
               <input
-                ref={hostSearchRef}
-                id="booking-host-search"
+                ref={companionSearchRef}
+                id="booking-companion-search"
                 type="search"
-                value={hostQuery}
+                value={companionQuery}
                 placeholder="Search by username, name, Strength, activity, or city"
-                aria-label="Search Friend Hosts"
-                aria-expanded={hostSearchOpen}
-                aria-controls="booking-host-search-results"
+                aria-label="Search Companions"
+                aria-expanded={companionSearchOpen}
+                aria-controls="booking-companion-search-results"
                 aria-autocomplete="list"
                 autoComplete="off"
-                disabled={hostsLoading || hosts.length === 0 || isSubmitting}
+                disabled={companionsLoading || companions.length === 0 || isSubmitting}
                 required
-                onFocus={() => setHostSearchOpen(true)}
-                onClick={() => setHostSearchOpen(true)}
+                onFocus={() => setCompanionSearchOpen(true)}
+                onClick={() => setCompanionSearchOpen(true)}
                 onChange={(event) => {
-                  setHostQuery(event.currentTarget.value)
-                  setSelectedHostProfileId('')
-                  setHostSearchOpen(true)
+                  setCompanionQuery(event.currentTarget.value)
+                  setSelectedCompanionProfileId('')
+                  setCompanionSearchOpen(true)
                 }}
                 onKeyDown={(event) => {
-                  if (event.key === 'ArrowDown' && hostSearchResults.length > 0) {
+                  if (event.key === 'ArrowDown' && companionSearchResults.length > 0) {
                     event.preventDefault()
-                    hostSearchRootRef.current?.querySelector<HTMLButtonElement>('[role="option"]')?.focus()
+                    companionSearchRootRef.current?.querySelector<HTMLButtonElement>('[role="option"]')?.focus()
                   }
                 }}
               />
-              {hostQuery && (
+              {companionQuery && (
                 <button
                   type="button"
-                  className="booking-host-search-clear"
-                  aria-label="Clear Friend Host search"
+                  className="booking-companion-search-clear"
+                  aria-label="Clear Companion search"
                   disabled={isSubmitting}
                   onClick={() => {
-                    setHostQuery('')
-                    setSelectedHostProfileId('')
-                    setHostSearchOpen(true)
-                    hostSearchRef.current?.focus()
+                    setCompanionQuery('')
+                    setSelectedCompanionProfileId('')
+                    setCompanionSearchOpen(true)
+                    companionSearchRef.current?.focus()
                   }}
                 >
                   <X size={15} aria-hidden="true" />
@@ -1224,42 +1224,42 @@ function BookingDialog({
               )}
             </div>
 
-            {hostSearchOpen && (
-              <div id="booking-host-search-results" className="booking-host-search-panel">
-                {!hostQuery.trim() ? (
-                  <p className="booking-host-search-guidance">Search Friend Hosts by username, name, Strength, activity, or city.</p>
-                ) : hostsLoading ? (
-                  <p className="booking-host-search-guidance" role="status">Searching…</p>
-                ) : hostSearchResults.length === 0 ? (
-                  <p className="booking-host-search-guidance" role="status">No Friend Hosts match “{hostQuery.trim()}”.</p>
+            {companionSearchOpen && (
+              <div id="booking-companion-search-results" className="booking-companion-search-panel">
+                {!companionQuery.trim() ? (
+                  <p className="booking-companion-search-guidance">Search Companions by username, name, Strength, activity, or city.</p>
+                ) : companionsLoading ? (
+                  <p className="booking-companion-search-guidance" role="status">Searching…</p>
+                ) : companionSearchResults.length === 0 ? (
+                  <p className="booking-companion-search-guidance" role="status">No Companions match “{companionQuery.trim()}”.</p>
                 ) : (
                   <>
-                    <p className="booking-host-search-summary" role="status">
-                      {hostSearchResults.length} {hostSearchResults.length === 1 ? 'match' : 'matches'}
+                    <p className="booking-companion-search-summary" role="status">
+                      {companionSearchResults.length} {companionSearchResults.length === 1 ? 'match' : 'matches'}
                     </p>
-                    <ul className="booking-host-search-list" role="listbox" aria-label="Friend Host search results">
-                      {hostSearchResults.map((host) => (
-                        <li key={host._id}>
+                    <ul className="booking-companion-search-list" role="listbox" aria-label="Companion search results">
+                      {companionSearchResults.map((companion) => (
+                        <li key={companion._id}>
                           <button
                             type="button"
                             role="option"
-                            aria-selected={host._id === selectedHostProfileId}
-                            className="booking-host-search-result"
+                            aria-selected={companion._id === selectedCompanionProfileId}
+                            className="booking-companion-search-result"
                             onClick={() => {
-                              setSelectedHostProfileId(host._id)
-                              setHostQuery(host.displayName)
-                              hostSearchRef.current?.focus()
-                              setHostSearchOpen(false)
+                              setSelectedCompanionProfileId(companion._id)
+                              setCompanionQuery(companion.displayName)
+                              companionSearchRef.current?.focus()
+                              setCompanionSearchOpen(false)
                             }}
                           >
-                            <span className="booking-host-search-avatar" aria-hidden="true">
-                              {host.profileImageUrl
-                                ? <img src={host.profileImageUrl} alt="" />
-                                : initials(host.displayName)}
+                            <span className="booking-companion-search-avatar" aria-hidden="true">
+                              {companion.profileImageUrl
+                                ? <img src={companion.profileImageUrl} alt="" />
+                                : initials(companion.displayName)}
                             </span>
                             <span>
-                              <strong>{host.displayName}</strong>
-                              <small>{[host.username ? `@${host.username}` : undefined, host.city, host.strengths?.[0] ?? host.categories?.[0]].filter(Boolean).join(' · ')}</small>
+                              <strong>{companion.displayName}</strong>
+                              <small>{[companion.username ? `@${companion.username}` : undefined, companion.city, companion.strengths?.[0] ?? companion.categories?.[0]].filter(Boolean).join(' · ')}</small>
                             </span>
                           </button>
                         </li>

@@ -1,7 +1,7 @@
 export type ProfileViewer = {
   displayName: string
   username?: string
-  role: 'member' | 'friend_host' | 'reviewer' | 'admin'
+  role: 'member' | 'companion' | 'reviewer' | 'admin'
   createdAt: number
   onboardingCompletedAt?: number
   profileImageUrl?: string | null
@@ -86,7 +86,7 @@ function verificationCopy(viewer: ProfileViewer, verification: ProfileVerificati
 }
 
 function roleLabel(role: ProfileViewer['role']) {
-  if (role === 'friend_host') return 'Friend Host'
+  if (role === 'companion') return 'Companion'
   if (role === 'reviewer') return 'Reviewer'
   if (role === 'admin') return 'Admin'
   return 'Member'

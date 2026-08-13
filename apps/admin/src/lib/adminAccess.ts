@@ -4,7 +4,7 @@ export type AdminRole = Extract<UserRole, 'admin' | 'reviewer'>
 
 export type AdminRoute =
   | '/overview'
-  | '/host-applications'
+  | '/companion-applications'
   | '/booking-verification'
   | '/reports'
   | '/users'
@@ -32,7 +32,7 @@ const adminNavSections: AdminNavSection[] = [
     title: 'Review',
     items: [
       { to: '/overview', label: 'Overview' },
-      { to: '/host-applications', label: 'Host applications', countKey: 'hostApplicationsPending' },
+      { to: '/companion-applications', label: 'Companion profile reviews', countKey: 'companionApplicationsPending' },
       { to: '/booking-verification', label: 'Identity verification', countKey: 'memberVerificationsPending' },
       { to: '/reports', label: 'Reports', countKey: 'reportsOpen' },
     ],

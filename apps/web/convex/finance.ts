@@ -10,7 +10,7 @@ const SETTLEMENT_BATCH_SIZE = 100
 const PLATFORM_REVENUE_ACCOUNT_KEY = 'platform:booking-revenue'
 
 type WalletBucket = 'available' | 'reserved' | 'pending'
-type WalletAccountType = 'member_booking' | 'host_earnings' | 'platform_revenue'
+type WalletAccountType = 'member_booking' | 'companion_earnings' | 'platform_revenue'
 type WalletTransactionKind = Doc<'walletTransactions'>['kind']
 type WalletLeg = {
   accountId: Id<'walletAccounts'>
@@ -33,16 +33,16 @@ export const dashboard = query({
     const viewer = await getViewer(ctx)
     if (!viewer) return null
     if (viewer.suspended) throw new Error('Account is suspended')
-    const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
-    if (!host) return null
+    const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    if (!companion) return null
 
     const now = Date.now()
     const nextCutoff = nextSaturdayManilaCutoff(now)
     const [ledger, obligations, topUps, earningsAccount] = await Promise.all([
-      ctx.db.query('platformFeeLedger').withIndex('by_host_created_at', (q) => q.eq('hostUserId', viewer._id)).order('desc').collect(),
-      ctx.db.query('commissionObligations').withIndex('by_host_due_at', (q) => q.eq('hostUserId', viewer._id)).collect(),
-      ctx.db.query('paymongoTopUps').withIndex('by_host_created_at', (q) => q.eq('hostUserId', viewer._id)).order('desc').take(10),
-      findWalletAccount(ctx, hostEarningsAccountKey(viewer._id)),
+      ctx.db.query('platformFeeLedger').withIndex('by_companion_created_at', (q) => q.eq('companionUserId', viewer._id)).order('desc').collect(),
+      ctx.db.query('commissionObligations').withIndex('by_companion_due_at', (q) => q.eq('companionUserId', viewer._id)).collect(),
+      ctx.db.query('paymongoTopUps').withIndex('by_companion_created_at', (q) => q.eq('companionUserId', viewer._id)).order('desc').take(10),
+      findWalletAccount(ctx, companionEarningsAccountKey(viewer._id)),
     ])
 
     const paidByObligation = new Map<string, number>()
@@ -156,7 +156,7 @@ export const collectWeekly = internalMutation({
       .withIndex('by_due_at', (q) => q.lte('dueAt', now))
       .order('asc')
       .paginate({ cursor: args.cursor ?? null, numItems: COLLECTION_BATCH_SIZE })
-    const availableByHost = new Map<string, number>()
+    const availableByCompanion = new Map<string, number>()
     let collectedCentavos = 0
 
     for (const obligation of page.page) {
@@ -166,19 +166,19 @@ export const collectWeekly = internalMutation({
 
       const remainingCentavos = await obligationRemainingCentavos(ctx, obligation)
       if (remainingCentavos <= 0) continue
-      const hostKey = String(obligation.hostUserId)
-      const cachedAvailable = availableByHost.get(hostKey)
+      const companionKey = String(obligation.companionUserId)
+      const cachedAvailable = availableByCompanion.get(companionKey)
       const available: number = cachedAvailable === undefined
-        ? await availableBalanceForHost(ctx, obligation.hostUserId)
+        ? await availableBalanceForCompanion(ctx, obligation.companionUserId)
         : cachedAvailable
       const appliedCentavos = Math.min(available, remainingCentavos)
       if (appliedCentavos <= 0) {
-        availableByHost.set(hostKey, available)
+        availableByCompanion.set(companionKey, available)
         continue
       }
 
       await ctx.db.insert('platformFeeLedger', {
-        hostUserId: obligation.hostUserId,
+        companionUserId: obligation.companionUserId,
         direction: 'debit',
         amountCentavos: appliedCentavos,
         currency: BOOKING_CURRENCY,
@@ -187,7 +187,7 @@ export const collectWeekly = internalMutation({
         idempotencyKey,
         createdAt: now,
       })
-      availableByHost.set(hostKey, available - appliedCentavos)
+      availableByCompanion.set(companionKey, available - appliedCentavos)
       collectedCentavos += appliedCentavos
     }
 
@@ -224,10 +224,10 @@ export const reconcileSettlements = internalMutation({
   },
 })
 
-export async function pastDueCommissionCentavos(ctx: { db: any }, hostUserId: Id<'users'>, now = Date.now()) {
+export async function pastDueCommissionCentavos(ctx: { db: any }, companionUserId: Id<'users'>, now = Date.now()) {
   const obligations = await ctx.db
     .query('commissionObligations')
-    .withIndex('by_host_due_at', (q: any) => q.eq('hostUserId', hostUserId).lte('dueAt', now))
+    .withIndex('by_companion_due_at', (q: any) => q.eq('companionUserId', companionUserId).lte('dueAt', now))
     .collect()
   let total = 0
   for (const obligation of obligations) total += await obligationRemainingCentavos(ctx, obligation)
@@ -323,17 +323,17 @@ export async function releaseBookingFunds(ctx: { db: any }, booking: Doc<'bookin
 export async function allocateCompletedBookingFunds(
   ctx: { db: any; scheduler: any },
   booking: Doc<'bookings'>,
-  hostUserId: Id<'users'>,
+  companionUserId: Id<'users'>,
   now = Date.now(),
 ) {
   if (booking.settlementState === 'refunded') throw new Error('Refunded bookings cannot allocate completion funds')
   const amounts = requireV2BookingAmounts(booking)
-  const [memberAccount, hostAccount, platformAccount] = await Promise.all([
+  const [memberAccount, companionAccount, platformAccount] = await Promise.all([
     getOrCreateWalletAccount(ctx, {
       deterministicKey: memberBookingAccountKey(booking.memberId), accountType: 'member_booking', ownerUserId: booking.memberId, now,
     }),
     getOrCreateWalletAccount(ctx, {
-      deterministicKey: hostEarningsAccountKey(hostUserId), accountType: 'host_earnings', ownerUserId: hostUserId, now,
+      deterministicKey: companionEarningsAccountKey(companionUserId), accountType: 'companion_earnings', ownerUserId: companionUserId, now,
     }),
     getOrCreateWalletAccount(ctx, {
       deterministicKey: PLATFORM_REVENUE_ACCOUNT_KEY, accountType: 'platform_revenue', now,
@@ -343,12 +343,12 @@ export async function allocateCompletedBookingFunds(
     kind: 'booking_complete',
     idempotencyKey: `booking:${booking._id}:complete`,
     bookingId: booking._id,
-    actorUserId: hostUserId,
+    actorUserId: companionUserId,
     amountCentavos: amounts.total,
     now,
     legs: [
       { accountId: memberAccount._id, bucket: 'reserved', direction: 'debit', amountCentavos: amounts.total },
-      { accountId: hostAccount._id, bucket: 'pending', direction: 'credit', amountCentavos: amounts.host },
+      { accountId: companionAccount._id, bucket: 'pending', direction: 'credit', amountCentavos: amounts.companion },
       { accountId: platformAccount._id, bucket: 'pending', direction: 'credit', amountCentavos: amounts.fee },
     ],
   })
@@ -368,12 +368,12 @@ export async function settleBookingFunds(ctx: { db: any }, bookingId: Id<'bookin
     return { outcome: 'blocked' as const }
   }
 
-  const host = await ctx.db.get(booking.hostProfileId)
-  if (!host) throw new Error('Friend Host profile not found')
+  const companion = await ctx.db.get(booking.companionProfileId)
+  if (!companion) throw new Error('Companion profile not found')
   const amounts = requireV2BookingAmounts(booking)
-  const [hostAccount, platformAccount] = await Promise.all([
+  const [companionAccount, platformAccount] = await Promise.all([
     getOrCreateWalletAccount(ctx, {
-      deterministicKey: hostEarningsAccountKey(host.userId), accountType: 'host_earnings', ownerUserId: host.userId, now,
+      deterministicKey: companionEarningsAccountKey(companion.userId), accountType: 'companion_earnings', ownerUserId: companion.userId, now,
     }),
     getOrCreateWalletAccount(ctx, { deterministicKey: PLATFORM_REVENUE_ACCOUNT_KEY, accountType: 'platform_revenue', now }),
   ])
@@ -384,8 +384,8 @@ export async function settleBookingFunds(ctx: { db: any }, bookingId: Id<'bookin
     amountCentavos: amounts.total,
     now,
     legs: [
-      { accountId: hostAccount._id, bucket: 'pending', direction: 'debit', amountCentavos: amounts.host },
-      { accountId: hostAccount._id, bucket: 'available', direction: 'credit', amountCentavos: amounts.host },
+      { accountId: companionAccount._id, bucket: 'pending', direction: 'debit', amountCentavos: amounts.companion },
+      { accountId: companionAccount._id, bucket: 'available', direction: 'credit', amountCentavos: amounts.companion },
       { accountId: platformAccount._id, bucket: 'pending', direction: 'debit', amountCentavos: amounts.fee },
       { accountId: platformAccount._id, bucket: 'available', direction: 'credit', amountCentavos: amounts.fee },
     ],
@@ -398,30 +398,30 @@ export async function resolveBlockedBookingFunds(
   ctx: { db: any },
   booking: Doc<'bookings'>,
   adminUserId: Id<'users'>,
-  resolution: 'release_to_host' | 'return_to_member',
+  resolution: 'release_to_companion' | 'return_to_member',
   note: string,
   now = Date.now(),
 ) {
   const amounts = requireV2BookingAmounts(booking)
   if (booking.settlementState === 'settled' || booking.settlementState === 'refunded') {
-    const expectedResolution = resolution === 'release_to_host' ? 'released' : 'returned_to_member'
+    const expectedResolution = resolution === 'release_to_companion' ? 'released' : 'returned_to_member'
     if (booking.settlementResolution !== expectedResolution) {
       throw new Error('Booking funds were already resolved with a conflicting outcome')
     }
     return { outcome: booking.settlementState, applied: false }
   }
   if (booking.settlementState !== 'blocked') throw new Error('Booking funds are not blocked by an active report')
-  const host = await ctx.db.get(booking.hostProfileId)
-  if (!host) throw new Error('Friend Host profile not found')
+  const companion = await ctx.db.get(booking.companionProfileId)
+  if (!companion) throw new Error('Companion profile not found')
   const memberAccount = await getOrCreateWalletAccount(ctx, {
     deterministicKey: memberBookingAccountKey(booking.memberId), accountType: 'member_booking', ownerUserId: booking.memberId, now,
   })
 
-  if (resolution === 'release_to_host') {
-    if (!booking.jointlyCompletedAt) throw new Error('Funds can be released to the Friend Host only after mutual completion')
-    const [hostAccount, platformAccount] = await Promise.all([
+  if (resolution === 'release_to_companion') {
+    if (!booking.jointlyCompletedAt) throw new Error('Funds can be released to the Companion only after mutual completion')
+    const [companionAccount, platformAccount] = await Promise.all([
       getOrCreateWalletAccount(ctx, {
-        deterministicKey: hostEarningsAccountKey(host.userId), accountType: 'host_earnings', ownerUserId: host.userId, now,
+        deterministicKey: companionEarningsAccountKey(companion.userId), accountType: 'companion_earnings', ownerUserId: companion.userId, now,
       }),
       getOrCreateWalletAccount(ctx, { deterministicKey: PLATFORM_REVENUE_ACCOUNT_KEY, accountType: 'platform_revenue', now }),
     ])
@@ -434,8 +434,8 @@ export async function resolveBlockedBookingFunds(
       note,
       now,
       legs: [
-        { accountId: hostAccount._id, bucket: 'pending', direction: 'debit', amountCentavos: amounts.host },
-        { accountId: hostAccount._id, bucket: 'available', direction: 'credit', amountCentavos: amounts.host },
+        { accountId: companionAccount._id, bucket: 'pending', direction: 'debit', amountCentavos: amounts.companion },
+        { accountId: companionAccount._id, bucket: 'available', direction: 'credit', amountCentavos: amounts.companion },
         { accountId: platformAccount._id, bucket: 'pending', direction: 'debit', amountCentavos: amounts.fee },
         { accountId: platformAccount._id, bucket: 'available', direction: 'credit', amountCentavos: amounts.fee },
       ],
@@ -444,7 +444,7 @@ export async function resolveBlockedBookingFunds(
   }
 
   const legs: WalletLeg[] = booking.jointlyCompletedAt
-    ? await refundPendingLegs(ctx, booking, host.userId, memberAccount._id, amounts, now)
+    ? await refundPendingLegs(ctx, booking, companion.userId, memberAccount._id, amounts, now)
     : [
         { accountId: memberAccount._id, bucket: 'reserved', direction: 'debit', amountCentavos: amounts.total },
         { accountId: memberAccount._id, bucket: 'available', direction: 'credit', amountCentavos: amounts.total },
@@ -476,12 +476,12 @@ export async function settleTopUpInTransaction(
     await creditMemberTopUpInTransaction(ctx, topUp, paidAt)
     return
   }
-  if (!topUp.hostUserId) throw new Error('Legacy host-fee top-up is missing its Friend Host beneficiary')
+  if (!topUp.companionUserId) throw new Error('Legacy companion-fee top-up is missing its Companion beneficiary')
   const creditKey = `topup:${topUp._id}:credit`
   const existingCredit = await ctx.db.query('platformFeeLedger').withIndex('by_idempotency_key', (q: any) => q.eq('idempotencyKey', creditKey)).unique()
   if (!existingCredit) {
     await ctx.db.insert('platformFeeLedger', {
-      hostUserId: topUp.hostUserId,
+      companionUserId: topUp.companionUserId,
       direction: 'credit',
       amountCentavos: topUp.amountCentavos,
       currency: BOOKING_CURRENCY,
@@ -492,10 +492,10 @@ export async function settleTopUpInTransaction(
     })
   }
 
-  let available = await availableBalanceForHost(ctx, topUp.hostUserId)
+  let available = await availableBalanceForCompanion(ctx, topUp.companionUserId)
   const pastDue = await ctx.db
     .query('commissionObligations')
-    .withIndex('by_host_due_at', (q: any) => q.eq('hostUserId', topUp.hostUserId).lte('dueAt', paidAt))
+    .withIndex('by_companion_due_at', (q: any) => q.eq('companionUserId', topUp.companionUserId).lte('dueAt', paidAt))
     .collect()
   for (const obligation of pastDue) {
     if (available <= 0) break
@@ -506,7 +506,7 @@ export async function settleTopUpInTransaction(
     const applied = Math.min(available, remaining)
     if (applied <= 0) continue
     await ctx.db.insert('platformFeeLedger', {
-      hostUserId: topUp.hostUserId,
+      companionUserId: topUp.companionUserId,
       direction: 'debit',
       amountCentavos: applied,
       currency: BOOKING_CURRENCY,
@@ -520,7 +520,7 @@ export async function settleTopUpInTransaction(
   }
 
   await writeAudit(ctx, {
-    actorUserId: topUp.hostUserId,
+    actorUserId: topUp.companionUserId,
     action: 'platform_fee.top_up_credited',
     targetType: 'paymongoTopUp',
     targetId: String(topUp._id),
@@ -531,19 +531,19 @@ export async function settleTopUpInTransaction(
 async function refundPendingLegs(
   ctx: { db: any },
   booking: Doc<'bookings'>,
-  hostUserId: Id<'users'>,
+  companionUserId: Id<'users'>,
   memberAccountId: Id<'walletAccounts'>,
-  amounts: { total: number; host: number; fee: number },
+  amounts: { total: number; companion: number; fee: number },
   now: number,
 ): Promise<WalletLeg[]> {
-  const [hostAccount, platformAccount] = await Promise.all([
+  const [companionAccount, platformAccount] = await Promise.all([
     getOrCreateWalletAccount(ctx, {
-      deterministicKey: hostEarningsAccountKey(hostUserId), accountType: 'host_earnings', ownerUserId: hostUserId, now,
+      deterministicKey: companionEarningsAccountKey(companionUserId), accountType: 'companion_earnings', ownerUserId: companionUserId, now,
     }),
     getOrCreateWalletAccount(ctx, { deterministicKey: PLATFORM_REVENUE_ACCOUNT_KEY, accountType: 'platform_revenue', now }),
   ])
   return [
-    { accountId: hostAccount._id, bucket: 'pending', direction: 'debit', amountCentavos: amounts.host },
+    { accountId: companionAccount._id, bucket: 'pending', direction: 'debit', amountCentavos: amounts.companion },
     { accountId: platformAccount._id, bucket: 'pending', direction: 'debit', amountCentavos: amounts.fee },
     { accountId: memberAccountId, bucket: 'available', direction: 'credit', amountCentavos: amounts.total },
   ]
@@ -662,23 +662,23 @@ function requireV2BookingAmounts(booking: Doc<'bookings'>) {
     throw new Error('Booking does not use the member wallet')
   }
   const total = booking.memberTotalCentavos
-  const host = booking.hostEntitlementCentavos
+  const companion = booking.companionEarningsCentavos
   const fee = booking.memberBookingFeeCentavos
-  if (total === undefined || host === undefined || fee === undefined || total !== host + fee) {
+  if (total === undefined || companion === undefined || fee === undefined || total !== companion + fee) {
     throw new Error('Booking wallet amounts are incomplete')
   }
   assertMoney(total, 'Member total')
-  assertMoney(host, 'Friend Host entitlement')
+  assertMoney(companion, 'Companion entitlement')
   assertMoney(fee, 'Member booking fee')
-  return { total, host, fee }
+  return { total, companion, fee }
 }
 
 function memberBookingAccountKey(userId: Id<'users'>) {
   return `member:${userId}:booking`
 }
 
-function hostEarningsAccountKey(userId: Id<'users'>) {
-  return `host:${userId}:earnings`
+function companionEarningsAccountKey(userId: Id<'users'>) {
+  return `companion:${userId}:earnings`
 }
 
 function bucketField(bucket: WalletBucket): 'availableCentavos' | 'reservedCentavos' | 'pendingCentavos' {
@@ -699,8 +699,8 @@ async function obligationRemainingCentavos(ctx: { db: any }, obligation: Doc<'co
   return Math.max(0, obligation.amountCentavos - paid)
 }
 
-async function availableBalanceForHost(ctx: { db: any }, hostUserId: Id<'users'>) {
-  const entries = await ctx.db.query('platformFeeLedger').withIndex('by_host', (q: any) => q.eq('hostUserId', hostUserId)).collect()
+async function availableBalanceForCompanion(ctx: { db: any }, companionUserId: Id<'users'>) {
+  const entries = await ctx.db.query('platformFeeLedger').withIndex('by_companion', (q: any) => q.eq('companionUserId', companionUserId)).collect()
   return entries.reduce((balance: number, entry: Doc<'platformFeeLedger'>) => (
     balance + (entry.direction === 'credit' ? entry.amountCentavos : -entry.amountCentavos)
   ), 0)

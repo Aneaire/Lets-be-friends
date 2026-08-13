@@ -1,6 +1,6 @@
 # Let's Be Friends mobile
 
-Expo Router and TypeScript mobile client for trust-first Friend Host discovery, member bookings, Friend Host tools, and direct messages.
+Expo Router and TypeScript mobile client for trust-first Companion discovery, member bookings, Companion tools, and direct messages.
 
 ## Commands
 
@@ -39,7 +39,7 @@ letsbefriends://auth/callback
 
 Google OAuth uses `expo-auth-session` and `expo-web-browser`. A fresh development build must be created and installed after adding these native modules. Restarting Metro or using Fast Refresh is not sufficient for the first run with the new native dependencies.
 
-When `EXPO_PUBLIC_CONVEX_URL` is missing or invalid, Explore and Friend Host detail continue to use clearly labeled local fixture data. When configured, those screens read approved public hosts anonymously from Convex. Backend demo profiles and local fixture profiles remain non-bookable.
+When `EXPO_PUBLIC_CONVEX_URL` is missing or invalid, Explore and Companion detail continue to use clearly labeled local fixture data. When configured, those screens read approved public companions anonymously from Convex. Backend demo profiles and local fixture profiles remain non-bookable.
 
 When the Clerk key is absent, the profile remains a clearly labeled demo account and does not claim identity approval. Demo Messages retains a labeled fixture and performs no mutations. A malformed public account configuration is shown as a safe setup error.
 
@@ -47,30 +47,35 @@ When the Clerk key is absent, the profile remains a clearly labeled demo account
 
 For configured, authenticated members whose mobile member record is ready:
 
-- Public live Friend Host profiles preserve backend booking eligibility and expose a social-pink booking action only when truthful.
+- Public live Companion profiles preserve backend booking eligibility and expose a social-pink booking action only when truthful.
 - Signed-out booking actions route to sign-in. Verification-required and own-profile states explain the restriction without mutating data.
-- Eligible members can submit one booking request with a host-offered category and format, a Manila-local future schedule, duration, and optional notes.
-- The booking form shows the Friend Host hourly rate and the read-only member booking balance when available. The server calculates the authoritative booking total when the request is sent, and the saved total then appears in booking details.
-- Home links naturally to real booking history. Booking detail shows status, schedule, format, duration, total, and shared-rule member actions.
-- Messages uses the real-time conversation inbox, booking context cards, read state, keyboard-aware composition, and a 2,000 character text limit.
+- Eligible members can submit one booking request with a companion-offered category and format, a Manila-local future schedule, duration, and optional notes.
+- The booking form shows the Companion hourly rate and member booking balance when available, with a link to the booking wallet. The server calculates the authoritative booking total when the request is sent, and the saved total then appears in booking details.
+- The booking wallet shows available, reserved, and pending balances, recent member top-ups, and provider-confirmed PayMongo QR Ph top-up attempts. It never claims wallet credit before provider confirmation.
+- Home links naturally to real booking history. Booking detail shows status, schedule, format, duration, total, shared-rule member actions, booking reports, and eligible one-time reviews.
+- Members can use Edit request only for their own pending `request_sent` request. The form uses the Companion's current public category and format choices, and the server rechecks future time, eligibility, wallet sufficiency, pricing, and current state. Accepted-booking rescheduling and availability management are not offered.
+- Members and Companions can cancel their own booking only while shared cancellation rules allow it and before either completion confirmation is recorded. Cancellation is irreversible and the optional reason is trimmed.
+- Member and Companion booking details show read-only cancellation facts, participant completion progress, settlement state, settlement eligibility time, and blocked admin-resolution guidance when returned by the backend. Returned funds are described only as returned to the member booking wallet, not as a PayMongo, card, bank, or other external refund. Pending and settled Companion amounts are not described as external payouts or withdrawals.
+- Messages uses the real-time conversation inbox, role-aware booking context cards, read state, keyboard-aware composition, and a 2,000 character text limit. Booking detail opens the exact existing conversation when available and offers the general inbox only as a missing-conversation fallback.
 - Query and mutation failures use fixed product copy. Raw backend errors and member diagnostics are not rendered or logged.
 
-Authenticated booking, finance, host, evidence, and conversation APIs are skipped until Clerk is signed in, Convex is authenticated, and `MobileMember` is ready. Anonymous Explore remains available.
+Authenticated booking, finance, companion, evidence, and conversation APIs are skipped until Clerk is signed in, Convex is authenticated, and `MobileMember` is ready. Anonymous Explore remains available.
 
 ## Phase 3 behavior
 
-### Friend Host tools
+### Companion tools
 
-- Profile links to Friend Host application and status tools plus incoming host bookings.
-- The mobile application uses the existing Friend Host APIs and shared Strengths and activity categories.
+- Profile links to Companion application and status tools plus incoming companion bookings.
+- The mobile application uses the existing Companion APIs and shared Strengths and activity categories.
 - Members can submit or update the profile, update the listed hourly rate, and manage nearby discovery visibility.
-- The mobile app does not request or collect GPS. Nearby visibility can be enabled only when the existing Friend Host profile already has a saved coordinate pair.
+- The mobile app does not request or collect GPS. Nearby visibility can be enabled only when the existing Companion profile already has a saved coordinate pair.
 - Incoming booking detail shows the live request state and requires an explicit confirmation before accepting or declining.
 
 ### Booking evidence and completion
 
-- Accepted member and host bookings show the authoritative live evidence decision from the existing backend.
-- Native evidence image upload is not included. The mobile screen does not open a selected booking in a generic browser session because that browser account and booking cannot yet be bound safely.
+- Accepted member and companion bookings show the authoritative live evidence decision from the existing backend.
+- Members and Companions can select an existing image from the native photo library and upload it as private booking evidence. Camera capture is not included.
+- Evidence upload accepts backend-supported image types, remains reactive after upload, and explains that access is limited to authorized reviewers for active booking reports and is audited.
 - Skipping evidence requires a strict native warning and sends `warningAcknowledged: true` only after explicit confirmation.
 - Mobile completion is not offered until the backend enforces the scheduled session end using authoritative server time.
 
@@ -109,4 +114,4 @@ Install the development APK from the authorized EAS build result. Ordinary TypeS
 
 ## Explicit exclusions
 
-Phase 3 does not add or change server APIs, schema, persistence, migrations, compatibility paths, wallet top-ups, payment calls, native identity capture, native evidence image upload, mobile attachment uploads, attachment downloads, reviews, reports, background uploads, push tokens, push providers, deployment, publishing, or EAS cloud builds.
+Phase 3 does not add or change server APIs, schema, persistence, migrations, compatibility paths, native identity capture, camera capture, mobile message attachment uploads, attachment downloads, background uploads, push tokens, push providers, booking completion, deployment, publishing, or EAS cloud builds. Booking completion remains deferred until the server enforces the scheduled session end using authoritative time.

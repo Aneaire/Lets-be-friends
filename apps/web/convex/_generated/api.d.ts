@@ -11,11 +11,11 @@
 import type * as admin from "../admin.js";
 import type * as bookingEvidence from "../bookingEvidence.js";
 import type * as bookings from "../bookings.js";
+import type * as companionLocations from "../companionLocations.js";
+import type * as companions from "../companions.js";
 import type * as conversations from "../conversations.js";
 import type * as crons from "../crons.js";
 import type * as finance from "../finance.js";
-import type * as hostLocations from "../hostLocations.js";
-import type * as hosts from "../hosts.js";
 import type * as http from "../http.js";
 import type * as identityRecords from "../identityRecords.js";
 import type * as identityVerification from "../identityVerification.js";
@@ -39,11 +39,11 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   bookingEvidence: typeof bookingEvidence;
   bookings: typeof bookings;
+  companionLocations: typeof companionLocations;
+  companions: typeof companions;
   conversations: typeof conversations;
   crons: typeof crons;
   finance: typeof finance;
-  hostLocations: typeof hostLocations;
-  hosts: typeof hosts;
   http: typeof http;
   identityRecords: typeof identityRecords;
   identityVerification: typeof identityVerification;

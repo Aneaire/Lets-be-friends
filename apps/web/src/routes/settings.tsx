@@ -1,8 +1,7 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth, useUser } from '@clerk/react'
-import { useMutation, useQuery } from 'convex/react'
-import { MapPin, Moon, Sun, UserRound, UserRoundCog } from 'lucide-react'
-import { useState } from 'react'
+import { useQuery } from 'convex/react'
+import { Moon, Sun, UserRound, UserRoundCog } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import { useAccentChoice, useThemeChoice, type AccentChoice } from '../components/ThemeToggle'
 
@@ -18,12 +17,9 @@ export const Route = createFileRoute('/settings')({ component: SettingsPage })
 function SettingsPage() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
-  const application = useQuery(api.hosts.myApplication)
-  const setNearbyVisibility = useMutation(api.hosts.setNearbyDiscoveryVisibility)
+  const application = useQuery(api.companions.myApplication)
   const { theme, setTheme } = useThemeChoice()
   const { accent, setAccent } = useAccentChoice()
-  const [nearbySaving, setNearbySaving] = useState(false)
-  const [nearbyError, setNearbyError] = useState('')
 
   if (!isSignedIn) {
     return (
@@ -38,10 +34,6 @@ function SettingsPage() {
     )
   }
 
-  const hasApproximateLocation = application
-    && typeof application.approximateLatitude === 'number'
-    && typeof application.approximateLongitude === 'number'
-  const nearbyEnabled = application?.nearbyDiscoveryEnabled === true
   const email = user?.primaryEmailAddress?.emailAddress
 
   return (
@@ -49,7 +41,7 @@ function SettingsPage() {
       <header className="settings-page-header">
         <p className="text-meta">Your account</p>
         <h1 className="text-h1">Settings</h1>
-        <p className="text-body muted">Choose how the app looks and how members can find you.</p>
+        <p className="text-body muted">Choose how the app looks and manage your account.</p>
       </header>
 
       <div className="settings-stack">
@@ -111,69 +103,6 @@ function SettingsPage() {
           </div>
         </section>
 
-        <section className="settings-section" aria-labelledby="discovery-heading">
-          <div className="settings-section-heading">
-            <div>
-              <h2 id="discovery-heading" className="text-h2">Discovery</h2>
-              <p className="text-meta mt-1">Control how your Friend Host profile appears to nearby members.</p>
-            </div>
-          </div>
-          {application === undefined ? (
-            <div className="settings-row"><span className="text-meta">Loading discovery settings...</span></div>
-          ) : application ? (
-            <div className="settings-row settings-row-control">
-              <MapPin size={19} aria-hidden="true" className="settings-row-icon" />
-              <div className="settings-row-copy">
-                <strong>Appear in nearby search</strong>
-                <span>
-                  {!hasApproximateLocation
-                    ? 'Add an approximate location before turning this on.'
-                    : application.status !== 'approved' && nearbyEnabled
-                      ? 'This will turn on after your Friend Host profile is approved.'
-                      : nearbyEnabled
-                        ? 'Nearby members can find your profile using an approximate area.'
-                        : 'Your profile can still appear in ordinary discovery.'}
-                </span>
-                {nearbyError && <span className="settings-error" role="alert">{nearbyError}</span>}
-                {!hasApproximateLocation && <Link to="/become-host" className="settings-inline-link">Add an approximate location</Link>}
-              </div>
-              <button
-                type="button"
-                role="switch"
-                className="account-menu-switch settings-switch"
-                aria-label="Appear in nearby search"
-                aria-checked={nearbyEnabled}
-                disabled={nearbySaving || !hasApproximateLocation}
-                data-checked={nearbyEnabled}
-                onClick={async () => {
-                  if (nearbySaving) return
-                  setNearbySaving(true)
-                  setNearbyError('')
-                  try {
-                    await setNearbyVisibility({ enabled: !nearbyEnabled })
-                  } catch (error) {
-                    setNearbyError(error instanceof Error ? error.message : 'Nearby search could not be updated.')
-                  } finally {
-                    setNearbySaving(false)
-                  }
-                }}
-              >
-                <span aria-hidden="true" />
-                <strong>{nearbySaving ? 'Saving' : nearbyEnabled ? 'On' : 'Off'}</strong>
-              </button>
-            </div>
-          ) : (
-            <div className="settings-row settings-row-control">
-              <MapPin size={19} aria-hidden="true" className="settings-row-icon" />
-              <div className="settings-row-copy">
-                <strong>Nearby search</strong>
-                <span>This setting becomes available when you create a Friend Host profile.</span>
-              </div>
-              <Link to="/become-host" className="btn btn-neutral btn-sm">Create host profile</Link>
-            </div>
-          )}
-        </section>
-
         <section className="settings-section" aria-labelledby="account-heading">
           <div className="settings-section-heading">
             <div>
@@ -189,11 +118,11 @@ function SettingsPage() {
             </span>
             <span className="settings-link-action">Manage</span>
           </Link>
-          <Link to={application ? '/become-host' : '/host'} className="settings-link-row">
+          <Link to={application ? '/become-companion' : '/companion'} className="settings-link-row">
             <UserRoundCog size={19} aria-hidden="true" className="settings-row-icon" />
             <span className="settings-row-copy">
-              <strong>Friend Host profile</strong>
-              <span>{application ? 'Strengths, availability, boundaries, location, and rate' : 'Create a profile to share experiences with members'}</span>
+              <strong>Companion profile</strong>
+              <span>{application ? 'Strengths, availability, boundaries, and rate' : 'Create a profile to share experiences with members'}</span>
             </span>
             <span className="settings-link-action">{application ? 'Edit' : 'Get started'}</span>
           </Link>

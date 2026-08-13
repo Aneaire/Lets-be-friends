@@ -4,6 +4,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { requireViewer, writeAudit } from './lib'
+import { syncUserCompanionLocation } from './companionLocations'
 
 const DAY_MS = 24 * 60 * 60 * 1_000
 const ACCESS_MS = 5 * 60 * 1_000
@@ -21,7 +22,7 @@ const documentType = v.union(
   v.literal('other_government_id'),
 )
 const imageKind = v.union(v.literal('id_front'), v.literal('id_back'), v.literal('selfie'))
-const reason = v.union(v.literal('member'), v.literal('booking'), v.literal('host_application'), v.literal('reverification'))
+const reason = v.union(v.literal('member'), v.literal('booking'), v.literal('companion_application'), v.literal('reverification'))
 const signal = v.union(v.literal('high'), v.literal('medium'), v.literal('low'), v.literal('needs_review'))
 const extractionValidator = v.object({
   fullLegalName: v.optional(v.string()),
@@ -128,6 +129,7 @@ export const start = mutation({
     })
     await ctx.db.patch(identityRecordId, { verificationRequestId })
     await ctx.db.patch(viewer._id, { verificationStatus: 'pending', updatedAt: now })
+    await syncUserCompanionLocation(ctx, viewer._id)
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'identity_record.started', targetType: 'identityRecord', targetId: String(identityRecordId) })
     return { mode: 'started' as const, identityRecordId }
   },
@@ -321,6 +323,7 @@ export const submit = mutation({
     await ctx.db.patch(record._id, { stage: 'ready_for_review', reviewConsentedAt: now, submittedAt: now, updatedAt: now })
     await ctx.db.patch(record.verificationRequestId, { identityStage: 'ready_for_review', adminStatus: 'pending', providerCompletedAt: now, adminQueuedAt: now, updatedAt: now })
     await ctx.db.patch(viewer._id, { verificationStatus: 'pending', updatedAt: now })
+    await syncUserCompanionLocation(ctx, viewer._id)
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'identity_record.submitted', targetType: 'identityRecord', targetId: String(record._id) })
   },
 })
@@ -538,7 +541,7 @@ async function hasActiveIncident(ctx: { db: any }, userId: Id<'users'>) {
 async function reportConcernsUser(ctx: { db: any }, report: Doc<'reports'>, userId: Id<'users'>) {
   if (report.targetType === 'user' && report.targetId === String(userId)) return true
   if (report.targetType === 'profile') {
-    const profile = await safeGet(ctx, report.targetId) as Doc<'hostProfiles'> | null
+    const profile = await safeGet(ctx, report.targetId) as Doc<'companionProfiles'> | null
     if (profile?.userId === userId) return true
   }
   if (report.targetType === 'message') {
@@ -562,8 +565,8 @@ async function reportConcernsUser(ctx: { db: any }, report: Doc<'reports'>, user
     const booking = await safeGet(ctx, String(bookingId)) as Doc<'bookings'> | null
     if (booking) {
       if (booking.memberId === userId) return true
-      const host = await ctx.db.get(booking.hostProfileId) as Doc<'hostProfiles'> | null
-      if (host?.userId === userId) return true
+      const companion = await ctx.db.get(booking.companionProfileId) as Doc<'companionProfiles'> | null
+      if (companion?.userId === userId) return true
     }
   }
   return false

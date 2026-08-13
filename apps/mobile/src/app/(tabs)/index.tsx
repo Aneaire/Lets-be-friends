@@ -9,12 +9,12 @@ import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/components/ActionButton'
 import { BookingCard } from '@/components/BookingCard'
 import { Brand } from '@/components/Brand'
-import { HostCard } from '@/components/HostCard'
+import { CompanionCard } from '@/components/CompanionCard'
 import { Screen, Section } from '@/components/Screen'
 import { TrustThread } from '@/components/TrustThread'
 import { AppText } from '@/components/Typography'
-import { friendHosts } from '@/data/hosts'
-import { mapApprovedHost, mapFixtureDiscoveryHost, type ApprovedHostRecord } from '@/data/hostViewModels'
+import { companions } from '@/data/companions'
+import { mapApprovedCompanion, mapFixtureDiscoveryCompanion, type ApprovedCompanionRecord } from '@/data/companionViewModels'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -26,10 +26,10 @@ export default function HomeScreen() {
   const member = useMobileMember()
   const backend = useMobileBackendConfiguration()
   const bookings = useQuery(mobileApi.bookings.mine, member.status === 'ready' ? {} : 'skip')
-  const approvedHosts = useQuery(mobileApi.hosts.listApproved, backend.status === 'configured' ? {} : 'skip')
-  const featuredHost = backend.status === 'configured'
-    ? approvedHosts?.[0] ? mapApprovedHost(approvedHosts[0] as ApprovedHostRecord) : null
-    : mapFixtureDiscoveryHost(friendHosts[0])
+  const approvedCompanions = useQuery(mobileApi.companions.listApproved, backend.status === 'configured' ? {} : 'skip')
+  const featuredCompanion = backend.status === 'configured'
+    ? approvedCompanions?.[0] ? mapApprovedCompanion(approvedCompanions[0] as ApprovedCompanionRecord) : null
+    : mapFixtureDiscoveryCompanion(companions[0])
   const accountName = member.status === 'ready'
     ? member.viewer.displayName
     : auth.status === 'signed_in'
@@ -56,9 +56,9 @@ export default function HomeScreen() {
         <AppText variant="label" color={theme.colors.social}>TRUSTED COMPANY, ON YOUR TERMS</AppText>
         <AppText variant="display">Make room for a real connection.</AppText>
         <AppText color={theme.colors.textMuted}>
-          Meet verified Friend Hosts for conversation, shared interests, and thoughtfully planned experiences.
+          Meet verified Companions for conversation, shared interests, and thoughtfully planned experiences.
         </AppText>
-        <ActionButton label="Explore Friend Hosts" onPress={() => router.navigate('/explore')} />
+        <ActionButton label="Explore Companions" onPress={() => router.navigate('/explore')} />
       </View>
 
       {member.status === 'ready' ? (
@@ -77,7 +77,7 @@ export default function HomeScreen() {
               booking={bookingCardView(bookings[0])}
               onPress={() => router.push({ pathname: '/booking/[id]', params: { id: String(bookings[0]._id) } })}
             />
-          ) : <ActionButton label="Explore Friend Hosts" onPress={() => router.push('/explore')} secondary />}
+          ) : <ActionButton label="Explore Companions" onPress={() => router.push('/explore')} secondary />}
         </Section>
       ) : null}
 
@@ -89,7 +89,7 @@ export default function HomeScreen() {
         <View style={[styles.trustCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <TrustThread items={[
             { title: 'Verified profiles', detail: 'Identity checks help members know who they are meeting.', tone: 'self' },
-            { title: 'Visible Strengths', detail: 'Friend Hosts explain how they show up and what they enjoy.', tone: 'social' },
+            { title: 'Visible Strengths', detail: 'Companions explain how they show up and what they enjoy.', tone: 'social' },
             { title: 'Clear availability', detail: 'Choose an online session or in-person session before reviewing a booking.', tone: 'social' },
           ]} />
         </View>
@@ -101,15 +101,15 @@ export default function HomeScreen() {
             <AppText variant="heading">A thoughtful match</AppText>
             <AppText variant="caption" color={theme.colors.textMuted}>Based on calm plans and good conversation</AppText>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="See all Friend Hosts" onPress={() => router.navigate('/explore')} hitSlop={8}>
+          <Pressable accessibilityRole="button" accessibilityLabel="See all Companions" onPress={() => router.navigate('/explore')} hitSlop={8}>
             <AppText variant="label" color={theme.colors.social}>SEE ALL</AppText>
           </Pressable>
         </View>
-        {featuredHost ? (
-          <HostCard host={featuredHost} />
+        {featuredCompanion ? (
+          <CompanionCard companion={featuredCompanion} />
         ) : (
           <AppText color={theme.colors.textMuted}>
-            {approvedHosts === undefined ? 'Loading a thoughtful match.' : 'No Friend Host recommendation is available right now.'}
+            {approvedCompanions === undefined ? 'Loading a thoughtful match.' : 'No Companion recommendation is available right now.'}
           </AppText>
         )}
       </Section>
@@ -120,7 +120,7 @@ export default function HomeScreen() {
 function bookingCardView(booking: Booking) {
   return {
     id: String(booking._id),
-    hostName: booking.hostDisplayName,
+    companionName: booking.companionDisplayName,
     category: booking.category,
     mode: booking.mode,
     requestedAt: booking.requestedAt,

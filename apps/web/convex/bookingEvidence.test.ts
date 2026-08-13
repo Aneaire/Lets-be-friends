@@ -18,13 +18,13 @@ async function seed(t: ReturnType<typeof convexTest>) {
     const now = Date.now()
     const base = { verificationStatus: 'approved' as const, suspended: false, createdAt: now, updatedAt: now }
     const memberId = await ctx.db.insert('users', { clerkUserId: 'evidence-member', displayName: 'Evidence Member', role: 'member', ...base })
-    const hostUserId = await ctx.db.insert('users', { clerkUserId: 'evidence-host', displayName: 'Evidence Host', role: 'friend_host', ...base })
+    const companionUserId = await ctx.db.insert('users', { clerkUserId: 'evidence-companion', displayName: 'Evidence Companion', role: 'companion', ...base })
     const outsiderId = await ctx.db.insert('users', { clerkUserId: 'evidence-outsider', displayName: 'Evidence Outsider', role: 'member', ...base })
     const reviewerId = await ctx.db.insert('users', { clerkUserId: 'evidence-reviewer', displayName: 'Evidence Reviewer', role: 'reviewer', ...base })
-    const hostProfileId = await ctx.db.insert('hostProfiles', {
-      userId: hostUserId,
-      displayName: 'Evidence Host',
-      intro: 'A host for evidence tests.',
+    const companionProfileId = await ctx.db.insert('companionProfiles', {
+      userId: companionUserId,
+      displayName: 'Evidence Companion',
+      intro: 'A companion for evidence tests.',
       city: 'Test City',
       strengths: ['Good listener'],
       categories: ['Coffee or meal companion'],
@@ -39,7 +39,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
     })
     const bookingId = await ctx.db.insert('bookings', {
       memberId,
-      hostProfileId,
+      companionProfileId,
       category: 'Coffee or meal companion',
       mode: 'in_person',
       requestedAt: now + 3_600_000,
@@ -50,13 +50,13 @@ async function seed(t: ReturnType<typeof convexTest>) {
       memberBookingFeeBps: 1_500,
       memberBookingFeeCentavos: 7_500,
       memberTotalCentavos: 57_500,
-      hostEntitlementCentavos: 50_000,
+      companionEarningsCentavos: 50_000,
       currency: 'PHP',
       settlementState: 'reserved',
       createdAt: now,
       updatedAt: now,
     })
-    return { now, memberId, hostUserId, outsiderId, reviewerId, hostProfileId, bookingId }
+    return { now, memberId, companionUserId, outsiderId, reviewerId, companionProfileId, bookingId }
   })
 }
 
@@ -74,17 +74,17 @@ describe('private booking evidence', () => {
     const ids = await seed(t)
     await expect(t.withIdentity({ subject: 'evidence-outsider' }).query(api.bookingEvidence.status, { bookingId: ids.bookingId }))
       .rejects.toThrow('Not your booking')
-    await expect(t.withIdentity({ subject: 'evidence-host' }).mutation(api.bookingEvidence.skip, {
+    await expect(t.withIdentity({ subject: 'evidence-companion' }).mutation(api.bookingEvidence.skip, {
       bookingId: ids.bookingId, warningAcknowledged: false,
     })).rejects.toThrow('acknowledge')
 
-    await t.withIdentity({ subject: 'evidence-host' }).mutation(api.bookingEvidence.skip, {
+    await t.withIdentity({ subject: 'evidence-companion' }).mutation(api.bookingEvidence.skip, {
       bookingId: ids.bookingId, warningAcknowledged: true,
     })
-    await t.withIdentity({ subject: 'evidence-host' }).mutation(api.bookingEvidence.skip, {
+    await t.withIdentity({ subject: 'evidence-companion' }).mutation(api.bookingEvidence.skip, {
       bookingId: ids.bookingId, warningAcknowledged: true,
     })
-    await expect(t.withIdentity({ subject: 'evidence-host' }).mutation(api.bookings.markCompleted, { bookingId: ids.bookingId }))
+    await expect(t.withIdentity({ subject: 'evidence-companion' }).mutation(api.bookings.markCompleted, { bookingId: ids.bookingId }))
       .resolves.toMatchObject({ awaitingOtherConfirmation: true })
     await expect(t.withIdentity({ subject: 'evidence-member' }).mutation(api.bookings.markCompleted, { bookingId: ids.bookingId }))
       .rejects.toThrow('Choose end evidence')
@@ -94,7 +94,7 @@ describe('private booking evidence', () => {
 
     const decisions = await t.run(async (ctx) => ctx.db.query('bookingEvidenceDecisions').collect())
     expect(decisions).toEqual(expect.arrayContaining([
-      expect.objectContaining({ role: 'host_start', userId: ids.hostUserId, decision: 'skipped' }),
+      expect.objectContaining({ role: 'companion_start', userId: ids.companionUserId, decision: 'skipped' }),
       expect.objectContaining({ role: 'member_end', userId: ids.memberId, decision: 'skipped' }),
     ]))
   })
@@ -104,7 +104,7 @@ describe('private booking evidence', () => {
     const ids = await seed(t)
     const unrelatedStorageId = await t.run(async (ctx) => ctx.storage.store(new Blob(['social-media'], { type: 'image/webp' })))
 
-    await expect(t.withIdentity({ subject: 'evidence-host' }).action(api.bookingEvidence.uploadImage, {
+    await expect(t.withIdentity({ subject: 'evidence-companion' }).action(api.bookingEvidence.uploadImage, {
       bookingId: ids.bookingId,
       bytes: imageBytes,
       contentType: 'image/webp',
@@ -112,13 +112,13 @@ describe('private booking evidence', () => {
     } as any)).rejects.toThrow()
     expect(await t.run(async (ctx) => ctx.db.system.get('_storage', unrelatedStorageId))).not.toBeNull()
 
-    await uploadImage(t, 'evidence-host', ids.bookingId)
+    await uploadImage(t, 'evidence-companion', ids.bookingId)
     const state = await t.run(async (ctx) => ({
       decisions: await ctx.db.query('bookingEvidenceDecisions').collect(),
       uploads: await ctx.db.query('bookingEvidenceUploads').collect(),
     }))
     expect(state.decisions).toEqual([
-      expect.objectContaining({ role: 'host_start', userId: ids.hostUserId, decision: 'uploaded' }),
+      expect.objectContaining({ role: 'companion_start', userId: ids.companionUserId, decision: 'uploaded' }),
     ])
     expect(state.uploads).toHaveLength(1)
     expect(state.uploads[0].storageId).not.toBe(unrelatedStorageId)
@@ -128,10 +128,10 @@ describe('private booking evidence', () => {
   it('deletes a newly stored object if atomic claim fails', async () => {
     const t = createTest()
     const ids = await seed(t)
-    await uploadImage(t, 'evidence-host', ids.bookingId)
+    await uploadImage(t, 'evidence-companion', ids.bookingId)
     const storageCountBefore = await t.run(async (ctx) => (await ctx.db.system.query('_storage').collect()).length)
 
-    await expect(uploadImage(t, 'evidence-host', ids.bookingId)).rejects.toThrow('already been made')
+    await expect(uploadImage(t, 'evidence-companion', ids.bookingId)).rejects.toThrow('already been made')
     const storageCountAfter = await t.run(async (ctx) => (await ctx.db.system.query('_storage').collect()).length)
     expect(storageCountAfter).toBe(storageCountBefore)
     expect(await t.run(async (ctx) => ctx.db.query('bookingEvidenceUploads').collect())).toHaveLength(1)
@@ -140,21 +140,21 @@ describe('private booking evidence', () => {
   it('returns audited bytes only through an active linked report and exposes no storage ID or raw URL in lists', async () => {
     const t = createTest()
     const ids = await seed(t)
-    await uploadImage(t, 'evidence-host', ids.bookingId)
+    await uploadImage(t, 'evidence-companion', ids.bookingId)
 
     const reportId = await t.withIdentity({ subject: 'evidence-member' }).mutation(api.reports.create, {
       targetType: 'booking', targetId: String(ids.bookingId), reason: 'Review the start evidence',
     })
     const reports = await t.withIdentity({ subject: 'evidence-reviewer' }).query(api.admin.reports, { status: 'open', targetType: 'booking' })
-    expect(reports[0].evidence).toEqual([{ role: 'host_start', decision: 'uploaded' }])
+    expect(reports[0].evidence).toEqual([{ role: 'companion_start', decision: 'uploaded' }])
     expect(JSON.stringify(reports)).not.toContain('storageId')
     expect(JSON.stringify(reports)).not.toContain('url')
 
     await expect(t.withIdentity({ subject: 'evidence-member' }).action(api.bookingEvidence.readAdminEvidence, {
-      reportId, role: 'host_start',
+      reportId, role: 'companion_start',
     })).rejects.toThrow('Reviewer or admin role required')
     const access = await t.withIdentity({ subject: 'evidence-reviewer' }).action(api.bookingEvidence.readAdminEvidence, {
-      reportId, role: 'host_start',
+      reportId, role: 'companion_start',
     })
     expect(new Uint8Array(access.bytes)).toEqual(new Uint8Array(imageBytes))
     expect(access).toMatchObject({ contentType: 'image/webp' })
@@ -169,7 +169,7 @@ describe('private booking evidence', () => {
       reportId, status: 'resolved', note: 'Reviewed.',
     })
     await expect(t.withIdentity({ subject: 'evidence-reviewer' }).action(api.bookingEvidence.readAdminEvidence, {
-      reportId, role: 'host_start',
+      reportId, role: 'companion_start',
     })).rejects.toThrow('active booking report')
   })
 
@@ -178,8 +178,8 @@ describe('private booking evidence', () => {
     const ids = await seed(t)
     const uploadId = await t.run(async (ctx) => ctx.db.insert('bookingEvidenceUploads', {
       bookingId: ids.bookingId,
-      userId: ids.hostUserId,
-      role: 'host_start',
+      userId: ids.companionUserId,
+      role: 'companion_start',
       createdAt: ids.now - 2,
       expiresAt: ids.now - 1,
       purgeAfter: ids.now - 1,
@@ -193,9 +193,9 @@ describe('private booking evidence', () => {
   it('retains due evidence while reports are active and purges it afterward in bounded runs', async () => {
     const t = createTest()
     const ids = await seed(t)
-    await uploadImage(t, 'evidence-host', ids.bookingId)
+    await uploadImage(t, 'evidence-companion', ids.bookingId)
     const upload = await t.run(async (ctx) => ctx.db.query('bookingEvidenceUploads').unique())
-    const reportId = await t.withIdentity({ subject: 'evidence-host' }).mutation(api.reports.create, {
+    const reportId = await t.withIdentity({ subject: 'evidence-companion' }).mutation(api.reports.create, {
       targetType: 'booking', targetId: String(ids.bookingId), reason: 'Retain evidence while active',
     })
     await t.run(async (ctx) => ctx.db.patch(upload!._id, { purgeAfter: ids.now - 1 }))

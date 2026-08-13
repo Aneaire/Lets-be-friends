@@ -48,9 +48,9 @@ export const bookingStatuses = [
 ] as const
 
 export const verificationStatuses = ['not_started', 'pending', 'approved', 'rejected'] as const
-export const verificationRequestReasons = ['member', 'booking', 'host_application', 'reverification'] as const
-export const userRoles = ['member', 'friend_host', 'reviewer', 'admin'] as const
-export const hostApplicationStatuses = ['draft', 'pending_review', 'approved', 'rejected', 'suspended'] as const
+export const identityCheckReasons = ['member', 'booking', 'companion_application', 'reverification'] as const
+export const userRoles = ['member', 'companion', 'reviewer', 'admin'] as const
+export const companionApplicationStatuses = ['draft', 'pending_review', 'approved', 'rejected', 'suspended'] as const
 export const reportStatuses = ['open', 'reviewing', 'resolved', 'dismissed'] as const
 
 export const brandAccentColors = {
@@ -70,10 +70,10 @@ export type FriendStrength = (typeof friendStrengths)[number]
 export type ActivityCategory = (typeof activityCategories)[number]
 export type BookingStatus = (typeof bookingStatuses)[number]
 export type VerificationStatus = (typeof verificationStatuses)[number]
-export type VerificationRequestReason = (typeof verificationRequestReasons)[number]
+export type VerificationRequestReason = (typeof identityCheckReasons)[number]
 export type BookingEligibility = 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
 export type UserRole = (typeof userRoles)[number]
-export type HostApplicationStatus = (typeof hostApplicationStatuses)[number]
+export type CompanionApplicationStatus = (typeof companionApplicationStatuses)[number]
 export type ReportStatus = (typeof reportStatuses)[number]
 export type BrandAccentIntent = keyof typeof brandAccentColors
 
@@ -116,16 +116,16 @@ export function isMemberVerificationReason(reason: VerificationRequestReason) {
 export function bookingEligibility(
   viewerUserId: string | null | undefined,
   _verificationStatus: VerificationStatus | null | undefined,
-  hostOwnerUserId: string,
+  companionOwnerUserId: string,
   identityEligible: boolean,
 ): BookingEligibility {
   if (viewerUserId == null) return 'sign_in_required'
-  if (viewerUserId === hostOwnerUserId) return 'own_profile'
+  if (viewerUserId === companionOwnerUserId) return 'own_profile'
   return identityEligible ? 'eligible' : 'verification_required'
 }
 
-export function canBookHost(viewerUserId: string | null | undefined, hostOwnerUserId: string) {
-  return viewerUserId == null || viewerUserId !== hostOwnerUserId
+export function canBookCompanion(viewerUserId: string | null | undefined, companionOwnerUserId: string) {
+  return viewerUserId == null || viewerUserId !== companionOwnerUserId
 }
 
 export function isAdminRole(role: UserRole) {

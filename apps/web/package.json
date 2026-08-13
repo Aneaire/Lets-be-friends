@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "convex:dev": "node --env-file=../../.env.local --env-file-if-exists=.env.local ./node_modules/convex/bin/main.js dev",
     "convex:codegen": "convex codegen",
-    "seed:pampanga": "node --env-file=../../.env.local --env-file-if-exists=.env.local ./node_modules/convex/bin/main.js run seeds:seedPampangaHosts"
+    "seed:pampanga": "node --env-file=../../.env.local --env-file-if-exists=.env.local ./node_modules/convex/bin/main.js run seeds:seedPampangaCompanions"
   },
   "dependencies": {
     "@clerk/react": "^6.6.1",

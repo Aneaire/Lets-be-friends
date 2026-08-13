@@ -1,5 +1,6 @@
 import { normalizeUsername, usernameBaseFromDisplayName, usernameValidationError } from '@lets-be-friends/shared'
 import { useMutation, useQuery } from 'convex/react'
+import * as Location from 'expo-location'
 import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native'
@@ -13,7 +14,10 @@ import { useMobileMember } from '@/member/MobileMember'
 import { onboardingDecision } from '@/member/onboarding'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-type OnboardingGoal = 'member' | 'friend_host'
+type OnboardingGoal = 'member' | 'companion'
+type ApproximateLocation = { latitude: number; longitude: number }
+
+const termsVersion = '2026-08-13'
 
 export default function OnboardingScreen() {
   const auth = useMobileAuth()
@@ -60,6 +64,15 @@ function ConnectedOnboarding({
   const [submitting, setSubmitting] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [location, setLocation] = useState<ApproximateLocation | null>(() => (
+    typeof viewer.approximateLatitude === 'number' && typeof viewer.approximateLongitude === 'number'
+      ? { latitude: viewer.approximateLatitude, longitude: viewer.approximateLongitude }
+      : null
+  ))
+  const [locationConsent, setLocationConsent] = useState(Boolean(viewer.approximateLocationConsentedAt))
+  const [termsAccepted, setTermsAccepted] = useState(Boolean(viewer.termsAcceptedAt && viewer.termsVersion === termsVersion))
+  const [locating, setLocating] = useState(false)
+  const [locationMessage, setLocationMessage] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const normalizedUsername = normalizeUsername(usernameInput)
   const validationError = viewer.username ? null : usernameValidationError(normalizedUsername)
@@ -68,6 +81,7 @@ function ConnectedOnboarding({
     !viewer.username && !validationError ? { username: normalizedUsername } : 'skip',
   )
   const claimUsername = useMutation(mobileApi.users.claimUsername)
+  const saveOnboardingLocationAndConsent = useMutation(mobileApi.users.saveOnboardingLocationAndConsent)
   const completeOnboarding = useMutation(mobileApi.users.completeOnboarding)
   const usernameReady = Boolean(viewer.username || (!validationError && availability?.available))
   const availabilityColor = usernameReady
@@ -87,13 +101,40 @@ function ConnectedOnboarding({
     if (decision === 'complete') router.replace('/profile')
   }, [decision])
 
+  async function requestApproximateLocation() {
+    if (locating || submitting || submitted) return
+    setLocating(true)
+    setLocationMessage('Requesting foreground location permission.')
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync()
+      if (!permission.granted) {
+        setLocationMessage('Foreground location permission is required to complete onboarding. You can enable it in device settings and try again.')
+        return
+      }
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      const rounded = roundLocation({ latitude: current.coords.latitude, longitude: current.coords.longitude })
+      setLocation(rounded)
+      setLocationMessage(`Approximate location ready: ${rounded.latitude.toFixed(2)}, ${rounded.longitude.toFixed(2)}. Raw device precision will not be sent or saved.`)
+    } catch {
+      setLocationMessage('Your location could not be read. Check device location services and try again.')
+    } finally {
+      setLocating(false)
+    }
+  }
+
   async function finishOnboarding() {
-    if (!usernameReady || submitting) return
+    if (!usernameReady || !location || !locationConsent || !termsAccepted || submitting) return
 
     setSubmitting(true)
     setMessage(null)
     try {
       if (!viewer.username) await claimUsername({ username: normalizedUsername })
+      await saveOnboardingLocationAndConsent({
+        ...roundLocation(location),
+        locationConsent,
+        termsAccepted,
+        termsVersion,
+      })
       await completeOnboarding({ goal })
       setSubmitted(true)
       setMessage('Your welcome guide is complete. Opening your profile.')
@@ -167,6 +208,55 @@ function ConnectedOnboarding({
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
+          <AppText variant="heading">Add your approximate location</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>
+            This is required. Device location can be exact in memory, but only latitude and longitude rounded to two decimals are sent and saved.
+          </AppText>
+        </View>
+        <View style={[styles.locationCard, { backgroundColor: theme.colors.surface, borderColor: location ? theme.colors.self : theme.colors.border }]}>
+          <AppText variant="bodyStrong">Always-on discovery</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>
+            Your rounded approximate location is used for discovery. Ordinary members are not placed on the map. If your Companion profile is approved and your identity approval is current, it is always shown in nearby discovery at this approximate location, including for online sessions.
+          </AppText>
+          {location ? (
+            <AppText variant="caption" color={theme.colors.self}>Saved precision preview: {location.latitude.toFixed(2)}, {location.longitude.toFixed(2)}</AppText>
+          ) : null}
+          <ActionButton
+            label={locating ? 'Finding approximate location' : location ? 'Refresh approximate location' : 'Use device location'}
+            onPress={() => void requestApproximateLocation()}
+            intent="self"
+            secondary
+            disabled={locating || submitting || submitted}
+          />
+          {locating ? <ActivityIndicator accessibilityLabel="Finding approximate location" color={theme.colors.self} /> : null}
+          {locationMessage ? <AppText accessibilityLiveRegion="polite" variant="caption" color={theme.colors.textMuted}>{locationMessage}</AppText> : null}
+        </View>
+        <ConsentChoice
+          label="I consent to Let's Be Friends storing and using my rounded approximate location for always-on discovery as described above."
+          checked={locationConsent}
+          onPress={() => setLocationConsent((current) => !current)}
+          disabled={submitting || submitted}
+        />
+        <View style={[styles.terms, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]} accessible accessibilityLabel={`Terms and Conditions version ${termsVersion}`}>
+          <AppText variant="bodyStrong">Terms and Conditions</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>
+            You must provide accurate account information, use discovery and messaging safely, respect boundaries, and follow applicable laws and platform safety rules.
+          </AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>
+            Approximate location is stored at two decimal places and used for discovery. Approved Companions with current identity approval and a coordinate pair are shown in nearby discovery. Exact addresses and raw device precision are not stored through onboarding.
+          </AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>Version {termsVersion}.</AppText>
+        </View>
+        <ConsentChoice
+          label="I agree to the displayed Terms and Conditions."
+          checked={termsAccepted}
+          onPress={() => setTermsAccepted((current) => !current)}
+          disabled={submitting || submitted}
+        />
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
           <AppText variant="heading">Choose your starting point</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
             You can explore either path later.
@@ -174,16 +264,16 @@ function ConnectedOnboarding({
         </View>
         <GoalChoice
           label="Join as a member"
-          detail="Explore verified Friend Hosts and get ready to book."
+          detail="Explore verified Companions and get ready to book."
           selected={goal === 'member'}
           onPress={() => setGoal('member')}
           disabled={submitting || submitted}
         />
         <GoalChoice
-          label="Become a Friend Host"
-          detail="Save your interest now. Applications will open in a later update."
-          selected={goal === 'friend_host'}
-          onPress={() => setGoal('friend_host')}
+          label="Become a Companion"
+          detail="Start as a member, then open Companion tools from your profile."
+          selected={goal === 'companion'}
+          onPress={() => setGoal('companion')}
           disabled={submitting || submitted}
         />
       </View>
@@ -193,7 +283,7 @@ function ConnectedOnboarding({
           label={submitting || submitted ? 'Saving welcome guide' : 'Complete welcome guide'}
           onPress={() => void finishOnboarding()}
           intent="self"
-          disabled={!usernameReady || submitting || submitted}
+          disabled={!usernameReady || !location || !locationConsent || !termsAccepted || locating || submitting || submitted}
         />
         <Pressable
           accessibilityRole="button"
@@ -222,6 +312,38 @@ function ConnectedOnboarding({
         </View>
       )}
     </Screen>
+  )
+}
+
+function ConsentChoice({
+  label,
+  checked,
+  onPress,
+  disabled,
+}: {
+  label: string
+  checked: boolean
+  onPress: () => void
+  disabled: boolean
+}) {
+  const theme = useAppTheme()
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityLabel={label}
+      accessibilityState={{ checked, disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.consent,
+        { backgroundColor: checked ? theme.colors.selfSoft : theme.colors.surface, borderColor: checked ? theme.colors.self : theme.colors.border },
+        pressed && styles.pressed,
+      ]}>
+      <View style={[styles.checkbox, { borderColor: checked ? theme.colors.self : theme.colors.borderStrong, backgroundColor: checked ? theme.colors.self : 'transparent' }]}>
+        {checked ? <AppText variant="caption" color={theme.colors.background}>✓</AppText> : null}
+      </View>
+      <AppText variant="caption" style={styles.consentCopy}>{label}</AppText>
+    </Pressable>
   )
 }
 
@@ -263,6 +385,13 @@ function GoalChoice({
   )
 }
 
+function roundLocation(location: ApproximateLocation): ApproximateLocation {
+  return {
+    latitude: Math.round(location.latitude * 100) / 100,
+    longitude: Math.round(location.longitude * 100) / 100,
+  }
+}
+
 function OnboardingState({
   title,
   detail,
@@ -298,6 +427,11 @@ const styles = StyleSheet.create({
   usernameRow: { minHeight: 54, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' },
   usernameInput: { flex: 1, minHeight: 52, paddingHorizontal: 6 },
   availability: { fontWeight: '600' },
+  locationCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
+  terms: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
+  consent: { minHeight: 58, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  checkbox: { width: 22, height: 22, borderWidth: 2, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  consentCopy: { flex: 1, lineHeight: 20 },
   goal: { minHeight: 68, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
   radio: { width: 22, height: 22, borderWidth: 2, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   radioDot: { width: 10, height: 10, borderRadius: 5 },

@@ -1,10 +1,10 @@
-import { activityCategories, friendStrengths, type HostApplicationStatus } from '@lets-be-friends/shared'
+import { activityCategories, friendStrengths, type CompanionApplicationStatus } from '@lets-be-friends/shared'
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, useQuery } from 'convex/react'
 import * as Linking from 'expo-linking'
 import { router, type ErrorBoundaryProps } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
-import { Pressable, StyleSheet, Switch, TextInput, View } from 'react-native'
+import { Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/backend/config'
 import { mobileApi } from '@/backend/client'
@@ -12,37 +12,35 @@ import { ActionButton } from '@/components/ActionButton'
 import { Screen, Section } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
 import {
-  hasSavedNearbyCoordinates,
-  hostApplicationStatusCopy,
-  initialHostApplicationForm,
-  type HostApplicationForm,
-  type HostMode,
-  validateHostApplication,
+  companionApplicationStatusCopy,
+  initialCompanionApplicationForm,
+  type CompanionApplicationForm,
+  type CompanionMode,
+  validateCompanionApplication,
   validateHourlyRate,
-} from '@/data/hostTools'
+} from '@/data/companionTools'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-type HostApplication = NonNullable<FunctionReturnType<typeof mobileApi.hosts.myApplication>>
+type CompanionApplication = NonNullable<FunctionReturnType<typeof mobileApi.companions.myApplication>>
 
-export default function FriendHostScreen() {
+export default function CompanionScreen() {
   const member = useMobileMember()
-  if (member.status === 'signed_out') return <HostState title="Sign in to manage Friend Host tools" action="Sign in" onPress={() => router.replace('/auth')} />
-  if (member.status === 'demo') return <HostState title="Friend Host tools are unavailable in demo mode" action="Return to Profile" onPress={() => router.replace('/profile')} />
-  if (member.status === 'unavailable' || member.status === 'error') return <HostState title="Friend Host tools are unavailable" detail="Your member account could not be connected safely." />
-  if (member.status !== 'ready') return <HostState title="Loading Friend Host tools" />
-  return <ReadyFriendHostScreen />
+  if (member.status === 'signed_out') return <CompanionState title="Sign in to manage Companion tools" action="Sign in" onPress={() => router.replace('/auth')} />
+  if (member.status === 'demo') return <CompanionState title="Companion tools are unavailable in demo mode" action="Return to Profile" onPress={() => router.replace('/profile')} />
+  if (member.status === 'unavailable' || member.status === 'error') return <CompanionState title="Companion tools are unavailable" detail="Your member account could not be connected safely." />
+  if (member.status !== 'ready') return <CompanionState title="Loading Companion tools" />
+  return <ReadyCompanionScreen />
 }
 
-function ReadyFriendHostScreen() {
+function ReadyCompanionScreen() {
   const theme = useAppTheme()
-  const application = useQuery(mobileApi.hosts.myApplication, {})
-  const submitApplication = useMutation(mobileApi.hosts.submitApplication)
-  const updateHourlyRate = useMutation(mobileApi.hosts.updateHourlyRate)
-  const setNearbyVisibility = useMutation(mobileApi.hosts.setNearbyDiscoveryVisibility)
-  const [form, setForm] = useState<HostApplicationForm>(() => initialHostApplicationForm())
+  const application = useQuery(mobileApi.companions.myApplication, {})
+  const submitApplication = useMutation(mobileApi.companions.submitApplication)
+  const updateHourlyRate = useMutation(mobileApi.companions.updateHourlyRate)
+  const [form, setForm] = useState<CompanionApplicationForm>(() => initialCompanionApplicationForm())
   const [quickRate, setQuickRate] = useState('500')
-  const [busy, setBusy] = useState<'application' | 'rate' | 'nearby' | 'verification' | null>(null)
+  const [busy, setBusy] = useState<'application' | 'rate' | 'verification' | null>(null)
   const [message, setMessage] = useState('')
   const busyRef = useRef(false)
   const formDirtyRef = useRef(false)
@@ -52,27 +50,26 @@ function ReadyFriendHostScreen() {
     if (!application) return
     const applicationId = String(application._id)
     if (formDirtyRef.current && hydratedApplicationIdRef.current === applicationId) return
-    setForm(initialHostApplicationForm(application))
+    setForm(initialCompanionApplicationForm(application))
     setQuickRate(String((application.hourlyRateCentavos ?? 50_000) / 100))
     hydratedApplicationIdRef.current = applicationId
     formDirtyRef.current = false
   }, [application?._id, application?.updatedAt])
 
-  function editForm(update: (current: HostApplicationForm) => HostApplicationForm) {
+  function editForm(update: (current: CompanionApplicationForm) => CompanionApplicationForm) {
     formDirtyRef.current = true
     setForm(update)
   }
 
-  if (application === undefined) return <HostState title="Loading your Friend Host profile" />
+  if (application === undefined) return <CompanionState title="Loading your Companion profile" />
 
-  const savedCoordinates = hasSavedNearbyCoordinates(application)
-  const status = application ? hostApplicationStatusCopy[application.status as HostApplicationStatus] : null
+  const status = application ? companionApplicationStatusCopy[application.status as CompanionApplicationStatus] : null
   const verificationUrl = buildMobileWebHandoffUrl(resolveMobileWebAppConfiguration())
 
-  async function run(action: 'application' | 'rate' | 'nearby' | 'verification', nextNearby?: boolean) {
+  async function run(action: 'application' | 'rate' | 'verification') {
     if (busyRef.current) return
     if (action === 'application') {
-      const validated = validateHostApplication(form)
+      const validated = validateCompanionApplication(form)
       if (!validated.ok) {
         setMessage(validated.message)
         return
@@ -81,21 +78,11 @@ function ReadyFriendHostScreen() {
       setBusy(action)
       setMessage('')
       try {
-        await submitApplication({
-          ...validated.value,
-          approximateArea: application?.approximateArea,
-          approximateLatitude: application?.approximateLatitude,
-          approximateLongitude: application?.approximateLongitude,
-          nearbyDiscoveryEnabled: Boolean(
-            validated.value.mode !== 'online'
-            && savedCoordinates
-            && application?.nearbyDiscoveryEnabled,
-          ),
-        })
+        await submitApplication(validated.value)
         formDirtyRef.current = false
-        setMessage('Friend Host profile sent for review.')
+        setMessage('Companion profile sent for review.')
       } catch {
-        setMessage('Your Friend Host profile could not be saved. Review the details and try again.')
+        setMessage('Your Companion profile could not be saved. Review the details and try again.')
       } finally {
         busyRef.current = false
         setBusy(null)
@@ -124,23 +111,6 @@ function ReadyFriendHostScreen() {
       return
     }
 
-    if (action === 'nearby') {
-      if (!application || nextNearby === undefined || (nextNearby && !savedCoordinates)) return
-      busyRef.current = true
-      setBusy(action)
-      setMessage('')
-      try {
-        await setNearbyVisibility({ enabled: nextNearby })
-        setMessage(nextNearby ? 'Nearby discovery is on.' : 'Nearby discovery is off.')
-      } catch {
-        setMessage('Nearby discovery could not be changed. Please try again.')
-      } finally {
-        busyRef.current = false
-        setBusy(null)
-      }
-      return
-    }
-
     if (!verificationUrl) {
       setMessage('Identity verification on the web is unavailable in this build.')
       return
@@ -161,14 +131,14 @@ function ReadyFriendHostScreen() {
   return (
     <Screen contentStyle={styles.content}>
       <View style={styles.header}>
-        <AppText variant="label" color={theme.colors.self}>FRIEND HOST</AppText>
-        <AppText variant="display">Host with clarity.</AppText>
-        <AppText color={theme.colors.textMuted}>Create or update your Friend Host profile, then manage incoming bookings.</AppText>
+        <AppText variant="label" color={theme.colors.self}>COMPANION</AppText>
+        <AppText variant="display">Companion with clarity.</AppText>
+        <AppText color={theme.colors.textMuted}>Create or update your Companion profile, then manage incoming bookings.</AppText>
       </View>
 
       <View style={[styles.statusCard, { backgroundColor: theme.colors.selfSoft, borderColor: theme.colors.self }]}>
         <AppText variant="heading">{status?.label ?? 'Not started'}</AppText>
-        <AppText variant="caption" color={theme.colors.textMuted}>{status?.detail ?? 'Create a profile to apply as a Friend Host.'}</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>{status?.detail ?? 'Create a profile to apply as a Companion.'}</AppText>
         {application && !application.identityEligible ? (
           <>
             <AppText variant="caption" color={theme.colors.textMuted}>Identity approval is separate and must be current before the profile can be live or a booking can be accepted.</AppText>
@@ -177,7 +147,7 @@ function ReadyFriendHostScreen() {
         ) : null}
       </View>
 
-      <ActionButton label="View incoming bookings" onPress={() => router.push('/host-bookings')} intent="social" />
+      <ActionButton label="View incoming bookings" onPress={() => router.push('/companion-bookings')} intent="social" />
 
       {application ? (
         <Section>
@@ -198,26 +168,16 @@ function ReadyFriendHostScreen() {
             <View style={styles.nearbyCopy}>
               <AppText variant="bodyStrong">Nearby discovery</AppText>
               <AppText variant="caption" color={theme.colors.textMuted}>
-                {savedCoordinates
-                  ? 'Uses only the approximate coordinates already saved to this Friend Host profile.'
-                  : 'Cannot be enabled because this profile has no saved coordinates. The mobile app does not collect GPS.'}
+                Approved Companions are always included using the rounded approximate location saved during onboarding, including online-only profiles.
               </AppText>
             </View>
-            <Switch
-              accessibilityLabel="Nearby discovery visibility"
-              value={application.nearbyDiscoveryEnabled === true}
-              disabled={busy !== null || !savedCoordinates}
-              onValueChange={(enabled) => void run('nearby', enabled)}
-              trackColor={{ false: theme.colors.borderStrong, true: theme.colors.self }}
-              thumbColor={theme.colors.background}
-            />
           </View>
         </Section>
       ) : null}
 
       <Section>
-        <AppText variant="heading">{application ? 'Edit application' : 'Friend Host application'}</AppText>
-        <AppText variant="caption" color={theme.colors.textMuted}>Saving this form sends the profile for review. The mobile app never requests GPS.</AppText>
+        <AppText variant="heading">{application ? 'Edit Companion profile' : 'Create your Companion profile'}</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>Saving sends the profile for review. Its approximate map location comes from the rounded location saved during onboarding.</AppText>
         <ModePicker value={form.mode} onChange={(mode) => editForm((current) => ({ ...current, mode }))} disabled={busy !== null} />
         <FormField label="How would you spend the time?" value={form.intro} onChange={(intro) => editForm((current) => ({ ...current, intro }))} theme={theme} multiline maxLength={500} hint={`${form.intro.length}/500 characters, minimum 40`} />
         <FormField label={form.mode === 'online' ? 'Timezone or broad region, optional' : 'City'} value={form.city} onChange={(city) => editForm((current) => ({ ...current, city }))} theme={theme} />
@@ -226,7 +186,7 @@ function ReadyFriendHostScreen() {
         <SelectionGroup label="Activities" options={activityCategories} selected={form.categories} onChange={(categories) => editForm((current) => ({ ...current, categories }))} disabled={busy !== null} />
         <FormField label="Boundaries, one per line" value={form.boundaries} onChange={(boundaries) => editForm((current) => ({ ...current, boundaries }))} theme={theme} multiline />
         <FormField label="Note for the reviewer, optional" value={form.applicationNote} onChange={(applicationNote) => editForm((current) => ({ ...current, applicationNote }))} theme={theme} multiline />
-        <ActionButton label={busy === 'application' ? 'Sending for review' : application ? 'Save and send for review' : 'Submit Friend Host application'} onPress={() => void run('application')} intent="self" disabled={busy !== null} />
+        <ActionButton label={busy === 'application' ? 'Sending for review' : application ? 'Save and send for review' : 'Send profile for review'} onPress={() => void run('application')} intent="self" disabled={busy !== null} />
       </Section>
 
       {message ? <AppText accessibilityLiveRegion="polite" color={theme.colors.textMuted}>{message}</AppText> : null}
@@ -235,8 +195,8 @@ function ReadyFriendHostScreen() {
   )
 }
 
-function ModePicker({ value, onChange, disabled }: { value: HostMode; onChange: (mode: HostMode) => void; disabled: boolean }) {
-  return <SelectionGroup label="Session format" options={['both', 'online', 'in_person'] as const} selected={[value]} onChange={(values) => onChange(values[0] as HostMode)} disabled={disabled} labels={{ both: 'Online and in-person', online: 'Online only', in_person: 'In-person only' }} single />
+function ModePicker({ value, onChange, disabled }: { value: CompanionMode; onChange: (mode: CompanionMode) => void; disabled: boolean }) {
+  return <SelectionGroup label="Session format" options={['both', 'online', 'in_person'] as const} selected={[value]} onChange={(values) => onChange(values[0] as CompanionMode)} disabled={disabled} labels={{ both: 'Online and in-person', online: 'Online only', in_person: 'In-person only' }} single />
 }
 
 function SelectionGroup({ label, options, selected, onChange, disabled, labels, single = false }: {
@@ -305,13 +265,13 @@ function FieldLabel({ label }: { label: string }) {
   return <AppText variant="bodyStrong">{label}</AppText>
 }
 
-function HostState({ title, detail, action, onPress }: { title: string; detail?: string; action?: string; onPress?: () => void }) {
+function CompanionState({ title, detail, action, onPress }: { title: string; detail?: string; action?: string; onPress?: () => void }) {
   const theme = useAppTheme()
-  return <Screen contentStyle={styles.state}><AppText variant="label" color={theme.colors.self}>FRIEND HOST</AppText><AppText variant="title">{title}</AppText>{detail ? <AppText color={theme.colors.textMuted}>{detail}</AppText> : null}{action && onPress ? <ActionButton label={action} onPress={onPress} intent="self" secondary /> : null}</Screen>
+  return <Screen contentStyle={styles.state}><AppText variant="label" color={theme.colors.self}>COMPANION</AppText><AppText variant="title">{title}</AppText>{detail ? <AppText color={theme.colors.textMuted}>{detail}</AppText> : null}{action && onPress ? <ActionButton label={action} onPress={onPress} intent="self" secondary /> : null}</Screen>
 }
 
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
-  return <HostState title="Friend Host tools are temporarily unavailable" detail="Please try again. No profile action was taken." action="Try again" onPress={retry} />
+  return <CompanionState title="Companion tools are temporarily unavailable" detail="Please try again. No profile action was taken." action="Try again" onPress={retry} />
 }
 
 const styles = StyleSheet.create({

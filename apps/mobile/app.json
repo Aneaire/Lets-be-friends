@@ -27,7 +27,21 @@
     "plugins": [
       "expo-router",
       "@clerk/expo",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Let's Be Friends to use your location once during onboarding. Only coordinates rounded to two decimals are saved."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Let's Be Friends to select a private booking evidence image.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

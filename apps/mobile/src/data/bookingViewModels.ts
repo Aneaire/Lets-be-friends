@@ -51,9 +51,9 @@ export const bookingStatusPresentation: Record<BookingStatus, { label: string; e
   draft: { label: 'Draft', explanation: 'This request has not been sent.' },
   verification_required: { label: 'Verification required', explanation: 'Identity approval is needed before this request can continue.' },
   pending_admin_review: { label: 'Safety review', explanation: 'This request is waiting for a safety review.' },
-  request_sent: { label: 'Request sent', explanation: 'The Friend Host can review this request.' },
+  request_sent: { label: 'Request sent', explanation: 'The Companion can review this request.' },
   accepted: { label: 'Accepted', explanation: 'The booking is confirmed.' },
-  declined: { label: 'Declined', explanation: 'The Friend Host declined this request.' },
+  declined: { label: 'Declined', explanation: 'The Companion declined this request.' },
   cancelled: { label: 'Cancelled', explanation: 'This booking was cancelled.' },
   completed: { label: 'Completed', explanation: 'The session was completed.' },
   review_window: { label: 'Completed', explanation: 'The session was completed.' },
@@ -64,21 +64,21 @@ export function bookingActions(
   status: BookingStatus,
   {
     memberCompletedAt,
-    hostCompletedAt,
+    companionCompletedAt,
     requestedAt,
     durationMinutes,
     completionSupported = false,
     now = Date.now(),
   }: {
     memberCompletedAt?: number
-    hostCompletedAt?: number
+    companionCompletedAt?: number
     requestedAt?: number
     durationMinutes?: number
     completionSupported?: boolean
     now?: number
   } = {},
 ) {
-  const completionStarted = memberCompletedAt !== undefined || hostCompletedAt !== undefined
+  const completionStarted = memberCompletedAt !== undefined || companionCompletedAt !== undefined
   const sessionEnded = requestedAt !== undefined
     && durationMinutes !== undefined
     && requestedAt + durationMinutes * 60_000 <= now

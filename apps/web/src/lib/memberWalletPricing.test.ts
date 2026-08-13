@@ -7,14 +7,14 @@ import {
 } from '@lets-be-friends/shared'
 
 describe('member-wallet v2 pricing', () => {
-  it('freezes subtotal, 15% member fee, total, and full host entitlement in centavos', () => {
+  it('freezes subtotal, 15% member fee, total, and full companion entitlement in centavos', () => {
     expect(calculateMemberWalletBookingPrice(50_000, 90)).toEqual({
       pricingModel: MEMBER_WALLET_PRICING_MODEL,
       serviceSubtotalCentavos: 75_000,
       memberBookingFeeBps: MEMBER_BOOKING_FEE_BPS,
       memberBookingFeeCentavos: 11_250,
       memberTotalCentavos: 86_250,
-      hostEntitlementCentavos: 75_000,
+      companionEarningsCentavos: 75_000,
       currency: 'PHP',
     })
   })
@@ -24,7 +24,7 @@ describe('member-wallet v2 pricing', () => {
       serviceSubtotalCentavos: 2_500,
       memberBookingFeeCentavos: 375,
       memberTotalCentavos: 2_875,
-      hostEntitlementCentavos: 2_500,
+      companionEarningsCentavos: 2_500,
     })
     expect(calculateBookingPrice(50_000, 60)).toEqual({
       grossPriceCentavos: 50_000,

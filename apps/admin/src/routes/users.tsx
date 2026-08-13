@@ -6,7 +6,7 @@ import { api } from '../../../web/convex/_generated/api'
 import { ActionNote } from '../components/ActionNote'
 import { AdminTable } from '../components/AdminTable'
 
-type RoleFilter = 'all' | 'member' | 'friend_host' | 'reviewer' | 'admin'
+type RoleFilter = 'all' | 'member' | 'companion' | 'reviewer' | 'admin'
 type SuspendedFilter = 'all' | 'active' | 'suspended'
 
 export const Route = createFileRoute('/users')({ component: UsersPage })
@@ -43,7 +43,7 @@ function UsersPage() {
           <select className="field" value={role} onChange={(event) => setRole(event.currentTarget.value as RoleFilter)}>
             <option value="all">All roles</option>
             <option value="member">Members</option>
-            <option value="friend_host">Friend Hosts</option>
+            <option value="companion">Companions</option>
             <option value="reviewer">Reviewers</option>
             <option value="admin">Admins</option>
           </select>

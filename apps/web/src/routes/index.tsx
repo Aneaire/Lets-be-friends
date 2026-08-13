@@ -5,8 +5,8 @@ import { activityCategories } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { SocialPage } from './social'
 
-const homeTitle = "Find a Friend Host for Shared Activities | Let's Be Friends"
-const homeDescription = 'Meet verified Friend Hosts for coffee, walks, gaming, study sessions, local experiences, and online conversation, with clear boundaries and safety steps.'
+const homeTitle = "Find a Companion for Shared Activities | Let's Be Friends"
+const homeDescription = 'Meet verified Companions for coffee, walks, gaming, study sessions, local experiences, and online conversation, with clear boundaries and safety steps.'
 
 export const Route = createFileRoute('/')({
   head: () => ({
@@ -26,7 +26,7 @@ export const Route = createFileRoute('/')({
   component: HomePage,
 })
 
-type HomeHost = {
+type HomeCompanion = {
   _id: string
   displayName: string
   city: string
@@ -53,7 +53,7 @@ const beforeYouMeet = [
   },
   {
     label: 'Know who you are meeting',
-    body: 'Identity checks and safety review happen before a Friend Host can receive bookings.',
+    body: 'Identity checks and safety review happen before a Companion can receive bookings.',
   },
   {
     label: 'Plan with clarity',
@@ -145,11 +145,11 @@ const experienceModes = [
 const homeFaqs = [
   {
     question: "What is Let's Be Friends?",
-    answer: "Let's Be Friends is a trust-first service for adults who want company for a shared activity or conversation. Members can discover Friend Hosts by activity, Strengths, location, availability, and whether an experience happens online or in person.",
+    answer: "Let's Be Friends is a trust-first service for adults who want company for a shared activity or conversation. Members can discover Companions by activity, Strengths, location, availability, and whether an experience happens online or in person.",
   },
   {
-    question: 'What is a Friend Host?',
-    answer: 'A Friend Host is a verified member who offers a clearly described shared experience. They choose what they host, set their schedule and boundaries, and complete identity and profile review before becoming discoverable.',
+    question: 'What is a Companion?',
+    answer: 'A Companion is a verified member who offers a clearly described shared experience. They choose what they offer, set their schedule and boundaries, and complete identity and profile review before becoming discoverable.',
   },
   {
     question: 'Is this a dating service?',
@@ -157,24 +157,24 @@ const homeFaqs = [
   },
   {
     question: 'Can we meet online or in person?',
-    answer: 'Yes. Friend Hosts choose whether they offer online sessions, in-person sessions, or both. The available mode appears on each profile before you plan anything.',
+    answer: 'Yes. Companions choose whether they offer online sessions, in-person sessions, or both. The available mode appears on each profile before you plan anything.',
   },
   {
     question: 'How does safety work before a booking?',
-    answer: 'Adults complete identity checks, and Friend Host profiles go through safety review before they can receive bookings. You can review public profile details, boundaries, timing, pricing, and privacy information before sending a request.',
+    answer: 'Adults complete identity checks, and Companion profiles go through safety review before they can receive bookings. You can review public profile details, boundaries, timing, pricing, and privacy information before sending a request.',
   },
   {
     question: 'Can I look around before creating an account?',
-    answer: 'Yes. You can explore public activities and Friend Host profiles first. An account is needed when you are ready to use personal features such as booking or creating a hosting profile.',
+    answer: 'Yes. You can explore public activities and Companion profiles first. An account is needed when you are ready to use personal features such as booking or creating a companion profile.',
   },
 ] as const
 
 function HomePage() {
   const { isSignedIn } = useAuth()
-  const hostsResult = useQuery(api.hosts.listApproved, {}) as HomeHost[] | undefined
-  const hosts = hostsResult ?? []
-  const hostsLoading = hostsResult === undefined
-  const featured = hosts.slice(0, 4)
+  const companionsResult = useQuery(api.companions.listApproved, {}) as HomeCompanion[] | undefined
+  const companions = companionsResult ?? []
+  const companionsLoading = companionsResult === undefined
+  const featured = companions.slice(0, 4)
 
   if (isSignedIn) return <SocialPage />
 
@@ -355,29 +355,29 @@ function HomePage() {
             </div>
             <Link to="/discover" className="btn btn-social-quiet btn-sm">Explore everyone</Link>
           </div>
-          <div className="invitation-host-grid">
-              {hostsLoading && <HomeHostSkeletonRows />}
-              {!hostsLoading && featured.length === 0 && (
-                <div className="empty-state invitation-host-empty">
-                  <p className="empty-state-title">New Friend Hosts are getting ready.</p>
+          <div className="invitation-companion-grid">
+              {companionsLoading && <HomeCompanionSkeletonRows />}
+              {!companionsLoading && featured.length === 0 && (
+                <div className="empty-state invitation-companion-empty">
+                  <p className="empty-state-title">New Companions are getting ready.</p>
                   <p className="text-meta">People will appear here after identity and profile review.</p>
                 </div>
               )}
-              {!hostsLoading && featured.map((host) => (
-                <FeaturedHostRow key={host._id} host={host} />
+              {!companionsLoading && featured.map((companion) => (
+                <FeaturedCompanionRow key={companion._id} companion={companion} />
               ))}
           </div>
         </div>
       </section>
 
-      <section className="invitation-hosting-band">
-        <div className="marketing-page-wide invitation-hosting-inner">
+      <section className="invitation-companion-band">
+        <div className="marketing-page-wide invitation-companion-inner">
           <div>
             <p className="eyebrow">Have something you enjoy sharing?</p>
             <h2 className="text-display section-display">Make room for good company.</h2>
-            <p className="lede mt-4">Create a hosting profile around an activity, conversation, or local knowledge. You choose your schedule, boundaries, and whether it happens online or in person.</p>
+            <p className="lede mt-4">Create a companion profile around an activity, conversation, or local knowledge. You choose your schedule, boundaries, and whether it happens online or in person.</p>
           </div>
-          <Link to="/become-host" className="btn btn-self btn-lg">Share what you enjoy</Link>
+          <Link to="/become-companion" className="btn btn-self btn-lg">Share what you enjoy</Link>
         </div>
       </section>
 
@@ -386,7 +386,7 @@ function HomePage() {
           <div className="invitation-faq-heading">
             <p className="eyebrow">Common questions</p>
             <h2 id="home-faq-title" className="text-display section-display">Know what to expect before you join.</h2>
-            <p className="text-body muted mt-4">The short version of how membership, Friend Hosts, sessions, and safety work.</p>
+            <p className="text-body muted mt-4">The short version of how membership, Companions, sessions, and safety work.</p>
             <Link to="/safety" className="btn btn-ghost btn-sm mt-5">Read the full safety guide</Link>
           </div>
           <div className="invitation-faq-list">
@@ -407,7 +407,7 @@ function HomePage() {
             <h2 className="text-display section-display">Choose one thing that would feel better together.</h2>
             <p className="lede mt-4">Browse first, create an account when you are ready, and move at your own pace.</p>
             <div className="invitation-final-actions">
-              <Link to="/discover" className="btn btn-social btn-lg">Explore Friend Hosts</Link>
+              <Link to="/discover" className="btn btn-social btn-lg">Explore Companions</Link>
               <SignUpButton mode="modal">
                 <button className="btn btn-self btn-lg">Create an account</button>
               </SignUpButton>
@@ -471,11 +471,11 @@ function ActivityStoryPhoto({
   )
 }
 
-function HomeHostSkeletonRows() {
+function HomeCompanionSkeletonRows() {
   return (
     <>
       {Array.from({ length: 3 }).map((_, index) => (
-        <article className="invitation-host-card skeleton-row" aria-hidden="true" key={index}>
+        <article className="invitation-companion-card skeleton-row" aria-hidden="true" key={index}>
           <div className="worklist-row-head">
             <div className="flex items-center gap-3 min-w-0">
               <span className="skeleton skeleton-avatar" />
@@ -493,27 +493,27 @@ function HomeHostSkeletonRows() {
   )
 }
 
-function FeaturedHostRow({ host }: { host: HomeHost }) {
+function FeaturedCompanionRow({ companion }: { companion: HomeCompanion }) {
   return (
-    <article className="invitation-host-card">
-      <div className="worklist-row-head invitation-host-card-head">
+    <article className="invitation-companion-card">
+      <div className="worklist-row-head invitation-companion-card-head">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="avatar" aria-hidden="true">{initials(host.displayName)}</span>
+          <span className="avatar" aria-hidden="true">{initials(companion.displayName)}</span>
           <div className="min-w-0">
             <p className="text-meta">Up for something together</p>
-            <h3 className="text-h2 truncate">{host.displayName}</h3>
+            <h3 className="text-h2 truncate">{companion.displayName}</h3>
             <div className="worklist-row-meta">
-              <span>{host.city}</span>
+              <span>{companion.city}</span>
               <span className="dot" aria-hidden="true" />
-              <span>{formatMode(host.mode)}</span>
+              <span>{formatMode(companion.mode)}</span>
               <span className="dot" aria-hidden="true" />
-              <TrustChip state={host.demo ? 'demo' : host.bookable ? 'verified' : 'awaiting'} />
+              <TrustChip state={companion.demo ? 'demo' : companion.bookable ? 'verified' : 'awaiting'} />
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {host.bookable ? (
-            <Link to="/host-profile" search={{ hostProfileId: host._id }} className="btn btn-social btn-sm">
+          {companion.bookable ? (
+            <Link to="/companion-profile" search={{ companionProfileId: companion._id }} className="btn btn-social btn-sm">
               See their ideas
             </Link>
           ) : (
@@ -521,9 +521,9 @@ function FeaturedHostRow({ host }: { host: HomeHost }) {
           )}
         </div>
       </div>
-      <p className="text-body muted line-clamp-3">{host.intro}</p>
-      <div className="invitation-strengths" aria-label={`${host.displayName}'s strengths`}>
-        {host.strengths.slice(0, 3).map((strength) => <span key={strength}>{strength}</span>)}
+      <p className="text-body muted line-clamp-3">{companion.intro}</p>
+      <div className="invitation-strengths" aria-label={`${companion.displayName}'s strengths`}>
+        {companion.strengths.slice(0, 3).map((strength) => <span key={strength}>{strength}</span>)}
       </div>
     </article>
   )
@@ -555,7 +555,7 @@ function HomeAuthAction() {
   )
 }
 
-function formatMode(mode: HomeHost['mode']) {
+function formatMode(mode: HomeCompanion['mode']) {
   if (mode === 'both') return 'Online and in-person'
   if (mode === 'in_person') return 'In-person'
   return 'Online'

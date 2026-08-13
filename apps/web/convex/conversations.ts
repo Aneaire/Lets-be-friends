@@ -436,11 +436,11 @@ export async function sendBookingMessage(
 export async function bookingSnapshot(ctx: { db: any }, bookingId: Id<'bookings'>) {
   const booking = await ctx.db.get(bookingId)
   if (!booking) return null
-  const [member, hostProfile] = await Promise.all([
+  const [member, companionProfile] = await Promise.all([
     ctx.db.get(booking.memberId),
-    ctx.db.get(booking.hostProfileId),
+    ctx.db.get(booking.companionProfileId),
   ])
-  const hostUser = hostProfile ? await ctx.db.get(hostProfile.userId) : null
+  const companionUser = companionProfile ? await ctx.db.get(companionProfile.userId) : null
   return {
     bookingId: booking._id,
     status: booking.status,
@@ -451,13 +451,13 @@ export async function bookingSnapshot(ctx: { db: any }, bookingId: Id<'bookings'
     notes: booking.notes,
     memberId: booking.memberId,
     memberDisplayName: member?.displayName ?? 'Member',
-    hostProfileId: hostProfile?._id,
-    hostUserId: hostUser?._id,
-    hostDisplayName: hostProfile?.displayName ?? hostUser?.displayName ?? 'Friend Host',
+    companionProfileId: companionProfile?._id,
+    companionUserId: companionUser?._id,
+    companionDisplayName: companionProfile?.displayName ?? companionUser?.displayName ?? 'Companion',
     serviceSubtotalCentavos: booking.serviceSubtotalCentavos,
     memberBookingFeeCentavos: booking.memberBookingFeeCentavos,
     memberTotalCentavos: booking.memberTotalCentavos,
-    hostEntitlementCentavos: booking.hostEntitlementCentavos,
+    companionEarningsCentavos: booking.companionEarningsCentavos,
     settlementBlocked: booking.settlementBlockedAt !== undefined,
   }
 }

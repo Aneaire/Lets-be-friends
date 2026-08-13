@@ -2,7 +2,7 @@ import { useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import { Alert, Pressable, StyleSheet, View } from 'react-native'
 
-import { mobileApi, type HostProfileId } from '@/backend/client'
+import { mobileApi, type CompanionProfileId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/components/ActionButton'
 import { Avatar } from '@/components/Avatar'
@@ -10,57 +10,57 @@ import { Chip } from '@/components/Chip'
 import { Screen, Section } from '@/components/Screen'
 import { TrustThread } from '@/components/TrustThread'
 import { AppText } from '@/components/Typography'
-import { getFriendHost } from '@/data/hosts'
+import { getCompanion } from '@/data/companions'
 import {
-  mapApprovedHost,
-  mapFixtureHost,
-  mapPublicHost,
-  resolveConnectedHost,
-  resolveHostBookingAction,
-  type ApprovedHostRecord,
-  type HostDataSource,
-  type HostDetailViewModel,
-} from '@/data/hostViewModels'
+  mapApprovedCompanion,
+  mapFixtureCompanion,
+  mapPublicCompanion,
+  resolveConnectedCompanion,
+  resolveCompanionBookingAction,
+  type ApprovedCompanionRecord,
+  type CompanionDataSource,
+  type CompanionDetailViewModel,
+} from '@/data/companionViewModels'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-export default function FriendHostProfileScreen() {
-  const params = useLocalSearchParams<{ id?: string; source?: HostDataSource }>()
+export default function CompanionProfileScreen() {
+  const params = useLocalSearchParams<{ id?: string; source?: CompanionDataSource }>()
   const configuration = useMobileBackendConfiguration()
   const id = typeof params.id === 'string' ? params.id : ''
 
   if (params.source === 'local_demo' || configuration.status !== 'configured') {
-    const fixture = getFriendHost(id)
-    return fixture ? <HostDetail host={mapFixtureHost(fixture)} /> : <HostNotFound local />
+    const fixture = getCompanion(id)
+    return fixture ? <CompanionDetail companion={mapFixtureCompanion(fixture)} /> : <CompanionNotFound local />
   }
-  return <ConnectedHostDirectory id={id} />
+  return <ConnectedCompanionDirectory id={id} />
 }
 
-function ConnectedHostDirectory({ id }: { id: string }) {
-  const result = useQuery(mobileApi.hosts.listApproved, {})
-  if (result === undefined) return <HostLoading />
+function ConnectedCompanionDirectory({ id }: { id: string }) {
+  const result = useQuery(mobileApi.companions.listApproved, {})
+  if (result === undefined) return <CompanionLoading />
 
-  const resolution = resolveConnectedHost(result as ApprovedHostRecord[], id)
-  if (resolution.kind === 'not_found') return <HostNotFound />
+  const resolution = resolveConnectedCompanion(result as ApprovedCompanionRecord[], id)
+  if (resolution.kind === 'not_found') return <CompanionNotFound />
   if (resolution.kind === 'demo') {
     const record = resolution.record
-    return <HostDetail host={{ ...mapApprovedHost(record), bio: record.bio, boundaries: record.boundaries ?? [] }} />
+    return <CompanionDetail companion={{ ...mapApprovedCompanion(record), bio: record.bio, boundaries: record.boundaries ?? [] }} />
   }
-  return <ConnectedHost record={resolution.record} />
+  return <ConnectedCompanion record={resolution.record} />
 }
 
-function ConnectedHost({ record }: { record: ApprovedHostRecord }) {
-  const result = useQuery(mobileApi.hosts.getPublic, { hostProfileId: record._id as HostProfileId })
-  if (result === undefined) return <HostLoading />
-  if (result === null) return <HostNotFound />
-  return <HostDetail host={mapPublicHost(result as ApprovedHostRecord)} />
+function ConnectedCompanion({ record }: { record: ApprovedCompanionRecord }) {
+  const result = useQuery(mobileApi.companions.getPublic, { companionProfileId: record._id as CompanionProfileId })
+  if (result === undefined) return <CompanionLoading />
+  if (result === null) return <CompanionNotFound />
+  return <CompanionDetail companion={mapPublicCompanion(result as ApprovedCompanionRecord)} />
 }
 
-function HostDetail({ host }: { host: HostDetailViewModel }) {
+function CompanionDetail({ companion }: { companion: CompanionDetailViewModel }) {
   const theme = useAppTheme()
-  const isLocalDemo = host.source === 'local_demo'
-  const isBackendDemo = host.source === 'backend_demo'
-  const modeLabels = host.sessionModes.map((mode) => mode === 'online' ? 'Online' : 'In person')
-  const bookingAction = resolveHostBookingAction(host)
+  const isLocalDemo = companion.source === 'local_demo'
+  const isBackendDemo = companion.source === 'backend_demo'
+  const modeLabels = companion.sessionModes.map((mode) => mode === 'online' ? 'Online' : 'In person')
+  const bookingAction = resolveCompanionBookingAction(companion)
   const bookingDisabled = bookingAction.kind === 'own_profile' || bookingAction.kind === 'unavailable'
 
   function handleBookingAction() {
@@ -73,7 +73,7 @@ function HostDetail({ host }: { host: HostDetailViewModel }) {
       return
     }
     if (bookingAction.kind === 'book') {
-      router.push({ pathname: '/booking/new', params: { hostProfileId: host.id } })
+      router.push({ pathname: '/booking/new', params: { companionProfileId: companion.id } })
     }
   }
 
@@ -87,49 +87,49 @@ function HostDetail({ host }: { host: HostDetailViewModel }) {
           style={({ pressed }) => [styles.backButton, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
           <AppText variant="heading">‹</AppText>
         </Pressable>
-        <AppText variant="label" color={theme.colors.social}>FRIEND HOST</AppText>
+        <AppText variant="label" color={theme.colors.social}>COMPANION</AppText>
         <View style={styles.navSpacer} />
       </View>
 
       <View style={styles.profileHero}>
-        <Avatar uri={host.imageUrl} name={host.name} size={116} />
+        <Avatar uri={companion.imageUrl} name={companion.name} size={116} />
         <View style={styles.profileCopy}>
           <View style={styles.verifiedRow}>
-            <AppText variant="title">{host.name}{host.localOnly ? `, ${host.localOnly.age}` : ''}</AppText>
-            {host.verified && <View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.self }]} />}
+            <AppText variant="title">{companion.name}{companion.localOnly ? `, ${companion.localOnly.age}` : ''}</AppText>
+            {companion.verified && <View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.self }]} />}
           </View>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            {[host.localOnly?.pronouns, host.location].filter(Boolean).join(' · ')}
+            {[companion.localOnly?.pronouns, companion.location].filter(Boolean).join(' · ')}
           </AppText>
-          {host.distanceLabel ? <AppText variant="caption" color={theme.colors.textMuted}>{host.distanceLabel}</AppText> : null}
+          {companion.distanceLabel ? <AppText variant="caption" color={theme.colors.textMuted}>{companion.distanceLabel}</AppText> : null}
         </View>
       </View>
 
-      <AppText variant="heading" style={styles.tagline}>{host.intro}</AppText>
+      <AppText variant="heading" style={styles.tagline}>{companion.intro}</AppText>
 
       <View accessibilityLiveRegion="polite" style={[styles.statusCard, { backgroundColor: theme.colors.socialSoft, borderColor: theme.colors.social }]}>
         <AppText variant="label" color={theme.colors.social}>
-          {isLocalDemo ? 'LOCAL DEMO PROFILE' : isBackendDemo ? 'EXAMPLE PROFILE' : host.bookable ? 'PUBLIC PROFILE' : 'NOT BOOKABLE'}
+          {isLocalDemo ? 'LOCAL DEMO PROFILE' : isBackendDemo ? 'EXAMPLE PROFILE' : companion.bookable ? 'PUBLIC PROFILE' : 'NOT BOOKABLE'}
         </AppText>
         <AppText variant="caption">
           {isLocalDemo
             ? 'This profile and its schedule are local fixture data. No booking request is sent.'
             : isBackendDemo
-              ? 'This is an example profile provided by the service. It is not a live Friend Host profile and cannot be booked.'
-              : host.bookable
+              ? 'This is an example profile provided by the service. It is not a live Companion profile and cannot be booked.'
+              : companion.bookable
                 ? bookingAction.explanation
-                : 'This Friend Host is not accepting booking requests right now.'}
+                : 'This Companion is not accepting booking requests right now.'}
         </AppText>
       </View>
 
       <View style={[styles.metrics, { borderColor: theme.colors.border }]}>
         <Metric
-          value={typeof host.rating === 'number' ? `${host.rating} ★` : 'New'}
-          label={typeof host.reviewCount === 'number' ? `${host.reviewCount} reviews` : 'No rating shown'}
+          value={typeof companion.rating === 'number' ? `${companion.rating} ★` : 'New'}
+          label={typeof companion.reviewCount === 'number' ? `${companion.reviewCount} reviews` : 'No rating shown'}
         />
         <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
         <Metric value={modeLabels.join(' + ')} label="session format" />
-        {host.verified ? (
+        {companion.verified ? (
           <>
             <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
             <Metric value="Verified" label="identity" accent="self" />
@@ -137,10 +137,10 @@ function HostDetail({ host }: { host: HostDetailViewModel }) {
         ) : null}
       </View>
 
-      {host.bio ? (
+      {companion.bio ? (
         <Section>
-          <AppText variant="heading">About this Friend Host</AppText>
-          <AppText style={styles.sectionCopy} color={theme.colors.textMuted}>{host.bio}</AppText>
+          <AppText variant="heading">About this Companion</AppText>
+          <AppText style={styles.sectionCopy} color={theme.colors.textMuted}>{companion.bio}</AppText>
         </Section>
       ) : null}
 
@@ -148,8 +148,8 @@ function HostDetail({ host }: { host: HostDetailViewModel }) {
         <AppText variant="heading">Trust thread</AppText>
         <View style={styles.threadWrap}>
           <TrustThread items={[
-            ...(host.verified ? [{ title: 'Identity verified', detail: 'This approved public profile has a current identity approval.', tone: 'self' as const }] : []),
-            { title: 'Strengths shared', detail: host.strengths.join(' · '), tone: 'social' },
+            ...(companion.verified ? [{ title: 'Identity verified', detail: 'This approved public profile has a current identity approval.', tone: 'self' as const }] : []),
+            { title: 'Strengths shared', detail: companion.strengths.join(' · '), tone: 'social' },
             { title: 'Session format', detail: modeLabels.join(' · '), tone: 'social' },
           ]} />
         </View>
@@ -158,20 +158,20 @@ function HostDetail({ host }: { host: HostDetailViewModel }) {
       <Section>
         <AppText variant="heading">Strengths</AppText>
         <View style={styles.chips}>
-          {host.strengths.map((strength) => <Chip key={strength} label={strength} />)}
+          {companion.strengths.map((strength) => <Chip key={strength} label={strength} />)}
         </View>
       </Section>
 
-      {(host.categories.length > 0 || host.boundaries.length > 0 || host.localOnly) ? (
+      {(companion.categories.length > 0 || companion.boundaries.length > 0 || companion.localOnly) ? (
         <Section>
           <AppText variant="heading">Experience details</AppText>
           <View style={[styles.detailCard, { backgroundColor: theme.colors.surface }]}>
-            {host.categories.length > 0 ? <Detail label="Interests" value={host.categories.join(', ')} /> : null}
-            {host.boundaries.length > 0 ? <Detail label="Boundaries" value={host.boundaries.join(', ')} /> : null}
-            {host.localOnly ? <Detail label="Languages" value={host.localOnly.languages.join(', ')} /> : null}
-            {host.localOnly ? <Detail label="Response" value={host.localOnly.responseTime} /> : null}
-            {host.localOnly ? <Detail label="Demo times" value={`${host.localOnly.availability.length} fixture examples`} /> : null}
-            {host.rateLabel ? <Detail label="Rate" value={host.rateLabel} /> : null}
+            {companion.categories.length > 0 ? <Detail label="Interests" value={companion.categories.join(', ')} /> : null}
+            {companion.boundaries.length > 0 ? <Detail label="Boundaries" value={companion.boundaries.join(', ')} /> : null}
+            {companion.localOnly ? <Detail label="Languages" value={companion.localOnly.languages.join(', ')} /> : null}
+            {companion.localOnly ? <Detail label="Response" value={companion.localOnly.responseTime} /> : null}
+            {companion.localOnly ? <Detail label="Demo times" value={`${companion.localOnly.availability.length} fixture examples`} /> : null}
+            {companion.rateLabel ? <Detail label="Rate" value={companion.rateLabel} /> : null}
           </View>
         </Section>
       ) : null}
@@ -192,22 +192,22 @@ function HostDetail({ host }: { host: HostDetailViewModel }) {
   )
 }
 
-function HostLoading() {
+function CompanionLoading() {
   const theme = useAppTheme()
   return (
     <Screen contentStyle={styles.state}>
-      <AppText variant="label" color={theme.colors.social}>FRIEND HOST</AppText>
+      <AppText variant="label" color={theme.colors.social}>COMPANION</AppText>
       <AppText variant="title">Loading public profile</AppText>
-      <AppText color={theme.colors.textMuted}>Checking the approved host directory.</AppText>
+      <AppText color={theme.colors.textMuted}>Checking the approved companion directory.</AppText>
     </Screen>
   )
 }
 
-function HostNotFound({ local = false }: { local?: boolean }) {
+function CompanionNotFound({ local = false }: { local?: boolean }) {
   const theme = useAppTheme()
   return (
     <Screen contentStyle={styles.state}>
-      <AppText variant="title">Friend Host not found</AppText>
+      <AppText variant="title">Companion not found</AppText>
       <AppText color={theme.colors.textMuted}>
         {local ? 'This local demo profile may have moved.' : 'This public profile is not available.'}
       </AppText>
@@ -221,7 +221,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return (
     <Screen contentStyle={styles.state}>
       <AppText variant="label" color={theme.colors.social}>PROFILE UNAVAILABLE</AppText>
-      <AppText variant="title">This Friend Host could not be loaded</AppText>
+      <AppText variant="title">This Companion could not be loaded</AppText>
       <AppText color={theme.colors.textMuted}>This profile is temporarily unavailable. Please try again.</AppText>
       <ActionButton label="Try profile again" onPress={retry} secondary />
       <ActionButton label="Return to Explore" onPress={() => router.replace('/explore')} secondary />

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   calculateBookingPrice,
   nextSaturdayManilaCutoff,
-  validateHostHourlyRateCentavos,
+  validateCompanionHourlyRateCentavos,
 } from '@lets-be-friends/shared'
 
 describe('booking finance rules', () => {
@@ -20,8 +20,8 @@ describe('booking finance rules', () => {
   })
 
   it('rejects unsafe or out-of-range hourly rates', () => {
-    expect(() => validateHostHourlyRateCentavos(9_999)).toThrow('between ₱100 and ₱10,000')
-    expect(() => validateHostHourlyRateCentavos(10_000.5)).toThrow('whole number of centavos')
+    expect(() => validateCompanionHourlyRateCentavos(9_999)).toThrow('between ₱100 and ₱10,000')
+    expect(() => validateCompanionHourlyRateCentavos(10_000.5)).toThrow('whole number of centavos')
   })
 
   it('uses Saturday 09:00 Asia/Manila and rolls an exact cutoff to the next week', () => {

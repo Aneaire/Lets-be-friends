@@ -2,7 +2,7 @@ import type { FeedInstrumentationAction } from '@lets-be-friends/shared'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
-import { Bookmark, Flag, Heart, ImagePlus, MessageCircle, Pencil, Send, Trash2, UserPlus, X } from 'lucide-react'
+import { Bookmark, Flag, Heart, ImagePlus, MessageCircle, Pencil, Send, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -44,11 +44,9 @@ export function SocialPage() {
   const discardPostMediaUpload = useMutation(api.social.discardPostMediaUpload)
   const toggleSave = useMutation(api.social.toggleSavePost)
   const toggleLike = useMutation(api.social.toggleLike)
-  const toggleFollow = useMutation(api.social.toggleFollow)
   const recordFeedImpressions = useMutation(api.social.recordFeedImpressions)
   const recordFeedAction = useMutation(api.social.recordFeedAction)
   const report = useMutation(api.reports.create)
-  const startConversation = useMutation(api.conversations.start)
   const feedSessionId = useRef(`feed-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const impressedItemKeys = useRef(new Set<string>())
   const recordedActionKeys = useRef(new Set<string>())
@@ -303,8 +301,8 @@ export function SocialPage() {
         {feedItems && feedItems.length > 0 && (
           <div className="social-feed">
             {feedItems.map((item) => {
-              if (item.kind === 'host') {
-                return <HostRecommendationCard key={item.itemKey} item={item} onOpen={() => recordAction(item, 'open_host')} />
+              if (item.kind === 'companion') {
+                return <CompanionRecommendationCard key={item.itemKey} item={item} onOpen={() => recordAction(item, 'open_companion')} />
               }
               if (item.kind === 'guidance') {
                 return <GuidanceCard key={item.itemKey} item={item} onOpen={() => recordAction(item, 'open_guidance')} />
@@ -338,15 +336,6 @@ export function SocialPage() {
                     recordAction(item, 'save')
                     setNotice(post.saved ? 'Post removed from saved.' : 'Post saved.')
                   }}
-                  onFollow={async () => {
-                    await toggleFollow({ userId: post.authorId })
-                    recordAction(item, 'follow')
-                    setNotice(post.followingAuthor ? 'Member unfollowed.' : 'Member followed.')
-                  }}
-                  onMessage={async () => {
-                    const conversationId = await startConversation({ otherUserId: post.authorId })
-                    await navigate({ to: '/messages', search: { conversationId } })
-                  }}
                   onReport={async () => {
                     await report({ targetType: 'post', targetId: post._id, reason: 'Post needs safety review' })
                     recordAction(item, 'report')
@@ -367,36 +356,36 @@ export function SocialPage() {
   )
 }
 
-function HostRecommendationCard({
+function CompanionRecommendationCard({
   item,
   onOpen,
 }: {
-  item: Extract<FeedItem, { kind: 'host' }>
+  item: Extract<FeedItem, { kind: 'companion' }>
   onOpen: () => void
 }) {
   return (
-    <aside className="social-reserve-card" aria-label={`Recommended Friend Host: ${item.host.displayName}`}>
+    <aside className="social-reserve-card" aria-label={`Recommended Companion: ${item.companion.displayName}`}>
       <div className="social-reserve-planline"><MeetingSeam /><span>From a good fit to a shared plan</span></div>
-      <div className="social-reserve-label">Friend Host idea</div>
+      <div className="social-reserve-label">Companion idea</div>
       <div className="social-reserve-head">
         <div>
-          <h2 className="text-h3">{item.host.displayName}</h2>
-          <p className="text-meta">{item.host.mode.replace('_', ' ')} · {item.host.rating.toFixed(1)} from {item.host.reviewCount} reviews</p>
+          <h2 className="text-h3">{item.companion.displayName}</h2>
+          <p className="text-meta">{item.companion.mode.replace('_', ' ')} · {item.companion.rating.toFixed(1)} from {item.companion.reviewCount} reviews</p>
         </div>
         <Link
-          to="/host-profile"
-          search={{ hostProfileId: item.host._id }}
+          to="/companion-profile"
+          search={{ companionProfileId: item.companion._id }}
           className="btn btn-social btn-sm"
           onClick={onOpen}
-          aria-label={`View ${item.host.displayName}'s Friend Host profile`}
+          aria-label={`View ${item.companion.displayName}'s Companion profile`}
         >
           See their ideas
         </Link>
       </div>
-      <p className="social-reserve-copy">{item.host.intro}</p>
+      <p className="social-reserve-copy">{item.companion.intro}</p>
       <p className="social-feed-reason">Because you might like: {item.reason}</p>
       <div className="social-reserve-tags" aria-label="Categories and Strengths">
-        {[...item.host.categories, ...item.host.strengths].slice(0, 4).map((label) => <span key={label}>{label}</span>)}
+        {[...item.companion.categories, ...item.companion.strengths].slice(0, 4).map((label) => <span key={label}>{label}</span>)}
       </div>
     </aside>
   )
@@ -454,8 +443,6 @@ function PostRow({
   onDelete,
   onLike,
   onSave,
-  onFollow,
-  onMessage,
   onReport,
   onReportComment,
 }: {
@@ -467,8 +454,6 @@ function PostRow({
   onDelete: () => Promise<void>
   onLike: () => Promise<void>
   onSave: () => Promise<void>
-  onFollow: () => Promise<void>
-  onMessage: () => Promise<void>
   onReport: () => Promise<void>
   onReportComment: (commentId: Id<'postComments'>) => Promise<void>
 }) {
@@ -482,7 +467,34 @@ function PostRow({
 
   return (
     <article className="social-post">
-      <span className="avatar avatar-lg social-post-avatar" aria-hidden="true">{initials(post.authorDisplayName)}</span>
+      {post.ownPost ? (
+        <Link
+          to="/profile"
+          className="avatar avatar-lg social-post-avatar social-post-avatar-link"
+          aria-label="View your profile"
+        >
+          {post.authorProfileImageUrl
+            ? <img src={post.authorProfileImageUrl} alt="" />
+            : initials(post.authorDisplayName)}
+        </Link>
+      ) : post.authorCompanionProfileId ? (
+        <Link
+          to="/companion-profile"
+          search={{ companionProfileId: post.authorCompanionProfileId }}
+          className="avatar avatar-lg social-post-avatar social-post-avatar-link"
+          aria-label={`View ${post.authorDisplayName}'s profile`}
+        >
+          {post.authorProfileImageUrl
+            ? <img src={post.authorProfileImageUrl} alt="" />
+            : initials(post.authorDisplayName)}
+        </Link>
+      ) : (
+        <span className="avatar avatar-lg social-post-avatar" aria-hidden="true">
+          {post.authorProfileImageUrl
+            ? <img src={post.authorProfileImageUrl} alt="" />
+            : initials(post.authorDisplayName)}
+        </span>
+      )}
       <div className="social-post-body">
         <div className="social-post-head">
           <div className="social-post-author">
@@ -526,19 +538,9 @@ function PostRow({
                 </button>
               </>
             ) : viewerReady ? (
-              <>
-                <button type="button" onClick={onMessage} className="btn btn-social btn-sm">
-                  <Send size={14} />
-                  Message
-                </button>
-                <button type="button" onClick={onFollow} className="btn btn-social-quiet btn-sm">
-                  <UserPlus size={14} />
-                  {post.followingAuthor ? 'Following' : 'Follow'}
-                </button>
-                <button type="button" onClick={onReport} className="social-icon-button social-danger-button" aria-label="Report post" title="Report post">
-                  <Flag size={15} />
-                </button>
-              </>
+              <button type="button" onClick={onReport} className="social-icon-button social-danger-button" aria-label="Report post" title="Report post">
+                <Flag size={15} />
+              </button>
             ) : null}
           </div>
         </div>

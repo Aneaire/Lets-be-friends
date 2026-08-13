@@ -11,7 +11,7 @@ import { useIdentityVerification } from '../components/IdentityVerificationFlow'
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
 
 type ProfilePost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUser>>>[number]
-type ProfileReview = NonNullable<ReturnType<typeof useQuery<typeof api.reviews.forHost>>>[number]
+type ProfileReview = NonNullable<ReturnType<typeof useQuery<typeof api.reviews.forCompanion>>>[number]
 type ProfilePostMedia = { storageId: Id<'_storage'>; kind: 'image' | 'video'; url: string | null }
 type ProfileContentTab = 'posts' | 'reviews'
 
@@ -19,10 +19,10 @@ function ProfilePage() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
-  const application = useQuery(api.hosts.myApplication)
+  const application = useQuery(api.companions.myApplication)
   const latestMemberVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const posts = useQuery(api.social.byUser, viewer ? { userId: viewer._id } : 'skip') as ProfilePost[] | undefined
-  const reviews = useQuery(api.reviews.forHost, application ? { hostProfileId: application._id } : 'skip') as ProfileReview[] | undefined
+  const reviews = useQuery(api.reviews.forCompanion, application ? { companionProfileId: application._id } : 'skip') as ProfileReview[] | undefined
   const identityFlow = useIdentityVerification('member')
   const updateProfile = useMutation(api.users.updateProfile)
   const generateProfileImageUploadUrl = useMutation(api.users.generateProfileImageUploadUrl)
@@ -58,7 +58,7 @@ function ProfilePage() {
   const displayName = viewer?.displayName ?? fallbackName
   const profileImageUrl = viewer?.profileImageUrl ?? user?.imageUrl ?? ''
   const bio = viewer?.bio ?? ''
-  const hostStatus = application?.status ?? 'not started'
+  const companionStatus = application?.status ?? 'not started'
   const verification = memberVerificationPresentation(
     identityEntitlementStatus(viewer?.verificationStatus ?? 'not_started', viewer?.identityEligible ?? false),
     latestMemberVerification,
@@ -93,8 +93,8 @@ function ProfilePage() {
               Edit profile
             </button>
             <Link to="/app" search={{}} className="btn btn-neutral btn-sm">Your bookings</Link>
-            <Link to="/become-host" className="btn btn-neutral btn-sm">
-              {application ? 'Edit hosting profile' : 'Share what you enjoy'}
+            <Link to="/become-companion" className="btn btn-neutral btn-sm">
+              {application ? 'Edit companion profile' : 'Share what you enjoy'}
             </Link>
           </div>
         </div>
@@ -126,7 +126,7 @@ function ProfilePage() {
           <div className="panel-header">
             <div>
               <h2 className="text-h2">Account status</h2>
-              <p className="text-meta mt-1">Identity verification and Friend Host profile progress.</p>
+              <p className="text-meta mt-1">Identity verification and Companion profile progress.</p>
             </div>
           </div>
           <div className="panel-body flex flex-col gap-3">
@@ -157,14 +157,14 @@ function ProfilePage() {
               </Link>
             )}
             <div className="flex items-center justify-between gap-3">
-              <span className="text-meta">Friend Host profile</span>
-              <span className="status-pill" data-tone={hostStatusTone(hostStatus)}>{hostStatusLabel(hostStatus)}</span>
+              <span className="text-meta">Companion profile</span>
+              <span className="status-pill" data-tone={companionStatusTone(companionStatus)}>{companionStatusLabel(companionStatus)}</span>
             </div>
             <p className="text-body muted">
-              Your hosting profile uses this name, then adds your Strengths, availability, boundaries, location, and the kinds of time you want to share.
+              Your companion profile uses this name, then adds your Strengths, availability, boundaries, location, and the kinds of time you want to share.
             </p>
-            <Link to="/become-host" className="btn btn-neutral btn-sm">
-              {application ? 'Edit hosting profile' : 'Share what you enjoy'}
+            <Link to="/become-companion" className="btn btn-neutral btn-sm">
+              {application ? 'Edit companion profile' : 'Share what you enjoy'}
             </Link>
           </div>
         </aside>
@@ -238,9 +238,9 @@ function ProfilePage() {
             </div>
             {!application && (
               <div className="empty-state m-5">
-                <p className="empty-state-title">Reviews appear after you become a Friend Host.</p>
+                <p className="empty-state-title">Reviews appear after you become a Companion.</p>
                 <p className="text-meta">Members can leave a review after a completed plan.</p>
-                <Link to="/become-host" className="btn btn-neutral btn-sm mt-3">Create hosting profile</Link>
+                <Link to="/become-companion" className="btn btn-neutral btn-sm mt-3">Create companion profile</Link>
               </div>
             )}
             {application && reviews === undefined && <div className="empty-state m-5">Loading reviews...</div>}
@@ -341,7 +341,7 @@ function ProfilePage() {
                     defaultValue={bio}
                     className="field min-h-32"
                     maxLength={500}
-                    placeholder="A short profile bio members can recognize across posts and host details."
+                    placeholder="A short profile bio members can recognize across posts and companion details."
                   />
                 </label>
               </div>
@@ -450,13 +450,13 @@ function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: strin
   )
 }
 
-function hostStatusLabel(status: string) {
+function companionStatusLabel(status: string) {
   if (status === 'pending_review') return 'Pending review'
   if (status === 'not started') return 'Not started'
   return status.charAt(0).toUpperCase() + status.slice(1).replaceAll('_', ' ')
 }
 
-function hostStatusTone(status: string): 'self' | 'success' | 'warning' | 'danger' {
+function companionStatusTone(status: string): 'self' | 'success' | 'warning' | 'danger' {
   if (status === 'approved') return 'success'
   if (status === 'rejected' || status === 'suspended') return 'danger'
   if (status === 'pending_review') return 'warning'

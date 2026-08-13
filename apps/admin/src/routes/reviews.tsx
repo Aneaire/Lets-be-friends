@@ -46,7 +46,7 @@ function ReviewsPage() {
             render: (row) => (
               <>
                 <div className="admin-cell-primary">{row.rating} stars from {row.reviewerDisplayName}</div>
-                <div className="admin-cell-muted">For {row.revieweeDisplayName}{row.hostDisplayName ? `, ${row.hostDisplayName}` : ''}</div>
+                <div className="admin-cell-muted">For {row.revieweeDisplayName}{row.companionDisplayName ? `, ${row.companionDisplayName}` : ''}</div>
                 {row.body && <p className="admin-cell-muted max-w-[56ch]">{row.body}</p>}
               </>
             ),

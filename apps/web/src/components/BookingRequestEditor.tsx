@@ -14,8 +14,8 @@ export type SaveBookingRequest = {
 
 export type EditableBookingRequest = {
   bookingId: Id<'bookings'>
-  hostProfileId?: Id<'hostProfiles'>
-  hostDisplayName: string
+  companionProfileId?: Id<'companionProfiles'>
+  companionDisplayName: string
   category: string
   mode: 'online' | 'in_person'
   requestedAt: number
@@ -25,12 +25,12 @@ export type EditableBookingRequest = {
 
 export function BookingRequestEditor({
   booking,
-  host,
+  companion,
   onClose,
   onSave,
 }: {
   booking: EditableBookingRequest
-  host?: {
+  companion?: {
     categories?: string[]
     mode?: 'online' | 'in_person' | 'both'
     hourlyRateCentavos?: number
@@ -51,14 +51,14 @@ export function BookingRequestEditor({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const categoryOptions = host?.categories?.length ? host.categories : activityCategories
-  const modeOptions: ('online' | 'in_person')[] = host?.mode === 'in_person'
+  const categoryOptions = companion?.categories?.length ? companion.categories : activityCategories
+  const modeOptions: ('online' | 'in_person')[] = companion?.mode === 'in_person'
     ? ['in_person']
-    : host?.mode === 'online'
+    : companion?.mode === 'online'
       ? ['online']
       : ['online', 'in_person']
-  const estimate = host?.hourlyRateCentavos && durationMinutes >= 15 && durationMinutes <= 720 && durationMinutes % 15 === 0
-    ? calculateMemberWalletBookingPrice(host.hourlyRateCentavos, durationMinutes)
+  const estimate = companion?.hourlyRateCentavos && durationMinutes >= 15 && durationMinutes <= 720 && durationMinutes % 15 === 0
+    ? calculateMemberWalletBookingPrice(companion.hourlyRateCentavos, durationMinutes)
     : undefined
 
   useEffect(() => {
@@ -127,7 +127,7 @@ export function BookingRequestEditor({
         <header className="booking-dialog-header">
           <div>
             <p className="eyebrow">Edit your request</p>
-            <h2 id="booking-edit-dialog-title" className="text-h2 mt-1">Update the plan with {booking.hostDisplayName}</h2>
+            <h2 id="booking-edit-dialog-title" className="text-h2 mt-1">Update the plan with {booking.companionDisplayName}</h2>
           </div>
           <button type="button" className="social-icon-button booking-dialog-close" aria-label="Close edit dialog" onClick={onClose} disabled={busy}>
             <X size={16} aria-hidden="true" />

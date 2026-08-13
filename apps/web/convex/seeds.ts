@@ -1,9 +1,9 @@
 import { internalMutation } from './_generated/server'
-import { syncHostLocation } from './hostLocations'
+import { syncCompanionLocation } from './companionLocations'
 
 const dayMs = 24 * 60 * 60 * 1_000
 
-const pampangaHosts = [
+const pampangaCompanions = [
   {
     key: 'alyssa-bacolor',
     displayName: 'Alyssa',
@@ -119,12 +119,12 @@ const pampangaHosts = [
   {
     key: 'sam-hidden-bacolor',
     displayName: 'Sam',
-    bio: 'A privacy-control test profile that remains in ordinary discovery.',
+    bio: 'An online conversation profile used to test always-on nearby discovery.',
     city: 'Bacolor, Pampanga',
     approximateArea: 'Private Bacolor test area',
     latitude: 15.00,
     longitude: 120.66,
-    intro: 'This Friend Host intentionally stays hidden from nearby searches to test the privacy setting.',
+    intro: 'This Companion offers relaxed online conversations and friendly check-ins.',
     strengths: ['Online chat friend', 'Good listener'],
     categories: ['Online conversation'],
     mode: 'both' as const,
@@ -134,14 +134,14 @@ const pampangaHosts = [
   },
 ] as const
 
-export const seedPampangaHosts = internalMutation({
+export const seedPampangaCompanions = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now()
     let created = 0
     let updated = 0
 
-    for (const seed of pampangaHosts) {
+    for (const seed of pampangaCompanions) {
       const clerkUserId = `seed:pampanga:${seed.key}`
       const existingUser = await ctx.db
         .query('users')
@@ -152,7 +152,12 @@ export const seedPampangaHosts = internalMutation({
         username: seed.key.replaceAll('-', '_'),
         displayName: seed.displayName,
         bio: seed.bio,
-        role: 'friend_host' as const,
+        approximateLatitude: seed.latitude,
+        approximateLongitude: seed.longitude,
+        approximateLocationConsentedAt: now,
+        termsAcceptedAt: now,
+        termsVersion: '2026-08-13',
+        role: 'companion' as const,
         verificationStatus: 'approved' as const,
         verificationSource: 'persona' as const,
         identityVerifiedAt: now,
@@ -169,12 +174,12 @@ export const seedPampangaHosts = internalMutation({
             createdAt: now,
           })
 
-      const existingHost = await ctx.db
-        .query('hostProfiles')
+      const existingCompanion = await ctx.db
+        .query('companionProfiles')
         .withIndex('by_user', (q) => q.eq('userId', userId))
         .unique()
 
-      const hostFields = {
+      const companionFields = {
         displayName: seed.displayName,
         intro: seed.intro,
         city: seed.city,
@@ -194,29 +199,29 @@ export const seedPampangaHosts = internalMutation({
         updatedAt: now,
       }
 
-      const hostProfileId = existingHost?._id ?? await ctx.db.insert('hostProfiles', {
+      const companionProfileId = existingCompanion?._id ?? await ctx.db.insert('companionProfiles', {
         userId,
-        ...hostFields,
+        ...companionFields,
         createdAt: now,
       })
 
-      if (existingHost) {
-        await ctx.db.patch(existingHost._id, hostFields)
+      if (existingCompanion) {
+        await ctx.db.patch(existingCompanion._id, companionFields)
         updated += 1
       } else {
         created += 1
       }
 
-      const [user, host] = await Promise.all([ctx.db.get(userId), ctx.db.get(hostProfileId)])
-      if (!host) throw new Error(`Seeded Friend Host profile was not saved: ${seed.key}`)
-      await syncHostLocation(ctx, host, user)
+      const [user, companion] = await Promise.all([ctx.db.get(userId), ctx.db.get(companionProfileId)])
+      if (!companion) throw new Error(`Seeded Companion profile was not saved: ${seed.key}`)
+      await syncCompanionLocation(ctx, companion, user)
     }
 
     return {
       created,
       updated,
-      total: pampangaHosts.length,
-      note: 'Sam is intentionally hidden from nearby search for privacy testing.',
+      total: pampangaCompanions.length,
+      note: 'All eligible approved Companions are indexed using approximate coordinates.',
     }
   },
 })

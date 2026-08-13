@@ -10,6 +10,7 @@ import { ActionButton } from '@/components/ActionButton'
 import { Avatar } from '@/components/Avatar'
 import { BookingCard } from '@/components/BookingCard'
 import { AppText } from '@/components/Typography'
+import { bookingDestinationForViewer } from '@/data/bookingActions'
 import {
   formatFileSize,
   formatMessageTimestamp,
@@ -28,10 +29,10 @@ export default function ConversationThreadScreen() {
   if (member.status === 'demo') return <ThreadState title="Live conversations are unavailable in demo mode" action="Return to Messages" onPress={() => router.replace('/messages')} />
   if (member.status === 'unavailable' || member.status === 'error') return <ThreadState title="This conversation is unavailable" />
   if (member.status !== 'ready') return <ThreadState title="Loading messages" />
-  return <ReadyConversationThreadScreen />
+  return <ReadyConversationThreadScreen viewerId={String(member.viewer._id)} />
 }
 
-function ReadyConversationThreadScreen() {
+function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
   const params = useLocalSearchParams<{ id?: string }>()
   const id = typeof params.id === 'string' ? params.id : ''
   const canRead = Boolean(id)
@@ -101,11 +102,12 @@ function ReadyConversationThreadScreen() {
       error={error}
       onSend={() => void send()}
       listRef={listRef}
+      viewerId={viewerId}
     />
   )
 }
 
-function ThreadView({ conversation, messages, paginationStatus, loadMore, body, setBody, sending, error, onSend, listRef }: {
+function ThreadView({ conversation, messages, paginationStatus, loadMore, body, setBody, sending, error, onSend, listRef, viewerId }: {
   conversation: Conversation
   messages: Message[]
   paginationStatus: 'CanLoadMore' | 'LoadingMore' | 'Exhausted'
@@ -116,6 +118,7 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   error: string
   onSend: () => void
   listRef: React.RefObject<FlatList<Message> | null>
+  viewerId: string
 }) {
   const theme = useAppTheme()
   const counter = messageCounter(body)
@@ -134,7 +137,7 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
           ref={listRef}
           data={chronologicalMessages}
           keyExtractor={(message) => message._id}
-          renderItem={({ item }) => <MessageItem message={item} otherName={conversation.otherDisplayName} />}
+          renderItem={({ item }) => <MessageItem message={item} otherName={conversation.otherDisplayName} viewerId={viewerId} />}
           contentContainerStyle={[styles.messages, messages.length === 0 && styles.messagesEmpty]}
           keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
@@ -170,10 +173,31 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   )
 }
 
-function MessageItem({ message, otherName }: { message: Message; otherName: string }) {
+function MessageItem({ message, otherName, viewerId }: { message: Message; otherName: string; viewerId: string }) {
   const theme = useAppTheme()
   if (message.booking) {
-    return <View style={styles.bookingMessage}>{message.body ? <AppText variant="caption" color={theme.colors.textMuted}>{message.body}</AppText> : null}<BookingCard compact booking={{ id: String(message.booking.bookingId), hostName: message.booking.hostDisplayName, category: message.booking.category, mode: message.booking.mode, requestedAt: message.booking.requestedAt, durationMinutes: message.booking.durationMinutes, status: message.booking.status, memberTotalCentavos: message.booking.memberTotalCentavos }} onPress={() => router.push({ pathname: '/booking/[id]', params: { id: String(message.booking!.bookingId) } })} /></View>
+    const destination = bookingDestinationForViewer(viewerId, {
+      bookingId: String(message.booking.bookingId),
+      memberId: String(message.booking.memberId),
+      companionUserId: message.booking.companionUserId ? String(message.booking.companionUserId) : undefined,
+    })
+    return (
+      <View style={styles.bookingMessage}>
+        {message.body ? <AppText variant="caption" color={theme.colors.textMuted}>{message.body}</AppText> : null}
+        {destination ? (
+          <BookingCard
+            compact
+            booking={{ id: String(message.booking.bookingId), companionName: message.booking.companionDisplayName, category: message.booking.category, mode: message.booking.mode, requestedAt: message.booking.requestedAt, durationMinutes: message.booking.durationMinutes, status: message.booking.status, memberTotalCentavos: message.booking.memberTotalCentavos }}
+            onPress={() => router.push(destination)}
+          />
+        ) : (
+          <View style={[styles.bookingSnapshot, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}>
+            <AppText variant="bodyStrong">{message.booking.category}</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted}>Booking details are not linked because your role in this booking could not be verified.</AppText>
+          </View>
+        )}
+      </View>
+    )
   }
   return (
     <View style={[styles.bubbleWrap, message.sentByViewer ? styles.ownWrap : styles.otherWrap]}>
@@ -216,6 +240,7 @@ const styles = StyleSheet.create({
   attachmentMeta: { borderTopWidth: 1, paddingTop: 6, gap: 1 },
   time: { alignSelf: 'flex-end' },
   bookingMessage: { gap: 8 },
+  bookingSnapshot: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 4 },
   composer: { borderTopWidth: 1, padding: 12, gap: 8 },
   composeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   input: { flex: 1, maxHeight: 112, minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingTop: 12, textAlignVertical: 'top' },

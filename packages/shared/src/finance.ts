@@ -1,18 +1,18 @@
 export const BOOKING_CURRENCY = 'PHP' as const
-export const FRIEND_HOST_COMMISSION_BPS = 1_000
+export const COMPANION_COMMISSION_BPS = 1_000
 export const MEMBER_WALLET_PRICING_MODEL = 'member_wallet_v2' as const
 export const MEMBER_BOOKING_FEE_BPS = 1_500
 export const MEMBER_WALLET_SETTLEMENT_DELAY_MS = 24 * 60 * 60 * 1_000
-export const MIN_HOST_HOURLY_RATE_CENTAVOS = 10_000
-export const MAX_HOST_HOURLY_RATE_CENTAVOS = 1_000_000
+export const MIN_COMPANION_HOURLY_RATE_CENTAVOS = 10_000
+export const MAX_COMPANION_HOURLY_RATE_CENTAVOS = 1_000_000
 export const MIN_BOOKING_DURATION_MINUTES = 15
 export const MAX_BOOKING_DURATION_MINUTES = 12 * 60
 export const MIN_TOP_UP_CENTAVOS = 10_000
 export const MAX_TOP_UP_CENTAVOS = 10_000_000
 
-export function validateHostHourlyRateCentavos(value: number) {
+export function validateCompanionHourlyRateCentavos(value: number) {
   if (!Number.isSafeInteger(value)) throw new Error('Hourly rate must be a whole number of centavos')
-  if (value < MIN_HOST_HOURLY_RATE_CENTAVOS || value > MAX_HOST_HOURLY_RATE_CENTAVOS) {
+  if (value < MIN_COMPANION_HOURLY_RATE_CENTAVOS || value > MAX_COMPANION_HOURLY_RATE_CENTAVOS) {
     throw new Error('Hourly rate must be between ₱100 and ₱10,000')
   }
   return value
@@ -39,9 +39,9 @@ export function validateTopUpCentavos(value: number) {
 export function calculateBookingPrice(
   hourlyRateCentavos: number,
   durationMinutes: number,
-  commissionBps = FRIEND_HOST_COMMISSION_BPS,
+  commissionBps = COMPANION_COMMISSION_BPS,
 ) {
-  validateHostHourlyRateCentavos(hourlyRateCentavos)
+  validateCompanionHourlyRateCentavos(hourlyRateCentavos)
   validateBookingDurationMinutes(durationMinutes)
   if (!Number.isSafeInteger(commissionBps) || commissionBps < 0 || commissionBps > 10_000) {
     throw new Error('Commission rate is invalid')
@@ -55,13 +55,13 @@ export function calculateBookingPrice(
   return { grossPriceCentavos, commissionBps, commissionCentavos, currency: BOOKING_CURRENCY }
 }
 
-/** V2 member-wallet pricing. The legacy cash/host-commission helper above intentionally keeps its original meaning. */
+/** V2 member-wallet pricing. The legacy cash/companion-commission helper above intentionally keeps its original meaning. */
 export function calculateMemberWalletBookingPrice(
   hourlyRateCentavos: number,
   durationMinutes: number,
   memberBookingFeeBps = MEMBER_BOOKING_FEE_BPS,
 ) {
-  validateHostHourlyRateCentavos(hourlyRateCentavos)
+  validateCompanionHourlyRateCentavos(hourlyRateCentavos)
   validateBookingDurationMinutes(durationMinutes)
   if (!Number.isSafeInteger(memberBookingFeeBps) || memberBookingFeeBps < 0 || memberBookingFeeBps > 10_000) {
     throw new Error('Member booking fee rate is invalid')
@@ -79,7 +79,7 @@ export function calculateMemberWalletBookingPrice(
     memberBookingFeeBps,
     memberBookingFeeCentavos,
     memberTotalCentavos,
-    hostEntitlementCentavos: serviceSubtotalCentavos,
+    companionEarningsCentavos: serviceSubtotalCentavos,
     currency: BOOKING_CURRENCY,
   }
 }

@@ -35,7 +35,7 @@ export type CanonicalPaymongoIntent = {
   expiresAt?: number
 }
 
-type TopUpPurpose = 'legacy_host_fee' | 'member_booking_balance'
+type TopUpPurpose = 'legacy_companion_fee' | 'member_booking_balance'
 type TopUpResult = {
   topUpId: Id<'paymongoTopUps'>
   status: 'awaiting_payment' | 'processing'
@@ -47,7 +47,7 @@ type TopUpResult = {
 
 export const createTopUp = action({
   args: { amountCentavos: v.number() },
-  handler: async (ctx, args): Promise<TopUpResult> => createTopUpForPurpose(ctx, args.amountCentavos, 'legacy_host_fee'),
+  handler: async (ctx, args): Promise<TopUpResult> => createTopUpForPurpose(ctx, args.amountCentavos, 'legacy_companion_fee'),
 })
 
 export const createMemberTopUp = action({
@@ -187,26 +187,26 @@ export const prepareTopUp = internalMutation({
     clerkUserId: v.string(),
     amountCentavos: v.number(),
     mode: v.union(v.literal('test'), v.literal('live')),
-    purpose: v.optional(v.union(v.literal('legacy_host_fee'), v.literal('member_booking_balance'))),
+    purpose: v.optional(v.union(v.literal('legacy_companion_fee'), v.literal('member_booking_balance'))),
   },
   handler: async (ctx, args) => {
     validateTopUpCentavos(args.amountCentavos)
     const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId)).unique()
     if (!user) throw new Error('Profile sync required')
     if (user.suspended) throw new Error('Account is suspended')
-    const purpose = args.purpose ?? 'legacy_host_fee'
+    const purpose = args.purpose ?? 'legacy_companion_fee'
     if (purpose === 'member_booking_balance' && !memberWalletV2Enabled()) throw new Error('Member-wallet top-ups are not enabled')
-    if (purpose === 'legacy_host_fee') {
-      const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).first()
-      if (!host || host.status !== 'approved') throw new Error('An approved Friend Host profile is required to top up')
+    if (purpose === 'legacy_companion_fee') {
+      const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).first()
+      if (!companion || companion.status !== 'approved') throw new Error('An approved Companion profile is required to top up')
     }
 
     const now = Date.now()
     const existing = purpose === 'member_booking_balance'
       ? await ctx.db.query('paymongoTopUps').withIndex('by_beneficiary_created_at', (q) => q.eq('beneficiaryUserId', user._id)).order('desc').take(10)
-      : await ctx.db.query('paymongoTopUps').withIndex('by_host_created_at', (q) => q.eq('hostUserId', user._id)).order('desc').take(10)
+      : await ctx.db.query('paymongoTopUps').withIndex('by_companion_created_at', (q) => q.eq('companionUserId', user._id)).order('desc').take(10)
     for (const topUp of existing) {
-      if ((topUp.purpose ?? 'legacy_host_fee') !== purpose) continue
+      if ((topUp.purpose ?? 'legacy_companion_fee') !== purpose) continue
       if (!['creating', 'awaiting_payment', 'processing'].includes(topUp.status)) continue
       if (topUp.status === 'creating' && !topUp.providerIntentId && topUp.createdAt <= now - STALE_CREATION_MS) {
         await ctx.db.patch(topUp._id, { status: 'failed', failedAt: now, failureCode: 'stale_creation', updatedAt: now })
@@ -220,7 +220,7 @@ export const prepareTopUp = internalMutation({
     }
 
     const topUpId = await ctx.db.insert('paymongoTopUps', {
-      hostUserId: purpose === 'legacy_host_fee' ? user._id : undefined,
+      companionUserId: purpose === 'legacy_companion_fee' ? user._id : undefined,
       beneficiaryUserId: user._id,
       purpose,
       amountCentavos: args.amountCentavos,

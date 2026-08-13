@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { findFriendHosts, matchesFriendHostSearch, type SearchableFriendHost } from './discoverySearch'
+import { findCompanions, matchesCompanionSearch, type SearchableCompanion } from './discoverySearch'
 
-const host: SearchableFriendHost = {
+const companion: SearchableCompanion = {
   username: 'maya_makati',
   displayName: 'Maya Santos',
   city: 'Makati',
@@ -11,26 +11,26 @@ const host: SearchableFriendHost = {
   categories: ['Arts and culture', 'Food and cafés'],
 }
 
-describe('Friend Host search', () => {
+describe('Companion search', () => {
   it('matches names, cities, Strengths, and activities without case sensitivity', () => {
-    expect(matchesFriendHostSearch(host, 'maya')).toBe(true)
-    expect(matchesFriendHostSearch(host, 'MAKATI')).toBe(true)
-    expect(matchesFriendHostSearch(host, 'good listener')).toBe(true)
-    expect(matchesFriendHostSearch(host, 'arts culture')).toBe(true)
-    expect(matchesFriendHostSearch(host, '@maya_makati')).toBe(true)
+    expect(matchesCompanionSearch(companion, 'maya')).toBe(true)
+    expect(matchesCompanionSearch(companion, 'MAKATI')).toBe(true)
+    expect(matchesCompanionSearch(companion, 'good listener')).toBe(true)
+    expect(matchesCompanionSearch(companion, 'arts culture')).toBe(true)
+    expect(matchesCompanionSearch(companion, '@maya_makati')).toBe(true)
   })
 
   it('requires every entered term to match the profile', () => {
-    expect(matchesFriendHostSearch(host, 'museum patient')).toBe(true)
-    expect(matchesFriendHostSearch(host, 'museum hiking')).toBe(false)
+    expect(matchesCompanionSearch(companion, 'museum patient')).toBe(true)
+    expect(matchesCompanionSearch(companion, 'museum hiking')).toBe(false)
   })
 
   it('treats an empty query as unfiltered', () => {
-    expect(matchesFriendHostSearch(host, '   ')).toBe(true)
+    expect(matchesCompanionSearch(companion, '   ')).toBe(true)
   })
 
   it('puts an exact unique username match first', () => {
-    const broadMatch = { ...host, username: 'maya_coffee', bio: 'Mentions maya_makati in this profile.' }
-    expect(findFriendHosts([broadMatch, host], '@maya_makati')[0]).toBe(host)
+    const broadMatch = { ...companion, username: 'maya_coffee', bio: 'Mentions maya_makati in this profile.' }
+    expect(findCompanions([broadMatch, companion], '@maya_makati')[0]).toBe(companion)
   })
 })

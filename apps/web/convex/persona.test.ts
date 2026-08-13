@@ -278,20 +278,20 @@ describe('inquiry preparation and legacy enforcement', () => {
 
   it('blocks a legacy manual approval from creating a new booking', async () => {
     const t = createTest()
-    const hostUserId = await insertUser(t, { clerkUserId: 'verified-host', verificationStatus: 'approved' })
+    const companionUserId = await insertUser(t, { clerkUserId: 'verified-companion', verificationStatus: 'approved' })
     const legacyMemberId = await insertUser(t, { clerkUserId: 'legacy-member', verificationStatus: 'approved' })
-    await t.run(async (ctx) => ctx.db.patch(hostUserId, {
+    await t.run(async (ctx) => ctx.db.patch(companionUserId, {
       verificationSource: 'persona',
       identityVerifiedAt: Date.now(),
       identityExpiresAt: Date.now() + 86_400_000,
       updatedAt: Date.now(),
     }))
-    const hostProfileId = await t.run(async (ctx) => {
+    const companionProfileId = await t.run(async (ctx) => {
       const now = Date.now()
-      return await ctx.db.insert('hostProfiles', {
-        userId: hostUserId,
-        displayName: 'Verified host',
-        intro: 'A sufficiently detailed Friend Host introduction for testing.',
+      return await ctx.db.insert('companionProfiles', {
+        userId: companionUserId,
+        displayName: 'Verified companion',
+        intro: 'A sufficiently detailed Companion introduction for testing.',
         city: 'Online',
         strengths: ['Good listener'],
         categories: ['Online conversation'],
@@ -306,7 +306,7 @@ describe('inquiry preparation and legacy enforcement', () => {
     })
 
     await expect(t.withIdentity({ subject: 'legacy-member' }).mutation(api.bookings.createDraft, {
-      hostProfileId,
+      companionProfileId,
       category: 'Online conversation',
       mode: 'online',
       requestedAt: Date.now() + 3_600_000,
@@ -319,11 +319,11 @@ describe('inquiry preparation and legacy enforcement', () => {
 describe('booking identity eligibility', () => {
   it('blocks acceptance and pre-acceptance chat after the member loses eligibility', async () => {
     const t = createTest()
-    const hostUserId = await insertUser(t, { clerkUserId: 'booking-host', role: 'member', verificationStatus: 'approved' })
+    const companionUserId = await insertUser(t, { clerkUserId: 'booking-companion', role: 'member', verificationStatus: 'approved' })
     const memberId = await insertUser(t, { clerkUserId: 'booking-member', verificationStatus: 'approved' })
     await t.run(async (ctx) => {
       const now = Date.now()
-      for (const userId of [hostUserId, memberId]) {
+      for (const userId of [companionUserId, memberId]) {
         await ctx.db.patch(userId, {
           verificationSource: 'persona',
           identityVerifiedAt: now,
@@ -332,12 +332,12 @@ describe('booking identity eligibility', () => {
         })
       }
     })
-    const { hostProfileId, bookingId } = await t.run(async (ctx) => {
+    const { companionProfileId, bookingId } = await t.run(async (ctx) => {
       const now = Date.now()
-      const hostProfileId = await ctx.db.insert('hostProfiles', {
-        userId: hostUserId,
-        displayName: 'Booking host',
-        intro: 'A sufficiently detailed Friend Host introduction for testing.',
+      const companionProfileId = await ctx.db.insert('companionProfiles', {
+        userId: companionUserId,
+        displayName: 'Booking companion',
+        intro: 'A sufficiently detailed Companion introduction for testing.',
         city: 'Online',
         strengths: ['Good listener'],
         categories: ['Online conversation'],
@@ -351,7 +351,7 @@ describe('booking identity eligibility', () => {
       })
       const bookingId = await ctx.db.insert('bookings', {
         memberId,
-        hostProfileId,
+        companionProfileId,
         category: 'Online conversation',
         mode: 'online',
         requestedAt: now + 3_600_000,
@@ -360,14 +360,14 @@ describe('booking identity eligibility', () => {
         createdAt: now,
         updatedAt: now,
       })
-      return { hostProfileId, bookingId }
+      return { companionProfileId, bookingId }
     })
     await t.run(async (ctx) => ctx.db.patch(memberId, {
       identityExpiresAt: Date.now() - 1,
       updatedAt: Date.now(),
     }))
 
-    await expect(t.withIdentity({ subject: 'booking-host' }).mutation(api.bookings.hostDecision, {
+    await expect(t.withIdentity({ subject: 'booking-companion' }).mutation(api.bookings.companionDecision, {
       bookingId,
       decision: 'accepted',
     })).rejects.toThrow(/member must renew identity approval/)
@@ -375,13 +375,13 @@ describe('booking identity eligibility', () => {
       bookingId,
       body: 'Can we still coordinate?',
     })).rejects.toThrow(/Both participants need current identity approval/)
-    await t.withIdentity({ subject: 'booking-host' }).mutation(api.bookings.hostDecision, {
+    await t.withIdentity({ subject: 'booking-companion' }).mutation(api.bookings.companionDecision, {
       bookingId,
       decision: 'declined',
       note: 'Identity renewal required.',
     })
     expect((await t.run(async (ctx) => ctx.db.get(bookingId)))?.status).toBe('declined')
-    expect((await t.run(async (ctx) => ctx.db.get(hostProfileId)))?.status).toBe('approved')
+    expect((await t.run(async (ctx) => ctx.db.get(companionProfileId)))?.status).toBe('approved')
   })
 })
 
@@ -411,16 +411,16 @@ describe('mandatory admin identity review', () => {
     expect(result.user?.identityExpiresAt).toBeGreaterThan(result.user?.identityVerifiedAt ?? 0)
   })
 
-  it('keeps Friend Host profile approval separate from identity approval', async () => {
+  it('keeps Companion profile approval separate from identity approval', async () => {
     const t = createTest()
-    await insertUser(t, { clerkUserId: 'admin-host', role: 'reviewer', verificationStatus: 'not_started' })
-    const applicantId = await insertUser(t, { clerkUserId: 'host-applicant', verificationStatus: 'pending' })
-    const hostProfileId = await t.run(async (ctx) => {
+    await insertUser(t, { clerkUserId: 'admin-companion', role: 'reviewer', verificationStatus: 'not_started' })
+    const applicantId = await insertUser(t, { clerkUserId: 'companion-applicant', verificationStatus: 'pending' })
+    const companionProfileId = await t.run(async (ctx) => {
       const now = Date.now()
-      return await ctx.db.insert('hostProfiles', {
+      return await ctx.db.insert('companionProfiles', {
         userId: applicantId,
-        displayName: 'Host applicant',
-        intro: 'A sufficiently detailed Friend Host introduction for testing.',
+        displayName: 'Companion applicant',
+        intro: 'A sufficiently detailed Companion introduction for testing.',
         city: 'Cebu',
         strengths: ['Good listener'],
         categories: ['Coffee or meal companion'],
@@ -433,10 +433,10 @@ describe('mandatory admin identity review', () => {
         updatedAt: now,
       })
     })
-    const admin = t.withIdentity({ subject: 'admin-host' })
+    const admin = t.withIdentity({ subject: 'admin-companion' })
 
-    await expect(admin.mutation(api.admin.reviewHostApplication, {
-      hostProfileId,
+    await expect(admin.mutation(api.admin.reviewCompanionApplication, {
+      companionProfileId,
       decision: 'approved',
       note: 'Profile review complete.',
     })).rejects.toThrow(/Identity verification must be approved/)
@@ -449,19 +449,19 @@ describe('mandatory admin identity review', () => {
       suspended: true,
       updatedAt: Date.now(),
     }))
-    await expect(admin.mutation(api.admin.reviewHostApplication, {
-      hostProfileId,
+    await expect(admin.mutation(api.admin.reviewCompanionApplication, {
+      companionProfileId,
       decision: 'approved',
       note: 'Profile review complete.',
     })).rejects.toThrow(/suspended member/)
 
     await t.run(async (ctx) => ctx.db.patch(applicantId, { suspended: false, updatedAt: Date.now() }))
-    await admin.mutation(api.admin.reviewHostApplication, {
-      hostProfileId,
+    await admin.mutation(api.admin.reviewCompanionApplication, {
+      companionProfileId,
       decision: 'approved',
       note: 'Profile review complete.',
     })
-    expect((await t.run(async (ctx) => ctx.db.get(hostProfileId)))?.status).toBe('approved')
+    expect((await t.run(async (ctx) => ctx.db.get(companionProfileId)))?.status).toBe('approved')
   })
 
   it('keeps legacy manual requests out of the actionable identity queue', async () => {

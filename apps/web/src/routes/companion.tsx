@@ -9,9 +9,9 @@ import { api } from '../../convex/_generated/api'
 import { WorkspaceShell } from '../components/AppShell'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
 
-export const Route = createFileRoute('/host')({ component: HostWorkspacePage })
+export const Route = createFileRoute('/companion')({ component: CompanionWorkspacePage })
 
-type HostBookingStatus =
+type CompanionBookingStatus =
   | 'verification_required'
   | 'pending_admin_review'
   | 'request_sent'
@@ -22,7 +22,7 @@ type HostBookingStatus =
   | 'review_window'
   | 'closed'
 
-const statusCopy: Record<HostBookingStatus, { label: string; tone: 'self' | 'social' | 'success' | 'warning' | 'danger' }> = {
+const statusCopy: Record<CompanionBookingStatus, { label: string; tone: 'self' | 'social' | 'success' | 'warning' | 'danger' }> = {
   verification_required: { label: 'Verification required', tone: 'warning' },
   pending_admin_review: { label: 'Pending safety review', tone: 'warning' },
   request_sent: { label: 'Needs decision', tone: 'social' },
@@ -34,25 +34,25 @@ const statusCopy: Record<HostBookingStatus, { label: string; tone: 'self' | 'soc
   closed: { label: 'Closed', tone: 'self' },
 }
 
-function HostWorkspacePage() {
+function CompanionWorkspacePage() {
   const { isSignedIn } = useAuth()
   const viewer = useQuery(api.users.viewer)
-  const application = useQuery(api.hosts.myApplication)
-  const bookings = useQuery(api.bookings.forHost, viewer ? {} : 'skip')
+  const application = useQuery(api.companions.myApplication)
+  const bookings = useQuery(api.bookings.forCompanion, viewer ? {} : 'skip')
   const finance = useQuery(api.finance.dashboard, viewer ? {} : 'skip')
-  const decide = useMutation(api.bookings.hostDecision)
+  const decide = useMutation(api.bookings.companionDecision)
   const cancelBooking = useMutation(api.bookings.cancel)
   const complete = useMutation(api.bookings.markCompleted)
   const submitReview = useMutation(api.reviews.submit)
   const report = useMutation(api.reports.create)
-  const updateHourlyRate = useMutation(api.hosts.updateHourlyRate)
+  const updateHourlyRate = useMutation(api.companions.updateHourlyRate)
   const createTopUp = useAction(api.paymongo.createTopUp)
   const [notice, setNotice] = useState('')
 
   if (!isSignedIn) {
     return (
       <main className="marketing-page">
-        <h1 className="text-h1 mt-2">Sign in to manage your hosting.</h1>
+        <h1 className="text-h1 mt-2">Sign in to manage your Companion profile.</h1>
         <div className="mt-6">
           <SignInButton mode="modal">
             <button className="btn btn-self">Sign in</button>
@@ -68,11 +68,11 @@ function HostWorkspacePage() {
 
   return (
     <WorkspaceShell
-      variant="hosting"
-      title="Your hosting"
+      variant="companion"
+      title="Your Companion space"
       status={
         <span className="workspace-status-item">
-          <span>Host profile</span>
+          <span>Companion profile</span>
           <span className="status-pill" data-tone={application ? statusTone(application.status) : 'self'}>
             {application?.status ?? 'Not started'}
           </span>
@@ -95,7 +95,7 @@ function HostWorkspacePage() {
       rail={
         <>
           <div className="rail-section">
-            <div className="rail-section-title">Hosting</div>
+            <div className="rail-section-title">Companion tools</div>
             <a href="#requests" className="rail-link is-active">
               <span>Incoming requests</span>
               <span className="rail-link-count tabular">{pendingCount}</span>
@@ -114,8 +114,8 @@ function HostWorkspacePage() {
           </div>
           <div className="rail-section">
             <div className="rail-section-title">Setup</div>
-            <Link to="/become-host" className="rail-link">
-              <span>Edit hosting profile</span>
+            <Link to="/become-companion" className="rail-link">
+              <span>Edit companion profile</span>
             </Link>
             <Link to="/safety" className="rail-link">
               <span>How safety works</span>
@@ -139,9 +139,9 @@ function HostWorkspacePage() {
         {!viewer && <div className="empty-state">Loading your profile…</div>}
         {viewer && !application && (
           <div className="empty-state">
-            <p className="empty-state-title">Your hosting profile is ready to begin.</p>
+            <p className="empty-state-title">Your companion profile is ready to begin.</p>
             <p className="text-meta max-w-[44ch]">Share what you enjoy, set your boundaries, and send the profile for review.</p>
-            <Link to="/become-host" className="btn btn-self btn-sm mt-3">Create hosting profile</Link>
+            <Link to="/become-companion" className="btn btn-self btn-sm mt-3">Create companion profile</Link>
           </div>
         )}
         {application && (
@@ -158,7 +158,7 @@ function HostWorkspacePage() {
                     <span>{application.reviewCount} reviews</span>
                   </div>
                 </div>
-                <Link to="/become-host" className="btn btn-self btn-sm">Edit</Link>
+                <Link to="/become-companion" className="btn btn-self btn-sm">Edit</Link>
               </div>
               <p className="text-body muted max-w-[72ch]">{application.intro}</p>
             </article>
@@ -201,19 +201,19 @@ function HostWorkspacePage() {
               {bookings
                 .filter((booking) => ['request_sent', 'accepted', 'verification_required', 'pending_admin_review'].includes(booking.status))
                 .map((booking) => (
-                  <HostBookingRow
+                  <CompanionBookingRow
                     key={booking._id}
                     booking={booking}
                     onAccept={async () => {
-                      await decide({ bookingId: booking._id, decision: 'accepted', note: 'Accepted by Friend Host.' })
+                      await decide({ bookingId: booking._id, decision: 'accepted', note: 'Accepted by Companion.' })
                       setNotice('Booking accepted. Chat is open for safe coordination.')
                     }}
                     onDecline={async () => {
-                      await decide({ bookingId: booking._id, decision: 'declined', note: 'Declined by Friend Host.' })
+                      await decide({ bookingId: booking._id, decision: 'declined', note: 'Declined by Companion.' })
                       setNotice('Booking declined.')
                     }}
                     onCancel={async () => {
-                      await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by Friend Host.' })
+                      await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by Companion.' })
                       setNotice('Booking cancelled.')
                     }}
                     onComplete={async () => {
@@ -227,7 +227,7 @@ function HostWorkspacePage() {
                       setNotice('Review submitted.')
                     }}
                     onReport={async () => {
-                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Host flagged this booking for safety review' })
+                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Companion flagged this booking for safety review' })
                       setNotice('Report sent to safety review.')
                     }}
                   />
@@ -248,13 +248,13 @@ function HostWorkspacePage() {
               {bookings
                 .filter((booking) => ['declined', 'cancelled', 'completed', 'review_window', 'closed'].includes(booking.status))
                 .map((booking) => (
-                  <HostBookingRow
+                  <CompanionBookingRow
                     key={booking._id}
                     booking={booking}
                     onAccept={async () => undefined}
                     onDecline={async () => undefined}
                     onCancel={async () => {
-                      await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by Friend Host.' })
+                      await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by Companion.' })
                       setNotice('Booking cancelled.')
                     }}
                     onComplete={async () => {
@@ -268,7 +268,7 @@ function HostWorkspacePage() {
                       setNotice('Review submitted.')
                     }}
                     onReport={async () => {
-                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Host flagged this booking for safety review' })
+                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Companion flagged this booking for safety review' })
                       setNotice('Report sent to safety review.')
                     }}
                   />
@@ -281,7 +281,7 @@ function HostWorkspacePage() {
   )
 }
 
-type HostApplication = NonNullable<ReturnType<typeof useQuery<typeof api.hosts.myApplication>>>
+type CompanionApplication = NonNullable<ReturnType<typeof useQuery<typeof api.companions.myApplication>>>
 type FinanceDashboard = NonNullable<ReturnType<typeof useQuery<typeof api.finance.dashboard>>>
 
 function FinancePanel({
@@ -290,7 +290,7 @@ function FinancePanel({
   onUpdateRate,
   onCreateTopUp,
 }: {
-  application: HostApplication
+  application: CompanionApplication
   finance: FinanceDashboard | null | undefined
   onUpdateRate: (hourlyRateCentavos: number) => Promise<void>
   onCreateTopUp: (amountCentavos: number) => Promise<void>
@@ -309,7 +309,7 @@ function FinancePanel({
       <header className="flex items-baseline justify-between gap-3 mb-3">
         <div>
           <h2 className="text-h2">Earnings and legacy fee balance</h2>
-          <p className="text-meta mt-1">Track member-wallet earnings and keep older host-fee obligations funded separately.</p>
+          <p className="text-meta mt-1">Track member-wallet earnings and keep older companion-fee obligations funded separately.</p>
         </div>
         {finance && (
           <span className="status-pill" data-tone={finance.pastDueCentavos > 0 ? 'danger' : 'success'}>
@@ -324,7 +324,7 @@ function FinancePanel({
         <div className="panel p-5 space-y-5">
           <div>
             <div className="flex items-baseline justify-between gap-3">
-              <div><p className="text-h3">Member-wallet earnings</p><p className="text-meta mt-1">Friend Host entitlement is 100% of each listed service subtotal.</p></div>
+              <div><p className="text-h3">Member-wallet earnings</p><p className="text-meta mt-1">Companion entitlement is 100% of each listed service subtotal.</p></div>
               <span className="status-pill" data-tone="self">Internal balance</span>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 mt-3">
@@ -475,9 +475,9 @@ function formatManilaDate(timestamp: number) {
   }).format(timestamp)
 }
 
-type HostBooking = NonNullable<ReturnType<typeof useQuery<typeof api.bookings.forHost>>>[number]
+type CompanionBooking = NonNullable<ReturnType<typeof useQuery<typeof api.bookings.forCompanion>>>[number]
 
-function HostBookingRow({
+function CompanionBookingRow({
   booking,
   onAccept,
   onDecline,
@@ -486,7 +486,7 @@ function HostBookingRow({
   onReview,
   onReport,
 }: {
-  booking: HostBooking
+  booking: CompanionBooking
   onAccept: () => Promise<void>
   onDecline: () => Promise<void>
   onCancel: () => Promise<void>
@@ -494,7 +494,7 @@ function HostBookingRow({
   onReview: (rating: number, body?: string) => Promise<void>
   onReport: () => Promise<void>
 }) {
-  const status = statusCopy[booking.status as HostBookingStatus] ?? { label: booking.status, tone: 'self' as const }
+  const status = statusCopy[booking.status as CompanionBookingStatus] ?? { label: booking.status, tone: 'self' as const }
   const canDecide = booking.status === 'request_sent'
   const canCancel = canCancelBooking(booking.status)
   const canComplete = canCompleteBooking(booking.status)
@@ -522,7 +522,7 @@ function HostBookingRow({
 
       {booking.pricingModel === 'member_wallet_v2' && booking.memberTotalCentavos !== undefined ? (
         <p className="text-meta">
-          Your entitlement: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.hostEntitlementCentavos ?? 0)}</strong>
+          Your entitlement: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.companionEarningsCentavos ?? 0)}</strong>
           {' · '}Member total {formatPhp(booking.memberTotalCentavos)} includes the service fee paid by the member.
           {booking.settlementState === 'blocked' && ' Settlement is blocked for full-admin resolution.'}
         </p>
@@ -546,8 +546,8 @@ function HostBookingRow({
             <button onClick={onDecline} className="btn btn-danger btn-sm">Decline</button>
           </>
         )}
-        {canComplete && !booking.hostCompletedAt && <button onClick={onComplete} className="btn btn-neutral btn-sm">Confirm completion</button>}
-        {canComplete && booking.hostCompletedAt && <span className="text-meta">You confirmed completion · waiting for member</span>}
+        {canComplete && !booking.companionCompletedAt && <button onClick={onComplete} className="btn btn-neutral btn-sm">Confirm completion</button>}
+        {canComplete && booking.companionCompletedAt && <span className="text-meta">You confirmed completion · waiting for member</span>}
         {canReview && <ReviewForm onReview={onReview} />}
         {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
         {canCancel && <button type="button" onClick={onCancel} className="btn btn-danger btn-sm">Cancel booking</button>}

@@ -108,7 +108,7 @@ export function BookingRequestFields(props: Props) {
       </label>
 
       <label className="field-row">
-        <span className="label">Anything you would like them to know? <span className="label-aux">shared with the Friend Host</span></span>
+        <span className="label">Anything you would like them to know? <span className="label-aux">shared with the Companion</span></span>
         <textarea name="notes" className="field min-h-20" value={notes} onChange={(event) => onNotesChange(event.currentTarget.value)} placeholder="Share what you have in mind, what would make the time comfortable, or any useful context." disabled={disabled} />
       </label>
 
@@ -117,7 +117,7 @@ export function BookingRequestFields(props: Props) {
           <span className="notice-icon">₱</span>
           <span>
             Estimated booking total: <strong className="tabular">{formatPhp(estimate.memberTotalCentavos)}</strong>
-            {' · '}Includes service fee. This does not charge your balance. The amount is reserved from your wallet only if the Friend Host accepts.
+            {' · '}Includes service fee. This does not charge your balance. The amount is reserved from your wallet only if the Companion accepts.
           </span>
         </div>
       )}

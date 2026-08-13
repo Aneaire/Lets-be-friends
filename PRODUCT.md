@@ -6,11 +6,11 @@ product
 
 ## Users
 
-Let's Be Friends serves adults who want safe friendly companionship, online conversations, local activities, and shared experiences. Primary users are members looking for Friend Hosts, Friend Hosts who offer approved activities, and admin reviewers who keep verification, moderation, and booking safety moving.
+Let's Be Friends serves adults who want safe friendly companionship, online conversations, local activities, and shared experiences. Primary users are members looking for Companions, Companions who offer approved activities, and admin reviewers who keep verification, moderation, and booking safety moving.
 
 ## Product Purpose
 
-The product is a trust-first friend hosting and booking app. It helps members discover approved Friend Hosts by strengths, safe categories, availability, and location while keeping identity checks, admin approval, location privacy, and reporting visible in the flow.
+The product is a trust-first Companion discovery and booking app. It helps members discover approved Companions by strengths, safe categories, availability, and location while keeping identity checks, admin approval, location privacy, and reporting visible in the flow.
 
 Success means people can understand who they are interacting with, what kind of interaction they are starting, and which trust gate applies before a booking or social action proceeds.
 

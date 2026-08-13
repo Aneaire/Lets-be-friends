@@ -110,10 +110,10 @@ function ReportsPage() {
                       {report.canResolveBlockedFunds && (
                         <div className="admin-action-stack">
                           <ActionNote
-                            label="Release to host/platform"
+                            label="Release to companion/platform"
                             submitLabel="Release blocked funds"
                             requireNote
-                            onSubmit={(note) => resolveBlockedFunds({ bookingId: report.bookingId!, resolution: 'release_to_host', note: note! })}
+                            onSubmit={(note) => resolveBlockedFunds({ bookingId: report.bookingId!, resolution: 'release_to_companion', note: note! })}
                           />
                           <ActionNote
                             label="Return to member"
@@ -159,11 +159,11 @@ function ReportsPage() {
                                 }
                               }}
                             >
-                              View {evidence.role === 'host_start' ? 'host start' : 'member end'} image
+                              View {evidence.role === 'companion_start' ? 'companion start' : 'member end'} image
                             </button>
                           ) : (
                             <span key={evidence.role} className="status-pill" data-tone="warning">
-                              {evidence.role === 'host_start' ? 'Host start' : 'Member end'} skipped
+                              {evidence.role === 'companion_start' ? 'Companion start' : 'Member end'} skipped
                             </span>
                           ))}
                         </div>

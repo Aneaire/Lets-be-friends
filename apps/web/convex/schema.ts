@@ -3,7 +3,7 @@ import { v } from 'convex/values'
 
 const role = v.union(
   v.literal('member'),
-  v.literal('friend_host'),
+  v.literal('companion'),
   v.literal('reviewer'),
   v.literal('admin'),
   // Accepted only until existing owner records are migrated to admin.
@@ -51,7 +51,7 @@ const identityDocumentType = v.union(
   v.literal('other_government_id'),
 )
 const identityFieldSignal = v.union(v.literal('high'), v.literal('medium'), v.literal('low'), v.literal('needs_review'))
-const hostStatus = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'))
+const companionStatus = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'))
 const bookingStatus = v.union(v.literal('draft'), v.literal('verification_required'), v.literal('pending_admin_review'), v.literal('request_sent'), v.literal('accepted'), v.literal('declined'), v.literal('cancelled'), v.literal('completed'), v.literal('review_window'), v.literal('closed'))
 const mode = v.union(v.literal('online'), v.literal('in_person'), v.literal('both'))
 const paymongoMode = v.union(v.literal('test'), v.literal('live'))
@@ -65,7 +65,7 @@ const topUpStatus = v.union(
 )
 const ledgerEntryKind = v.union(v.literal('top_up_credit'), v.literal('commission_collection'))
 const walletBucket = v.union(v.literal('available'), v.literal('reserved'), v.literal('pending'))
-const walletAccountType = v.union(v.literal('member_booking'), v.literal('host_earnings'), v.literal('platform_revenue'))
+const walletAccountType = v.union(v.literal('member_booking'), v.literal('companion_earnings'), v.literal('platform_revenue'))
 const walletTransactionKind = v.union(
   v.literal('paymongo_member_credit'),
   v.literal('test_member_credit'),
@@ -84,7 +84,7 @@ const bookingSettlementState = v.union(
   v.literal('settled'),
   v.literal('refunded'),
 )
-const evidenceRole = v.union(v.literal('host_start'), v.literal('member_end'))
+const evidenceRole = v.union(v.literal('companion_start'), v.literal('member_end'))
 const postMedia = v.object({
   storageId: v.id('_storage'),
   kind: v.union(v.literal('image'), v.literal('video')),
@@ -107,11 +107,11 @@ const feedSource = v.union(
   v.literal('trending'),
   v.literal('recent'),
   v.literal('exploration'),
-  v.literal('host_fallback'),
+  v.literal('companion_fallback'),
   v.literal('first_party_guidance'),
 )
 const feedAction = v.union(
-  v.literal('open_host'),
+  v.literal('open_companion'),
   v.literal('open_guidance'),
   v.literal('comment'),
   v.literal('like'),
@@ -133,8 +133,13 @@ export default defineSchema({
     profileImageStorageId: v.optional(v.id('_storage')),
     profileImageUrl: v.optional(v.string()),
     bio: v.optional(v.string()),
-    onboardingGoal: v.optional(v.union(v.literal('member'), v.literal('friend_host'))),
+    onboardingGoal: v.optional(v.union(v.literal('member'), v.literal('companion'))),
     onboardingCompletedAt: v.optional(v.number()),
+    approximateLatitude: v.optional(v.number()),
+    approximateLongitude: v.optional(v.number()),
+    approximateLocationConsentedAt: v.optional(v.number()),
+    termsAcceptedAt: v.optional(v.number()),
+    termsVersion: v.optional(v.string()),
     role,
     verificationStatus,
     verificationSource: v.optional(verificationSource),
@@ -150,7 +155,7 @@ export default defineSchema({
     .index('by_role', ['role']),
   verificationRequests: defineTable({
     userId: v.id('users'),
-    reason: v.union(v.literal('member'), v.literal('booking'), v.literal('host_application'), v.literal('reverification')),
+    reason: v.union(v.literal('member'), v.literal('booking'), v.literal('companion_application'), v.literal('reverification')),
     personaInquiryId: v.optional(v.string()),
     personaAccountId: v.optional(v.string()),
     personaTemplateId: v.optional(v.string()),
@@ -173,7 +178,7 @@ export default defineSchema({
     supersededAt: v.optional(v.number()),
     providerFailureCode: v.optional(v.string()),
     bookingId: v.optional(v.id('bookings')),
-    hostProfileId: v.optional(v.id('hostProfiles')),
+    companionProfileId: v.optional(v.id('companionProfiles')),
     reviewerUserId: v.optional(v.id('users')),
     reviewerNote: v.optional(v.string()),
     createdAt: v.number(),
@@ -186,11 +191,11 @@ export default defineSchema({
     .index('by_admin_status', ['adminStatus'])
     .index('by_reason_admin_status', ['reason', 'adminStatus'])
     .index('by_booking', ['bookingId'])
-    .index('by_host_profile', ['hostProfileId']),
+    .index('by_companion_profile', ['companionProfileId']),
   identityRecords: defineTable({
     userId: v.id('users'),
     verificationRequestId: v.optional(v.id('verificationRequests')),
-    reason: v.union(v.literal('member'), v.literal('booking'), v.literal('host_application'), v.literal('reverification')),
+    reason: v.union(v.literal('member'), v.literal('booking'), v.literal('companion_application'), v.literal('reverification')),
     source: v.literal('in_app'),
     stage: identityRecordStage,
     selectedIdType: identityDocumentType,
@@ -277,7 +282,7 @@ export default defineSchema({
     processedAt: v.number(),
     outcome: v.union(v.literal('processed'), v.literal('duplicate'), v.literal('ignored')),
   }).index('by_event_id', ['eventId']).index('by_inquiry_id', ['inquiryId']),
-  hostProfiles: defineTable({
+  companionProfiles: defineTable({
     userId: v.id('users'),
     displayName: v.string(),
     intro: v.string(),
@@ -290,9 +295,9 @@ export default defineSchema({
     categories: v.array(v.string()),
     boundaries: v.array(v.string()),
     mode,
-    // Optional so existing/demo Friend Host records remain readable. New cash bookings require it.
+    // Optional so existing/demo Companion records remain readable. New cash bookings require it.
     hourlyRateCentavos: v.optional(v.number()),
-    status: hostStatus,
+    status: companionStatus,
     applicationNote: v.optional(v.string()),
     reviewerUserId: v.optional(v.id('users')),
     reviewerNote: v.optional(v.string()),
@@ -306,7 +311,7 @@ export default defineSchema({
     .index('by_nearby_status_mode', ['status', 'nearbyDiscoveryEnabled', 'mode']),
   bookings: defineTable({
     memberId: v.id('users'),
-    hostProfileId: v.id('hostProfiles'),
+    companionProfileId: v.id('companionProfiles'),
     category: v.string(),
     mode: v.union(v.literal('online'), v.literal('in_person')),
     requestedAt: v.number(),
@@ -326,17 +331,17 @@ export default defineSchema({
     memberBookingFeeBps: v.optional(v.number()),
     memberBookingFeeCentavos: v.optional(v.number()),
     memberTotalCentavos: v.optional(v.number()),
-    hostEntitlementCentavos: v.optional(v.number()),
+    companionEarningsCentavos: v.optional(v.number()),
     settlementState: v.optional(bookingSettlementState),
     settlementEligibleAt: v.optional(v.number()),
     settlementBlockedAt: v.optional(v.number()),
     settlementResolvedAt: v.optional(v.number()),
     settlementResolution: v.optional(v.union(v.literal('released'), v.literal('returned_to_member'))),
     memberCompletedAt: v.optional(v.number()),
-    hostCompletedAt: v.optional(v.number()),
+    companionCompletedAt: v.optional(v.number()),
     jointlyCompletedAt: v.optional(v.number()),
     verificationRequestId: v.optional(v.id('verificationRequests')),
-    hostDecisionNote: v.optional(v.string()),
+    companionDecisionNote: v.optional(v.string()),
     cancelledByUserId: v.optional(v.id('users')),
     cancelledAt: v.optional(v.number()),
     cancellationReason: v.optional(v.string()),
@@ -344,13 +349,13 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_member', ['memberId'])
-    .index('by_host', ['hostProfileId'])
+    .index('by_companion', ['companionProfileId'])
     .index('by_status', ['status'])
     .index('by_settlement_state_eligible_at', ['settlementState', 'settlementEligibleAt']),
   commissionObligations: defineTable({
     bookingId: v.id('bookings'),
-    hostUserId: v.id('users'),
-    hostProfileId: v.id('hostProfiles'),
+    companionUserId: v.id('users'),
+    companionProfileId: v.id('companionProfiles'),
     amountCentavos: v.number(),
     currency: v.literal('PHP'),
     commissionBps: v.number(),
@@ -358,11 +363,11 @@ export default defineSchema({
     accruedAt: v.number(),
   })
     .index('by_booking', ['bookingId'])
-    .index('by_host', ['hostUserId'])
+    .index('by_companion', ['companionUserId'])
     .index('by_due_at', ['dueAt'])
-    .index('by_host_due_at', ['hostUserId', 'dueAt']),
+    .index('by_companion_due_at', ['companionUserId', 'dueAt']),
   platformFeeLedger: defineTable({
-    hostUserId: v.id('users'),
+    companionUserId: v.id('users'),
     direction: v.union(v.literal('credit'), v.literal('debit')),
     amountCentavos: v.number(),
     currency: v.literal('PHP'),
@@ -372,8 +377,8 @@ export default defineSchema({
     idempotencyKey: v.string(),
     createdAt: v.number(),
   })
-    .index('by_host', ['hostUserId'])
-    .index('by_host_created_at', ['hostUserId', 'createdAt'])
+    .index('by_companion', ['companionUserId'])
+    .index('by_companion_created_at', ['companionUserId', 'createdAt'])
     .index('by_obligation', ['obligationId'])
     .index('by_top_up', ['topUpId'])
     .index('by_idempotency_key', ['idempotencyKey']),
@@ -415,9 +420,9 @@ export default defineSchema({
     .index('by_transaction', ['transactionId'])
     .index('by_account_created_at', ['accountId', 'createdAt']),
   paymongoTopUps: defineTable({
-    hostUserId: v.optional(v.id('users')),
+    companionUserId: v.optional(v.id('users')),
     beneficiaryUserId: v.optional(v.id('users')),
-    purpose: v.optional(v.union(v.literal('legacy_host_fee'), v.literal('member_booking_balance'))),
+    purpose: v.optional(v.union(v.literal('legacy_companion_fee'), v.literal('member_booking_balance'))),
     amountCentavos: v.number(),
     currency: v.literal('PHP'),
     mode: paymongoMode,
@@ -435,8 +440,8 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index('by_host', ['hostUserId'])
-    .index('by_host_created_at', ['hostUserId', 'createdAt'])
+    .index('by_companion', ['companionUserId'])
+    .index('by_companion_created_at', ['companionUserId', 'createdAt'])
     .index('by_beneficiary_created_at', ['beneficiaryUserId', 'createdAt'])
     .index('by_provider_intent_id', ['providerIntentId'])
     .index('by_status', ['status'])
@@ -545,7 +550,7 @@ export default defineSchema({
     bookingId: v.id('bookings'),
     reviewerId: v.id('users'),
     revieweeId: v.id('users'),
-    hostProfileId: v.optional(v.id('hostProfiles')),
+    companionProfileId: v.optional(v.id('companionProfiles')),
     rating: v.number(),
     body: v.optional(v.string()),
     hidden: v.optional(v.boolean()),
@@ -553,7 +558,7 @@ export default defineSchema({
     moderatorNote: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
-  }).index('by_booking', ['bookingId']).index('by_booking_reviewer', ['bookingId', 'reviewerId']).index('by_host_profile', ['hostProfileId']).index('by_reviewee', ['revieweeId']),
+  }).index('by_booking', ['bookingId']).index('by_booking_reviewer', ['bookingId', 'reviewerId']).index('by_companion_profile', ['companionProfileId']).index('by_reviewee', ['revieweeId']),
   posts: defineTable({
     authorId: v.id('users'),
     body: v.string(),
@@ -608,14 +613,14 @@ export default defineSchema({
   }).index('by_user', ['userId']).index('by_review', ['reviewId']).index('by_pair', ['userId', 'reviewId']),
   savedProfiles: defineTable({
     userId: v.id('users'),
-    hostProfileId: v.id('hostProfiles'),
+    companionProfileId: v.id('companionProfiles'),
     createdAt: v.number(),
-  }).index('by_user', ['userId']).index('by_host_profile', ['hostProfileId']).index('by_pair', ['userId', 'hostProfileId']),
+  }).index('by_user', ['userId']).index('by_companion_profile', ['companionProfileId']).index('by_pair', ['userId', 'companionProfileId']),
   feedEvents: defineTable({
     userId: v.id('users'),
     sessionId: v.string(),
     itemKey: v.string(),
-    itemType: v.union(v.literal('post'), v.literal('host'), v.literal('guidance')),
+    itemType: v.union(v.literal('post'), v.literal('companion'), v.literal('guidance')),
     source: feedSource,
     surface: feedSurface,
     algorithmVersion: v.string(),

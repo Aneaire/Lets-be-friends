@@ -2,7 +2,7 @@ import { internalMutation } from './_generated/server'
 import { v } from 'convex/values'
 import { USERNAME_MAX_LENGTH, usernameBaseFromDisplayName } from '@lets-be-friends/shared'
 import { writeAudit } from './lib'
-import { syncHostLocation } from './hostLocations'
+import { syncCompanionLocation } from './companionLocations'
 
 export const migrateOwnerRoles = internalMutation({
   args: {},
@@ -28,22 +28,22 @@ export const migrateOwnerRoles = internalMutation({
   },
 })
 
-export const backfillHostLocationIndex = internalMutation({
+export const backfillCompanionLocationIndex = internalMutation({
   args: {
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(Math.floor(args.limit ?? 25), 1), 50)
-    const page = await ctx.db.query('hostProfiles').paginate({
+    const page = await ctx.db.query('companionProfiles').paginate({
       cursor: args.cursor ?? null,
       numItems: limit,
     })
     const outcomes = []
 
-    for (const host of page.page) {
-      const user = await ctx.db.get(host.userId)
-      outcomes.push(await syncHostLocation(ctx, host, user))
+    for (const companion of page.page) {
+      const user = await ctx.db.get(companion.userId)
+      outcomes.push(await syncCompanionLocation(ctx, companion, user))
     }
 
     return {

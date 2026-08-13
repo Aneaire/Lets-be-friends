@@ -12,7 +12,7 @@ const MAX_EVIDENCE_UPLOADS_PER_DAY = 6
 const PURGE_BATCH_SIZE = 50
 const TERMINAL_PURGE_AFTER = Number.MAX_SAFE_INTEGER
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
-const evidenceRole = v.union(v.literal('host_start'), v.literal('member_end'))
+const evidenceRole = v.union(v.literal('companion_start'), v.literal('member_end'))
 
 export const status = query({
   args: { bookingId: v.id('bookings') },
@@ -193,8 +193,8 @@ export const authorizeAdminEvidenceRead = internalMutation({
     if (report.status !== 'open' && report.status !== 'reviewing') throw new Error('Evidence access requires an active booking report')
     const booking = await ctx.db.get(report.bookingId)
     if (!booking) throw new Error('Booking not found')
-    const host = await ctx.db.get(booking.hostProfileId)
-    if (booking.memberId === reviewer._id || host?.userId === reviewer._id) {
+    const companion = await ctx.db.get(booking.companionProfileId)
+    if (booking.memberId === reviewer._id || companion?.userId === reviewer._id) {
       throw new Error('A booking participant cannot use admin access to view counterpart evidence')
     }
     const decision = await ctx.db.query('bookingEvidenceDecisions')
@@ -269,8 +269,8 @@ async function requireEvidenceParticipant(ctx: { db: any }, bookingId: Id<'booki
   const booking = await ctx.db.get(bookingId) as Doc<'bookings'> | null
   if (!booking) throw new Error('Booking not found')
   if (booking.pricingModel !== MEMBER_WALLET_PRICING_MODEL) throw new Error('Optional booking evidence is available only for member-wallet bookings')
-  const host = await ctx.db.get(booking.hostProfileId)
-  if (host?.userId === userId) return { booking, role: 'host_start' as const }
+  const companion = await ctx.db.get(booking.companionProfileId)
+  if (companion?.userId === userId) return { booking, role: 'companion_start' as const }
   if (booking.memberId === userId) return { booking, role: 'member_end' as const }
   throw new Error('Not your booking')
 }

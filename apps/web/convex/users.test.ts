@@ -4,6 +4,7 @@ import { api, internal } from './_generated/api'
 import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
+const termsVersion = '2026-08-13'
 
 async function insertUser(t: ReturnType<typeof convexTest>, clerkUserId: string, displayName: string, username?: string) {
   return await t.run(async (ctx) => {
@@ -21,7 +22,7 @@ async function insertUser(t: ReturnType<typeof convexTest>, clerkUserId: string,
   })
 }
 
-describe('usernames', () => {
+describe('usernames and onboarding', () => {
   it('normalizes claims and enforces uniqueness server-side', async () => {
     const t = convexTest(schema, modules)
     const firstUserId = await insertUser(t, 'first-user', 'Maya Santos')
@@ -44,13 +45,63 @@ describe('usernames', () => {
     })).rejects.toThrow('permanent and cannot be changed')
   })
 
-  it('requires a username before onboarding can be completed', async () => {
+  it('rejects onboarding completion without username, location, or consent metadata', async () => {
     const t = convexTest(schema, modules)
     await insertUser(t, 'new-user', 'New Friend')
+    const authenticated = t.withIdentity({ subject: 'new-user' })
 
-    await expect(t.withIdentity({ subject: 'new-user' }).mutation(api.users.completeOnboarding, {
-      goal: 'member',
-    })).rejects.toThrow('Choose a username')
+    await expect(authenticated.mutation(api.users.completeOnboarding, { goal: 'member' }))
+      .rejects.toThrow('Choose a username')
+    await authenticated.mutation(api.users.claimUsername, { username: 'new_friend' })
+    await expect(authenticated.mutation(api.users.completeOnboarding, { goal: 'member' }))
+      .rejects.toThrow('Save an approximate location')
+    await expect(authenticated.mutation(api.users.saveOnboardingLocationAndConsent, {
+      latitude: 10.31,
+      longitude: 123.89,
+      locationConsent: false,
+      termsAccepted: true,
+      termsVersion,
+    })).rejects.toThrow('Consent')
+    await expect(authenticated.mutation(api.users.saveOnboardingLocationAndConsent, {
+      latitude: 10.31,
+      longitude: 123.89,
+      locationConsent: true,
+      termsAccepted: false,
+      termsVersion,
+    })).rejects.toThrow('Terms and Conditions')
+    await expect(authenticated.mutation(api.users.saveOnboardingLocationAndConsent, {
+      latitude: 10.31,
+      longitude: 123.89,
+      locationConsent: true,
+      termsAccepted: true,
+      termsVersion: 'outdated',
+    })).rejects.toThrow('current Terms and Conditions')
+  })
+
+  it('rounds onboarding coordinates and records consent, terms, and completion', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await insertUser(t, 'complete-user', 'Complete User', 'complete_user')
+    const authenticated = t.withIdentity({ subject: 'complete-user' })
+
+    await authenticated.mutation(api.users.saveOnboardingLocationAndConsent, {
+      latitude: 10.315699,
+      longitude: 123.885437,
+      locationConsent: true,
+      termsAccepted: true,
+      termsVersion,
+    })
+    await authenticated.mutation(api.users.completeOnboarding, { goal: 'companion' })
+
+    const user = await t.run(async (ctx) => await ctx.db.get(userId))
+    expect(user).toMatchObject({
+      approximateLatitude: 10.32,
+      approximateLongitude: 123.89,
+      onboardingGoal: 'companion',
+      termsVersion,
+    })
+    expect(user?.approximateLocationConsentedAt).toEqual(expect.any(Number))
+    expect(user?.termsAcceptedAt).toEqual(expect.any(Number))
+    expect(user?.onboardingCompletedAt).toEqual(expect.any(Number))
   })
 
   it('backfills deterministic collision-safe usernames and is idempotent', async () => {

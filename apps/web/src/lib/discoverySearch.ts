@@ -1,4 +1,4 @@
-export type SearchableFriendHost = {
+export type SearchableCompanion = {
   username?: string
   displayName: string
   city: string
@@ -8,27 +8,27 @@ export type SearchableFriendHost = {
   categories?: string[]
 }
 
-export function matchesFriendHostSearch(host: SearchableFriendHost, query: string) {
+export function matchesCompanionSearch(companion: SearchableCompanion, query: string) {
   const terms = query.trim().replace(/^@/, '').toLowerCase().split(/\s+/).filter(Boolean)
   if (terms.length === 0) return true
 
   const searchableText = [
-    host.username ?? '',
-    host.displayName,
-    host.city,
-    host.intro,
-    host.bio ?? '',
-    ...(host.strengths ?? []),
-    ...(host.categories ?? []),
+    companion.username ?? '',
+    companion.displayName,
+    companion.city,
+    companion.intro,
+    companion.bio ?? '',
+    ...(companion.strengths ?? []),
+    ...(companion.categories ?? []),
   ].join(' ').toLowerCase()
 
   return terms.every((term) => searchableText.includes(term))
 }
 
-export function findFriendHosts<T extends SearchableFriendHost>(hosts: T[], query: string) {
+export function findCompanions<T extends SearchableCompanion>(companions: T[], query: string) {
   const normalizedQuery = query.trim().replace(/^@/, '').toLowerCase()
-  return hosts
-    .filter((host) => matchesFriendHostSearch(host, query))
+  return companions
+    .filter((companion) => matchesCompanionSearch(companion, query))
     .sort((first, second) => {
       const firstExact = first.username?.toLowerCase() === normalizedQuery
       const secondExact = second.username?.toLowerCase() === normalizedQuery

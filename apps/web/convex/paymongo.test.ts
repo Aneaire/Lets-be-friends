@@ -105,7 +105,7 @@ describe('PayMongo trust boundary', () => {
         beneficiaryUserId: otherId, purpose: 'member_booking_balance', amountCentavos: 10_000, currency: 'PHP', mode: 'test', status: 'awaiting_payment', providerIntentId: 'pi_refresh_other', createdAt: now, updatedAt: now,
       })
       const legacyTopUpId = await ctx.db.insert('paymongoTopUps', {
-        hostUserId: memberId, beneficiaryUserId: memberId, purpose: 'legacy_host_fee', amountCentavos: 10_000, currency: 'PHP', mode: 'test', status: 'awaiting_payment', providerIntentId: 'pi_refresh_legacy', createdAt: now, updatedAt: now,
+        companionUserId: memberId, beneficiaryUserId: memberId, purpose: 'legacy_companion_fee', amountCentavos: 10_000, currency: 'PHP', mode: 'test', status: 'awaiting_payment', providerIntentId: 'pi_refresh_legacy', createdAt: now, updatedAt: now,
       })
       return { memberTopUpId, otherTopUpId, legacyTopUpId }
     })
@@ -157,17 +157,17 @@ describe('PayMongo trust boundary', () => {
     const t = createTest()
     const { topUpId, eventRecordId } = await t.run(async (ctx) => {
       const now = Date.now()
-      const hostUserId = await ctx.db.insert('users', {
-        clerkUserId: 'late-paid-host',
-        displayName: 'Late Paid Host',
-        role: 'friend_host',
+      const companionUserId = await ctx.db.insert('users', {
+        clerkUserId: 'late-paid-companion',
+        displayName: 'Late Paid Companion',
+        role: 'companion',
         verificationStatus: 'approved',
         suspended: false,
         createdAt: now,
         updatedAt: now,
       })
       const topUpId = await ctx.db.insert('paymongoTopUps', {
-        hostUserId,
+        companionUserId,
         amountCentavos: 10_000,
         currency: 'PHP',
         mode: 'test',
@@ -200,7 +200,7 @@ describe('PayMongo trust boundary', () => {
     expect(state.ledger.filter((entry) => entry.kind === 'top_up_credit')).toHaveLength(1)
   })
 
-  it('credits a provider-verified member top-up once without using the legacy host ledger', async () => {
+  it('credits a provider-verified member top-up once without using the legacy companion ledger', async () => {
     const t = createTest()
     const { memberId, topUpId } = await t.run(async (ctx) => {
       const now = Date.now()

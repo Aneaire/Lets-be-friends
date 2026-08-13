@@ -23,12 +23,12 @@ The logo provides the only non-neutral brand colors.
 
 | Intent | Name | Hex | OKLCH | Usage |
 |---|---|---:|---:|---|
-| `self` | logo blue | `#1093ED` | `oklch(64.58% 0.1673 247.38)` | User-owned account, profile, host setup, settings, sign-in, and personal configuration actions |
+| `self` | logo blue | `#1093ED` | `oklch(64.58% 0.1673 247.38)` | User-owned account, profile, companion setup, settings, sign-in, and personal configuration actions |
 | `social` | logo pink | `#C1519C` | `oklch(60.29% 0.1669 342.36)` | Booking, messaging, reviewing, discovery CTA, and interactions with other users |
 
 ## Strict Accent Rules
 
-- Blue is only for actions about the signed-in user's own account, profile, host profile setup, verification setup, or settings.
+- Blue is only for actions about the signed-in user's own account, profile, companion profile setup, verification setup, or settings.
 - Pink is only for booking, messaging, reviewing, discovery calls to action, or interacting with another user.
 - Admin approve, resolve, and operational actions stay neutral.
 - Reject, report, suspend, and destructive actions use semantic danger styling.

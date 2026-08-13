@@ -17,9 +17,9 @@ const baseBooking: BookingRequestView = {
   notes: 'Bring your favorite game.',
   memberId: 'member-1' as Id<'users'>,
   memberDisplayName: 'Angelo',
-  hostDisplayName: 'Michael Reeves',
+  companionDisplayName: 'Michael Reeves',
   memberTotalCentavos: 57_500,
-  hostEntitlementCentavos: 50_000,
+  companionEarningsCentavos: 50_000,
   settlementBlocked: false,
 }
 
@@ -28,7 +28,7 @@ function renderCard(booking: BookingRequestView) {
     <BookingRequestCard
       intro="Michael sent a booking request with the session details."
       booking={booking}
-      viewerId={'host-1' as Id<'users'>}
+      viewerId={'companion-1' as Id<'users'>}
       onDecide={vi.fn()}
       onEdit={vi.fn()}
     />,

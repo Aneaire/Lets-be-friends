@@ -180,7 +180,7 @@ export function MapMarker({
 
   if (!markerElementRef.current) {
     markerElementRef.current = document.createElement('div')
-    markerElementRef.current.className = 'approx-location-map-marker-host'
+    markerElementRef.current.className = 'approx-location-map-marker-companion'
   }
 
   useEffect(() => {

@@ -27,14 +27,16 @@ export default function RootLayout() {
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="auth" />
               <Stack.Screen name="onboarding" />
-              <Stack.Screen name="host/[id]" />
+              <Stack.Screen name="companion-profile/[id]" />
               <Stack.Screen name="booking/new" />
               <Stack.Screen name="booking/[id]" />
+              <Stack.Screen name="booking-edit/[id]" />
               <Stack.Screen name="bookings" />
-              <Stack.Screen name="friend-host" />
-              <Stack.Screen name="host-bookings" />
-              <Stack.Screen name="host-booking/[id]" />
+              <Stack.Screen name="companion" />
+              <Stack.Screen name="companion-bookings" />
+              <Stack.Screen name="companion-booking/[id]" />
               <Stack.Screen name="conversation/[id]" />
+              <Stack.Screen name="wallet" />
             </Stack>
           </ThemeProvider>
         </AppThemeProvider>

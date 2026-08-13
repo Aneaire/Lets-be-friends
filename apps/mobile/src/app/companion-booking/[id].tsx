@@ -7,36 +7,41 @@ import { Alert, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type BookingId } from '@/backend/client'
 import { ActionButton } from '@/components/ActionButton'
+import { BookingCancelAction } from '@/components/BookingCancelAction'
 import { BookingEvidencePanel } from '@/components/BookingEvidencePanel'
+import { BookingLifecycleDetails } from '@/components/BookingLifecycleDetails'
+import { BookingMessagesButton } from '@/components/BookingMessagesButton'
+import { BookingSafetyActions } from '@/components/BookingSafetyActions'
 import { Screen } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
+import { bookingActionVisibility } from '@/data/bookingLifecycle'
 import { bookingStatusPresentation, formatBookingSchedule, formatDuration } from '@/data/bookingViewModels'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-type HostBooking = FunctionReturnType<typeof mobileApi.bookings.forHost>[number]
+type CompanionBooking = FunctionReturnType<typeof mobileApi.bookings.forCompanion>[number]
 
-export default function HostBookingDetailScreen() {
+export default function CompanionBookingDetailScreen() {
   const member = useMobileMember()
-  if (member.status === 'signed_out') return <HostDetailState title="Sign in to view this Friend Host booking" action="Sign in" onPress={() => router.replace('/auth')} />
-  if (member.status === 'demo') return <HostDetailState title="Friend Host booking details are unavailable in demo mode" action="Return to Profile" onPress={() => router.replace('/profile')} />
-  if (member.status === 'unavailable' || member.status === 'error') return <HostDetailState title="This Friend Host booking is unavailable" detail="Your member account could not be connected safely." />
-  if (member.status !== 'ready') return <HostDetailState title="Loading Friend Host booking details" />
-  return <ReadyHostBookingDetail />
+  if (member.status === 'signed_out') return <CompanionDetailState title="Sign in to view this Companion booking" action="Sign in" onPress={() => router.replace('/auth')} />
+  if (member.status === 'demo') return <CompanionDetailState title="Companion booking details are unavailable in demo mode" action="Return to Profile" onPress={() => router.replace('/profile')} />
+  if (member.status === 'unavailable' || member.status === 'error') return <CompanionDetailState title="This Companion booking is unavailable" detail="Your member account could not be connected safely." />
+  if (member.status !== 'ready') return <CompanionDetailState title="Loading Companion booking details" />
+  return <ReadyCompanionBookingDetail viewerId={String(member.viewer._id)} />
 }
 
-function ReadyHostBookingDetail() {
+function ReadyCompanionBookingDetail({ viewerId }: { viewerId: string }) {
   const params = useLocalSearchParams<{ id?: string }>()
   const id = typeof params.id === 'string' ? params.id : ''
-  const bookings = useQuery(mobileApi.bookings.forHost, {})
-  const decide = useMutation(mobileApi.bookings.hostDecision)
+  const bookings = useQuery(mobileApi.bookings.forCompanion, {})
+  const decide = useMutation(mobileApi.bookings.companionDecision)
   const [busy, setBusy] = useState<'accepted' | 'declined' | null>(null)
   const [message, setMessage] = useState('')
   const busyRef = useRef(false)
 
-  if (bookings === undefined) return <HostDetailState title="Loading Friend Host booking details" />
-  const booking = bookings.find((item: HostBooking) => String(item._id) === id)
-  if (!booking) return <HostDetailState title="Friend Host booking not found" detail="This booking is not available for your Friend Host profile." action="View incoming bookings" onPress={() => router.replace('/host-bookings')} />
+  if (bookings === undefined) return <CompanionDetailState title="Loading Companion booking details" />
+  const booking = bookings.find((item: CompanionBooking) => String(item._id) === id)
+  if (!booking) return <CompanionDetailState title="Companion booking not found" detail="This booking is not available for your Companion profile." action="View incoming bookings" onPress={() => router.replace('/companion-bookings')} />
 
   async function saveDecision(decision: 'accepted' | 'declined') {
     if (busyRef.current || booking?.status !== 'request_sent') return
@@ -47,7 +52,7 @@ function ReadyHostBookingDetail() {
       await decide({
         bookingId: booking._id as BookingId,
         decision,
-        note: decision === 'accepted' ? 'Accepted by Friend Host from the mobile app.' : 'Declined by Friend Host from the mobile app.',
+        note: decision === 'accepted' ? 'Accepted by Companion from the mobile app.' : 'Declined by Companion from the mobile app.',
       })
       setMessage(decision === 'accepted' ? 'Booking accepted. The member can see the live decision.' : 'Booking declined. The member can see the live decision.')
     } catch {
@@ -65,7 +70,7 @@ function ReadyHostBookingDetail() {
     Alert.alert(
       accepting ? 'Accept this booking?' : 'Decline this booking?',
       accepting
-        ? 'Confirm that you can host this experience at the listed schedule and format.'
+        ? 'Confirm that you can companion this experience at the listed schedule and format.'
         : 'The member will see that the booking was declined. This decision cannot be changed in the mobile app.',
       [
         { text: accepting ? 'Keep pending' : 'Do not decline', style: 'cancel' },
@@ -74,11 +79,21 @@ function ReadyHostBookingDetail() {
     )
   }
 
-  return <HostBookingDetail booking={booking} busy={busy} message={message} onDecision={confirmDecision} />
+  const actions = bookingActionVisibility({
+    status: booking.status,
+    viewerRole: 'companion',
+    memberCompletedAt: booking.memberCompletedAt,
+    companionCompletedAt: booking.companionCompletedAt,
+    settlementState: booking.settlementState,
+  })
+
+  return <CompanionBookingDetail booking={booking} viewerId={viewerId} canCancel={actions.canCancel} busy={busy} message={message} onDecision={confirmDecision} />
 }
 
-function HostBookingDetail({ booking, busy, message, onDecision }: {
-  booking: HostBooking
+function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, onDecision }: {
+  booking: CompanionBooking
+  viewerId: string
+  canCancel: boolean
   busy: 'accepted' | 'declined' | null
   message: string
   onDecision: (decision: 'accepted' | 'declined') => void
@@ -88,7 +103,7 @@ function HostBookingDetail({ booking, busy, message, onDecision }: {
   return (
     <Screen contentStyle={styles.content}>
       <View style={styles.header}>
-        <AppText variant="label" color={theme.colors.social}>HOST BOOKING</AppText>
+        <AppText variant="label" color={theme.colors.social}>INCOMING BOOKING</AppText>
         <AppText variant="title">{booking.category}</AppText>
         <AppText color={theme.colors.textMuted}>requested by {booking.memberDisplayName}</AppText>
       </View>
@@ -100,10 +115,28 @@ function HostBookingDetail({ booking, busy, message, onDecision }: {
         <Detail label="Schedule" value={formatBookingSchedule(booking.requestedAt)} />
         <Detail label="Format" value={booking.mode === 'in_person' ? 'In-person session' : 'Online session'} />
         <Detail label="Duration" value={formatDuration(booking.durationMinutes)} />
-        {booking.hostEntitlementCentavos !== undefined ? <Detail label="Friend Host entitlement" value={formatPhp(booking.hostEntitlementCentavos)} /> : null}
+        {booking.companionEarningsCentavos !== undefined ? <Detail label="Companion amount in booking calculation" value={formatPhp(booking.companionEarningsCentavos)} /> : null}
         {booking.memberTotalCentavos !== undefined ? <Detail label="Member booking total" value={formatPhp(booking.memberTotalCentavos)} /> : null}
       </View>
       {booking.notes ? <View style={styles.notes}><AppText variant="heading">Member notes</AppText><AppText color={theme.colors.textMuted}>{booking.notes}</AppText></View> : null}
+      <BookingLifecycleDetails
+        status={booking.status}
+        viewerRole="companion"
+        memberId={String(booking.memberId)}
+        companionUserId={viewerId}
+        memberDisplayName={booking.memberDisplayName}
+        companionDisplayName={booking.companionDisplayName}
+        memberCompletedAt={booking.memberCompletedAt}
+        companionCompletedAt={booking.companionCompletedAt}
+        cancelledByUserId={booking.cancelledByUserId ? String(booking.cancelledByUserId) : undefined}
+        cancelledAt={booking.cancelledAt}
+        cancellationReason={booking.cancellationReason}
+        settlementState={booking.settlementState}
+        settlementEligibleAt={booking.settlementEligibleAt}
+        settlementBlockedAt={booking.settlementBlockedAt}
+        settlementResolvedAt={booking.settlementResolvedAt}
+        settlementResolution={booking.settlementResolution}
+      />
       {booking.status === 'request_sent' ? (
         <View style={styles.actions}>
           <ActionButton label={busy === 'accepted' ? 'Accepting booking' : 'Accept booking'} onPress={() => onDecision('accepted')} disabled={busy !== null} />
@@ -114,14 +147,20 @@ function HostBookingDetail({ booking, busy, message, onDecision }: {
         bookingId={booking._id as BookingId}
         status={booking.status}
         pricingModel={booking.pricingModel}
-        participantCompletedAt={booking.hostCompletedAt}
+        participantCompletedAt={booking.companionCompletedAt}
         otherParticipantCompletedAt={booking.memberCompletedAt}
-        participantRole="host_start"
+        participantRole="companion_start"
+      />
+      <BookingSafetyActions
+        bookingId={booking._id as BookingId}
+        status={booking.status}
+        viewerHasReviewed={booking.viewerHasReviewed}
       />
       {message ? <AppText accessibilityLiveRegion="polite" color={theme.colors.textMuted}>{message}</AppText> : null}
       <View style={styles.actions}>
-        <ActionButton label="Open Messages" onPress={() => router.push('/messages')} />
-        <ActionButton label="View incoming bookings" onPress={() => router.replace('/host-bookings')} secondary />
+        {canCancel ? <BookingCancelAction bookingId={booking._id as BookingId} participantLabel="Companion" /> : null}
+        <BookingMessagesButton otherUserId={String(booking.memberId)} />
+        <ActionButton label="View incoming bookings" onPress={() => router.replace('/companion-bookings')} secondary />
       </View>
     </Screen>
   )
@@ -132,13 +171,13 @@ function Detail({ label, value }: { label: string; value: string }) {
   return <View style={styles.detailRow}><AppText variant="caption" color={theme.colors.textMuted}>{label}</AppText><AppText variant="bodyStrong">{value}</AppText></View>
 }
 
-function HostDetailState({ title, detail, action, onPress }: { title: string; detail?: string; action?: string; onPress?: () => void }) {
+function CompanionDetailState({ title, detail, action, onPress }: { title: string; detail?: string; action?: string; onPress?: () => void }) {
   const theme = useAppTheme()
-  return <Screen contentStyle={styles.state}><AppText variant="label" color={theme.colors.social}>HOST BOOKING</AppText><AppText variant="title">{title}</AppText>{detail ? <AppText color={theme.colors.textMuted}>{detail}</AppText> : null}{action && onPress ? <ActionButton label={action} onPress={onPress} secondary /> : null}</Screen>
+  return <Screen contentStyle={styles.state}><AppText variant="label" color={theme.colors.social}>INCOMING BOOKING</AppText><AppText variant="title">{title}</AppText>{detail ? <AppText color={theme.colors.textMuted}>{detail}</AppText> : null}{action && onPress ? <ActionButton label={action} onPress={onPress} secondary /> : null}</Screen>
 }
 
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
-  return <HostDetailState title="Friend Host booking details are temporarily unavailable" detail="Please try again. No booking action was taken." action="Try again" onPress={retry} />
+  return <CompanionDetailState title="Companion booking details are temporarily unavailable" detail="Please try again. No booking action was taken." action="Try again" onPress={retry} />
 }
 
 const styles = StyleSheet.create({

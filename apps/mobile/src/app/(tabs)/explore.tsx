@@ -8,11 +8,11 @@ import { mobileApi } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/components/ActionButton'
 import { Chip } from '@/components/Chip'
-import { HostCard } from '@/components/HostCard'
+import { CompanionCard } from '@/components/CompanionCard'
 import { Screen } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
-import { discoveryFilters, filterDiscoveryHosts, fixtureDiscoveryHosts, type DiscoveryFilter } from '@/data/discovery'
-import { mapApprovedHost, type ApprovedHostRecord, type DiscoveryHostViewModel } from '@/data/hostViewModels'
+import { discoveryFilters, filterDiscoveryCompanions, fixtureDiscoveryCompanions, type DiscoveryFilter } from '@/data/discovery'
+import { mapApprovedCompanion, type ApprovedCompanionRecord, type DiscoveryCompanionViewModel } from '@/data/companionViewModels'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 export default function ExploreScreen() {
@@ -21,40 +21,40 @@ export default function ExploreScreen() {
   if (configuration.status === 'configured') return <ConnectedExploreScreen />
   return (
     <DiscoveryList
-      sourceHosts={fixtureDiscoveryHosts}
+      sourceCompanions={fixtureDiscoveryCompanions}
       notice="You are viewing example profiles stored on this device. They are not live profiles and cannot be booked."
     />
   )
 }
 
 function ConnectedExploreScreen() {
-  const result = useQuery(mobileApi.hosts.listApproved, {})
+  const result = useQuery(mobileApi.companions.listApproved, {})
   if (result === undefined) return <DiscoveryLoading />
 
-  const hosts = (result as ApprovedHostRecord[]).map(mapApprovedHost)
-  const hasBackendDemoHosts = hosts.some((host) => host.source === 'backend_demo')
+  const companions = (result as ApprovedCompanionRecord[]).map(mapApprovedCompanion)
+  const hasBackendDemoCompanions = companions.some((companion) => companion.source === 'backend_demo')
   return (
     <DiscoveryList
-      sourceHosts={hosts}
-      notice={hasBackendDemoHosts
-        ? 'This is an example profile provided by the service. It is not a live Friend Host profile and cannot be booked.'
-        : 'Showing live approved Friend Hosts. Session availability is not shown.'}
+      sourceCompanions={companions}
+      notice={hasBackendDemoCompanions
+        ? 'This is an example profile provided by the service. It is not a live Companion profile and cannot be booked.'
+        : 'Showing live approved Companions. Session availability is not shown.'}
     />
   )
 }
 
-function DiscoveryList({ sourceHosts, notice }: { sourceHosts: DiscoveryHostViewModel[]; notice: string }) {
+function DiscoveryList({ sourceCompanions, notice }: { sourceCompanions: DiscoveryCompanionViewModel[]; notice: string }) {
   const theme = useAppTheme()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<DiscoveryFilter>('all')
-  const hosts = useMemo(() => filterDiscoveryHosts(sourceHosts, query, filter), [filter, query, sourceHosts])
+  const companions = useMemo(() => filterDiscoveryCompanions(sourceCompanions, query, filter), [filter, query, sourceCompanions])
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
       <FlatList
-        data={hosts}
-        keyExtractor={(host) => `${host.source}:${host.id}`}
-        renderItem={({ item }) => <HostCard host={item} />}
+        data={companions}
+        keyExtractor={(companion) => `${companion.source}:${companion.id}`}
+        renderItem={({ item }) => <CompanionCard companion={item} />}
         ItemSeparatorComponent={() => <View style={styles.gap} />}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -64,13 +64,13 @@ function DiscoveryList({ sourceHosts, notice }: { sourceHosts: DiscoveryHostView
             <AppText variant="label" color={theme.colors.social}>DISCOVERY</AppText>
             <AppText variant="display">Find your kind of company.</AppText>
             <AppText color={theme.colors.textMuted}>
-              Browse Friend Hosts by Strengths, interests, and session format.
+              Browse Companions by Strengths, interests, and session format.
             </AppText>
             <View accessibilityLiveRegion="polite" style={[styles.notice, { backgroundColor: theme.colors.socialSoft, borderColor: theme.colors.social }]}>
               <AppText variant="caption" color={theme.colors.text}>{notice}</AppText>
             </View>
             <TextInput
-              accessibilityLabel="Search Friend Hosts"
+              accessibilityLabel="Search Companions"
               placeholder="Search Strengths, places, or interests"
               placeholderTextColor={theme.colors.textMuted}
               value={query}
@@ -94,8 +94,8 @@ function DiscoveryList({ sourceHosts, notice }: { sourceHosts: DiscoveryHostView
               contentContainerStyle={styles.filters}
             />
             <View style={styles.resultRow}>
-              <AppText variant="heading">Friend Hosts</AppText>
-              <AppText variant="caption" color={theme.colors.textMuted}>{hosts.length} matches</AppText>
+              <AppText variant="heading">Companions</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>{companions.length} matches</AppText>
             </View>
           </View>
         }
@@ -103,7 +103,7 @@ function DiscoveryList({ sourceHosts, notice }: { sourceHosts: DiscoveryHostView
           <View style={[styles.empty, { borderColor: theme.colors.border }]}>
             <AppText variant="heading">No close matches yet</AppText>
             <AppText color={theme.colors.textMuted}>
-              {sourceHosts.length === 0 ? 'No approved Friend Hosts are available right now.' : 'Try another Strength or include every session format.'}
+              {sourceCompanions.length === 0 ? 'No approved Companions are available right now.' : 'Try another Strength or include every session format.'}
             </AppText>
             {(query || filter !== 'all') && (
               <Pressable
@@ -126,8 +126,8 @@ function DiscoveryLoading() {
   return (
     <Screen contentStyle={styles.state}>
       <AppText variant="label" color={theme.colors.social}>DISCOVERY</AppText>
-      <AppText variant="title">Loading Friend Hosts</AppText>
-      <AppText color={theme.colors.textMuted}>Connecting to the public host directory.</AppText>
+      <AppText variant="title">Loading Companions</AppText>
+      <AppText color={theme.colors.textMuted}>Connecting to the public companion directory.</AppText>
     </Screen>
   )
 }
@@ -137,8 +137,8 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return (
     <Screen contentStyle={styles.state}>
       <AppText variant="label" color={theme.colors.social}>DISCOVERY UNAVAILABLE</AppText>
-      <AppText variant="title">Friend Hosts could not be loaded</AppText>
-      <AppText color={theme.colors.textMuted}>Friend Hosts are temporarily unavailable. Please try again.</AppText>
+      <AppText variant="title">Companions could not be loaded</AppText>
+      <AppText color={theme.colors.textMuted}>Companions are temporarily unavailable. Please try again.</AppText>
       <ActionButton label="Try discovery again" onPress={retry} secondary />
     </Screen>
   )

@@ -10,6 +10,17 @@ const ready = {
   pathname: '/discover',
 }
 
+const completedViewer = {
+  clerkUserId: 'clerk-current',
+  username: 'current_friend',
+  onboardingCompletedAt: 1,
+  approximateLatitude: 10.31,
+  approximateLongitude: 123.89,
+  approximateLocationConsentedAt: 1,
+  termsAcceptedAt: 1,
+  termsVersion: '2026-08-13',
+}
+
 describe('onboarding gate decisions', () => {
   it('waits for Clerk, loading Convex auth, and the viewer query', () => {
     expect(onboardingGateDecision({ ...ready, clerkLoaded: false, viewer: undefined })).toBe('loading')
@@ -45,11 +56,11 @@ describe('onboarding gate decisions', () => {
     expect(onboardingGateDecision({
       ...ready,
       pathname: '/onboarding',
-      viewer: { clerkUserId: 'clerk-current', onboardingCompletedAt: 1 },
+      viewer: completedViewer,
     })).toBe('allow')
   })
 
-  it('requires completed legacy viewers without a username to return to onboarding', () => {
+  it('requires completed legacy viewers without the current required fields to return to onboarding', () => {
     expect(onboardingGateDecision({
       ...ready,
       viewer: { clerkUserId: 'clerk-current', onboardingCompletedAt: 1 },
@@ -57,18 +68,23 @@ describe('onboarding gate decisions', () => {
     expect(onboardingGateDecision({
       ...ready,
       viewer: { clerkUserId: 'clerk-current', username: 'current_friend', onboardingCompletedAt: 1 },
-    })).toBe('allow')
+    })).toBe('redirect_onboarding')
+    expect(onboardingGateDecision({ ...ready, viewer: completedViewer })).toBe('allow')
+    expect(onboardingGateDecision({
+      ...ready,
+      viewer: { ...completedViewer, approximateLatitude: 10.315699 },
+    })).toBe('redirect_onboarding')
   })
 })
 
 describe('onboarding destinations', () => {
   it('uses the goal-specific destination', () => {
     expect(onboardingDestination('member')).toBe('/discover')
-    expect(onboardingDestination('friend_host')).toBe('/become-host')
+    expect(onboardingDestination('companion')).toBe('/become-companion')
   })
 
-  it('defaults skip to member while preserving a host choice', () => {
+  it('defaults skip to member while preserving a companion choice', () => {
     expect(goalForSkip()).toBe('member')
-    expect(goalForSkip('friend_host')).toBe('friend_host')
+    expect(goalForSkip('companion')).toBe('companion')
   })
 })

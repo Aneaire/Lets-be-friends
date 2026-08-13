@@ -13,7 +13,7 @@ import { personaEventCreatedAt, verifyPersonaSignature } from './http'
 describe('identity verification policy helpers', () => {
   it('accepts only real Persona inquiry identifiers', () => {
     expect(isRealPersonaInquiryId('inq_abc123')).toBe(true)
-    expect(isRealPersonaInquiryId('persona_dummy_host_123')).toBe(false)
+    expect(isRealPersonaInquiryId('persona_dummy_companion_123')).toBe(false)
     expect(isRealPersonaInquiryId(undefined)).toBe(false)
   })
 

@@ -1,6 +1,6 @@
 import type { Doc } from './_generated/dataModel'
 
-export const identityVerificationReasons = ['member', 'booking', 'host_application', 'reverification'] as const
+export const identityVerificationReasons = ['member', 'booking', 'companion_application', 'reverification'] as const
 
 export type PersonaStatus =
   | 'not_started'

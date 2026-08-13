@@ -179,7 +179,7 @@ const clerkLocalization = {
   signIn: {
     start: {
       title: "Sign in to Let's Be Friends",
-      subtitle: 'Continue to your profile, bookings, and Friend Host tools.',
+      subtitle: 'Continue to your profile, bookings, and Companion tools.',
       actionText: 'New to Let\'s Be Friends?',
       actionLink: 'Create an account',
     },
@@ -187,7 +187,7 @@ const clerkLocalization = {
   signUp: {
     start: {
       title: "Create your Let's Be Friends account",
-      subtitle: 'Join with a basic profile, then request identity review before booking or set up a Friend Host profile.',
+      subtitle: 'Join with a basic profile, then request identity review before booking or set up a Companion profile.',
       actionText: 'Already have an account?',
       actionLink: 'Sign in',
     },

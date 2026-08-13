@@ -5,14 +5,12 @@ import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
-import { ApproximateLocationMap } from '../components/ApproximateLocationMap'
 import { useIdentityVerification } from '../components/IdentityVerificationFlow'
-import { geolocationErrorMessage, roundCoordinates, type Coordinates } from '../lib/geo'
 import { identityEntitlementStatus, memberVerificationPresentation, type MemberVerificationPresentation } from '../lib/memberVerification'
 
-export const Route = createFileRoute('/become-host')({ component: BecomeHostPage })
+export const Route = createFileRoute('/become-companion')({ component: BecomeCompanionPage })
 
-const hostEditorSteps = [
+const companionEditorSteps = [
   { id: 1, label: 'Your invitation' },
   { id: 2, label: 'Strengths' },
   { id: 3, label: 'Activities' },
@@ -20,28 +18,28 @@ const hostEditorSteps = [
   { id: 5, label: 'Boundaries and review' },
 ] as const
 
-function BecomeHostPage() {
+function BecomeCompanionPage() {
   const { isSignedIn } = useAuth()
 
   return (
-    <main className="marketing-page-wide hosting-page" data-editor={isSignedIn ? 'true' : 'false'}>
+    <main className="marketing-page-wide companion-page" data-editor={isSignedIn ? 'true' : 'false'}>
       {isSignedIn ? (
-        <header className="hosting-editor-intro">
+        <header className="companion-editor-intro">
           <div>
-            <p className="eyebrow">Friend Host profile</p>
+            <p className="eyebrow">Companion profile</p>
             <h1 className="text-display">Shape a clear invitation around what you enjoy.</h1>
             <p className="text-body muted">Five focused steps. Your existing details stay in place until you save and send changes for review.</p>
           </div>
-          <a href="#host-profile-editor" className="btn btn-self">Open profile editor</a>
+          <a href="#companion-profile-editor" className="btn btn-self">Open profile editor</a>
         </header>
       ) : (
         <>
-          <header className="hosting-hero">
-            <div className="hosting-hero-copy">
+          <header className="companion-hero">
+            <div className="companion-hero-copy">
               <h1 className="text-display mt-4">Make time for something you love. Invite someone along.</h1>
             </div>
-            <div className="hosting-hero-visual">
-              <figure className="marketing-photo hosting-hero-photo">
+            <div className="companion-hero-visual">
+              <figure className="marketing-photo companion-hero-photo">
                 <img
                   src="/images/marketing/photography-walk.webp"
                   alt="Two friends sharing a photography walk beside a colorful public mural"
@@ -49,24 +47,24 @@ function BecomeHostPage() {
                   decoding="async"
                 />
               </figure>
-              <div className="hosting-definition">
-                <span className="hosting-definition-label">What is a Friend Host?</span>
-                <p>A verified member who offers a clear, safe experience built around time together, with clear boundaries and no dating expectations.</p>
+              <div className="companion-definition">
+                <span className="companion-definition-label">What is a Companion?</span>
+                <p>A verified member who offers platonic conversation, shared activities, and friendly company, online or in person. Every Companion chooses their own availability and boundaries.</p>
               </div>
             </div>
           </header>
 
-          <section className="hosting-benefit-grid" aria-label="What you control">
+          <section className="companion-benefit-grid" aria-label="What you control">
             <article><span>01</span><h2>Start with your interests</h2><p>Choose the activities and Strengths that feel natural to you.</p></article>
             <article><span>02</span><h2>Set the boundaries</h2><p>Decide online or in-person, your rate, and what you do not offer.</p></article>
-            <article><span>03</span><h2>Get reviewed before going live</h2><p>Identity and profile review happen before anyone can discover or book you.</p></article>
+            <article><span>03</span><h2>Get reviewed before going live</h2><p>Identity and profile review happen before members can find you or send a booking request.</p></article>
           </section>
-          <section className="hosting-ideas" aria-labelledby="hosting-ideas-title">
+          <section className="companion-ideas" aria-labelledby="companion-ideas-title">
             <div>
               <p className="eyebrow">Your invitation can be simple</p>
-              <h2 id="hosting-ideas-title" className="text-display section-display">Share the part you already enjoy.</h2>
+              <h2 id="companion-ideas-title" className="text-display section-display">Share the part you already enjoy.</h2>
             </div>
-            <div className="hosting-idea-list">
+            <div className="companion-idea-list">
               <span>Lead a photo walk</span>
               <span>Practice a language</span>
               <span>Co-work for an afternoon</span>
@@ -77,20 +75,20 @@ function BecomeHostPage() {
           </section>
         </>
       )}
-      <HostAuthPanel />
+      <CompanionAuthPanel />
     </main>
   )
 }
 
-function HostAuthPanel() {
+function CompanionAuthPanel() {
   const { isSignedIn } = useAuth()
   const formRef = useRef<HTMLFormElement>(null)
   const viewer = useQuery(api.users.viewer)
-  const application = useQuery(api.hosts.myApplication)
+  const application = useQuery(api.companions.myApplication)
   const latestIdentityVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
-  const submit = useMutation(api.hosts.submitApplication)
+  const submit = useMutation(api.companions.submitApplication)
   const setIdentityTestBypass = useMutation(api.users.setIdentityTestBypass)
-  const identityFlow = useIdentityVerification('host_application')
+  const identityFlow = useIdentityVerification('companion_application')
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>(['Good listener'])
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [currentStep, setCurrentStep] = useState(1)
@@ -105,15 +103,6 @@ function HostAuthPanel() {
   const [error, setError] = useState('')
   const [testBypassSaving, setTestBypassSaving] = useState(false)
   const [testBypassError, setTestBypassError] = useState('')
-  const [approxLocation, setApproxLocation] = useState<Coordinates | null>(
-    typeof application?.approximateLatitude === 'number' && typeof application?.approximateLongitude === 'number'
-      ? { latitude: application.approximateLatitude, longitude: application.approximateLongitude }
-      : null,
-  )
-  const [approximateArea, setApproximateArea] = useState(application?.approximateArea ?? '')
-  const [nearbyDiscoveryEnabled, setNearbyDiscoveryEnabled] = useState(application?.nearbyDiscoveryEnabled === true)
-  const [pendingDeviceLocation, setPendingDeviceLocation] = useState<Coordinates | null>(null)
-  const [locationStatus, setLocationStatus] = useState('')
 
   useEffect(() => {
     if (!application) {
@@ -127,20 +116,13 @@ function HostAuthPanel() {
     setBoundaries(application.boundaries?.join('\n') ?? 'Public places only\nNo dating or romantic expectations')
     setSelectedStrengths(application.strengths.length > 0 ? application.strengths : ['Good listener'])
     setSelectedCategories(application.categories)
-    setApproxLocation(
-      typeof application.approximateLatitude === 'number' && typeof application.approximateLongitude === 'number'
-        ? { latitude: application.approximateLatitude, longitude: application.approximateLongitude }
-        : null,
-    )
-    setApproximateArea(application.approximateArea ?? '')
-    setNearbyDiscoveryEnabled(application.nearbyDiscoveryEnabled === true)
   }, [application?._id, application?.updatedAt, viewer?.onboardingCategories])
 
   if (!isSignedIn) {
     return (
-      <div className="hosting-signin">
+      <div className="companion-signin">
         <div>
-          <h2 className="text-h1 mt-2">Create your hosting profile.</h2>
+          <h2 className="text-h1 mt-2">Create your companion profile.</h2>
         </div>
         <SignInButton mode="modal">
           <button className="btn btn-self btn-lg">Sign in to start</button>
@@ -150,7 +132,7 @@ function HostAuthPanel() {
   }
 
   if (viewer === undefined || application === undefined || latestIdentityVerification === undefined) {
-    return <div className="empty-state">Loading host profile...</div>
+    return <div className="empty-state">Loading companion profile...</div>
   }
 
   const status = application?.status
@@ -161,15 +143,15 @@ function HostAuthPanel() {
   )
 
   const changeStep = (nextStep: number) => {
-    setCurrentStep(Math.max(1, Math.min(hostEditorSteps.length, nextStep)))
+    setCurrentStep(Math.max(1, Math.min(companionEditorSteps.length, nextStep)))
     setStepError('')
     requestAnimationFrame(() => {
-      document.getElementById('host-profile-editor')?.scrollIntoView({ block: 'start' })
+      document.getElementById('companion-profile-editor')?.scrollIntoView({ block: 'start' })
     })
   }
 
   const validateCurrentStep = () => {
-    const activeSection = formRef.current?.querySelector<HTMLElement>(`[data-host-step="${currentStep}"]`)
+    const activeSection = formRef.current?.querySelector<HTMLElement>(`[data-companion-step="${currentStep}"]`)
     const invalidField = activeSection?.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(':invalid')
     if (invalidField) {
       invalidField.reportValidity()
@@ -184,22 +166,18 @@ function HostAuthPanel() {
       setStepError('Choose at least one activity before continuing.')
       return false
     }
-    if (currentStep === 4 && mode !== 'online' && nearbyDiscoveryEnabled && !approxLocation) {
-      setStepError('Place a broad, privacy-safe pin or turn off nearby search before continuing.')
-      return false
-    }
     setStepError('')
     return true
   }
 
   return (
-    <div className="drawer-host" id="host-profile-editor">
+    <div className="drawer-companion" id="companion-profile-editor">
       <form
         ref={formRef}
-        className="hosting-editor-form"
+        className="companion-editor-form"
         onSubmit={async (event) => {
           event.preventDefault()
-          if (currentStep !== hostEditorSteps.length || !validateCurrentStep()) return
+          if (currentStep !== companionEditorSteps.length || !validateCurrentStep()) return
           setSaving(true)
           setSaved(false)
           setError('')
@@ -208,10 +186,6 @@ function HostAuthPanel() {
             await submit({
               intro: intro.trim(),
               city: city.trim(),
-              approximateArea: approximateArea.trim() || undefined,
-              approximateLatitude: approxLocation?.latitude,
-              approximateLongitude: approxLocation?.longitude,
-              nearbyDiscoveryEnabled: Boolean(mode !== 'online' && approxLocation && nearbyDiscoveryEnabled),
               strengths: selectedStrengths,
               categories: selectedCategories,
               boundaries: boundaries.split('\n').map((item) => item.trim()).filter(Boolean),
@@ -221,39 +195,39 @@ function HostAuthPanel() {
             })
             setSaved(true)
           } catch (submitError) {
-            setError(submitError instanceof Error ? submitError.message : 'Friend Host application could not be saved.')
+            setError(submitError instanceof Error ? submitError.message : 'Your Companion profile could not be saved.')
           } finally {
             setSaving(false)
           }
         }}
       >
-        <header className="hosting-editor-header">
+        <header className="companion-editor-header">
           <div>
-            <div className="hosting-editor-heading-line">
+            <div className="companion-editor-heading-line">
               <p className="eyebrow">{status ? 'Manage profile' : 'Create profile'}</p>
-              {status && <span className="status-pill" data-tone={statusTone(status)}>{hostStatusLabel(status, verification.state === 'approved')}</span>}
+              {status && <span className="status-pill" data-tone={statusTone(status)}>{companionStatusLabel(status, verification.state === 'approved')}</span>}
             </div>
-            <h2 className="text-h1">{status ? 'Your Friend Host profile' : 'Create your Friend Host profile'}</h2>
+            <h2 className="text-h1">{status ? 'Your Companion profile' : 'Create your Companion profile'}</h2>
             <p className="text-meta">Only the final step saves your changes and sends the profile for review.</p>
           </div>
           {application?.status === 'approved' && (
-            <Link to="/host-profile" search={{ hostProfileId: application._id }} className="btn btn-neutral btn-sm">
+            <Link to="/companion-profile" search={{ companionProfileId: application._id }} className="btn btn-neutral btn-sm">
               View live profile
             </Link>
           )}
         </header>
 
-        <div className="hosting-editor-progress" aria-live="polite">
-          <span>Step {currentStep} of {hostEditorSteps.length}</span>
-          <strong>{hostEditorSteps[currentStep - 1].label}</strong>
-          <progress max={hostEditorSteps.length} value={currentStep} aria-label={`Step ${currentStep} of ${hostEditorSteps.length}`} />
+        <div className="companion-editor-progress" aria-live="polite">
+          <span>Step {currentStep} of {companionEditorSteps.length}</span>
+          <strong>{companionEditorSteps[currentStep - 1].label}</strong>
+          <progress max={companionEditorSteps.length} value={currentStep} aria-label={`Step ${currentStep} of ${companionEditorSteps.length}`} />
         </div>
 
         {saved && (
           <div className="notice notice-success" role="status">
             <span className="notice-icon">✓</span>
             <span>
-              Profile sent for review. Identity and the Friend Host profile are reviewed separately.
+              Profile sent for review. Identity and the Companion profile are reviewed separately.
             </span>
           </div>
         )}
@@ -269,7 +243,7 @@ function HostAuthPanel() {
             <span>{identityFlow.error || error}</span>
           </div>
         )}
-        {stepError && <p className="hosting-step-error" role="alert">{stepError}</p>}
+        {stepError && <p className="companion-step-error" role="alert">{stepError}</p>}
 
         <NumberedSection
           n={1}
@@ -277,9 +251,9 @@ function HostAuthPanel() {
           title="Your invitation"
           rationale="Choose how you want to meet, describe the experience, and set the amount you receive."
         >
-          <fieldset className="hosting-mode-fieldset">
+          <fieldset className="companion-mode-fieldset">
             <legend className="label">Session format</legend>
-            <div className="hosting-mode-options">
+            <div className="companion-mode-options">
               {([
                 ['both', 'Online and in-person'],
                 ['online', 'Online only'],
@@ -313,11 +287,11 @@ function HostAuthPanel() {
               onChange={(event) => setIntro(event.currentTarget.value)}
               className="field min-h-28"
               placeholder="For example: Join me for an easy coffee, a walk through local history, or an unhurried online conversation."
-              aria-describedby="hosting-intro-help hosting-intro-count"
+              aria-describedby="companion-intro-help companion-intro-count"
             />
-            <span className="hosting-field-help-row">
-              <span id="hosting-intro-help" className="field-row-help">Keep it specific. Avoid romantic, dating, or transactional framing.</span>
-              <span id="hosting-intro-count" className="field-row-help tabular">{intro.length}/500</span>
+            <span className="companion-field-help-row">
+              <span id="companion-intro-help" className="field-row-help">Keep it specific. Avoid romantic, dating, or transactional framing.</span>
+              <span id="companion-intro-count" className="field-row-help tabular">{intro.length}/500</span>
             </span>
           </label>
         </NumberedSection>
@@ -335,7 +309,7 @@ function HostAuthPanel() {
           n={3}
           active={currentStep === 3}
           title="Things you can do together"
-          rationale="Choose the activities you feel comfortable hosting. Every category is reviewed before it is offered."
+          rationale="Choose the activities you feel comfortable companion. Every category is reviewed before it is offered."
         >
           <ChipGroup label="Activities" values={activityCategories} selected={selectedCategories} setSelected={setSelectedCategories} />
         </NumberedSection>
@@ -344,9 +318,7 @@ function HostAuthPanel() {
           n={4}
           active={currentStep === 4}
           title="Where you are available"
-          rationale={mode === 'online'
-            ? 'Nearby search is not needed for online-only sessions. You may add a timezone or broad region for context.'
-            : 'Share a city for context. Nearby discovery is optional and uses a rounded area, never an address.'}
+          rationale="Share a city, timezone, or broad region for context. Your approved Companion profile uses the rounded approximate location saved during onboarding for always-on nearby discovery."
         >
           <label className="field-row">
             <span className="label">{mode === 'online' ? 'Timezone or broad region' : 'City'} <span className="label-aux">{mode === 'online' ? 'optional' : 'required'}</span></span>
@@ -359,127 +331,7 @@ function HostAuthPanel() {
             />
           </label>
 
-          {mode === 'online' ? (
-            <div className="notice text-meta"><span className="notice-icon">i</span><span>Nearby search stays off for an online-only hosting profile.</span></div>
-          ) : (
-            <>
-              <label className="nearby-visibility-toggle hosting-nearby-choice">
-                <input
-                  type="checkbox"
-                  checked={nearbyDiscoveryEnabled}
-                  onChange={(event) => setNearbyDiscoveryEnabled(event.currentTarget.checked)}
-                />
-                <span>
-                  <strong>Help nearby members find me</strong>
-                  <small>Optional and off by default. Members see approximate distance, never your pin or area label.</small>
-                </span>
-              </label>
-
-              {nearbyDiscoveryEnabled && (
-                <div className="hosting-location-panel">
-                  <div className="hosting-location-actions">
-                    <div>
-                      <p className="label">Choose a broad, safe area</p>
-                      <p className="text-meta">Place the pin away from a home or private meeting point. Coordinates are rounded again when saved.</p>
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <button
-                        type="button"
-                        className="btn btn-self btn-sm"
-                        onClick={() => {
-                          if (!navigator.geolocation) {
-                            setLocationStatus('Location is not available in this browser.')
-                            return
-                          }
-                          setLocationStatus('Asking for your device location…')
-                          navigator.geolocation.getCurrentPosition(
-                            (position) => {
-                              setPendingDeviceLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude })
-                              setLocationStatus('Review the location warning before applying this pin.')
-                            },
-                            (locationError) => setLocationStatus(geolocationErrorMessage(locationError.code)),
-                            { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
-                          )
-                        }}
-                      >
-                        Use device location
-                      </button>
-                      {approxLocation && (
-                        <button
-                          type="button"
-                          className="btn btn-neutral btn-sm"
-                          onClick={() => {
-                            setApproxLocation(null)
-                            setPendingDeviceLocation(null)
-                            setLocationStatus('Approximate location removed.')
-                          }}
-                        >
-                          Remove pin
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {pendingDeviceLocation && (
-                    <div className="notice notice-warning" role="alert">
-                      <span className="notice-icon">!</span>
-                      <span>
-                        <strong>Device locations can be exact.</strong>{' '}
-                        Apply the rounded result only if it represents a safe general area, then move it away from a home or private meeting point.
-                        <span className="flex gap-2 flex-wrap mt-2">
-                          <button
-                            type="button"
-                            className="btn btn-self btn-sm"
-                            onClick={() => {
-                              setApproxLocation(roundCoordinates(pendingDeviceLocation))
-                              setPendingDeviceLocation(null)
-                              setLocationStatus('Rounded device location applied. Move the pin to a broad, safe area before saving.')
-                            }}
-                          >
-                            Apply rounded location
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-neutral btn-sm"
-                            onClick={() => {
-                              setPendingDeviceLocation(null)
-                              setLocationStatus('Device location was not applied.')
-                            }}
-                          >
-                            Do not apply
-                          </button>
-                        </span>
-                      </span>
-                    </div>
-                  )}
-
-                  <label className="field-row">
-                    <span className="label">Area label <span className="label-aux">optional, private</span></span>
-                    <input
-                      className="field"
-                      value={approximateArea}
-                      onChange={(event) => setApproximateArea(event.currentTarget.value)}
-                      placeholder="For example, central Cebu or a travel area"
-                    />
-                  </label>
-
-                  <ApproximateLocationMap
-                    location={approxLocation}
-                    onChange={(location) => {
-                      setApproxLocation(location)
-                      setLocationStatus('Pin updated. Coordinates will be rounded again when you save.')
-                    }}
-                    title={approxLocation ? 'Your approximate area' : 'Choose a broad area'}
-                    description={approxLocation
-                      ? 'Drag, click, or use the N/W/S/E controls to reposition the pin.'
-                      : 'Pan and zoom, then click the map to place a privacy-safe pin.'}
-                  />
-
-                  {locationStatus && <p className="text-meta" role="status" aria-live="polite">{locationStatus}</p>}
-                </div>
-              )}
-            </>
-          )}
+          <div className="notice text-meta"><span className="notice-icon">i</span><span>Location is not edited here. Approved Companions are always shown in nearby discovery using the two-decimal approximate location saved during onboarding, including online-only profiles.</span></div>
         </NumberedSection>
 
         <NumberedSection
@@ -505,14 +357,14 @@ function HostAuthPanel() {
               placeholder="Anything trust and safety should know."
             />
           </label>
-          <div className="hosting-review-summary">
+          <div className="companion-review-summary">
             <div><span>Format</span><strong>{formatModeLabel(mode)}</strong></div>
             <div><span>You receive</span><strong>{formatPhpFromPesos(hourlyRatePesos)} per hour</strong></div>
             <div><span>Strengths</span><strong>{selectedStrengths.length}</strong></div>
             <div><span>Activities</span><strong>{selectedCategories.length}</strong></div>
           </div>
-          <div className="hosting-mobile-preview">
-            <HostProfilePreview
+          <div className="companion-mobile-preview">
+            <CompanionProfilePreview
               displayName={application?.displayName ?? viewer?.displayName}
               profileImageUrl={application?.profileImageUrl}
               mode={mode}
@@ -531,11 +383,11 @@ function HostAuthPanel() {
           </div>
         </NumberedSection>
 
-        <div className="hosting-editor-actions">
+        <div className="companion-editor-actions">
           {currentStep > 1 ? (
             <button type="button" className="btn btn-neutral" onClick={() => changeStep(currentStep - 1)}>Back</button>
           ) : <span />}
-          {currentStep < hostEditorSteps.length ? (
+          {currentStep < companionEditorSteps.length ? (
             <button
               type="button"
               className="btn btn-self"
@@ -553,8 +405,8 @@ function HostAuthPanel() {
         </div>
       </form>
 
-      <div className="hosting-editor-aside">
-        <HostProfilePreview
+      <div className="companion-editor-aside">
+        <CompanionProfilePreview
           displayName={application?.displayName ?? viewer?.displayName}
           profileImageUrl={application?.profileImageUrl}
           mode={mode}
@@ -628,7 +480,7 @@ function ReviewStatusPanel({
   const steps = [
     { id: 'submit', label: 'Application submitted', done: !!status },
     { id: 'identity', label: testBypassActive ? 'Identity check bypassed for testing' : 'Identity and safety review', done: identityApproved, active: !!status && !identityApproved },
-    { id: 'review', label: 'Friend Host profile review', done: status === 'approved' || status === 'rejected', active: status === 'pending_review' && identityApproved },
+    { id: 'review', label: 'Companion profile review', done: status === 'approved' || status === 'rejected', active: status === 'pending_review' && identityApproved },
     { id: 'live', label: 'Visible in discovery', done: status === 'approved' && identityApproved },
   ]
 
@@ -636,14 +488,14 @@ function ReviewStatusPanel({
     <aside className="drawer">
       <div className="drawer-header">
         <h2 className="text-h3">Review status</h2>
-        {status && <span className="status-pill" data-tone={statusTone(status)}>{hostStatusLabel(status, identityApproved)}</span>}
+        {status && <span className="status-pill" data-tone={statusTone(status)}>{companionStatusLabel(status, identityApproved)}</span>}
       </div>
       <div className="drawer-body">
-        <p className="text-meta hosting-status-guidance">{statusGuidance}</p>
-        <ol className="hosting-review-steps">
+        <p className="text-meta companion-status-guidance">{statusGuidance}</p>
+        <ol className="companion-review-steps">
           {steps.map((step, index) => (
             <li key={step.id} data-state={step.done ? 'done' : step.active ? 'active' : 'upcoming'}>
-              <span className="hosting-review-step-marker" aria-hidden="true">
+              <span className="companion-review-step-marker" aria-hidden="true">
                 {step.done ? '✓' : index + 1}
               </span>
               <span className={step.done ? 'text-body' : 'text-body muted'}>{step.label}</span>
@@ -701,7 +553,7 @@ function statusTone(status: string): 'self' | 'success' | 'warning' | 'danger' {
   return 'self'
 }
 
-function hostStatusLabel(status: string, identityApproved: boolean) {
+function companionStatusLabel(status: string, identityApproved: boolean) {
   if (status === 'approved' && identityApproved) return 'Live in Explore'
   if (status === 'approved') return 'Profile approved'
   if (status === 'pending_review') return 'In review'
@@ -724,7 +576,7 @@ function formatPhpFromPesos(value: string) {
   }).format(Number.isFinite(amount) ? amount : 0)
 }
 
-function HostProfilePreview({
+function CompanionProfilePreview({
   displayName,
   profileImageUrl,
   mode,
@@ -752,27 +604,27 @@ function HostProfilePreview({
     .toUpperCase()
 
   return (
-    <aside className="hosting-profile-preview" aria-label="Member profile preview">
-      <div className="hosting-preview-label"><span>Member preview</span><span>Updates as you type</span></div>
-      <div className="hosting-preview-person">
+    <aside className="companion-profile-preview" aria-label="Member profile preview">
+      <div className="companion-preview-label"><span>Member preview</span><span>Updates as you type</span></div>
+      <div className="companion-preview-person">
         {profileImageUrl ? (
-          <img src={profileImageUrl} alt="" className="hosting-preview-avatar" />
+          <img src={profileImageUrl} alt="" className="companion-preview-avatar" />
         ) : (
-          <span className="hosting-preview-avatar hosting-preview-initials" aria-hidden="true">{initials}</span>
+          <span className="companion-preview-avatar companion-preview-initials" aria-hidden="true">{initials}</span>
         )}
         <div>
           <h3 className="text-h3">{name}</h3>
           <p className="text-meta">{formatModeLabel(mode)}{city.trim() ? ` · ${city.trim()}` : ''}</p>
         </div>
       </div>
-      <p className="hosting-preview-intro">{intro.trim() || 'Your invitation will appear here as you write it.'}</p>
+      <p className="companion-preview-intro">{intro.trim() || 'Your invitation will appear here as you write it.'}</p>
       {(strengths.length > 0 || categories.length > 0) && (
-        <div className="hosting-preview-chips" aria-label="Selected profile details">
+        <div className="companion-preview-chips" aria-label="Selected profile details">
           {strengths.slice(0, 2).map((value) => <span key={`strength-${value}`}>{value}</span>)}
           {categories.slice(0, 2).map((value) => <span key={`category-${value}`}>{value}</span>)}
         </div>
       )}
-      <div className="hosting-preview-rate">
+      <div className="companion-preview-rate">
         <span>You receive</span>
         <strong>{formatPhpFromPesos(hourlyRatePesos)} <small>per hour</small></strong>
       </div>
@@ -794,7 +646,7 @@ function NumberedSection({
   children: React.ReactNode
 }) {
   return (
-    <section className="numbered-section hosting-editor-step" data-host-step={n} hidden={!active}>
+    <section className="numbered-section companion-editor-step" data-companion-step={n} hidden={!active}>
       <span className="numbered-section-marker tabular">{n}</span>
       <div className="numbered-section-body">
         <header>
@@ -819,9 +671,9 @@ function ChipGroup({
   setSelected: (next: string[]) => void
 }) {
   return (
-    <fieldset className="hosting-chip-group">
+    <fieldset className="companion-chip-group">
       <legend className="sr-only">{label}</legend>
-      <div className="hosting-chip-heading">
+      <div className="companion-chip-heading">
         <span>{label}</span>
         <span className="text-meta tabular">{selected.length} selected</span>
       </div>

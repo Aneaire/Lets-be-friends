@@ -3,24 +3,24 @@ import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-rout
 import { useMemo, useRef, useState } from 'react'
 import { Pressable, StyleSheet, TextInput, View } from 'react-native'
 
-import { mobileApi, type HostProfileId } from '@/backend/client'
+import { mobileApi, type CompanionProfileId } from '@/backend/client'
 import { ActionButton } from '@/components/ActionButton'
 import { Screen } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
 import { parseManilaBookingInput } from '@/data/bookingViewModels'
-import { mapPublicHost, type ApprovedHostRecord, type SessionMode } from '@/data/hostViewModels'
+import { mapPublicCompanion, type ApprovedCompanionRecord, type SessionMode } from '@/data/companionViewModels'
 import { safeProductError } from '@/data/productErrors'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 export default function NewBookingScreen() {
   const member = useMobileMember()
-  const params = useLocalSearchParams<{ hostProfileId?: string }>()
-  const hostProfileId = typeof params.hostProfileId === 'string' ? params.hostProfileId : ''
-  const canRead = member.status === 'ready' && Boolean(hostProfileId)
-  const hostResult = useQuery(
-    mobileApi.hosts.getPublic,
-    canRead ? { hostProfileId: hostProfileId as HostProfileId } : 'skip',
+  const params = useLocalSearchParams<{ companionProfileId?: string }>()
+  const companionProfileId = typeof params.companionProfileId === 'string' ? params.companionProfileId : ''
+  const canRead = member.status === 'ready' && Boolean(companionProfileId)
+  const companionResult = useQuery(
+    mobileApi.companions.getPublic,
+    canRead ? { companionProfileId: companionProfileId as CompanionProfileId } : 'skip',
   )
   const finance = useQuery(mobileApi.finance.memberDashboard, member.status === 'ready' ? {} : 'skip')
 
@@ -28,25 +28,25 @@ export default function NewBookingScreen() {
   if (member.status === 'demo') return <BookingGate title="Bookings are unavailable in demo mode" actionLabel="Return to Explore" onPress={() => router.replace('/explore')} />
   if (member.status === 'unavailable' || member.status === 'error') return <BookingGate title="Bookings are unavailable" detail="Your member account could not be connected safely." />
   if (member.status !== 'ready') return <BookingGate title="Preparing your member account" />
-  if (hostResult === undefined) return <BookingGate title="Loading booking options" />
-  if (hostResult === null) return <BookingGate title="This Friend Host is unavailable" actionLabel="Return to Explore" onPress={() => router.replace('/explore')} />
+  if (companionResult === undefined) return <BookingGate title="Loading booking options" />
+  if (companionResult === null) return <BookingGate title="This Companion is unavailable" actionLabel="Return to Explore" onPress={() => router.replace('/explore')} />
   if (finance === undefined) return <BookingGate title="Checking booking availability" />
   if (finance === null) return <BookingGate title="Bookings are unavailable" detail="Your booking balance could not be connected safely." />
   if (!finance.enabled) return <BookingGate title="Bookings are unavailable" detail="Member booking services are not accepting requests right now." actionLabel="Return to profile" onPress={() => goBackOr('/explore')} />
 
-  const host = mapPublicHost(hostResult as ApprovedHostRecord)
-  if (!host.bookable || host.viewerBookingEligibility !== 'eligible' || !host.hourlyRateCentavos) {
-    return <BookingGate title="This booking cannot be requested" detail="Return to the Friend Host profile for current eligibility details." actionLabel="Return to profile" onPress={() => goBackOr('/explore')} />
+  const companion = mapPublicCompanion(companionResult as ApprovedCompanionRecord)
+  if (!companion.bookable || companion.viewerBookingEligibility !== 'eligible' || !companion.hourlyRateCentavos) {
+    return <BookingGate title="This booking cannot be requested" detail="Return to the Companion profile for current eligibility details." actionLabel="Return to profile" onPress={() => goBackOr('/explore')} />
   }
-  return <BookingForm host={host} availableCentavos={finance.availableCentavos} />
+  return <BookingForm companion={companion} availableCentavos={finance.availableCentavos} />
 }
 
-function BookingForm({ host, availableCentavos }: { host: ReturnType<typeof mapPublicHost>; availableCentavos?: number }) {
+function BookingForm({ companion, availableCentavos }: { companion: ReturnType<typeof mapPublicCompanion>; availableCentavos?: number }) {
   const theme = useAppTheme()
   const createDraft = useMutation(mobileApi.bookings.createDraft)
   const initial = useMemo(defaultManilaInputs, [])
-  const [category, setCategory] = useState(host.categories[0] ?? '')
-  const [mode, setMode] = useState<SessionMode>(host.sessionModes[0] ?? 'online')
+  const [category, setCategory] = useState(companion.categories[0] ?? '')
+  const [mode, setMode] = useState<SessionMode>(companion.sessionModes[0] ?? 'online')
   const [dateInput, setDateInput] = useState(initial.date)
   const [timeInput, setTimeInput] = useState(initial.time)
   const [durationInput, setDurationInput] = useState('60')
@@ -58,8 +58,8 @@ function BookingForm({ host, availableCentavos }: { host: ReturnType<typeof mapP
   async function submit() {
     if (submittingRef.current) return
     setError('')
-    if (!host.categories.includes(category) || !host.sessionModes.includes(mode)) {
-      setError('Choose a category and format offered by this Friend Host.')
+    if (!companion.categories.includes(category) || !companion.sessionModes.includes(mode)) {
+      setError('Choose a category and format offered by this Companion.')
       return
     }
     const parsed = parseManilaBookingInput(dateInput, timeInput, durationInput)
@@ -75,7 +75,7 @@ function BookingForm({ host, availableCentavos }: { host: ReturnType<typeof mapP
     setSubmitting(true)
     try {
       const result = await createDraft({
-        hostProfileId: host.id as HostProfileId,
+        companionProfileId: companion.id as CompanionProfileId,
         category,
         mode,
         requestedAt: parsed.requestedAt,
@@ -98,13 +98,13 @@ function BookingForm({ host, availableCentavos }: { host: ReturnType<typeof mapP
         </Pressable>
         <AppText variant="label" color={theme.colors.social}>BOOKING REQUEST</AppText>
       </View>
-      <AppText variant="title">Plan time with {host.name}</AppText>
+      <AppText variant="title">Plan time with {companion.name}</AppText>
       <AppText color={theme.colors.textMuted}>Times are entered in Manila time. Review every detail before sending.</AppText>
 
       <FieldLabel label="Category" />
-      <ChoiceRow values={host.categories} selected={category} onSelect={setCategory} />
+      <ChoiceRow values={companion.categories} selected={category} onSelect={setCategory} />
       <FieldLabel label="Format" />
-      <ChoiceRow values={host.sessionModes} selected={mode} onSelect={(value) => setMode(value as SessionMode)} format={(value) => value === 'in_person' ? 'In person' : 'Online'} />
+      <ChoiceRow values={companion.sessionModes} selected={mode} onSelect={(value) => setMode(value as SessionMode)} format={(value) => value === 'in_person' ? 'In person' : 'Online'} />
 
       <FieldLabel label="Date in Manila" />
       <Input label="Booking date in Manila" value={dateInput} onChangeText={setDateInput} placeholder="YYYY-MM-DD" inputMode="numeric" />
@@ -117,9 +117,10 @@ function BookingForm({ host, availableCentavos }: { host: ReturnType<typeof mapP
       <AppText variant="caption" color={notes.length > 1_000 ? theme.colors.social : theme.colors.textMuted}>{notes.length}/1,000</AppText>
 
       <View style={[styles.summary, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-        <Summary label="Hourly rate" value={host.rateLabel ?? 'Unavailable'} />
+        <Summary label="Hourly rate" value={companion.rateLabel ?? 'Unavailable'} />
         <Summary label="Booking balance" value={availableCentavos === undefined ? 'Unavailable' : formatMoney(availableCentavos)} />
-        <AppText variant="caption" color={theme.colors.textMuted}>The server records the final total after the request is sent. Review it in booking details before the Friend Host accepts. Balance is read only in this app.</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>The server records the final total after the request is sent. Review it in booking details before the Companion accepts.</AppText>
+        <ActionButton label="Open booking wallet" onPress={() => router.push('/wallet')} intent="self" secondary />
       </View>
 
       {error ? <AppText accessibilityRole="alert" color={theme.colors.social}>{error}</AppText> : null}

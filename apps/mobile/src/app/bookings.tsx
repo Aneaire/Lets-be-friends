@@ -31,14 +31,14 @@ export default function BookingHistoryScreen() {
         <AppText color={theme.colors.textMuted}>Requests, confirmed sessions, and past bookings appear here.</AppText>
       </View>
       {bookings.length === 0 ? (
-        <BookingState title="No booking requests yet" detail="Explore verified Friend Hosts when you are ready to make a plan." action="Explore Friend Hosts" onPress={() => router.push('/explore')} embedded />
+        <BookingState title="No booking requests yet" detail="Explore verified Companions when you are ready to make a plan." action="Explore Companions" onPress={() => router.push('/explore')} embedded />
       ) : (
         <View style={styles.list}>{bookings.map((booking: Booking) => (
           <BookingCard
             key={booking._id}
             booking={{
               id: booking._id,
-              hostName: booking.hostDisplayName,
+              companionName: booking.companionDisplayName,
               category: booking.category,
               mode: booking.mode,
               requestedAt: booking.requestedAt,

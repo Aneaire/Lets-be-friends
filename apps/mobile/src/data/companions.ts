@@ -10,7 +10,7 @@ export type AvailabilitySlot = {
   mode: SessionMode
 }
 
-export type FriendHost = {
+export type Companion = {
   id: string
   name: string
   pronouns: string
@@ -33,7 +33,7 @@ export type FriendHost = {
   availability: AvailabilitySlot[]
 }
 
-export const friendHosts: FriendHost[] = [
+export const companions: Companion[] = [
   {
     id: 'mika-santos',
     name: 'Mika Santos',
@@ -42,7 +42,7 @@ export const friendHosts: FriendHost[] = [
     location: 'Makati, Metro Manila',
     distance: '2.4 km away',
     tagline: 'Quiet coffee, honest conversation, and city walks at your pace.',
-    bio: 'I am a community producer who knows the calm corners of Makati. I host low-pressure experiences for members who want thoughtful company, a fresh perspective, or a gentle introduction to the city.',
+    bio: 'I am a community producer who knows the calm corners of Makati. I companion low-pressure experiences for members who want thoughtful company, a fresh perspective, or a gentle introduction to the city.',
     imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=85',
     verified: true,
     completedExperiences: 86,
@@ -93,7 +93,7 @@ export const friendHosts: FriendHost[] = [
     location: 'Pasig, Metro Manila',
     distance: '7.1 km away',
     tagline: 'A steady study partner for deep work, check-ins, and small wins.',
-    bio: 'I am a graduate student and peer facilitator. I host focused coworking and online sessions with clear boundaries, kind accountability, and room to reset.',
+    bio: 'I am a graduate student and peer facilitator. I companion focused coworking and online sessions with clear boundaries, kind accountability, and room to reset.',
     imageUrl: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=900&q=85',
     verified: true,
     completedExperiences: 54,
@@ -138,6 +138,6 @@ export const friendHosts: FriendHost[] = [
   },
 ]
 
-export function getFriendHost(id: string) {
-  return friendHosts.find((host) => host.id === id)
+export function getCompanion(id: string) {
+  return companions.find((companion) => companion.id === id)
 }

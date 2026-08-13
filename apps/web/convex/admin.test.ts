@@ -5,7 +5,7 @@ import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
 
-type TestRole = 'member' | 'friend_host' | 'reviewer' | 'admin' | 'owner'
+type TestRole = 'member' | 'companion' | 'reviewer' | 'admin' | 'owner'
 
 async function insertUser(t: ReturnType<typeof convexTest>, clerkUserId: string, role: TestRole) {
   return await t.run(async (ctx) => {

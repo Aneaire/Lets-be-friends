@@ -25,7 +25,7 @@ const FOR_YOU_CANDIDATE_LIMIT = 120
 const MAX_INSTRUMENTATION_BATCH = 20
 const FEED_ALGORITHM_VERSION = 'feed_v1'
 
-const feedItemType = v.union(v.literal('post'), v.literal('host'), v.literal('guidance'))
+const feedItemType = v.union(v.literal('post'), v.literal('companion'), v.literal('guidance'))
 const feedSource = v.union(
   v.literal('followed'),
   v.literal('interest'),
@@ -33,11 +33,11 @@ const feedSource = v.union(
   v.literal('trending'),
   v.literal('recent'),
   v.literal('exploration'),
-  v.literal('host_fallback'),
+  v.literal('companion_fallback'),
   v.literal('first_party_guidance'),
 )
 const feedAction = v.union(
-  v.literal('open_host'),
+  v.literal('open_companion'),
   v.literal('open_guidance'),
   v.literal('comment'),
   v.literal('like'),
@@ -91,10 +91,10 @@ export const feed = query({
       post: await enrichPost(ctx, candidate.post, viewer),
     })))
     if (postItems.length >= 8) return postItems
-    const hostItems = await approvedHostFallback(ctx, viewer, 3)
+    const companionItems = await approvedCompanionFallback(ctx, viewer, 3)
     return [
       ...postItems,
-      ...hostItems,
+      ...companionItems,
       {
         kind: 'guidance' as const,
         itemKey: 'guidance:feed-basics',
@@ -102,7 +102,7 @@ export const feed = query({
         reason: 'A quick way to shape your recommendations',
         title: 'Make For You feel more like you',
         body: 'Follow members, save useful posts, and book categories you enjoy. These signals help tune your feed without using exact location data.',
-        actionLabel: 'Find Friend Hosts',
+        actionLabel: 'Find Companions',
         actionHref: '/discover' as const,
       },
     ]
@@ -247,8 +247,8 @@ export const createPost = mutation({
     if (args.experienceBookingId) {
       const booking = await ctx.db.get(args.experienceBookingId)
       if (!booking) throw new Error('Booking not found')
-      const host = await ctx.db.get(booking.hostProfileId)
-      if (booking.memberId !== viewer._id && host?.userId !== viewer._id) throw new Error('Not your booking')
+      const companion = await ctx.db.get(booking.companionProfileId)
+      if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new Error('Not your booking')
       if (!['completed', 'review_window', 'closed'].includes(booking.status)) throw new Error('Experience posts need a completed booking')
     }
 
@@ -476,23 +476,23 @@ async function forYouPosts(ctx: any, viewer: Doc<'users'> | null, seenItemKeys: 
   const safePosts = await safeVisiblePosts(ctx, candidatePosts)
   const followedAuthorIds = new Set(follows.map((follow: Doc<'follows'>) => String(follow.followingId)))
   const interests = await viewerInterests(ctx, viewer)
-  const hostProfileCache = new Map<string, Doc<'hostProfiles'> | null>()
+  const companionProfileCache = new Map<string, Doc<'companionProfiles'> | null>()
 
   const candidates = (await Promise.all(safePosts.map(async (post): Promise<PostRankingCandidate | null> => {
     const author = await ctx.db.get(post.authorId)
     if (!author || author.suspended) return null
-    const [comments, reactions, saves, experienceBooking, authorHost] = await Promise.all([
+    const [comments, reactions, saves, experienceBooking, authorCompanion] = await Promise.all([
       ctx.db.query('postComments').withIndex('by_post', (q: any) => q.eq('postId', post._id)).take(50),
       ctx.db.query('postReactions').withIndex('by_post', (q: any) => q.eq('postId', post._id)).take(100),
       ctx.db.query('savedPosts').withIndex('by_post', (q: any) => q.eq('postId', post._id)).take(50),
       post.experienceBookingId ? ctx.db.get(post.experienceBookingId) : null,
-      hostProfileForUser(ctx, post.authorId, hostProfileCache),
+      companionProfileForUser(ctx, post.authorId, companionProfileCache),
     ])
     const completedExperience = Boolean(experienceBooking && ['completed', 'review_window', 'closed'].includes(experienceBooking.status))
     const topics = [
       ...(completedExperience ? [experienceBooking!.category] : []),
-      ...(authorHost?.categories ?? []),
-      ...(authorHost?.strengths ?? []),
+      ...(authorCompanion?.categories ?? []),
+      ...(authorCompanion?.strengths ?? []),
     ]
     const topicMatch = bestTopicMatch(topics, interests.categoryWeights, interests.maximumCategoryWeight)
     const category = topicMatch.topic ?? topics[0]
@@ -505,21 +505,21 @@ async function forYouPosts(ctx: any, viewer: Doc<'users'> | null, seenItemKeys: 
     const followed = followedAuthorIds.has(String(post.authorId))
     const relationship = followed
       ? 1
-      : interests.bookedHostUserIds.has(String(post.authorId))
+      : interests.bookedCompanionUserIds.has(String(post.authorId))
         ? 0.85
-        : interests.savedHostUserIds.has(String(post.authorId))
+        : interests.savedCompanionUserIds.has(String(post.authorId))
           ? 0.7
           : interests.interactedAuthorIds.has(String(post.authorId))
             ? 0.55
             : 0
-    const approvedHost = Boolean(
-      authorHost?.status === 'approved'
+    const approvedCompanion = Boolean(
+      authorCompanion?.status === 'approved'
       && hasCurrentIdentityApproval(author, now),
     )
     const trustQuality = completedExperience
       ? 0.9
-      : approvedHost && authorHost
-        ? 0.5 + boundedRatio(authorHost.rating, 5) * 0.25 + boundedRatio(authorHost.reviewCount, 20) * 0.25
+      : approvedCompanion && authorCompanion
+        ? 0.5 + boundedRatio(authorCompanion.rating, 5) * 0.25 + boundedRatio(authorCompanion.reviewCount, 20) * 0.25
         : 0.25
     const newAuthor = now - author.createdAt <= 30 * 24 * 60 * 60 * 1000
     const underexposure = Math.max(newAuthor ? 0.8 : 0.35, 1 - engagement)
@@ -553,10 +553,10 @@ async function forYouPosts(ctx: any, viewer: Doc<'users'> | null, seenItemKeys: 
 
 async function viewerInterests(ctx: any, viewer: Doc<'users'> | null) {
   const categoryWeights = new Map<string, number>()
-  const bookedHostUserIds = new Set<string>()
-  const savedHostUserIds = new Set<string>()
+  const bookedCompanionUserIds = new Set<string>()
+  const savedCompanionUserIds = new Set<string>()
   const interactedAuthorIds = new Set<string>()
-  if (!viewer) return { categoryWeights, maximumCategoryWeight: 1, bookedHostUserIds, savedHostUserIds, interactedAuthorIds }
+  if (!viewer) return { categoryWeights, maximumCategoryWeight: 1, bookedCompanionUserIds, savedCompanionUserIds, interactedAuthorIds }
 
   const [bookings, savedProfiles, savedPosts, reactions] = await Promise.all([
     ctx.db.query('bookings').withIndex('by_member', (q: any) => q.eq('memberId', viewer._id)).order('desc').take(50),
@@ -564,47 +564,47 @@ async function viewerInterests(ctx: any, viewer: Doc<'users'> | null) {
     ctx.db.query('savedPosts').withIndex('by_user', (q: any) => q.eq('userId', viewer._id)).order('desc').take(50),
     ctx.db.query('postReactions').withIndex('by_user', (q: any) => q.eq('userId', viewer._id)).order('desc').take(50),
   ])
-  const bookingHosts = await Promise.all(bookings.map((booking: Doc<'bookings'>) => ctx.db.get(booking.hostProfileId)))
-  bookingHosts.forEach((host, index) => {
-    if (!host) return
-    bookedHostUserIds.add(String(host.userId))
+  const bookingCompanions = await Promise.all(bookings.map((booking: Doc<'bookings'>) => ctx.db.get(booking.companionProfileId)))
+  bookingCompanions.forEach((companion, index) => {
+    if (!companion) return
+    bookedCompanionUserIds.add(String(companion.userId))
     addCategoryWeight(categoryWeights, bookings[index].category, 3)
-    host.strengths.forEach((strength: string) => addCategoryWeight(categoryWeights, strength, 0.5))
+    companion.strengths.forEach((strength: string) => addCategoryWeight(categoryWeights, strength, 0.5))
   })
-  const savedHosts = await Promise.all(savedProfiles.map((saved: Doc<'savedProfiles'>) => ctx.db.get(saved.hostProfileId)))
-  savedHosts.forEach((host) => {
-    if (!host) return
-    savedHostUserIds.add(String(host.userId))
-    host.categories.forEach((category: string) => addCategoryWeight(categoryWeights, category, 2))
-    host.strengths.forEach((strength: string) => addCategoryWeight(categoryWeights, strength, 0.5))
+  const savedCompanions = await Promise.all(savedProfiles.map((saved: Doc<'savedProfiles'>) => ctx.db.get(saved.companionProfileId)))
+  savedCompanions.forEach((companion) => {
+    if (!companion) return
+    savedCompanionUserIds.add(String(companion.userId))
+    companion.categories.forEach((category: string) => addCategoryWeight(categoryWeights, category, 2))
+    companion.strengths.forEach((strength: string) => addCategoryWeight(categoryWeights, strength, 0.5))
   })
   const interactedPosts = await Promise.all([
     ...savedPosts.map((saved: Doc<'savedPosts'>) => ctx.db.get(saved.postId)),
     ...reactions.map((reaction: Doc<'postReactions'>) => ctx.db.get(reaction.postId)),
   ])
-  const interactionHostCache = new Map<string, Doc<'hostProfiles'> | null>()
+  const interactionCompanionCache = new Map<string, Doc<'companionProfiles'> | null>()
   for (const post of interactedPosts) {
     if (!post) continue
     interactedAuthorIds.add(String(post.authorId))
-    const host = await hostProfileForUser(ctx, post.authorId, interactionHostCache)
-    host?.categories.forEach((category: string) => addCategoryWeight(categoryWeights, category, 1))
-    host?.strengths.forEach((strength: string) => addCategoryWeight(categoryWeights, strength, 0.25))
+    const companion = await companionProfileForUser(ctx, post.authorId, interactionCompanionCache)
+    companion?.categories.forEach((category: string) => addCategoryWeight(categoryWeights, category, 1))
+    companion?.strengths.forEach((strength: string) => addCategoryWeight(categoryWeights, strength, 0.25))
   }
   return {
     categoryWeights,
     maximumCategoryWeight: Math.max(1, ...categoryWeights.values()),
-    bookedHostUserIds,
-    savedHostUserIds,
+    bookedCompanionUserIds,
+    savedCompanionUserIds,
     interactedAuthorIds,
   }
 }
 
-async function hostProfileForUser(ctx: any, userId: Id<'users'>, cache: Map<string, Doc<'hostProfiles'> | null>) {
+async function companionProfileForUser(ctx: any, userId: Id<'users'>, cache: Map<string, Doc<'companionProfiles'> | null>) {
   const key = String(userId)
   if (cache.has(key)) return cache.get(key) ?? null
-  const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q: any) => q.eq('userId', userId)).first()
-  cache.set(key, host)
-  return host
+  const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q: any) => q.eq('userId', userId)).first()
+  cache.set(key, companion)
+  return companion
 }
 
 function addCategoryWeight(weights: Map<string, number>, category: string, amount: number) {
@@ -645,39 +645,39 @@ function reasonForSource(source: FeedCandidateSource, category?: string) {
   return 'Fresh from the community'
 }
 
-async function approvedHostFallback(ctx: any, viewer: Doc<'users'> | null, limit: number) {
+async function approvedCompanionFallback(ctx: any, viewer: Doc<'users'> | null, limit: number) {
   const interests = await viewerInterests(ctx, viewer)
-  const hosts = await ctx.db.query('hostProfiles').withIndex('by_status', (q: any) => q.eq('status', 'approved')).take(20)
-  const safeHosts = (await Promise.all(hosts.map(async (host: Doc<'hostProfiles'>) => {
-    const user = await ctx.db.get(host.userId)
+  const companions = await ctx.db.query('companionProfiles').withIndex('by_status', (q: any) => q.eq('status', 'approved')).take(20)
+  const safeCompanions = (await Promise.all(companions.map(async (companion: Doc<'companionProfiles'>) => {
+    const user = await ctx.db.get(companion.userId)
     if (!user || user.suspended || !hasCurrentIdentityApproval(user) || user._id === viewer?._id) return null
-    const topicMatch = bestTopicMatch([...host.categories, ...host.strengths], interests.categoryWeights, interests.maximumCategoryWeight)
+    const topicMatch = bestTopicMatch([...companion.categories, ...companion.strengths], interests.categoryWeights, interests.maximumCategoryWeight)
     return {
       overlap: topicMatch.score,
-      evidence: boundedRatio(host.rating, 5) * 0.7 + boundedRatio(host.reviewCount, 20) * 0.3,
+      evidence: boundedRatio(companion.rating, 5) * 0.7 + boundedRatio(companion.reviewCount, 20) * 0.3,
       item: {
-        kind: 'host' as const,
-        itemKey: `host:${host._id}`,
-        source: 'host_fallback' as const,
-        reason: topicMatch.topic ? `Matches your interest in ${topicMatch.topic}` : 'An approved Friend Host to explore',
-        host: {
-          _id: host._id,
+        kind: 'companion' as const,
+        itemKey: `companion:${companion._id}`,
+        source: 'companion_fallback' as const,
+        reason: topicMatch.topic ? `Matches your interest in ${topicMatch.topic}` : 'An approved Companion to explore',
+        companion: {
+          _id: companion._id,
           displayName: user.displayName,
-          intro: host.intro,
-          strengths: host.strengths.slice(0, 3),
-          categories: host.categories.slice(0, 3),
-          mode: host.mode,
-          rating: host.rating,
-          reviewCount: host.reviewCount,
+          intro: companion.intro,
+          strengths: companion.strengths.slice(0, 3),
+          categories: companion.categories.slice(0, 3),
+          mode: companion.mode,
+          rating: companion.rating,
+          reviewCount: companion.reviewCount,
         },
       },
     }
-  }))).filter((host) => host !== null)
-  return safeHosts
+  }))).filter((companion) => companion !== null)
+  return safeCompanions
     .sort((left, right) => (
       right.overlap - left.overlap
       || right.evidence - left.evidence
-      || String(left.item.host._id).localeCompare(String(right.item.host._id))
+      || String(left.item.companion._id).localeCompare(String(right.item.companion._id))
     ))
     .slice(0, limit)
     .map(({ item }) => item)
@@ -716,8 +716,9 @@ function instrumentationKey(
 }
 
 async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | null) {
-  const [author, comments, reactions, saved, following] = await Promise.all([
+  const [author, authorCompanionProfile, comments, reactions, saved, following] = await Promise.all([
     ctx.db.get(post.authorId),
+    ctx.db.query('companionProfiles').withIndex('by_user', (q: any) => q.eq('userId', post.authorId)).first(),
     ctx.db.query('postComments').withIndex('by_post', (q: any) => q.eq('postId', post._id)).collect(),
     ctx.db.query('postReactions').withIndex('by_post', (q: any) => q.eq('postId', post._id)).collect(),
     viewer ? ctx.db.query('savedPosts').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('postId', post._id)).first() : null,
@@ -730,10 +731,19 @@ async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | n
     likeCount: reactions.length,
     liked: viewer ? reactions.some((reaction: Doc<'postReactions'>) => reaction.userId === viewer._id) : false,
     authorDisplayName: author?.displayName ?? 'Member',
+    authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
+    authorCompanionProfileId: authorCompanionProfile?.status === 'approved' && author && !author.suspended && hasCurrentIdentityApproval(author)
+      ? authorCompanionProfile._id
+      : undefined,
     saved: Boolean(saved),
     followingAuthor: Boolean(following),
     ownPost: viewer?._id === post.authorId,
   }
+}
+
+async function profileImageUrl(ctx: any, user: Pick<Doc<'users'>, 'profileImageStorageId' | 'profileImageUrl'>) {
+  if (!user.profileImageStorageId) return user.profileImageUrl
+  return await ctx.storage.getUrl(user.profileImageStorageId) ?? user.profileImageUrl
 }
 
 async function mediaWithUrls(ctx: any, media: Doc<'posts'>['media']) {

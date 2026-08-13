@@ -11,11 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
-import { Route as BecomeHostRouteImport } from './routes/become-host'
+import { Route as BecomeCompanionRouteImport } from './routes/become-companion'
 import { Route as CalendarDemoRouteImport } from './routes/calendar-demo'
+import { Route as CompanionRouteImport } from './routes/companion'
+import { Route as CompanionProfileRouteImport } from './routes/companion-profile'
 import { Route as DiscoverRouteImport } from './routes/discover'
-import { Route as HostRouteImport } from './routes/host'
-import { Route as HostProfileRouteImport } from './routes/host-profile'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as NearbyRouteImport } from './routes/nearby'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -35,9 +35,9 @@ const AppRoute = AppRouteImport.update({
   path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BecomeHostRoute = BecomeHostRouteImport.update({
-  id: '/become-host',
-  path: '/become-host',
+const BecomeCompanionRoute = BecomeCompanionRouteImport.update({
+  id: '/become-companion',
+  path: '/become-companion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalendarDemoRoute = CalendarDemoRouteImport.update({
@@ -45,19 +45,19 @@ const CalendarDemoRoute = CalendarDemoRouteImport.update({
   path: '/calendar-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CompanionRoute = CompanionRouteImport.update({
+  id: '/companion',
+  path: '/companion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompanionProfileRoute = CompanionProfileRouteImport.update({
+  id: '/companion-profile',
+  path: '/companion-profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DiscoverRoute = DiscoverRouteImport.update({
   id: '/discover',
   path: '/discover',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HostRoute = HostRouteImport.update({
-  id: '/host',
-  path: '/host',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HostProfileRoute = HostProfileRouteImport.update({
-  id: '/host-profile',
-  path: '/host-profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -104,11 +104,11 @@ const VerifyIdentityRoute = VerifyIdentityRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
-  '/become-host': typeof BecomeHostRoute
+  '/become-companion': typeof BecomeCompanionRoute
   '/calendar-demo': typeof CalendarDemoRoute
+  '/companion': typeof CompanionRoute
+  '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
-  '/host': typeof HostRoute
-  '/host-profile': typeof HostProfileRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
   '/onboarding': typeof OnboardingRoute
@@ -121,11 +121,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
-  '/become-host': typeof BecomeHostRoute
+  '/become-companion': typeof BecomeCompanionRoute
   '/calendar-demo': typeof CalendarDemoRoute
+  '/companion': typeof CompanionRoute
+  '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
-  '/host': typeof HostRoute
-  '/host-profile': typeof HostProfileRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
   '/onboarding': typeof OnboardingRoute
@@ -139,11 +139,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRoute
-  '/become-host': typeof BecomeHostRoute
+  '/become-companion': typeof BecomeCompanionRoute
   '/calendar-demo': typeof CalendarDemoRoute
+  '/companion': typeof CompanionRoute
+  '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
-  '/host': typeof HostRoute
-  '/host-profile': typeof HostProfileRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
   '/onboarding': typeof OnboardingRoute
@@ -158,11 +158,11 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/app'
-    | '/become-host'
+    | '/become-companion'
     | '/calendar-demo'
+    | '/companion'
+    | '/companion-profile'
     | '/discover'
-    | '/host'
-    | '/host-profile'
     | '/messages'
     | '/nearby'
     | '/onboarding'
@@ -175,11 +175,11 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/app'
-    | '/become-host'
+    | '/become-companion'
     | '/calendar-demo'
+    | '/companion'
+    | '/companion-profile'
     | '/discover'
-    | '/host'
-    | '/host-profile'
     | '/messages'
     | '/nearby'
     | '/onboarding'
@@ -192,11 +192,11 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/app'
-    | '/become-host'
+    | '/become-companion'
     | '/calendar-demo'
+    | '/companion'
+    | '/companion-profile'
     | '/discover'
-    | '/host'
-    | '/host-profile'
     | '/messages'
     | '/nearby'
     | '/onboarding'
@@ -210,11 +210,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
-  BecomeHostRoute: typeof BecomeHostRoute
+  BecomeCompanionRoute: typeof BecomeCompanionRoute
   CalendarDemoRoute: typeof CalendarDemoRoute
+  CompanionRoute: typeof CompanionRoute
+  CompanionProfileRoute: typeof CompanionProfileRoute
   DiscoverRoute: typeof DiscoverRoute
-  HostRoute: typeof HostRoute
-  HostProfileRoute: typeof HostProfileRoute
   MessagesRoute: typeof MessagesRoute
   NearbyRoute: typeof NearbyRoute
   OnboardingRoute: typeof OnboardingRoute
@@ -241,11 +241,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/become-host': {
-      id: '/become-host'
-      path: '/become-host'
-      fullPath: '/become-host'
-      preLoaderRoute: typeof BecomeHostRouteImport
+    '/become-companion': {
+      id: '/become-companion'
+      path: '/become-companion'
+      fullPath: '/become-companion'
+      preLoaderRoute: typeof BecomeCompanionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/calendar-demo': {
@@ -255,25 +255,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CalendarDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/companion': {
+      id: '/companion'
+      path: '/companion'
+      fullPath: '/companion'
+      preLoaderRoute: typeof CompanionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/companion-profile': {
+      id: '/companion-profile'
+      path: '/companion-profile'
+      fullPath: '/companion-profile'
+      preLoaderRoute: typeof CompanionProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/discover': {
       id: '/discover'
       path: '/discover'
       fullPath: '/discover'
       preLoaderRoute: typeof DiscoverRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/host': {
-      id: '/host'
-      path: '/host'
-      fullPath: '/host'
-      preLoaderRoute: typeof HostRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/host-profile': {
-      id: '/host-profile'
-      path: '/host-profile'
-      fullPath: '/host-profile'
-      preLoaderRoute: typeof HostProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -338,11 +338,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
-  BecomeHostRoute: BecomeHostRoute,
+  BecomeCompanionRoute: BecomeCompanionRoute,
   CalendarDemoRoute: CalendarDemoRoute,
+  CompanionRoute: CompanionRoute,
+  CompanionProfileRoute: CompanionProfileRoute,
   DiscoverRoute: DiscoverRoute,
-  HostRoute: HostRoute,
-  HostProfileRoute: HostProfileRoute,
   MessagesRoute: MessagesRoute,
   NearbyRoute: NearbyRoute,
   OnboardingRoute: OnboardingRoute,

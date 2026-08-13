@@ -13,7 +13,7 @@ const userAppUrl = import.meta.env.VITE_USER_APP_URL ?? 'http://localhost:3000'
 
 const iconByRoute: Record<string, React.ReactNode> = {
   '/overview': <BarChart3 size={16} />,
-  '/host-applications': <ClipboardCheck size={16} />,
+  '/companion-applications': <ClipboardCheck size={16} />,
   '/booking-verification': <ShieldCheck size={16} />,
   '/reports': <Flag size={16} />,
   '/users': <UsersRound size={16} />,
@@ -71,7 +71,7 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
     return (
       <AdminStandalone
         title="Admin access required"
-        body="This site is limited to owners and reviewers. Use the member app for bookings, posts, and Friend Host tools."
+        body="This site is limited to owners and reviewers. Use the member app for bookings, posts, and Companion tools."
         action={(
           <div className="admin-standalone-actions">
             <button type="button" className="btn btn-neutral" onClick={() => void signOut()}>

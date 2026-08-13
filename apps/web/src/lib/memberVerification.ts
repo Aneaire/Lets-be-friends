@@ -43,7 +43,7 @@ export function memberVerificationPresentation(
       state: 'approved',
       label: 'Identity approved',
       tone: 'success',
-      guidance: 'Your identity check and safety review are approved. You can request bookings with Friend Hosts.',
+      guidance: 'Your identity check and safety review are approved. You can request bookings with Companions.',
       action: 'none',
     }
   }
@@ -53,7 +53,7 @@ export function memberVerificationPresentation(
       state: 'expired',
       label: 'Verification renewal needed',
       tone: 'warning',
-      guidance: 'Your previous identity approval is no longer current. Complete a new identity check and safety review before booking or hosting again.',
+      guidance: 'Your previous identity approval is no longer current. Complete a new identity check and safety review before booking or companion again.',
       action: 'retry',
     }
   }

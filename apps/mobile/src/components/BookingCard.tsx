@@ -12,7 +12,7 @@ import { AppText } from './Typography'
 
 export type BookingCardView = {
   id: string
-  hostName: string
+  companionName: string
   category: string
   mode: 'online' | 'in_person'
   requestedAt: number
@@ -29,7 +29,7 @@ export function BookingCard({ booking, onPress, compact = false }: { booking: Bo
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Open ${booking.category} booking with ${booking.hostName}, ${status.label}`}
+      accessibilityLabel={`Open ${booking.category} booking with ${booking.companionName}, ${status.label}`}
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
@@ -40,7 +40,7 @@ export function BookingCard({ booking, onPress, compact = false }: { booking: Bo
       <View style={styles.headingRow}>
         <View style={styles.copy}>
           <AppText variant="bodyStrong">{booking.category}</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>with {booking.hostName}</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>with {booking.companionName}</AppText>
         </View>
         <View style={[styles.status, { backgroundColor: theme.colors.socialSoft }]}>
           <AppText variant="caption" color={theme.colors.social}>{status.label}</AppText>

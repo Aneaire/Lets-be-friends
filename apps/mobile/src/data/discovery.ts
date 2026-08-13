@@ -1,7 +1,7 @@
 import type { ActivityCategory } from '@lets-be-friends/shared'
 
-import { friendHosts } from './hosts'
-import { mapFixtureDiscoveryHost, type DiscoveryHostViewModel, type SessionMode } from './hostViewModels'
+import { companions } from './companions'
+import { mapFixtureDiscoveryCompanion, type DiscoveryCompanionViewModel, type SessionMode } from './companionViewModels'
 
 export type DiscoveryFilter = 'all' | SessionMode
 
@@ -18,26 +18,26 @@ export const featuredCategories: ActivityCategory[] = [
   'Study and coworking',
 ]
 
-export const fixtureDiscoveryHosts = friendHosts.map(mapFixtureDiscoveryHost)
+export const fixtureDiscoveryCompanions = companions.map(mapFixtureDiscoveryCompanion)
 
-export function filterDiscoveryHosts(
-  hosts: DiscoveryHostViewModel[] = fixtureDiscoveryHosts,
+export function filterDiscoveryCompanions(
+  companions: DiscoveryCompanionViewModel[] = fixtureDiscoveryCompanions,
   query = '',
   filter: DiscoveryFilter = 'all',
 ) {
   const normalizedQuery = query.trim().toLocaleLowerCase()
 
-  return hosts.filter((host) => {
-    const matchesFilter = filter === 'all' || host.sessionModes.includes(filter)
+  return companions.filter((companion) => {
+    const matchesFilter = filter === 'all' || companion.sessionModes.includes(filter)
     if (!matchesFilter) return false
     if (!normalizedQuery) return true
 
     const searchable = [
-      host.name,
-      host.location,
-      host.intro,
-      ...host.categories,
-      ...host.strengths,
+      companion.name,
+      companion.location,
+      companion.intro,
+      ...companion.categories,
+      ...companion.strengths,
     ].join(' ').toLocaleLowerCase()
 
     return searchable.includes(normalizedQuery)

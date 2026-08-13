@@ -60,7 +60,7 @@ function TabsView({ unreadCount = 0 }: { unreadCount?: number }) {
         name="explore"
         options={{
           title: 'Explore',
-          tabBarAccessibilityLabel: 'Explore Friend Hosts tab',
+          tabBarAccessibilityLabel: 'Explore Companions tab',
           tabBarIcon: ({ color, size }) => <TabIcon source={tabIcons.explore} color={color} size={size} />,
         }}
       />

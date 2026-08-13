@@ -40,16 +40,16 @@ async function seed(t: ReturnType<typeof convexTest>) {
     const memberId = await ctx.db.insert('users', {
       clerkUserId: 'req-member', displayName: 'Request Member', role: 'member', ...identity,
     })
-    const hostUserId = await ctx.db.insert('users', {
-      clerkUserId: 'req-host', displayName: 'Request Host', role: 'friend_host', ...identity,
+    const companionUserId = await ctx.db.insert('users', {
+      clerkUserId: 'req-companion', displayName: 'Request Companion', role: 'companion', ...identity,
     })
     const outsiderId = await ctx.db.insert('users', {
       clerkUserId: 'req-outsider', displayName: 'Request Outsider', role: 'member', ...identity,
     })
-    const hostProfileId = await ctx.db.insert('hostProfiles', {
-      userId: hostUserId,
-      displayName: 'Request Host',
-      intro: 'A verified host for booking-message tests.',
+    const companionProfileId = await ctx.db.insert('companionProfiles', {
+      userId: companionUserId,
+      displayName: 'Request Companion',
+      intro: 'A verified companion for booking-message tests.',
       city: 'Test City',
       strengths: ['Good listener'],
       categories: ['Coffee or meal companion'],
@@ -73,13 +73,13 @@ async function seed(t: ReturnType<typeof convexTest>) {
       createdAt: now,
       updatedAt: now,
     })
-    return { now, memberId, hostUserId, outsiderId, hostProfileId }
+    return { now, memberId, companionUserId, outsiderId, companionProfileId }
   })
 }
 
-async function createRequest(t: ReturnType<typeof convexTest>, hostProfileId: any) {
+async function createRequest(t: ReturnType<typeof convexTest>, companionProfileId: any) {
   return await t.withIdentity({ subject: 'req-member' }).mutation(api.bookings.createDraft, {
-    hostProfileId,
+    companionProfileId,
     category: 'Coffee or meal companion',
     mode: 'in_person',
     requestedAt: Date.now() + 86_400_000,
@@ -89,16 +89,16 @@ async function createRequest(t: ReturnType<typeof convexTest>, hostProfileId: an
 }
 
 async function requestThread(t: ReturnType<typeof convexTest>) {
-  const inbox = await t.withIdentity({ subject: 'req-host' }).query(api.conversations.list, {})
+  const inbox = await t.withIdentity({ subject: 'req-companion' }).query(api.conversations.list, {})
   expect(inbox).toHaveLength(1)
-  return await t.withIdentity({ subject: 'req-host' }).query(api.conversations.messages, { conversationId: inbox[0]._id })
+  return await t.withIdentity({ subject: 'req-companion' }).query(api.conversations.messages, { conversationId: inbox[0]._id })
 }
 
 describe('booking requests framed in direct messages', () => {
-  it('auto-sends one booking message that the Friend Host sees as a pending request card', async () => {
+  it('auto-sends one booking message that the Companion sees as a pending request card', async () => {
     const t = createTest()
     const ids = await seed(t)
-    const created = await createRequest(t, ids.hostProfileId)
+    const created = await createRequest(t, ids.companionProfileId)
 
     const thread = await requestThread(t)
     const requestMessages = thread.messages.filter((message) => message.booking)
@@ -111,7 +111,7 @@ describe('booking requests framed in direct messages', () => {
       mode: 'in_person',
       memberId: ids.memberId,
       memberDisplayName: 'Request Member',
-      hostDisplayName: 'Request Host',
+      companionDisplayName: 'Request Companion',
       memberTotalCentavos: TOTAL,
     })
     expect(message.body).toContain('sent you a booking request')
@@ -125,7 +125,7 @@ describe('booking requests framed in direct messages', () => {
   it('lets the requester edit a pending request and appends one update message, then locks editing after decision', async () => {
     const t = createTest()
     const ids = await seed(t)
-    const created = await createRequest(t, ids.hostProfileId)
+    const created = await createRequest(t, ids.companionProfileId)
 
     const updated = await t.withIdentity({ subject: 'req-member' }).mutation(api.bookings.editRequest, {
       bookingId: created.bookingId,
@@ -158,7 +158,7 @@ describe('booking requests framed in direct messages', () => {
       durationMinutes: 60,
     })).rejects.toThrow('Only the member who requested the booking can edit it')
 
-    await t.withIdentity({ subject: 'req-host' }).mutation(api.bookings.hostDecision, {
+    await t.withIdentity({ subject: 'req-companion' }).mutation(api.bookings.companionDecision, {
       bookingId: created.bookingId,
       decision: 'accepted',
       note: 'Happy to move it online.',
@@ -172,22 +172,22 @@ describe('booking requests framed in direct messages', () => {
         requestedAt: Date.now() + 3 * 86_400_000,
         durationMinutes: 60,
       }),
-    ).rejects.toThrow('awaiting the Friend Host decision')
+    ).rejects.toThrow('awaiting the Companion decision')
   })
 
-  it('streams accept and decline decisions into the thread and blocks editing for the host', async () => {
+  it('streams accept and decline decisions into the thread and blocks editing for the companion', async () => {
     const t = createTest()
     const ids = await seed(t)
-    const created = await createRequest(t, ids.hostProfileId)
+    const created = await createRequest(t, ids.companionProfileId)
 
     await expect(
-      t.withIdentity({ subject: 'req-member' }).mutation(api.bookings.hostDecision, {
+      t.withIdentity({ subject: 'req-member' }).mutation(api.bookings.companionDecision, {
         bookingId: created.bookingId,
         decision: 'accepted',
       }),
-    ).rejects.toThrow('Only the booked Friend Host can decide')
+    ).rejects.toThrow('Only the booked Companion can decide')
 
-    await t.withIdentity({ subject: 'req-host' }).mutation(api.bookings.hostDecision, {
+    await t.withIdentity({ subject: 'req-companion' }).mutation(api.bookings.companionDecision, {
       bookingId: created.bookingId,
       decision: 'declined',
       note: 'No overlapping availability today.',
@@ -200,7 +200,7 @@ describe('booking requests framed in direct messages', () => {
     expect(bookingMessages[1].booking?.status).toBe('declined')
 
     await expect(
-      t.withIdentity({ subject: 'req-host' }).mutation(api.bookings.editRequest, {
+      t.withIdentity({ subject: 'req-companion' }).mutation(api.bookings.editRequest, {
         bookingId: created.bookingId,
         category: 'Coffee or meal companion',
         mode: 'in_person',
@@ -213,7 +213,7 @@ describe('booking requests framed in direct messages', () => {
   it('logs a cancel into the thread and keeps the conversation available to both sides', async () => {
     const t = createTest()
     const ids = await seed(t)
-    const created = await createRequest(t, ids.hostProfileId)
+    const created = await createRequest(t, ids.companionProfileId)
 
     await t.withIdentity({ subject: 'req-member' }).mutation(api.bookings.cancel, {
       bookingId: created.bookingId,

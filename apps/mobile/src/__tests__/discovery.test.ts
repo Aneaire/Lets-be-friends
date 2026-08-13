@@ -1,9 +1,9 @@
-import { filterDiscoveryHosts, fixtureDiscoveryHosts } from '@/data/discovery'
+import { filterDiscoveryCompanions, fixtureDiscoveryCompanions } from '@/data/discovery'
 
-const byId = (query = '', filter: Parameters<typeof filterDiscoveryHosts>[2] = 'all') =>
-  filterDiscoveryHosts(fixtureDiscoveryHosts, query, filter).map((host) => host.id)
+const byId = (query = '', filter: Parameters<typeof filterDiscoveryCompanions>[2] = 'all') =>
+  filterDiscoveryCompanions(fixtureDiscoveryCompanions, query, filter).map((companion) => companion.id)
 
-describe('Friend Host discovery', () => {
+describe('Companion discovery', () => {
   it('searches fields present in discovery results', () => {
     expect(byId('study partner')).toEqual(['sam-dela-cruz'])
     expect(byId('Makati')).toEqual(['mika-santos'])

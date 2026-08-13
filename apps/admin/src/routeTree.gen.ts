@@ -13,7 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuditLogsRouteImport } from './routes/audit-logs'
 import { Route as BookingVerificationRouteImport } from './routes/booking-verification'
 import { Route as CategoriesRouteImport } from './routes/categories'
-import { Route as HostApplicationsRouteImport } from './routes/host-applications'
+import { Route as CompanionApplicationsRouteImport } from './routes/companion-applications'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as PostsRouteImport } from './routes/posts'
 import { Route as ProfileRouteImport } from './routes/profile'
@@ -42,9 +42,9 @@ const CategoriesRoute = CategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => rootRouteImport,
 } as any)
-const HostApplicationsRoute = HostApplicationsRouteImport.update({
-  id: '/host-applications',
-  path: '/host-applications',
+const CompanionApplicationsRoute = CompanionApplicationsRouteImport.update({
+  id: '/companion-applications',
+  path: '/companion-applications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OverviewRoute = OverviewRouteImport.update({
@@ -88,7 +88,7 @@ export interface FileRoutesByFullPath {
   '/audit-logs': typeof AuditLogsRoute
   '/booking-verification': typeof BookingVerificationRoute
   '/categories': typeof CategoriesRoute
-  '/host-applications': typeof HostApplicationsRoute
+  '/companion-applications': typeof CompanionApplicationsRoute
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
   '/profile': typeof ProfileRoute
@@ -102,7 +102,7 @@ export interface FileRoutesByTo {
   '/audit-logs': typeof AuditLogsRoute
   '/booking-verification': typeof BookingVerificationRoute
   '/categories': typeof CategoriesRoute
-  '/host-applications': typeof HostApplicationsRoute
+  '/companion-applications': typeof CompanionApplicationsRoute
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
   '/profile': typeof ProfileRoute
@@ -117,7 +117,7 @@ export interface FileRoutesById {
   '/audit-logs': typeof AuditLogsRoute
   '/booking-verification': typeof BookingVerificationRoute
   '/categories': typeof CategoriesRoute
-  '/host-applications': typeof HostApplicationsRoute
+  '/companion-applications': typeof CompanionApplicationsRoute
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
   '/profile': typeof ProfileRoute
@@ -133,7 +133,7 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/booking-verification'
     | '/categories'
-    | '/host-applications'
+    | '/companion-applications'
     | '/overview'
     | '/posts'
     | '/profile'
@@ -147,7 +147,7 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/booking-verification'
     | '/categories'
-    | '/host-applications'
+    | '/companion-applications'
     | '/overview'
     | '/posts'
     | '/profile'
@@ -161,7 +161,7 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/booking-verification'
     | '/categories'
-    | '/host-applications'
+    | '/companion-applications'
     | '/overview'
     | '/posts'
     | '/profile'
@@ -176,7 +176,7 @@ export interface RootRouteChildren {
   AuditLogsRoute: typeof AuditLogsRoute
   BookingVerificationRoute: typeof BookingVerificationRoute
   CategoriesRoute: typeof CategoriesRoute
-  HostApplicationsRoute: typeof HostApplicationsRoute
+  CompanionApplicationsRoute: typeof CompanionApplicationsRoute
   OverviewRoute: typeof OverviewRoute
   PostsRoute: typeof PostsRoute
   ProfileRoute: typeof ProfileRoute
@@ -216,11 +216,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CategoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/host-applications': {
-      id: '/host-applications'
-      path: '/host-applications'
-      fullPath: '/host-applications'
-      preLoaderRoute: typeof HostApplicationsRouteImport
+    '/companion-applications': {
+      id: '/companion-applications'
+      path: '/companion-applications'
+      fullPath: '/companion-applications'
+      preLoaderRoute: typeof CompanionApplicationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/overview': {
@@ -280,7 +280,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuditLogsRoute: AuditLogsRoute,
   BookingVerificationRoute: BookingVerificationRoute,
   CategoriesRoute: CategoriesRoute,
-  HostApplicationsRoute: HostApplicationsRoute,
+  CompanionApplicationsRoute: CompanionApplicationsRoute,
   OverviewRoute: OverviewRoute,
   PostsRoute: PostsRoute,
   ProfileRoute: ProfileRoute,

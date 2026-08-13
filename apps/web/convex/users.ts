@@ -3,6 +3,9 @@ import { v } from 'convex/values'
 import { activityCategories, normalizeUsername, usernameValidationError } from '@lets-be-friends/shared'
 import { requireViewer, writeAudit } from './lib'
 import { hasCurrentIdentityApproval, identityTestBypassAllowed } from './identityVerification'
+import { syncUserCompanionLocation } from './companionLocations'
+
+const currentTermsVersion = '2026-08-13'
 
 async function getClerkUserId(ctx: { auth: { getUserIdentity: () => Promise<{ subject: string } | null> } }) {
   const identity = await ctx.auth.getUserIdentity()
@@ -145,14 +148,55 @@ export const ensureViewer = mutation({
   },
 })
 
+export const saveOnboardingLocationAndConsent = mutation({
+  args: {
+    latitude: v.number(),
+    longitude: v.number(),
+    locationConsent: v.boolean(),
+    termsAccepted: v.boolean(),
+    termsVersion: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    if (!args.locationConsent) throw new Error('Consent to store and use your approximate location is required')
+    if (!args.termsAccepted) throw new Error('Agreement to the Terms and Conditions is required')
+    validateCoordinates(args.latitude, args.longitude)
+    const termsVersion = args.termsVersion.trim()
+    if (termsVersion !== currentTermsVersion) throw new Error('Accept the current Terms and Conditions before continuing')
+    const now = Date.now()
+    await ctx.db.patch(viewer._id, {
+      approximateLatitude: roundCoordinate(args.latitude),
+      approximateLongitude: roundCoordinate(args.longitude),
+      approximateLocationConsentedAt: now,
+      termsAcceptedAt: now,
+      termsVersion,
+      updatedAt: now,
+    })
+    const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    if (companion) {
+      const approximateLatitude = roundCoordinate(args.latitude)
+      const approximateLongitude = roundCoordinate(args.longitude)
+      await ctx.db.patch(companion._id, { approximateLatitude, approximateLongitude, approximateArea: undefined, updatedAt: now })
+      await syncUserCompanionLocation(ctx, viewer._id)
+    }
+    return viewer._id
+  },
+})
+
 export const completeOnboarding = mutation({
-  args: { goal: v.union(v.literal('member'), v.literal('friend_host')) },
+  args: { goal: v.union(v.literal('member'), v.literal('companion')) },
   handler: async (ctx, args) => {
     const clerkUserId = await getClerkUserId(ctx)
     if (!clerkUserId) throw new Error('Authentication required')
     const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique()
     if (!viewer) throw new Error('Account setup is not complete')
     if (!viewer.username) throw new Error('Choose a username before completing your welcome guide')
+    validateCoordinates(viewer.approximateLatitude, viewer.approximateLongitude)
+    if (typeof viewer.approximateLatitude !== 'number' || typeof viewer.approximateLongitude !== 'number') {
+      throw new Error('Save an approximate location before completing your welcome guide')
+    }
+    if (!viewer.approximateLocationConsentedAt) throw new Error('Approximate location consent is required')
+    if (!viewer.termsAcceptedAt || viewer.termsVersion !== currentTermsVersion) throw new Error('Current Terms and Conditions agreement is required')
     const now = Date.now()
     await ctx.db.patch(viewer._id, {
       onboardingGoal: args.goal,
@@ -203,8 +247,8 @@ export const updateProfile = mutation({
         bio,
         updatedAt: now,
       })
-      const hostProfile = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', existing._id)).first()
-      if (hostProfile) await ctx.db.patch(hostProfile._id, { displayName, updatedAt: now })
+      const companionProfile = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', existing._id)).first()
+      if (companionProfile) await ctx.db.patch(companionProfile._id, { displayName, updatedAt: now })
       if (args.profileImageStorageId && existing.profileImageStorageId && existing.profileImageStorageId !== args.profileImageStorageId) {
         await ctx.storage.delete(existing.profileImageStorageId)
       }
@@ -254,6 +298,17 @@ function normalizeOptional(value: string | undefined, maxLength: number) {
   if (!trimmed) return undefined
   if (trimmed.length > maxLength) throw new Error('Profile field is too long')
   return trimmed
+}
+
+function validateCoordinates(latitude?: number, longitude?: number) {
+  if ((latitude === undefined) !== (longitude === undefined)) throw new Error('Latitude and longitude must be provided together')
+  if (latitude === undefined || longitude === undefined) return
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) throw new Error('Latitude must be between -90 and 90')
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw new Error('Longitude must be between -180 and 180')
+}
+
+function roundCoordinate(value: number) {
+  return Math.round(value * 100) / 100
 }
 
 async function profileImageUrl(ctx: any, user: { profileImageStorageId?: any; profileImageUrl?: string }) {

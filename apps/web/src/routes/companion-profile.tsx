@@ -7,26 +7,26 @@ import { formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
 import { MeetingSeam } from '../components/AppNavigation'
 
-export const Route = createFileRoute('/host-profile')({
-  validateSearch: (search: Record<string, unknown>): { hostProfileId?: string } => (
-    typeof search.hostProfileId === 'string' ? { hostProfileId: search.hostProfileId } : {}
+export const Route = createFileRoute('/companion-profile')({
+  validateSearch: (search: Record<string, unknown>): { companionProfileId?: string } => (
+    typeof search.companionProfileId === 'string' ? { companionProfileId: search.companionProfileId } : {}
   ),
-  component: HostProfilePage,
+  component: CompanionProfilePage,
 })
 
-type HostProfile = NonNullable<ReturnType<typeof useQuery<typeof api.hosts.getPublic>>>
-type HostReview = NonNullable<ReturnType<typeof useQuery<typeof api.reviews.forHost>>>[number]
-type HostPost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUser>>>[number]
-type HostPostMedia = { storageId: Id<'_storage'>; kind: 'image' | 'video'; url: string | null }
+type CompanionProfile = NonNullable<ReturnType<typeof useQuery<typeof api.companions.getPublic>>>
+type CompanionReview = NonNullable<ReturnType<typeof useQuery<typeof api.reviews.forCompanion>>>[number]
+type CompanionPost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUser>>>[number]
+type CompanionPostMedia = { storageId: Id<'_storage'>; kind: 'image' | 'video'; url: string | null }
 
-function HostProfilePage() {
-  const { hostProfileId } = Route.useSearch()
+function CompanionProfilePage() {
+  const { companionProfileId } = Route.useSearch()
   const navigate = useNavigate()
   const { isSignedIn } = useAuth()
-  const host = useQuery(api.hosts.getPublic, hostProfileId ? { hostProfileId: hostProfileId as Id<'hostProfiles'> } : 'skip') as HostProfile | null | undefined
-  const reviews = useQuery(api.reviews.forHost, hostProfileId ? { hostProfileId: hostProfileId as Id<'hostProfiles'> } : 'skip') as HostReview[] | undefined
-  const posts = useQuery(api.social.byUser, host?.userId ? { userId: host.userId } : 'skip') as HostPost[] | undefined
-  const toggleSaveProfile = useMutation(api.hosts.toggleSaveProfile)
+  const companion = useQuery(api.companions.getPublic, companionProfileId ? { companionProfileId: companionProfileId as Id<'companionProfiles'> } : 'skip') as CompanionProfile | null | undefined
+  const reviews = useQuery(api.reviews.forCompanion, companionProfileId ? { companionProfileId: companionProfileId as Id<'companionProfiles'> } : 'skip') as CompanionReview[] | undefined
+  const posts = useQuery(api.social.byUser, companion?.userId ? { userId: companion.userId } : 'skip') as CompanionPost[] | undefined
+  const toggleSaveProfile = useMutation(api.companions.toggleSaveProfile)
   const toggleFollow = useMutation(api.social.toggleFollow)
   const toggleSaveReview = useMutation(api.reviews.toggleSave)
   const report = useMutation(api.reports.create)
@@ -35,7 +35,7 @@ function HostProfilePage() {
   const [messageError, setMessageError] = useState('')
   const [startingMessage, setStartingMessage] = useState(false)
 
-  if (!hostProfileId) {
+  if (!companionProfileId) {
     return (
       <main className="marketing-page">
         <h1 className="text-h1 mt-2">Choose someone from Explore first.</h1>
@@ -44,8 +44,8 @@ function HostProfilePage() {
     )
   }
 
-  if (host === undefined) return <main className="marketing-page"><div className="empty-state">Loading profile...</div></main>
-  if (host === null) {
+  if (companion === undefined) return <main className="marketing-page"><div className="empty-state">Loading profile...</div></main>
+  if (companion === null) {
     return (
       <main className="marketing-page">
         <h1 className="text-h1 mt-2">Profile is not available.</h1>
@@ -56,7 +56,7 @@ function HostProfilePage() {
   }
 
   return (
-    <main className="marketing-page-wide host-profile-page">
+    <main className="marketing-page-wide companion-profile-page">
       {(notice || messageError) && (
         <div className={messageError ? 'notice notice-danger mb-6' : 'notice notice-success mb-6'}>
           <span className="notice-icon">{messageError ? '!' : '✓'}</span>
@@ -64,47 +64,47 @@ function HostProfilePage() {
         </div>
       )}
 
-      <section className="panel host-profile-hero mb-8">
-        <div className="host-profile-overview">
-          <div className="host-profile-main">
-            <div className="host-profile-identity">
-              <ProfilePhoto imageUrl={host.profileImageUrl} name={host.displayName} size="lg" />
+      <section className="panel companion-profile-hero mb-8">
+        <div className="companion-profile-overview">
+          <div className="companion-profile-main">
+            <div className="companion-profile-identity">
+              <ProfilePhoto imageUrl={companion.profileImageUrl} name={companion.displayName} size="lg" />
               <div className="min-w-0">
-                <p className="text-meta">Friend Host</p>
-                <h1 className="text-h1">{host.displayName}</h1>
+                <p className="text-meta">Companion</p>
+                <h1 className="text-h1">{companion.displayName}</h1>
                 <div className="worklist-row-meta mt-1">
-                  <span>{host.city}</span>
+                  <span>{companion.city}</span>
                   <span className="dot" aria-hidden="true" />
-                  <span>{formatMode(host.mode)}</span>
+                  <span>{formatMode(companion.mode)}</span>
                   <span className="dot" aria-hidden="true" />
-                  <span>{host.rating.toFixed(1)} from {host.reviewCount} reviews</span>
+                  <span>{companion.rating.toFixed(1)} from {companion.reviewCount} reviews</span>
                 </div>
               </div>
             </div>
-            {host.bio && <p className="host-profile-bio">{host.bio}</p>}
-            <p className="host-profile-intro">{host.intro}</p>
+            {companion.bio && <p className="companion-profile-bio">{companion.bio}</p>}
+            <p className="companion-profile-intro">{companion.intro}</p>
           </div>
 
-          <aside className="host-profile-decision" aria-label={`Plan with ${host.displayName}`}>
-            <div className="host-profile-planline"><MeetingSeam /><span>Fit · Trust · Shared plan</span></div>
-            <p className="host-profile-trust">Identity checked and Friend Host profile reviewed.</p>
-            {host.hourlyRateCentavos !== undefined ? (
-              <p className="host-profile-rate">
-                <strong className="tabular">{formatPhp(host.hourlyRateCentavos)}</strong>
+          <aside className="companion-profile-decision" aria-label={`Plan with ${companion.displayName}`}>
+            <div className="companion-profile-planline"><MeetingSeam /><span>Fit · Trust · Shared plan</span></div>
+            <p className="companion-profile-trust">Identity checked and Companion profile reviewed.</p>
+            {companion.hourlyRateCentavos !== undefined ? (
+              <p className="companion-profile-rate">
+                <strong className="tabular">{formatPhp(companion.hourlyRateCentavos)}</strong>
                 <span>per hour. Your final booking total includes the service fee.</span>
               </p>
             ) : (
               <p className="text-meta">This legacy profile must set a listed hourly rate before receiving member-wallet booking requests.</p>
             )}
-            <div className="host-profile-actions">
-              {host.viewerBookingEligibility === 'own_profile' ? (
+            <div className="companion-profile-actions">
+              {companion.viewerBookingEligibility === 'own_profile' ? (
                 <>
                   <span className="status-pill" data-tone="self">Your profile</span>
-                  <Link to="/become-host" className="btn btn-self btn-sm host-profile-edit-action">Edit hosting profile</Link>
+                  <Link to="/become-companion" className="btn btn-self btn-sm companion-profile-edit-action">Edit companion profile</Link>
                 </>
               ) : (
                 <>
-                  <HostBookingAction eligibility={host.viewerBookingEligibility} hostProfileId={host._id} bookable={host.bookable} />
+                  <CompanionBookingAction eligibility={companion.viewerBookingEligibility} companionProfileId={companion._id} bookable={companion.bookable} />
                   {isSignedIn ? (
                     <>
                       <button
@@ -114,7 +114,7 @@ function HostProfilePage() {
                           setStartingMessage(true)
                           setMessageError('')
                           try {
-                            const conversationId = await startConversation({ otherUserId: host.userId })
+                            const conversationId = await startConversation({ otherUserId: companion.userId })
                             await navigate({ to: '/messages', search: { conversationId } })
                           } catch (error) {
                             setMessageError(error instanceof Error ? error.message : 'Conversation could not be opened.')
@@ -127,25 +127,25 @@ function HostProfilePage() {
                       </button>
                       <button
                         onClick={async () => {
-                          await toggleFollow({ userId: host.userId })
-                          setNotice(host.following ? 'Member unfollowed.' : 'Member followed.')
+                          await toggleFollow({ userId: companion.userId })
+                          setNotice(companion.following ? 'Member unfollowed.' : 'Member followed.')
                         }}
                         className="btn btn-social-quiet btn-sm"
                       >
-                        {host.following ? 'Following' : 'Follow'}
+                        {companion.following ? 'Following' : 'Follow'}
                       </button>
                       <button
                         onClick={async () => {
-                          await toggleSaveProfile({ hostProfileId: host._id })
-                          setNotice(host.saved ? 'Profile removed from saved.' : 'Profile saved.')
+                          await toggleSaveProfile({ companionProfileId: companion._id })
+                          setNotice(companion.saved ? 'Profile removed from saved.' : 'Profile saved.')
                         }}
                         className="btn btn-neutral btn-sm"
                       >
-                        {host.saved ? 'Saved profile' : 'Save profile'}
+                        {companion.saved ? 'Saved profile' : 'Save profile'}
                       </button>
                       <button
                         onClick={async () => {
-                          await report({ targetType: 'profile', targetId: host._id, reason: 'Profile needs safety review' })
+                          await report({ targetType: 'profile', targetId: companion._id, reason: 'Profile needs safety review' })
                           setNotice('Report sent to safety review.')
                         }}
                         className="btn btn-danger btn-sm"
@@ -164,27 +164,27 @@ function HostProfilePage() {
           </aside>
         </div>
 
-        <div className="host-profile-fit-grid">
+        <div className="companion-profile-fit-grid">
           <div>
             <p className="eyebrow">Strengths</p>
-            <h2 className="text-h3 mt-1">What {host.firstName} brings to the time</h2>
+            <h2 className="text-h3 mt-1">What {companion.firstName} brings to the time</h2>
             <div className="flex flex-wrap gap-2 mt-3">
-              {host.strengths.map((strength) => <span key={strength} className="chip" data-selected="true">{strength}</span>)}
+              {companion.strengths.map((strength) => <span key={strength} className="chip" data-selected="true">{strength}</span>)}
             </div>
           </div>
           <div>
             <p className="eyebrow">Ideas</p>
             <h2 className="text-h3 mt-1">Things you could do together</h2>
             <div className="flex flex-wrap gap-2 mt-3">
-              {host.categories.map((category) => <span key={category} className="chip">{category}</span>)}
+              {companion.categories.map((category) => <span key={category} className="chip">{category}</span>)}
             </div>
           </div>
           <div>
             <p className="eyebrow">Boundaries</p>
             <h2 className="text-h3 mt-1">What keeps it comfortable</h2>
-            {host.boundaries.length > 0 ? (
+            {companion.boundaries.length > 0 ? (
               <ul className="profile-boundary-list mt-3">
-                {host.boundaries.map((boundary) => <li key={boundary}>{boundary}</li>)}
+                {companion.boundaries.map((boundary) => <li key={boundary}>{boundary}</li>)}
               </ul>
             ) : (
               <p className="text-meta mt-3">No additional boundaries listed.</p>
@@ -223,7 +223,7 @@ function HostProfilePage() {
         <aside>
           <header className="mb-3">
             <p className="eyebrow">Posts</p>
-            <h2 className="text-h2 mt-1">A little more about {host.displayName}</h2>
+            <h2 className="text-h2 mt-1">A little more about {companion.displayName}</h2>
           </header>
           {posts === undefined && <div className="empty-state">Loading posts...</div>}
           {posts && posts.length === 0 && <div className="empty-state">No posts from this member yet.</div>}
@@ -234,7 +234,7 @@ function HostProfilePage() {
                   <article key={post._id} className="worklist-row">
                     <div className="worklist-row-meta tabular">{formatTime(post.createdAt)}</div>
                     {post.body && <p className="text-body muted whitespace-pre-wrap">{post.body}</p>}
-                    {post.media.length > 0 && <HostPostMediaGrid media={post.media} />}
+                    {post.media.length > 0 && <CompanionPostMediaGrid media={post.media} />}
                   </article>
                 ))}
               </div>
@@ -246,20 +246,20 @@ function HostProfilePage() {
   )
 }
 
-function HostBookingAction({
+function CompanionBookingAction({
   eligibility,
-  hostProfileId,
+  companionProfileId,
   bookable,
 }: {
   eligibility: 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
-  hostProfileId: Id<'hostProfiles'>
+  companionProfileId: Id<'companionProfiles'>
   bookable: boolean
 }) {
   if (!bookable) return <span className="status-pill" data-tone="warning">Rate not configured</span>
 
   if (eligibility === 'eligible') {
     return (
-      <Link to="/app" search={{ hostProfileId }} className="btn btn-social btn-sm">
+      <Link to="/app" search={{ companionProfileId }} className="btn btn-social btn-sm">
         Book a time
       </Link>
     )
@@ -284,7 +284,7 @@ function HostBookingAction({
   )
 }
 
-function HostPostMediaGrid({ media }: { media: HostPostMedia[] }) {
+function CompanionPostMediaGrid({ media }: { media: CompanionPostMedia[] }) {
   return (
     <div className="social-media-grid profile-post-media" data-count={media.length}>
       {media.map((item) => (
@@ -297,7 +297,7 @@ function HostPostMediaGrid({ media }: { media: HostPostMedia[] }) {
   )
 }
 
-function ReviewRow({ review, signedIn, onSave }: { review: HostReview; signedIn: boolean; onSave: () => Promise<void> }) {
+function ReviewRow({ review, signedIn, onSave }: { review: CompanionReview; signedIn: boolean; onSave: () => Promise<void> }) {
   return (
     <article className="worklist-row">
       <div className="worklist-row-head">

@@ -8,7 +8,7 @@ import { ActionButton } from '@/components/ActionButton'
 import { Avatar } from '@/components/Avatar'
 import { Screen } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
-import { getFriendHost } from '@/data/hosts'
+import { getCompanion } from '@/data/companions'
 import { messagePreview } from '@/data/member'
 import { conversationPreview, formatMessageTimestamp } from '@/data/messageViewModels'
 import { useMobileMember } from '@/member/MobileMember'
@@ -41,7 +41,7 @@ function ConversationInbox({ conversations }: { conversations: Conversation[] })
         <View style={[styles.empty, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <AppText variant="heading">No conversations yet</AppText>
           <AppText color={theme.colors.textMuted}>A conversation will appear after you send a booking request.</AppText>
-          <ActionButton label="Explore Friend Hosts" onPress={() => router.push('/explore')} secondary />
+          <ActionButton label="Explore Companions" onPress={() => router.push('/explore')} secondary />
         </View>
       ) : <View style={styles.list}>{conversations.map((conversation) => <ConversationRow key={conversation._id} conversation={conversation} />)}</View>}
     </Screen>
@@ -73,7 +73,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
 
 function DemoMessages() {
   const theme = useAppTheme()
-  const host = getFriendHost(messagePreview.hostId)
+  const companion = getCompanion(messagePreview.companionId)
   return (
     <Screen contentStyle={styles.content}>
       <View style={styles.header}>
@@ -83,7 +83,7 @@ function DemoMessages() {
           <AppText variant="caption">Demo messages only. No message can be sent from this build.</AppText>
         </View>
       </View>
-      {host ? <Pressable accessibilityRole="button" accessibilityLabel="Open example Friend Host profile" onPress={() => router.push({ pathname: '/host/[id]', params: { id: host.id, source: 'local_demo' } })} style={[styles.preview, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}><Avatar uri={host.imageUrl} name={host.name} size={54} /><View style={styles.previewCopy}><AppText variant="bodyStrong">{messagePreview.hostName}</AppText><AppText>{messagePreview.preview}</AppText><AppText variant="caption" color={theme.colors.social}>Example conversation</AppText></View></Pressable> : null}
+      {companion ? <Pressable accessibilityRole="button" accessibilityLabel="Open example Companion profile" onPress={() => router.push({ pathname: '/companion-profile/[id]', params: { id: companion.id, source: 'local_demo' } })} style={[styles.preview, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}><Avatar uri={companion.imageUrl} name={companion.name} size={54} /><View style={styles.previewCopy}><AppText variant="bodyStrong">{messagePreview.companionName}</AppText><AppText>{messagePreview.preview}</AppText><AppText variant="caption" color={theme.colors.social}>Example conversation</AppText></View></Pressable> : null}
     </Screen>
   )
 }

@@ -11,23 +11,23 @@ import { bookingStatusPresentation, formatBookingSchedule, formatDuration } from
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-type HostBooking = FunctionReturnType<typeof mobileApi.bookings.forHost>[number]
+type CompanionBooking = FunctionReturnType<typeof mobileApi.bookings.forCompanion>[number]
 
-export default function HostBookingsScreen() {
+export default function CompanionBookingsScreen() {
   const member = useMobileMember()
-  if (member.status === 'signed_out') return <HostBookingsState title="Sign in to view incoming bookings" action="Sign in" onPress={() => router.replace('/auth')} />
-  if (member.status === 'demo') return <HostBookingsState title="Incoming bookings are unavailable in demo mode" action="Return to Profile" onPress={() => router.replace('/profile')} />
-  if (member.status === 'unavailable' || member.status === 'error') return <HostBookingsState title="Incoming bookings are unavailable" detail="Your member account could not be connected safely." />
-  if (member.status !== 'ready') return <HostBookingsState title="Loading incoming bookings" />
-  return <ReadyHostBookingsScreen />
+  if (member.status === 'signed_out') return <CompanionBookingsState title="Sign in to view incoming bookings" action="Sign in" onPress={() => router.replace('/auth')} />
+  if (member.status === 'demo') return <CompanionBookingsState title="Incoming bookings are unavailable in demo mode" action="Return to Profile" onPress={() => router.replace('/profile')} />
+  if (member.status === 'unavailable' || member.status === 'error') return <CompanionBookingsState title="Incoming bookings are unavailable" detail="Your member account could not be connected safely." />
+  if (member.status !== 'ready') return <CompanionBookingsState title="Loading incoming bookings" />
+  return <ReadyCompanionBookingsScreen />
 }
 
-function ReadyHostBookingsScreen() {
+function ReadyCompanionBookingsScreen() {
   const theme = useAppTheme()
-  const application = useQuery(mobileApi.hosts.myApplication, {})
-  const bookings = useQuery(mobileApi.bookings.forHost, {})
-  if (application === undefined || bookings === undefined) return <HostBookingsState title="Loading incoming bookings" />
-  if (!application) return <HostBookingsState title="Create a Friend Host profile first" detail="Incoming booking requests appear after you have a Friend Host profile." action="Open Friend Host tools" onPress={() => router.replace('/friend-host')} />
+  const application = useQuery(mobileApi.companions.myApplication, {})
+  const bookings = useQuery(mobileApi.bookings.forCompanion, {})
+  if (application === undefined || bookings === undefined) return <CompanionBookingsState title="Loading incoming bookings" />
+  if (!application) return <CompanionBookingsState title="Create a Companion profile first" detail="Incoming booking requests appear after you have a Companion profile." action="Open Companion tools" onPress={() => router.replace('/companion')} />
 
   const active = bookings.filter((booking) => ['request_sent', 'accepted', 'verification_required', 'pending_admin_review'].includes(booking.status))
   const history = bookings.filter((booking) => !active.includes(booking))
@@ -35,9 +35,9 @@ function ReadyHostBookingsScreen() {
   return (
     <Screen contentStyle={styles.content}>
       <View style={styles.header}>
-        <AppText variant="label" color={theme.colors.social}>HOST BOOKINGS</AppText>
+        <AppText variant="label" color={theme.colors.social}>INCOMING BOOKINGS</AppText>
         <AppText variant="display">Incoming plans.</AppText>
-        <AppText color={theme.colors.textMuted}>{active.length} active {active.length === 1 ? 'booking' : 'bookings'} for your Friend Host profile.</AppText>
+        <AppText color={theme.colors.textMuted}>{active.length} active {active.length === 1 ? 'booking' : 'bookings'} for your Companion profile.</AppText>
       </View>
       {active.length === 0 ? (
         <View style={[styles.empty, { borderColor: theme.colors.border }]}>
@@ -46,29 +46,29 @@ function ReadyHostBookingsScreen() {
         </View>
       ) : <BookingSection label="Active" bookings={active} />}
       {history.length > 0 ? <BookingSection label="History" bookings={history} /> : null}
-      <ActionButton label="Friend Host profile and status" onPress={() => router.push('/friend-host')} intent="self" secondary />
+      <ActionButton label="Companion profile and status" onPress={() => router.push('/companion')} intent="self" secondary />
       <ActionButton label="Return to Profile" onPress={() => router.replace('/profile')} intent="self" secondary />
     </Screen>
   )
 }
 
-function BookingSection({ label, bookings }: { label: string; bookings: HostBooking[] }) {
+function BookingSection({ label, bookings }: { label: string; bookings: CompanionBooking[] }) {
   return (
     <View style={styles.section}>
       <AppText variant="heading">{label}</AppText>
-      <View style={styles.list}>{bookings.map((booking) => <HostBookingRow key={booking._id} booking={booking} />)}</View>
+      <View style={styles.list}>{bookings.map((booking) => <CompanionBookingRow key={booking._id} booking={booking} />)}</View>
     </View>
   )
 }
 
-function HostBookingRow({ booking }: { booking: HostBooking }) {
+function CompanionBookingRow({ booking }: { booking: CompanionBooking }) {
   const theme = useAppTheme()
   const status = bookingStatusPresentation[booking.status]
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Open ${booking.category} booking from ${booking.memberDisplayName}, ${status.label}`}
-      onPress={() => router.push({ pathname: '/host-booking/[id]', params: { id: String(booking._id) } })}
+      onPress={() => router.push({ pathname: '/companion-booking/[id]', params: { id: String(booking._id) } })}
       style={({ pressed }) => [styles.card, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }, pressed && styles.pressed]}>
       <View style={styles.cardHead}>
         <View style={styles.cardCopy}>
@@ -83,13 +83,13 @@ function HostBookingRow({ booking }: { booking: HostBooking }) {
   )
 }
 
-function HostBookingsState({ title, detail, action, onPress }: { title: string; detail?: string; action?: string; onPress?: () => void }) {
+function CompanionBookingsState({ title, detail, action, onPress }: { title: string; detail?: string; action?: string; onPress?: () => void }) {
   const theme = useAppTheme()
-  return <Screen contentStyle={styles.state}><AppText variant="label" color={theme.colors.social}>HOST BOOKINGS</AppText><AppText variant="title">{title}</AppText>{detail ? <AppText color={theme.colors.textMuted}>{detail}</AppText> : null}{action && onPress ? <ActionButton label={action} onPress={onPress} secondary /> : null}</Screen>
+  return <Screen contentStyle={styles.state}><AppText variant="label" color={theme.colors.social}>INCOMING BOOKINGS</AppText><AppText variant="title">{title}</AppText>{detail ? <AppText color={theme.colors.textMuted}>{detail}</AppText> : null}{action && onPress ? <ActionButton label={action} onPress={onPress} secondary /> : null}</Screen>
 }
 
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
-  return <HostBookingsState title="Incoming bookings are temporarily unavailable" detail="Please try again. No booking action was taken." action="Try again" onPress={retry} />
+  return <CompanionBookingsState title="Incoming bookings are temporarily unavailable" detail="Please try again. No booking action was taken." action="Try again" onPress={retry} />
 }
 
 const styles = StyleSheet.create({

@@ -13,13 +13,13 @@ export type BookingRequestView = {
   notes?: string
   memberId: Id<'users'>
   memberDisplayName: string
-  hostProfileId?: Id<'hostProfiles'>
-  hostUserId?: Id<'users'>
-  hostDisplayName: string
+  companionProfileId?: Id<'companionProfiles'>
+  companionUserId?: Id<'users'>
+  companionDisplayName: string
   serviceSubtotalCentavos?: number
   memberBookingFeeCentavos?: number
   memberTotalCentavos?: number
-  hostEntitlementCentavos?: number
+  companionEarningsCentavos?: number
   settlementBlocked: boolean
 }
 
@@ -67,7 +67,7 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
             {pending && (
               <>
                 <span className="dot" aria-hidden="true" />
-                <span>with {booking.hostDisplayName}</span>
+                <span>with {booking.companionDisplayName}</span>
               </>
             )}
           </div>
@@ -93,7 +93,7 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
                 </>
               ) : (
                 <>
-                  Your entitlement <strong className="tabular">{formatPhp(booking.hostEntitlementCentavos ?? 0)}</strong>
+                  Your entitlement <strong className="tabular">{formatPhp(booking.companionEarningsCentavos ?? 0)}</strong>
                   {' · '}the member paid {formatPhp(booking.memberTotalCentavos)} total, which includes the service fee.
                 </>
               )}

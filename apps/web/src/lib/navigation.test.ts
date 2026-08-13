@@ -16,13 +16,13 @@ describe('application navigation', () => {
     expect(activePrimaryNavigation('/social')).toBe('home')
   })
 
-  it('matches messages and booking paths without confusing host profiles', () => {
+  it('matches messages and booking paths without confusing companion profiles', () => {
     expect(activePrimaryNavigation('/messages')).toBe('messages')
     expect(activePrimaryNavigation('/messages/thread')).toBe('messages')
     expect(activePrimaryNavigation('/app')).toBe('bookings')
     expect(activePrimaryNavigation('/app/thread')).toBe('bookings')
-    expect(activePrimaryNavigation('/host')).toBeNull()
-    expect(activePrimaryNavigation('/host-profile')).toBe('discover')
+    expect(activePrimaryNavigation('/companion')).toBeNull()
+    expect(activePrimaryNavigation('/companion-profile')).toBe('discover')
     expect(activePrimaryNavigation('/nearby')).toBe('discover')
   })
 
@@ -39,7 +39,7 @@ describe('application navigation', () => {
     expect(isWorkspacePath('/profile')).toBe(true)
     expect(isWorkspacePath('/settings')).toBe(true)
     expect(isWorkspacePath('/messages')).toBe(true)
-    expect(isWorkspacePath('/host')).toBe(true)
+    expect(isWorkspacePath('/companion')).toBe(true)
     expect(isWorkspacePath('/nearby')).toBe(true)
     expect(isWorkspacePath('/discover')).toBe(false)
   })

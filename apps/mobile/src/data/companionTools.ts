@@ -1,17 +1,17 @@
 import {
-  MAX_HOST_HOURLY_RATE_CENTAVOS,
-  MIN_HOST_HOURLY_RATE_CENTAVOS,
+  MAX_COMPANION_HOURLY_RATE_CENTAVOS,
+  MIN_COMPANION_HOURLY_RATE_CENTAVOS,
   activityCategories,
   friendStrengths,
-  type HostApplicationStatus,
+  type CompanionApplicationStatus,
 } from '@lets-be-friends/shared'
 
-export type HostMode = 'online' | 'in_person' | 'both'
+export type CompanionMode = 'online' | 'in_person' | 'both'
 
-export type HostApplicationForm = {
+export type CompanionApplicationForm = {
   intro: string
   city: string
-  mode: HostMode
+  mode: CompanionMode
   hourlyRatePesos: string
   strengths: string[]
   categories: string[]
@@ -19,29 +19,26 @@ export type HostApplicationForm = {
   applicationNote: string
 }
 
-export type SavedHostApplication = {
+export type SavedCompanionApplication = {
   intro: string
   city: string
-  mode: HostMode
+  mode: CompanionMode
   hourlyRateCentavos?: number
   strengths: string[]
   categories: string[]
   boundaries: string[]
   applicationNote?: string
-  approximateLatitude?: number
-  approximateLongitude?: number
-  nearbyDiscoveryEnabled?: boolean
 }
 
-export const hostApplicationStatusCopy: Record<HostApplicationStatus, { label: string; detail: string }> = {
+export const companionApplicationStatusCopy: Record<CompanionApplicationStatus, { label: string; detail: string }> = {
   draft: { label: 'Draft', detail: 'Finish the profile and send it for review.' },
-  pending_review: { label: 'Pending review', detail: 'Your Friend Host profile is waiting for review.' },
-  approved: { label: 'Approved', detail: 'Your Friend Host profile is live when identity approval is current.' },
+  pending_review: { label: 'Pending review', detail: 'Your Companion profile is waiting for review.' },
+  approved: { label: 'Approved', detail: 'Your Companion profile is live when identity approval is current.' },
   rejected: { label: 'Needs changes', detail: 'Review the profile details before sending it again.' },
-  suspended: { label: 'Suspended', detail: 'This Friend Host profile is not currently visible.' },
+  suspended: { label: 'Suspended', detail: 'This Companion profile is not currently visible.' },
 }
 
-export function initialHostApplicationForm(application?: SavedHostApplication | null): HostApplicationForm {
+export function initialCompanionApplicationForm(application?: SavedCompanionApplication | null): CompanionApplicationForm {
   return {
     intro: application?.intro ?? '',
     city: application?.city ?? '',
@@ -56,14 +53,10 @@ export function initialHostApplicationForm(application?: SavedHostApplication | 
   }
 }
 
-export function hasSavedNearbyCoordinates(application?: Pick<SavedHostApplication, 'approximateLatitude' | 'approximateLongitude'> | null) {
-  return typeof application?.approximateLatitude === 'number' && typeof application.approximateLongitude === 'number'
-}
-
-export type ValidHostApplication = {
+export type ValidCompanionApplication = {
   intro: string
   city: string
-  mode: HostMode
+  mode: CompanionMode
   hourlyRateCentavos: number
   strengths: string[]
   categories: string[]
@@ -71,7 +64,7 @@ export type ValidHostApplication = {
   applicationNote?: string
 }
 
-export function validateHostApplication(form: HostApplicationForm): { ok: true; value: ValidHostApplication } | { ok: false; message: string } {
+export function validateCompanionApplication(form: CompanionApplicationForm): { ok: true; value: ValidCompanionApplication } | { ok: false; message: string } {
   const intro = form.intro.trim()
   const city = form.city.trim()
   const hourlyRatePesos = Number(form.hourlyRatePesos.trim())
@@ -83,8 +76,8 @@ export function validateHostApplication(form: HostApplicationForm): { ok: true; 
   if (
     !Number.isFinite(hourlyRatePesos)
     || !Number.isSafeInteger(hourlyRateCentavos)
-    || hourlyRateCentavos < MIN_HOST_HOURLY_RATE_CENTAVOS
-    || hourlyRateCentavos > MAX_HOST_HOURLY_RATE_CENTAVOS
+    || hourlyRateCentavos < MIN_COMPANION_HOURLY_RATE_CENTAVOS
+    || hourlyRateCentavos > MAX_COMPANION_HOURLY_RATE_CENTAVOS
   ) return { ok: false, message: 'Set an hourly rate from PHP 100 to PHP 10,000.' }
   if (form.strengths.length === 0) return { ok: false, message: 'Choose at least one Strength.' }
   if (form.strengths.some((value) => !(friendStrengths as readonly string[]).includes(value))) return { ok: false, message: 'Review the selected Strengths.' }
@@ -113,8 +106,8 @@ export function validateHourlyRate(value: string) {
   if (
     !Number.isFinite(pesos)
     || !Number.isSafeInteger(centavos)
-    || centavos < MIN_HOST_HOURLY_RATE_CENTAVOS
-    || centavos > MAX_HOST_HOURLY_RATE_CENTAVOS
+    || centavos < MIN_COMPANION_HOURLY_RATE_CENTAVOS
+    || centavos > MAX_COMPANION_HOURLY_RATE_CENTAVOS
   ) return { ok: false as const, message: 'Set an hourly rate from PHP 100 to PHP 10,000.' }
   return { ok: true as const, hourlyRateCentavos: centavos }
 }

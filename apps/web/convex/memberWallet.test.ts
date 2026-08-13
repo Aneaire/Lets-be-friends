@@ -46,8 +46,8 @@ async function seed(t: ReturnType<typeof convexTest>, availableCentavos = TOTAL)
     const memberId = await ctx.db.insert('users', {
       clerkUserId: 'wallet-member', displayName: 'Wallet Member', role: 'member', ...identity,
     })
-    const hostUserId = await ctx.db.insert('users', {
-      clerkUserId: 'wallet-host', displayName: 'Wallet Host', role: 'friend_host', ...identity,
+    const companionUserId = await ctx.db.insert('users', {
+      clerkUserId: 'wallet-companion', displayName: 'Wallet Companion', role: 'companion', ...identity,
     })
     const outsiderId = await ctx.db.insert('users', {
       clerkUserId: 'wallet-outsider', displayName: 'Wallet Outsider', role: 'member', ...identity,
@@ -58,10 +58,10 @@ async function seed(t: ReturnType<typeof convexTest>, availableCentavos = TOTAL)
     const adminId = await ctx.db.insert('users', {
       clerkUserId: 'wallet-admin', displayName: 'Wallet Admin', role: 'admin', ...identity,
     })
-    const hostProfileId = await ctx.db.insert('hostProfiles', {
-      userId: hostUserId,
-      displayName: 'Wallet Host',
-      intro: 'A verified host for member-wallet tests.',
+    const companionProfileId = await ctx.db.insert('companionProfiles', {
+      userId: companionUserId,
+      displayName: 'Wallet Companion',
+      intro: 'A verified companion for member-wallet tests.',
       city: 'Test City',
       strengths: ['Good listener'],
       categories: ['Coffee or meal companion'],
@@ -85,13 +85,13 @@ async function seed(t: ReturnType<typeof convexTest>, availableCentavos = TOTAL)
       createdAt: now,
       updatedAt: now,
     })
-    return { now, memberId, hostUserId, outsiderId, reviewerId, adminId, hostProfileId, memberAccountId }
+    return { now, memberId, companionUserId, outsiderId, reviewerId, adminId, companionProfileId, memberAccountId }
   })
 }
 
-async function createBooking(t: ReturnType<typeof convexTest>, hostProfileId: any) {
+async function createBooking(t: ReturnType<typeof convexTest>, companionProfileId: any) {
   return await t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookings.createDraft, {
-    hostProfileId,
+    companionProfileId,
     category: 'Coffee or meal companion',
     mode: 'in_person',
     requestedAt: Date.now() + 86_400_000,
@@ -100,11 +100,11 @@ async function createBooking(t: ReturnType<typeof convexTest>, hostProfileId: an
 }
 
 async function acceptAndComplete(t: ReturnType<typeof convexTest>, bookingId: any) {
-  await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.hostDecision, { bookingId, decision: 'accepted' })
-  await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookingEvidence.skip, { bookingId, warningAcknowledged: true })
+  await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, { bookingId, decision: 'accepted' })
+  await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookingEvidence.skip, { bookingId, warningAcknowledged: true })
   await t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookingEvidence.skip, { bookingId, warningAcknowledged: true })
   await t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookings.markCompleted, { bookingId })
-  await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.markCompleted, { bookingId })
+  await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.markCompleted, { bookingId })
 }
 
 describe('member-wallet booking ledger', () => {
@@ -128,16 +128,16 @@ describe('member-wallet booking ledger', () => {
   it('requires exact available balance, reserves on acceptance, and releases cancellation idempotently', async () => {
     const t = createTest()
     const ids = await seed(t)
-    const created = await createBooking(t, ids.hostProfileId)
+    const created = await createBooking(t, ids.companionProfileId)
     expect(created).toMatchObject({
       serviceSubtotalCentavos: SUBTOTAL,
       memberBookingFeeCentavos: FEE,
       memberTotalCentavos: TOTAL,
-      hostEntitlementCentavos: SUBTOTAL,
+      companionEarningsCentavos: SUBTOTAL,
     })
 
-    await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.hostDecision, { bookingId: created.bookingId, decision: 'accepted' })
-    await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.hostDecision, { bookingId: created.bookingId, decision: 'accepted' })
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, { bookingId: created.bookingId, decision: 'accepted' })
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, { bookingId: created.bookingId, decision: 'accepted' })
     let state = await t.run(async (ctx) => ({
       booking: await ctx.db.get(created.bookingId),
       account: await ctx.db.get(ids.memberAccountId),
@@ -162,14 +162,14 @@ describe('member-wallet booking ledger', () => {
   it('rejects insufficient send balance and atomically leaves request_sent unchanged if acceptance recheck fails', async () => {
     const insufficient = createTest()
     const lowIds = await seed(insufficient, TOTAL - 1)
-    await expect(createBooking(insufficient, lowIds.hostProfileId)).rejects.toThrow('Insufficient booking balance')
+    await expect(createBooking(insufficient, lowIds.companionProfileId)).rejects.toThrow('Insufficient booking balance')
     expect(await insufficient.run(async (ctx) => ctx.db.query('bookings').collect())).toHaveLength(0)
 
     const t = createTest()
     const ids = await seed(t)
-    const created = await createBooking(t, ids.hostProfileId)
+    const created = await createBooking(t, ids.companionProfileId)
     await t.run(async (ctx) => ctx.db.patch(ids.memberAccountId, { availableCentavos: TOTAL - 1, updatedAt: Date.now() }))
-    await expect(t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.hostDecision, {
+    await expect(t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, {
       bookingId: created.bookingId,
       decision: 'accepted',
     })).rejects.toThrow('Wallet balance')
@@ -185,9 +185,9 @@ describe('member-wallet booking ledger', () => {
   it('keeps funds reserved after first completion, then allocates once and settles exactly 24 hours after mutual completion', async () => {
     const t = createTest()
     const ids = await seed(t)
-    const created = await createBooking(t, ids.hostProfileId)
-    await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.hostDecision, { bookingId: created.bookingId, decision: 'accepted' })
-    await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookingEvidence.skip, { bookingId: created.bookingId, warningAcknowledged: true })
+    const created = await createBooking(t, ids.companionProfileId)
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, { bookingId: created.bookingId, decision: 'accepted' })
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookingEvidence.skip, { bookingId: created.bookingId, warningAcknowledged: true })
     await t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookingEvidence.skip, { bookingId: created.bookingId, warningAcknowledged: true })
     await expect(t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookings.markCompleted, { bookingId: created.bookingId }))
       .resolves.toMatchObject({ status: 'accepted', awaitingOtherConfirmation: true })
@@ -201,9 +201,9 @@ describe('member-wallet booking ledger', () => {
     expect(firstCompletion.account).toMatchObject({ availableCentavos: 0, reservedCentavos: TOTAL })
     expect(firstCompletion.transactions.filter((row) => row.kind === 'booking_complete')).toHaveLength(0)
 
-    await expect(t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.markCompleted, { bookingId: created.bookingId }))
+    await expect(t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.markCompleted, { bookingId: created.bookingId }))
       .resolves.toMatchObject({ status: 'review_window', awaitingOtherConfirmation: false })
-    await expect(t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.markCompleted, { bookingId: created.bookingId }))
+    await expect(t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.markCompleted, { bookingId: created.bookingId }))
       .resolves.toMatchObject({ status: 'review_window', idempotent: true })
 
     let state = await t.run(async (ctx) => ({
@@ -214,7 +214,7 @@ describe('member-wallet booking ledger', () => {
     expect(state.booking?.settlementEligibleAt! - state.booking?.jointlyCompletedAt!).toBe(86_400_000)
     expect(state.booking?.settlementState).toBe('pending')
     expect(state.transactions.filter((row) => row.kind === 'booking_complete')).toHaveLength(1)
-    expect(state.accounts.find((row) => row.accountType === 'host_earnings')).toMatchObject({ pendingCentavos: SUBTOTAL, availableCentavos: 0 })
+    expect(state.accounts.find((row) => row.accountType === 'companion_earnings')).toMatchObject({ pendingCentavos: SUBTOTAL, availableCentavos: 0 })
     expect(state.accounts.find((row) => row.accountType === 'platform_revenue')).toMatchObject({ pendingCentavos: FEE, availableCentavos: 0 })
 
     await t.mutation(internal.finance.settleBooking, { bookingId: created.bookingId, now: state.booking!.settlementEligibleAt! - 1 })
@@ -227,34 +227,34 @@ describe('member-wallet booking ledger', () => {
     }))
     expect(state.booking?.settlementState).toBe('settled')
     expect(state.transactions.filter((row) => row.kind === 'booking_settle')).toHaveLength(1)
-    expect(state.accounts.find((row) => row.accountType === 'host_earnings')).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
+    expect(state.accounts.find((row) => row.accountType === 'companion_earnings')).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
     expect(state.accounts.find((row) => row.accountType === 'platform_revenue')).toMatchObject({ pendingCentavos: 0, availableCentavos: FEE })
   })
 
   it('enforces evidence roles and acknowledgement, and rejects cancellation after completion starts', async () => {
     const t = createTest()
     const ids = await seed(t)
-    const created = await createBooking(t, ids.hostProfileId)
-    await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.hostDecision, { bookingId: created.bookingId, decision: 'accepted' })
+    const created = await createBooking(t, ids.companionProfileId)
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, { bookingId: created.bookingId, decision: 'accepted' })
 
     await expect(t.withIdentity({ subject: 'wallet-outsider' }).query(api.bookingEvidence.status, { bookingId: created.bookingId }))
       .rejects.toThrow('Not your booking')
-    await expect(t.withIdentity({ subject: 'wallet-host' }).query(api.bookingEvidence.status, { bookingId: created.bookingId }))
-      .resolves.toMatchObject({ role: 'host_start', requiredBeforeCompletion: true })
+    await expect(t.withIdentity({ subject: 'wallet-companion' }).query(api.bookingEvidence.status, { bookingId: created.bookingId }))
+      .resolves.toMatchObject({ role: 'companion_start', requiredBeforeCompletion: true })
     await expect(t.withIdentity({ subject: 'wallet-member' }).query(api.bookingEvidence.status, { bookingId: created.bookingId }))
       .resolves.toMatchObject({ role: 'member_end', requiredBeforeCompletion: true })
-    await expect(t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookingEvidence.skip, {
+    await expect(t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookingEvidence.skip, {
       bookingId: created.bookingId,
       warningAcknowledged: false,
     })).rejects.toThrow('acknowledge the evidence warning')
-    await expect(t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.markCompleted, { bookingId: created.bookingId }))
+    await expect(t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.markCompleted, { bookingId: created.bookingId }))
       .rejects.toThrow('Choose start evidence')
 
-    await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookingEvidence.skip, {
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookingEvidence.skip, {
       bookingId: created.bookingId,
       warningAcknowledged: true,
     })
-    await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.markCompleted, { bookingId: created.bookingId })
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.markCompleted, { bookingId: created.bookingId })
     await expect(t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookings.markCompleted, { bookingId: created.bookingId }))
       .rejects.toThrow('Choose end evidence')
     await expect(t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookings.cancel, { bookingId: created.bookingId }))
@@ -268,13 +268,13 @@ describe('member-wallet booking ledger', () => {
     expect(state.booking).toMatchObject({ status: 'accepted', settlementState: 'reserved' })
     expect(state.account).toMatchObject({ availableCentavos: 0, reservedCentavos: TOTAL })
     expect(state.decisions).toHaveLength(1)
-    expect(state.decisions[0]).toMatchObject({ userId: ids.hostUserId, role: 'host_start', decision: 'skipped' })
+    expect(state.decisions[0]).toMatchObject({ userId: ids.companionUserId, role: 'companion_start', decision: 'skipped' })
   })
 
-  it('allows a report without evidence and preserves its hold when the host later accepts', async () => {
+  it('allows a report without evidence and preserves its hold when the companion later accepts', async () => {
     const t = createTest()
     const ids = await seed(t)
-    const created = await createBooking(t, ids.hostProfileId)
+    const created = await createBooking(t, ids.companionProfileId)
     await t.withIdentity({ subject: 'wallet-member' }).mutation(api.reports.create, {
       targetType: 'booking',
       targetId: String(created.bookingId),
@@ -282,7 +282,7 @@ describe('member-wallet booking ledger', () => {
     })
     expect(await t.run(async (ctx) => ctx.db.query('bookingEvidenceDecisions').collect())).toHaveLength(0)
 
-    await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.hostDecision, {
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, {
       bookingId: created.bookingId,
       decision: 'accepted',
     })
@@ -314,13 +314,13 @@ describe('member-wallet booking ledger', () => {
         updatedAt: now,
       })
       const legacyTopUpId = await ctx.db.insert('paymongoTopUps', {
-        hostUserId: ids.hostUserId,
-        beneficiaryUserId: ids.hostUserId,
+        companionUserId: ids.companionUserId,
+        beneficiaryUserId: ids.companionUserId,
         amountCentavos: 10_000,
         currency: 'PHP',
         mode: 'test',
         status: 'processing',
-        providerIntentId: 'pi_legacy_host_fee',
+        providerIntentId: 'pi_legacy_companion_fee',
         createdAt: now,
         updatedAt: now,
       })
@@ -335,7 +335,7 @@ describe('member-wallet booking ledger', () => {
       methodTypes: ['qrph'],
     }
     const legacyIntent = {
-      id: 'pi_legacy_host_fee',
+      id: 'pi_legacy_companion_fee',
       amountCentavos: 10_000,
       currency: 'PHP',
       status: 'succeeded',
@@ -390,8 +390,8 @@ describe('member-wallet booking ledger', () => {
   it('makes a pre-completion admin refund terminal and rejects completion or a conflicting release', async () => {
     const t = createTest()
     const ids = await seed(t)
-    const created = await createBooking(t, ids.hostProfileId)
-    await t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.hostDecision, {
+    const created = await createBooking(t, ids.companionProfileId)
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, {
       bookingId: created.bookingId,
       decision: 'accepted',
     })
@@ -415,14 +415,14 @@ describe('member-wallet booking ledger', () => {
     expect(first.booking?.cancelledAt).toBeTypeOf('number')
     expect(first.account).toMatchObject({ availableCentavos: TOTAL, reservedCentavos: 0 })
 
-    await expect(t.withIdentity({ subject: 'wallet-host' }).mutation(api.bookings.markCompleted, {
+    await expect(t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.markCompleted, {
       bookingId: created.bookingId,
     })).rejects.toThrow('Refunded bookings cannot be completed')
     await t.withIdentity({ subject: 'wallet-admin' }).mutation(api.admin.resolveBlockedBookingFunds, {
       bookingId: created.bookingId, resolution: 'return_to_member', note: 'Matching retry.',
     })
     await expect(t.withIdentity({ subject: 'wallet-admin' }).mutation(api.admin.resolveBlockedBookingFunds, {
-      bookingId: created.bookingId, resolution: 'release_to_host', note: 'Conflicting release attempt.',
+      bookingId: created.bookingId, resolution: 'release_to_companion', note: 'Conflicting release attempt.',
     })).rejects.toThrow('conflicting outcome')
     const after = await t.run(async (ctx) => ({
       booking: await ctx.db.get(created.bookingId),
@@ -438,7 +438,7 @@ describe('member-wallet booking ledger', () => {
   it('blocks unsettled funds on participant reports, rejects outsiders, and lets only a full admin refund once', async () => {
     const t = createTest()
     const ids = await seed(t)
-    const created = await createBooking(t, ids.hostProfileId)
+    const created = await createBooking(t, ids.companionProfileId)
     await acceptAndComplete(t, created.bookingId)
 
     await expect(t.withIdentity({ subject: 'wallet-outsider' }).mutation(api.reports.create, {
@@ -469,7 +469,7 @@ describe('member-wallet booking ledger', () => {
       bookingId: created.bookingId, resolution: 'return_to_member', note: 'Idempotent retry.',
     })
     await expect(t.withIdentity({ subject: 'wallet-admin' }).mutation(api.admin.resolveBlockedBookingFunds, {
-      bookingId: created.bookingId, resolution: 'release_to_host', note: 'Conflicting retry.',
+      bookingId: created.bookingId, resolution: 'release_to_companion', note: 'Conflicting retry.',
     })).rejects.toThrow('conflicting outcome')
     const state = await t.run(async (ctx) => ({
       booking: await ctx.db.get(created.bookingId),
@@ -483,27 +483,27 @@ describe('member-wallet booking ledger', () => {
     expect(state.audits).toHaveLength(firstResolution.audits.length)
     expect(state.report?.settlementHoldReleasedAt).toBeTypeOf('number')
     expect(state.accounts.find((row) => row.accountType === 'member_booking')).toMatchObject({ availableCentavos: TOTAL, reservedCentavos: 0 })
-    expect(state.accounts.find((row) => row.accountType === 'host_earnings')?.pendingCentavos).toBe(0)
+    expect(state.accounts.find((row) => row.accountType === 'companion_earnings')?.pendingCentavos).toBe(0)
     expect(state.transactions.filter((row) => row.kind === 'booking_admin_refund')).toHaveLength(1)
   })
 
-  it('lets a full admin release blocked pending funds to host and platform once', async () => {
+  it('lets a full admin release blocked pending funds to companion and platform once', async () => {
     const t = createTest()
     const ids = await seed(t)
-    const created = await createBooking(t, ids.hostProfileId)
+    const created = await createBooking(t, ids.companionProfileId)
     await acceptAndComplete(t, created.bookingId)
-    await t.withIdentity({ subject: 'wallet-host' }).mutation(api.reports.create, {
-      targetType: 'booking', targetId: String(created.bookingId), reason: 'Host safety concern',
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.reports.create, {
+      targetType: 'booking', targetId: String(created.bookingId), reason: 'Companion safety concern',
     })
     await t.withIdentity({ subject: 'wallet-admin' }).mutation(api.admin.resolveBlockedBookingFunds, {
-      bookingId: created.bookingId, resolution: 'release_to_host', note: 'Release after full-admin review.',
+      bookingId: created.bookingId, resolution: 'release_to_companion', note: 'Release after full-admin review.',
     })
     const firstResolution = await t.run(async (ctx) => ({
       booking: await ctx.db.get(created.bookingId),
       audits: await ctx.db.query('auditLogs').collect(),
     }))
     await t.withIdentity({ subject: 'wallet-admin' }).mutation(api.admin.resolveBlockedBookingFunds, {
-      bookingId: created.bookingId, resolution: 'release_to_host', note: 'Idempotent retry.',
+      bookingId: created.bookingId, resolution: 'release_to_companion', note: 'Idempotent retry.',
     })
     await expect(t.withIdentity({ subject: 'wallet-admin' }).mutation(api.admin.resolveBlockedBookingFunds, {
       bookingId: created.bookingId, resolution: 'return_to_member', note: 'Conflicting retry.',
@@ -517,7 +517,7 @@ describe('member-wallet booking ledger', () => {
     expect(state.booking).toMatchObject({ settlementState: 'settled', settlementResolution: 'released' })
     expect(state.booking?.settlementResolvedAt).toBe(firstResolution.booking?.settlementResolvedAt)
     expect(state.audits).toHaveLength(firstResolution.audits.length)
-    expect(state.accounts.find((row) => row.accountType === 'host_earnings')).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
+    expect(state.accounts.find((row) => row.accountType === 'companion_earnings')).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
     expect(state.accounts.find((row) => row.accountType === 'platform_revenue')).toMatchObject({ pendingCentavos: 0, availableCentavos: FEE })
     expect(state.transactions.filter((row) => row.kind === 'booking_admin_release')).toHaveLength(1)
   })

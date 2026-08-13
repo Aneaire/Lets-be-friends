@@ -1,4 +1,6 @@
-export type OnboardingGoal = 'member' | 'friend_host'
+export type OnboardingGoal = 'member' | 'companion'
+
+const currentTermsVersion = '2026-08-13'
 
 export type OnboardingGateDecision =
   | 'loading'
@@ -22,7 +24,16 @@ export function onboardingGateDecision({
   clerkUserId: string | null | undefined
   convexLoading: boolean
   convexAuthenticated: boolean
-  viewer: undefined | null | { clerkUserId: string; username?: string; onboardingCompletedAt?: number }
+  viewer: undefined | null | {
+    clerkUserId: string
+    username?: string
+    onboardingCompletedAt?: number
+    approximateLatitude?: number
+    approximateLongitude?: number
+    approximateLocationConsentedAt?: number
+    termsAcceptedAt?: number
+    termsVersion?: string
+  }
   pathname: string
 }): OnboardingGateDecision {
   if (!clerkLoaded) return 'loading'
@@ -32,12 +43,25 @@ export function onboardingGateDecision({
   if (viewer === undefined) return 'loading'
   if (viewer !== null && viewer.clerkUserId !== clerkUserId) return 'identity_mismatch'
   if (viewer === null) return 'provision'
-  if ((!viewer.username || !viewer.onboardingCompletedAt) && pathname !== '/onboarding') return 'redirect_onboarding'
+  const onboardingComplete = Boolean(
+    viewer.username
+    && viewer.onboardingCompletedAt
+    && isRoundedCoordinate(viewer.approximateLatitude)
+    && isRoundedCoordinate(viewer.approximateLongitude)
+    && viewer.approximateLocationConsentedAt
+    && viewer.termsAcceptedAt
+    && viewer.termsVersion === currentTermsVersion,
+  )
+  if (!onboardingComplete && pathname !== '/onboarding') return 'redirect_onboarding'
   return 'allow'
 }
 
+function isRoundedCoordinate(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && Math.round(value * 100) / 100 === value
+}
+
 export function onboardingDestination(goal: OnboardingGoal) {
-  return goal === 'friend_host' ? '/become-host' as const : '/discover' as const
+  return goal === 'companion' ? '/become-companion' as const : '/discover' as const
 }
 
 export function goalForSkip(goal?: OnboardingGoal): OnboardingGoal {

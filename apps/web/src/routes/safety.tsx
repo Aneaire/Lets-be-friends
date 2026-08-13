@@ -9,18 +9,18 @@ const safetySteps = [
     detail: 'AI extracts editable details from the ID only. Let’s Be Friends privately stores the ID and current selfie for safety review and incident records for up to 730 days, subject to incident or legal holds.',
   },
   {
-    title: 'Every Friend Host is reviewed',
-    body: 'Hosting profiles stay out of Explore until identity and profile review are complete.',
-    detail: 'Reviewers check the hosting profile, activity categories, boundaries, and verification result before making it visible.',
+    title: 'Every Companion is reviewed',
+    body: 'Companion profiles stay out of Explore until identity and profile review are complete.',
+    detail: 'Reviewers check the companion profile, activity categories, boundaries, and verification result before making it visible.',
   },
   {
     title: 'You choose what to share',
-    body: 'Public profiles use a city or broad area. Exact meeting details stay private until a Friend Host accepts the booking.',
-    detail: 'Nearby search uses rounded locations and never reveals a Friend Host pin or saved approximate area.',
+    body: 'Public profiles use a city or broad area. Exact meeting details stay private until a Companion accepts the booking.',
+    detail: 'Nearby search uses rounded locations and never reveals a Companion pin or saved approximate area.',
   },
   {
     title: 'Money follows the plan',
-    body: 'You see the complete booking total, including the service fee, before sending. Funds are reserved only when the Friend Host accepts.',
+    body: 'You see the complete booking total, including the service fee, before sending. Funds are reserved only when the Companion accepts.',
     detail: 'After both people confirm completion, funds remain pending for 24 hours before settlement can continue.',
   },
   {
@@ -40,7 +40,7 @@ function SafetyPage() {
           </h1>
           <div className="safety-hero-actions">
             <Link to="/discover" className="btn btn-social">Find someone to join you</Link>
-            <Link to="/become-host" className="btn btn-self">Share what you enjoy</Link>
+            <Link to="/become-companion" className="btn btn-self">Share what you enjoy</Link>
           </div>
         </div>
         <figure className="marketing-photo safety-hero-photo">
@@ -79,7 +79,7 @@ function SafetyPage() {
       </section>
 
       <section className="safety-control-grid" aria-label="Your controls">
-        <article><span>01</span><h3>Your boundaries stay visible</h3><p>Read what a Friend Host offers and what they do not offer before you request a time.</p></article>
+        <article><span>01</span><h3>Your boundaries stay visible</h3><p>Read what a Companion offers and what they do not offer before you request a time.</p></article>
         <article><span>02</span><h3>Your location stays broad</h3><p>Nearby results can show approximate distance without revealing someone’s saved pin.</p></article>
         <article><span>03</span><h3>You can report without evidence</h3><p>A private check-in photo is optional and is never required to raise a safety concern.</p></article>
       </section>
@@ -89,7 +89,7 @@ function SafetyPage() {
         <div className="safety-technical-body">
           <p><strong>Identity:</strong> AI extracts editable fields from the government ID, then the member takes a current camera selfie. The selfie is not sent to the AI, face matched, or treated as biometric liveness proof. Every completed submission receives an explicit safety-team decision.</p>
           <p><strong>Payments:</strong> The member sees one booking total that includes the service fee. Acceptance reserves the total; mutual completion begins a 24-hour pending period.</p>
-          <p><strong>Private booking evidence:</strong> The Friend Host decides at the start and the member decides at the end. Each may upload a private image or explicitly skip after a warning. Retrieval requires an active linked report and is audit-logged.</p>
+          <p><strong>Private booking evidence:</strong> The Companion decides at the start and the member decides at the end. Each may upload a private image or explicitly skip after a warning. Retrieval requires an active linked report and is audit-logged.</p>
           <p><strong>Reports:</strong> Participant booking reports block unsettled wallet funds until a full admin records a resolution.</p>
         </div>
       </details>

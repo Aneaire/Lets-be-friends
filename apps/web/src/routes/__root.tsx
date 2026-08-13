@@ -12,8 +12,8 @@ export const Route = createRootRoute({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: "Let's Be Friends | Trust-first friend hosting" },
-      { name: 'description', content: 'Discover approved Friend Hosts for safe online and local shared experiences.' },
+      { title: "Let's Be Friends | Find a Companion" },
+      { name: 'description', content: 'Discover approved Companions for safe online and local shared experiences.' },
     ],
     links: [
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },

@@ -11,12 +11,12 @@ export type FeedCandidateSource = (typeof feedCandidateSources)[number]
 
 export const feedInstrumentationSources = [
   ...feedCandidateSources,
-  'host_fallback',
+  'companion_fallback',
   'first_party_guidance',
 ] as const
 
 export const feedInstrumentationActions = [
-  'open_host',
+  'open_companion',
   'open_guidance',
   'comment',
   'like',

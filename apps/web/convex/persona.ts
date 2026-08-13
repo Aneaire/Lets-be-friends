@@ -3,9 +3,10 @@ import { action, internalMutation } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { hasCurrentIdentityApproval, isPersonaTerminal, isRealPersonaInquiryId, personaEventTransition, personaLifecycleRank } from './identityVerification'
+import { syncUserCompanionLocation } from './companionLocations'
 import { writeAudit } from './lib'
 
-const personaIntent = v.union(v.literal('member'), v.literal('host_application'))
+const personaIntent = v.union(v.literal('member'), v.literal('companion_application'))
 const PERSONA_API_VERSION = '2025-12-08'
 
 type PersonaApiResponse = {
@@ -116,11 +117,11 @@ export const prepareInquiry = internalMutation({
     if (user.suspended) throw new Error('Account is suspended')
     if (hasCurrentIdentityApproval(user)) return { mode: 'approved' as const }
 
-    const hostProfile = args.intent === 'host_application'
-      ? await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).first()
+    const companionProfile = args.intent === 'companion_application'
+      ? await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).first()
       : null
-    if (args.intent === 'host_application' && !hostProfile) {
-      throw new Error('Save the Friend Host application before starting identity verification')
+    if (args.intent === 'companion_application' && !companionProfile) {
+      throw new Error('Save the Companion application before starting identity verification')
     }
 
     const requests = await ctx.db.query('verificationRequests').withIndex('by_user', (q) => q.eq('userId', user._id)).collect()
@@ -144,8 +145,8 @@ export const prepareInquiry = internalMutation({
       && current.adminStatus === 'not_ready'
       && !isPersonaTerminal(current.personaStatus)
     ) {
-      if (hostProfile && !current.hostProfileId) {
-        await ctx.db.patch(current._id, { hostProfileId: hostProfile._id, updatedAt: Date.now() })
+      if (companionProfile && !current.companionProfileId) {
+        await ctx.db.patch(current._id, { companionProfileId: companionProfile._id, updatedAt: Date.now() })
       }
       return {
         mode: 'launch' as const,
@@ -161,8 +162,8 @@ export const prepareInquiry = internalMutation({
     }
 
     const latest = requests.slice().sort((a, b) => b.updatedAt - a.updatedAt)[0]
-    const reason = args.intent === 'host_application'
-      ? 'host_application' as const
+    const reason = args.intent === 'companion_application'
+      ? 'companion_application' as const
       : user.verificationStatus === 'approved' || user.verificationStatus === 'rejected' || user.verificationSource === 'legacy_manual' || latest?.adminStatus === 'rejected'
         ? 'reverification' as const
         : 'member' as const
@@ -176,7 +177,7 @@ export const prepareInquiry = internalMutation({
       adminStatus: 'not_ready',
       isCurrent: true,
       attempt,
-      hostProfileId: hostProfile?._id,
+      companionProfileId: companionProfile?._id,
       createdAt: now,
       updatedAt: now,
     })
@@ -184,6 +185,7 @@ export const prepareInquiry = internalMutation({
       verificationStatus: 'pending',
       updatedAt: now,
     })
+    await syncUserCompanionLocation(ctx, user._id)
     await writeAudit(ctx, {
       actorUserId: user._id,
       action: reason === 'reverification' ? 'member_verification.retried' : 'member_verification.started',
@@ -281,6 +283,7 @@ export const reconcileLegacyApprovals = internalMutation({
         identityExpiresAt: undefined,
         updatedAt: now,
       })
+      await syncUserCompanionLocation(ctx, user._id)
       for (const request of legacyRequests) {
         await ctx.db.patch(request._id, {
           verificationSource: 'legacy_manual',
@@ -392,6 +395,7 @@ export const applyWebhookEvent = internalMutation({
         identityExpiresAt: undefined,
         updatedAt: now,
       })
+      await syncUserCompanionLocation(ctx, request.userId)
     }
     await ctx.db.insert('personaWebhookEvents', {
       eventId: args.eventId,

@@ -57,7 +57,7 @@ function MessagesPage() {
   const { lastIndexByBookingId: bookingLastIndex, floatingBookingIndex, latestBookingStatus } = bookingMessagePresentation(thread?.messages ?? [])
   const latestBookingEnded = latestBookingStatus === 'completed' || latestBookingStatus === 'review_window' || latestBookingStatus === 'closed'
   const report = useMutation(api.reports.create)
-  const decideBooking = useMutation(api.bookings.hostDecision)
+  const decideBooking = useMutation(api.bookings.companionDecision)
   const updateBookingRequest = useMutation(api.bookings.editRequest)
   const markRead = useMutation(api.conversations.markRead)
   const [notice, setNotice] = useState('')
@@ -65,7 +65,7 @@ function MessagesPage() {
   const [pendingOutgoing, setPendingOutgoing] = useState<PendingOutgoingMessage | null>(null)
   const [editingBooking, setEditingBooking] = useState<EditableBookingRequest | null>(null)
   const [openImage, setOpenImage] = useState<MessageImage | null>(null)
-  const editingHost = useQuery(api.hosts.getPublic, editingBooking?.hostProfileId ? { hostProfileId: editingBooking.hostProfileId } : 'skip')
+  const editingCompanion = useQuery(api.companions.getPublic, editingBooking?.companionProfileId ? { companionProfileId: editingBooking.companionProfileId } : 'skip')
   const threadEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -279,11 +279,11 @@ function MessagesPage() {
         {editingBooking && (
           <BookingRequestEditor
             booking={editingBooking}
-            host={editingHost ?? undefined}
+            companion={editingCompanion ?? undefined}
             onClose={() => setEditingBooking(null)}
             onSave={async (request) => {
               await updateBookingRequest({ bookingId: editingBooking.bookingId, ...request })
-              setNotice('Request updated. The Friend Host will see the new details.')
+              setNotice('Request updated. The Companion will see the new details.')
               setEditingBooking(null)
             }}
           />

@@ -10,7 +10,7 @@ import { ThemeToggle } from './ThemeToggle'
 const publicNavigation = [
   { to: '/discover', label: 'Explore' },
   { to: '/safety', label: 'How it works' },
-  { to: '/become-host', label: 'Share an experience' },
+  { to: '/become-companion', label: 'Share an experience' },
 ] as const
 
 export function Header() {
@@ -76,7 +76,7 @@ export function Footer() {
         <div className="flex items-center gap-5">
           <Link to="/discover" className="nav-link">Explore</Link>
           <Link to="/safety" className="nav-link">How safety works</Link>
-          <Link to="/become-host" className="nav-link">Share what you enjoy</Link>
+          <Link to="/become-companion" className="nav-link">Share what you enjoy</Link>
           <span className="text-soft">Good company, with safety built in.</span>
         </div>
       </div>
@@ -92,7 +92,7 @@ type WorkspaceShellProps = {
   rail: React.ReactNode
   mobileNavigation?: React.ReactNode
   railLabel?: string
-  variant?: 'default' | 'bookings' | 'hosting'
+  variant?: 'default' | 'bookings' | 'companion'
   children: React.ReactNode
 }
 

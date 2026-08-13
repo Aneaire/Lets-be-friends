@@ -26,8 +26,8 @@ export const create = mutation({
         booking = null
       }
       if (!booking) throw new Error('Booking not found')
-      const host = await ctx.db.get(booking.hostProfileId)
-      if (booking.memberId !== viewer._id && host?.userId !== viewer._id) {
+      const companion = await ctx.db.get(booking.companionProfileId)
+      if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) {
         throw new Error('Only a booking participant can report this booking')
       }
       bookingId = booking._id

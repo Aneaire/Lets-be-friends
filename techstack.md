@@ -4,7 +4,7 @@
 
 Let's Be Friends will start as a web application and later expand to mobile. The first build should use a pnpm monorepo so the future React Native app can share types, validation schemas, category constants, and search scoring helpers with the web app.
 
-The first web version focuses on trust, search, booking workflow, admin review, chat, ratings, experience posts, and the approved member-wallet booking flow. PayMongo QR Ph is used for provider-verified wallet top-ups; Friend Host payouts remain disabled until a provider is activated.
+The first web version focuses on trust, search, booking workflow, admin review, chat, ratings, experience posts, and the approved member-wallet booking flow. PayMongo QR Ph is used for provider-verified wallet top-ups; Companion payouts remain disabled until a provider is activated.
 
 ## Project Structure
 
@@ -62,7 +62,7 @@ Primary responsibilities:
 
 - Public landing and product education.
 - Authenticated member app.
-- Friend Host profiles.
+- Companion profiles.
 - Search and map discovery.
 - Booking flow.
 - Chat UI.
@@ -108,7 +108,7 @@ Use **Convex** for backend, database, realtime state, server functions, file sto
 Convex responsibilities:
 
 - User profile data.
-- Friend Host profiles.
+- Companion profiles.
 - Search indexes.
 - Booking state machine.
 - Admin review queues.
@@ -166,7 +166,7 @@ Do not store raw government ID images in Convex. Keep sensitive identity documen
 Verification should not happen at signup by default. It should start when:
 
 - A member tries to create a booking request.
-- A user applies to become a Friend Host.
+- A user applies to become a Companion.
 - An admin requires reverification.
 
 ## Admin System
@@ -178,7 +178,7 @@ Recommended route group:
 ```txt
 /admin
 /admin/overview
-/admin/host-applications
+/admin/companion-applications
 /admin/booking-verification
 /admin/reports
 /admin/users
@@ -205,7 +205,7 @@ Admin permissions:
 
 Reviewer permissions:
 
-- Review Friend Host applications.
+- Review Companion applications.
 - Review booking verification requests.
 - Review reports.
 - Moderate posts and reviews.
@@ -268,11 +268,11 @@ Search inputs:
 
 Hard filters:
 
-- Host must be approved.
-- Host must not be suspended.
-- Host must be visible.
-- Host must match online/in-person mode.
-- Host must match allowed categories.
+- Companion must be approved.
+- Companion must not be suspended.
+- Companion must be visible.
+- Companion must match online/in-person mode.
+- Companion must match allowed categories.
 
 Ranking factors:
 
@@ -316,7 +316,7 @@ Use **Convex File Storage** for MVP.
 Store:
 
 - Profile photos.
-- Friend Host gallery photos.
+- Companion gallery photos.
 - Experience post media.
 - Safe public media assets.
 
@@ -341,8 +341,8 @@ Notification events:
 - Verification submitted.
 - Verification approved.
 - Verification rejected.
-- Host application approved.
-- Host application rejected.
+- Companion application approved.
+- Companion application rejected.
 - Booking request sent.
 - Booking accepted.
 - Booking declined.
@@ -353,23 +353,23 @@ Notification events:
 
 Push notifications should wait until mobile or a later web push phase.
 
-## Member Wallet, Booking Settlement, And Legacy Host Fees
+## Member Wallet, Booking Settlement, And Legacy Companion Fees
 
 New bookings use the explicit `member_wallet_v2` model when `MEMBER_WALLET_V2_ENABLED=true`. The flag gates only new v2 booking and member top-up creation; runtime reads, reconciliation, evidence retention, and settlement for existing v2 rows are never gated.
 
 Financial rules:
 
-1. The server freezes the listed service subtotal plus a 15% member booking fee in integer centavos. Friend Host entitlement is 100% of the subtotal.
+1. The server freezes the listed service subtotal plus a 15% member booking fee in integer centavos. Companion entitlement is 100% of the subtotal.
 2. A member needs available booking balance greater than or equal to the total to send a request.
-3. Friend Host acceptance atomically rechecks and transfers the total from member available to reserved. Insufficient balance leaves `request_sent` unchanged.
-4. Mutual completion opens reviews and atomically transfers reserved funds to Friend Host pending earnings and platform pending revenue.
+3. Companion acceptance atomically rechecks and transfers the total from member available to reserved. Insufficient balance leaves `request_sent` unchanged.
+4. Mutual completion opens reviews and atomically transfers reserved funds to Companion pending earnings and platform pending revenue.
 5. Settlement eligibility is exactly 24 hours after mutual completion. Durable scheduling plus bounded reconciliation moves due, unblocked pending balances to available idempotently.
-6. A booking report by either participant blocks unsettled v2 funds. Evidence is never required for a report. Only a full admin with a required note can release blocked host/platform funds or return them to member available balance.
+6. A booking report by either participant blocks unsettled v2 funds. Evidence is never required for a report. Only a full admin with a required note can release blocked companion/platform funds or return them to member available balance.
 7. Wallet accounts use deterministic keys and materialized available/reserved/pending buckets. Immutable transactions and entries use unique idempotency keys, safe-integer/nonnegative checks, and balanced internal transfers.
 8. Allowed production financial writers are provider-verified member credit, booking accept reserve, cancellation release, mutual-completion allocation, internal settlement, and full-admin blocked-fund resolution.
-9. The older 10% cash-booking commission obligations, host fee ledger, PayMongo host top-ups, and Saturday collection remain only for legacy bookings whose pricing model/purpose is missing or legacy.
+9. The older 10% cash-booking commission obligations, companion fee ledger, PayMongo companion top-ups, and Saturday collection remain only for legacy bookings whose pricing model/purpose is missing or legacy.
 
-Optional booking evidence uses private image upload grants. The Friend Host decides start evidence and the member decides end evidence; either can upload or explicitly skip after a strict warning, and that role must decide before completion. The server validates MIME, size, ownership, grant age, and reuse. Ordinary booking/admin lists never expose evidence URLs. Reviewer/admin access requires a linked active booking report and creates an audit log. Bounded purge retains evidence while a report is active.
+Optional booking evidence uses private image upload grants. The Companion decides start evidence and the member decides end evidence; either can upload or explicitly skip after a strict warning, and that role must decide before completion. The server validates MIME, size, ownership, grant age, and reuse. Ordinary booking/admin lists never expose evidence URLs. Reviewer/admin access requires a linked active booking report and creates an audit log. Bounded purge retains evidence while a report is active.
 
 PayMongo safety requirements:
 
@@ -379,7 +379,7 @@ PayMongo safety requirements:
 - Test/live mode, canonical intent ID, amount, PHP currency, QR Ph method, top-up purpose, and beneficiary are revalidated before credit.
 - Provider event IDs plus raw-body hashes prevent duplicate or conflicting settlement.
 - `payment.paid`, `payment.failed`, and `qrph.expired` update retained attempts; scheduled reconciliation repairs missed webhooks.
-- Friend Host available earnings are internal only. Payouts and withdrawals await provider activation; there is no live payout mutation or UI.
+- Companion available earnings are internal only. Payouts and withdrawals await provider activation; there is no live payout mutation or UI.
 
 ## UI Stack
 
@@ -418,7 +418,7 @@ Use:
 Important forms:
 
 - Profile setup.
-- Friend Host application.
+- Companion application.
 - Strength selection.
 - Availability setup.
 - Booking request draft.
@@ -438,7 +438,7 @@ Fields:
 - `role`
 - `verificationStatus`
 - `bookingEligibilityStatus`
-- `hostApprovalStatus`
+- `companionApprovalStatus`
 - `suspendedAt`
 - `createdAt`
 - `updatedAt`
@@ -461,9 +461,9 @@ Fields:
 - `interests`
 - `visibility`
 
-### `hostProfiles`
+### `companionProfiles`
 
-Stores Friend Host profile data.
+Stores Companion profile data.
 
 Fields:
 
@@ -510,7 +510,7 @@ Fields:
 
 ### `verificationRequests`
 
-Stores booking or host verification workflow.
+Stores booking or companion verification workflow.
 
 Fields:
 
@@ -531,7 +531,7 @@ Stores booking state.
 Fields:
 
 - `memberId`
-- `hostId`
+- `companionId`
 - `categoryId`
 - `mode`
 - `requestedStart`
@@ -650,7 +650,7 @@ Fields:
 ## Important Status Types
 
 ```ts
-type UserRole = "member" | "friendHost" | "admin" | "reviewer";
+type UserRole = "member" | "friendCompanion" | "admin" | "reviewer";
 
 type VerificationStatus =
   | "none"
@@ -661,7 +661,7 @@ type VerificationStatus =
   | "rejected"
   | "expired";
 
-type HostApprovalStatus =
+type CompanionApprovalStatus =
   | "draft"
   | "submitted"
   | "pending_review"
@@ -696,13 +696,13 @@ Use:
 Critical test scenarios:
 
 - User can sign up but remains unverified.
-- Unverified user can browse approved hosts.
+- Unverified user can browse approved companions.
 - Unverified user cannot send booking request directly.
 - Starting a booking creates a draft and starts verification.
 - Persona result updates verification state.
 - Admin can approve or reject verification.
-- Approved Friend Host appears in search.
-- Pending Friend Host does not appear in search.
+- Approved Companion appears in search.
+- Pending Companion does not appear in search.
 - Suspended users cannot book, chat, post, or appear in discovery.
 - Map returns approximate locations only.
 - Direct chat is available between active users; booking chat opens only for allowed booking states.
@@ -739,7 +739,7 @@ Actual names may change during implementation based on provider SDK requirements
 
 ## Deployment Notes
 
-Decide hosting during implementation.
+Decide companion during implementation.
 
 Good candidates:
 

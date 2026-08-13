@@ -1,20 +1,20 @@
 import {
-  MAX_HOST_HOURLY_RATE_CENTAVOS,
-  MIN_HOST_HOURLY_RATE_CENTAVOS,
+  MAX_COMPANION_HOURLY_RATE_CENTAVOS,
+  MIN_COMPANION_HOURLY_RATE_CENTAVOS,
   bookingEligibility,
-  canBookHost,
-  validateHostHourlyRateCentavos,
+  canBookCompanion,
+  validateCompanionHourlyRateCentavos,
 } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
 import { hasCurrentIdentityApproval, isIdentityVerificationReason } from './identityVerification'
-import { findNearbyHostLocations, syncHostLocation } from './hostLocations'
+import { findNearbyCompanionLocations, syncCompanionLocation } from './companionLocations'
 
 const nearbyRadiusOptions = [5, 10, 25, 50, 100] as const
 
-const demoHosts = [
+const demoCompanions = [
   { _id: 'demo-1', username: 'maya_cebu', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee and meals', 'Explore the city'], bookable: false, viewerCanBook: true, demo: true },
   { _id: 'demo-2', username: 'jo_online', displayName: 'Jo', city: 'Online', mode: 'online', rating: 4.8, reviewCount: 18, intro: 'Online coworking and study partner for people who want accountability without pressure.', strengths: ['Study partner', 'Online chat friend', 'Language practice'], categories: ['Study and coworking', 'Language exchange'], bookable: false, viewerCanBook: true, demo: true },
   { _id: 'demo-3', username: 'rafi_bohol', displayName: 'Rafi', city: 'Bohol', mode: 'in_person', rating: 4.7, reviewCount: 12, intro: 'Photography walk partner for safe public routes, food stops, and relaxed creative exploration.', strengths: ['Photography walk partner', 'Food trip companion', 'Local tour buddy'], categories: ['Photo walks', 'Explore the city'], bookable: false, viewerCanBook: true, demo: true },
@@ -31,44 +31,44 @@ export const listApproved = query({
     const viewer = await getViewer(ctx)
     const radiusKm = args.radiusKm ?? 25
     const withDistance = origin
-      ? await indexedNearbyHosts(ctx, origin, radiusKm)
-      : (await ctx.db.query('hostProfiles').withIndex('by_status', (q) => q.eq('status', 'approved')).collect())
-          .map((host) => ({ host, distanceKm: undefined }))
+      ? await indexedNearbyCompanions(ctx, origin, radiusKm)
+      : (await ctx.db.query('companionProfiles').withIndex('by_status', (q) => q.eq('status', 'approved')).collect())
+          .map((companion) => ({ companion, distanceKm: undefined }))
 
-    if (!origin && withDistance.length === 0) return demoHosts as any
+    if (!origin && withDistance.length === 0) return demoCompanions as any
 
     withDistance
       .sort((a, b) => {
-        if (!origin) return b.host.rating - a.host.rating
-        if (a.host.mode === 'online' && b.host.mode !== 'online') return 1
-        if (b.host.mode === 'online' && a.host.mode !== 'online') return -1
+        if (!origin) return b.companion.rating - a.companion.rating
+        if (a.companion.mode === 'online' && b.companion.mode !== 'online') return 1
+        if (b.companion.mode === 'online' && a.companion.mode !== 'online') return -1
         return (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY)
       })
 
-    const results = await Promise.all(withDistance.map(async ({ host, distanceKm }) => {
-      const user = await ctx.db.get(host.userId)
+    const results = await Promise.all(withDistance.map(async ({ companion, distanceKm }) => {
+      const user = await ctx.db.get(companion.userId)
       if (!user || user.suspended || !hasCurrentIdentityApproval(user)) return null
       const [profileImage, savedProfile, followedUser] = await Promise.all([
         profileImageUrl(ctx, user),
-        viewer ? ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first() : null,
-        viewer ? ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first() : null,
+        viewer ? ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('companionProfileId', companion._id)).first() : null,
+        viewer ? ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', companion.userId)).first() : null,
       ])
       return {
-        ...publicHostProfile(host),
+        ...publicCompanionProfile(companion),
         username: user.username,
         displayName: user.displayName,
         profileImageUrl: profileImage,
         bio: user.bio,
         distanceKm: typeof distanceKm === 'number' ? Math.round(distanceKm * 10) / 10 : undefined,
-        latitude: typeof host.approximateLatitude === 'number' ? host.approximateLatitude : undefined,
-        longitude: typeof host.approximateLongitude === 'number' ? host.approximateLongitude : undefined,
-        _id: host._id,
-        bookable: hasConfiguredHourlyRate(host.hourlyRateCentavos),
-        viewerCanBook: canBookHost(viewer ? String(viewer._id) : null, String(host.userId)),
+        latitude: typeof companion.approximateLatitude === 'number' ? roundCoordinate(companion.approximateLatitude) : undefined,
+        longitude: typeof companion.approximateLongitude === 'number' ? roundCoordinate(companion.approximateLongitude) : undefined,
+        _id: companion._id,
+        bookable: hasConfiguredHourlyRate(companion.hourlyRateCentavos),
+        viewerCanBook: canBookCompanion(viewer ? String(viewer._id) : null, String(companion.userId)),
         viewerBookingEligibility: bookingEligibility(
           viewer ? String(viewer._id) : null,
           viewer?.verificationStatus,
-          String(host.userId),
+          String(companion.userId),
           viewer ? hasCurrentIdentityApproval(viewer) : false,
         ),
         demo: false,
@@ -76,53 +76,53 @@ export const listApproved = query({
         following: Boolean(followedUser),
       }
     }))
-    return results.filter((host) => host !== null)
+    return results.filter((companion) => companion !== null)
   },
 })
 
 export const getPublic = query({
-  args: { hostProfileId: v.id('hostProfiles') },
+  args: { companionProfileId: v.id('companionProfiles') },
   handler: async (ctx, args) => {
     const viewer = await getViewer(ctx)
-    const host = await ctx.db.get(args.hostProfileId)
-    if (!host || host.status !== 'approved') return null
-    const user = await ctx.db.get(host.userId)
+    const companion = await ctx.db.get(args.companionProfileId)
+    if (!companion || companion.status !== 'approved') return null
+    const user = await ctx.db.get(companion.userId)
     if (!user || user.suspended || !hasCurrentIdentityApproval(user)) return null
     return {
-      ...publicHostProfile(host),
+      ...publicCompanionProfile(companion),
       username: user.username,
       displayName: user.displayName,
       firstName: user.firstName ?? user.displayName,
       profileImageUrl: await profileImageUrl(ctx, user),
       bio: user.bio,
-      bookable: hasConfiguredHourlyRate(host.hourlyRateCentavos),
-      viewerCanBook: canBookHost(viewer ? String(viewer._id) : null, String(host.userId)),
+      bookable: hasConfiguredHourlyRate(companion.hourlyRateCentavos),
+      viewerCanBook: canBookCompanion(viewer ? String(viewer._id) : null, String(companion.userId)),
       viewerBookingEligibility: bookingEligibility(
         viewer ? String(viewer._id) : null,
         viewer?.verificationStatus,
-        String(host.userId),
+        String(companion.userId),
         viewer ? hasCurrentIdentityApproval(viewer) : false,
       ),
-      saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', host._id)).first()) : false,
-      following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', host.userId)).first()) : false,
+      saved: viewer ? Boolean(await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('companionProfileId', companion._id)).first()) : false,
+      following: viewer ? Boolean(await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', companion.userId)).first()) : false,
     }
   },
 })
 
 export const toggleSaveProfile = mutation({
-  args: { hostProfileId: v.id('hostProfiles') },
+  args: { companionProfileId: v.id('companionProfiles') },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    const host = await ctx.db.get(args.hostProfileId)
-    if (!host || host.status !== 'approved') throw new Error('Profile is not available')
-    const existing = await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('hostProfileId', args.hostProfileId)).first()
+    const companion = await ctx.db.get(args.companionProfileId)
+    if (!companion || companion.status !== 'approved') throw new Error('Profile is not available')
+    const existing = await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('companionProfileId', args.companionProfileId)).first()
     if (existing) {
       await ctx.db.delete(existing._id)
-      await writeAudit(ctx, { actorUserId: viewer._id, action: 'profile.unsaved', targetType: 'hostProfile', targetId: String(args.hostProfileId) })
+      await writeAudit(ctx, { actorUserId: viewer._id, action: 'profile.unsaved', targetType: 'companionProfile', targetId: String(args.companionProfileId) })
       return false
     }
-    await ctx.db.insert('savedProfiles', { userId: viewer._id, hostProfileId: args.hostProfileId, createdAt: Date.now() })
-    await writeAudit(ctx, { actorUserId: viewer._id, action: 'profile.saved', targetType: 'hostProfile', targetId: String(args.hostProfileId) })
+    await ctx.db.insert('savedProfiles', { userId: viewer._id, companionProfileId: args.companionProfileId, createdAt: Date.now() })
+    await writeAudit(ctx, { actorUserId: viewer._id, action: 'profile.saved', targetType: 'companionProfile', targetId: String(args.companionProfileId) })
     return true
   },
 })
@@ -132,8 +132,8 @@ export const myApplication = query({
   handler: async (ctx) => {
     const viewer = await getViewer(ctx)
     if (!viewer) return null
-    const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
-    if (!host) return null
+    const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    if (!companion) return null
     const identityRequests = await ctx.db.query('verificationRequests').withIndex('by_user', (q) => q.eq('userId', viewer._id)).collect()
     const identityVerification = identityRequests
       .filter((request) => isIdentityVerificationReason(request.reason))
@@ -143,7 +143,7 @@ export const myApplication = query({
         return b.updatedAt - a.updatedAt
       })[0]
     return {
-      ...host,
+      ...companion,
       displayName: viewer.displayName,
       profileImageUrl: await profileImageUrl(ctx, viewer),
       bio: viewer.bio,
@@ -162,10 +162,6 @@ export const submitApplication = mutation({
   args: {
     intro: v.string(),
     city: v.string(),
-    approximateArea: v.optional(v.string()),
-    approximateLatitude: v.optional(v.number()),
-    approximateLongitude: v.optional(v.number()),
-    nearbyDiscoveryEnabled: v.optional(v.boolean()),
     strengths: v.array(v.string()),
     categories: v.array(v.string()),
     boundaries: v.array(v.string()),
@@ -176,40 +172,44 @@ export const submitApplication = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const now = Date.now()
-    validateHostHourlyRateCentavos(args.hourlyRateCentavos)
-    validateCoordinatePair(args.approximateLatitude, args.approximateLongitude)
-    const approximateLatitude = typeof args.approximateLatitude === 'number' ? roundCoordinate(args.approximateLatitude) : undefined
-    const approximateLongitude = typeof args.approximateLongitude === 'number' ? roundCoordinate(args.approximateLongitude) : undefined
-    const existing = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    validateCompanionHourlyRateCentavos(args.hourlyRateCentavos)
+    const existing = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    const sourceLatitude = viewer.approximateLatitude ?? existing?.approximateLatitude
+    const sourceLongitude = viewer.approximateLongitude ?? existing?.approximateLongitude
+    validateCoordinatePair(sourceLatitude, sourceLongitude)
+    if (typeof sourceLatitude !== 'number' || typeof sourceLongitude !== 'number') {
+      throw new Error('Complete onboarding with an approximate location before applying as a Companion')
+    }
+    if (!viewer.approximateLocationConsentedAt || !viewer.termsAcceptedAt || viewer.termsVersion !== '2026-08-13') {
+      throw new Error('Accept the current location consent and Terms and Conditions before applying as a Companion')
+    }
     const patch = {
       ...args,
       displayName: viewer.displayName,
-      approximateArea: args.approximateArea?.trim() || undefined,
-      approximateLatitude,
-      approximateLongitude,
-      // Missing values opt out so legacy records are never exposed to a new nearby search by surprise.
-      nearbyDiscoveryEnabled: args.nearbyDiscoveryEnabled === true,
+      approximateArea: undefined,
+      approximateLatitude: roundCoordinate(sourceLatitude),
+      approximateLongitude: roundCoordinate(sourceLongitude),
       status: 'pending_review' as const,
       rating: existing?.rating ?? 0,
       reviewCount: existing?.reviewCount ?? 0,
       updatedAt: now,
     }
-    const hostProfileId = existing
+    const companionProfileId = existing
       ? (await ctx.db.patch(existing._id, patch), existing._id)
-      : await ctx.db.insert('hostProfiles', { userId: viewer._id, ...patch, createdAt: now })
+      : await ctx.db.insert('companionProfiles', { userId: viewer._id, ...patch, createdAt: now })
 
-    const host = await ctx.db.get(hostProfileId)
-    if (!host) throw new Error('Friend Host profile was not saved')
-    await syncHostLocation(ctx, host, viewer)
+    const companion = await ctx.db.get(companionProfileId)
+    if (!companion) throw new Error('Companion profile was not saved')
+    await syncCompanionLocation(ctx, companion, viewer)
 
     await writeAudit(ctx, {
       actorUserId: viewer._id,
-      action: 'host_application.submitted',
-      targetType: 'hostProfile',
-      targetId: String(hostProfileId),
+      action: 'companion_application.submitted',
+      targetType: 'companionProfile',
+      targetId: String(companionProfileId),
       after: { status: 'pending_review', identityApproved: hasCurrentIdentityApproval(viewer) },
     })
-    return hostProfileId
+    return companionProfileId
   },
 })
 
@@ -217,47 +217,19 @@ export const updateHourlyRate = mutation({
   args: { hourlyRateCentavos: v.number() },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    const hourlyRateCentavos = validateHostHourlyRateCentavos(args.hourlyRateCentavos)
-    const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
-    if (!host) throw new Error('Create a Friend Host profile before setting an hourly rate')
-    await ctx.db.patch(host._id, { hourlyRateCentavos, updatedAt: Date.now() })
+    const hourlyRateCentavos = validateCompanionHourlyRateCentavos(args.hourlyRateCentavos)
+    const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    if (!companion) throw new Error('Create a Companion profile before setting an hourly rate')
+    await ctx.db.patch(companion._id, { hourlyRateCentavos, updatedAt: Date.now() })
     await writeAudit(ctx, {
       actorUserId: viewer._id,
-      action: 'host_profile.hourly_rate_updated',
-      targetType: 'hostProfile',
-      targetId: String(host._id),
-      before: { hourlyRateCentavos: host.hourlyRateCentavos },
+      action: 'companion_profile.hourly_rate_updated',
+      targetType: 'companionProfile',
+      targetId: String(companion._id),
+      before: { hourlyRateCentavos: companion.hourlyRateCentavos },
       after: { hourlyRateCentavos },
     })
     return hourlyRateCentavos
-  },
-})
-
-export const setNearbyDiscoveryVisibility = mutation({
-  args: { enabled: v.boolean() },
-  handler: async (ctx, args) => {
-    const viewer = await requireViewer(ctx)
-    const host = await ctx.db.query('hostProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
-    if (!host) throw new Error('Create a Friend Host profile before changing nearby search visibility')
-    if (args.enabled && (typeof host.approximateLatitude !== 'number' || typeof host.approximateLongitude !== 'number')) {
-      throw new Error('Add an approximate location before turning on nearby search')
-    }
-    if (host.nearbyDiscoveryEnabled === args.enabled) return args.enabled
-
-    const now = Date.now()
-    await ctx.db.patch(host._id, { nearbyDiscoveryEnabled: args.enabled, updatedAt: now })
-    const updatedHost = await ctx.db.get(host._id)
-    if (!updatedHost) throw new Error('Friend Host profile was not updated')
-    await syncHostLocation(ctx, updatedHost, viewer)
-    await writeAudit(ctx, {
-      actorUserId: viewer._id,
-      action: 'host_profile.nearby_visibility_updated',
-      targetType: 'hostProfile',
-      targetId: String(host._id),
-      before: { nearbyDiscoveryEnabled: host.nearbyDiscoveryEnabled === true },
-      after: { nearbyDiscoveryEnabled: args.enabled },
-    })
-    return args.enabled
   },
 })
 
@@ -283,57 +255,43 @@ function validateCoordinatePair(latitude?: number, longitude?: number) {
   }
 }
 
-function publicHostProfile(host: Doc<'hostProfiles'>) {
+function publicCompanionProfile(companion: Doc<'companionProfiles'>) {
   const {
     approximateArea: _approximateArea,
     approximateLatitude: _approximateLatitude,
     approximateLongitude: _approximateLongitude,
     nearbyDiscoveryEnabled: _nearbyDiscoveryEnabled,
-    ...publicHost
-  } = host
-  return publicHost
+    ...publicCompanion
+  } = companion
+  return publicCompanion
 }
 
 function hasConfiguredHourlyRate(value: number | undefined) {
   return typeof value === 'number'
     && Number.isSafeInteger(value)
-    && value >= MIN_HOST_HOURLY_RATE_CENTAVOS
-    && value <= MAX_HOST_HOURLY_RATE_CENTAVOS
+    && value >= MIN_COMPANION_HOURLY_RATE_CENTAVOS
+    && value <= MAX_COMPANION_HOURLY_RATE_CENTAVOS
 }
 
 function roundCoordinate(value: number) {
   return Math.round(value * 100) / 100
 }
 
-async function indexedNearbyHosts(
-  ctx: Parameters<typeof findNearbyHostLocations>[0],
+async function indexedNearbyCompanions(
+  ctx: Parameters<typeof findNearbyCompanionLocations>[0],
   origin: { latitude: number; longitude: number },
   radiusKm: number,
 ) {
-  const [locations, onlineHosts] = await Promise.all([
-    findNearbyHostLocations(ctx, origin, radiusKm),
-    ctx.db
-      .query('hostProfiles')
-      .withIndex('by_nearby_status_mode', (q) => q
-        .eq('status', 'approved')
-        .eq('nearbyDiscoveryEnabled', true)
-        .eq('mode', 'online'))
-      .collect(),
-  ])
-  const locatedHosts = await Promise.all(locations.map(async ({ key, distance }) => ({
-    host: await ctx.db.get(key),
+  const locations = await findNearbyCompanionLocations(ctx, origin, radiusKm)
+  const locatedCompanions = await Promise.all(locations.map(async ({ key, distance }) => ({
+    companion: await ctx.db.get(key),
     distanceKm: distance / 1_000,
   })))
 
-  return [
-    ...locatedHosts.flatMap(({ host, distanceKm }) => host
-      && host.status === 'approved'
-      && host.nearbyDiscoveryEnabled === true
-      && host.mode !== 'online'
-      ? [{ host, distanceKm }]
-      : []),
-    ...onlineHosts.map((host) => ({ host, distanceKm: undefined })),
-  ]
+  return locatedCompanions.flatMap(({ companion, distanceKm }) => companion
+    && companion.status === 'approved'
+    ? [{ companion, distanceKm }]
+    : [])
 }
 
 async function profileImageUrl(ctx: any, user: { profileImageStorageId?: any; profileImageUrl?: string }) {

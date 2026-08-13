@@ -1,9 +1,10 @@
-import { useMutation, useQuery } from 'convex/react'
+import * as ImagePicker from 'expo-image-picker'
+import { useAction, useMutation, useQuery } from 'convex/react'
 import { useRef, useState } from 'react'
-import { Alert, StyleSheet, View } from 'react-native'
+import { Alert, Platform, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type BookingId } from '@/backend/client'
-import { evidenceDecisionCopy } from '@/data/evidence'
+import { evidenceAssetToArrayBuffer, evidenceDecisionCopy } from '@/data/evidence'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { ActionButton } from './ActionButton'
@@ -22,13 +23,14 @@ export function BookingEvidencePanel({
   pricingModel?: string
   participantCompletedAt?: number
   otherParticipantCompletedAt?: number
-  participantRole: 'member_end' | 'host_start'
+  participantRole: 'member_end' | 'companion_start'
 }) {
   const theme = useAppTheme()
   const canReadEvidence = status === 'accepted' && pricingModel === 'member_wallet_v2'
   const evidence = useQuery(mobileApi.bookingEvidence.status, canReadEvidence ? { bookingId } : 'skip')
+  const uploadImage = useAction(mobileApi.bookingEvidence.uploadImage)
   const skipEvidence = useMutation(mobileApi.bookingEvidence.skip)
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<'upload' | 'skip' | null>(null)
   const [message, setMessage] = useState('')
   const busyRef = useRef(false)
 
@@ -37,10 +39,46 @@ export function BookingEvidencePanel({
   const decision = evidence?.decision
   const copy = evidenceDecisionCopy(evidence?.role ?? participantRole, decision)
 
+  async function chooseAndUpload() {
+    if (busyRef.current || decision) return
+    setMessage('')
+    try {
+      if (Platform.OS !== 'web') {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(false)
+        if (!permission.granted) {
+          setMessage('Photo access is needed only to select an existing private evidence image. You can continue without uploading and review the skip warning instead.')
+          return
+        }
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        allowsMultipleSelection: false,
+        quality: 1,
+      })
+      if (result.canceled || !result.assets[0]) return
+
+      busyRef.current = true
+      setBusy('upload')
+      const converted = await evidenceAssetToArrayBuffer(result.assets[0])
+      if (!converted.ok) {
+        setMessage(converted.message)
+        return
+      }
+      await uploadImage({ bookingId, bytes: converted.bytes, contentType: converted.contentType })
+      setMessage('Private evidence uploaded. Only authorized reviewers can access it for an active booking report, and access is audited.')
+    } catch {
+      setMessage('The private evidence image could not be uploaded. Choose a supported image and try again.')
+    } finally {
+      busyRef.current = false
+      setBusy(null)
+    }
+  }
+
   async function skip() {
-    if (busyRef.current) return
+    if (busyRef.current || decision) return
     busyRef.current = true
-    setBusy(true)
+    setBusy('skip')
     setMessage('')
     try {
       await skipEvidence({ bookingId, warningAcknowledged: true })
@@ -49,14 +87,14 @@ export function BookingEvidencePanel({
       setMessage('The evidence decision could not be saved. Please try again.')
     } finally {
       busyRef.current = false
-      setBusy(false)
+      setBusy(null)
     }
   }
 
   function confirmSkip() {
     Alert.alert(
       'Strict warning: skip private evidence?',
-      'Skipping means no private evidence image will be available to help an authorized reviewer evaluate a later booking report. This decision cannot be replaced in the mobile app.',
+      'Skipping means no private evidence image will be available to help an authorized reviewer evaluate a later booking report. This one-time decision cannot be replaced in the mobile app.',
       [
         { text: 'Keep evidence option', style: 'cancel' },
         { text: 'Skip evidence', style: 'destructive', onPress: () => void skip() },
@@ -76,12 +114,17 @@ export function BookingEvidencePanel({
       {evidence !== undefined && !decision ? (
         <>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            Private image upload remains available in the web app. This mobile screen does not open a selected booking in the browser because the browser account and booking cannot yet be bound safely.
+            This optional image is private. It is retained for a limited period and can be opened only by an authorized reviewer during an active booking report. Access is audited. The other participant cannot view it.
           </AppText>
           <ActionButton
-            label={busy ? 'Saving decision' : 'Skip evidence after warning'}
+            label={busy === 'upload' ? 'Uploading private image' : 'Choose private evidence image'}
+            onPress={() => void chooseAndUpload()}
+            disabled={busy !== null}
+          />
+          <ActionButton
+            label={busy === 'skip' ? 'Saving decision' : 'Skip evidence after warning'}
             onPress={confirmSkip}
-            disabled={busy}
+            disabled={busy !== null}
             secondary
           />
         </>
