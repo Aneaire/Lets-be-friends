@@ -24,6 +24,20 @@ crons.interval(
   {},
 )
 
+crons.interval(
+  'reconcile Expo push deliveries',
+  { minutes: 15 },
+  internal.pushNotifications.reconcile,
+  {},
+)
+
+crons.daily(
+  'purge push delivery operations',
+  { hourUTC: 2, minuteUTC: 30 },
+  internal.pushNotifications.purgeOperationalData,
+  {},
+)
+
 crons.daily(
   'purge expired booking evidence',
   { hourUTC: 3, minuteUTC: 0 },

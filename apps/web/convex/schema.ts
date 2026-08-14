@@ -129,6 +129,7 @@ const notificationKind = v.union(
   v.literal('booking_cancelled'),
   v.literal('booking_completion_confirmed'),
   v.literal('booking_review_window_opened'),
+  v.literal('direct_message'),
   v.literal('post_commented'),
   v.literal('new_follower'),
   v.literal('review_received'),
@@ -568,6 +569,58 @@ export default defineSchema({
     .index('by_recipient_created_at', ['recipientUserId', 'createdAt'])
     .index('by_recipient_read_at', ['recipientUserId', 'readAt'])
     .index('by_recipient_dedupe', ['recipientUserId', 'dedupeKey']),
+  pushDevices: defineTable({
+    installationId: v.string(),
+    userId: v.id('users'),
+    expoPushToken: v.string(),
+    platform: v.union(v.literal('ios'), v.literal('android')),
+    projectId: v.string(),
+    enabled: v.boolean(),
+    tokenRevision: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    disabledAt: v.optional(v.number()),
+  })
+    .index('by_installation', ['installationId'])
+    .index('by_token', ['expoPushToken'])
+    .index('by_user_enabled', ['userId', 'enabled'])
+    .index('by_updated_at', ['updatedAt']),
+  pushDeliveries: defineTable({
+    notificationId: v.id('notifications'),
+    userId: v.id('users'),
+    deviceId: v.id('pushDevices'),
+    idempotencyKey: v.string(),
+    state: v.union(
+      v.literal('pending'),
+      v.literal('sending'),
+      v.literal('ticketed'),
+      v.literal('delivered'),
+      v.literal('retry'),
+      v.literal('permanent_failure'),
+    ),
+    sendAttempts: v.number(),
+    sendGeneration: v.optional(v.number()),
+    receiptAttempts: v.number(),
+    receiptGeneration: v.optional(v.number()),
+    nextAttemptAt: v.number(),
+    leaseExpiresAt: v.optional(v.number()),
+    receiptLeaseExpiresAt: v.optional(v.number()),
+    expoTicketId: v.optional(v.string()),
+    sentTokenRevision: v.optional(v.number()),
+    errorCode: v.optional(v.string()),
+    ticketedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_idempotency_key', ['idempotencyKey'])
+    .index('by_notification', ['notificationId'])
+    .index('by_device', ['deviceId'])
+    .index('by_state_next_attempt', ['state', 'nextAttemptAt'])
+    .index('by_state_created_at', ['state', 'createdAt'])
+    .index('by_ticket_id', ['expoTicketId'])
+    .index('by_created_at', ['createdAt'])
+    .index('by_updated_at', ['updatedAt']),
   directMessageUploads: defineTable({
     userId: v.id('users'),
     storageId: v.optional(v.id('_storage')),

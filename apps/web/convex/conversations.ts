@@ -3,6 +3,7 @@ import { paginationOptsValidator } from 'convex/server'
 import type { Doc, Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
 import { requireViewer, writeAudit } from './lib'
+import { createNotification } from './notifications'
 
 const MAX_MESSAGE_LENGTH = 2_000
 const MAX_ATTACHMENTS_PER_MESSAGE = 4
@@ -260,6 +261,14 @@ export const sendMessage = mutation({
     })
     await Promise.all(attachmentUploadIds.map((uploadId) => ctx.db.patch(uploadId, { messageId })))
     await ctx.db.patch(args.conversationId, { lastMessageAt: now, updatedAt: now })
+    await createNotification(ctx, {
+      recipientUserId: otherUserId,
+      actorUserId: viewer._id,
+      kind: 'direct_message',
+      priority: 'standard',
+      conversationId: conversation._id,
+      dedupeKey: `direct-message:${messageId}`,
+    })
     return messageId
   },
 })

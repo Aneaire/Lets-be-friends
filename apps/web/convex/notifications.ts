@@ -1,7 +1,8 @@
 import { paginationOptsValidator } from 'convex/server'
 import { v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
-import { mutation, query } from './_generated/server'
+import { internal } from './_generated/api'
+import { mutation, query, type MutationCtx } from './_generated/server'
 import { requireViewer } from './lib'
 
 export type NotificationKind = Doc<'notifications'>['kind']
@@ -33,7 +34,9 @@ export type CreateNotificationInput = {
   reportId?: Id<'reports'>
 }
 
-export async function createNotification(ctx: { db: any }, input: CreateNotificationInput) {
+export async function createNotification(ctx: MutationCtx, input: CreateNotificationInput): Promise<Id<'notifications'> | null>
+export async function createNotification(ctx: { db: any; scheduler?: never }, input: CreateNotificationInput): Promise<Id<'notifications'> | null>
+export async function createNotification(ctx: MutationCtx | { db: any; scheduler?: never }, input: CreateNotificationInput) {
   if (input.actorUserId === input.recipientUserId) return null
   if (!input.dedupeKey.trim()) throw new Error('Notification dedupe key is required')
   const recipient = await ctx.db.get(input.recipientUserId)
@@ -42,7 +45,11 @@ export async function createNotification(ctx: { db: any }, input: CreateNotifica
     .withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', input.recipientUserId).eq('dedupeKey', input.dedupeKey))
     .unique()
   if (existing) return existing._id
-  return await ctx.db.insert('notifications', { ...input, createdAt: Date.now() })
+  const notificationId = await ctx.db.insert('notifications', { ...input, createdAt: Date.now() })
+  if ('scheduler' in ctx && ctx.scheduler) {
+    await ctx.scheduler.runAfter(0, internal.pushNotifications.deliverNotification, { notificationId })
+  }
+  return notificationId
 }
 
 export const recent = query({
@@ -81,6 +88,25 @@ export const unreadCount = query({
       .withIndex('by_recipient_read_at', (q) => q.eq('recipientUserId', viewer._id).eq('readAt', undefined))
       .collect()
     return unread.length
+  },
+})
+
+export const open = mutation({
+  args: { notificationId: v.string() },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    let notification: Doc<'notifications'> | null
+    try {
+      notification = await ctx.db.get('notifications', args.notificationId as Id<'notifications'>)
+    } catch {
+      return { status: 'unavailable' as const }
+    }
+    if (!notification || notification.recipientUserId !== viewer._id) return { status: 'unavailable' as const }
+    if (!notification.readAt) await ctx.db.patch(notification._id, { readAt: Date.now() })
+    const target = await resolveTarget(ctx, notification, viewer._id)
+    return target.available
+      ? { status: 'ready' as const, destination: target.destination }
+      : { status: 'unavailable' as const }
   },
 })
 
@@ -197,6 +223,7 @@ function notificationCopy(kind: NotificationKind, actorName: string, target: { a
     case 'booking_cancelled': return { title: 'Booking cancelled', body: `${actorName} cancelled the booking${category}.${unavailable}`, tone: 'social' as const }
     case 'booking_completion_confirmed': return { title: 'Completion confirmation needed', body: `${actorName} confirmed the experience is complete. Add your confirmation when ready.${unavailable}`, tone: 'social' as const }
     case 'booking_review_window_opened': return { title: 'Review window open', body: `Both participants confirmed the experience. You can now leave a review.${unavailable}`, tone: 'social' as const }
+    case 'direct_message': return { title: 'New message', body: `${actorName} sent you a message.${unavailable}`, tone: 'social' as const }
     case 'post_commented': return { title: 'New comment', body: `${actorName} commented on your post.${unavailable}`, tone: 'social' as const }
     case 'new_follower': return { title: 'New follower', body: `${actorName} followed you.`, tone: 'social' as const }
     case 'review_received': return { title: 'Review received', body: `${actorName} left you a review.${unavailable}`, tone: 'social' as const }

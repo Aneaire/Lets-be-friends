@@ -24,6 +24,7 @@ import type * as migrations from "../migrations.js";
 import type * as notifications from "../notifications.js";
 import type * as paymongo from "../paymongo.js";
 import type * as persona from "../persona.js";
+import type * as pushNotifications from "../pushNotifications.js";
 import type * as reports from "../reports.js";
 import type * as reviews from "../reviews.js";
 import type * as seeds from "../seeds.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   paymongo: typeof paymongo;
   persona: typeof persona;
+  pushNotifications: typeof pushNotifications;
   reports: typeof reports;
   reviews: typeof reviews;
   seeds: typeof seeds;

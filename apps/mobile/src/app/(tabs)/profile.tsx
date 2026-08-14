@@ -8,6 +8,7 @@ import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/ba
 import { ActionButton } from '@/components/ActionButton'
 import { Avatar } from '@/components/Avatar'
 import { Screen, Section } from '@/components/Screen'
+import { PushNotificationSettings } from '@/components/PushNotificationSettings'
 import { TrustThread } from '@/components/TrustThread'
 import { AppText } from '@/components/Typography'
 import { useMobileMember } from '@/member/MobileMember'
@@ -224,6 +225,7 @@ function SignedInProfile({
         <AppText variant="heading">Notifications</AppText>
         <AppText variant="caption" color={theme.colors.textMuted}>View your live in-app booking, social, account, and safety updates.</AppText>
         <ActionButton label="Open notifications" onPress={() => router.push('/notifications' as never)} intent="self" secondary style={styles.sectionAction} />
+        <PushNotificationSettings />
       </Section>
 
       <Section>

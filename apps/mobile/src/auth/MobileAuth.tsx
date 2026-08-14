@@ -21,6 +21,24 @@ export type MobileAuthState =
     }
 
 const MobileAuthContext = createContext<MobileAuthState>({ status: 'demo', clerkConfigured: false })
+type SignOutCleanup = () => Promise<void>
+const signOutCleanupRef: { current: SignOutCleanup | null } = { current: null }
+
+export function registerSignOutCleanup(cleanup: SignOutCleanup | null) {
+  signOutCleanupRef.current = cleanup
+  return () => {
+    if (signOutCleanupRef.current === cleanup) signOutCleanupRef.current = null
+  }
+}
+
+async function signOutWithCleanup(signOut: () => Promise<void>) {
+  try {
+    await signOutCleanupRef.current?.()
+  } catch {
+    // Push cleanup is best-effort and must never block Clerk sign-out.
+  }
+  await signOut()
+}
 
 export function MobileAuthStateProvider({ value, children }: PropsWithChildren<{ value: MobileAuthState }>) {
   return <MobileAuthContext.Provider value={value}>{children}</MobileAuthContext.Provider>
@@ -39,7 +57,7 @@ export function ClerkAuthBridge({ children }: PropsWithChildren) {
         status: 'needs_task',
         clerkConfigured: true,
         signOut: async () => {
-          await clerk.signOut()
+          await signOutWithCleanup(() => clerk.signOut())
         },
       }
     }
@@ -59,7 +77,7 @@ export function ClerkAuthBridge({ children }: PropsWithChildren) {
       clerkConfigured: true,
       ...identity,
       signOut: async () => {
-        await clerk.signOut()
+        await signOutWithCleanup(() => clerk.signOut())
       },
     }
   }, [auth.isLoaded, auth.isSignedIn, clerk, session?.currentTask, sessionLoaded, user, userLoaded])

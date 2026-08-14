@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.letsbefriends.mobile",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -28,6 +29,14 @@
       "expo-router",
       "@clerk/expo",
       "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/adaptive-icon-monochrome.png",
+          "color": "#000000",
+          "defaultChannel": "account-updates"
+        }
+      ],
       [
         "expo-location",
         {

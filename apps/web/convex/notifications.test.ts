@@ -25,6 +25,9 @@ describe('notifications', () => {
       expect(duplicate).toBe(first)
     })
     expect(await t.withIdentity({ subject: 'sam' }).query(api.notifications.unreadCount, {})).toBe(1)
+    const scheduled = await t.run((ctx) => ctx.db.system.query('_scheduled_functions').collect())
+    expect(scheduled).toHaveLength(1)
+    expect(scheduled[0].name).toBe('pushNotifications:deliverNotification')
   })
 
   it('paginates safe presentation and omits actor identity for system notifications', async () => {
@@ -54,8 +57,9 @@ describe('notifications', () => {
     ]))
     const sam = t.withIdentity({ subject: 'sam' })
     const alex = t.withIdentity({ subject: 'alex' })
-    await expect(alex.mutation(api.notifications.markRead, { notificationId: ids[0]! })).rejects.toThrow('Not your notification')
-    await sam.mutation(api.notifications.markRead, { notificationId: ids[0]! })
+    expect(await alex.mutation(api.notifications.open, { notificationId: String(ids[0]!) })).toEqual({ status: 'unavailable' })
+    expect(await alex.mutation(api.notifications.open, { notificationId: 'not-an-id' })).toEqual({ status: 'unavailable' })
+    expect(await sam.mutation(api.notifications.open, { notificationId: String(ids[0]!) })).toEqual({ status: 'ready', destination: { type: 'profile', userId: String(alexId) } })
     expect(await sam.query(api.notifications.unreadCount, {})).toBe(1)
     await sam.mutation(api.notifications.markUnread, { notificationId: ids[0]! })
     expect(await sam.query(api.notifications.unreadCount, {})).toBe(2)
