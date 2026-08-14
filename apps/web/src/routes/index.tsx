@@ -3,7 +3,7 @@ import { SignUpButton, useAuth } from '@clerk/react'
 import { useQuery } from 'convex/react'
 import { activityCategories } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
-import { SocialPage } from './social'
+import { SocialPage } from '../components/SocialPage'
 
 const homeTitle = "Find a Companion for Shared Activities | Let's Be Friends"
 const homeDescription = 'Meet verified Companions for coffee, walks, gaming, study sessions, local experiences, and online conversation, with clear boundaries and safety steps.'
