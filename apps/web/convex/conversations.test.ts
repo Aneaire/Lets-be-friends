@@ -33,6 +33,12 @@ describe('direct conversations', () => {
     await alex.mutation(api.conversations.sendMessage, { conversationId, body: '  Hello Sam  ' })
     await sam.mutation(api.conversations.sendMessage, { conversationId, body: 'Hi Alex' })
 
+    const alexNotifications = await alex.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    const samNotifications = await sam.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(alexNotifications.page).toMatchObject([{ kind: 'direct_message', body: 'sam sent you a message.', destination: { type: 'conversation', conversationId } }])
+    expect(samNotifications.page).toMatchObject([{ kind: 'direct_message', body: 'alex sent you a message.', destination: { type: 'conversation', conversationId } }])
+    expect(JSON.stringify(samNotifications.page)).not.toContain('Hello Sam')
+
     const thread = await alex.query(api.conversations.messages, { conversationId })
     expect(thread.conversation.otherDisplayName).toBe('sam')
     expect(thread.messages.map((message) => ({ body: message.body, sentByViewer: message.sentByViewer }))).toEqual([
@@ -109,6 +115,8 @@ describe('direct conversations', () => {
 
     const thread = await alex.query(api.conversations.messages, { conversationId })
     expect(thread.messages).toHaveLength(1)
+    const samNotifications = await t.withIdentity({ subject: 'sam' }).query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(samNotifications.page).toMatchObject([{ kind: 'direct_message', body: 'alex sent you a message.' }])
     expect(thread.messages[0]).toMatchObject({
       body: '',
       attachments: [{ fileName: 'hello.txt', kind: 'file', size: 5, originalSize: 5, compressionPercent: 0 }],

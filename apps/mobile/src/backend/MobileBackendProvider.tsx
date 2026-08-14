@@ -7,6 +7,7 @@ import { createContext, type PropsWithChildren, useContext, useEffect, useMemo }
 import { ClerkAuthBridge, MobileAuthStateProvider } from '@/auth/MobileAuth'
 import { MemberDataBoundary } from '@/member/MemberDataBoundary'
 import { AuthenticatedMemberProvider, MobileMemberStateProvider } from '@/member/MobileMember'
+import { PushNotificationsProvider } from '@/notifications/PushNotifications'
 
 import {
   resolveMobileBackendConfiguration,
@@ -81,7 +82,9 @@ function AuthenticatedBackend({ client, children }: PropsWithChildren<{ client: 
   return (
     <ConvexProviderWithClerk client={client} useAuth={useAuth}>
       <MemberDataBoundary resetKey={accountKey}>
-        <AuthenticatedMemberProvider key={accountKey}>{children}</AuthenticatedMemberProvider>
+        <AuthenticatedMemberProvider key={accountKey}>
+          <PushNotificationsProvider>{children}</PushNotificationsProvider>
+        </AuthenticatedMemberProvider>
       </MemberDataBoundary>
     </ConvexProviderWithClerk>
   )

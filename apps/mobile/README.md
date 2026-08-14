@@ -87,8 +87,12 @@ Authenticated booking, finance, companion, evidence, and conversation APIs are s
 
 ### Unread and push state
 
-- The Messages tab badge aggregates live unread counts from real conversations for a ready member.
-- In-app unread state is live. Push delivery is not connected, and the app does not show fake notification switches.
+- The Messages tab badge continues to aggregate only live unread counts from real conversations.
+- The native app badge separately mirrors the authoritative in-app notification unread count.
+- A ready signed-in member can explicitly enable push notifications from Profile. The app never requests notification permission on startup, sign-in, onboarding, or mount.
+- Native payloads contain only `{ version: 1, notificationId }` and generic lock-screen copy. Taps resolve their destination through the authenticated Convex `notifications.open` mutation.
+- Push preferences are scoped to the Clerk user on this installation. Returning opted-in accounts may silently refresh their Expo token while foregrounded, but switching accounts never opts the later account in automatically.
+- A cache marker separates a current app install from iOS Keychain values that can survive uninstall. A missing marker, including conservative cache eviction, rotates the installation ID, unregisters native notifications, and requires explicit re-opt-in instead of inheriting consent.
 
 ## Android development and EAS profiles
 
@@ -112,6 +116,26 @@ pnpm dlx eas-cli@latest build --platform android --profile production
 
 Install the development APK from the authorized EAS build result. Ordinary TypeScript, React, and StyleSheet changes then use Fast Refresh through `pnpm dev`. Rebuild the development APK after adding or changing a native dependency or native configuration.
 
+## Native push notification credentials
+
+Push notifications require a physical iOS or Android development build. Expo Go and the web export intentionally report push as unavailable. After installing `expo-notifications`, `expo-device`, or `expo-crypto`, or after changing the notification config plugin, create and install a fresh native development build before testing.
+
+The app config already contains the Expo project ID and uses `assets/images/adaptive-icon-monochrome.png` for the Android notification icon. Android Firebase credentials and iOS APNs credentials must be provisioned through the authorized Expo/EAS project before real delivery can work. `android.googleServicesFile` is intentionally omitted until a real `google-services.json` is provisioned, so local typecheck, tests, config evaluation, and web export do not depend on a missing credential file.
+
+Set these values only in the Convex deployment environment:
+
+```dotenv
+EXPO_PUSH_ENABLED=true
+EXPO_PROJECT_ID=a32cb8bc-1021-43b6-82ea-d5376ba33340
+EXPO_PUSH_ACCESS_TOKEN=
+```
+
+`EXPO_PUSH_ACCESS_TOKEN` is optional and is used only when Expo enhanced push security is enabled. Never place any of these server values, provider credentials, Expo access tokens, APNs credentials, Firebase credentials, or device tokens in `EXPO_PUBLIC_*`. Keep `EXPO_PUSH_ENABLED` unset or false until native credentials are ready. Delivery is enabled only when `EXPO_PUSH_ENABLED` is exactly `true`, and the backend fails closed when the exact project ID is missing.
+
+Push delivery work has a seven-day absolute age limit. Old nonterminal rows are terminalized so they cannot send after a later re-enable, and terminal operational rows are retained for up to 30 days before cleanup.
+
+No credential creation, EAS build, deployment, or publication is performed by repository checks.
+
 ## Explicit exclusions
 
-Phase 3 does not add or change server APIs, schema, persistence, migrations, compatibility paths, native identity capture, camera capture, mobile message attachment uploads, attachment downloads, background uploads, push tokens, push providers, booking completion, deployment, publishing, or EAS cloud builds. Booking completion remains deferred until the server enforces the scheduled session end using authoritative time.
+This implementation does not add native identity capture, camera capture, mobile message attachment uploads, attachment downloads, background uploads, marketing notifications, web push, direct FCM/APNs integration, booking completion, deployment, publishing, credential creation, or EAS cloud builds. Booking completion remains deferred until the server enforces the scheduled session end using authoritative time.

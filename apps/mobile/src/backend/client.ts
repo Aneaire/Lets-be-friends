@@ -48,9 +48,15 @@ export const mobileApi = {
     recent: generatedApi.notifications.recent,
     list: generatedApi.notifications.list,
     unreadCount: generatedApi.notifications.unreadCount,
+    open: generatedApi.notifications.open,
     markRead: generatedApi.notifications.markRead,
     markUnread: generatedApi.notifications.markUnread,
     markAllRead: generatedApi.notifications.markAllRead,
+  },
+  pushNotifications: {
+    state: generatedApi.pushNotifications.state,
+    registerDevice: generatedApi.pushNotifications.registerDevice,
+    disableDevice: generatedApi.pushNotifications.disableDevice,
   },
   conversations: {
     list: generatedApi.conversations.list,

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "411718101727",
+    "project_id": "lets-be-friends-da0e5",
+    "storage_bucket": "lets-be-friends-da0e5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:411718101727:android:324ec3dfecaedc55a5d76a",
+        "android_client_info": {
+          "package_name": "com.letsbefriends.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBoQaGJV-IVTEK911w3JOvUk5w0y8zaVkA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
