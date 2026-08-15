@@ -11,14 +11,9 @@ import { v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
 import { hasCurrentIdentityApproval, isIdentityVerificationReason } from './identityVerification'
 import { findNearbyCompanionLocations, syncCompanionLocation } from './companionLocations'
+import { isHiddenByPreference, requireNotBlocked } from './safety'
 
 const nearbyRadiusOptions = [5, 10, 25, 50, 100] as const
-
-const demoCompanions = [
-  { _id: 'demo-1', username: 'maya_cebu', displayName: 'Maya', city: 'Cebu City', mode: 'both', rating: 4.9, reviewCount: 24, intro: 'Coffee companion and local walk buddy who knows calm cafes and beginner-friendly city routes.', strengths: ['Coffee companion', 'Local tour buddy', 'Good listener'], categories: ['Coffee and meals', 'Explore the city'], bookable: false, viewerCanBook: true, demo: true },
-  { _id: 'demo-2', username: 'jo_online', displayName: 'Jo', city: 'Online', mode: 'online', rating: 4.8, reviewCount: 18, intro: 'Online coworking and study partner for people who want accountability without pressure.', strengths: ['Study partner', 'Online chat friend', 'Language practice'], categories: ['Study and coworking', 'Language exchange'], bookable: false, viewerCanBook: true, demo: true },
-  { _id: 'demo-3', username: 'rafi_bohol', displayName: 'Rafi', city: 'Bohol', mode: 'in_person', rating: 4.7, reviewCount: 12, intro: 'Photography walk partner for safe public routes, food stops, and relaxed creative exploration.', strengths: ['Photography walk partner', 'Food trip companion', 'Local tour buddy'], categories: ['Photo walks', 'Explore the city'], bookable: false, viewerCanBook: true, demo: true },
-] as const
 
 export const listApproved = query({
   args: {
@@ -35,8 +30,6 @@ export const listApproved = query({
       : (await ctx.db.query('companionProfiles').withIndex('by_status', (q) => q.eq('status', 'approved')).collect())
           .map((companion) => ({ companion, distanceKm: undefined }))
 
-    if (!origin && withDistance.length === 0) return demoCompanions as any
-
     withDistance
       .sort((a, b) => {
         if (!origin) return b.companion.rating - a.companion.rating
@@ -48,6 +41,7 @@ export const listApproved = query({
     const results = await Promise.all(withDistance.map(async ({ companion, distanceKm }) => {
       const user = await ctx.db.get(companion.userId)
       if (!user || user.suspended || !hasCurrentIdentityApproval(user)) return null
+      if (viewer && viewer._id !== user._id && await isHiddenByPreference(ctx, viewer._id, user._id)) return null
       const [profileImage, savedProfile, followedUser] = await Promise.all([
         profileImageUrl(ctx, user),
         viewer ? ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('companionProfileId', companion._id)).first() : null,
@@ -71,7 +65,6 @@ export const listApproved = query({
           String(companion.userId),
           viewer ? hasCurrentIdentityApproval(viewer) : false,
         ),
-        demo: false,
         saved: Boolean(savedProfile),
         following: Boolean(followedUser),
       }
@@ -88,6 +81,7 @@ export const getPublic = query({
     if (!companion || companion.status !== 'approved') return null
     const user = await ctx.db.get(companion.userId)
     if (!user || user.suspended || !hasCurrentIdentityApproval(user)) return null
+    if (viewer && viewer._id !== user._id && await isHiddenByPreference(ctx, viewer._id, user._id)) return null
     return {
       ...publicCompanionProfile(companion),
       username: user.username,
@@ -115,6 +109,7 @@ export const toggleSaveProfile = mutation({
     const viewer = await requireViewer(ctx)
     const companion = await ctx.db.get(args.companionProfileId)
     if (!companion || companion.status !== 'approved') throw new Error('Profile is not available')
+    await requireNotBlocked(ctx, viewer._id, companion.userId)
     const existing = await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('companionProfileId', args.companionProfileId)).first()
     if (existing) {
       await ctx.db.delete(existing._id)

@@ -27,7 +27,6 @@ type NearbyCompanion = {
   strengths: string[]
   categories?: string[]
   bookable?: boolean
-  demo?: boolean
   profileImageUrl?: string
   distanceKm?: number
   latitude?: number
@@ -87,7 +86,7 @@ function NearbySearchPage() {
       rating: companion.rating,
       reviewCount: companion.reviewCount,
       strengths: companion.strengths,
-      status: companion.demo ? ('demo' as const) : companion.bookable ? ('verified' as const) : ('awaiting' as const),
+      status: companion.bookable ? ('verified' as const) : ('awaiting' as const),
     })), [filtered])
 
   const resetFilters = () => {

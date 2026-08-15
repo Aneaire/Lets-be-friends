@@ -436,7 +436,7 @@ function AccountNavigation({
               <AccountLink to="/profile" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Edit profile</AccountLink>
               {publicProfileSearch ? (
                 <AccountLink to="/companion-profile" search={publicProfileSearch} icon={<UserRound size={17} />} onSelect={() => onClose(false)}>
-                  View public companion profile
+                  View public Companion profile
                 </AccountLink>
               ) : (
                 <AccountLink to="/become-companion" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Companion profile</AccountLink>

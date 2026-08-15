@@ -1,14 +1,17 @@
 import type { FunctionReturnType } from 'convex/server'
 import { useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
+import { useCallback, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 
 import { mobileApi, type BookingId } from '@/backend/client'
 import { ActionButton } from '@/components/ActionButton'
 import { BookingCancelAction } from '@/components/BookingCancelAction'
+import { BookingCompletionAction } from '@/components/BookingCompletionAction'
 import { BookingEvidencePanel } from '@/components/BookingEvidencePanel'
 import { BookingLifecycleDetails } from '@/components/BookingLifecycleDetails'
 import { BookingMessagesButton } from '@/components/BookingMessagesButton'
+import { PlanThread } from '@/components/PlanThread'
 import { BookingSafetyActions } from '@/components/BookingSafetyActions'
 import { Screen } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
@@ -27,7 +30,7 @@ type Booking = FunctionReturnType<typeof mobileApi.bookings.mine>[number]
 export default function BookingDetailScreen() {
   const member = useMobileMember()
   if (member.status === 'signed_out') return <DetailState title="Sign in to view this booking" action="Sign in" onPress={() => router.replace('/auth')} />
-  if (member.status === 'demo') return <DetailState title="Booking details are unavailable in demo mode" action="Return home" onPress={() => router.replace('/')} />
+  if (member.status === 'unconfigured') return <DetailState title="Booking details need account services" action="Return home" onPress={() => router.replace('/')} />
   if (member.status === 'unavailable' || member.status === 'error') return <DetailState title="Booking details are unavailable" detail="Your member account could not be connected safely." />
   if (member.status !== 'ready') return <DetailState title="Loading booking details" />
   return <ReadyBookingDetailScreen />
@@ -61,6 +64,8 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
   const theme = useAppTheme()
   const status = bookingStatusPresentation[booking.status]
   const total = formatBookingTotal(booking.memberTotalCentavos)
+  const [evidenceReady, setEvidenceReady] = useState(Boolean(booking.memberCompletedAt))
+  const handleEvidenceDecision = useCallback((ready: boolean) => setEvidenceReady(ready), [])
 
   return (
     <Screen contentStyle={styles.content}>
@@ -81,6 +86,7 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
         {booking.companionCity ? <Detail label="Companion location" value={booking.companionCity} /> : null}
       </View>
       {booking.notes ? <View style={styles.notes}><AppText variant="heading">Your notes</AppText><AppText color={theme.colors.textMuted}>{booking.notes}</AppText></View> : null}
+      <PlanThread status={booking.status} requestedAt={booking.requestedAt} memberCompletedAt={booking.memberCompletedAt} companionCompletedAt={booking.companionCompletedAt} />
       <BookingLifecycleDetails
         status={booking.status}
         viewerRole="member"
@@ -105,6 +111,18 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
         participantCompletedAt={booking.memberCompletedAt}
         otherParticipantCompletedAt={booking.companionCompletedAt}
         participantRole="member_end"
+        onDecisionChange={handleEvidenceDecision}
+      />
+      <BookingCompletionAction
+        bookingId={booking._id as BookingId}
+        status={booking.status}
+        pricingModel={booking.pricingModel}
+        requestedAt={booking.requestedAt}
+        durationMinutes={booking.durationMinutes}
+        viewerRole="member"
+        participantCompletedAt={booking.memberCompletedAt}
+        otherParticipantCompletedAt={booking.companionCompletedAt}
+        evidenceReady={evidenceReady}
       />
       <BookingSafetyActions
         bookingId={booking._id as BookingId}

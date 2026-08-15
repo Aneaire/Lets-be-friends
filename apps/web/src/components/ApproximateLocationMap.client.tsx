@@ -201,7 +201,7 @@ function PersonPopover({ person }: { person: MapPerson }) {
           {person.city && <small>{person.city}</small>}
         </span>
       </div>
-      <span className="trust-chip" data-state={person.status ?? 'demo'}>
+      <span className="trust-chip" data-state={person.status ?? 'awaiting'}>
         <span className="trust-chip-dot" aria-hidden="true" />
         {trustLabel(person.status)}
       </span>
@@ -225,7 +225,7 @@ function PersonPopover({ person }: { person: MapPerson }) {
 function trustLabel(state?: MapPerson['status']) {
   if (state === 'verified') return 'Identity checked'
   if (state === 'awaiting') return 'Review in progress'
-  return 'Preview profile'
+  return 'Review in progress'
 }
 
 function personInitials(name: string) {

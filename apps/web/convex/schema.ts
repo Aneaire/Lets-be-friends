@@ -315,7 +315,7 @@ export default defineSchema({
     categories: v.array(v.string()),
     boundaries: v.array(v.string()),
     mode,
-    // Optional so existing/demo Companion records remain readable. New cash bookings require it.
+    // Optional so existing Companion records remain readable. New cash bookings require it.
     hourlyRateCentavos: v.optional(v.number()),
     status: companionStatus,
     applicationNote: v.optional(v.string()),
@@ -708,6 +708,15 @@ export default defineSchema({
     companionProfileId: v.id('companionProfiles'),
     createdAt: v.number(),
   }).index('by_user', ['userId']).index('by_companion_profile', ['companionProfileId']).index('by_pair', ['userId', 'companionProfileId']),
+  memberSafetyPreferences: defineTable({
+    ownerUserId: v.id('users'),
+    targetUserId: v.id('users'),
+    pairKey: v.string(),
+    blockedAt: v.optional(v.number()),
+    mutedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_owner', ['ownerUserId']).index('by_pair', ['pairKey']),
   feedEvents: defineTable({
     userId: v.id('users'),
     sessionId: v.string(),

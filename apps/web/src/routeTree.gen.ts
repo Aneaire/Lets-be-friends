@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as BecomeCompanionRouteImport } from './routes/become-companion'
-import { Route as CalendarDemoRouteImport } from './routes/calendar-demo'
 import { Route as CompanionRouteImport } from './routes/companion'
 import { Route as CompanionProfileRouteImport } from './routes/companion-profile'
 import { Route as DiscoverRouteImport } from './routes/discover'
@@ -39,11 +38,6 @@ const AppRoute = AppRouteImport.update({
 const BecomeCompanionRoute = BecomeCompanionRouteImport.update({
   id: '/become-companion',
   path: '/become-companion',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CalendarDemoRoute = CalendarDemoRouteImport.update({
-  id: '/calendar-demo',
-  path: '/calendar-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompanionRoute = CompanionRouteImport.update({
@@ -111,7 +105,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/become-companion': typeof BecomeCompanionRoute
-  '/calendar-demo': typeof CalendarDemoRoute
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
@@ -129,7 +122,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/become-companion': typeof BecomeCompanionRoute
-  '/calendar-demo': typeof CalendarDemoRoute
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
@@ -148,7 +140,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/become-companion': typeof BecomeCompanionRoute
-  '/calendar-demo': typeof CalendarDemoRoute
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
@@ -168,7 +159,6 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/become-companion'
-    | '/calendar-demo'
     | '/companion'
     | '/companion-profile'
     | '/discover'
@@ -186,7 +176,6 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/become-companion'
-    | '/calendar-demo'
     | '/companion'
     | '/companion-profile'
     | '/discover'
@@ -204,7 +193,6 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/become-companion'
-    | '/calendar-demo'
     | '/companion'
     | '/companion-profile'
     | '/discover'
@@ -223,7 +211,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
   BecomeCompanionRoute: typeof BecomeCompanionRoute
-  CalendarDemoRoute: typeof CalendarDemoRoute
   CompanionRoute: typeof CompanionRoute
   CompanionProfileRoute: typeof CompanionProfileRoute
   DiscoverRoute: typeof DiscoverRoute
@@ -259,13 +246,6 @@ declare module '@tanstack/react-router' {
       path: '/become-companion'
       fullPath: '/become-companion'
       preLoaderRoute: typeof BecomeCompanionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/calendar-demo': {
-      id: '/calendar-demo'
-      path: '/calendar-demo'
-      fullPath: '/calendar-demo'
-      preLoaderRoute: typeof CalendarDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/companion': {
@@ -359,7 +339,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
   BecomeCompanionRoute: BecomeCompanionRoute,
-  CalendarDemoRoute: CalendarDemoRoute,
   CompanionRoute: CompanionRoute,
   CompanionProfileRoute: CompanionProfileRoute,
   DiscoverRoute: DiscoverRoute,

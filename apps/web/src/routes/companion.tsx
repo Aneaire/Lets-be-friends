@@ -124,7 +124,7 @@ function CompanionWorkspacePage() {
           <div className="rail-section">
             <div className="rail-section-title">Setup</div>
             <Link to="/become-companion" className="rail-link">
-              <span>Edit companion profile</span>
+              <span>Edit Companion profile</span>
             </Link>
             <Link to="/safety" className="rail-link">
               <span>How safety works</span>
@@ -148,9 +148,9 @@ function CompanionWorkspacePage() {
         {!viewer && <div className="empty-state">Loading your profile…</div>}
         {viewer && !application && (
           <div className="empty-state">
-            <p className="empty-state-title">Your companion profile is ready to begin.</p>
-            <p className="text-meta max-w-[44ch]">Share what you enjoy, set your boundaries, and send the profile for review.</p>
-            <Link to="/become-companion" className="btn btn-self btn-sm mt-3">Create companion profile</Link>
+            <p className="empty-state-title">Your Companion profile is ready to begin.</p>
+            <p className="text-meta max-w-[44ch]">Share the everyday help and Strengths you can offer, set your boundaries, and send the profile for review.</p>
+            <Link to="/become-companion" className="btn btn-self btn-sm mt-3">Create Companion profile</Link>
           </div>
         )}
         {application && (

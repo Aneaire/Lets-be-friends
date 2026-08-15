@@ -67,7 +67,7 @@ export function BookingCancelAction({ bookingId, participantLabel }: {
             <View style={styles.header}>
               <View style={styles.copy}>
                 <AppText variant="heading">Cancel this booking?</AppText>
-                <AppText variant="caption" color={theme.colors.textMuted}>Cancellation is irreversible. The server will apply current cancellation and wallet rules.</AppText>
+                <AppText variant="caption" color={theme.colors.textMuted}>Cancellation cannot be undone. Current cancellation and wallet rules will apply.</AppText>
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="Close cancellation form" disabled={busy} onPress={close} style={styles.close}>
                 <AppText variant="heading">×</AppText>

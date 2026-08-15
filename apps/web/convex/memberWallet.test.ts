@@ -99,8 +99,20 @@ async function createBooking(t: ReturnType<typeof convexTest>, companionProfileI
   })
 }
 
+async function endBookingSchedule(t: ReturnType<typeof convexTest>, bookingId: any) {
+  await t.run(async (ctx) => {
+    const booking = await ctx.db.get(bookingId)
+    if (!booking) throw new Error('Booking not found')
+    await ctx.db.patch(bookingId, {
+      requestedAt: Date.now() - booking.durationMinutes * 60_000 - 1_000,
+      updatedAt: Date.now(),
+    })
+  })
+}
+
 async function acceptAndComplete(t: ReturnType<typeof convexTest>, bookingId: any) {
   await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, { bookingId, decision: 'accepted' })
+  await endBookingSchedule(t, bookingId)
   await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookingEvidence.skip, { bookingId, warningAcknowledged: true })
   await t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookingEvidence.skip, { bookingId, warningAcknowledged: true })
   await t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookings.markCompleted, { bookingId })
@@ -182,11 +194,54 @@ describe('member-wallet booking ledger', () => {
     expect(state.transactions).toHaveLength(0)
   })
 
+  it('rejects completion before the scheduled end without changing the booking, then allows evidence-gated dual completion', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const created = await createBooking(t, ids.companionProfileId)
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, {
+      bookingId: created.bookingId,
+      decision: 'accepted',
+    })
+    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookingEvidence.skip, {
+      bookingId: created.bookingId,
+      warningAcknowledged: true,
+    })
+    await t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookingEvidence.skip, {
+      bookingId: created.bookingId,
+      warningAcknowledged: true,
+    })
+
+    const before = await t.run(async (ctx) => ctx.db.get(created.bookingId))
+    await expect(t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookings.markCompleted, {
+      bookingId: created.bookingId,
+    })).rejects.toThrow('Booking cannot be completed before the scheduled session ends')
+    const afterRejection = await t.run(async (ctx) => ctx.db.get(created.bookingId))
+    expect(afterRejection).toEqual(before)
+    expect(afterRejection?.status).toBe('accepted')
+    expect(afterRejection?.memberCompletedAt).toBeUndefined()
+    expect(afterRejection?.companionCompletedAt).toBeUndefined()
+
+    await endBookingSchedule(t, created.bookingId)
+    await expect(t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookings.markCompleted, {
+      bookingId: created.bookingId,
+    })).resolves.toMatchObject({ status: 'accepted', awaitingOtherConfirmation: true })
+    await expect(t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.markCompleted, {
+      bookingId: created.bookingId,
+    })).resolves.toMatchObject({ status: 'review_window', awaitingOtherConfirmation: false })
+    expect(await t.run(async (ctx) => ctx.db.get(created.bookingId))).toMatchObject({
+      status: 'review_window',
+      memberCompletedAt: expect.any(Number),
+      companionCompletedAt: expect.any(Number),
+      jointlyCompletedAt: expect.any(Number),
+    })
+  })
+
   it('keeps funds reserved after first completion, then allocates once and settles exactly 24 hours after mutual completion', async () => {
     const t = createTest()
     const ids = await seed(t)
     const created = await createBooking(t, ids.companionProfileId)
     await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, { bookingId: created.bookingId, decision: 'accepted' })
+    await endBookingSchedule(t, created.bookingId)
     await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookingEvidence.skip, { bookingId: created.bookingId, warningAcknowledged: true })
     await t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookingEvidence.skip, { bookingId: created.bookingId, warningAcknowledged: true })
     await expect(t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookings.markCompleted, { bookingId: created.bookingId }))
@@ -236,6 +291,7 @@ describe('member-wallet booking ledger', () => {
     const ids = await seed(t)
     const created = await createBooking(t, ids.companionProfileId)
     await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, { bookingId: created.bookingId, decision: 'accepted' })
+    await endBookingSchedule(t, created.bookingId)
 
     await expect(t.withIdentity({ subject: 'wallet-outsider' }).query(api.bookingEvidence.status, { bookingId: created.bookingId }))
       .rejects.toThrow('Not your booking')

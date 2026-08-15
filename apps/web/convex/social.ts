@@ -9,20 +9,20 @@ import {
   type FeedInstrumentationSource,
   type FeedRankingCandidate,
 } from '@lets-be-friends/shared'
+import { paginationOptsValidator } from 'convex/server'
 import { v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
-import { mutation, query } from './_generated/server'
+import { internalMutation, mutation, query } from './_generated/server'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { getViewer, requireViewer, writeAudit } from './lib'
 import { createNotification } from './notifications'
+import { isHiddenByPreference, requireNotBlocked } from './safety'
 
 const MAX_MEDIA_UPLOADS_PER_DAY = 5
 const MEDIA_UPLOAD_WINDOW_MS = 24 * 60 * 60 * 1000
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024
-const FEED_LIMIT = 50
 const FOR_YOU_PAGE_SIZE = 20
-const FOR_YOU_CANDIDATE_LIMIT = 120
 const MAX_INSTRUMENTATION_BATCH = 20
 const FEED_ALGORITHM_VERSION = 'feed_v1'
 
@@ -57,33 +57,62 @@ type PostRankingCandidate = FeedRankingCandidate & {
 export const feed = query({
   args: {
     filter: v.optional(v.union(v.literal('for_you'), v.literal('following'), v.literal('saved'))),
-    seenItemKeys: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) => (await feedPageResult(ctx, {
+    filter: args.filter,
+    paginationOpts: { cursor: null, numItems: FOR_YOU_PAGE_SIZE },
+  })).page,
+})
+
+export const feedPage = query({
+  args: {
+    filter: v.optional(v.union(v.literal('for_you'), v.literal('following'), v.literal('saved'))),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: feedPageResult,
+})
+
+async function feedPageResult(ctx: any, args: {
+  filter?: 'for_you' | 'following' | 'saved'
+  paginationOpts: { cursor: string | null; numItems: number }
+}) {
     const viewer = await getViewer(ctx)
     if (viewer?.suspended) throw new Error('Account is suspended')
     const filter = args.filter ?? 'for_you'
     if (filter !== 'for_you' && !viewer) throw new Error('Sign in to use this feed')
-    validateSeenItemKeys(args.seenItemKeys)
+    if (!Number.isSafeInteger(args.paginationOpts.numItems) || args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > FOR_YOU_PAGE_SIZE) {
+      throw new Error(`Feed pages can include 1 to ${FOR_YOU_PAGE_SIZE} items`)
+    }
 
     if (filter === 'saved' && viewer) {
-      const saves = await ctx.db.query('savedPosts').withIndex('by_user', (q) => q.eq('userId', viewer._id)).order('desc').take(FEED_LIMIT)
-      const ordered = saves.sort((a, b) => b.createdAt - a.createdAt)
-      const posts = (await Promise.all(ordered.map((save) => ctx.db.get(save.postId))))
+      const result = await ctx.db.query('savedPosts')
+        .withIndex('by_user', (q: any) => q.eq('userId', viewer._id))
+        .order('desc')
+        .paginate(args.paginationOpts)
+      const posts = (await Promise.all(result.page.map((save: Doc<'savedPosts'>) => ctx.db.get(save.postId))))
         .filter((post): post is Doc<'posts'> => post !== null)
-      return await postOnlyFeed(ctx, posts, viewer, 'recent', 'You saved this post')
+      return {
+        ...result,
+        page: await postOnlyFeed(ctx, posts, viewer, 'recent', 'You saved this post'),
+      }
     }
+
+    const result = await ctx.db.query('posts')
+      .withIndex('by_created_at')
+      .order('desc')
+      .paginate(args.paginationOpts)
 
     if (filter === 'following' && viewer) {
-      const follows = await ctx.db.query('follows').withIndex('by_follower', (q) => q.eq('followerId', viewer._id)).take(50)
-      const followedPosts = await Promise.all(follows.map((follow) => (
-        ctx.db.query('posts').withIndex('by_author_hidden_created_at', (q) => q.eq('authorId', follow.followingId).eq('hidden', false)).order('desc').take(FEED_LIMIT)
-      )))
-      const posts = followedPosts.flat().sort((a, b) => b.createdAt - a.createdAt).slice(0, FEED_LIMIT)
-      return await postOnlyFeed(ctx, posts, viewer, 'followed', 'From someone you follow')
+      const follows = await ctx.db.query('follows').withIndex('by_follower', (q: any) => q.eq('followerId', viewer._id)).collect()
+      const followedIds = new Set(follows.map((follow: Doc<'follows'>) => String(follow.followingId)))
+      const followedPosts = result.page.filter((post: Doc<'posts'>) => followedIds.has(String(post.authorId)))
+      return {
+        ...result,
+        page: await postOnlyFeed(ctx, followedPosts, viewer, 'followed', 'From someone you follow'),
+      }
     }
 
-    const rankedPosts = await forYouPosts(ctx, viewer, new Set(args.seenItemKeys ?? []))
+    const rankedPosts = await rankPostCandidates(ctx, result.page, viewer, args.paginationOpts.numItems)
     const postItems = await Promise.all(rankedPosts.map(async (candidate) => ({
       kind: 'post' as const,
       itemKey: `post:${candidate.post._id}`,
@@ -91,24 +120,26 @@ export const feed = query({
       reason: candidate.reason,
       post: await enrichPost(ctx, candidate.post, viewer),
     })))
-    if (postItems.length >= 8) return postItems
+    if (args.paginationOpts.cursor !== null || postItems.length >= 8) return { ...result, page: postItems }
     const companionItems = await approvedCompanionFallback(ctx, viewer, 3)
-    return [
-      ...postItems,
-      ...companionItems,
-      {
-        kind: 'guidance' as const,
-        itemKey: 'guidance:feed-basics',
-        source: 'first_party_guidance' as const,
-        reason: 'A quick way to shape your recommendations',
-        title: 'Make For You feel more like you',
-        body: 'Follow members, save useful posts, and book categories you enjoy. These signals help tune your feed without using exact location data.',
-        actionLabel: 'Find Companions',
-        actionHref: '/discover' as const,
-      },
-    ]
-  },
-})
+    return {
+      ...result,
+      page: [
+        ...postItems,
+        ...companionItems,
+        {
+          kind: 'guidance' as const,
+          itemKey: 'guidance:feed-basics',
+          source: 'first_party_guidance' as const,
+          reason: 'A quick way to shape your recommendations',
+          title: 'Make For You feel more like you',
+          body: 'Follow members, save useful posts, and book categories you enjoy. These signals help tune your feed without using exact location data.',
+          actionLabel: 'Find Companions',
+          actionHref: '/discover' as const,
+        },
+      ],
+    }
+}
 
 export const recordFeedImpressions = mutation({
   args: {
@@ -182,6 +213,7 @@ export const byUser = query({
   args: { userId: v.id('users') },
   handler: async (ctx, args) => {
     const viewer = await getViewer(ctx)
+    if (viewer && viewer._id !== args.userId && await isHiddenByPreference(ctx, viewer._id, args.userId)) return []
     const posts = await ctx.db.query('posts').withIndex('by_author', (q) => q.eq('authorId', args.userId)).order('desc').take(30)
     return await Promise.all(posts.filter(isModerationVisible).map((post) => enrichPost(ctx, post, viewer)))
   },
@@ -199,6 +231,7 @@ export const requestedPost = query({
       return null
     }
     if (!post || !isModerationVisible(post) || post.deletedAt) return null
+    if (viewer && viewer._id !== post.authorId && await isHiddenByPreference(ctx, viewer._id, post.authorId)) return null
     const author = await ctx.db.get(post.authorId)
     if (!author || author.suspended) return null
     return await enrichPost(ctx, post, viewer)
@@ -211,11 +244,13 @@ export const commentsForPost = query({
     const viewer = await getViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || !isModerationVisible(post)) return []
+    if (viewer && viewer._id !== post.authorId && await isHiddenByPreference(ctx, viewer._id, post.authorId)) return []
     const comments = await ctx.db.query('postComments').withIndex('by_post', (q) => q.eq('postId', args.postId)).collect()
-    return await Promise.all(comments
+    const visibleComments = await Promise.all(comments
       .filter(isModerationVisible)
       .sort((a, b) => a.createdAt - b.createdAt)
       .map(async (comment) => {
+        if (viewer && viewer._id !== comment.authorId && await isHiddenByPreference(ctx, viewer._id, comment.authorId)) return null
         const author = await ctx.db.get(comment.authorId)
         return {
           ...comment,
@@ -223,6 +258,26 @@ export const commentsForPost = query({
           ownComment: viewer?._id === comment.authorId,
         }
       }))
+    return visibleComments.flatMap((comment) => comment ? [comment] : [])
+  },
+})
+
+export const commentPage = query({
+  args: { postId: v.id('posts'), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const viewer = await getViewer(ctx)
+    const post = await ctx.db.get(args.postId)
+    if (!post || !isModerationVisible(post)) return { page: [], isDone: true, continueCursor: '' }
+    if (viewer && viewer._id !== post.authorId && await isHiddenByPreference(ctx, viewer._id, post.authorId)) return { page: [], isDone: true, continueCursor: '' }
+    const result = await ctx.db.query('postComments').withIndex('by_post', (q) => q.eq('postId', args.postId)).order('desc').paginate(args.paginationOpts)
+    return {
+      ...result,
+      page: (await Promise.all(result.page.filter(isModerationVisible).map(async (comment) => {
+        if (viewer && viewer._id !== comment.authorId && await isHiddenByPreference(ctx, viewer._id, comment.authorId)) return null
+        const author = await ctx.db.get(comment.authorId)
+        return { ...comment, authorDisplayName: author?.displayName ?? 'Member', ownComment: viewer?._id === comment.authorId }
+      }))).flatMap((comment) => comment ? [comment] : []),
+    }
   },
 })
 
@@ -327,6 +382,7 @@ export const createComment = mutation({
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || post.hidden) throw new Error('Post not found')
+    await requireNotBlocked(ctx, viewer._id, post.authorId)
     const body = args.body.trim()
     if (body.length < 1) throw new Error('Comment cannot be empty')
     if (body.length > 500) throw new Error('Comment is too long')
@@ -410,12 +466,30 @@ export const discardPostMediaUpload = mutation({
   },
 })
 
+export const purgeOrphanedMedia = internalMutation({
+  args: { now: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const now = args.now ?? Date.now()
+    const cutoff = now - 24 * 60 * 60 * 1_000
+    const candidates = await ctx.db.query('postMediaUploads').withIndex('by_post', (q) => q.eq('postId', undefined)).take(50)
+    let purged = 0
+    for (const upload of candidates) {
+      if (upload.createdAt > cutoff || upload.discardedAt) continue
+      if (upload.storageId) await ctx.storage.delete(upload.storageId)
+      await ctx.db.patch(upload._id, { discardedAt: now })
+      purged += 1
+    }
+    return { checked: candidates.length, purged }
+  },
+})
+
 export const toggleSavePost = mutation({
   args: { postId: v.id('posts') },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || post.hidden) throw new Error('Post not found')
+    await requireNotBlocked(ctx, viewer._id, post.authorId)
     const existing = await ctx.db.query('savedPosts').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', args.postId)).first()
     if (existing) {
       await ctx.db.delete(existing._id)
@@ -434,6 +508,7 @@ export const toggleLike = mutation({
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || post.hidden) throw new Error('Post not found')
+    await requireNotBlocked(ctx, viewer._id, post.authorId)
     const existing = await ctx.db.query('postReactions').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', args.postId)).first()
     if (existing) {
       await ctx.db.delete(existing._id)
@@ -451,6 +526,7 @@ export const toggleFollow = mutation({
     if (viewer._id === args.userId) throw new Error('You cannot follow yourself')
     const target = await ctx.db.get(args.userId)
     if (!target || target.suspended) throw new Error('User not found')
+    await requireNotBlocked(ctx, viewer._id, args.userId)
     const existing = await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', args.userId)).first()
     if (existing) {
       await ctx.db.delete(existing._id)
@@ -477,7 +553,7 @@ async function postOnlyFeed(
   source: FeedCandidateSource,
   reason: string,
 ) {
-  const safePosts = await safeVisiblePosts(ctx, posts)
+  const safePosts = await safeVisiblePosts(ctx, posts, viewer)
   return await Promise.all(safePosts.map(async (post) => ({
     kind: 'post' as const,
     itemKey: `post:${post._id}`,
@@ -487,28 +563,29 @@ async function postOnlyFeed(
   })))
 }
 
-async function safeVisiblePosts(ctx: any, posts: Doc<'posts'>[]) {
+async function safeVisiblePosts(ctx: any, posts: Doc<'posts'>[], viewer?: Doc<'users'> | null) {
   const checked = await Promise.all(posts.map(async (post) => {
     if (!isModerationVisible(post) || post.deletedAt) return null
     const author = await ctx.db.get(post.authorId)
-    return author && !author.suspended ? post : null
+    if (!author || author.suspended) return null
+    if (viewer && viewer._id !== post.authorId && await isHiddenByPreference(ctx, viewer._id, post.authorId)) return null
+    return post
   }))
   return checked.filter((post): post is Doc<'posts'> => post !== null)
 }
 
-async function forYouPosts(ctx: any, viewer: Doc<'users'> | null, seenItemKeys: Set<string>) {
+async function rankPostCandidates(
+  ctx: any,
+  candidatePosts: Doc<'posts'>[],
+  viewer: Doc<'users'> | null,
+  pageSize: number,
+  knownFollows?: Doc<'follows'>[],
+) {
   const now = Date.now()
-  const recentPosts = await ctx.db.query('posts').withIndex('by_created_at').order('desc').take(80)
-  const follows = viewer
+  const follows = knownFollows ?? (viewer
     ? await ctx.db.query('follows').withIndex('by_follower', (q: any) => q.eq('followerId', viewer._id)).order('desc').take(30)
-    : []
-  const followedPosts = await Promise.all(follows.map((follow: Doc<'follows'>) => (
-    ctx.db.query('posts').withIndex('by_author_hidden_created_at', (q: any) => q.eq('authorId', follow.followingId).eq('hidden', false)).order('desc').take(4)
-  )))
-  const candidatePosts = [...new Map(
-    [...followedPosts.flat(), ...recentPosts].map((post: Doc<'posts'>) => [String(post._id), post]),
-  ).values()].slice(0, FOR_YOU_CANDIDATE_LIMIT) as Doc<'posts'>[]
-  const safePosts = await safeVisiblePosts(ctx, candidatePosts)
+    : [])
+  const safePosts = await safeVisiblePosts(ctx, candidatePosts, viewer)
   const followedAuthorIds = new Set(follows.map((follow: Doc<'follows'>) => String(follow.followingId)))
   const interests = await viewerInterests(ctx, viewer)
   const companionProfileCache = new Map<string, Doc<'companionProfiles'> | null>()
@@ -566,7 +643,7 @@ async function forYouPosts(ctx: any, viewer: Doc<'users'> | null, seenItemKeys: 
       category,
       source,
       reason: reasonForSource(source, topicMatch.topic),
-      seen: seenItemKeys.has(`post:${post._id}`),
+      seen: false,
       signals: {
         relationship,
         category: categorySignal,
@@ -580,7 +657,7 @@ async function forYouPosts(ctx: any, viewer: Doc<'users'> | null, seenItemKeys: 
   }))).filter((candidate): candidate is PostRankingCandidate => candidate !== null)
 
   return rerankFeedCandidates(candidates, {
-    pageSize: FOR_YOU_PAGE_SIZE,
+    pageSize,
     maxPerAuthor: 2,
     explorationShare: 0.2,
   })
@@ -686,6 +763,7 @@ async function approvedCompanionFallback(ctx: any, viewer: Doc<'users'> | null, 
   const safeCompanions = (await Promise.all(companions.map(async (companion: Doc<'companionProfiles'>) => {
     const user = await ctx.db.get(companion.userId)
     if (!user || user.suspended || !hasCurrentIdentityApproval(user) || user._id === viewer?._id) return null
+    if (viewer && await isHiddenByPreference(ctx, viewer._id, user._id)) return null
     const topicMatch = bestTopicMatch([...companion.categories, ...companion.strengths], interests.categoryWeights, interests.maximumCategoryWeight)
     return {
       overlap: topicMatch.score,
@@ -716,12 +794,6 @@ async function approvedCompanionFallback(ctx: any, viewer: Doc<'users'> | null, 
     ))
     .slice(0, limit)
     .map(({ item }) => item)
-}
-
-function validateSeenItemKeys(itemKeys: string[] | undefined) {
-  if (!itemKeys) return
-  if (itemKeys.length > 100) throw new Error('Too many seen feed items')
-  if (itemKeys.some((key) => key.length < 1 || key.length > 96)) throw new Error('Invalid seen feed item key')
 }
 
 function validateInstrumentationInput(

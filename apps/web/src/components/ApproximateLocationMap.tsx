@@ -17,7 +17,7 @@ export type MapPerson = {
   rating?: number
   reviewCount?: number
   strengths?: string[]
-  status?: 'verified' | 'awaiting' | 'demo'
+  status?: 'verified' | 'awaiting'
 }
 
 function MapPlaceholder() {

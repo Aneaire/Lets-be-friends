@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker'
 import { useAction, useMutation, useQuery } from 'convex/react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Alert, Platform, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type BookingId } from '@/backend/client'
@@ -17,6 +17,7 @@ export function BookingEvidencePanel({
   participantCompletedAt,
   otherParticipantCompletedAt,
   participantRole,
+  onDecisionChange,
 }: {
   bookingId: BookingId
   status: string
@@ -24,6 +25,7 @@ export function BookingEvidencePanel({
   participantCompletedAt?: number
   otherParticipantCompletedAt?: number
   participantRole: 'member_end' | 'companion_start'
+  onDecisionChange?: (ready: boolean) => void
 }) {
   const theme = useAppTheme()
   const canReadEvidence = status === 'accepted' && pricingModel === 'member_wallet_v2'
@@ -33,10 +35,14 @@ export function BookingEvidencePanel({
   const [busy, setBusy] = useState<'upload' | 'skip' | null>(null)
   const [message, setMessage] = useState('')
   const busyRef = useRef(false)
+  const decision = evidence?.decision
+
+  useEffect(() => {
+    onDecisionChange?.(Boolean(decision))
+  }, [decision, onDecisionChange])
 
   if (!canReadEvidence) return null
 
-  const decision = evidence?.decision
   const copy = evidenceDecisionCopy(evidence?.role ?? participantRole, decision)
 
   async function chooseAndUpload() {
@@ -132,7 +138,7 @@ export function BookingEvidencePanel({
 
       {evidence !== undefined && decision && !participantCompletedAt ? (
         <AppText variant="caption" color={theme.colors.textMuted}>
-          Mobile completion is unavailable until the server can enforce the scheduled session end with authoritative time.
+          Your evidence choice is recorded. You can now confirm completion after the experience ends.
         </AppText>
       ) : null}
 

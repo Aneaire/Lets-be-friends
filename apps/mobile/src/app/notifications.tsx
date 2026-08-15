@@ -16,7 +16,7 @@ type Notification = FunctionReturnType<typeof mobileApi.notifications.list>['pag
 export default function NotificationsScreen() {
   const member = useMobileMember()
   if (member.status === 'signed_out') return <NotificationState title="Sign in to view notifications" action="Sign in" onPress={() => router.replace('/auth')} />
-  if (member.status === 'demo') return <NotificationState title="Live notifications are unavailable in demo mode" detail="Demo content does not represent a real unread state." />
+  if (member.status === 'unconfigured') return <NotificationState title="Notifications need account services" detail="Connect your account to load personal notification activity." />
   if (member.status === 'unavailable' || member.status === 'error') return <NotificationState title="Notifications are unavailable" detail={member.message} />
   if (member.status !== 'ready') return <NotificationState title="Loading notifications" />
   return <ReadyNotifications />

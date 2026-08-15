@@ -8,6 +8,8 @@ import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/components/ActionButton'
+import { AppIcon } from '@/components/AppIcon'
+import { useAppToastMessage } from '@/components/AppToast'
 import { Screen } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
 import { useMobileMember } from '@/member/MobileMember'
@@ -33,8 +35,8 @@ export default function OnboardingScreen() {
       />
     )
   }
-  if (auth.status === 'demo') {
-    return <OnboardingState title="Demo mode" detail="Live member onboarding is unavailable in this preview." />
+  if (auth.status === 'unconfigured') {
+    return <OnboardingState title="Account services unavailable" detail="This build cannot connect to member onboarding." />
   }
   if (auth.status === 'setup_error') return <OnboardingState title="Account services unavailable" detail="Live member onboarding is unavailable in this build." />
   if (auth.status === 'loading' || member.status === 'loading' || member.status === 'syncing') {
@@ -74,6 +76,8 @@ function ConnectedOnboarding({
   const [locating, setLocating] = useState(false)
   const [locationMessage, setLocationMessage] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  useAppToastMessage(message)
+  const [step, setStep] = useState(0)
   const normalizedUsername = normalizeUsername(usernameInput)
   const validationError = viewer.username ? null : usernameValidationError(normalizedUsername)
   const availability = useQuery(
@@ -114,7 +118,7 @@ function ConnectedOnboarding({
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
       const rounded = roundLocation({ latitude: current.coords.latitude, longitude: current.coords.longitude })
       setLocation(rounded)
-      setLocationMessage(`Approximate location ready: ${rounded.latitude.toFixed(2)}, ${rounded.longitude.toFixed(2)}. Raw device precision will not be sent or saved.`)
+      setLocationMessage('Your approximate area is ready. Your precise device location will not be sent or saved.')
     } catch {
       setLocationMessage('Your location could not be read. Check device location services and try again.')
     } finally {
@@ -162,14 +166,20 @@ function ConnectedOnboarding({
   return (
     <Screen contentStyle={styles.content} keyboardDismissMode="on-drag">
       <View style={styles.header}>
-        <AppText variant="label" color={theme.colors.self}>WELCOME GUIDE</AppText>
-        <AppText variant="display" style={styles.heroTitle}>Make this profile yours.</AppText>
+        <View style={styles.stepRow}>
+          <AppText variant="label" color={theme.colors.selfText}>WELCOME GUIDE</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>Step {step + 1} of 4</AppText>
+        </View>
+        <View accessibilityLabel={`Step ${step + 1} of 4`} style={styles.progressTrack}>
+          <View style={[styles.progressValue, { width: `${(step + 1) * 25}%`, backgroundColor: theme.colors.self }]} />
+        </View>
+        <AppText variant="display" style={styles.heroTitle}>{['Choose your name.', 'Set your area.', 'Review your privacy.', 'Choose your path.'][step]}</AppText>
         <AppText color={theme.colors.textMuted} style={styles.heroCopy}>
-          Claim your permanent username and choose how you want to start.
+          {['Pick the permanent username people will recognize.', 'We use only a rounded area for nearby discovery.', 'Know what is stored before you agree.', 'Find help or share your everyday Strengths.'][step]}
         </AppText>
       </View>
 
-      <View style={styles.section}>
+      {step === 0 ? <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <AppText variant="heading">Choose your username</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
@@ -204,22 +214,22 @@ function ConnectedOnboarding({
             If this username is yours, sign out below and use the Google account that originally claimed it.
           </AppText>
         )}
-      </View>
+      </View> : null}
 
-      <View style={styles.section}>
+      {step === 1 ? <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <AppText variant="heading">Add your approximate location</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            This is required. Device location can be exact in memory, but only latitude and longitude rounded to two decimals are sent and saved.
+            We save only a rounded area, never the precise point read from your device.
           </AppText>
         </View>
         <View style={[styles.locationCard, { backgroundColor: theme.colors.surface, borderColor: location ? theme.colors.self : theme.colors.border }]}>
           <AppText variant="bodyStrong">Always-on discovery</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            Your rounded approximate location is used for discovery. Ordinary members are not placed on the map. If your Companion profile is approved and your identity approval is current, it is always shown in nearby discovery at this approximate location, including for online sessions.
+            Your approximate area helps with nearby discovery. Members are never placed on the map. Approved Companions can appear nearby using this rounded area.
           </AppText>
           {location ? (
-            <AppText variant="caption" color={theme.colors.self}>Saved precision preview: {location.latitude.toFixed(2)}, {location.longitude.toFixed(2)}</AppText>
+            <AppText variant="caption" color={theme.colors.selfText}>Approximate area saved</AppText>
           ) : null}
           <ActionButton
             label={locating ? 'Finding approximate location' : location ? 'Refresh approximate location' : 'Use device location'}
@@ -237,13 +247,20 @@ function ConnectedOnboarding({
           onPress={() => setLocationConsent((current) => !current)}
           disabled={submitting || submitted}
         />
+      </View> : null}
+
+      {step === 2 ? <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <AppText variant="heading">Privacy and community terms</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>Read this summary before continuing.</AppText>
+        </View>
         <View style={[styles.terms, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]} accessible accessibilityLabel={`Terms and Conditions version ${termsVersion}`}>
           <AppText variant="bodyStrong">Terms and Conditions</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
             You must provide accurate account information, use discovery and messaging safely, respect boundaries, and follow applicable laws and platform safety rules.
           </AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            Approximate location is stored at two decimal places and used for discovery. Approved Companions with current identity approval and a coordinate pair are shown in nearby discovery. Exact addresses and raw device precision are not stored through onboarding.
+            Your area is rounded before it is saved and used for discovery. Approved Companions can appear in nearby discovery. Exact addresses and precise device location are not stored during onboarding.
           </AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>Version {termsVersion}.</AppText>
         </View>
@@ -253,9 +270,9 @@ function ConnectedOnboarding({
           onPress={() => setTermsAccepted((current) => !current)}
           disabled={submitting || submitted}
         />
-      </View>
+      </View> : null}
 
-      <View style={styles.section}>
+      {step === 3 ? <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <AppText variant="heading">Choose your starting point</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
@@ -263,29 +280,37 @@ function ConnectedOnboarding({
           </AppText>
         </View>
         <GoalChoice
-          label="Join as a member"
-          detail="Explore verified Companions and get ready to book."
+          label="Find a Companion"
+          detail="Find everyday help, friendly company, or someone for a shared plan."
           selected={goal === 'member'}
           onPress={() => setGoal('member')}
           disabled={submitting || submitted}
         />
         <GoalChoice
           label="Become a Companion"
-          detail="Start as a member, then open Companion tools from your profile."
+          detail="Share your Strengths, choose what you offer, and earn on your terms."
           selected={goal === 'companion'}
           onPress={() => setGoal('companion')}
           disabled={submitting || submitted}
         />
-      </View>
+      </View> : null}
 
       <View style={styles.actions}>
-        <ActionButton
+        {step < 3 ? <ActionButton
+          label="Continue"
+          onPress={() => setStep((current) => Math.min(current + 1, 3))}
+          intent="self"
+          icon="arrow-forward"
+          disabled={(step === 0 && !usernameReady) || (step === 1 && (!location || !locationConsent || locating)) || (step === 2 && !termsAccepted)}
+        /> : <ActionButton
           label={submitting || submitted ? 'Saving welcome guide' : 'Complete welcome guide'}
           onPress={() => void finishOnboarding()}
           intent="self"
           disabled={!usernameReady || !location || !locationConsent || !termsAccepted || locating || submitting || submitted}
-        />
-        <Pressable
+          icon="checkmark-circle-outline"
+        />}
+        {step > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Go to previous step" disabled={submitting || submitted} onPress={() => setStep((current) => Math.max(0, current - 1))} style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}><AppIcon name="arrow-back" color={theme.colors.selfText} size={18} /><AppText variant="caption" color={theme.colors.selfText}>Back</AppText></Pressable> : null}
+        {step === 0 ? <Pressable
           accessibilityRole="button"
           accessibilityLabel="Sign out and use another account"
           accessibilityHint="Returns to sign in so you can choose a different Google account"
@@ -298,18 +323,13 @@ function ConnectedOnboarding({
           <AppText variant="caption" color={theme.colors.danger} style={styles.signOutText}>
             {signingOut ? 'Signing out' : 'Sign out and use another account'}
           </AppText>
-        </Pressable>
+        </Pressable> : null}
       </View>
       {(submitting || submitted) && (
         <ActivityIndicator
           accessibilityLabel="Saving welcome guide"
           color={theme.colors.self}
         />
-      )}
-      {message && (
-        <View accessibilityLiveRegion="polite" style={[styles.message, { backgroundColor: theme.colors.selfSoft, borderColor: theme.colors.self }]}>
-          <AppText>{message}</AppText>
-        </View>
       )}
     </Screen>
   )
@@ -420,6 +440,9 @@ function OnboardingState({
 const styles = StyleSheet.create({
   content: { paddingBottom: 44 },
   header: { paddingTop: 24, gap: 10 },
+  stepRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  progressTrack: { height: 4, overflow: 'hidden', borderRadius: 2, backgroundColor: '#D8D8D8' },
+  progressValue: { height: '100%', borderRadius: 2 },
   heroTitle: { fontSize: 38, lineHeight: 40, letterSpacing: -1.2, maxWidth: 360 },
   heroCopy: { fontSize: 15, lineHeight: 22, maxWidth: 340 },
   section: { marginTop: 28, gap: 10 },
@@ -438,6 +461,7 @@ const styles = StyleSheet.create({
   goalCopy: { flex: 1, gap: 1 },
   actions: { marginTop: 30, gap: 3 },
   signOutLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  backLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   signOutText: { fontWeight: '600', textAlign: 'center' },
   message: { borderWidth: 1, borderRadius: 16, padding: 14 },
   pressed: { opacity: 0.76 },

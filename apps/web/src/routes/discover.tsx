@@ -21,7 +21,6 @@ type DiscoveryCompanion = {
   bookable?: boolean
   viewerCanBook?: boolean
   viewerBookingEligibility?: 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
-  demo?: boolean
   saved?: boolean
   following?: boolean
   userId?: string
@@ -70,8 +69,7 @@ function DiscoverPage() {
     })
   }, [companions, mode, category, strength, bookableOnly, query])
 
-  const verifiedCount = filtered.filter((companion) => companion.bookable && !companion.demo).length
-  const demoCount = filtered.length - verifiedCount
+  const availableCount = filtered.filter((companion) => companion.bookable).length
   const moreFilterCount = strength ? 1 : 0
   const anyFiltered = mode !== 'all' || category !== null || strength !== null || bookableOnly || query.trim() !== ''
 
@@ -203,12 +201,12 @@ function DiscoverPage() {
     <main className="marketing-page-wide discover-page">
       <header className="discover-page-header">
         <div>
-          <h1 className="text-h1">Explore people</h1>
-          <p className="text-meta mt-1">Search by activity, Strength, city, or name.</p>
+          <h1 className="text-h1">Find a Companion</h1>
+          <p className="text-meta mt-1">Find everyday help and good company by activity, Strength, city, or name.</p>
         </div>
         <p className="text-meta tabular">
           {filtered.length} {filtered.length === 1 ? 'person' : 'people'}
-          {demoCount > 0 && <span className="soft"> · {verifiedCount} available · {demoCount} preview</span>}
+          {filtered.length > 0 && <span className="soft"> · {availableCount} available to book</span>}
         </p>
       </header>
 
@@ -253,7 +251,7 @@ function DiscoverPage() {
               aria-controls="categories-dialog"
             >
               <LayoutGrid size={14} aria-hidden="true" />
-              <span>Things to do</span>
+              <span>Everyday help</span>
               {category !== null && <span className="filters-trigger-badge tabular">1</span>}
             </button>
             <button
@@ -298,8 +296,8 @@ function DiscoverPage() {
       <section className="nearby-search-entry" aria-labelledby="nearby-search-entry-title">
         <div>
           <span className="eyebrow">Nearby discovery</span>
-          <h2 id="nearby-search-entry-title">Looking for someone close by?</h2>
-          <p>Open a dedicated map workspace to choose an area, adjust filters, and review approved Companions.</p>
+          <h2 id="nearby-search-entry-title">Need another pair of hands nearby?</h2>
+          <p>Choose an area, adjust your filters, and find approved Companions offering help and company nearby.</p>
         </div>
         <Link to="/nearby" className="btn btn-social btn-sm">
           <MapPin size={14} aria-hidden="true" />
@@ -348,8 +346,8 @@ function DiscoverPage() {
           >
             <header className="filters-drawer-header">
               <div>
-                <p className="eyebrow">Things to do</p>
-                <h2 id="categories-dialog-title" className="text-h2 mt-1">Choose an activity</h2>
+                <p className="eyebrow">Everyday help</p>
+                <h2 id="categories-dialog-title" className="text-h2 mt-1">What would you like to do?</h2>
               </div>
               <button
                 type="button"
@@ -474,7 +472,7 @@ function CompanionRow({ companion, signedIn, onFollow }: { companion: DiscoveryC
                 <ArrowUpRight size={13} aria-hidden="true" />
               </Link>
             </h2>
-            <TrustChip state={companion.demo ? 'demo' : companion.bookable ? 'verified' : 'awaiting'} />
+            <TrustChip state={companion.bookable ? 'verified' : 'awaiting'} />
           </div>
           <div className="discover-companion-context">
             <span>{companion.city}</span>
@@ -594,8 +592,8 @@ function ToggleChip({ selected, onClick, children }: { selected: boolean; onClic
   )
 }
 
-function TrustChip({ state }: { state: 'verified' | 'awaiting' | 'demo' }) {
-  const label = state === 'verified' ? 'Identity checked' : state === 'awaiting' ? 'Review in progress' : 'Preview profile'
+function TrustChip({ state }: { state: 'verified' | 'awaiting' }) {
+  const label = state === 'verified' ? 'Identity checked' : 'Review in progress'
   return (
     <span className="trust-chip" data-state={state}>
       <span className="trust-chip-dot" aria-hidden="true" />

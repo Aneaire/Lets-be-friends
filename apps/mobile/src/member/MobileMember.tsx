@@ -11,13 +11,13 @@ type Viewer = NonNullable<FunctionReturnType<typeof mobileApi.users.viewer>>
 type MemberVerification = FunctionReturnType<typeof mobileApi.users.latestMemberVerification>
 
 export type MobileMemberState =
-  | { status: 'demo' }
+  | { status: 'unconfigured' }
   | { status: 'signed_out' }
   | { status: 'loading' | 'syncing' }
   | { status: 'unavailable' | 'error'; message: string }
   | { status: 'ready'; viewer: Viewer; verification: MemberVerification }
 
-const MobileMemberContext = createContext<MobileMemberState>({ status: 'demo' })
+const MobileMemberContext = createContext<MobileMemberState>({ status: 'unconfigured' })
 
 export function MobileMemberStateProvider({ value, children }: PropsWithChildren<{ value: MobileMemberState }>) {
   return <MobileMemberContext.Provider value={value}>{children}</MobileMemberContext.Provider>
@@ -64,7 +64,7 @@ export function AuthenticatedMemberProvider({ children }: PropsWithChildren) {
   }, [auth, convexAuth.isAuthenticated, ensureViewer, viewer])
 
   const value = useMemo<MobileMemberState>(() => {
-    if (auth.status === 'demo') return { status: 'demo' }
+    if (auth.status === 'unconfigured') return { status: 'unconfigured' }
     if (auth.status === 'setup_error') return { status: 'unavailable', message: auth.message }
     if (auth.status === 'loading') return { status: 'loading' }
     if (auth.status === 'signed_out') return { status: 'signed_out' }

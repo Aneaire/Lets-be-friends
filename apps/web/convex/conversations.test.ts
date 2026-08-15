@@ -122,6 +122,30 @@ describe('direct conversations', () => {
       attachments: [{ fileName: 'hello.txt', kind: 'file', size: 5, originalSize: 5, compressionPercent: 0 }],
     })
     expect(thread.messages[0].attachments[0].url).toBeTypeOf('string')
+    const page = await alex.query(api.conversations.messagePage, { conversationId, paginationOpts: { cursor: null, numItems: 1 } })
+    expect(page.page[0].attachments[0].url).toBeTypeOf('string')
+  })
+
+  it('keeps the initial message page bounded and terminates through earlier history', async () => {
+    const t = convexTest(schema, modules)
+    const alexId = await insertUser(t, 'alex')
+    const samId = await insertUser(t, 'sam')
+    const conversationId = await t.withIdentity({ subject: 'alex' }).mutation(api.conversations.start, { otherUserId: samId })
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      for (let index = 0; index < 45; index += 1) {
+        await ctx.db.insert('directMessages', { conversationId, senderId: index % 2 ? alexId : samId, body: `message ${index}`, attachments: [], reportable: true, createdAt: now + index })
+      }
+    })
+
+    const alex = t.withIdentity({ subject: 'alex' })
+    const first = await alex.query(api.conversations.messagePage, { conversationId, paginationOpts: { cursor: null, numItems: 30 } })
+    expect(first.page).toHaveLength(30)
+    expect(first.isDone).toBe(false)
+    const second = await alex.query(api.conversations.messagePage, { conversationId, paginationOpts: { cursor: first.continueCursor, numItems: 30 } })
+    expect(second.page).toHaveLength(15)
+    expect(second.isDone).toBe(true)
+    expect(new Set([...first.page, ...second.page].map((message) => String(message._id))).size).toBe(45)
   })
 
   it('rejects false compression metadata and reusing an upload', async () => {

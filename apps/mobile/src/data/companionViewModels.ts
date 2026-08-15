@@ -1,7 +1,5 @@
-import type { Companion } from './companions'
-
 export type SessionMode = 'in_person' | 'online'
-export type CompanionDataSource = 'convex' | 'backend_demo' | 'local_demo'
+export type CompanionDataSource = 'convex'
 export type ViewerBookingEligibility = 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
 
 export type DiscoveryCompanionViewModel = {
@@ -22,19 +20,14 @@ export type DiscoveryCompanionViewModel = {
   verified: boolean
   bookable: boolean
   viewerBookingEligibility?: ViewerBookingEligibility
+  userId?: string
+  saved?: boolean
+  following?: boolean
 }
 
 export type CompanionDetailViewModel = DiscoveryCompanionViewModel & {
   bio?: string
   boundaries: string[]
-  localOnly?: {
-    age: number
-    pronouns: string
-    completedExperiences: number
-    responseTime: string
-    languages: string[]
-    availability: Companion['availability']
-  }
 }
 
 export type ApprovedCompanionRecord = {
@@ -52,16 +45,17 @@ export type ApprovedCompanionRecord = {
   hourlyRateCentavos?: number
   bookable?: boolean
   viewerBookingEligibility?: ViewerBookingEligibility
-  demo?: boolean
   bio?: string
   boundaries?: string[]
+  userId?: string
+  saved?: boolean
+  following?: boolean
 }
 
 export function mapApprovedCompanion(companion: ApprovedCompanionRecord): DiscoveryCompanionViewModel {
-  const source = companion.demo || isBackendDemoCompanionId(companion._id) ? 'backend_demo' : 'convex'
   return {
     id: companion._id,
-    source,
+    source: 'convex',
     name: companion.displayName,
     location: companion.city,
     imageUrl: companion.profileImageUrl,
@@ -72,11 +66,14 @@ export function mapApprovedCompanion(companion: ApprovedCompanionRecord): Discov
     rating: companion.rating,
     reviewCount: companion.reviewCount,
     rateLabel: formatHourlyRate(companion.hourlyRateCentavos),
-    hourlyRateCentavos: source === 'convex' ? companion.hourlyRateCentavos : undefined,
+    hourlyRateCentavos: companion.hourlyRateCentavos,
     distanceLabel: typeof companion.distanceKm === 'number' ? `${companion.distanceKm.toFixed(1)} km away` : undefined,
-    verified: source === 'convex',
-    bookable: source === 'convex' && companion.bookable === true,
-    viewerBookingEligibility: source === 'convex' ? companion.viewerBookingEligibility : undefined,
+    verified: true,
+    bookable: companion.bookable === true,
+    viewerBookingEligibility: companion.viewerBookingEligibility,
+    userId: companion.userId,
+    saved: companion.saved,
+    following: companion.following,
   }
 }
 
@@ -90,41 +87,6 @@ export function mapPublicCompanion(companion: ApprovedCompanionRecord): Companio
   }
 }
 
-export function mapFixtureCompanion(companion: Companion): CompanionDetailViewModel {
-  return {
-    id: companion.id,
-    source: 'local_demo',
-    name: companion.name,
-    location: companion.location,
-    imageUrl: companion.imageUrl,
-    intro: companion.tagline,
-    strengths: companion.strengths,
-    categories: companion.categories,
-    sessionModes: companion.sessionModes,
-    rating: companion.rating,
-    reviewCount: companion.reviewCount,
-    rateLabel: companion.rateLabel,
-    distanceLabel: companion.distance,
-    verified: false,
-    bookable: false,
-    bio: companion.bio,
-    boundaries: [],
-    localOnly: {
-      age: companion.age,
-      pronouns: companion.pronouns,
-      completedExperiences: companion.completedExperiences,
-      responseTime: companion.responseTime,
-      languages: companion.languages,
-      availability: companion.availability,
-    },
-  }
-}
-
-export function mapFixtureDiscoveryCompanion(companion: Companion): DiscoveryCompanionViewModel {
-  const { localOnly: _localOnly, boundaries: _boundaries, bio: _bio, ...discoveryCompanion } = mapFixtureCompanion(companion)
-  return discoveryCompanion
-}
-
 export type CompanionBookingAction =
   | { kind: 'sign_in'; label: 'Sign in to book'; explanation: string }
   | { kind: 'verification'; label: 'Verification required'; explanation: string }
@@ -133,9 +95,6 @@ export type CompanionBookingAction =
   | { kind: 'unavailable'; label: 'Booking unavailable'; explanation: string }
 
 export function resolveCompanionBookingAction(companion: CompanionDetailViewModel): CompanionBookingAction {
-  if (companion.source !== 'convex') {
-    return { kind: 'unavailable', label: 'Booking unavailable', explanation: 'Demo profiles cannot receive booking requests.' }
-  }
   if (!companion.bookable) {
     return { kind: 'unavailable', label: 'Booking unavailable', explanation: 'This Companion is not accepting booking requests right now.' }
   }
@@ -152,13 +111,8 @@ export function resolveCompanionBookingAction(companion: CompanionDetailViewMode
   }
 }
 
-export function isBackendDemoCompanionId(id: string) {
-  return /^demo-[1-9]\d*$/.test(id)
-}
-
 export type ConnectedCompanionResolution =
   | { kind: 'approved'; record: ApprovedCompanionRecord }
-  | { kind: 'demo'; record: ApprovedCompanionRecord }
   | { kind: 'not_found' }
 
 export function resolveConnectedCompanion(
@@ -168,7 +122,6 @@ export function resolveConnectedCompanion(
   if (!candidateId) return { kind: 'not_found' }
   const record = companions.find((companion) => companion._id === candidateId)
   if (!record) return { kind: 'not_found' }
-  if (record.demo === true || isBackendDemoCompanionId(record._id)) return { kind: 'demo', record }
   return { kind: 'approved', record }
 }
 

@@ -11,7 +11,7 @@ import { identityEntitlementStatus, memberVerificationPresentation, type MemberV
 export const Route = createFileRoute('/become-companion')({ component: BecomeCompanionPage })
 
 const companionEditorSteps = [
-  { id: 1, label: 'Your invitation' },
+  { id: 1, label: 'What you offer' },
   { id: 2, label: 'Strengths' },
   { id: 3, label: 'Activities' },
   { id: 4, label: 'Location' },
@@ -27,7 +27,7 @@ function BecomeCompanionPage() {
         <header className="companion-editor-intro">
           <div>
             <p className="eyebrow">Companion profile</p>
-            <h1 className="text-display">Shape a clear invitation around what you enjoy.</h1>
+            <h1 className="text-display">Share what you can offer. Earn on your terms.</h1>
             <p className="text-body muted">Five focused steps. Your existing details stay in place until you save and send changes for review.</p>
           </div>
           <a href="#companion-profile-editor" className="btn btn-self">Open profile editor</a>
@@ -36,7 +36,7 @@ function BecomeCompanionPage() {
         <>
           <header className="companion-hero">
             <div className="companion-hero-copy">
-              <h1 className="text-display mt-4">Make time for something you love. Invite someone along.</h1>
+              <h1 className="text-display mt-4">Your everyday Strengths can help someone and help you earn.</h1>
             </div>
             <div className="companion-hero-visual">
               <figure className="marketing-photo companion-hero-photo">
@@ -49,28 +49,28 @@ function BecomeCompanionPage() {
               </figure>
               <div className="companion-definition">
                 <span className="companion-definition-label">What is a Companion?</span>
-                <p>A verified member who offers platonic conversation, shared activities, and friendly company, online or in person. Every Companion chooses their own availability and boundaries.</p>
+                <p>A verified member who offers everyday help, platonic conversation, or shared activities online or in person. Every Companion chooses their availability, rate, and boundaries.</p>
               </div>
             </div>
           </header>
 
           <section className="companion-benefit-grid" aria-label="What you control">
-            <article><span>01</span><h2>Start with your interests</h2><p>Choose the activities and Strengths that feel natural to you.</p></article>
+            <article><span>01</span><h2>Use Strengths you already have</h2><p>Choose the everyday help and activities that feel natural to you.</p></article>
             <article><span>02</span><h2>Set the boundaries</h2><p>Decide online or in-person, your rate, and what you do not offer.</p></article>
             <article><span>03</span><h2>Get reviewed before going live</h2><p>Identity and profile review happen before members can find you or send a booking request.</p></article>
           </section>
           <section className="companion-ideas" aria-labelledby="companion-ideas-title">
             <div>
-              <p className="eyebrow">Your invitation can be simple</p>
-              <h2 id="companion-ideas-title" className="text-display section-display">Share the part you already enjoy.</h2>
+              <p className="eyebrow">You do not need to be an expert</p>
+              <h2 id="companion-ideas-title" className="text-display section-display">What feels ordinary to you may be valuable to someone else.</h2>
             </div>
             <div className="companion-idea-list">
               <span>Lead a photo walk</span>
               <span>Practice a language</span>
               <span>Co-work for an afternoon</span>
-              <span>Show someone around</span>
+              <span>Help with shopping or errands</span>
               <span>Play a favorite game</span>
-              <span>Talk over coffee</span>
+              <span>Offer technology help</span>
             </div>
           </section>
         </>
@@ -122,7 +122,7 @@ function CompanionAuthPanel() {
     return (
       <div className="companion-signin">
         <div>
-          <h2 className="text-h1 mt-2">Create your companion profile.</h2>
+          <h2 className="text-h1 mt-2">Create your Companion profile.</h2>
         </div>
         <SignInButton mode="modal">
           <button className="btn btn-self btn-lg">Sign in to start</button>
@@ -132,7 +132,7 @@ function CompanionAuthPanel() {
   }
 
   if (viewer === undefined || application === undefined || latestIdentityVerification === undefined) {
-    return <div className="empty-state">Loading companion profile...</div>
+    return <div className="empty-state">Loading Companion profile...</div>
   }
 
   const status = application?.status
@@ -248,8 +248,8 @@ function CompanionAuthPanel() {
         <NumberedSection
           n={1}
           active={currentStep === 1}
-          title="Your invitation"
-          rationale="Choose how you want to meet, describe the experience, and set the amount you receive."
+          title="What you offer"
+          rationale="Choose how you want to meet, describe how you can help, and set the amount you receive."
         >
           <fieldset className="companion-mode-fieldset">
             <legend className="label">Session format</legend>
@@ -278,7 +278,7 @@ function CompanionAuthPanel() {
             <span className="field-row-help">You receive {formatPhpFromPesos(hourlyRatePesos)} for each completed hour. The member's final booking total includes the service fee.</span>
           </label>
           <label className="field-row">
-            <span className="label">How would you spend the time? <span className="label-aux">40 to 500 characters</span></span>
+            <span className="label">How can you help or spend the time? <span className="label-aux">40 to 500 characters</span></span>
             <textarea
               required
               minLength={40}
@@ -286,7 +286,7 @@ function CompanionAuthPanel() {
               value={intro}
               onChange={(event) => setIntro(event.currentTarget.value)}
               className="field min-h-28"
-              placeholder="For example: Join me for an easy coffee, a walk through local history, or an unhurried online conversation."
+              placeholder="For example: I can help with a shopping trip, explain everyday technology, share local knowledge, or offer an unhurried conversation."
               aria-describedby="companion-intro-help companion-intro-count"
             />
             <span className="companion-field-help-row">
@@ -300,7 +300,7 @@ function CompanionAuthPanel() {
           n={2}
           active={currentStep === 2}
           title="Strengths you bring"
-          rationale="Choose the qualities you genuinely want to bring to a shared experience."
+          rationale="Choose the qualities and everyday skills you genuinely want to share with another member."
         >
           <ChipGroup label="Strengths" values={friendStrengths} selected={selectedStrengths} setSelected={setSelectedStrengths} />
         </NumberedSection>
@@ -308,8 +308,8 @@ function CompanionAuthPanel() {
         <NumberedSection
           n={3}
           active={currentStep === 3}
-          title="Things you can do together"
-          rationale="Choose the activities you feel comfortable companion. Every category is reviewed before it is offered."
+          title="Everyday help and activities"
+          rationale="Choose what you feel comfortable offering. Every category is reviewed before it appears on your profile."
         >
           <ChipGroup label="Activities" values={activityCategories} selected={selectedCategories} setSelected={setSelectedCategories} />
         </NumberedSection>

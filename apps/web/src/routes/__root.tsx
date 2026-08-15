@@ -13,7 +13,7 @@ export const Route = createRootRoute({
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: "Let's Be Friends | Find a Companion" },
-      { name: 'description', content: 'Discover approved Companions for safe online and local shared experiences.' },
+      { name: 'description', content: 'Find approved Companions for everyday help, shared activities, and friendly online or in-person experiences.' },
     ],
     links: [
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
@@ -57,7 +57,7 @@ function ThemeBootScript() {
   return (
     <script
       dangerouslySetInnerHTML={{
-        __html: `(function(){try{var themeKey='lets-be-friends-theme';var saved=localStorage.getItem(themeKey);var dark=saved==='dark'||(!saved&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',dark);document.documentElement.dataset.theme=dark?'dark':'light';var accent=localStorage.getItem('lets-be-friends-accent-theme');document.documentElement.dataset.accentTheme=accent==='reversed'||accent==='blue'||accent==='pink'?accent:'default';}catch(e){document.documentElement.dataset.theme='light';document.documentElement.dataset.accentTheme='default';}})();`,
+        __html: `(function(){try{var themeKey='lets-be-friends-theme';var saved=localStorage.getItem(themeKey);var dark=saved==='dark'||(!saved&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',dark);document.documentElement.dataset.theme=dark?'dark':'light';document.documentElement.dataset.accentTheme='default';}catch(e){document.documentElement.dataset.theme='light';document.documentElement.dataset.accentTheme='default';}})();`,
       }}
     />
   )

@@ -41,7 +41,6 @@ type ApprovedCompanionOption = {
   bookable?: boolean
   viewerCanBook?: boolean
   viewerBookingEligibility?: 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
-  demo?: boolean
 }
 
 type BookingStatus =
@@ -108,7 +107,7 @@ function AppPage() {
   ) as ApprovedCompanionOption[] | undefined
   const bookableCompanions = useMemo(
     () => (approvedCompanions ?? []).filter(
-      (companion) => companion.bookable && companion.viewerBookingEligibility === 'eligible' && !companion.demo,
+      (companion) => companion.bookable && companion.viewerBookingEligibility === 'eligible',
     ),
     [approvedCompanions],
   )
@@ -351,7 +350,7 @@ function AppPage() {
             </p>
             <p className="text-meta max-w-[44ch]">
               {canBook
-                ? 'Explore people, find an experience that feels right, and request a time.'
+                ? 'Explore Companions, find the help or company that feels right, and request a time.'
                 : verification.guidance}
             </p>
             {canBook ? (
@@ -363,7 +362,7 @@ function AppPage() {
                 aria-expanded={bookingDialogOpen}
                 aria-controls="booking-dialog"
               >
-                Find someone to join you
+                Find a Companion
               </button>
             ) : verification.action !== 'none' ? (
               <button
@@ -1168,8 +1167,8 @@ function BookingDialog({
             <div className="notice notice-warning text-meta">
               <span className="notice-icon">!</span>
               <span>
-                No approved companions yet.{' '}
-                <Link to="/become-companion" className="notice-link">Share what you enjoy as a Companion</Link>.
+                No approved Companions yet.{' '}
+                <Link to="/become-companion" className="notice-link">Share your Strengths as a Companion</Link>.
               </span>
             </div>
           )}

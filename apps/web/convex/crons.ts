@@ -52,4 +52,11 @@ crons.daily(
   {},
 )
 
+crons.daily(
+  'purge orphaned post media',
+  { hourUTC: 4, minuteUTC: 0 },
+  internal.social.purgeOrphanedMedia,
+  {},
+)
+
 export default crons

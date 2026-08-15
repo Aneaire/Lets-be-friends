@@ -1,3 +1,4 @@
+import { formatPhp } from '@lets-be-friends/shared'
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
@@ -6,9 +7,11 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { mobileApi, type BookingId, type CompanionProfileId } from '@/backend/client'
 import { ActionButton } from '@/components/ActionButton'
+import { useAppToastMessage } from '@/components/AppToast'
 import { Screen } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
+import { bookingPriceEstimate } from '@/data/bookingPricing'
 import { parseManilaBookingInput } from '@/data/bookingViewModels'
 import { mapPublicCompanion, type ApprovedCompanionRecord, type SessionMode } from '@/data/companionViewModels'
 import { safeProductError } from '@/data/productErrors'
@@ -31,7 +34,7 @@ export default function EditBookingRequestScreen() {
   )
 
   if (member.status === 'signed_out') return <EditGate title="Sign in to edit this request" action="Sign in" onPress={() => router.replace('/auth')} />
-  if (member.status === 'demo') return <EditGate title="Booking requests are unavailable in demo mode" action="Return home" onPress={() => router.replace('/')} />
+  if (member.status === 'unconfigured') return <EditGate title="Booking requests need account services" action="Return home" onPress={() => router.replace('/')} />
   if (member.status === 'unavailable' || member.status === 'error') return <EditGate title="This booking request is unavailable" detail="Your member account could not be connected safely." />
   if (member.status !== 'ready' || bookings === undefined) return <EditGate title="Loading booking request" />
   if (!booking) return <EditGate title="Booking request not found" detail="This booking is not available in your member history." action="View all bookings" onPress={() => router.replace('/bookings')} />
@@ -61,8 +64,10 @@ function EditRequestForm({ booking, companionRecord }: { booking: Booking; compa
   const [durationInput, setDurationInput] = useState(String(booking.durationMinutes))
   const [notes, setNotes] = useState(booking.notes ?? '')
   const [error, setError] = useState('')
+  useAppToastMessage(error)
   const [submitting, setSubmitting] = useState(false)
   const submittingRef = useRef(false)
+  const estimate = bookingPriceEstimate(companion.hourlyRateCentavos, durationInput)
 
   useEffect(() => {
     if (!companion.categories.includes(category)) setCategory(companion.categories[0] ?? '')
@@ -111,10 +116,10 @@ function EditRequestForm({ booking, companionRecord }: { booking: Booking; compa
         <Pressable accessibilityRole="button" accessibilityLabel="Return to booking" onPress={() => returnToBooking(String(booking._id))} style={styles.back}>
           <AppText variant="heading">‹</AppText>
         </Pressable>
-        <AppText variant="label" color={theme.colors.self}>EDIT REQUEST</AppText>
+        <AppText variant="label" color={theme.colors.social}>EDIT REQUEST</AppText>
       </View>
       <AppText variant="title">Edit request</AppText>
-      <AppText color={theme.colors.textMuted}>Update your pending request using Manila time. The server will recheck eligibility, wallet sufficiency, pricing, future time, and current booking state.</AppText>
+      <AppText color={theme.colors.textMuted}>Update your pending request using Manila time. We will recheck eligibility, wallet balance, pricing, schedule, and booking status.</AppText>
 
       <FieldLabel label="Category" />
       <ChoiceRow values={companion.categories} selected={category} onSelect={setCategory} />
@@ -131,12 +136,18 @@ function EditRequestForm({ booking, companionRecord }: { booking: Booking; compa
       <AppText variant="caption" color={notes.length > 1_000 ? theme.colors.danger : theme.colors.textMuted}>{notes.length}/1,000</AppText>
 
       <View style={[styles.summary, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-        <AppText variant="bodyStrong">Authoritative update</AppText>
-        <AppText variant="caption" color={theme.colors.textMuted}>The server recalculates the booking total when you save. The updated total appears in booking details.</AppText>
+        <AppText variant="bodyStrong">Updated price estimate</AppText>
+        {estimate ? (
+          <>
+            <Summary label="Session subtotal" value={formatPhp(estimate.serviceSubtotalCentavos)} />
+            <Summary label="Booking fee" value={formatPhp(estimate.memberBookingFeeCentavos)} />
+            <Summary label="Estimated total" value={formatPhp(estimate.memberTotalCentavos)} />
+          </>
+        ) : <AppText variant="caption" color={theme.colors.textMuted}>Enter a valid duration in 15-minute increments to see the estimate.</AppText>}
+        <AppText variant="caption" color={theme.colors.textMuted}>Your final price is checked again when you save.</AppText>
       </View>
-      {error ? <AppText accessibilityRole="alert" color={theme.colors.danger}>{error}</AppText> : null}
-      <ActionButton label={submitting ? 'Saving request' : 'Save request changes'} onPress={() => void submit()} disabled={submitting} intent="self" />
-      <ActionButton label="Keep current request" onPress={() => returnToBooking(String(booking._id))} disabled={submitting} intent="self" secondary />
+      <ActionButton label={submitting ? 'Saving request' : 'Save request changes'} onPress={() => void submit()} disabled={submitting} intent="social" />
+      <ActionButton label="Keep current request" onPress={() => returnToBooking(String(booking._id))} disabled={submitting} intent="social" secondary />
     </Screen>
   )
 }
@@ -149,14 +160,19 @@ function ChoiceRow({ values, selected, onSelect, format = (value) => value }: { 
       accessibilityRole="radio"
       accessibilityState={{ checked: selected === value }}
       onPress={() => onSelect(value)}
-      style={[styles.choice, { borderColor: selected === value ? theme.colors.self : theme.colors.border, backgroundColor: selected === value ? theme.colors.selfSoft : theme.colors.surfaceRaised }]}>
-      <AppText variant="caption" color={selected === value ? theme.colors.self : theme.colors.text}>{format(value)}</AppText>
+      style={[styles.choice, { borderColor: selected === value ? theme.colors.social : theme.colors.border, backgroundColor: selected === value ? theme.colors.socialSoft : theme.colors.surfaceRaised }]}>
+      <AppText variant="caption" color={selected === value ? theme.colors.social : theme.colors.text}>{format(value)}</AppText>
     </Pressable>
   ))}</View>
 }
 
 function FieldLabel({ label }: { label: string }) {
   return <AppText variant="bodyStrong" style={styles.fieldLabel}>{label}</AppText>
+}
+
+function Summary({ label, value }: { label: string; value: string }) {
+  const theme = useAppTheme()
+  return <View style={styles.summaryRow}><AppText variant="caption" color={theme.colors.textMuted}>{label}</AppText><AppText variant="bodyStrong">{value}</AppText></View>
 }
 
 function Input(props: React.ComponentProps<typeof TextInput> & { label: string }) {
@@ -167,7 +183,7 @@ function Input(props: React.ComponentProps<typeof TextInput> & { label: string }
 
 function EditGate({ title, detail, action, onPress }: { title: string; detail?: string; action?: string; onPress?: () => void }) {
   const theme = useAppTheme()
-  return <Screen contentStyle={styles.state}><AppText variant="label" color={theme.colors.self}>EDIT REQUEST</AppText><AppText variant="title">{title}</AppText>{detail ? <AppText color={theme.colors.textMuted}>{detail}</AppText> : null}{action && onPress ? <ActionButton label={action} onPress={onPress} intent="self" secondary /> : null}</Screen>
+  return <Screen contentStyle={styles.state}><AppText variant="label" color={theme.colors.social}>EDIT REQUEST</AppText><AppText variant="title">{title}</AppText>{detail ? <AppText color={theme.colors.textMuted}>{detail}</AppText> : null}{action && onPress ? <ActionButton label={action} onPress={onPress} intent="social" secondary /> : null}</Screen>
 }
 
 function manilaInputs(timestamp: number) {
@@ -197,4 +213,5 @@ const styles = StyleSheet.create({
   input: { minHeight: 52, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
   notes: { minHeight: 112, paddingTop: 14, textAlignVertical: 'top' },
   summary: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 8, marginVertical: 8 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 16 },
 })

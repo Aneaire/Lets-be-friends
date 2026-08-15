@@ -27,6 +27,22 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/images/splash-logo.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "android": {
+            "imageWidth": 140
+          },
+          "dark": {
+            "backgroundColor": "#090909",
+            "image": "./assets/images/splash-logo.png"
+          }
+        }
+      ],
       "@clerk/expo",
       "expo-secure-store",
       [
@@ -46,11 +62,12 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Let's Be Friends to select a private booking evidence image.",
+          "photosPermission": "Allow Let's Be Friends to choose a profile photo, community post media, or optional private booking evidence.",
           "cameraPermission": false,
           "microphonePermission": false
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

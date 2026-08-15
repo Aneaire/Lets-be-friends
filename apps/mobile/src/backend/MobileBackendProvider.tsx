@@ -58,10 +58,10 @@ export function MobileBackendProvider({ children }: PropsWithChildren) {
 
   const authState = clerkConfiguration.status === 'invalid'
     ? { status: 'setup_error' as const, clerkConfigured: false as const, message: clerkConfiguration.message }
-    : { status: 'demo' as const, clerkConfigured: false as const }
+    : { status: 'unconfigured' as const, clerkConfigured: false as const }
   const memberState = clerkConfiguration.status === 'invalid'
     ? { status: 'unavailable' as const, message: clerkConfiguration.message }
-    : { status: 'demo' as const }
+    : { status: 'unconfigured' as const }
   const anonymousContent = (
     <MobileAuthStateProvider value={authState}>
       <MobileMemberStateProvider value={memberState}>{content}</MobileMemberStateProvider>

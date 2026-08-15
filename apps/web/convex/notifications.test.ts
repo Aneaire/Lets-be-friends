@@ -89,7 +89,7 @@ describe('notifications', () => {
       userId: companionId, displayName: 'Companion', intro: 'intro', city: 'City', strengths: [], categories: ['Coffee'], boundaries: [], mode: 'online', status: 'approved', rating: 0, reviewCount: 0, createdAt: now, updatedAt: now,
     }))
     const bookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
-      memberId, companionProfileId, category: 'Coffee', mode: 'online', requestedAt: now - 1000, durationMinutes: 60, status: 'accepted', createdAt: now, updatedAt: now,
+      memberId, companionProfileId, category: 'Coffee', mode: 'online', requestedAt: now - 3_600_001, durationMinutes: 60, status: 'accepted', createdAt: now, updatedAt: now,
     }))
     const member = t.withIdentity({ subject: 'member' })
     const companion = t.withIdentity({ subject: 'companion' })

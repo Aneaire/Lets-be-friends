@@ -86,7 +86,7 @@ function CompanionProfilePage() {
           </div>
 
           <aside className="companion-profile-decision" aria-label={`Plan with ${companion.displayName}`}>
-            <div className="companion-profile-planline"><MeetingSeam /><span>Fit · Trust · Shared plan</span></div>
+            <div className="companion-profile-planline"><MeetingSeam /><span>Help · Trust · Connection</span></div>
             <p className="companion-profile-trust">Identity checked and Companion profile reviewed.</p>
             {companion.hourlyRateCentavos !== undefined ? (
               <p className="companion-profile-rate">
@@ -100,7 +100,7 @@ function CompanionProfilePage() {
               {companion.viewerBookingEligibility === 'own_profile' ? (
                 <>
                   <span className="status-pill" data-tone="self">Your profile</span>
-                  <Link to="/become-companion" className="btn btn-self btn-sm companion-profile-edit-action">Edit companion profile</Link>
+                  <Link to="/become-companion" className="btn btn-self btn-sm companion-profile-edit-action">Edit Companion profile</Link>
                 </>
               ) : (
                 <>
@@ -167,14 +167,14 @@ function CompanionProfilePage() {
         <div className="companion-profile-fit-grid">
           <div>
             <p className="eyebrow">Strengths</p>
-            <h2 className="text-h3 mt-1">What {companion.firstName} brings to the time</h2>
+            <h2 className="text-h3 mt-1">What {companion.firstName} can offer</h2>
             <div className="flex flex-wrap gap-2 mt-3">
               {companion.strengths.map((strength) => <span key={strength} className="chip" data-selected="true">{strength}</span>)}
             </div>
           </div>
           <div>
-            <p className="eyebrow">Ideas</p>
-            <h2 className="text-h3 mt-1">Things you could do together</h2>
+            <p className="eyebrow">Everyday help and activities</p>
+            <h2 className="text-h3 mt-1">What you could do together</h2>
             <div className="flex flex-wrap gap-2 mt-3">
               {companion.categories.map((category) => <span key={category} className="chip">{category}</span>)}
             </div>

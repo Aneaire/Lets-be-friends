@@ -5,11 +5,14 @@ import { useColorScheme } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
+import { canAccessMemberRoutes } from '@/auth/routeAccess'
 import { MobileBackendProvider } from '@/backend/MobileBackendProvider'
 import { useMobileMember } from '@/member/MobileMember'
 import { onboardingDecision } from '@/member/onboarding'
 import { AppThemeProvider } from '@/theme/ThemeProvider'
 import { useReducedMotion } from '@/utils/accessibility'
+import { AppToastHost } from '@/components/AppToast'
+import { ConnectivityBanner } from '@/components/ConnectivityBanner'
 
 export default function RootLayout() {
   const scheme = useColorScheme()
@@ -22,27 +25,47 @@ export default function RootLayout() {
         <AppThemeProvider>
           <ThemeProvider value={dark ? DarkTheme : DefaultTheme}>
             <StatusBar style={dark ? 'light' : 'dark'} />
-            <AccountRouteCoordinator />
-            <Stack screenOptions={{ headerShown: false, animation: reduceMotion ? 'none' : 'slide_from_right' }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="auth" />
-              <Stack.Screen name="onboarding" />
-              <Stack.Screen name="companion-profile/[id]" />
-              <Stack.Screen name="booking/new" />
-              <Stack.Screen name="booking/[id]" />
-              <Stack.Screen name="booking-edit/[id]" />
-              <Stack.Screen name="bookings" />
-              <Stack.Screen name="companion" />
-              <Stack.Screen name="companion-bookings" />
-              <Stack.Screen name="companion-booking/[id]" />
-              <Stack.Screen name="conversation/[id]" />
-              <Stack.Screen name="notifications" />
-              <Stack.Screen name="wallet" />
-            </Stack>
+            <ConnectivityBanner />
+            <AuthenticatedNavigator reduceMotion={reduceMotion} />
+            <AppToastHost />
           </ThemeProvider>
         </AppThemeProvider>
       </MobileBackendProvider>
     </SafeAreaProvider>
+  )
+}
+
+function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
+  const auth = useMobileAuth()
+  const signedIn = canAccessMemberRoutes(auth.status)
+
+  return (
+    <>
+      <AccountRouteCoordinator />
+      <Stack screenOptions={{ headerShown: false, animation: reduceMotion ? 'none' : 'slide_from_right' }}>
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="auth" />
+        </Stack.Protected>
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="onboarding" />
+          <Stack.Screen name="companion-profile/[id]" />
+          <Stack.Screen name="nearby" />
+          <Stack.Screen name="profile-edit" />
+          <Stack.Screen name="companion-finance" />
+          <Stack.Screen name="booking/new" />
+          <Stack.Screen name="booking/[id]" />
+          <Stack.Screen name="booking-edit/[id]" />
+          <Stack.Screen name="companion" />
+          <Stack.Screen name="companion-bookings" />
+          <Stack.Screen name="companion-booking/[id]" />
+          <Stack.Screen name="conversation/[id]" />
+          <Stack.Screen name="notifications" />
+          <Stack.Screen name="wallet" />
+          <Stack.Screen name="safety" />
+        </Stack.Protected>
+      </Stack>
+    </>
   )
 }
 

@@ -4,6 +4,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { mutation, query, type MutationCtx } from './_generated/server'
 import { requireViewer } from './lib'
+import { areUsersBlocked, preference } from './safety'
 
 export type NotificationKind = Doc<'notifications'>['kind']
 export type NotificationPriority = Doc<'notifications'>['priority']
@@ -41,6 +42,10 @@ export async function createNotification(ctx: MutationCtx | { db: any; scheduler
   if (!input.dedupeKey.trim()) throw new Error('Notification dedupe key is required')
   const recipient = await ctx.db.get(input.recipientUserId)
   if (!recipient) return null
+  if (input.actorUserId && ['direct_message', 'post_commented', 'new_follower'].includes(input.kind)) {
+    if (await areUsersBlocked(ctx, input.recipientUserId, input.actorUserId)) return null
+    if ((await preference(ctx, input.recipientUserId, input.actorUserId))?.mutedAt) return null
+  }
   const existing = await ctx.db.query('notifications')
     .withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', input.recipientUserId).eq('dedupeKey', input.dedupeKey))
     .unique()

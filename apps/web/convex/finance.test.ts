@@ -59,7 +59,7 @@ async function insertAcceptedBooking(
     companionProfileId: ids.companionProfileId,
     category: 'Coffee or meal companion',
     mode: 'in_person',
-    requestedAt: ids.now + 3_600_000,
+    requestedAt: ids.now - 3_600_001,
     durationMinutes: 60,
     status: 'accepted',
     grossPriceCentavos: 50_000,
@@ -72,22 +72,42 @@ async function insertAcceptedBooking(
 }
 
 describe('weekly Companion commission accounting', () => {
-  it('requires dual completion and accrues one immutable obligation', async () => {
+  it('completes a legacy booking without evidence and keeps participant confirmation idempotent', async () => {
     const t = createTest()
     const ids = await insertParticipants(t)
     const bookingId = await insertAcceptedBooking(t, ids)
+    const member = t.withIdentity({ subject: 'finance-member' })
+    const companion = t.withIdentity({ subject: 'finance-companion' })
 
-    await expect(t.withIdentity({ subject: 'finance-member' }).mutation(api.bookings.markCompleted, { bookingId }))
-      .resolves.toMatchObject({ status: 'accepted', awaitingOtherConfirmation: true })
+    await expect(member.mutation(api.bookings.markCompleted, { bookingId }))
+      .resolves.toMatchObject({ status: 'accepted', awaitingOtherConfirmation: true, idempotent: false })
+    const afterFirstConfirmation = await t.run(async (ctx) => ({
+      booking: await ctx.db.get(bookingId),
+      memberCompletionAudits: (await ctx.db.query('auditLogs').collect()).filter((entry) =>
+        entry.targetId === String(bookingId) && entry.action === 'booking.member_completion_confirmed'
+      ),
+    }))
+    expect(afterFirstConfirmation.memberCompletionAudits).toHaveLength(1)
     expect(await t.run(async (ctx) => ctx.db.query('commissionObligations').collect())).toHaveLength(0)
 
-    await expect(t.withIdentity({ subject: 'finance-companion' }).mutation(api.bookings.markCompleted, { bookingId }))
+    await expect(member.mutation(api.bookings.markCompleted, { bookingId }))
+      .resolves.toMatchObject({ status: 'accepted', awaitingOtherConfirmation: true, idempotent: true })
+    const afterRetry = await t.run(async (ctx) => ({
+      booking: await ctx.db.get(bookingId),
+      memberCompletionAudits: (await ctx.db.query('auditLogs').collect()).filter((entry) =>
+        entry.targetId === String(bookingId) && entry.action === 'booking.member_completion_confirmed'
+      ),
+    }))
+    expect(afterRetry.booking).toEqual(afterFirstConfirmation.booking)
+    expect(afterRetry.memberCompletionAudits).toHaveLength(1)
+
+    await expect(companion.mutation(api.bookings.markCompleted, { bookingId }))
       .resolves.toMatchObject({ status: 'review_window', awaitingOtherConfirmation: false })
     const obligations = await t.run(async (ctx) => ctx.db.query('commissionObligations').collect())
     expect(obligations).toHaveLength(1)
     expect(obligations[0]).toMatchObject({ bookingId, companionUserId: ids.companionUserId, amountCentavos: 5_000, commissionBps: 1_000 })
-    await expect(t.withIdentity({ subject: 'finance-companion' }).mutation(api.bookings.markCompleted, { bookingId }))
-      .rejects.toThrow('Only accepted bookings can be completed')
+    await expect(companion.mutation(api.bookings.markCompleted, { bookingId }))
+      .resolves.toMatchObject({ status: 'review_window', awaitingOtherConfirmation: false, idempotent: true })
     expect(await t.run(async (ctx) => ctx.db.query('commissionObligations').collect())).toHaveLength(1)
   })
 

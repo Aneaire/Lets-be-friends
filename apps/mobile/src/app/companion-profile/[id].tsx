@@ -1,281 +1,256 @@
-import { useQuery } from 'convex/react'
+import type { FunctionReturnType } from 'convex/server'
+import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
-import { Alert, Pressable, StyleSheet, View } from 'react-native'
+import * as Linking from 'expo-linking'
+import { useState } from 'react'
+import { Image, Pressable, StyleSheet, View } from 'react-native'
 
-import { mobileApi, type CompanionProfileId } from '@/backend/client'
+import { mobileApi, type CompanionProfileId, type ReviewId, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/components/ActionButton'
+import { AppHeader } from '@/components/AppHeader'
+import { useAppToastMessage } from '@/components/AppToast'
 import { Avatar } from '@/components/Avatar'
 import { Chip } from '@/components/Chip'
+import { ReportAction } from '@/components/ReportAction'
+import { MemberSafetyActions } from '@/components/MemberSafetyActions'
 import { Screen, Section } from '@/components/Screen'
-import { TrustThread } from '@/components/TrustThread'
+import { StateView } from '@/components/StateView'
 import { AppText } from '@/components/Typography'
-import { getCompanion } from '@/data/companions'
-import {
-  mapApprovedCompanion,
-  mapFixtureCompanion,
-  mapPublicCompanion,
-  resolveConnectedCompanion,
-  resolveCompanionBookingAction,
-  type ApprovedCompanionRecord,
-  type CompanionDataSource,
-  type CompanionDetailViewModel,
-} from '@/data/companionViewModels'
+import { mapPublicCompanion, resolveCompanionBookingAction, type ApprovedCompanionRecord, type CompanionDetailViewModel } from '@/data/companionViewModels'
+import { formatMessageTimestamp } from '@/data/messageViewModels'
+import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
+type Review = FunctionReturnType<typeof mobileApi.reviews.forCompanion>[number]
+type Post = FunctionReturnType<typeof mobileApi.social.byUser>[number]
+
 export default function CompanionProfileScreen() {
-  const params = useLocalSearchParams<{ id?: string; source?: CompanionDataSource }>()
+  const params = useLocalSearchParams<{ id?: string }>()
   const configuration = useMobileBackendConfiguration()
   const id = typeof params.id === 'string' ? params.id : ''
 
-  if (params.source === 'local_demo' || configuration.status !== 'configured') {
-    const fixture = getCompanion(id)
-    return fixture ? <CompanionDetail companion={mapFixtureCompanion(fixture)} /> : <CompanionNotFound local />
-  }
-  return <ConnectedCompanionDirectory id={id} />
+  if (configuration.status !== 'configured') return <ProfileState title="Companion profiles need member services" detail="This build cannot connect to approved profiles." />
+  if (!id) return <ProfileState title="Companion not found" detail="This profile link is incomplete." />
+  return <ConnectedCompanionProfile id={id} />
 }
 
-function ConnectedCompanionDirectory({ id }: { id: string }) {
-  const result = useQuery(mobileApi.companions.listApproved, {})
-  if (result === undefined) return <CompanionLoading />
+function ConnectedCompanionProfile({ id }: { id: string }) {
+  const directory = useQuery(mobileApi.companions.listApproved, {})
+  const record = directory?.find((item: ApprovedCompanionRecord) => String(item._id) === id)
+  const result = useQuery(mobileApi.companions.getPublic, record ? { companionProfileId: id as CompanionProfileId } : 'skip')
 
-  const resolution = resolveConnectedCompanion(result as ApprovedCompanionRecord[], id)
-  if (resolution.kind === 'not_found') return <CompanionNotFound />
-  if (resolution.kind === 'demo') {
-    const record = resolution.record
-    return <CompanionDetail companion={{ ...mapApprovedCompanion(record), bio: record.bio, boundaries: record.boundaries ?? [] }} />
-  }
-  return <ConnectedCompanion record={resolution.record} />
-}
-
-function ConnectedCompanion({ record }: { record: ApprovedCompanionRecord }) {
-  const result = useQuery(mobileApi.companions.getPublic, { companionProfileId: record._id as CompanionProfileId })
-  if (result === undefined) return <CompanionLoading />
-  if (result === null) return <CompanionNotFound />
+  if (directory === undefined || (record && result === undefined)) return <ProfileState title="Loading public profile" detail="Checking the approved Companion directory." loading />
+  if (!record || result === null) return <ProfileState title="Companion not found" detail="This approved profile is no longer available." action="Return to Explore" onPress={() => router.replace('/explore')} />
   return <CompanionDetail companion={mapPublicCompanion(result as ApprovedCompanionRecord)} />
 }
 
 function CompanionDetail({ companion }: { companion: CompanionDetailViewModel }) {
   const theme = useAppTheme()
-  const isLocalDemo = companion.source === 'local_demo'
-  const isBackendDemo = companion.source === 'backend_demo'
-  const modeLabels = companion.sessionModes.map((mode) => mode === 'online' ? 'Online' : 'In person')
+  const member = useMobileMember()
+  const startConversation = useMutation(mobileApi.conversations.start)
+  const toggleSave = useMutation(mobileApi.companions.toggleSaveProfile)
+  const toggleFollow = useMutation(mobileApi.social.toggleFollow)
+  const reviews = useQuery(mobileApi.reviews.forCompanion, { companionProfileId: companion.id as CompanionProfileId })
+  const posts = useQuery(mobileApi.social.byUser, companion.userId ? { userId: companion.userId as UserId } : 'skip')
   const bookingAction = resolveCompanionBookingAction(companion)
-  const bookingDisabled = bookingAction.kind === 'own_profile' || bookingAction.kind === 'unavailable'
+  const [saved, setSaved] = useState(Boolean(companion.saved))
+  const [following, setFollowing] = useState(Boolean(companion.following))
+  const [busy, setBusy] = useState<'message' | 'save' | 'follow' | null>(null)
+  const [message, setMessage] = useState('')
+  useAppToastMessage(message)
+  const modeLabels = companion.sessionModes.map((mode) => mode === 'online' ? 'Online' : 'In person')
+  const signedIn = member.status === 'ready'
+  const ownProfile = signedIn && String(member.viewer._id) === companion.userId
 
-  function handleBookingAction() {
-    if (bookingAction.kind === 'sign_in') {
-      router.push('/auth')
-      return
-    }
-    if (bookingAction.kind === 'verification') {
-      Alert.alert('Verification required', bookingAction.explanation)
-      return
-    }
-    if (bookingAction.kind === 'book') {
-      router.push({ pathname: '/booking/new', params: { companionProfileId: companion.id } })
+  async function messageCompanion() {
+    if (!companion.userId || !signedIn || busy) return
+    setBusy('message')
+    setMessage('')
+    try {
+      const conversationId = await startConversation({ otherUserId: companion.userId as UserId })
+      router.push({ pathname: '/conversation/[id]', params: { id: String(conversationId) } })
+    } catch {
+      setMessage('A conversation could not be opened. Please try again.')
+    } finally {
+      setBusy(null)
     }
   }
 
+  async function saveProfile() {
+    if (!signedIn || busy) return
+    setBusy('save')
+    setMessage('')
+    try {
+      setSaved(await toggleSave({ companionProfileId: companion.id as CompanionProfileId }))
+    } catch {
+      setMessage('This profile could not be updated in your saved list.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function followProfile() {
+    if (!signedIn || !companion.userId || busy) return
+    setBusy('follow')
+    setMessage('')
+    try {
+      setFollowing(await toggleFollow({ userId: companion.userId as UserId }))
+    } catch {
+      setMessage('Following could not be updated. Please try again.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  function bookingPress() {
+    if (bookingAction.kind === 'sign_in') router.push('/auth')
+    else if (bookingAction.kind === 'book') router.push({ pathname: '/booking/new', params: { companionProfileId: companion.id } })
+    else setMessage(bookingAction.explanation)
+  }
+
   return (
-    <Screen contentStyle={styles.content}>
-      <View style={styles.navRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          onPress={() => goBackOrExplore()}
-          style={({ pressed }) => [styles.backButton, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
-          <AppText variant="heading">‹</AppText>
-        </Pressable>
-        <AppText variant="label" color={theme.colors.social}>COMPANION</AppText>
-        <View style={styles.navSpacer} />
-      </View>
-
-      <View style={styles.profileHero}>
-        <Avatar uri={companion.imageUrl} name={companion.name} size={116} />
-        <View style={styles.profileCopy}>
-          <View style={styles.verifiedRow}>
-            <AppText variant="title">{companion.name}{companion.localOnly ? `, ${companion.localOnly.age}` : ''}</AppText>
-            {companion.verified && <View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.self }]} />}
-          </View>
-          <AppText variant="caption" color={theme.colors.textMuted}>
-            {[companion.localOnly?.pronouns, companion.location].filter(Boolean).join(' · ')}
-          </AppText>
-          {companion.distanceLabel ? <AppText variant="caption" color={theme.colors.textMuted}>{companion.distanceLabel}</AppText> : null}
+    <Screen contentStyle={styles.content} footer={!ownProfile ? <View style={styles.stickyActions}><ActionButton label={busy === 'message' ? 'Opening' : 'Message'} onPress={() => void messageCompanion()} disabled={!signedIn || !companion.userId || busy !== null} intent="social" secondary icon="chatbubble-outline" style={styles.flexAction} /><ActionButton label={bookingAction.kind === 'book' ? 'Plan an experience' : bookingAction.label} onPress={bookingPress} disabled={bookingAction.kind === 'own_profile' || bookingAction.kind === 'unavailable'} intent="social" icon="calendar-outline" style={styles.flexAction} /></View> : undefined}>
+      <AppHeader title="Companion profile" back onBack={goBackOrExplore} />
+      <View style={styles.identity}>
+        <Avatar uri={companion.imageUrl} name={companion.name} size={88} />
+        <View style={styles.identityCopy}>
+          <View style={styles.nameRow}><AppText variant="title">{companion.name}</AppText><View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.self }]} /></View>
+          <AppText color={theme.colors.textMuted}>{companion.location}</AppText>
+          {companion.distanceLabel ? <AppText variant="caption" color={theme.colors.textMuted}>{companion.distanceLabel} approximate</AppText> : null}
+          <View style={styles.identityMeta}><AppText variant="caption">{companion.reviewCount ? `★ ${companion.rating?.toFixed(1)} from ${companion.reviewCount}` : 'New Companion'}</AppText><AppText variant="caption">{modeLabels.join(' + ')}</AppText></View>
         </View>
       </View>
+      <AppText variant="heading">{companion.intro}</AppText>
+      {companion.bio ? <AppText color={theme.colors.textMuted}>{companion.bio}</AppText> : null}
 
-      <AppText variant="heading" style={styles.tagline}>{companion.intro}</AppText>
-
-      <View accessibilityLiveRegion="polite" style={[styles.statusCard, { backgroundColor: theme.colors.socialSoft, borderColor: theme.colors.social }]}>
-        <AppText variant="label" color={theme.colors.social}>
-          {isLocalDemo ? 'LOCAL DEMO PROFILE' : isBackendDemo ? 'EXAMPLE PROFILE' : companion.bookable ? 'PUBLIC PROFILE' : 'NOT BOOKABLE'}
-        </AppText>
-        <AppText variant="caption">
-          {isLocalDemo
-            ? 'This profile and its schedule are local fixture data. No booking request is sent.'
-            : isBackendDemo
-              ? 'This is an example profile provided by the service. It is not a live Companion profile and cannot be booked.'
-              : companion.bookable
-                ? bookingAction.explanation
-                : 'This Companion is not accepting booking requests right now.'}
-        </AppText>
+      <View style={styles.actionsRow}>
+        <ActionButton label={saved ? 'Saved' : 'Save'} onPress={() => void saveProfile()} disabled={!signedIn || busy !== null} secondary style={styles.flexAction} />
+        {!ownProfile ? <ActionButton label={following ? 'Following' : 'Follow'} onPress={() => void followProfile()} disabled={!signedIn || !companion.userId || busy !== null} secondary style={styles.flexAction} /> : null}
       </View>
-
-      <View style={[styles.metrics, { borderColor: theme.colors.border }]}>
-        <Metric
-          value={typeof companion.rating === 'number' ? `${companion.rating} ★` : 'New'}
-          label={typeof companion.reviewCount === 'number' ? `${companion.reviewCount} reviews` : 'No rating shown'}
-        />
-        <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
-        <Metric value={modeLabels.join(' + ')} label="session format" />
-        {companion.verified ? (
-          <>
-            <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
-            <Metric value="Verified" label="identity" accent="self" />
-          </>
-        ) : null}
-      </View>
-
-      {companion.bio ? (
-        <Section>
-          <AppText variant="heading">About this Companion</AppText>
-          <AppText style={styles.sectionCopy} color={theme.colors.textMuted}>{companion.bio}</AppText>
-        </Section>
-      ) : null}
+      {!signedIn ? <AppText variant="caption" color={theme.colors.textMuted}>Sign in to message, save, follow, or book this Companion.</AppText> : null}
 
       <Section>
-        <AppText variant="heading">Trust thread</AppText>
-        <View style={styles.threadWrap}>
-          <TrustThread items={[
-            ...(companion.verified ? [{ title: 'Identity verified', detail: 'This approved public profile has a current identity approval.', tone: 'self' as const }] : []),
-            { title: 'Strengths shared', detail: companion.strengths.join(' · '), tone: 'social' },
-            { title: 'Session format', detail: modeLabels.join(' · '), tone: 'social' },
-          ]} />
+        <AppText variant="heading">Strengths and what they offer</AppText>
+        <View style={styles.chips}>{companion.strengths.map((strength) => <Chip key={strength} label={strength} />)}</View>
+        <View style={[styles.details, { borderColor: theme.colors.border }]}>
+          <Detail label="Everyday help and activities" value={companion.categories.join(', ')} />
+          <Detail label="Session format" value={modeLabels.join(' and ')} />
+          {companion.boundaries.length ? <Detail label="Boundaries" value={companion.boundaries.join(', ')} /> : null}
+          {companion.rateLabel ? <Detail label="Rate" value={companion.rateLabel} /> : null}
+          <Detail label="Trust" value="Current identity approval and approved public Companion profile" />
         </View>
       </Section>
 
       <Section>
-        <AppText variant="heading">Strengths</AppText>
-        <View style={styles.chips}>
-          {companion.strengths.map((strength) => <Chip key={strength} label={strength} />)}
-        </View>
+        <View style={styles.sectionTitle}><AppText variant="heading">Reviews</AppText><AppText variant="caption" color={theme.colors.textMuted}>{reviews?.length ?? 0} shown</AppText></View>
+        {reviews === undefined ? <AppText color={theme.colors.textMuted}>Loading reviews.</AppText> : reviews.length ? <ReviewList reviews={reviews} signedIn={signedIn} /> : <AppText color={theme.colors.textMuted}>No public reviews yet.</AppText>}
       </Section>
 
-      {(companion.categories.length > 0 || companion.boundaries.length > 0 || companion.localOnly) ? (
-        <Section>
-          <AppText variant="heading">Experience details</AppText>
-          <View style={[styles.detailCard, { backgroundColor: theme.colors.surface }]}>
-            {companion.categories.length > 0 ? <Detail label="Interests" value={companion.categories.join(', ')} /> : null}
-            {companion.boundaries.length > 0 ? <Detail label="Boundaries" value={companion.boundaries.join(', ')} /> : null}
-            {companion.localOnly ? <Detail label="Languages" value={companion.localOnly.languages.join(', ')} /> : null}
-            {companion.localOnly ? <Detail label="Response" value={companion.localOnly.responseTime} /> : null}
-            {companion.localOnly ? <Detail label="Demo times" value={`${companion.localOnly.availability.length} fixture examples`} /> : null}
-            {companion.rateLabel ? <Detail label="Rate" value={companion.rateLabel} /> : null}
-          </View>
-        </Section>
-      ) : null}
+      <Section>
+        <View style={styles.sectionTitle}><AppText variant="heading">Posts</AppText><AppText variant="caption" color={theme.colors.textMuted}>Read only</AppText></View>
+        {posts === undefined ? <AppText color={theme.colors.textMuted}>Loading posts.</AppText> : posts.length ? <View style={styles.postList}>{posts.map((post) => <ProfilePost key={post._id} post={post} />)}</View> : <AppText color={theme.colors.textMuted}>No public posts yet.</AppText>}
+      </Section>
 
       <Section style={styles.bottomSection}>
-        <ActionButton
-          label={bookingAction.label}
-          onPress={handleBookingAction}
-          disabled={bookingDisabled}
-          accessibilityHint={bookingAction.explanation}
-        />
-        <AppText variant="caption" color={theme.colors.textMuted} style={styles.actionExplanation}>
-          {bookingAction.explanation}
-        </AppText>
-        <ActionButton label="Return to Explore" onPress={() => router.replace('/explore')} secondary />
+        <AppText variant="caption" color={theme.colors.textMuted}>{bookingAction.explanation}</AppText>
+        {signedIn ? <ReportAction targetType="profile" targetId={companion.id} label="Report this profile" /> : null}
+        {signedIn && !ownProfile && companion.userId ? <MemberSafetyActions userId={companion.userId} displayName={companion.name} /> : null}
       </Section>
     </Screen>
   )
 }
 
-function CompanionLoading() {
+function ReviewList({ reviews, signedIn }: { reviews: Review[]; signedIn: boolean }) {
   const theme = useAppTheme()
-  return (
-    <Screen contentStyle={styles.state}>
-      <AppText variant="label" color={theme.colors.social}>COMPANION</AppText>
-      <AppText variant="title">Loading public profile</AppText>
-      <AppText color={theme.colors.textMuted}>Checking the approved companion directory.</AppText>
-    </Screen>
-  )
+  const toggleSave = useMutation(mobileApi.reviews.toggleSave)
+  const [savedIds, setSavedIds] = useState(() => new Set(reviews.filter((review) => review.saved).map((review) => String(review._id))))
+
+  async function toggle(review: Review) {
+    try {
+      const saved = await toggleSave({ reviewId: review._id as ReviewId })
+      setSavedIds((current) => {
+        const next = new Set(current)
+        if (saved) next.add(String(review._id))
+        else next.delete(String(review._id))
+        return next
+      })
+    } catch {
+      return
+    }
+  }
+
+  return <View style={styles.reviewList}>{reviews.map((review) => <View key={review._id} style={[styles.review, { borderBottomColor: theme.colors.border }]}>
+    <View style={styles.sectionTitle}><AppText variant="bodyStrong">{review.reviewerDisplayName}</AppText><AppText variant="caption">{review.rating} ★</AppText></View>
+    {review.body ? <AppText>{review.body}</AppText> : null}
+    <AppText variant="caption" color={theme.colors.textMuted}>{formatMessageTimestamp(review.createdAt)}</AppText>
+    {signedIn ? <View style={styles.reviewActions}><Pressable accessibilityRole="button" accessibilityLabel={savedIds.has(String(review._id)) ? 'Unsave review' : 'Save review'} onPress={() => void toggle(review)} style={styles.textAction}><AppText variant="caption" color={theme.colors.socialText}>{savedIds.has(String(review._id)) ? 'Saved' : 'Save'}</AppText></Pressable><ReportAction targetType="review" targetId={String(review._id)} label="Report review" compact /></View> : null}
+  </View>)}</View>
 }
 
-function CompanionNotFound({ local = false }: { local?: boolean }) {
+function ProfilePost({ post }: { post: Post }) {
   const theme = useAppTheme()
-  return (
-    <Screen contentStyle={styles.state}>
-      <AppText variant="title">Companion not found</AppText>
-      <AppText color={theme.colors.textMuted}>
-        {local ? 'This local demo profile may have moved.' : 'This public profile is not available.'}
-      </AppText>
-      <ActionButton label="Return to Explore" onPress={() => router.replace('/explore')} secondary />
-    </Screen>
-  )
-}
+  const [mediaError, setMediaError] = useState('')
 
-export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
-  const theme = useAppTheme()
-  return (
-    <Screen contentStyle={styles.state}>
-      <AppText variant="label" color={theme.colors.social}>PROFILE UNAVAILABLE</AppText>
-      <AppText variant="title">This Companion could not be loaded</AppText>
-      <AppText color={theme.colors.textMuted}>This profile is temporarily unavailable. Please try again.</AppText>
-      <ActionButton label="Try profile again" onPress={retry} secondary />
-      <ActionButton label="Return to Explore" onPress={() => router.replace('/explore')} secondary />
-    </Screen>
-  )
-}
+  async function openVideo(url: string) {
+    setMediaError('')
+    try {
+      await Linking.openURL(url)
+    } catch {
+      setMediaError('This post video could not be opened safely.')
+    }
+  }
 
-function Metric({ value, label, accent }: { value: string; label: string; accent?: 'self' | 'social' }) {
-  const theme = useAppTheme()
-  return (
-    <View style={styles.metric}>
-      <AppText variant="bodyStrong" color={accent ? theme.colors[accent] : theme.colors.text}>{value}</AppText>
-      <AppText variant="caption" color={theme.colors.textMuted}>{label}</AppText>
-    </View>
-  )
+  return <View style={[styles.post, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
+    <AppText>{post.body}</AppText>
+    {post.media.filter((media) => media.kind === 'image' && media.url).map((media, index) => <Image key={`${media.storageId}-${index}`} source={{ uri: media.url! }} resizeMode="cover" style={styles.postImage} accessibilityLabel="Post image" />)}
+    {post.media.filter((media) => media.kind === 'video' && media.url).map((media, index) => <Pressable key={`${media.storageId}-video-${index}`} accessibilityRole="link" accessibilityLabel="Open post video" onPress={() => void openVideo(media.url!)} style={[styles.postVideoLink, { borderColor: theme.colors.border }]}><AppText variant="bodyStrong" color={theme.colors.socialText}>Open post video</AppText><AppText variant="caption" color={theme.colors.textMuted}>Opens through your device's supported video app</AppText></Pressable>)}
+    {mediaError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{mediaError}</AppText> : null}
+    <AppText variant="caption" color={theme.colors.textMuted}>{formatMessageTimestamp(post.createdAt)} · {post.likeCount} likes · {post.commentCount} comments</AppText>
+  </View>
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
   const theme = useAppTheme()
-  return (
-    <View style={styles.detailRow}>
-      <AppText variant="caption" color={theme.colors.textMuted}>{label}</AppText>
-      <AppText variant="bodyStrong" style={styles.detailValue}>{value}</AppText>
-    </View>
-  )
+  return <View style={styles.detailRow}><AppText variant="caption" color={theme.colors.textMuted}>{label}</AppText><AppText variant="bodyStrong" style={styles.detailValue}>{value}</AppText></View>
 }
 
-const styles = StyleSheet.create({
-  content: { paddingBottom: 64 },
-  state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
-  navRow: { height: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  backButton: { width: 48, height: 48, borderWidth: 1, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  navSpacer: { width: 48 },
-  pressed: { opacity: 0.68 },
-  profileHero: { alignItems: 'center', paddingTop: 18, gap: 16 },
-  profileCopy: { alignItems: 'center', gap: 2 },
-  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  verified: { width: 10, height: 10, borderRadius: 5 },
-  tagline: { textAlign: 'center', marginTop: 22 },
-  statusCard: { borderWidth: 1, borderRadius: 18, padding: 16, marginTop: 22, gap: 6 },
-  metrics: { minHeight: 78, borderTopWidth: 1, borderBottomWidth: 1, marginTop: 24, flexDirection: 'row', alignItems: 'center' },
-  metric: { flex: 1, alignItems: 'center', gap: 2 },
-  metricDivider: { width: 1, height: 36 },
-  sectionCopy: { marginTop: 12 },
-  threadWrap: { marginTop: 18 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-  detailCard: { borderRadius: 20, padding: 16, marginTop: 14, gap: 15 },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18 },
-  detailValue: { flex: 1, textAlign: 'right' },
-  bottomSection: { marginTop: 40, gap: 12 },
-  actionExplanation: { textAlign: 'center', marginBottom: 4 },
-})
+function ProfileState({ title, detail, action, onPress, loading = false }: { title: string; detail?: string; action?: string; onPress?: () => void; loading?: boolean }) {
+  return <Screen scroll={false} contentStyle={styles.state}><StateView eyebrow="COMPANION" title={title} detail={detail} actionLabel={action} onAction={onPress} loading={loading} /></Screen>
+}
+
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  return <ProfileState title="This Companion could not be loaded" detail="The live profile is temporarily unavailable." action="Try again" onPress={retry} />
+}
 
 function goBackOrExplore() {
   if (router.canGoBack()) router.back()
   else router.replace('/explore')
 }
+
+const styles = StyleSheet.create({
+  content: { paddingHorizontal: 16, paddingBottom: 64 },
+  state: { paddingHorizontal: 16 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18 },
+  identityCopy: { flex: 1, gap: 3 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  verified: { width: 9, height: 9, borderRadius: 5 },
+  identityMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 3 },
+  actionsRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
+  stickyActions: { flexDirection: 'row', gap: 10, width: '100%', maxWidth: 760, alignSelf: 'center' },
+  flexAction: { flex: 1, minHeight: 46, paddingHorizontal: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  details: { borderTopWidth: 1, marginTop: 14, paddingTop: 12, gap: 12 },
+  detailRow: { gap: 3 },
+  detailValue: { flex: 1 },
+  sectionTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  reviewList: { marginTop: 8 },
+  review: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 12, gap: 5 },
+  reviewActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  textAction: { minHeight: 44, justifyContent: 'center' },
+  postList: { gap: 10, marginTop: 10 },
+  post: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
+  postImage: { width: '100%', aspectRatio: 4 / 3, borderRadius: 10 },
+  postVideoLink: { minHeight: 60, borderWidth: 1, borderRadius: 10, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
+  bottomSection: { gap: 10 },
+})

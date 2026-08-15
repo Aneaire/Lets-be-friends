@@ -2,15 +2,18 @@ import { formatPhp } from '@lets-be-friends/shared'
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Alert, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type BookingId } from '@/backend/client'
 import { ActionButton } from '@/components/ActionButton'
+import { useAppToastMessage } from '@/components/AppToast'
 import { BookingCancelAction } from '@/components/BookingCancelAction'
+import { BookingCompletionAction } from '@/components/BookingCompletionAction'
 import { BookingEvidencePanel } from '@/components/BookingEvidencePanel'
 import { BookingLifecycleDetails } from '@/components/BookingLifecycleDetails'
 import { BookingMessagesButton } from '@/components/BookingMessagesButton'
+import { PlanThread } from '@/components/PlanThread'
 import { BookingSafetyActions } from '@/components/BookingSafetyActions'
 import { Screen } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
@@ -24,7 +27,7 @@ type CompanionBooking = FunctionReturnType<typeof mobileApi.bookings.forCompanio
 export default function CompanionBookingDetailScreen() {
   const member = useMobileMember()
   if (member.status === 'signed_out') return <CompanionDetailState title="Sign in to view this Companion booking" action="Sign in" onPress={() => router.replace('/auth')} />
-  if (member.status === 'demo') return <CompanionDetailState title="Companion booking details are unavailable in demo mode" action="Return to Profile" onPress={() => router.replace('/profile')} />
+  if (member.status === 'unconfigured') return <CompanionDetailState title="Booking details need account services" action="Return to Profile" onPress={() => router.replace('/profile')} />
   if (member.status === 'unavailable' || member.status === 'error') return <CompanionDetailState title="This Companion booking is unavailable" detail="Your member account could not be connected safely." />
   if (member.status !== 'ready') return <CompanionDetailState title="Loading Companion booking details" />
   return <ReadyCompanionBookingDetail viewerId={String(member.viewer._id)} />
@@ -37,6 +40,7 @@ function ReadyCompanionBookingDetail({ viewerId }: { viewerId: string }) {
   const decide = useMutation(mobileApi.bookings.companionDecision)
   const [busy, setBusy] = useState<'accepted' | 'declined' | null>(null)
   const [message, setMessage] = useState('')
+  useAppToastMessage(message)
   const busyRef = useRef(false)
 
   if (bookings === undefined) return <CompanionDetailState title="Loading Companion booking details" />
@@ -70,7 +74,7 @@ function ReadyCompanionBookingDetail({ viewerId }: { viewerId: string }) {
     Alert.alert(
       accepting ? 'Accept this booking?' : 'Decline this booking?',
       accepting
-        ? 'Confirm that you can companion this experience at the listed schedule and format.'
+        ? 'Confirm that you can join this experience as the Companion at the listed schedule and format.'
         : 'The member will see that the booking was declined. This decision cannot be changed in the mobile app.',
       [
         { text: accepting ? 'Keep pending' : 'Do not decline', style: 'cancel' },
@@ -100,6 +104,8 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
 }) {
   const theme = useAppTheme()
   const status = bookingStatusPresentation[booking.status]
+  const [evidenceReady, setEvidenceReady] = useState(Boolean(booking.companionCompletedAt))
+  const handleEvidenceDecision = useCallback((ready: boolean) => setEvidenceReady(ready), [])
   return (
     <Screen contentStyle={styles.content}>
       <View style={styles.header}>
@@ -119,6 +125,7 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
         {booking.memberTotalCentavos !== undefined ? <Detail label="Member booking total" value={formatPhp(booking.memberTotalCentavos)} /> : null}
       </View>
       {booking.notes ? <View style={styles.notes}><AppText variant="heading">Member notes</AppText><AppText color={theme.colors.textMuted}>{booking.notes}</AppText></View> : null}
+      <PlanThread status={booking.status} requestedAt={booking.requestedAt} memberCompletedAt={booking.memberCompletedAt} companionCompletedAt={booking.companionCompletedAt} />
       <BookingLifecycleDetails
         status={booking.status}
         viewerRole="companion"
@@ -150,13 +157,24 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
         participantCompletedAt={booking.companionCompletedAt}
         otherParticipantCompletedAt={booking.memberCompletedAt}
         participantRole="companion_start"
+        onDecisionChange={handleEvidenceDecision}
+      />
+      <BookingCompletionAction
+        bookingId={booking._id as BookingId}
+        status={booking.status}
+        pricingModel={booking.pricingModel}
+        requestedAt={booking.requestedAt}
+        durationMinutes={booking.durationMinutes}
+        viewerRole="companion"
+        participantCompletedAt={booking.companionCompletedAt}
+        otherParticipantCompletedAt={booking.memberCompletedAt}
+        evidenceReady={evidenceReady}
       />
       <BookingSafetyActions
         bookingId={booking._id as BookingId}
         status={booking.status}
         viewerHasReviewed={booking.viewerHasReviewed}
       />
-      {message ? <AppText accessibilityLiveRegion="polite" color={theme.colors.textMuted}>{message}</AppText> : null}
       <View style={styles.actions}>
         {canCancel ? <BookingCancelAction bookingId={booking._id as BookingId} participantLabel="Companion" /> : null}
         <BookingMessagesButton otherUserId={String(booking.memberId)} />

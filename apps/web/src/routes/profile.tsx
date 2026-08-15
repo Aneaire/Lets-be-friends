@@ -94,7 +94,7 @@ function ProfilePage() {
             </button>
             <Link to="/app" search={{}} className="btn btn-neutral btn-sm">Your bookings</Link>
             <Link to="/become-companion" className="btn btn-neutral btn-sm">
-              {application ? 'Edit companion profile' : 'Share what you enjoy'}
+              {application ? 'Edit Companion profile' : 'Become a Companion'}
             </Link>
           </div>
         </div>
@@ -161,10 +161,10 @@ function ProfilePage() {
               <span className="status-pill" data-tone={companionStatusTone(companionStatus)}>{companionStatusLabel(companionStatus)}</span>
             </div>
             <p className="text-body muted">
-              Your companion profile uses this name, then adds your Strengths, availability, boundaries, location, and the kinds of time you want to share.
+              Your Companion profile uses this name, then adds the Strengths, availability, boundaries, location, and everyday help or activities you want to offer.
             </p>
             <Link to="/become-companion" className="btn btn-neutral btn-sm">
-              {application ? 'Edit companion profile' : 'Share what you enjoy'}
+              {application ? 'Edit Companion profile' : 'Become a Companion'}
             </Link>
           </div>
         </aside>
@@ -240,7 +240,7 @@ function ProfilePage() {
               <div className="empty-state m-5">
                 <p className="empty-state-title">Reviews appear after you become a Companion.</p>
                 <p className="text-meta">Members can leave a review after a completed plan.</p>
-                <Link to="/become-companion" className="btn btn-neutral btn-sm mt-3">Create companion profile</Link>
+                <Link to="/become-companion" className="btn btn-neutral btn-sm mt-3">Create Companion profile</Link>
               </div>
             )}
             {application && reviews === undefined && <div className="empty-state m-5">Loading reviews...</div>}

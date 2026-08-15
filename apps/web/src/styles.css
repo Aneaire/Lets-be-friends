@@ -1551,37 +1551,6 @@
   box-shadow: 0 1px 3px color-mix(in oklch, var(--text) 10%, transparent);
 }
 
-.settings-accent-choices {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.settings-accent-choice {
-  min-width: 7rem;
-}
-
-.settings-accent-swatch {
-  display: inline-flex;
-  overflow: hidden;
-  width: 1.65rem;
-  height: 0.8rem;
-  flex: 0 0 auto;
-  border: 1px solid color-mix(in oklch, var(--text) 18%, transparent);
-  border-radius: 999px;
-}
-
-.settings-accent-swatch i {
-  width: 50%;
-  height: 100%;
-}
-
-.settings-accent-swatch i[data-color="blue"] {
-  background: #1093ED;
-}
-
-.settings-accent-swatch i[data-color="pink"] {
-  background: #C1519C;
-}
-
 .settings-switch {
   min-width: 4.3rem;
   justify-content: flex-end;
@@ -1643,10 +1612,6 @@
 
   .settings-choice-group {
     width: 100%;
-  }
-
-  .settings-accent-choices {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .settings-choice {
@@ -1735,50 +1700,6 @@
   --warning-soft: oklch(30% 0.06 78);
   --success: oklch(72% 0.12 150);
   --success-soft: oklch(28% 0.06 150);
-}
-
-:root[data-accent-theme="reversed"] {
-  --accent-self: oklch(48% 0.17 342.36);
-  --accent-self-hover: oklch(41% 0.18 342.36);
-  --accent-self-button: #C1519C;
-  --accent-self-button-hover: #C1519C;
-  --accent-self-soft: oklch(96% 0.025 342.36);
-  --accent-self-line: oklch(80% 0.08 342.36);
-  --accent-social: oklch(50% 0.18 247.38);
-  --accent-social-hover: oklch(43% 0.2 247.38);
-  --accent-social-button: #1093ED;
-  --accent-social-button-hover: #1093ED;
-  --accent-social-soft: oklch(95.5% 0.025 247.38);
-  --accent-social-line: oklch(80% 0.08 247.38);
-}
-
-:root[data-accent-theme="blue"] {
-  --accent-social: var(--accent-self);
-  --accent-social-hover: var(--accent-self-hover);
-  --accent-social-button: var(--accent-self-button);
-  --accent-social-button-hover: var(--accent-self-button-hover);
-  --accent-social-soft: var(--accent-self-soft);
-  --accent-social-line: var(--accent-self-line);
-}
-
-:root[data-accent-theme="pink"] {
-  --accent-self: var(--accent-social);
-  --accent-self-hover: var(--accent-social-hover);
-  --accent-self-button: var(--accent-social-button);
-  --accent-self-button-hover: var(--accent-social-button-hover);
-  --accent-self-soft: var(--accent-social-soft);
-  --accent-self-line: var(--accent-social-line);
-}
-
-.dark[data-accent-theme="reversed"] {
-  --accent-self: oklch(68% 0.16 342.36);
-  --accent-self-hover: oklch(76% 0.14 342.36);
-  --accent-self-soft: oklch(28% 0.06 342.36);
-  --accent-self-line: oklch(45% 0.14 342.36);
-  --accent-social: oklch(70% 0.16 247.38);
-  --accent-social-hover: oklch(78% 0.14 247.38);
-  --accent-social-soft: oklch(28% 0.06 247.38);
-  --accent-social-line: oklch(45% 0.14 247.38);
 }
 
 body {
@@ -3481,11 +3402,6 @@ button:disabled {
 .trust-chip[data-state="awaiting"] {
   color: var(--warning);
   background: var(--warning-soft);
-}
-
-.trust-chip[data-state="demo"] {
-  color: var(--text-soft);
-  background: color-mix(in oklch, var(--text) 5%, transparent);
 }
 
 .status-pill {

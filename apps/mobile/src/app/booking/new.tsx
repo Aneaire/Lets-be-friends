@@ -1,12 +1,17 @@
+import { formatPhp } from '@lets-be-friends/shared'
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import { useMemo, useRef, useState } from 'react'
-import { Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { mobileApi, type CompanionProfileId } from '@/backend/client'
 import { ActionButton } from '@/components/ActionButton'
+import { AppIcon } from '@/components/AppIcon'
+import { useAppToastMessage } from '@/components/AppToast'
 import { Screen } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
+import { bookingPriceEstimate } from '@/data/bookingPricing'
 import { parseManilaBookingInput } from '@/data/bookingViewModels'
 import { mapPublicCompanion, type ApprovedCompanionRecord, type SessionMode } from '@/data/companionViewModels'
 import { safeProductError } from '@/data/productErrors'
@@ -25,7 +30,7 @@ export default function NewBookingScreen() {
   const finance = useQuery(mobileApi.finance.memberDashboard, member.status === 'ready' ? {} : 'skip')
 
   if (member.status === 'signed_out') return <BookingGate title="Sign in to request a booking" actionLabel="Sign in" onPress={() => router.replace('/auth')} />
-  if (member.status === 'demo') return <BookingGate title="Bookings are unavailable in demo mode" actionLabel="Return to Explore" onPress={() => router.replace('/explore')} />
+  if (member.status === 'unconfigured') return <BookingGate title="Bookings need account services" actionLabel="Return to Explore" onPress={() => router.replace('/explore')} />
   if (member.status === 'unavailable' || member.status === 'error') return <BookingGate title="Bookings are unavailable" detail="Your member account could not be connected safely." />
   if (member.status !== 'ready') return <BookingGate title="Preparing your member account" />
   if (companionResult === undefined) return <BookingGate title="Loading booking options" />
@@ -50,10 +55,21 @@ function BookingForm({ companion, availableCentavos }: { companion: ReturnType<t
   const [dateInput, setDateInput] = useState(initial.date)
   const [timeInput, setTimeInput] = useState(initial.time)
   const [durationInput, setDurationInput] = useState('60')
+  const [picker, setPicker] = useState<'date' | 'time' | null>(null)
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
+  useAppToastMessage(error)
   const [submitting, setSubmitting] = useState(false)
   const submittingRef = useRef(false)
+  const estimate = bookingPriceEstimate(companion.hourlyRateCentavos, durationInput)
+  const pickerValue = useMemo(() => new Date(`${dateInput}T${timeInput}:00`), [dateInput, timeInput])
+
+  function updateSchedule(event: DateTimePickerEvent, selected?: Date) {
+    if (Platform.OS === 'android') setPicker(null)
+    if (event.type === 'dismissed' || !selected) return
+    if (picker === 'date') setDateInput(`${selected.getFullYear()}-${String(selected.getMonth() + 1).padStart(2, '0')}-${String(selected.getDate()).padStart(2, '0')}`)
+    if (picker === 'time') setTimeInput(`${String(selected.getHours()).padStart(2, '0')}:${String(selected.getMinutes()).padStart(2, '0')}`)
+  }
 
   async function submit() {
     if (submittingRef.current) return
@@ -106,24 +122,33 @@ function BookingForm({ companion, availableCentavos }: { companion: ReturnType<t
       <FieldLabel label="Format" />
       <ChoiceRow values={companion.sessionModes} selected={mode} onSelect={(value) => setMode(value as SessionMode)} format={(value) => value === 'in_person' ? 'In person' : 'Online'} />
 
-      <FieldLabel label="Date in Manila" />
-      <Input label="Booking date in Manila" value={dateInput} onChangeText={setDateInput} placeholder="YYYY-MM-DD" inputMode="numeric" />
-      <FieldLabel label="Time in Manila" />
-      <Input label="Booking time in Manila" value={timeInput} onChangeText={setTimeInput} placeholder="HH:MM" inputMode="numeric" />
-      <FieldLabel label="Duration in minutes" />
-      <Input label="Booking duration in minutes" value={durationInput} onChangeText={setDurationInput} placeholder="60" inputMode="numeric" />
+      <FieldLabel label="Schedule" />
+      <AppText variant="caption" color={theme.colors.textMuted}>Asia/Manila (UTC+8). Confirm that this timezone works for both people.</AppText>
+      <View style={styles.scheduleRow}>
+        <ScheduleButton icon="calendar-outline" label="Date" value={formatDateLabel(dateInput)} onPress={() => setPicker('date')} />
+        <ScheduleButton icon="time-outline" label="Time" value={formatTimeLabel(timeInput)} onPress={() => setPicker('time')} />
+      </View>
+      {picker ? <DateTimePicker value={pickerValue} mode={picker} display="default" minimumDate={picker === 'date' ? new Date() : undefined} minuteInterval={15} onChange={updateSchedule} /> : null}
+      <FieldLabel label="Duration" />
+      <ChoiceRow values={['30', '60', '90', '120']} selected={durationInput} onSelect={setDurationInput} format={(value) => `${Number(value) / 60 < 1 ? `${value} min` : `${Number(value) / 60} ${Number(value) === 60 ? 'hour' : 'hours'}`}`} />
       <FieldLabel label="Notes, optional" />
       <Input label="Booking notes" value={notes} onChangeText={setNotes} placeholder="Share meeting details or accessibility needs" multiline />
-      <AppText variant="caption" color={notes.length > 1_000 ? theme.colors.social : theme.colors.textMuted}>{notes.length}/1,000</AppText>
+      <AppText variant="caption" color={notes.length > 1_000 ? theme.colors.danger : theme.colors.textMuted}>{notes.length}/1,000</AppText>
 
       <View style={[styles.summary, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <Summary label="Hourly rate" value={companion.rateLabel ?? 'Unavailable'} />
+        {estimate ? (
+          <>
+            <Summary label="Session subtotal" value={formatPhp(estimate.serviceSubtotalCentavos)} />
+            <Summary label="Booking fee" value={formatPhp(estimate.memberBookingFeeCentavos)} />
+            <Summary label="Estimated total" value={formatPhp(estimate.memberTotalCentavos)} />
+          </>
+        ) : <AppText variant="caption" color={theme.colors.textMuted}>Enter a valid duration in 15-minute increments to see the estimate.</AppText>}
         <Summary label="Booking balance" value={availableCentavos === undefined ? 'Unavailable' : formatMoney(availableCentavos)} />
-        <AppText variant="caption" color={theme.colors.textMuted}>The server records the final total after the request is sent. Review it in booking details before the Companion accepts.</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>The final total and booking balance are confirmed when you send the request.</AppText>
         <ActionButton label="Open booking wallet" onPress={() => router.push('/wallet')} intent="self" secondary />
       </View>
 
-      {error ? <AppText accessibilityRole="alert" color={theme.colors.social}>{error}</AppText> : null}
       <ActionButton label={submitting ? 'Sending request' : 'Send booking request'} onPress={() => void submit()} disabled={submitting} />
       <ActionButton label="Cancel" onPress={() => goBackOr('/explore')} secondary disabled={submitting} />
     </Screen>
@@ -146,6 +171,11 @@ function ChoiceRow({ values, selected, onSelect, format = (value) => value }: { 
 
 function FieldLabel({ label }: { label: string }) {
   return <AppText variant="bodyStrong" style={styles.fieldLabel}>{label}</AppText>
+}
+
+function ScheduleButton({ icon, label, value, onPress }: { icon: 'calendar-outline' | 'time-outline'; label: string; value: string; onPress: () => void }) {
+  const theme = useAppTheme()
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Choose ${label.toLowerCase()}, currently ${value}`} onPress={onPress} style={({ pressed }) => [styles.scheduleButton, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }, pressed && styles.pressed]}><AppIcon name={icon} color={theme.colors.socialText} /><View style={styles.scheduleCopy}><AppText variant="caption" color={theme.colors.textMuted}>{label}</AppText><AppText variant="bodyStrong">{value}</AppText></View><AppIcon name="chevron-down" color={theme.colors.textMuted} size={18} /></Pressable>
 }
 
 function Input(props: React.ComponentProps<typeof TextInput> & { label: string }) {
@@ -176,6 +206,16 @@ function formatMoney(centavos: number) {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(centavos / 100)
 }
 
+function formatDateLabel(value: string) {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(year, month - 1, day))
+}
+
+function formatTimeLabel(value: string) {
+  const [hour, minute] = value.split(':').map(Number)
+  return new Intl.DateTimeFormat('en-PH', { hour: 'numeric', minute: '2-digit' }).format(new Date(2020, 0, 1, hour, minute))
+}
+
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return <BookingGate title="Booking options are temporarily unavailable" detail="No booking request was sent. Please try again." actionLabel="Try again" onPress={retry} />
 }
@@ -193,6 +233,10 @@ const styles = StyleSheet.create({
   fieldLabel: { marginTop: 8 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choice: { minHeight: 44, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, justifyContent: 'center' },
+  scheduleRow: { flexDirection: 'row', gap: 10 },
+  scheduleButton: { flex: 1, minHeight: 64, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  scheduleCopy: { flex: 1, gap: 1 },
+  pressed: { opacity: 0.72 },
   input: { minHeight: 52, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
   notes: { minHeight: 112, paddingTop: 14, textAlignVertical: 'top' },
   summary: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 12, marginVertical: 8 },

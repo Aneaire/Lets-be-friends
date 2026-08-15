@@ -5,6 +5,7 @@ export const mobileApi = {
   companions: {
     listApproved: generatedApi.companions.listApproved,
     getPublic: generatedApi.companions.getPublic,
+    toggleSaveProfile: generatedApi.companions.toggleSaveProfile,
     myApplication: generatedApi.companions.myApplication,
     submitApplication: generatedApi.companions.submitApplication,
     updateHourlyRate: generatedApi.companions.updateHourlyRate,
@@ -17,6 +18,8 @@ export const mobileApi = {
     saveOnboardingLocationAndConsent: generatedApi.users.saveOnboardingLocationAndConsent,
     completeOnboarding: generatedApi.users.completeOnboarding,
     latestMemberVerification: generatedApi.users.latestMemberVerification,
+    updateProfile: generatedApi.users.updateProfile,
+    generateProfileImageUploadUrl: generatedApi.users.generateProfileImageUploadUrl,
   },
   bookings: {
     mine: generatedApi.bookings.mine,
@@ -25,6 +28,7 @@ export const mobileApi = {
     editRequest: generatedApi.bookings.editRequest,
     companionDecision: generatedApi.bookings.companionDecision,
     cancel: generatedApi.bookings.cancel,
+    markCompleted: generatedApi.bookings.markCompleted,
   },
   bookingEvidence: {
     status: generatedApi.bookingEvidence.status,
@@ -32,6 +36,7 @@ export const mobileApi = {
     skip: generatedApi.bookingEvidence.skip,
   },
   finance: {
+    dashboard: generatedApi.finance.dashboard,
     memberDashboard: generatedApi.finance.memberDashboard,
   },
   paymongo: {
@@ -41,8 +46,35 @@ export const mobileApi = {
   reports: {
     create: generatedApi.reports.create,
   },
+  safety: {
+    relationship: generatedApi.safety.relationship,
+    mine: generatedApi.safety.mine,
+    setBlocked: generatedApi.safety.setBlocked,
+    setMuted: generatedApi.safety.setMuted,
+  },
   reviews: {
+    forCompanion: generatedApi.reviews.forCompanion,
+    toggleSave: generatedApi.reviews.toggleSave,
     submit: generatedApi.reviews.submit,
+  },
+  social: {
+    feed: generatedApi.social.feed,
+    byUser: generatedApi.social.byUser,
+    commentsForPost: generatedApi.social.commentsForPost,
+    commentPage: generatedApi.social.commentPage,
+    createPost: generatedApi.social.createPost,
+    mediaUploadUsage: generatedApi.social.mediaUploadUsage,
+    generatePostMediaUploadUrl: generatedApi.social.generatePostMediaUploadUrl,
+    registerPostMediaUpload: generatedApi.social.registerPostMediaUpload,
+    discardPostMediaUpload: generatedApi.social.discardPostMediaUpload,
+    editPost: generatedApi.social.editPost,
+    deletePost: generatedApi.social.deletePost,
+    createComment: generatedApi.social.createComment,
+    toggleSavePost: generatedApi.social.toggleSavePost,
+    toggleLike: generatedApi.social.toggleLike,
+    toggleFollow: generatedApi.social.toggleFollow,
+    recordFeedImpressions: generatedApi.social.recordFeedImpressions,
+    recordFeedAction: generatedApi.social.recordFeedAction,
   },
   notifications: {
     recent: generatedApi.notifications.recent,
@@ -62,7 +94,9 @@ export const mobileApi = {
     list: generatedApi.conversations.list,
     between: generatedApi.conversations.between,
     conversation: generatedApi.conversations.conversation,
+    messages: generatedApi.conversations.messages,
     messagePage: generatedApi.conversations.messagePage,
+    start: generatedApi.conversations.start,
     sendMessage: generatedApi.conversations.sendMessage,
     markRead: generatedApi.conversations.markRead,
   },
@@ -71,5 +105,11 @@ export const mobileApi = {
 export type CompanionProfileId = Id<'companionProfiles'>
 export type BookingId = Id<'bookings'>
 export type ConversationId = Id<'directConversations'>
+export type MessageId = Id<'directMessages'>
+export type PostId = Id<'posts'>
+export type PostMediaUploadId = Id<'postMediaUploads'>
+export type CommentId = Id<'postComments'>
+export type ReviewId = Id<'reviews'>
+export type StorageId = Id<'_storage'>
 export type UserId = Id<'users'>
 export type PaymongoTopUpId = Id<'paymongoTopUps'>

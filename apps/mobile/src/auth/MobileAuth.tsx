@@ -2,7 +2,7 @@ import { useAuth, useClerk, useSession, useUser } from '@clerk/expo'
 import { createContext, type PropsWithChildren, useContext, useMemo } from 'react'
 
 export type MobileAuthState =
-  | { status: 'demo'; clerkConfigured: false }
+  | { status: 'unconfigured'; clerkConfigured: false }
   | { status: 'setup_error'; clerkConfigured: false; message: string }
   | { status: 'loading'; clerkConfigured: true }
   | { status: 'signed_out'; clerkConfigured: true }
@@ -20,7 +20,7 @@ export type MobileAuthState =
       signOut: () => Promise<void>
     }
 
-const MobileAuthContext = createContext<MobileAuthState>({ status: 'demo', clerkConfigured: false })
+const MobileAuthContext = createContext<MobileAuthState>({ status: 'unconfigured', clerkConfigured: false })
 type SignOutCleanup = () => Promise<void>
 const signOutCleanupRef: { current: SignOutCleanup | null } = { current: null }
 

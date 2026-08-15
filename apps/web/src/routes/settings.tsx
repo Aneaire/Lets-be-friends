@@ -3,14 +3,7 @@ import { SignInButton, useAuth, useUser } from '@clerk/react'
 import { useQuery } from 'convex/react'
 import { Moon, Sun, UserRound, UserRoundCog } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
-import { useAccentChoice, useThemeChoice, type AccentChoice } from '../components/ThemeToggle'
-
-const accentChoices: Array<{ value: AccentChoice; label: string; self: 'blue' | 'pink'; social: 'blue' | 'pink' }> = [
-  { value: 'default', label: 'Default', self: 'blue', social: 'pink' },
-  { value: 'reversed', label: 'Reversed', self: 'pink', social: 'blue' },
-  { value: 'blue', label: 'All blue', self: 'blue', social: 'blue' },
-  { value: 'pink', label: 'All pink', self: 'pink', social: 'pink' },
-]
+import { useThemeChoice } from '../components/ThemeToggle'
 
 export const Route = createFileRoute('/settings')({ component: SettingsPage })
 
@@ -19,7 +12,6 @@ function SettingsPage() {
   const { user } = useUser()
   const application = useQuery(api.companions.myApplication)
   const { theme, setTheme } = useThemeChoice()
-  const { accent, setAccent } = useAccentChoice()
 
   if (!isSignedIn) {
     return (
@@ -76,29 +68,6 @@ function SettingsPage() {
                 <Moon size={17} aria-hidden="true" />
                 Dark
               </button>
-            </div>
-          </div>
-          <div className="settings-row settings-row-choice">
-            <div className="settings-row-copy">
-              <strong>Accent colors</strong>
-              <span>Choose how blue and pink appear across the app.</span>
-            </div>
-            <div className="settings-choice-group settings-accent-choices" aria-label="Accent colors">
-              {accentChoices.map((choice) => (
-                <button
-                  key={choice.value}
-                  type="button"
-                  className="settings-choice settings-accent-choice"
-                  aria-pressed={accent === choice.value}
-                  onClick={() => setAccent(choice.value)}
-                >
-                  <span className="settings-accent-swatch" aria-hidden="true">
-                    <i data-color={choice.self} />
-                    <i data-color={choice.social} />
-                  </span>
-                  {choice.label}
-                </button>
-              ))}
             </div>
           </div>
         </section>

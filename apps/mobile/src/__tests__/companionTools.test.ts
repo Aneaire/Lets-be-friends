@@ -2,7 +2,7 @@ import { initialCompanionApplicationForm, validateCompanionApplication, validate
 
 describe('Companion mobile models and validation', () => {
   const validForm = {
-    intro: 'I companion relaxed public coffee chats and thoughtful city walks with clear plans.',
+    intro: 'I join relaxed public coffee chats and thoughtful city walks with clear plans.',
     city: 'Cebu City',
     mode: 'both' as const,
     hourlyRatePesos: '500',

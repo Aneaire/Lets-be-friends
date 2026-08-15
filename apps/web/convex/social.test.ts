@@ -2,7 +2,7 @@ import { rerankFeedCandidates, scoreFeedCandidate, type FeedRankingCandidate } f
 import geospatialTest from '@convex-dev/geospatial/test'
 import { convexTest } from 'convex-test'
 import { describe, expect, it } from 'vitest'
-import { api } from './_generated/api'
+import { api, internal } from './_generated/api'
 import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
@@ -103,6 +103,64 @@ describe('For You ranking helpers', () => {
 })
 
 describe('social feed behavior', () => {
+  it('terminates cursor pagination after returning more than 150 unique For You posts', async () => {
+    const t = createTest()
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      for (let index = 0; index < 151; index += 1) {
+        const authorId = await ctx.db.insert('users', { clerkUserId: `author-${index}`, displayName: `Author ${index}`, role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now - index, updatedAt: now - index })
+        await ctx.db.insert('posts', { authorId, body: `post ${index}`, reportable: true, hidden: false, createdAt: now - index, updatedAt: now - index })
+      }
+    })
+
+    const itemKeys = new Set<string>()
+    let cursor: string | null = null
+    let done = false
+    for (let pageNumber = 0; pageNumber < 12 && !done; pageNumber += 1) {
+      const result: any = await t.query(api.social.feedPage, { filter: 'for_you', paginationOpts: { cursor, numItems: 20 } })
+      result.page.filter((item: any) => item.kind === 'post').forEach((item: any) => {
+        expect(itemKeys.has(item.itemKey)).toBe(false)
+        itemKeys.add(item.itemKey)
+      })
+      cursor = result.continueCursor
+      done = result.isDone
+    }
+    expect(done).toBe(true)
+    expect(itemKeys.size).toBe(151)
+  }, 20_000)
+
+  it('paginates beyond 50 Following and Saved posts without duplicates', async () => {
+    const t = createTest()
+    const viewerId = await insertUser(t, 'viewer')
+    const authorId = await insertUser(t, 'followed-author')
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert('follows', { followerId: viewerId, followingId: authorId, createdAt: now })
+      for (let index = 0; index < 61; index += 1) {
+        const postId = await ctx.db.insert('posts', { authorId, body: `post ${index}`, reportable: true, hidden: false, createdAt: now - index, updatedAt: now - index })
+        await ctx.db.insert('savedPosts', { userId: viewerId, postId, createdAt: now - index })
+      }
+    })
+    const viewer = t.withIdentity({ subject: 'viewer' })
+
+    for (const filter of ['following', 'saved'] as const) {
+      const itemKeys = new Set<string>()
+      let cursor: string | null = null
+      let done = false
+      for (let pageNumber = 0; pageNumber < 6 && !done; pageNumber += 1) {
+        const result: any = await viewer.query(api.social.feedPage, { filter, paginationOpts: { cursor, numItems: 20 } })
+        result.page.forEach((item: any) => {
+          expect(itemKeys.has(item.itemKey)).toBe(false)
+          itemKeys.add(item.itemKey)
+        })
+        cursor = result.continueCursor
+        done = result.isDone
+      }
+      expect(done).toBe(true)
+      expect(itemKeys.size).toBe(61)
+    }
+  }, 10_000)
+
   it('filters hidden, deleted, and suspended-author posts before ranking', async () => {
     const t = createTest()
     const safeAuthor = await insertUser(t, 'safe-author')
@@ -245,5 +303,30 @@ describe('feed instrumentation', () => {
       ...args,
       items: [{ ...args.items[0], position: 100 }],
     })).rejects.toThrow('position must be an integer from 0 to 99')
+  })
+})
+
+describe('post media cleanup', () => {
+  it('retires only bounded unclaimed grants older than one day', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'media-owner')
+    const now = Date.now()
+    const { oldId, recentId, claimedId, claimedStorageId } = await t.run(async (ctx) => {
+      const claimedStorageId = await ctx.storage.store(new Blob(['claimed media'], { type: 'image/png' }))
+      const postId = await ctx.db.insert('posts', { authorId: userId, body: 'claimed', reportable: true, hidden: false, createdAt: now - 2 * 86_400_000, updatedAt: now - 2 * 86_400_000 })
+      const [oldId, recentId, claimedId] = await Promise.all([
+        ctx.db.insert('postMediaUploads', { userId, createdAt: now - 2 * 86_400_000 }),
+        ctx.db.insert('postMediaUploads', { userId, createdAt: now - 60_000 }),
+        ctx.db.insert('postMediaUploads', { userId, postId, storageId: claimedStorageId, kind: 'image', contentType: 'image/png', size: 13, createdAt: now - 2 * 86_400_000, registeredAt: now - 2 * 86_400_000 }),
+      ])
+      return { oldId, recentId, claimedId, claimedStorageId }
+    })
+    expect(await t.mutation(internal.social.purgeOrphanedMedia, { now })).toMatchObject({ checked: 2, purged: 1 })
+    expect((await t.run(async (ctx) => ctx.db.get(oldId)))?.discardedAt).toBe(now)
+    expect((await t.run(async (ctx) => ctx.db.get(recentId)))?.discardedAt).toBeUndefined()
+    const claimed = await t.run(async (ctx) => ctx.db.get(claimedId))
+    expect(claimed).toMatchObject({ postId: expect.any(String), storageId: claimedStorageId })
+    expect(claimed?.discardedAt).toBeUndefined()
+    expect(await t.run(async (ctx) => ctx.storage.getUrl(claimedStorageId))).toBeTruthy()
   })
 })

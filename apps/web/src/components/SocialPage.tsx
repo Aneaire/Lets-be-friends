@@ -155,9 +155,9 @@ export function SocialPage({ postId }: { postId?: string }) {
         <header className="social-timeline-header">
           <div>
             <h1 className="text-h1">Home</h1>
-            <p className="text-meta">Useful updates and people worth planning with.</p>
+            <p className="text-meta">Everyday help, useful ideas, and people worth connecting with.</p>
           </div>
-          <Link to="/discover" className="btn btn-social-quiet btn-sm">Explore people</Link>
+          <Link to="/discover" className="btn btn-social-quiet btn-sm">Explore Companions</Link>
         </header>
 
         <div className="social-feed-tabs" role="tablist" aria-label="Social feed">
@@ -230,13 +230,13 @@ export function SocialPage({ postId }: { postId?: string }) {
             <div className="social-composer-body">
               <div className="social-composer-intents">
                 <strong>Share an update</strong>
-                <Link to="/discover">Find a shared plan</Link>
+                <Link to="/discover">Find help or company</Link>
               </div>
               <textarea
                 name="body"
                 className="social-composer-input"
                 maxLength={1000}
-                placeholder="What would feel better with company?"
+                placeholder="What could feel easier or better together?"
                 aria-label="Create a post"
               />
               {selectedMedia.length > 0 && (

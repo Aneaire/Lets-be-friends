@@ -18,16 +18,16 @@ const termsVersion = '2026-08-13'
 const memberJourney = [
   ['Complete identity verification', 'Securely submit a government ID and take a current camera selfie.'],
   ['Receive safety-team approval', 'Every completed identity submission is reviewed before booking access is unlocked.'],
-  ['Discover an approved Companion', 'Compare strengths, modes, boundaries, and reviews before choosing.'],
+  ['Discover an approved Companion', 'Compare Strengths, interests, availability, boundaries, and reviews before choosing.'],
   ['Send a booking request', 'Choose a category, mode, and time for the Companion to accept or decline.'],
   ['Have the experience and leave a review', 'Messages support safe coordination, and afterward you can share feedback.'],
 ] as const
 
 const companionJourney = [
-  ['Complete your companion profile', 'Describe your strengths, modes, location area, categories, and boundaries.'],
+  ['Complete your Companion profile', 'Describe the everyday help, Strengths, session formats, and boundaries you can offer.'],
   ['Complete identity and safety review', 'Your application is reviewed before it can appear publicly.'],
   ['Receive approval for public discovery', 'Approval makes your Companion profile visible to members.'],
-  ['Manage incoming requests', 'Accept or decline requests and use messages for safe coordination. You can still book other Companions.'],
+  ['Help, earn, and connect', 'Accept or decline booking requests, coordinate safely, and earn from completed experiences. You can still book other Companions.'],
 ] as const
 
 function OnboardingPage() {
@@ -390,7 +390,7 @@ function OnboardingPage() {
           <div>
             <p className="eyebrow">Step 2</p>
             <h2 className="text-h1 mt-2">What would you like to do here?</h2>
-            <p className="text-body muted mt-2">Pick what fits you best. You can grow into the other side anytime, and every member still goes through a friendly safety review.</p>
+            <p className="text-body muted mt-2">Start by finding help or offering the everyday Strengths you already use. You can choose the other path anytime.</p>
             <fieldset className="onboarding-choice-group mt-6">
               <legend>How would you like to take part?</legend>
               <div className="onboarding-choice-list">
@@ -404,7 +404,7 @@ function OnboardingPage() {
                     onChange={() => setGoal('member')}
                   />
                   <span className="onboarding-choice-marker" aria-hidden="true">01</span>
-                  <span><strong>I need a friends</strong><small>Meet friendly, verified people for fun online or nearby plans together.</small></span>
+                  <span><strong>Find a Companion</strong><small>Find everyday help, friendly company, or someone for an online or nearby plan.</small></span>
                 </label>
                 <label data-selected={selectedGoal === 'companion'}>
                   <input
@@ -416,7 +416,7 @@ function OnboardingPage() {
                     onChange={() => setGoal('companion')}
                   />
                   <span className="onboarding-choice-marker" aria-hidden="true">02</span>
-                  <span><strong>Be a friend</strong><small>Open a friendly companion profile with your interests and schedule.</small></span>
+                  <span><strong>Become a Companion</strong><small>Share your Strengths, choose what you offer, and earn on your terms.</small></span>
                 </label>
               </div>
             </fieldset>
@@ -446,7 +446,7 @@ function OnboardingPage() {
               {selectedGoal === 'companion' && (
                 <fieldset className="onboarding-category-field">
                   <legend className="label">What would you like to offer? <span className="label-aux">choose up to 6</span></legend>
-                  <p className="field-row-help">Choose the experiences that best describe the time you want to share. You can refine these before submitting your Companion profile.</p>
+                  <p className="field-row-help">Choose the everyday help and activities you feel comfortable offering. You can refine these before submitting your Companion profile.</p>
                   <div className="onboarding-category-grid mt-3">
                     {activityCategories.map((category) => {
                       const selected = selectedCategories.includes(category)
@@ -474,7 +474,7 @@ function OnboardingPage() {
         {step === 4 && (
           <div>
             <p className="eyebrow">Step 4</p>
-            <h2 className="text-h1 mt-2">{selectedGoal === 'companion' ? 'How sharing an experience works.' : 'What happens before you meet.'}</h2>
+            <h2 className="text-h1 mt-2">{selectedGoal === 'companion' ? 'How helping and earning works.' : 'What happens before you meet.'}</h2>
             <ol className="onboarding-journey mt-6">
               {journey.map(([title, copy], index) => (
                 <li key={title}>
@@ -523,7 +523,7 @@ function OnboardingPage() {
             {step === 4 && <button type="button" className="btn btn-self" onClick={() => setStep(5)}>Continue</button>}
             {step === 5 && selectedGoal === 'companion' && (
               <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void finish(selectedGoal)}>
-                {submitting ? 'Saving…' : 'Create companion profile'}
+                {submitting ? 'Saving…' : 'Create Companion profile'}
               </button>
             )}
             {step === 5 && selectedGoal === 'member' && (

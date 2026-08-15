@@ -42,6 +42,10 @@ export type ThemeColors = {
   accentText: string
   self: string
   social: string
+  selfText: string
+  socialText: string
+  selfControl: string
+  socialControl: string
   socialSoft: string
   selfSoft: string
   danger: string
@@ -67,9 +71,13 @@ const palettes: Record<ColorScheme, ThemeColors> = {
     borderStrong: '#A9A9A9',
     inverse: '#090909',
     inverseText: '#FFFFFF',
-    accentText: '#090909',
+    accentText: '#FFFFFF',
     self: brandAccentColors.self.hex,
     social: brandAccentColors.social.hex,
+    selfText: '#08679F',
+    socialText: '#8B286B',
+    selfControl: '#0875B8',
+    socialControl: '#90336F',
     socialSoft: '#F7EAF2',
     selfSoft: '#E7F4FD',
     danger: '#B42318',
@@ -85,9 +93,13 @@ const palettes: Record<ColorScheme, ThemeColors> = {
     borderStrong: '#666666',
     inverse: '#FFFFFF',
     inverseText: '#090909',
-    accentText: '#090909',
+    accentText: '#FFFFFF',
     self: brandAccentColors.self.hex,
     social: brandAccentColors.social.hex,
+    selfText: '#6CC2FA',
+    socialText: '#EA91C9',
+    selfControl: '#0875B8',
+    socialControl: '#90336F',
     socialSoft: '#321D2B',
     selfSoft: '#112B3C',
     danger: '#FF6B6B',

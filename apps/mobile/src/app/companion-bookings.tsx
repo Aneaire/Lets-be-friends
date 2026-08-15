@@ -16,7 +16,7 @@ type CompanionBooking = FunctionReturnType<typeof mobileApi.bookings.forCompanio
 export default function CompanionBookingsScreen() {
   const member = useMobileMember()
   if (member.status === 'signed_out') return <CompanionBookingsState title="Sign in to view incoming bookings" action="Sign in" onPress={() => router.replace('/auth')} />
-  if (member.status === 'demo') return <CompanionBookingsState title="Incoming bookings are unavailable in demo mode" action="Return to Profile" onPress={() => router.replace('/profile')} />
+  if (member.status === 'unconfigured') return <CompanionBookingsState title="Incoming bookings need account services" action="Return to Profile" onPress={() => router.replace('/profile')} />
   if (member.status === 'unavailable' || member.status === 'error') return <CompanionBookingsState title="Incoming bookings are unavailable" detail="Your member account could not be connected safely." />
   if (member.status !== 'ready') return <CompanionBookingsState title="Loading incoming bookings" />
   return <ReadyCompanionBookingsScreen />

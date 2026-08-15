@@ -1,8 +1,5 @@
-import { companions } from '@/data/companions'
 import {
-  isBackendDemoCompanionId,
   mapApprovedCompanion,
-  mapFixtureCompanion,
   mapPublicCompanion,
   resolveConnectedCompanion,
   resolveCompanionBookingAction,
@@ -22,7 +19,6 @@ const approvedCompanion: ApprovedCompanionRecord = {
   hourlyRateCentavos: 65000,
   bookable: true,
   viewerBookingEligibility: 'eligible',
-  demo: false,
   bio: 'Public companion bio.',
   boundaries: ['Public places only'],
 }
@@ -45,16 +41,6 @@ describe('companion view-model mapping', () => {
     })
   })
 
-  it('marks demo companions non-bookable and never authoritatively verified', () => {
-    const backendDemo = mapApprovedCompanion({ ...approvedCompanion, _id: 'demo-2', demo: true })
-    const localDemo = mapFixtureCompanion(companions[0])
-
-    expect(backendDemo).toMatchObject({ source: 'backend_demo', verified: false, bookable: false })
-    expect(localDemo).toMatchObject({ source: 'local_demo', verified: false, bookable: false })
-    expect(isBackendDemoCompanionId(backendDemo.id)).toBe(true)
-    expect(isBackendDemoCompanionId('convex-companion-id')).toBe(false)
-  })
-
   it('preserves truthful public booking eligibility and route decisions', () => {
     const eligible = mapPublicCompanion(approvedCompanion)
     expect(eligible).toMatchObject({ hourlyRateCentavos: 65000, viewerBookingEligibility: 'eligible' })
@@ -62,15 +48,13 @@ describe('companion view-model mapping', () => {
     expect(resolveCompanionBookingAction({ ...eligible, viewerBookingEligibility: 'sign_in_required' }).kind).toBe('sign_in')
     expect(resolveCompanionBookingAction({ ...eligible, viewerBookingEligibility: 'verification_required' }).kind).toBe('verification')
     expect(resolveCompanionBookingAction({ ...eligible, viewerBookingEligibility: 'own_profile' }).kind).toBe('own_profile')
-    expect(resolveCompanionBookingAction(mapFixtureCompanion(companions[0])).kind).toBe('unavailable')
+    expect(resolveCompanionBookingAction({ ...eligible, bookable: false }).kind).toBe('unavailable')
   })
 
-  it('resolves only listed non-demo records as connected approved IDs', () => {
-    const demoCompanion = { ...approvedCompanion, _id: 'demo-2', demo: true }
-    const companions = [approvedCompanion, demoCompanion]
+  it('resolves only records returned by the approved directory', () => {
+    const companions = [approvedCompanion]
 
     expect(resolveConnectedCompanion(companions, approvedCompanion._id)).toEqual({ kind: 'approved', record: approvedCompanion })
-    expect(resolveConnectedCompanion(companions, demoCompanion._id)).toEqual({ kind: 'demo', record: demoCompanion })
     expect(resolveConnectedCompanion(companions, undefined)).toEqual({ kind: 'not_found' })
     expect(resolveConnectedCompanion(companions, 'mika-santos')).toEqual({ kind: 'not_found' })
     expect(resolveConnectedCompanion(companions, 'unknown-deep-link')).toEqual({ kind: 'not_found' })

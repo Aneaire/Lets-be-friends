@@ -16,6 +16,7 @@ import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
 import { ensureConversationBetween, sendBookingMessage } from './conversations'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { createNotification } from './notifications'
+import { requireNotBlocked } from './safety'
 import {
   allocateCompletedBookingFunds,
   availableMemberBookingBalance,
@@ -94,6 +95,7 @@ export const createDraft = mutation({
       throw new Error('Companion is not currently available for new bookings')
     }
     if (!canBookCompanion(String(viewer._id), String(companion.userId))) throw new Error('You cannot book your own Companion profile.')
+    await requireNotBlocked(ctx, viewer._id, companion.userId)
     if (!companion.categories.includes(args.category)) throw new Error('This experience category is not offered by the Companion')
     if (companion.mode !== 'both' && companion.mode !== args.mode) throw new Error('This booking mode is not offered by the Companion')
     if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new Error('Booking time must be in the future')
@@ -367,17 +369,39 @@ export const markCompleted = mutation({
     const isMember = booking.memberId === viewer._id
     const isCompanion = companion.userId === viewer._id
     if (!isMember && !isCompanion) throw new Error('Not your booking')
+    const participantCompletedAt = isMember ? booking.memberCompletedAt : booking.companionCompletedAt
     if (booking.status !== 'accepted') {
       if (
-        booking.pricingModel === MEMBER_WALLET_PRICING_MODEL
-        && ['review_window', 'completed', 'closed'].includes(booking.status)
-        && (isMember ? booking.memberCompletedAt : booking.companionCompletedAt)
+        ['review_window', 'completed', 'closed'].includes(booking.status)
+        && participantCompletedAt
       ) {
         return { status: booking.status, awaitingOtherConfirmation: false, idempotent: true }
       }
       throw new Error('Only accepted bookings can be completed')
     }
     if (!canCompleteBooking(booking.status)) throw new Error('Only accepted bookings can be completed')
+    if (participantCompletedAt) {
+      return { status: 'accepted' as const, awaitingOtherConfirmation: true, idempotent: true }
+    }
+
+    const requestedAt = booking.requestedAt
+    const durationMinutes = booking.durationMinutes
+    if (
+      !Number.isFinite(requestedAt)
+      || !Number.isSafeInteger(requestedAt)
+      || !Number.isFinite(durationMinutes)
+      || !Number.isSafeInteger(durationMinutes)
+      || durationMinutes <= 0
+    ) {
+      throw new Error('Booking schedule is invalid')
+    }
+    const durationMs = durationMinutes * 60_000
+    const scheduledEndAt = requestedAt + durationMs
+    if (!Number.isSafeInteger(durationMs) || !Number.isFinite(scheduledEndAt) || !Number.isSafeInteger(scheduledEndAt)) {
+      throw new Error('Booking schedule is invalid')
+    }
+    const now = Date.now()
+    if (now < scheduledEndAt) throw new Error('Booking cannot be completed before the scheduled session ends')
 
     if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL) {
       const role = isCompanion ? 'companion_start' : 'member_end'
@@ -391,7 +415,6 @@ export const markCompleted = mutation({
       }
     }
 
-    const now = Date.now()
     const memberCompletedAt = isMember ? (booking.memberCompletedAt ?? now) : booking.memberCompletedAt
     const companionCompletedAt = isCompanion ? (booking.companionCompletedAt ?? now) : booking.companionCompletedAt
     if (!memberCompletedAt || !companionCompletedAt) {

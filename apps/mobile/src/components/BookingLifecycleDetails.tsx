@@ -25,7 +25,7 @@ export function BookingLifecycleDetails(props: BookingLifecycleInput) {
       ) : null}
       <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <AppText variant="bodyStrong">Completion confirmations</AppText>
-        <AppText variant="caption" color={theme.colors.textMuted}>Read-only progress. Mobile does not offer completion confirmation.</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>Each participant confirms completion separately. The review window opens after both confirmations.</AppText>
         <Fact label="Member" value={presentation.completion.member} />
         <Fact label="Companion" value={presentation.completion.companion} />
       </View>

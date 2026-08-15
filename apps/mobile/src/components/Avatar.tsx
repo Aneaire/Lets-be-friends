@@ -1,17 +1,21 @@
 import { Image, StyleSheet, View } from 'react-native'
+import { useEffect, useState } from 'react'
 
 import { useAppTheme } from '@/theme/ThemeProvider'
-import { AppText } from './Typography'
+import { AppIcon } from './AppIcon'
 
 export function Avatar({ uri, name, size = 64 }: { uri?: string; name: string; size?: number }) {
   const theme = useAppTheme()
-  const initials = name.split(' ').map((part) => part[0]).slice(0, 2).join('')
+  const [imageFailed, setImageFailed] = useState(false)
 
-  if (uri) {
+  useEffect(() => setImageFailed(false), [uri])
+
+  if (uri && !imageFailed) {
     return (
       <Image
         accessibilityLabel={`Portrait of ${name}`}
         source={{ uri }}
+        onError={() => setImageFailed(true)}
         style={[styles.image, { width: size, height: size, borderRadius: size / 2, borderColor: theme.colors.border }]}
       />
     )
@@ -19,14 +23,14 @@ export function Avatar({ uri, name, size = 64 }: { uri?: string; name: string; s
 
   return (
     <View
-      accessibilityLabel={`${name} profile image`}
-      style={[styles.fallback, { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.colors.inverse }]}>
-      <AppText variant="heading" color={theme.colors.inverseText}>{initials}</AppText>
+      accessibilityLabel={`${name} has no profile photo`}
+      style={[styles.fallback, { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}> 
+      <AppIcon name="person" color={theme.colors.textMuted} size={Math.max(18, Math.round(size * 0.5))} />
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   image: { borderWidth: 1, backgroundColor: '#D9D9D9' },
-  fallback: { alignItems: 'center', justifyContent: 'center' },
+  fallback: { borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 })

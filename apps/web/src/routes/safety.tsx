@@ -11,7 +11,7 @@ const safetySteps = [
   {
     title: 'Every Companion is reviewed',
     body: 'Companion profiles stay out of Explore until identity and profile review are complete.',
-    detail: 'Reviewers check the companion profile, activity categories, boundaries, and verification result before making it visible.',
+    detail: 'Reviewers check the Companion profile, activity categories, boundaries, and verification result before making it visible.',
   },
   {
     title: 'You choose what to share',
@@ -39,8 +39,8 @@ function SafetyPage() {
             Know what happens before you meet.
           </h1>
           <div className="safety-hero-actions">
-            <Link to="/discover" className="btn btn-social">Find someone to join you</Link>
-            <Link to="/become-companion" className="btn btn-self">Share what you enjoy</Link>
+            <Link to="/discover" className="btn btn-social">Find a Companion</Link>
+            <Link to="/become-companion" className="btn btn-self">Become a Companion</Link>
           </div>
         </div>
         <figure className="marketing-photo safety-hero-photo">

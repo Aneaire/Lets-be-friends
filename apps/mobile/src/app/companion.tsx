@@ -9,6 +9,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native'
 import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/backend/config'
 import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/components/ActionButton'
+import { useAppToastMessage } from '@/components/AppToast'
 import { Screen, Section } from '@/components/Screen'
 import { AppText } from '@/components/Typography'
 import {
@@ -27,7 +28,7 @@ type CompanionApplication = NonNullable<FunctionReturnType<typeof mobileApi.comp
 export default function CompanionScreen() {
   const member = useMobileMember()
   if (member.status === 'signed_out') return <CompanionState title="Sign in to manage Companion tools" action="Sign in" onPress={() => router.replace('/auth')} />
-  if (member.status === 'demo') return <CompanionState title="Companion tools are unavailable in demo mode" action="Return to Profile" onPress={() => router.replace('/profile')} />
+  if (member.status === 'unconfigured') return <CompanionState title="Companion tools need account services" action="Return to Profile" onPress={() => router.replace('/profile')} />
   if (member.status === 'unavailable' || member.status === 'error') return <CompanionState title="Companion tools are unavailable" detail="Your member account could not be connected safely." />
   if (member.status !== 'ready') return <CompanionState title="Loading Companion tools" />
   return <ReadyCompanionScreen />
@@ -42,6 +43,8 @@ function ReadyCompanionScreen() {
   const [quickRate, setQuickRate] = useState('500')
   const [busy, setBusy] = useState<'application' | 'rate' | 'verification' | null>(null)
   const [message, setMessage] = useState('')
+  useAppToastMessage(message)
+  const [setupStep, setSetupStep] = useState(0)
   const busyRef = useRef(false)
   const formDirtyRef = useRef(false)
   const hydratedApplicationIdRef = useRef<string | null>(null)
@@ -132,8 +135,8 @@ function ReadyCompanionScreen() {
     <Screen contentStyle={styles.content}>
       <View style={styles.header}>
         <AppText variant="label" color={theme.colors.self}>COMPANION</AppText>
-        <AppText variant="display">Companion with clarity.</AppText>
-        <AppText color={theme.colors.textMuted}>Create or update your Companion profile, then manage incoming bookings.</AppText>
+        <AppText variant="display">Share what you can offer.</AppText>
+        <AppText color={theme.colors.textMuted}>Use everyday Strengths you already have, earn on your terms, and make meaningful connections.</AppText>
       </View>
 
       <View style={[styles.statusCard, { backgroundColor: theme.colors.selfSoft, borderColor: theme.colors.self }]}>
@@ -147,7 +150,7 @@ function ReadyCompanionScreen() {
         ) : null}
       </View>
 
-      <ActionButton label="View incoming bookings" onPress={() => router.push('/companion-bookings')} intent="social" />
+      {application?.status === 'approved' ? <ActionButton label="View incoming bookings" onPress={() => router.push('/companion-bookings')} intent="social" icon="calendar-outline" /> : null}
 
       {application ? (
         <Section>
@@ -176,20 +179,37 @@ function ReadyCompanionScreen() {
       ) : null}
 
       <Section>
-        <AppText variant="heading">{application ? 'Edit Companion profile' : 'Create your Companion profile'}</AppText>
-        <AppText variant="caption" color={theme.colors.textMuted}>Saving sends the profile for review. Its approximate map location comes from the rounded location saved during onboarding.</AppText>
-        <ModePicker value={form.mode} onChange={(mode) => editForm((current) => ({ ...current, mode }))} disabled={busy !== null} />
-        <FormField label="How would you spend the time?" value={form.intro} onChange={(intro) => editForm((current) => ({ ...current, intro }))} theme={theme} multiline maxLength={500} hint={`${form.intro.length}/500 characters, minimum 40`} />
-        <FormField label={form.mode === 'online' ? 'Timezone or broad region, optional' : 'City'} value={form.city} onChange={(city) => editForm((current) => ({ ...current, city }))} theme={theme} />
-        <FormField label="Listed hourly rate in PHP" value={form.hourlyRatePesos} onChange={(hourlyRatePesos) => editForm((current) => ({ ...current, hourlyRatePesos }))} theme={theme} keyboardType="decimal-pad" />
-        <SelectionGroup label="Strengths" options={friendStrengths} selected={form.strengths} onChange={(strengths) => editForm((current) => ({ ...current, strengths }))} disabled={busy !== null} />
-        <SelectionGroup label="Activities" options={activityCategories} selected={form.categories} onChange={(categories) => editForm((current) => ({ ...current, categories }))} disabled={busy !== null} />
-        <FormField label="Boundaries, one per line" value={form.boundaries} onChange={(boundaries) => editForm((current) => ({ ...current, boundaries }))} theme={theme} multiline />
-        <FormField label="Note for the reviewer, optional" value={form.applicationNote} onChange={(applicationNote) => editForm((current) => ({ ...current, applicationNote }))} theme={theme} multiline />
-        <ActionButton label={busy === 'application' ? 'Sending for review' : application ? 'Save and send for review' : 'Send profile for review'} onPress={() => void run('application')} intent="self" disabled={busy !== null} />
+        <View style={styles.stepHeading}><View><AppText variant="heading">{application ? 'Edit Companion profile' : 'Create your Companion profile'}</AppText><AppText variant="caption" color={theme.colors.textMuted}>Step {setupStep + 1} of 4</AppText></View></View>
+        <View accessibilityLabel={`Companion setup step ${setupStep + 1} of 4`} style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}><View style={[styles.progressValue, { width: `${(setupStep + 1) * 25}%`, backgroundColor: theme.colors.self }]} /></View>
+        {setupStep === 0 ? <>
+          <AppText variant="caption" color={theme.colors.textMuted}>Describe the everyday help, activity, or company members can expect.</AppText>
+          <ModePicker value={form.mode} onChange={(mode) => editForm((current) => ({ ...current, mode }))} disabled={busy !== null} />
+          <FormField label="How can you help or spend the time?" value={form.intro} onChange={(intro) => editForm((current) => ({ ...current, intro }))} theme={theme} multiline maxLength={500} hint={`${form.intro.length}/500 characters, minimum 40`} />
+          <FormField label={form.mode === 'online' ? 'Timezone or broad region, optional' : 'City'} value={form.city} onChange={(city) => editForm((current) => ({ ...current, city }))} theme={theme} />
+        </> : null}
+        {setupStep === 1 ? <>
+          <AppText variant="caption" color={theme.colors.textMuted}>Choose the everyday Strengths and activities you feel comfortable offering.</AppText>
+          <SelectionGroup label="Strengths" options={friendStrengths} selected={form.strengths} onChange={(strengths) => editForm((current) => ({ ...current, strengths }))} disabled={busy !== null} />
+          <SelectionGroup label="Activities" options={activityCategories} selected={form.categories} onChange={(categories) => editForm((current) => ({ ...current, categories }))} disabled={busy !== null} />
+        </> : null}
+        {setupStep === 2 ? <>
+          <AppText variant="caption" color={theme.colors.textMuted}>Clear boundaries help both people plan a comfortable experience.</AppText>
+          <FormField label="Boundaries, one per line" value={form.boundaries} onChange={(boundaries) => editForm((current) => ({ ...current, boundaries }))} theme={theme} multiline />
+          <FormField label="Note for the reviewer, optional" value={form.applicationNote} onChange={(applicationNote) => editForm((current) => ({ ...current, applicationNote }))} theme={theme} multiline />
+        </> : null}
+        {setupStep === 3 ? <>
+          <AppText variant="caption" color={theme.colors.textMuted}>Set your rate, then review your details before sending them.</AppText>
+          <FormField label="Listed hourly rate in PHP" value={form.hourlyRatePesos} onChange={(hourlyRatePesos) => editForm((current) => ({ ...current, hourlyRatePesos }))} theme={theme} keyboardType="decimal-pad" />
+          <View style={[styles.reviewCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}><AppText variant="bodyStrong">Profile summary</AppText><AppText>{form.mode === 'both' ? 'Online and in-person sessions' : form.mode === 'online' ? 'Online sessions' : 'In-person sessions'}</AppText><AppText variant="caption" color={theme.colors.textMuted}>{form.strengths.length} Strengths · {form.categories.length} activities · {form.boundaries.split('\n').filter(Boolean).length} boundaries</AppText></View>
+        </> : null}
+        <View style={styles.stepActions}>
+          {setupStep === 3
+            ? <ActionButton label={busy === 'application' ? 'Sending for review' : application ? 'Save and send for review' : 'Send profile for review'} onPress={() => void run('application')} intent="self" disabled={busy !== null} icon="send-outline" />
+            : <ActionButton label="Continue" onPress={() => setSetupStep((current) => Math.min(3, current + 1))} intent="self" icon="arrow-forward" disabled={busy !== null || (setupStep === 0 && (form.intro.trim().length < 40 || (form.mode !== 'online' && !form.city.trim()))) || (setupStep === 1 && (!form.strengths.length || !form.categories.length))} />}
+          {setupStep > 0 ? <ActionButton label="Back" onPress={() => setSetupStep((current) => Math.max(0, current - 1))} intent="self" secondary disabled={busy !== null} /> : null}
+        </View>
       </Section>
 
-      {message ? <AppText accessibilityLiveRegion="polite" color={theme.colors.textMuted}>{message}</AppText> : null}
       <ActionButton label="Return to Profile" onPress={() => router.replace('/profile')} intent="self" secondary />
     </Screen>
   )
@@ -283,8 +303,13 @@ const styles = StyleSheet.create({
   input: { minHeight: 52, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12 },
   multiline: { minHeight: 110 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 42, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  chip: { minHeight: 44, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
   nearby: { borderWidth: 1, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
   nearbyCopy: { flex: 1, gap: 4 },
+  stepHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  progressTrack: { height: 4, borderRadius: 2, overflow: 'hidden', marginTop: 10 },
+  progressValue: { height: '100%', borderRadius: 2 },
+  reviewCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 6, marginVertical: 14 },
+  stepActions: { marginTop: 22, gap: 12 },
   pressed: { opacity: 0.72 },
 })

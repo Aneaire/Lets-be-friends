@@ -4,6 +4,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
 import { requireViewer, writeAudit } from './lib'
 import { createNotification } from './notifications'
+import { requireNotBlocked } from './safety'
 
 const MAX_MESSAGE_LENGTH = 2_000
 const MAX_ATTACHMENTS_PER_MESSAGE = 4
@@ -166,7 +167,10 @@ export const messagePage = query({
       ...result,
       page: await Promise.all(result.page.map(async (message) => ({
         ...message,
-        attachments: message.attachments ?? [],
+        attachments: await Promise.all((message.attachments ?? []).map(async (attachment) => ({
+          ...attachment,
+          url: await ctx.storage.getUrl(attachment.storageId),
+        }))),
         booking: message.bookingId ? await bookingSnapshot(ctx, message.bookingId) : null,
         sentByViewer: message.senderId === viewer._id,
       }))),
@@ -181,6 +185,7 @@ export const start = mutation({
     if (viewer._id === args.otherUserId) throw new Error('You cannot message yourself')
     const otherUser = await ctx.db.get(args.otherUserId)
     if (!otherUser || otherUser.suspended) throw new Error('This member is not available for messages')
+    await requireNotBlocked(ctx, viewer._id, args.otherUserId)
 
     const pairKey = directPairKey(viewer._id, args.otherUserId)
 const existing = await ctx.db.query('directConversations').withIndex('by_pair', (q: any) => q.eq('pairKey', pairKey)).unique()
@@ -219,6 +224,7 @@ export const sendMessage = mutation({
       : conversation.participantOneId
     const otherUser = await ctx.db.get(otherUserId)
     if (!otherUser || otherUser.suspended) throw new Error('This member is not available for messages')
+    await requireNotBlocked(ctx, viewer._id, otherUserId)
 
     const body = args.body.trim()
     const attachmentUploadIds = args.attachmentUploadIds ?? []

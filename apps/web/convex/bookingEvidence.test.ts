@@ -42,7 +42,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
       companionProfileId,
       category: 'Coffee or meal companion',
       mode: 'in_person',
-      requestedAt: now + 3_600_000,
+      requestedAt: now - 3_600_001,
       durationMinutes: 60,
       status: 'accepted',
       pricingModel: 'member_wallet_v2',
