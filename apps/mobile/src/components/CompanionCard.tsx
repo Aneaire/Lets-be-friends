@@ -14,10 +14,11 @@ export function CompanionCard({ companion }: { companion: DiscoveryCompanionView
   const isCompanion = companion.kind !== 'member'
   return (
     <Pressable
-      accessibilityRole={isCompanion ? 'button' : undefined}
-      accessibilityLabel={isCompanion ? `View ${companion.name}, Companion in ${companion.location}` : `${companion.name}, member`}
-      disabled={!isCompanion}
-      onPress={isCompanion ? () => router.push({ pathname: '/companion-profile/[id]', params: { id: companion.id } }) : undefined}
+      accessibilityRole="button"
+      accessibilityLabel={isCompanion ? `View ${companion.name}, Companion in ${companion.location}` : `View ${companion.name}, member`}
+      onPress={() => router.push((isCompanion
+        ? { pathname: '/companion-profile/[id]', params: { id: companion.id } }
+        : { pathname: '/member-profile/[id]', params: { id: companion.userId ?? companion.id } }) as never)}
       style={({ pressed }) => [styles.row, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }, pressed && styles.pressed]}>
       <Avatar uri={companion.imageUrl} name={companion.name} size={64} />
       <View style={styles.content}>

@@ -39,9 +39,9 @@ letsbefriends://auth/callback
 
 Google OAuth uses `expo-auth-session` and `expo-web-browser`. A fresh development build must be created and installed after adding these native modules. Restarting Metro or using Fast Refresh is not sufficient for the first run with the new native dependencies.
 
-When `EXPO_PUBLIC_CONVEX_URL` is missing or invalid, Explore and Companion detail continue to use clearly labeled local fixture data. When configured, those screens read approved public companions anonymously from Convex. Backend demo profiles and local fixture profiles remain non-bookable.
+When `EXPO_PUBLIC_CONVEX_URL` is configured, signed-out visitors can use Home, Explore, nearby discovery, public Companion profiles, and privacy-limited public member profiles. Bookings, messages, notifications, wallet, safety settings, profile editing, and Companion tools remain protected. A missing or malformed backend configuration shows product-safe unavailable states and never substitutes fixture data for live members.
 
-When the Clerk key is absent, the profile remains a clearly labeled demo account and does not claim identity approval. Demo Messages retains a labeled fixture and performs no mutations. A malformed public account configuration is shown as a safe setup error.
+When the Clerk key is absent or malformed, public discovery remains read only and account actions show a safe unavailable state. The app does not present a demo account or perform member mutations without an authenticated Clerk and Convex session.
 
 ## Phase 2 booking and messaging foundation
 
@@ -68,7 +68,7 @@ Authenticated booking, finance, companion, evidence, and conversation APIs are s
 - Profile links to Companion application and status tools plus incoming companion bookings.
 - The mobile application uses the existing Companion APIs and shared Strengths and activity categories.
 - Members can submit or update the profile, update the listed hourly rate, and manage nearby discovery visibility.
-- The mobile app does not request or collect GPS. Nearby visibility can be enabled only when the existing Companion profile already has a saved coordinate pair.
+- Companion setup does not request GPS. Nearby visibility can be enabled only when the existing Companion profile already has a saved coordinate pair. The separate Nearby screen requests foreground location only after the visitor chooses a current-area search, rounds the search origin, and also supports a typed travel area.
 - Incoming booking detail shows the live request state and requires an explicit confirmation before accepting or declining.
 
 ### Booking evidence and completion
@@ -77,7 +77,7 @@ Authenticated booking, finance, companion, evidence, and conversation APIs are s
 - Members and Companions can select an existing image from the native photo library and upload it as private booking evidence. Camera capture is not included.
 - Evidence upload accepts backend-supported image types, remains reactive after upload, and explains that access is limited to authorized reviewers for active booking reports and is audited.
 - Skipping evidence requires a strict native warning and sends `warningAcknowledged: true` only after explicit confirmation.
-- Mobile completion is not offered until the backend enforces the scheduled session end using authoritative server time.
+- Mobile completion is offered only after the server-authoritative scheduled end and the required evidence decision. Both participants must confirm before the booking advances.
 
 ### Message attachments
 
@@ -91,6 +91,7 @@ Authenticated booking, finance, companion, evidence, and conversation APIs are s
 - The native app badge separately mirrors the authoritative in-app notification unread count.
 - A ready signed-in member can explicitly enable push notifications from Profile. The app never requests notification permission on startup, sign-in, onboarding, or mount.
 - Native payloads contain only `{ version: 1, notificationId }` and generic lock-screen copy. Taps resolve their destination through the authenticated Convex `notifications.open` mutation.
+- In-app notification destinations preserve booking, conversation, post, and member IDs. Post notifications focus the requested public post, follower notifications open the actor's public member profile, and report updates open the Safety Center.
 - Push preferences are scoped to the Clerk user on this installation. Returning opted-in accounts may silently refresh their Expo token while foregrounded, but switching accounts never opts the later account in automatically.
 - A cache marker separates a current app install from iOS Keychain values that can survive uninstall. A missing marker, including conservative cache eviction, rotates the installation ID, unregisters native notifications, and requires explicit re-opt-in instead of inheriting consent.
 
@@ -138,4 +139,4 @@ No credential creation, EAS build, deployment, or publication is performed by re
 
 ## Explicit exclusions
 
-This implementation does not add native identity capture, camera capture, mobile message attachment uploads, attachment downloads, background uploads, marketing notifications, web push, direct FCM/APNs integration, booking completion, deployment, publishing, credential creation, or EAS cloud builds. Booking completion remains deferred until the server enforces the scheduled session end using authoritative time.
+This implementation does not add native identity capture, camera capture, mobile message attachment uploads, attachment downloads, background uploads, marketing notifications, web push, direct FCM/APNs integration, deployment, publishing, credential creation, or EAS cloud builds. Completion uses the existing server-authoritative schedule and evidence rules; the mobile client does not bypass them.

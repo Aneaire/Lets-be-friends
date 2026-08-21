@@ -2,7 +2,7 @@ import * as Location from 'expo-location'
 import { useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
 import { useMemo, useState } from 'react'
-import { FlatList, StyleSheet, TextInput, View } from 'react-native'
+import { FlatList, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { mobileApi } from '@/backend/client'
@@ -11,6 +11,7 @@ import { ActionButton } from '@/components/ActionButton'
 import { AppHeader } from '@/components/AppHeader'
 import { Chip } from '@/components/Chip'
 import { CompanionCard } from '@/components/CompanionCard'
+import { ProductMap } from '@/components/ProductMap'
 import { StateView } from '@/components/StateView'
 import { AppText } from '@/components/Typography'
 import { mapApprovedCompanion, type ApprovedCompanionRecord, type DiscoveryCompanionViewModel } from '@/data/companionViewModels'
@@ -32,6 +33,10 @@ export default function NearbyScreen() {
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<DiscoveryFilters>(defaultDiscoveryFilters)
   const result = useQuery(mobileApi.companions.listApproved, backend.status === 'configured' && origin ? { ...origin, radiusKm } : 'skip')
+  const companions = useMemo(() => {
+    const source = (result ?? []).map((record: ApprovedCompanionRecord) => mapApprovedCompanion(record))
+    return filterDiscoveryCompanions(source, query, filters)
+  }, [filters, query, result])
 
   async function locate() {
     setLocating(true)
@@ -69,14 +74,19 @@ export default function NearbyScreen() {
     return <NearbyShell><StateView title="Nearby discovery is unavailable" detail="This build cannot connect to nearby discovery." /></NearbyShell>
   }
 
-  const sourceCompanions = (result ?? []).map((record: ApprovedCompanionRecord) => mapApprovedCompanion(record))
-  const companions = useMemo(() => filterDiscoveryCompanions(sourceCompanions, query, filters), [filters, query, sourceCompanions])
+  const mapPoints = companions.flatMap((companion) => (
+    typeof companion.latitude === 'number' && typeof companion.longitude === 'number'
+      ? [{ id: companion.id, latitude: companion.latitude, longitude: companion.longitude, name: companion.name }]
+      : []
+  ))
+  const openCompanion = (id: string) => router.push({ pathname: '/companion-profile/[id]', params: { id } })
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
       <View style={styles.headerWrap}><AppHeader title="Nearby Companions" subtitle="Approximate results only" back onBack={() => goBack()} /></View>
       {!origin ? (
-        <View style={styles.prompt}>
+        <ScrollView contentContainerStyle={styles.prompt} showsVerticalScrollIndicator={false}>
+          <ProductMap />
           <AppText variant="title">Find Companions near you</AppText>
           <AppText color={theme.colors.textMuted}>Your foreground location is sent only for this radius search. Results use approximate Companion locations and distances, not precise meeting locations.</AppText>
           {locationError ? <AppText accessibilityRole="alert" color={theme.colors.danger}>{locationError}</AppText> : null}
@@ -85,7 +95,7 @@ export default function NearbyScreen() {
           <TextInput accessibilityLabel="Travel area" placeholder="City, neighborhood, or landmark" placeholderTextColor={theme.colors.textMuted} value={travelArea} onChangeText={setTravelArea} returnKeyType="search" onSubmitEditing={() => void locateTravelArea()} style={[styles.input, theme.typography.body, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]} />
           <ActionButton label={locating ? 'Searching area' : 'Search travel area'} onPress={() => void locateTravelArea()} secondary disabled={locating || travelArea.trim().length < 2} />
           <ActionButton label="Return to Explore" onPress={() => router.replace('/explore')} secondary />
-        </View>
+        </ScrollView>
       ) : (
         <FlatList
           data={companions}
@@ -94,8 +104,9 @@ export default function NearbyScreen() {
           ItemSeparatorComponent={() => <View style={styles.gap} />}
           contentContainerStyle={styles.list}
           ListHeaderComponent={<View style={styles.listHeader}>
+            <ProductMap center={origin} radiusKm={radiusKm} points={mapPoints} onSelectPoint={openCompanion} />
             <AppText variant="bodyStrong">Around {originLabel}</AppText>
-            <AppText color={theme.colors.textMuted}>This is a list-only view using rounded search and Companion areas. Exact addresses are never shown.</AppText>
+            <AppText color={theme.colors.textMuted}>The map and results use rounded search and Companion areas. Exact addresses are never shown.</AppText>
             <View style={styles.radii}>{radii.map((radius) => <Chip key={radius} label={`${radius} km`} selected={radiusKm === radius} onPress={() => setRadiusKm(radius)} />)}</View>
             <TextInput accessibilityLabel="Search nearby Companions" placeholder="Search names, Strengths, or interests" placeholderTextColor={theme.colors.textMuted} value={query} onChangeText={setQuery} style={[styles.input, theme.typography.body, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]} />
             <View style={styles.radii}>{discoveryModes.map((item) => <Chip key={item.id} label={item.label} selected={filters.mode === item.id} onPress={() => setFilters((current) => ({ ...current, mode: item.id }))} />)}<Chip label="Bookable" selected={filters.bookableOnly} onPress={() => setFilters((current) => ({ ...current, bookableOnly: !current.bookableOnly }))} /></View>
@@ -130,7 +141,7 @@ function roundOrigin(origin: { latitude: number; longitude: number }) { return {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   headerWrap: { paddingHorizontal: 16 },
-  prompt: { flex: 1, justifyContent: 'center', padding: 16, gap: 16 },
+  prompt: { flexGrow: 1, justifyContent: 'center', padding: 16, gap: 16 },
   list: { paddingHorizontal: 16, paddingBottom: 40 },
   listHeader: { gap: 12, paddingVertical: 14 },
   radii: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

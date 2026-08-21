@@ -28,7 +28,7 @@ function MentionBody({ body, mentions, numberOfLines }: { body: string; mentions
   return (
     <AppText numberOfLines={numberOfLines}>
       {segments.map((segment, index) => segment.type === 'mention' ? (
-        <AppText key={index} variant="bodyStrong" color={theme.colors.socialText}>@{segment.username}</AppText>
+        <AppText key={index} accessibilityRole="link" onPress={() => openMemberProfile(segment.userId)} variant="bodyStrong" color={theme.colors.socialText}>@{segment.username}</AppText>
       ) : (
         <AppText key={index}>{segment.text}</AppText>
       ))}
@@ -185,9 +185,11 @@ function PostCard({ item, signedIn, following, followBusy, onToggleFollow, onAct
   return (
     <View style={[styles.card, styles.postCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
       <View style={styles.identity}>
-        <Avatar uri={post.authorProfileImageUrl} name={post.authorDisplayName} size={44} />
+        <Pressable accessibilityRole="button" accessibilityLabel={`View ${post.authorDisplayName}'s profile`} onPress={() => openMemberProfile(String(post.authorId), post.authorCompanionProfileId ? String(post.authorCompanionProfileId) : undefined)} style={({ pressed }) => pressed && styles.pressed}>
+          <Avatar uri={post.authorProfileImageUrl} name={post.authorDisplayName} size={44} />
+        </Pressable>
         <View style={styles.identityCopy}>
-          <View style={styles.authorRow}><AppText variant="bodyStrong">{post.authorDisplayName}</AppText>{signedIn && !post.ownPost ? <Pressable accessibilityRole="button" accessibilityLabel={following ? `Unfollow ${post.authorDisplayName}` : `Follow ${post.authorDisplayName}`} accessibilityState={{ disabled: followBusy }} disabled={followBusy} onPress={() => void follow()} style={styles.smallAction}><AppText variant="caption" color={followBusy ? theme.colors.textMuted : theme.colors.socialText}>{following ? 'Following' : 'Follow'}</AppText></Pressable> : null}</View>
+          <View style={styles.authorRow}><Pressable accessibilityRole="button" accessibilityLabel={`View ${post.authorDisplayName}'s profile`} onPress={() => openMemberProfile(String(post.authorId), post.authorCompanionProfileId ? String(post.authorCompanionProfileId) : undefined)} style={({ pressed }) => [styles.authorLink, pressed && styles.pressed]}><AppText variant="bodyStrong">{post.authorDisplayName}</AppText></Pressable>{signedIn && !post.ownPost ? <Pressable accessibilityRole="button" accessibilityLabel={following ? `Unfollow ${post.authorDisplayName}` : `Follow ${post.authorDisplayName}`} accessibilityState={{ disabled: followBusy }} disabled={followBusy} onPress={() => void follow()} style={styles.smallAction}><AppText variant="caption" color={followBusy ? theme.colors.textMuted : theme.colors.socialText}>{following ? 'Following' : 'Follow'}</AppText></Pressable> : null}</View>
           <AppText variant="caption" color={theme.colors.textMuted}>{formatMessageTimestamp(post.createdAt)}</AppText>
         </View>
         {post.ownPost ? <Pressable accessibilityRole="button" accessibilityLabel="Post options" onPress={openPostOptions} hitSlop={4} style={({ pressed }) => [styles.optionsButton, pressed && styles.pressed]}><AppIcon name="ellipsis-horizontal" color={theme.colors.text} size={21} /></Pressable> : null}
@@ -275,7 +277,7 @@ function CommentsSheet({ visible, postId, signedIn, onClose, onReported }: { vis
               <AppText color={theme.colors.textMuted}>Loading comments.</AppText>
             ) : <AppText color={theme.colors.textMuted}>No comments yet.</AppText>} renderItem={({ item: comment }) => (
               <View style={[styles.comment, { borderBottomColor: theme.colors.border }]}>
-                <AppText variant="bodyStrong">{comment.authorDisplayName}</AppText>
+                <Pressable accessibilityRole="button" accessibilityLabel={`View ${comment.authorDisplayName}'s profile`} onPress={() => openMemberProfile(String(comment.authorId))} style={({ pressed }) => pressed && styles.pressed}><AppText variant="bodyStrong">{comment.authorDisplayName}</AppText></Pressable>
                 <MentionBody body={comment.body} mentions={comment.mentions} />
                 <View style={styles.authorRow}>
                   <AppText variant="caption" color={theme.colors.textMuted}>{formatMessageTimestamp(comment.createdAt)}</AppText>
@@ -331,12 +333,19 @@ function PostAction({ label, icon, active = false, disabled = false, onPress }: 
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={onPress} hitSlop={4} style={({ pressed }) => [styles.postAction, pressed && styles.pressed]}><AppIcon name={icon} color={active ? theme.colors.socialText : disabled ? theme.colors.textMuted : theme.colors.text} size={21} /></Pressable>
 }
 
+function openMemberProfile(userId: string, companionProfileId?: string) {
+  router.push((companionProfileId
+    ? { pathname: '/companion-profile/[id]', params: { id: companionProfileId } }
+    : { pathname: '/member-profile/[id]', params: { id: userId } }) as never)
+}
+
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 },
   postCard: { paddingVertical: 8, gap: 6 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   identityCopy: { flex: 1, gap: 1 },
   authorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  authorLink: { flexShrink: 1 },
   optionsButton: { width: 36, height: 36, marginRight: -6, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
   smallAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 3 },
   image: { width: '100%', aspectRatio: 4 / 3, borderRadius: 10 },

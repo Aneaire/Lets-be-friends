@@ -17,6 +17,8 @@ export type DiscoveryCompanionViewModel = {
   rateLabel?: string
   hourlyRateCentavos?: number
   distanceLabel?: string
+  latitude?: number
+  longitude?: number
   verified: boolean
   bookable: boolean
   viewerBookingEligibility?: ViewerBookingEligibility
@@ -43,6 +45,8 @@ export type ApprovedCompanionRecord = {
   reviewCount?: number
   profileImageUrl?: string
   distanceKm?: number
+  latitude?: number
+  longitude?: number
   hourlyRateCentavos?: number
   bookable?: boolean
   viewerBookingEligibility?: ViewerBookingEligibility
@@ -71,6 +75,8 @@ export function mapApprovedCompanion(companion: ApprovedCompanionRecord): Discov
     rateLabel: formatHourlyRate(companion.hourlyRateCentavos),
     hourlyRateCentavos: companion.hourlyRateCentavos,
     distanceLabel: typeof companion.distanceKm === 'number' ? `${companion.distanceKm.toFixed(1)} km away` : undefined,
+    latitude: companion.latitude,
+    longitude: companion.longitude,
     verified: companion.verified ?? true,
     bookable: companion.bookable === true,
     viewerBookingEligibility: companion.viewerBookingEligibility,

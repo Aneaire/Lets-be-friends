@@ -29,6 +29,8 @@ Admin approve/resolve actions are neutral. Reject/report/suspend actions are dan
 
 ## Verification
 
+Read `docs/testing.md` before changing behavior. Add or update tests for every behavior that is created, edited, or fixed. Run focused tests while working, then run the full gates below. Disclose any behavior that was verified only manually, including installed-device and live-provider checks.
+
 Before handing work back, run:
 
 ```bash

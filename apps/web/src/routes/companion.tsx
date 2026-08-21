@@ -544,10 +544,6 @@ function CompanionBookingRow({
         <EvidenceDecision bookingId={booking._id} />
       )}
 
-      {booking.pricingModel === 'member_wallet_v2' && booking.status === 'accepted' && (
-        <EvidenceDecision bookingId={booking._id} />
-      )}
-
       <div className="worklist-row-actions">
         {canDecide && (
           <>

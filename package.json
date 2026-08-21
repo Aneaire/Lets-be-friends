@@ -11,8 +11,8 @@
     "dev:mobile:tunnel": "pnpm --filter @lets-be-friends/mobile dev:tunnel",
     "dev:all": "pnpm --parallel --filter @lets-be-friends/web --filter @lets-be-friends/admin dev",
     "build": "pnpm --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile build",
-    "test": "pnpm --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile test",
-    "typecheck": "pnpm --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile typecheck",
+    "test": "pnpm --filter @lets-be-friends/shared --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile test",
+    "typecheck": "pnpm --filter @lets-be-friends/shared --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile typecheck",
     "convex:dev": "pnpm --filter @lets-be-friends/web convex:dev",
     "convex:codegen": "pnpm --filter @lets-be-friends/web convex:codegen",
     "seed:pampanga": "pnpm --filter @lets-be-friends/web seed:pampanga"

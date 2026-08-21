@@ -3,6 +3,8 @@ import { Tabs } from 'expo-router'
 import type { ComponentProps } from 'react'
 import { Pressable, StyleSheet, type ColorValue } from 'react-native'
 
+import { useMobileAuth } from '@/auth/MobileAuth'
+import { canAccessMemberRoutes } from '@/auth/routeAccess'
 import { mobileApi } from '@/backend/client'
 import { aggregateUnreadCount } from '@/data/messageViewModels'
 import { useMobileMember } from '@/member/MobileMember'
@@ -15,16 +17,17 @@ function TabIcon({ name, color, size }: { name: AppIconName; color: ColorValue; 
 }
 
 export default function AppTabs() {
+  const auth = useMobileAuth()
   const member = useMobileMember()
-  return member.status === 'ready' ? <ReadyMemberTabs /> : <TabsView />
+  return member.status === 'ready' ? <ReadyMemberTabs /> : <TabsView signedIn={canAccessMemberRoutes(auth.status)} />
 }
 
 function ReadyMemberTabs() {
   const conversations = useQuery(mobileApi.conversations.list, {})
-  return <TabsView unreadCount={conversations ? aggregateUnreadCount(conversations) : 0} />
+  return <TabsView signedIn unreadCount={conversations ? aggregateUnreadCount(conversations) : 0} />
 }
 
-function TabsView({ unreadCount = 0 }: { unreadCount?: number }) {
+function TabsView({ signedIn, unreadCount = 0 }: { signedIn: boolean; unreadCount?: number }) {
   const theme = useAppTheme()
 
   return (
@@ -61,23 +64,25 @@ function TabsView({ unreadCount = 0 }: { unreadCount?: number }) {
           tabBarIcon: ({ color, size, focused }) => <TabIcon name={focused ? 'compass' : 'compass-outline'} color={color} size={size} />,
         }}
       />
-      <Tabs.Screen
-        name="bookings"
-        options={{
-          title: 'Bookings',
-          tabBarAccessibilityLabel: 'Bookings tab',
-          tabBarIcon: ({ color, size, focused }) => <TabIcon name={focused ? 'calendar' : 'calendar-outline'} color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="messages"
-        options={{
-          title: 'Messages',
-          tabBarAccessibilityLabel: unreadCount ? `Messages tab, ${unreadCount} unread` : 'Messages tab',
-          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-          tabBarIcon: ({ color, size, focused }) => <TabIcon name={focused ? 'chatbubbles' : 'chatbubbles-outline'} color={color} size={size} />,
-        }}
-      />
+      <Tabs.Protected guard={signedIn}>
+        <Tabs.Screen
+          name="bookings"
+          options={{
+            title: 'Bookings',
+            tabBarAccessibilityLabel: 'Bookings tab',
+            tabBarIcon: ({ color, size, focused }) => <TabIcon name={focused ? 'calendar' : 'calendar-outline'} color={color} size={size} />,
+          }}
+        />
+        <Tabs.Screen
+          name="messages"
+          options={{
+            title: 'Messages',
+            tabBarAccessibilityLabel: unreadCount ? `Messages tab, ${unreadCount} unread` : 'Messages tab',
+            tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+            tabBarIcon: ({ color, size, focused }) => <TabIcon name={focused ? 'chatbubbles' : 'chatbubbles-outline'} color={color} size={size} />,
+          }}
+        />
+      </Tabs.Protected>
       <Tabs.Screen
         name="profile"
         options={{

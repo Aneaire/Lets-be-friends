@@ -1,4 +1,4 @@
-export type ProductOperation = 'create_booking' | 'edit_booking' | 'cancel_booking' | 'complete_booking' | 'send_message'
+export type ProductOperation = 'create_booking' | 'edit_booking' | 'cancel_booking' | 'complete_booking' | 'send_message' | 'update_safety'
 
 const fallbackCopy: Record<ProductOperation, string> = {
   create_booking: 'Your booking request could not be sent. Please review the details and try again.',
@@ -6,6 +6,7 @@ const fallbackCopy: Record<ProductOperation, string> = {
   cancel_booking: 'This booking could not be cancelled. Refresh the booking and try again.',
   complete_booking: 'Completion could not be confirmed. Please try again later.',
   send_message: 'Your message could not be sent. Please try again.',
+  update_safety: 'Your safety setting could not be updated. Please try again.',
 }
 
 export function safeProductError(operation: ProductOperation, error: unknown) {

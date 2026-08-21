@@ -15,10 +15,10 @@ export function mobileNotificationRoute(destination: MobileNotificationDestinati
       : { pathname: '/booking/[id]' as const, params: { id: destination.bookingId } }
     case 'conversation': return { pathname: '/conversation/[id]' as const, params: { id: destination.conversationId } }
     case 'companion': return { pathname: '/companion' as const }
-    case 'identity':
-    case 'profile': return { pathname: '/profile' as const }
-    case 'post': return { pathname: '/' as const }
-    case 'safety':
+    case 'identity': return { pathname: '/profile' as const }
+    case 'profile': return { pathname: '/member-profile/[id]' as const, params: { id: destination.userId } }
+    case 'post': return { pathname: '/' as const, params: { postId: destination.postId } }
+    case 'safety': return { pathname: '/safety' as const }
     case 'notifications': return { pathname: '/notifications' as const }
   }
 }

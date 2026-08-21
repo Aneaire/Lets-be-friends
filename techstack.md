@@ -2,9 +2,9 @@
 
 ## Summary
 
-Let's Be Friends will start as a web application and later expand to mobile. The first build should use a pnpm monorepo so the future React Native app can share types, validation schemas, category constants, and search scoring helpers with the web app.
+Let's Be Friends is a pnpm monorepo with active web, admin, and Expo mobile applications. The applications share domain types, validation schemas, category constants, booking rules, map privacy helpers, and feed ranking helpers.
 
-The first web version focuses on trust, search, booking workflow, admin review, chat, ratings, experience posts, and the approved member-wallet booking flow. PayMongo QR Ph is used for provider-verified wallet top-ups; Companion payouts remain disabled until a provider is activated.
+The product covers trust, discovery, booking workflow, admin review, chat, ratings, experience posts, safety reports, notifications, and the approved member-wallet booking flow. PayMongo QR Ph is used for provider-verified wallet top-ups. Companion payouts remain disabled until a provider is selected and activated.
 
 ## Project Structure
 
@@ -15,8 +15,10 @@ lets-be-friends/
   apps/
     web/
       # TanStack Start web app
+    admin/
+      # TanStack Start admin app
     mobile/
-      # Future React Native app, not implemented in MVP
+      # Expo Router and React Native mobile app
   packages/
     shared/
       # Shared types, Zod schemas, category constants, permissions, scoring helpers
@@ -26,7 +28,7 @@ lets-be-friends/
   pnpm-workspace.yaml
 ```
 
-MVP implementation should only build `apps/web`. Keep `apps/mobile` as a documented future target unless there is a reason to scaffold it later.
+The root `typecheck`, `test`, and `build` scripts verify the web, admin, and mobile applications. The shared package exports TypeScript source directly and has no standalone build script. Product changes should keep the web and mobile clients aligned where the same capability is released on both surfaces.
 
 ## Package Manager
 
@@ -37,7 +39,7 @@ Reasons:
 - Works well with monorepos.
 - Fast installs.
 - Good workspace support.
-- Keeps web, future mobile, and shared packages organized.
+- Keeps web, mobile, and shared packages organized.
 
 ## Local Development
 
@@ -67,7 +69,6 @@ Primary responsibilities:
 - Booking flow.
 - Chat UI.
 - Experience feed.
-- Admin dashboard.
 
 Recommended libraries:
 
@@ -80,19 +81,15 @@ Recommended libraries:
 
 TanStack Start is a good fit because it is a full-stack React framework with routing, server functions, SSR support, and strong TypeScript patterns.
 
+## Admin Application
+
+Use the separate **TanStack Start** application in `apps/admin` for operational dashboards, review queues, moderation, settings, and audit access. Root verification includes this application.
+
 ## Mobile Application
 
-Use **React Native** later, after the web MVP is validated.
+Use **Expo SDK 57**, **React Native**, and **Expo Router** for the mobile app. Native development uses the Expo development client, while production-like repository verification creates a static web export.
 
-Decision to make later:
-
-- Expo vs bare React Native.
-
-Recommended default when mobile starts:
-
-- Expo unless there is a native-module requirement that forces bare React Native.
-
-Mobile should reuse:
+Mobile reuses:
 
 - Shared domain types.
 - Zod schemas.
@@ -235,10 +232,7 @@ Privacy model:
 - Show approximate pins or clusters.
 - Unlock exact meeting details only after booking acceptance.
 
-Future mobile note:
-
-- mapcn has a React Native direction through MapLibre/Mapbox-compatible components.
-- Re-evaluate mobile map SDK choice during mobile planning.
+Mobile uses MapLibre-compatible native components behind platform-specific product map adapters. Public results expose rounded search and Companion areas, never exact meeting coordinates.
 
 ## Search And Matching
 
@@ -351,7 +345,7 @@ Notification events:
 - New review.
 - Report status update when appropriate.
 
-Push notifications should wait until mobile or a later web push phase.
+Mobile push uses Expo Notifications in installed development or release builds. Permission is requested only after a ready member explicitly opts in. Payloads contain a notification ID and resolve the authorized destination through Convex. Web push and direct FCM or APNs integration are not released.
 
 ## Member Wallet, Booking Settlement, And Legacy Companion Fees
 
@@ -753,17 +747,13 @@ Convex deploys separately through Convex.
 
 - Payouts and tax handling.
 - Refund and cancellation policies.
-- Push notifications.
 - Advanced moderation provider.
 - Dedicated search service.
-- Expo vs bare React Native.
-- Mobile map provider.
 - Analytics provider.
 - Error monitoring provider.
 
 Recommended likely additions:
 
-- PayMongo QR Ph for the first Philippines payment method.
 - Stripe only if the product later needs broader international card coverage.
 - Sentry for error monitoring.
 - PostHog or similar for product analytics.

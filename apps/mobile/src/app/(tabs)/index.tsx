@@ -1,6 +1,6 @@
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
-import { router, type ErrorBoundaryProps } from 'expo-router'
+import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, Image, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
@@ -41,11 +41,14 @@ function ConnectedHome() {
   const theme = useAppTheme()
   const auth = useMobileAuth()
   const member = useMobileMember()
+  const params = useLocalSearchParams<{ postId?: string }>()
+  const requestedPostId = typeof params.postId === 'string' ? params.postId : ''
   const [filter, setFilter] = useState<FeedFilter>('for_you')
   const signedIn = member.status === 'ready'
   const canQuery = filter === 'for_you' || signedIn
   const feedPage = usePaginatedQuery(generatedApi.social.feedPage, canQuery ? { filter } : 'skip', { initialNumItems: 20 })
   const feedItems = useMemo(() => dedupeFeedItems(feedPage.results), [feedPage.results])
+  const requestedPost = useQuery(mobileApi.social.requestedPost, requestedPostId ? { postId: requestedPostId } : 'skip')
   const unread = useQuery(mobileApi.notifications.unreadCount, signedIn ? {} : 'skip') ?? 0
   const mediaUsage = useQuery(mobileApi.social.mediaUploadUsage, signedIn ? {} : 'skip')
   const recordImpressions = useMutation(mobileApi.social.recordFeedImpressions)
@@ -206,7 +209,18 @@ function ConnectedHome() {
   const accountName = signedIn ? member.viewer.displayName : auth.status === 'signed_in' ? auth.displayName : undefined
   const accountImage = signedIn ? member.viewer.profileImageUrl : auth.status === 'signed_in' ? auth.imageUrl : undefined
 
-  const visibleFeedItems = canQuery ? feedItems : []
+  const visibleFeedItems = useMemo(() => {
+    if (!canQuery) return []
+    if (!requestedPost || !requestedPostId) return feedItems
+    const focusedItem = {
+      kind: 'post' as const,
+      itemKey: `post:${requestedPost._id}`,
+      source: 'recent' as const,
+      reason: 'Opened from notification',
+      post: requestedPost,
+    } as FeedItem
+    return dedupeFeedItems([focusedItem, ...feedItems])
+  }, [canQuery, feedItems, requestedPost, requestedPostId])
 
   return (
     <Screen scroll={false} contentStyle={styles.listScreen}>

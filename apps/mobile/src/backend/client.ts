@@ -13,6 +13,7 @@ export const mobileApi = {
   },
   users: {
     viewer: generatedApi.users.viewer,
+    publicProfile: generatedApi.users.publicProfile,
     ensureViewer: generatedApi.users.ensureViewer,
     usernameAvailability: generatedApi.users.usernameAvailability,
     claimUsername: generatedApi.users.claimUsername,
@@ -60,6 +61,7 @@ export const mobileApi = {
   },
   social: {
     feed: generatedApi.social.feed,
+    requestedPost: generatedApi.social.requestedPost,
     byUser: generatedApi.social.byUser,
     commentsForPost: generatedApi.social.commentsForPost,
     commentPage: generatedApi.social.commentPage,

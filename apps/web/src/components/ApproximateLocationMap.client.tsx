@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Star } from 'lucide-react'
+import { productMapInitialView, productMapStyleUrl, productMapZoomForRadius } from '@lets-be-friends/shared'
 import { clampCoordinates, type Coordinates } from '../lib/geo'
 import { Map, MapMarker, MapRadius, useMap } from './ui/map.client'
 import type { MapPerson } from './ApproximateLocationMap'
@@ -9,27 +10,18 @@ type ThemeChoice = 'light' | 'dark'
 type MapTone = 'self' | 'social'
 
 const mapStyles: Record<ThemeChoice, string> = {
-  light: 'https://tiles.openfreemap.org/styles/liberty',
-  dark: 'https://tiles.openfreemap.org/styles/liberty',
+  light: productMapStyleUrl,
+  dark: productMapStyleUrl,
 }
 
 const philippinesInitialView = {
-  center: [121.774, 12.8797] as [longitude: number, latitude: number],
-  zoom: 5.2,
+  center: [...productMapInitialView.center] as [longitude: number, latitude: number],
+  zoom: productMapInitialView.zoom,
 }
 
 function currentTheme(): ThemeChoice {
   if (typeof document === 'undefined') return 'light'
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
-}
-
-function zoomForRadius(radiusKm?: number) {
-  if (!radiusKm) return 11.5
-  if (radiusKm <= 5) return 9.5
-  if (radiusKm <= 10) return 8.5
-  if (radiusKm <= 25) return 7.3
-  if (radiusKm <= 50) return 6.3
-  return 5.3
 }
 
 export default function ApproximateLocationMapClient({
@@ -88,7 +80,7 @@ export default function ApproximateLocationMapClient({
   return (
     <Map
       center={center}
-      zoom={location ? zoomForRadius(radiusKm) : philippinesInitialView.zoom}
+      zoom={location ? productMapZoomForRadius(radiusKm) : philippinesInitialView.zoom}
       styleUrl={mapStyles[theme]}
       interactive={interactive}
       ariaLabel={pinnable

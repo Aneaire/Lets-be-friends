@@ -43,14 +43,15 @@ function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
     <>
       <AccountRouteCoordinator />
       <Stack screenOptions={{ headerShown: false, animation: reduceMotion ? 'none' : 'slide_from_right' }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="companion-profile/[id]" />
+        <Stack.Screen name="member-profile/[id]" />
+        <Stack.Screen name="nearby" />
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="auth" />
         </Stack.Protected>
         <Stack.Protected guard={signedIn}>
-          <Stack.Screen name="(tabs)" />
           <Stack.Screen name="onboarding" />
-          <Stack.Screen name="companion-profile/[id]" />
-          <Stack.Screen name="nearby" />
           <Stack.Screen name="profile-edit" />
           <Stack.Screen name="companion-finance" />
           <Stack.Screen name="booking/new" />
