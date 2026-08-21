@@ -167,8 +167,15 @@ export const editRequest = mutation({
     if (!booking) throw new Error('Booking not found')
     if (booking.memberId !== viewer._id) throw new Error('Only the member who requested the booking can edit it')
     if (booking.status !== 'request_sent') throw new Error('A request can only be edited while it is still awaiting the Companion decision')
+    if (!hasCurrentIdentityApproval(viewer)) {
+      throw new Error('A current identity check and safety review are required before you can update a booking request.')
+    }
     const companion = await ctx.db.get(booking.companionProfileId)
     if (!companion || companion.status !== 'approved') throw new Error('Companion is not available for booking')
+    const companionUser = await ctx.db.get(companion.userId)
+    if (!companionUser || companionUser.suspended || !hasCurrentIdentityApproval(companionUser)) {
+      throw new Error('The Companion is not currently available for this booking request')
+    }
     if (!companion.categories.includes(args.category)) throw new Error('This experience category is not offered by the Companion')
     if (companion.mode !== 'both' && companion.mode !== args.mode) throw new Error('This booking mode is not offered by the Companion')
     if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new Error('Booking time must be in the future')
@@ -321,16 +328,6 @@ export const cancel = mutation({
       cancellationReason: reason,
       updatedAt: now,
     })
-    if (booking.status === 'verification_required' && booking.verificationRequestId) {
-      const verification = await ctx.db.get(booking.verificationRequestId)
-      if (verification?.adminStatus === 'pending') {
-        await ctx.db.patch(booking.verificationRequestId, {
-          adminStatus: 'rejected',
-          reviewerNote: 'Booking was cancelled before verification completed.',
-          updatedAt: now,
-        })
-      }
-    }
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'booking.cancelled', targetType: 'booking', targetId: String(args.bookingId), note: reason })
     const otherUserId = booking.memberId === viewer._id ? companion?.userId : booking.memberId
     if (otherUserId) {

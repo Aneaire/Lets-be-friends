@@ -34,15 +34,15 @@ export default function ExploreScreen() {
 }
 
 function ConnectedExploreScreen() {
-  const result = useQuery(mobileApi.companions.listApproved, {})
-  if (result === undefined) return <ExploreState title="Loading Companions" detail="Connecting to the approved Companion directory." loading />
+  const result = useQuery(mobileApi.companions.listExploreDirectory, {})
+  if (result === undefined) return <ExploreState title="Loading members" detail="Connecting to the member directory." loading />
   return <DiscoveryList sourceCompanions={(result as ApprovedCompanionRecord[]).map(mapApprovedCompanion)} />
 }
 
 function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<typeof mapApprovedCompanion>[] }) {
   const theme = useAppTheme()
   const [query, setQuery] = useState('')
-  const [filters, setFilters] = useState<DiscoveryFilters>(defaultDiscoveryFilters)
+  const [filters, setFilters] = useState<DiscoveryFilters>(() => includeUnavailableCompanions(defaultDiscoveryFilters))
   const [filterSheet, setFilterSheet] = useState(false)
   const companions = useMemo(() => filterDiscoveryCompanions(sourceCompanions, query, filters), [filters, query, sourceCompanions])
   const unavailableMatches = useMemo(() => filterDiscoveryCompanions(sourceCompanions, query, includeUnavailableCompanions(filters)), [filters, query, sourceCompanions])
@@ -51,7 +51,7 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
 
   function clearFilters() {
     setQuery('')
-    setFilters(defaultDiscoveryFilters)
+    setFilters(includeUnavailableCompanions(defaultDiscoveryFilters))
   }
 
   return (
@@ -68,15 +68,15 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
           <View style={styles.header}>
             <View style={styles.titleRow}>
               <View style={styles.titleCopy}>
-                <AppText variant="title">Find a Companion</AppText>
-                <AppText color={theme.colors.textMuted}>Find everyday help and good company by Strength, category, and session format.</AppText>
+                <AppText variant="title">Explore people</AppText>
+                <AppText color={theme.colors.textMuted}>Meet members and find Companions by Strength, category, and session format.</AppText>
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="Open nearby discovery" onPress={() => router.push('/nearby' as never)} style={styles.nearbyButton}>
                 <AppText variant="label" color={theme.colors.socialText}>NEARBY</AppText>
               </Pressable>
             </View>
             <TextInput
-              accessibilityLabel="Search Companions"
+              accessibilityLabel="Search people"
               placeholder="Search names, Strengths, or interests"
               placeholderTextColor={theme.colors.textMuted}
               value={query}
@@ -99,8 +99,8 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
         ListEmptyComponent={
           <StateView
             embedded
-            title={liveCount === 0 ? 'No approved Companions yet' : 'No matches for these filters'}
-            detail={liveCount === 0 ? 'No approved Companion profiles are available yet. Check back soon.' : canIncludeUnavailable ? 'Some matching Companions are not accepting booking requests right now.' : 'Try another category, Strength, or session format.'}
+            title={liveCount === 0 ? 'No members yet' : 'No matches for these filters'}
+            detail={liveCount === 0 ? 'No member profiles are available yet. Check back soon.' : canIncludeUnavailable ? 'Some matching Companions are not accepting booking requests right now.' : 'Try another category, Strength, or session format.'}
             actionLabel={liveCount === 0 ? undefined : canIncludeUnavailable ? 'Include unavailable Companions' : 'Clear filters'}
             onAction={liveCount === 0 ? undefined : canIncludeUnavailable ? () => setFilters((current) => includeUnavailableCompanions(current)) : clearFilters}
           />
@@ -125,7 +125,7 @@ function FilterSheet({ visible, filters, onChange, onClose }: { visible: boolean
           <AppText variant="bodyStrong">Strength</AppText>
           <FlatList horizontal data={discoveryStrengths} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalChips} renderItem={({ item }) => <Chip label={item} selected={filters.strength === item} onPress={() => onChange({ ...filters, strength: filters.strength === item ? undefined : item })} />} />
           <ActionButton label="Show results" onPress={onClose} />
-          <ActionButton label="Reset filters" onPress={() => onChange(defaultDiscoveryFilters)} secondary />
+          <ActionButton label="Reset filters" onPress={() => onChange(includeUnavailableCompanions(defaultDiscoveryFilters))} secondary />
         </View>
       </View>
     </Modal>

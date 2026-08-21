@@ -50,12 +50,24 @@ export function resolveMobileWebAppConfiguration(
   }
 }
 
+export type MobileWebHandoffIntent = 'member' | 'companion_application'
+export type MobileWebHandoffReturn = 'profile' | 'companion'
+
+// Only the two fixed handoff pairs are accepted: member returns to the member
+// profile and companion_application returns to Companion tools.
+export type MobileWebHandoff =
+  | { intent: 'member'; mobileReturn: 'profile' }
+  | { intent: 'companion_application'; mobileReturn: 'companion' }
+
 export function buildMobileWebHandoffUrl(
   configuration: MobileWebAppConfiguration,
-) {
+  options: MobileWebHandoff = { intent: 'member', mobileReturn: 'profile' },
+): string | undefined {
   if (configuration.status !== 'configured') return undefined
   const url = new URL(configuration.url)
   url.pathname = `${url.pathname.replace(/\/$/, '')}/verify-identity`
+  url.searchParams.set('intent', options.intent)
+  url.searchParams.set('mobileReturn', options.mobileReturn)
   return url.toString()
 }
 

@@ -67,7 +67,7 @@ function ReadyCompanionScreen() {
   if (application === undefined) return <CompanionState title="Loading your Companion profile" />
 
   const status = application ? companionApplicationStatusCopy[application.status as CompanionApplicationStatus] : null
-  const verificationUrl = buildMobileWebHandoffUrl(resolveMobileWebAppConfiguration())
+  const verificationUrl = buildMobileWebHandoffUrl(resolveMobileWebAppConfiguration(), { intent: 'companion_application', mobileReturn: 'companion' })
 
   async function run(action: 'application' | 'rate' | 'verification') {
     if (busyRef.current) return

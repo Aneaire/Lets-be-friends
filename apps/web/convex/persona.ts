@@ -1,6 +1,5 @@
 import { v } from 'convex/values'
 import { action, internalMutation } from './_generated/server'
-import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { hasCurrentIdentityApproval, isPersonaTerminal, isRealPersonaInquiryId, personaEventTransition, personaLifecycleRank } from './identityVerification'
 import { syncUserCompanionLocation } from './companionLocations'
@@ -28,81 +27,9 @@ export const startInquiry = action({
     | { mode: 'awaiting_admin'; requestId: Id<'verificationRequests'> }
     | { mode: 'launch'; requestId: Id<'verificationRequests'>; inquiryId: string; sessionToken: string; environmentId: string }
   > => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error('Authentication required')
-
-    const prepared = await ctx.runMutation(internal.persona.prepareInquiry, {
-      clerkUserId: identity.subject,
-      intent: args.intent,
-    })
-
-    if (prepared.mode === 'approved') return { mode: 'approved' }
-    if (prepared.mode === 'awaiting_admin') {
-      return { mode: 'awaiting_admin', requestId: prepared.requestId }
-    }
-
-    try {
-      const config = personaConfig()
-      if (prepared.personaInquiryId) {
-        const resumed = await personaRequest(`/inquiries/${encodeURIComponent(prepared.personaInquiryId)}/resume`, {
-          method: 'POST',
-        })
-        const sessionToken = resumed.meta?.['session-token']
-        if (!sessionToken) throw new Error('Persona did not return an inquiry session token')
-        return {
-          mode: 'launch',
-          requestId: prepared.requestId,
-          inquiryId: prepared.personaInquiryId,
-          sessionToken,
-          environmentId: config.environmentId,
-        }
-      }
-
-      const created = await personaRequest('/inquiries', {
-        method: 'POST',
-        idempotencyKey: `create:${prepared.requestId}`,
-        body: {
-          data: {
-            attributes: {
-              'inquiry-template-id': config.templateId,
-            },
-          },
-          meta: {
-            'auto-create-account': true,
-            'auto-create-account-reference-id': `user:${prepared.userId}`,
-            'auto-create-inquiry-session': true,
-          },
-        },
-      })
-      const inquiryId = created.data?.id
-      const sessionToken = created.meta?.['session-token']
-      if (!isRealPersonaInquiryId(inquiryId) || !sessionToken) {
-        throw new Error('Persona did not return a valid inquiry and session token')
-      }
-
-      const confirmedInquiryId = inquiryId as string
-      await ctx.runMutation(internal.persona.attachInquiry, {
-        requestId: prepared.requestId,
-        inquiryId: confirmedInquiryId,
-        accountId: created.data?.relationships?.account?.data?.id,
-        templateId: config.templateId,
-        environmentId: config.environmentId,
-      })
-
-      return {
-        mode: 'launch',
-        requestId: prepared.requestId,
-        inquiryId: confirmedInquiryId,
-        sessionToken,
-        environmentId: config.environmentId,
-      }
-    } catch (error) {
-      await ctx.runMutation(internal.persona.recordStartFailure, {
-        requestId: prepared.requestId,
-        failureCode: personaFailureCode(error),
-      })
-      throw new Error('Identity verification could not be started. Please try again shortly.')
-    }
+    void ctx
+    void args
+    throw new Error('Persona identity verification is no longer available. Use the in-app identity check instead.')
   },
 })
 

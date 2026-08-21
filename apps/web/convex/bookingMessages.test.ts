@@ -225,4 +225,81 @@ describe('booking requests framed in direct messages', () => {
     expect(bookingMessages).toHaveLength(2)
     expect(bookingMessages[1].booking?.status).toBe('cancelled')
   })
+
+  it('rechecks member and Companion identity before any booking edit write', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const created = await createRequest(t, ids.companionProfileId)
+    const now = Date.now()
+    const member = t.withIdentity({ subject: 'req-member' })
+
+    await t.run(async (ctx) => ctx.db.patch(ids.memberId, { identityExpiresAt: now - 1, updatedAt: now }))
+    await expect(member.mutation(api.bookings.editRequest, {
+      bookingId: created.bookingId,
+      category: 'Coffee or meal companion',
+      mode: 'online',
+      requestedAt: now + 86_400_000,
+      durationMinutes: 60,
+    })).rejects.toThrow(/current identity check and safety review/)
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.memberId, { identityExpiresAt: now + 86_400_000, updatedAt: now })
+      await ctx.db.patch(ids.companionUserId, { identityExpiresAt: now - 1, updatedAt: now })
+    })
+    await expect(member.mutation(api.bookings.editRequest, {
+      bookingId: created.bookingId,
+      category: 'Coffee or meal companion',
+      mode: 'online',
+      requestedAt: now + 86_400_000,
+      durationMinutes: 60,
+    })).rejects.toThrow(/Companion is not currently available/)
+
+    await t.run(async (ctx) => {
+      const booking = await ctx.db.get(created.bookingId)
+      expect(booking?.mode).toBe('in_person')
+      expect(booking?.category).toBe('Coffee or meal companion')
+      const pairKey = [String(ids.memberId), String(ids.companionUserId)].sort().join(':')
+      const conversation = await ctx.db.query('directConversations').withIndex('by_pair', (q) => q.eq('pairKey', pairKey)).first()
+      const directMessages = await ctx.db.query('directMessages').withIndex('by_conversation_created_at', (q) => q.eq('conversationId', conversation!._id)).collect()
+      expect(directMessages.filter((message) => message.bookingId === created.bookingId)).toHaveLength(1)
+      const audits = await ctx.db.query('auditLogs').withIndex('by_created_at').order('desc').take(5)
+      expect(audits.some((audit) => audit.action === 'booking.request_updated')).toBe(false)
+    })
+  })
+
+  it('does not mutate linked verification history when a booking is cancelled', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const now = Date.now()
+    const requestId = await t.run(async (ctx) => ctx.db.insert('verificationRequests', {
+      userId: ids.memberId,
+      reason: 'booking',
+      personaStatus: 'not_started',
+      personaDecision: 'unknown',
+      verificationSource: 'in_app',
+      adminStatus: 'pending',
+      isCurrent: true,
+      attempt: 1,
+      createdAt: now,
+      updatedAt: now,
+    }))
+    const bookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
+      memberId: ids.memberId,
+      companionProfileId: ids.companionProfileId,
+      category: 'Coffee or meal companion',
+      mode: 'in_person',
+      requestedAt: now + 86_400_000,
+      durationMinutes: 60,
+      status: 'verification_required',
+      verificationRequestId: requestId,
+      createdAt: now,
+      updatedAt: now,
+    }))
+    await t.withIdentity({ subject: 'req-member' }).mutation(api.bookings.cancel, { bookingId, reason: 'No longer needed.' })
+    const request = await t.run(async (ctx) => ctx.db.get(requestId))
+    expect(request?.adminStatus).toBe('pending')
+    expect(request?.reviewerNote).toBeUndefined()
+    const booking = await t.run(async (ctx) => ctx.db.get(bookingId))
+    expect(booking?.status).toBe('cancelled')
+  })
 })

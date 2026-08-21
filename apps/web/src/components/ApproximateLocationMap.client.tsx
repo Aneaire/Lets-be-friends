@@ -9,8 +9,8 @@ type ThemeChoice = 'light' | 'dark'
 type MapTone = 'self' | 'social'
 
 const mapStyles: Record<ThemeChoice, string> = {
-  light: 'https://tiles.openfreemap.org/styles/positron',
-  dark: 'https://tiles.openfreemap.org/styles/dark',
+  light: 'https://tiles.openfreemap.org/styles/liberty',
+  dark: 'https://tiles.openfreemap.org/styles/liberty',
 }
 
 const philippinesInitialView = {

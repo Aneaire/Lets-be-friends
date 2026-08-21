@@ -330,3 +330,111 @@ describe('post media cleanup', () => {
     expect(await t.run(async (ctx) => ctx.storage.getUrl(claimedStorageId))).toBeTruthy()
   })
 })
+
+describe('post and comment mentions', () => {
+  async function mentionWorld(t: ReturnType<typeof convexTest>) {
+    const now = Date.now()
+    return await t.run(async (ctx) => {
+      const insertUser = async (clerkUserId: string, username: string, options: { suspended?: boolean } = {}) => {
+        const id = await ctx.db.insert('users', { clerkUserId, displayName: clerkUserId, username, role: 'member', verificationStatus: 'not_started', suspended: options.suspended ?? false, createdAt: now, updatedAt: now })
+        return id
+      }
+      const authorId = await insertUser('author', 'author_name')
+      const mayaId = await insertUser('maya', 'maya_friend')
+      const jayId = await insertUser('jay', 'jay')
+      const ghostId = await insertUser('ghost', 'ghost_user', { suspended: true })
+      const blockedId = await insertUser('blocked', 'blocked_user')
+      await ctx.db.insert('memberSafetyPreferences', { ownerUserId: authorId, targetUserId: blockedId, pairKey: `${authorId}:${blockedId}`, blockedAt: now, createdAt: now, updatedAt: now })
+      return { authorId, mayaId, jayId, ghostId, blockedId }
+    })
+  }
+
+  it('stores canonical usernames and excludes self, suspended, blocked, and duplicates', async () => {
+    const t = createTest()
+    const world = await mentionWorld(t)
+    const author = t.withIdentity({ subject: 'author' })
+    const postId = await author.mutation(api.social.createPost, {
+      body: `Hello @maya_friend @jay @ghost_user @blocked_user @author_name @maya_friend again`,
+    })
+    const post = await t.run(async (ctx) => ctx.db.get(postId))
+    expect(post?.mentions).toEqual([
+      { userId: String(world.mayaId), username: 'maya_friend' },
+      { userId: String(world.jayId), username: 'jay' },
+    ])
+  })
+
+  it('stores mentions on comments and routes a mention notification to the post', async () => {
+    const t = createTest()
+    const world = await mentionWorld(t)
+    const author = t.withIdentity({ subject: 'author' })
+    const postId = await author.mutation(api.social.createPost, { body: 'Base post' })
+    const commentId = await author.mutation(api.social.createComment, { postId, body: 'Tag @maya_friend and @jay' })
+    const comment = await t.run(async (ctx) => ctx.db.get(commentId))
+    expect(comment?.mentions).toEqual([
+      { userId: String(world.mayaId), username: 'maya_friend' },
+      { userId: String(world.jayId), username: 'jay' },
+    ])
+    const maya = t.withIdentity({ subject: 'maya' })
+    const mayaNotifications = await maya.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    const mention = mayaNotifications.page.find((row) => row.kind === 'mention')
+    expect(mention).toBeTruthy()
+    expect(mention?.actor).toMatchObject({ userId: String(world.authorId), displayName: 'author' })
+    expect(mention?.destination).toEqual({ type: 'post', postId: String(postId) })
+    expect(mention?.title).toBe('You were mentioned')
+    expect(mention?.body).toBe('author mentioned you in a comment.')
+  })
+
+  it('creates one deduplicated notification per mentioned member for a post', async () => {
+    const t = createTest()
+    const world = await mentionWorld(t)
+    const author = t.withIdentity({ subject: 'author' })
+    await author.mutation(api.social.createPost, { body: 'Tag @maya_friend and @maya_friend and @jay' })
+    const maya = t.withIdentity({ subject: 'maya' })
+    const jay = t.withIdentity({ subject: 'jay' })
+    const mayaMentions = (await maya.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })).page.filter((row) => row.kind === 'mention')
+    const jayMentions = (await jay.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })).page.filter((row) => row.kind === 'mention')
+    expect(mayaMentions).toHaveLength(1)
+    expect(jayMentions).toHaveLength(1)
+    expect(mayaMentions[0].body).toBe('author mentioned you in a post.')
+  })
+
+  it('rejects posts that tag more than the allowed number of eligible members', async () => {
+    const t = createTest()
+    const now = Date.now()
+    const ids = await t.run(async (ctx) => {
+      const authorId = await ctx.db.insert('users', { clerkUserId: 'author', displayName: 'author', role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now, updatedAt: now })
+      const tagged: Array<{ clerkUserId: string; username: string }> = []
+      for (let index = 0; index < 11; index += 1) {
+        const id = await ctx.db.insert('users', { clerkUserId: `user-${index}`, displayName: `User ${index}`, username: `user_${index}`, role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now, updatedAt: now })
+        tagged.push({ clerkUserId: `user-${index}`, username: `user_${index}` })
+      }
+      return { authorId, tagged }
+    })
+    void ids
+    const author = t.withIdentity({ subject: 'author' })
+    const body = Array.from({ length: 11 }, (_, index) => `@user_${index}`).join(' ')
+    await expect(author.mutation(api.social.createPost, { body })).rejects.toThrow('up to 10 people')
+  })
+
+  it('keeps nonexistent tokens as plain text and excludes them from stored mentions', async () => {
+    const t = createTest()
+    await mentionWorld(t)
+    const author = t.withIdentity({ subject: 'author' })
+    const postId = await author.mutation(api.social.createPost, { body: 'Hi @nobody and @maya_friend' })
+    const post = await t.run(async (ctx) => ctx.db.get(postId))
+    expect(post?.mentions).toEqual([{ userId: expect.any(String), username: 'maya_friend' }])
+  })
+
+  it('lookup matches by username or display name and excludes self, suspended, and hidden users', async () => {
+    const t = createTest()
+    const world = await mentionWorld(t)
+    const author = t.withIdentity({ subject: 'author' })
+    const byUsername = await author.query(api.social.mentionLookup, { query: 'maya' })
+    expect(byUsername.map((row) => row.username)).toContain('maya_friend')
+    expect(byUsername.map((row) => row.userId)).not.toContain(String(world.authorId))
+    expect(byUsername.map((row) => row.userId)).not.toContain(String(world.ghostId))
+    expect(byUsername.map((row) => row.userId)).not.toContain(String(world.blockedId))
+    const byDisplay = await author.query(api.social.mentionLookup, { query: 'jay' })
+    expect(byDisplay.map((row) => row.username)).toContain('jay')
+  })
+})

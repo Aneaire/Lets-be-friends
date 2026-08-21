@@ -15,6 +15,7 @@ import { Route as BecomeCompanionRouteImport } from './routes/become-companion'
 import { Route as CompanionRouteImport } from './routes/companion'
 import { Route as CompanionProfileRouteImport } from './routes/companion-profile'
 import { Route as DiscoverRouteImport } from './routes/discover'
+import { Route as MemberProfileRouteImport } from './routes/member-profile'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as NearbyRouteImport } from './routes/nearby'
 import { Route as NotificationsRouteImport } from './routes/notifications'
@@ -53,6 +54,11 @@ const CompanionProfileRoute = CompanionProfileRouteImport.update({
 const DiscoverRoute = DiscoverRouteImport.update({
   id: '/discover',
   path: '/discover',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MemberProfileRoute = MemberProfileRouteImport.update({
+  id: '/member-profile',
+  path: '/member-profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
+  '/member-profile': typeof MemberProfileRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
   '/notifications': typeof NotificationsRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
+  '/member-profile': typeof MemberProfileRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
   '/notifications': typeof NotificationsRoute
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
+  '/member-profile': typeof MemberProfileRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
   '/notifications': typeof NotificationsRoute
@@ -162,6 +171,7 @@ export interface FileRouteTypes {
     | '/companion'
     | '/companion-profile'
     | '/discover'
+    | '/member-profile'
     | '/messages'
     | '/nearby'
     | '/notifications'
@@ -179,6 +189,7 @@ export interface FileRouteTypes {
     | '/companion'
     | '/companion-profile'
     | '/discover'
+    | '/member-profile'
     | '/messages'
     | '/nearby'
     | '/notifications'
@@ -196,6 +207,7 @@ export interface FileRouteTypes {
     | '/companion'
     | '/companion-profile'
     | '/discover'
+    | '/member-profile'
     | '/messages'
     | '/nearby'
     | '/notifications'
@@ -214,6 +226,7 @@ export interface RootRouteChildren {
   CompanionRoute: typeof CompanionRoute
   CompanionProfileRoute: typeof CompanionProfileRoute
   DiscoverRoute: typeof DiscoverRoute
+  MemberProfileRoute: typeof MemberProfileRoute
   MessagesRoute: typeof MessagesRoute
   NearbyRoute: typeof NearbyRoute
   NotificationsRoute: typeof NotificationsRoute
@@ -267,6 +280,13 @@ declare module '@tanstack/react-router' {
       path: '/discover'
       fullPath: '/discover'
       preLoaderRoute: typeof DiscoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/member-profile': {
+      id: '/member-profile'
+      path: '/member-profile'
+      fullPath: '/member-profile'
+      preLoaderRoute: typeof MemberProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -342,6 +362,7 @@ const rootRouteChildren: RootRouteChildren = {
   CompanionRoute: CompanionRoute,
   CompanionProfileRoute: CompanionProfileRoute,
   DiscoverRoute: DiscoverRoute,
+  MemberProfileRoute: MemberProfileRoute,
   MessagesRoute: MessagesRoute,
   NearbyRoute: NearbyRoute,
   NotificationsRoute: NotificationsRoute,

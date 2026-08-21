@@ -96,12 +96,6 @@ function CompanionApplicationsPage() {
                   <span>Provider decision: {formatStatus(companion.verificationPersonaDecision ?? 'unknown')}</span>
                   <span className="dot" aria-hidden="true" />
                   <span>Identity review: {formatStatus(companion.verificationAdminStatus ?? 'not started')}</span>
-                  {companion.personaDashboardUrl && (
-                    <>
-                      <span className="dot" aria-hidden="true" />
-                      <a href={companion.personaDashboardUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">Open in Persona</a>
-                    </>
-                  )}
                 </div>
                 {companion.applicationNote && <p className="text-meta">Note from member: {companion.applicationNote}</p>}
                 {companion.reviewerNote && <p className="text-meta">Last internal note: {companion.reviewerNote}</p>}

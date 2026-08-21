@@ -33,10 +33,26 @@ describe('mobile web app URL configuration', () => {
   it('accepts HTTPS and local HTTP without carrying query data', () => {
     const production = resolveMobileWebAppConfiguration('https://friends.example.com/')
     expect(production).toEqual({ status: 'configured', url: 'https://friends.example.com' })
-    expect(buildMobileWebHandoffUrl(production)).toBe('https://friends.example.com/verify-identity')
+    expect(buildMobileWebHandoffUrl(production, { intent: 'member', mobileReturn: 'profile' }))
+      .toBe('https://friends.example.com/verify-identity?intent=member&mobileReturn=profile')
 
     const local = resolveMobileWebAppConfiguration('http://127.0.0.1:5173')
-    expect(buildMobileWebHandoffUrl(local)).toBe('http://127.0.0.1:5173/verify-identity')
+    expect(buildMobileWebHandoffUrl(local, { intent: 'companion_application', mobileReturn: 'companion' }))
+      .toBe('http://127.0.0.1:5173/verify-identity?intent=companion_application&mobileReturn=companion')
+  })
+
+  it('builds only the fixed member/profile and companion_application/companion handoff pairs', () => {
+    const production = resolveMobileWebAppConfiguration('https://friends.example.com/')
+    const member = buildMobileWebHandoffUrl(production, { intent: 'member', mobileReturn: 'profile' })
+    const companion = buildMobileWebHandoffUrl(production, { intent: 'companion_application', mobileReturn: 'companion' })
+    expect(member).toBe('https://friends.example.com/verify-identity?intent=member&mobileReturn=profile')
+    expect(companion).toBe('https://friends.example.com/verify-identity?intent=companion_application&mobileReturn=companion')
+    expect(buildMobileWebHandoffUrl(production)).toBe(member)
+  })
+
+  it('never returns a handoff URL when the web app is not configured', () => {
+    expect(buildMobileWebHandoffUrl({ status: 'missing' })).toBeUndefined()
+    expect(buildMobileWebHandoffUrl({ status: 'invalid' })).toBeUndefined()
   })
 
   it('rejects credentials, query text, fragments, and non-local HTTP', () => {

@@ -1,5 +1,6 @@
 export * from './feed'
 export * from './finance'
+export * from './mentions'
 export * from './username'
 
 export const friendStrengths = [

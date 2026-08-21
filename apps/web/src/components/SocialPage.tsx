@@ -1,4 +1,4 @@
-import type { FeedInstrumentationAction } from '@lets-be-friends/shared'
+import { activeMentionQuery, splitBodyIntoSegments, type FeedInstrumentationAction, type StoredMention } from '@lets-be-friends/shared'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
@@ -52,6 +52,7 @@ export function SocialPage({ postId }: { postId?: string }) {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [posting, setPosting] = useState(false)
+  const [composerBody, setComposerBody] = useState('')
   const [selectedMedia, setSelectedMedia] = useState<SelectedMedia[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const selectedMediaRef = useRef<SelectedMedia[]>([])
@@ -204,9 +205,7 @@ export function SocialPage({ postId }: { postId?: string }) {
               setNotice('')
               let mediaUploadIds: Id<'postMediaUploads'>[] = []
               try {
-                const form = event.currentTarget
-                const data = new FormData(form)
-                const body = String(data.get('body') ?? '').trim()
+                const body = composerBody.trim()
                 if (!body && selectedMedia.length === 0) return
                 mediaUploadIds = await uploadPostMedia(
                   selectedMedia,
@@ -215,7 +214,7 @@ export function SocialPage({ postId }: { postId?: string }) {
                   discardPostMediaUpload,
                 )
                 await createPost({ body, mediaUploadIds: mediaUploadIds.length > 0 ? mediaUploadIds : undefined })
-                form.reset()
+                setComposerBody('')
                 clearSelectedMedia()
                 setNotice('Post shared.')
               } catch (postError) {
@@ -232,12 +231,15 @@ export function SocialPage({ postId }: { postId?: string }) {
                 <strong>Share an update</strong>
                 <Link to="/discover">Find help or company</Link>
               </div>
-              <textarea
+              <MentionField
+                value={composerBody}
+                onChange={setComposerBody}
                 name="body"
                 className="social-composer-input"
                 maxLength={1000}
                 placeholder="What could feel easier or better together?"
-                aria-label="Create a post"
+                ariaLabel="Create a post"
+                multiline
               />
               {selectedMedia.length > 0 && (
                 <div className="social-media-preview-grid" data-count={selectedMedia.length}>
@@ -465,6 +467,7 @@ function PostRow({
   const [commentsOpen, setCommentsOpen] = useState(false)
   const [commenting, setCommenting] = useState(false)
   const [commentError, setCommentError] = useState('')
+  const [commentBody, setCommentBody] = useState('')
   const [editing, setEditing] = useState(false)
   const [actionPending, setActionPending] = useState('')
   const [actionError, setActionError] = useState('')
@@ -581,7 +584,7 @@ function PostRow({
               <button disabled={Boolean(actionPending)} className="btn btn-social btn-sm">{actionPending === 'edit' ? 'Saving...' : 'Save'}</button>
             </div>
           </form>
-        ) : post.body ? <p className="social-post-copy">{post.body}</p> : null}
+        ) : post.body ? <MentionText body={post.body} mentions={post.mentions} className="social-post-copy" /> : null}
         {actionError && <p className="text-meta social-comment-error mt-2">{actionError}</p>}
         {post.media.length > 0 && <PostMediaGrid media={post.media} />}
         <div className="social-action-bar" aria-label="Post actions">
@@ -626,11 +629,10 @@ function PostRow({
                   setCommenting(true)
                   setCommentError('')
                   try {
-                    const form = event.currentTarget
-                    const body = String(new FormData(form).get('comment') ?? '').trim()
+                    const body = commentBody.trim()
                     if (!body) return
                     await onComment(body)
-                    form.reset()
+                    setCommentBody('')
                   } catch (error) {
                     setCommentError(error instanceof Error ? error.message : 'Comment could not be added.')
                   } finally {
@@ -638,7 +640,15 @@ function PostRow({
                   }
                 }}
               >
-                <input className="field" name="comment" maxLength={500} placeholder="Post your comment" aria-label="Comment" />
+                <MentionField
+                  value={commentBody}
+                  onChange={setCommentBody}
+                  name="comment"
+                  className="field"
+                  maxLength={500}
+                  placeholder="Post your comment"
+                  ariaLabel="Comment"
+                />
                 <button disabled={commenting} className="btn btn-social btn-sm">{commenting ? 'Sending...' : 'Comment'}</button>
               </form>
             )}
@@ -692,7 +702,7 @@ function CommentRow({ comment, canReport, onReport }: { comment: PostComment; ca
             </button>
           )}
         </div>
-        <p>{comment.body}</p>
+        <MentionText body={comment.body} mentions={comment.mentions} />
         {reportError && <p className="social-comment-error">{reportError}</p>}
       </div>
     </article>
@@ -711,6 +721,130 @@ function PostMediaGrid({ media }: { media: PostMediaItem[] }) {
     </div>
   )
 }
+
+function MentionText({ body, mentions, className }: { body: string; mentions?: StoredMention[]; className?: string }) {
+  const segments = splitBodyIntoSegments(body, mentions ?? [])
+  return (
+    <p className={className}>
+      {segments.map((segment, index) => segment.type === 'mention' ? (
+        <Link
+          key={index}
+          to="/member-profile"
+          search={{ userId: segment.userId }}
+          className="social-mention"
+          onClick={(event) => event.stopPropagation()}
+        >
+          @{segment.username}
+        </Link>
+      ) : (
+        <span key={index}>{segment.text}</span>
+      ))}
+    </p>
+  )
+}
+
+function MentionField({
+  value,
+  onChange,
+  name,
+  placeholder,
+  ariaLabel,
+  maxLength,
+  multiline = false,
+  className,
+  autoFocus = false,
+}: {
+  value: string
+  onChange: (value: string) => void
+  name: string
+  placeholder: string
+  ariaLabel: string
+  maxLength: number
+  multiline?: boolean
+  className?: string
+  autoFocus?: boolean
+}) {
+  const [caret, setCaret] = useState(value.length)
+  const [open, setOpen] = useState(false)
+  const openRef = useRef(false)
+  const activeToken = activeMentionQuery(value, caret)
+  const suggestions = useQuery(api.social.mentionLookup, activeToken ? { query: activeToken } : 'skip')
+
+  const syncCaret = (nextValue: string, nextCaret: number) => {
+    setCaret(nextCaret)
+    openRef.current = Boolean(activeMentionQuery(nextValue, nextCaret))
+    setOpen(openRef.current)
+  }
+
+  const insertMention = (username: string) => {
+    const before = value.slice(0, caret).replace(/@[a-z0-9_]*$/i, `@${username} `)
+    const after = value.slice(caret)
+    onChange(before + after)
+    openRef.current = false
+    setOpen(false)
+  }
+
+  const shared = {
+    name,
+    placeholder,
+    'aria-label': ariaLabel,
+    maxLength,
+    autoFocus,
+    value,
+    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const next = event.currentTarget.value
+      const nextCaret = event.currentTarget.selectionStart ?? next.length
+      onChange(next)
+      syncCaret(next, nextCaret)
+    },
+    onSelect: (event: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const el = event.currentTarget
+      syncCaret(el.value, el.selectionStart ?? el.value.length)
+    },
+    onFocus: () => {
+      openRef.current = Boolean(activeMentionQuery(value, caret))
+      setOpen(openRef.current)
+    },
+    onKeyDown: (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (event.key === 'Escape' && openRef.current) {
+        event.preventDefault()
+        openRef.current = false
+        setOpen(false)
+      }
+    },
+  }
+
+  return (
+    <div className="social-mention-wrap">
+      {multiline ? (
+        <textarea {...shared} className={className} />
+      ) : (
+        <input {...shared} className={className} />
+      )}
+      {open && suggestions && suggestions.length > 0 && (
+        <div className="social-mention-menu" role="listbox" aria-label="Mention suggestions">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion.userId}
+              type="button"
+              role="option"
+              className="social-mention-option"
+              onClick={() => insertMention(suggestion.username)}
+            >
+              <span className="avatar" aria-hidden="true">{initials(suggestion.displayName)}</span>
+              <span className="social-mention-option-copy">
+                <strong>{suggestion.displayName}</strong>
+                <small>@{suggestion.username}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 
 async function uploadPostMedia(
   media: SelectedMedia[],

@@ -2,7 +2,7 @@ import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
-import { canAdminApproveIdentity, hasCurrentIdentityApproval, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason, isRealPersonaInquiryId } from './identityVerification'
+import { canAdminApproveIdentity, hasCurrentIdentityApproval, identityApprovalExpiresAt, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason } from './identityVerification'
 import { syncUserCompanionLocation } from './companionLocations'
 import { syncCompanionLocation } from './companionLocations'
 import { resolveBlockedBookingFunds as applyBlockedBookingResolution } from './finance'
@@ -101,7 +101,6 @@ export const companionApplications = query({
         verificationPersonaDecision: verification?.personaDecision,
         verificationSource: verification?.verificationSource,
         personaInquiryId: verification?.personaInquiryId,
-        personaDashboardUrl: personaDashboardUrl(verification?.personaInquiryId),
       }
     }))
   },
@@ -130,7 +129,8 @@ export const memberVerifications = query({
             : request.reason === 'companion_application'
               ? 'Companion identity verification'
               : 'Legacy booking verification',
-        approvalAllowed: canAdminApproveIdentity(request),
+        reviewAllowed: isIdentityReadyForAdminReview(request),
+        approvalAllowed: canAdminApproveIdentity(request, identityRecord),
         identityRecord: identityRecord && isIdentityReadyForAdminReview(request) ? {
           fullLegalName: identityRecord.fullLegalName,
           dateOfBirth: identityRecord.dateOfBirth,
@@ -141,7 +141,6 @@ export const memberVerifications = query({
           extractionNeedsReview: identityRecord.extraction?.needsReview ?? false,
           legalHoldActive: Boolean(identityRecord.legalHoldSetAt && (!identityRecord.legalHoldReleasedAt || identityRecord.legalHoldReleasedAt < identityRecord.legalHoldSetAt)),
         } : undefined,
-        personaDashboardUrl: personaDashboardUrl(request.personaInquiryId),
         memberDisplayName: user?.displayName ?? 'Member',
         memberVerificationStatus: user?.verificationStatus ?? 'not_started',
         bookingStatus: booking?.status,
@@ -307,8 +306,34 @@ export const reviewMemberVerification = mutation({
     if (!isIdentityReadyForAdminReview(verification)) {
       throw new Error('Only the current completed identity attempt can receive an admin decision')
     }
-    if (args.decision === 'approved' && !canAdminApproveIdentity(verification)) {
-      throw new Error('The identity provider declined or did not complete this attempt. Start a new attempt instead of overriding it.')
+    let identityRecord: Doc<'identityRecords'> | null = null
+    if (verification.verificationSource === 'in_app') {
+      if (!verification.identityRecordId) throw new Error('The current in-app identity attempt has no linked identity record')
+      identityRecord = await ctx.db.get(verification.identityRecordId)
+      if (
+        !identityRecord
+        || identityRecord.userId !== verification.userId
+        || identityRecord.verificationRequestId !== verification._id
+        || identityRecord.source !== 'in_app'
+      ) {
+        throw new Error('The linked identity record for this attempt is unavailable')
+      }
+      const currentRequests = await ctx.db.query('verificationRequests')
+        .withIndex('by_user_current', (q) => q.eq('userId', verification.userId).eq('isCurrent', true))
+        .collect()
+      const newestCurrent = currentRequests.sort((a, b) => (b.attempt ?? 0) - (a.attempt ?? 0) || b.updatedAt - a.updatedAt)[0]
+      if (newestCurrent?._id !== verification._id) {
+        throw new Error('Only the newest current identity attempt can receive an admin decision')
+      }
+    }
+    if (args.decision === 'approved' && !canAdminApproveIdentity(verification, identityRecord)) {
+      throw new Error('This identity attempt is incomplete or no longer eligible for approval. Start a new attempt instead of overriding it.')
+    }
+    if (args.decision === 'approved' && identityRecord) {
+      const front = await ctx.db.query('identityRecordImages').withIndex('by_record_kind', (q) => q.eq('identityRecordId', identityRecord!._id).eq('kind', 'id_front')).unique()
+      const selfie = await ctx.db.query('identityRecordImages').withIndex('by_record_kind', (q) => q.eq('identityRecordId', identityRecord!._id).eq('kind', 'selfie')).unique()
+      if (!front?.storageId || front.purgedAt) throw new Error('The ID front image is required and must be retained to approve this attempt')
+      if (!selfie?.storageId || selfie.purgedAt) throw new Error('A current selfie is required and must be retained to approve this attempt')
     }
 
     const note = args.decision === 'rejected' ? requireNote(args.note, 'Rejecting identity verification') : normalizeNote(args.note)
@@ -335,25 +360,22 @@ export const reviewMemberVerification = mutation({
         verificationStatus: 'approved',
         verificationSource: verification.verificationSource === 'in_app' ? 'in_app' : 'persona',
         identityVerifiedAt: now,
-        identityExpiresAt: identityExpiry(now),
+        identityExpiresAt: identityExpiry(now, identityRecord?.expirationDate),
         updatedAt: now,
       })
-      if (verification.bookingId) {
-        const booking = await ctx.db.get(verification.bookingId)
-        if (booking?.status === 'verification_required') {
-          await ctx.db.patch(verification.bookingId, { status: 'request_sent', updatedAt: now })
-        }
-      }
     } else {
-      await ctx.db.patch(verification.userId, {
-        verificationStatus: 'rejected',
-        updatedAt: now,
-      })
-      if (verification.bookingId) {
-        const booking = await ctx.db.get(verification.bookingId)
-        if (booking?.status === 'verification_required') {
-          await ctx.db.patch(verification.bookingId, { status: 'cancelled', updatedAt: now })
-        }
+      const user = await ctx.db.get(verification.userId)
+      const keepsPriorApproval = verification.reason === 'reverification'
+        && user?.verificationStatus === 'approved'
+        && typeof user.identityExpiresAt === 'number'
+        && user.identityExpiresAt > now
+      if (keepsPriorApproval) {
+        await ctx.db.patch(verification.userId, { updatedAt: now })
+      } else {
+        await ctx.db.patch(verification.userId, {
+          verificationStatus: 'rejected',
+          updatedAt: now,
+        })
       }
     }
     await syncUserCompanionLocation(ctx, verification.userId)
@@ -601,16 +623,8 @@ async function currentIdentityVerificationForUser(ctx: any, userId: any) {
     })[0]
 }
 
-function personaDashboardUrl(inquiryId: string | undefined) {
-  if (typeof inquiryId !== 'string' || !isRealPersonaInquiryId(inquiryId)) return undefined
-  const baseUrl = process.env.PERSONA_DASHBOARD_BASE_URL?.trim() || 'https://app.withpersona.com/dashboard/inquiries'
-  return `${baseUrl.replace(/\/$/, '')}/${encodeURIComponent(inquiryId)}`
-}
-
-function identityExpiry(now: number) {
-  const configuredDays = Number(process.env.PERSONA_VERIFICATION_TTL_DAYS)
-  const days = Number.isFinite(configuredDays) && configuredDays > 0 ? configuredDays : 730
-  return now + days * 24 * 60 * 60 * 1000
+function identityExpiry(now: number, expirationDate?: string) {
+  return identityApprovalExpiresAt(now, expirationDate)
 }
 
 async function updateReportStatusHandler(ctx: any, args: { reportId: any; status: 'open' | 'reviewing' | 'resolved' | 'dismissed'; note?: string }) {

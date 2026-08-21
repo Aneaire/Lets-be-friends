@@ -125,4 +125,42 @@ describe('notifications', () => {
     expect(await companion.query(api.notifications.unreadCount, {})).toBe(1)
     expect(await companion.query(api.conversations.list, {})).toMatchObject([{ _id: conversationId, unreadCount: 0 }])
   })
+
+  it('presents identity expiry copy with an identity destination and no request ID', async () => {
+    const t = convexTest(schema, modules)
+    const samId = await user(t, 'sam')
+    await t.run(async (ctx) => {
+      await createNotification(ctx, { recipientUserId: samId, kind: 'identity_verification_expiring', priority: 'standard', dedupeKey: 'expiring-1' })
+      await createNotification(ctx, { recipientUserId: samId, kind: 'identity_verification_expired', priority: 'attention', dedupeKey: 'expired-1' })
+    })
+    const rows = await t.withIdentity({ subject: 'sam' }).query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    const expiring = rows.page.find((row) => row.kind === 'identity_verification_expiring')
+    const expired = rows.page.find((row) => row.kind === 'identity_verification_expired')
+    expect(expiring).toMatchObject({ title: 'Identity verification expiring soon', destination: { type: 'identity' } })
+    expect(expired).toMatchObject({ title: 'Identity verification expired', destination: { type: 'identity' } })
+    expect(expiring?.body).not.toContain('no longer available')
+    expect(expired?.body).not.toContain('no longer available')
+  })
+
+  it('presents mention copy that distinguishes post from comment and routes to the post', async () => {
+    const t = convexTest(schema, modules)
+    const now = Date.now()
+    const { postId, commentId } = await t.run(async (ctx) => {
+      const actorId = await ctx.db.insert('users', { clerkUserId: 'actor', displayName: 'Actor', role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now, updatedAt: now })
+      const recipientId = await ctx.db.insert('users', { clerkUserId: 'recipient', displayName: 'Recipient', role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now, updatedAt: now })
+      const pid = await ctx.db.insert('posts', { authorId: actorId, body: 'A post', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      const cid = await ctx.db.insert('postComments', { postId: pid, authorId: actorId, body: 'A comment', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      await createNotification(ctx, { recipientUserId: recipientId, actorUserId: actorId, kind: 'mention', priority: 'standard', postId: pid, dedupeKey: 'post-mention:1' })
+      await createNotification(ctx, { recipientUserId: recipientId, actorUserId: actorId, kind: 'mention', priority: 'standard', postId: pid, commentId: cid, dedupeKey: 'comment-mention:1' })
+      return { postId: pid, commentId: cid }
+    })
+    const recipient = t.withIdentity({ subject: 'recipient' })
+    const rows = await recipient.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    const postMention = rows.page.find((row) => row.body.includes('in a post'))
+    const commentMention = rows.page.find((row) => row.body.includes('in a comment'))
+    expect(postMention).toMatchObject({ title: 'You were mentioned', body: 'Actor mentioned you in a post.', destination: { type: 'post', postId: String(postId) } })
+    expect(commentMention).toMatchObject({ body: 'Actor mentioned you in a comment.', destination: { type: 'post', postId: String(postId) } })
+    expect(commentMention?.kind).toBe('mention')
+    void commentId
+  })
 })

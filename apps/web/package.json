@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n convex,web -c magenta,cyan \"pnpm convex:dev\" \"pnpm dev:web\"",
-    "dev:web": "PORT=3000 node --env-file=../../.env.local --env-file-if-exists=.env.local ./node_modules/vite/bin/vite.js --host localhost --port 3000 --strictPort",
+    "dev:web": "PORT=3005 node --env-file=../../.env.local --env-file-if-exists=.env.local ./node_modules/vite/bin/vite.js --host localhost --port 3005 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run --config vitest.config.ts",

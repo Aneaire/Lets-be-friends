@@ -23,6 +23,32 @@ async function insertUser(t: ReturnType<typeof convexTest>, clerkUserId: string,
 }
 
 describe('usernames and onboarding', () => {
+  it('returns a privacy-limited public profile without requiring identity verification', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await insertUser(t, 'public-member', 'Public Member', 'public_member')
+    await t.run(async (ctx) => {
+      await ctx.db.patch(userId, {
+        bio: 'Coffee, walks, and thoughtful conversations.',
+        onboardingCategories: ['Good company'],
+        approximateLatitude: 10.31,
+        approximateLongitude: 123.89,
+      })
+    })
+
+    const profile = await t.query(api.users.publicProfile, { userId })
+    expect(profile).toMatchObject({
+      displayName: 'Public Member',
+      username: 'public_member',
+      bio: 'Coffee, walks, and thoughtful conversations.',
+      onboardingCategories: ['Good company'],
+      identityVerified: false,
+    })
+    expect(profile).not.toHaveProperty('clerkUserId')
+    expect(profile).not.toHaveProperty('approximateLatitude')
+    expect(profile).not.toHaveProperty('approximateLongitude')
+    expect(profile).not.toHaveProperty('verificationStatus')
+  })
+
   it('normalizes claims and enforces uniqueness server-side', async () => {
     const t = convexTest(schema, modules)
     const firstUserId = await insertUser(t, 'first-user', 'Maya Santos')

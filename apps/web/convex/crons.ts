@@ -53,6 +53,13 @@ crons.daily(
 )
 
 crons.daily(
+  'process identity approval expiry',
+  { hourUTC: 2, minuteUTC: 0 },
+  internal.identityRecords.processIdentityExpiry,
+  {},
+)
+
+crons.daily(
   'purge orphaned post media',
   { hourUTC: 4, minuteUTC: 0 },
   internal.social.purgeOrphanedMedia,

@@ -1,8 +1,13 @@
 import {
   boundedRatio,
+  collectMentionUsernames,
   engagementScore,
   freshnessScore,
   isModerationVisible,
+  MAX_MENTIONS_PER_COMMENT,
+  MAX_MENTIONS_PER_POST,
+  MENTION_LOOKUP_LIMIT,
+  normalizeUsername,
   rerankFeedCandidates,
   type FeedCandidateSource,
   type FeedInstrumentationAction,
@@ -296,6 +301,41 @@ export const mediaUploadUsage = query({
   },
 })
 
+export const mentionLookup = query({
+  args: { query: v.string() },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const query = args.query.trim().toLowerCase().replace(/^@+/, '')
+    if (!query) return []
+    if (query.length > 24) return []
+    const matches: Array<{ userId: Id<'users'>; username: string; displayName: string }> = []
+    const seen = new Set<string>()
+    const [usernameMatches, displayNameMatches] = await Promise.all([
+      ctx.db.query('users')
+        .withIndex('by_username', (q) => q.gte('username', query).lt('username', `${query}\uffff`))
+        .take(MENTION_LOOKUP_LIMIT * 2),
+      ctx.db.query('users')
+        .withSearchIndex('search_display_name', (q) => q.search('displayName', query))
+        .take(MENTION_LOOKUP_LIMIT * 2),
+    ])
+    const users = [...usernameMatches, ...displayNameMatches]
+    for (const user of users) {
+      if (seen.size >= MENTION_LOOKUP_LIMIT) break
+      if (user.suspended) continue
+      if (viewer._id === user._id || !user.username) continue
+      if (await isHiddenByPreference(ctx, viewer._id, user._id)) continue
+      const username = user.username.toLowerCase()
+      seen.add(String(user._id))
+      matches.push({
+        userId: user._id,
+        username: user.username,
+        displayName: user.displayName,
+      })
+    }
+    return matches
+  },
+})
+
 export const createPost = mutation({
   args: {
     body: v.string(),
@@ -310,7 +350,6 @@ export const createPost = mutation({
     if (body.length > 1000) throw new Error('Post is too long')
     if (mediaUploadIds.length > MAX_MEDIA_UPLOADS_PER_DAY) throw new Error('Posts can include up to 5 media uploads')
     if (new Set(mediaUploadIds.map(String)).size !== mediaUploadIds.length) throw new Error('Each media upload can be attached only once')
-
     const uploads = await Promise.all(mediaUploadIds.map((uploadId) => ctx.db.get(uploadId)))
     for (const upload of uploads) {
       if (!upload || upload.userId !== viewer._id) throw new Error('Media upload is not owned by this account')
@@ -333,10 +372,12 @@ export const createPost = mutation({
       contentType: upload!.contentType!,
       size: upload!.size!,
     }))
+    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_POST, 'post')
     const postId = await ctx.db.insert('posts', {
       authorId: viewer._id,
       body,
       media,
+      mentions: mentions.length > 0 ? mentions : undefined,
       experienceBookingId: args.experienceBookingId,
       reportable: true,
       hidden: false,
@@ -344,6 +385,14 @@ export const createPost = mutation({
       updatedAt: now,
     })
     await Promise.all(mediaUploadIds.map((uploadId) => ctx.db.patch(uploadId, { postId })))
+    await Promise.all(mentions.map((mention) => createNotification(ctx, {
+      recipientUserId: mention.userId,
+      actorUserId: viewer._id,
+      kind: 'mention',
+      priority: 'standard',
+      postId,
+      dedupeKey: `post-mention:${postId}:${mention.userId}`,
+    })))
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'post.created', targetType: 'post', targetId: String(postId) })
     return postId
   },
@@ -358,7 +407,16 @@ export const editPost = mutation({
     const body = args.body.trim()
     if (!body && (post.media?.length ?? 0) === 0) throw new Error('Post cannot be empty')
     if (body.length > 1000) throw new Error('Post is too long')
-    await ctx.db.patch(args.postId, { body, updatedAt: Date.now() })
+    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_POST, 'post')
+    await ctx.db.patch(args.postId, { body, mentions: mentions.length > 0 ? mentions : undefined, updatedAt: Date.now() })
+    await Promise.all(mentions.map((mention) => createNotification(ctx, {
+      recipientUserId: mention.userId,
+      actorUserId: viewer._id,
+      kind: 'mention',
+      priority: 'standard',
+      postId: post._id,
+      dedupeKey: `post-mention:${post._id}:${mention.userId}`,
+    })))
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'post.edited', targetType: 'post', targetId: String(args.postId) })
   },
 })
@@ -386,11 +444,13 @@ export const createComment = mutation({
     const body = args.body.trim()
     if (body.length < 1) throw new Error('Comment cannot be empty')
     if (body.length > 500) throw new Error('Comment is too long')
+    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_COMMENT, 'comment')
     const now = Date.now()
     const commentId = await ctx.db.insert('postComments', {
       postId: args.postId,
       authorId: viewer._id,
       body,
+      mentions: mentions.length > 0 ? mentions : undefined,
       reportable: true,
       hidden: false,
       createdAt: now,
@@ -406,6 +466,15 @@ export const createComment = mutation({
       commentId,
       dedupeKey: `comment:${commentId}:created`,
     })
+    await Promise.all(mentions.map((mention) => createNotification(ctx, {
+      recipientUserId: mention.userId,
+      actorUserId: viewer._id,
+      kind: 'mention',
+      priority: 'standard',
+      postId: post._id,
+      commentId,
+      dedupeKey: `comment-mention:${commentId}:${mention.userId}`,
+    })))
     return commentId
   },
 })
@@ -852,6 +921,35 @@ async function profileImageUrl(ctx: any, user: Pick<Doc<'users'>, 'profileImageS
   if (!user.profileImageStorageId) return user.profileImageUrl
   return await ctx.storage.getUrl(user.profileImageStorageId) ?? user.profileImageUrl
 }
+
+async function resolveMentions(
+  ctx: any,
+  authorId: Id<'users'>,
+  body: string,
+  maximum: number,
+  surface: 'post' | 'comment',
+): Promise<Array<{ userId: Id<'users'>; username: string }>> {
+  const resolved: Array<{ userId: Id<'users'>; username: string }> = []
+  const seen = new Set<string>()
+  const usernames = collectMentionUsernames(body)
+  for (const rawUsername of usernames) {
+    const username = normalizeUsername(rawUsername)
+    const user = await ctx.db.query('users').withIndex('by_username', (q: any) => q.eq('username', username)).unique()
+    if (!user || user.suspended) continue
+    if (user._id === authorId) continue
+    if (seen.has(String(user._id))) continue
+    if (await isHiddenByPreference(ctx, authorId, user._id)) continue
+    seen.add(String(user._id))
+    resolved.push({ userId: user._id, username })
+  }
+  if (resolved.length > maximum) {
+    throw new Error(surface === 'post'
+      ? `A post can tag up to ${MAX_MENTIONS_PER_POST} people`
+      : `A comment can tag up to ${MAX_MENTIONS_PER_COMMENT} people`)
+  }
+  return resolved
+}
+
 
 async function mediaWithUrls(ctx: any, media: Doc<'posts'>['media']) {
   return await Promise.all((media ?? []).map(async (item) => ({

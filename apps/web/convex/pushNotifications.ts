@@ -21,7 +21,7 @@ const INSTALLATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}
 const EXPO_TOKEN = /^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$/
 
 const platformValidator = v.union(v.literal('ios'), v.literal('android'))
-export type NativePushBody = 'You have a new message.' | 'You have a booking update.' | 'You have a new update.'
+export type NativePushBody = 'You have a new message.' | 'Someone mentioned you.' | 'You have a booking update.' | 'Your identity approval expires soon.' | 'Your identity approval has expired.' | 'You have a new update.'
 export type PushMessage = {
   to: string
   title: "Let's Be Friends"
@@ -561,7 +561,10 @@ export function pushMessage(input: {
 
 export function nativePushBody(kind: Doc<'notifications'>['kind']): NativePushBody {
   if (kind === 'direct_message') return 'You have a new message.'
+  if (kind === 'mention') return 'Someone mentioned you.'
   if (kind.startsWith('booking_')) return 'You have a booking update.'
+  if (kind === 'identity_verification_expiring') return 'Your identity approval expires soon.'
+  if (kind === 'identity_verification_expired') return 'Your identity approval has expired.'
   return 'You have a new update.'
 }
 

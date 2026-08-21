@@ -29,13 +29,15 @@ type DiscoveryCompanion = {
   latitude?: number
   longitude?: number
   bio?: string
+  kind?: 'member' | 'companion'
+  verified?: boolean
 }
 
 type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 
 function DiscoverPage() {
   const { isSignedIn } = useAuth()
-  const companions = (useQuery(api.companions.listApproved, {}) ?? []) as DiscoveryCompanion[]
+  const companions = (useQuery(api.companions.listExploreDirectory, {}) ?? []) as DiscoveryCompanion[]
   const toggleFollow = useMutation(api.social.toggleFollow)
   const [mode, setMode] = useState<ModeFilter>('all')
   const [category, setCategory] = useState<string | null>(null)
@@ -50,9 +52,9 @@ function DiscoverPage() {
   const filtered = useMemo(() => {
     const searchTerm = query.trim().toLowerCase()
     return companions.filter((companion) => {
-      if (mode !== 'all' && companion.mode !== mode && !(mode === 'online' && companion.mode === 'both')) return false
+      if (mode !== 'all' && (companion.kind !== 'companion' || (companion.mode !== mode && !(mode === 'online' && companion.mode === 'both')))) return false
       if (category && !(companion.categories ?? []).includes(category)) return false
-      if (strength && !companion.strengths.includes(strength)) return false
+      if (strength && (companion.kind !== 'companion' || !companion.strengths.includes(strength))) return false
       if (bookableOnly && !companion.bookable) return false
       if (searchTerm) {
         const haystack = [
@@ -201,8 +203,8 @@ function DiscoverPage() {
     <main className="marketing-page-wide discover-page">
       <header className="discover-page-header">
         <div>
-          <h1 className="text-h1">Find a Companion</h1>
-          <p className="text-meta mt-1">Find everyday help and good company by activity, Strength, city, or name.</p>
+          <h1 className="text-h1">Explore people</h1>
+          <p className="text-meta mt-1">Meet members and find Companions by activity, Strength, city, or name.</p>
         </div>
         <p className="text-meta tabular">
           {filtered.length} {filtered.length === 1 ? 'person' : 'people'}
@@ -218,7 +220,7 @@ function DiscoverPage() {
               type="search"
               className="discover-search-input"
               placeholder="Search by name, city, or activity"
-              aria-label="Search Companions"
+              aria-label="Search people"
               value={query}
               onChange={(event) => setQuery(event.currentTarget.value)}
             />
@@ -445,94 +447,93 @@ function DiscoverPage() {
 
 function CompanionRow({ companion, signedIn, onFollow }: { companion: DiscoveryCompanion; signedIn: boolean; onFollow: () => Promise<void> }) {
   const hasDistance = typeof companion.distanceKm === 'number'
+  const hasCompanionProfile = companion.kind !== 'member'
 
   return (
-    <article className="discover-companion-row" data-nearby={hasDistance} role="listitem">
-      <div className="discover-companion-avatar">
-        <Link
-          to="/companion-profile"
-          search={{ companionProfileId: companion._id }}
-          className="discover-companion-avatar-link"
-          aria-label={`View ${companion.displayName}'s profile`}
-        >
+    <article className="discover-host-row" data-nearby={hasDistance} role="listitem">
+      <div className="discover-host-avatar">
+        {hasCompanionProfile ? <Link to="/companion-profile" search={{ companionProfileId: companion._id }} className="discover-host-avatar-link" aria-label={`View ${companion.displayName}'s profile`}>
           <ProfilePhoto imageUrl={companion.profileImageUrl} name={companion.displayName} size="lg" />
-        </Link>
+        </Link> : <Link to="/member-profile" search={{ userId: companion.userId }} className="discover-host-avatar-link" aria-label={`View ${companion.displayName}'s profile`}>
+          <ProfilePhoto imageUrl={companion.profileImageUrl} name={companion.displayName} size="lg" />
+        </Link>}
       </div>
 
-      <div className="discover-companion-main">
-        <header className="discover-companion-identity">
-          <div className="discover-companion-name-row">
+      <div className="discover-host-main">
+        <header className="discover-host-identity">
+          <div className="discover-host-name-row">
             <h2>
-              <Link
+              {hasCompanionProfile ? <Link
                 to="/companion-profile"
                 search={{ companionProfileId: companion._id }}
-                className="discover-companion-name-link"
+                className="discover-host-name-link"
               >
                 <span>{companion.displayName}</span>
                 <ArrowUpRight size={13} aria-hidden="true" />
-              </Link>
+              </Link> : <Link to="/member-profile" search={{ userId: companion.userId }} className="discover-host-name-link">
+                <span>{companion.displayName}</span>
+                <ArrowUpRight size={13} aria-hidden="true" />
+              </Link>}
             </h2>
-            <TrustChip state={companion.bookable ? 'verified' : 'awaiting'} />
+            {companion.verified ? <TrustChip state="verified" /> : <TrustChip state="awaiting" />}
+            {!hasCompanionProfile && (
+              <FollowIconButton companion={companion} signedIn={signedIn} onFollow={onFollow} />
+            )}
           </div>
-          <div className="discover-companion-context">
-            <span>{companion.city}</span>
-            <span aria-hidden="true">/</span>
-            <span>{formatMode(companion.mode)}</span>
-          </div>
+          {hasCompanionProfile && <div className="discover-host-context"><span>{companion.city}</span><span aria-hidden="true">/</span><span>{formatMode(companion.mode)}</span></div>}
         </header>
 
-        <p className="discover-companion-intro">{companion.intro}</p>
+        <p className="discover-host-intro">{companion.intro}</p>
 
         {companion.strengths.length > 0 && (
-          <ul className="discover-companion-strengths" aria-label={`${companion.displayName}'s Strengths`}>
+          <ul className="discover-host-strengths" aria-label={`${companion.displayName}'s Strengths`}>
             {companion.strengths.slice(0, 3).map((strength) => <li key={strength}>{strength}</li>)}
           </ul>
         )}
 
-        <div className="discover-companion-mobile-facts">
+        <div className="discover-host-mobile-facts">
           {hasDistance && <DistanceStamp distanceKm={companion.distanceKm!} compact />}
-          <RatingSummary rating={companion.rating} reviewCount={companion.reviewCount ?? 0} />
+          {hasCompanionProfile && <RatingSummary rating={companion.rating} reviewCount={companion.reviewCount ?? 0} />}
         </div>
       </div>
 
-      <aside className="discover-companion-side" aria-label={`Actions and proximity for ${companion.displayName}`}>
-        <div className="discover-companion-desktop-facts">
+      {hasCompanionProfile && <aside className="discover-host-side" aria-label={`Actions and proximity for ${companion.displayName}`}>
+        <div className="discover-host-desktop-facts">
           {hasDistance && <DistanceStamp distanceKm={companion.distanceKm!} />}
-          <RatingSummary rating={companion.rating} reviewCount={companion.reviewCount ?? 0} />
+          {hasCompanionProfile && <RatingSummary rating={companion.rating} reviewCount={companion.reviewCount ?? 0} />}
         </div>
 
-        <div className="discover-companion-actions">
-          <Link to="/companion-profile" search={{ companionProfileId: companion._id }} className="btn btn-social btn-sm">
-            Profile
-          </Link>
-          {signedIn ? (
-            <button
-              type="button"
-              onClick={onFollow}
-              className="btn btn-social-quiet btn-sm"
-              data-active={companion.following}
-              disabled={!companion.userId || companion.viewerBookingEligibility === 'own_profile'}
-            >
-              <Heart size={14} fill={companion.following ? 'currentColor' : 'none'} aria-hidden="true" />
-              {companion.following ? 'Following' : 'Follow'}
-            </button>
-          ) : (
-            <SignInButton mode="modal">
-              <button type="button" className="btn btn-social-quiet btn-sm">
-                <Heart size={14} aria-hidden="true" />
-                Follow
-              </button>
-            </SignInButton>
-          )}
+        <div className="discover-host-actions">
+          <Link to="/companion-profile" search={{ companionProfileId: companion._id }} className="btn btn-social btn-sm">Profile</Link>
+          <FollowIconButton companion={companion} signedIn={signedIn} onFollow={onFollow} />
         </div>
-      </aside>
+      </aside>}
     </article>
   )
 }
 
+function FollowIconButton({ companion, signedIn, onFollow }: { companion: DiscoveryCompanion; signedIn: boolean; onFollow: () => Promise<void> }) {
+  const label = companion.following ? `Unfollow ${companion.displayName}` : `Follow ${companion.displayName}`
+  const button = (
+    <button
+      type="button"
+      onClick={signedIn ? onFollow : undefined}
+      className="discover-follow-icon"
+      data-active={companion.following}
+      disabled={signedIn && (!companion.userId || companion.viewerBookingEligibility === 'own_profile')}
+      aria-label={label}
+      title={label}
+    >
+      <Heart size={17} fill={companion.following ? 'currentColor' : 'none'} aria-hidden="true" />
+    </button>
+  )
+
+  return signedIn ? button : <SignInButton mode="modal">{button}</SignInButton>
+}
+
 function DistanceStamp({ distanceKm, compact = false }: { distanceKm: number; compact?: boolean }) {
   return (
-    <div className="discover-companion-distance" data-compact={compact} aria-label={`${distanceKm} kilometers away`}>
+    <div className="discover-host-distance" data-compact={compact} aria-label={`${distanceKm} kilometers away`}>
       <span>Nearby</span>
       <strong className="tabular">{distanceKm}</strong>
       <small>km away</small>
@@ -542,7 +543,7 @@ function DistanceStamp({ distanceKm, compact = false }: { distanceKm: number; co
 
 function RatingSummary({ rating, reviewCount }: { rating: number; reviewCount: number }) {
   return (
-    <div className="discover-companion-rating">
+    <div className="discover-host-rating">
       <Star size={14} fill="currentColor" aria-hidden="true" />
       <strong className="tabular" aria-label={`${rating.toFixed(1)} out of 5 stars`}>{rating.toFixed(1)}</strong>
       <span>·</span>
@@ -593,7 +594,7 @@ function ToggleChip({ selected, onClick, children }: { selected: boolean; onClic
 }
 
 function TrustChip({ state }: { state: 'verified' | 'awaiting' }) {
-  const label = state === 'verified' ? 'Identity checked' : 'Review in progress'
+  const label = state === 'verified' ? 'Identity checked' : 'Not identity checked'
   return (
     <span className="trust-chip" data-state={state}>
       <span className="trust-chip-dot" aria-hidden="true" />

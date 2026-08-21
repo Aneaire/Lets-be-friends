@@ -70,7 +70,7 @@ function BookingVerificationPage() {
                       submitLabel="Reject"
                       tone="danger"
                       requireNote
-                      disabled={verification.adminStatus !== 'pending'}
+                      disabled={!verification.reviewAllowed}
                       onSubmit={(note) => reviewMember({ verificationRequestId: verification._id, decision: 'rejected', note })}
                     />
                   </div>
@@ -86,12 +86,6 @@ function BookingVerificationPage() {
                     <>
                       <span className="dot" aria-hidden="true" />
                       <span className="tabular">Completed {formatTime(verification.providerCompletedAt)}</span>
-                    </>
-                  )}
-                  {verification.personaDashboardUrl && (
-                    <>
-                      <span className="dot" aria-hidden="true" />
-                      <a href={verification.personaDashboardUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">Open in Persona</a>
                     </>
                   )}
                   {verification.bookingStatus && (
@@ -129,8 +123,11 @@ function BookingVerificationPage() {
                     {verification.adminStatus === 'pending' && <IdentityImageReview verificationRequestId={verification._id} />}
                   </div>
                 )}
-                {!verification.approvalAllowed && verification.adminStatus === 'pending' && (
-                  <p className="text-meta">Approval is blocked because the provider did not return an approvable result. Review and reject this attempt, then the member can start a new one.</p>
+                {!verification.reviewAllowed && verification.adminStatus === 'pending' && (
+                  <p className="text-meta">This historical provider attempt is read-only. The member must start a new in-app identity check.</p>
+                )}
+                {verification.reviewAllowed && !verification.approvalAllowed && (
+                  <p className="text-meta">Approval is blocked because required identity details are incomplete. Review and reject this attempt, then the member can start a new one.</p>
                 )}
                 {verification.personaInquiryId && <p className="text-meta admin-code">Inquiry: {verification.personaInquiryId}</p>}
                 {verification.reviewerNote && <p className="text-meta">Last internal note: {verification.reviewerNote}</p>}

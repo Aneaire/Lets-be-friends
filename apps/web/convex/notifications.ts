@@ -42,7 +42,7 @@ export async function createNotification(ctx: MutationCtx | { db: any; scheduler
   if (!input.dedupeKey.trim()) throw new Error('Notification dedupe key is required')
   const recipient = await ctx.db.get(input.recipientUserId)
   if (!recipient) return null
-  if (input.actorUserId && ['direct_message', 'post_commented', 'new_follower'].includes(input.kind)) {
+  if (input.actorUserId && ['direct_message', 'post_commented', 'mention', 'new_follower'].includes(input.kind)) {
     if (await areUsersBlocked(ctx, input.recipientUserId, input.actorUserId)) return null
     if ((await preference(ctx, input.recipientUserId, input.actorUserId))?.mutedAt) return null
   }
@@ -158,7 +158,7 @@ async function presentNotification(ctx: { db: any }, notification: Doc<'notifica
   const actorAvailable = Boolean(actor && !actor.suspended)
   const actorName = actorAvailable ? actor!.displayName : 'Let\'s Be Friends'
   const target = await resolveTarget(ctx, notification, viewerId)
-  const copy = notificationCopy(notification.kind, actorName, target)
+  const copy = notificationCopy(notification.kind, actorName, target, Boolean(notification.commentId))
   return {
     id: String(notification._id),
     kind: notification.kind,
@@ -210,6 +210,9 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
     return { available: Boolean(companion), destination: { type: 'companion' } }
   }
   if (notification.verificationRequestId) return { available: true, destination: { type: 'identity' } }
+  if (notification.kind === 'identity_verification_expiring' || notification.kind === 'identity_verification_expired') {
+    return { available: true, destination: { type: 'identity' } }
+  }
   if (notification.reportId) return { available: true, destination: { type: 'safety' } }
   if (notification.kind === 'new_follower' && notification.actorUserId) {
     return { available: true, destination: { type: 'profile', userId: String(notification.actorUserId) } }
@@ -217,7 +220,7 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
   return { available: true, destination: { type: 'notifications' } }
 }
 
-function notificationCopy(kind: NotificationKind, actorName: string, target: { available: boolean; category?: string }) {
+function notificationCopy(kind: NotificationKind, actorName: string, target: { available: boolean; category?: string }, isComment = false) {
   const category = target.category ? ` for ${target.category}` : ''
   const unavailable = target.available ? '' : ' This item is no longer available.'
   switch (kind) {
@@ -230,12 +233,17 @@ function notificationCopy(kind: NotificationKind, actorName: string, target: { a
     case 'booking_review_window_opened': return { title: 'Review window open', body: `Both participants confirmed the experience. You can now leave a review.${unavailable}`, tone: 'social' as const }
     case 'direct_message': return { title: 'New message', body: `${actorName} sent you a message.${unavailable}`, tone: 'social' as const }
     case 'post_commented': return { title: 'New comment', body: `${actorName} commented on your post.${unavailable}`, tone: 'social' as const }
+    case 'mention': return isComment
+      ? { title: 'You were mentioned', body: `${actorName} mentioned you in a comment.${unavailable}`, tone: 'social' as const }
+      : { title: 'You were mentioned', body: `${actorName} mentioned you in a post.${unavailable}`, tone: 'social' as const }
     case 'new_follower': return { title: 'New follower', body: `${actorName} followed you.`, tone: 'social' as const }
     case 'review_received': return { title: 'Review received', body: `${actorName} left you a review.${unavailable}`, tone: 'social' as const }
     case 'companion_application_approved': return { title: 'Companion application approved', body: 'Your Companion application was approved.', tone: 'self' as const }
     case 'companion_application_rejected': return { title: 'Companion application not approved', body: 'Your Companion application was not approved. Open Companion tools for your current status.', tone: 'danger' as const }
     case 'identity_verification_approved': return { title: 'Identity verification approved', body: 'Your identity verification was approved.', tone: 'self' as const }
     case 'identity_verification_rejected': return { title: 'Identity verification not approved', body: 'Your identity verification was not approved. Open your account to review the next step.', tone: 'danger' as const }
+    case 'identity_verification_expiring': return { title: 'Identity verification expiring soon', body: 'Your identity approval expires soon. Renew it before your booking access pauses.', tone: 'self' as const }
+    case 'identity_verification_expired': return { title: 'Identity verification expired', body: 'Your identity approval has expired. Complete a new check to restore booking access.', tone: 'self' as const }
     case 'report_reviewing': return { title: 'Report under review', body: 'The safety team is reviewing your report.', tone: 'self' as const }
     case 'report_resolved': return { title: 'Report resolved', body: 'The safety team resolved your report.', tone: 'self' as const }
     case 'report_dismissed': return { title: 'Report closed', body: 'The safety team closed your report.', tone: 'danger' as const }

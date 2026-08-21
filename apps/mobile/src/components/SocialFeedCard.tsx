@@ -1,10 +1,11 @@
 import type { FunctionReturnType } from 'convex/server'
-import { useMutation, usePaginatedQuery } from 'convex/react'
+import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { router } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { useState } from 'react'
 import { Alert, FlatList, Image, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native'
 import { api as generatedApi } from '../../../web/convex/_generated/api'
+import { activeMentionQuery, splitBodyIntoSegments, type StoredMention } from '@lets-be-friends/shared'
 
 import { mobileApi, type PostId } from '@/backend/client'
 import { formatMessageTimestamp } from '@/data/messageViewModels'
@@ -20,6 +21,20 @@ import { AppText } from './Typography'
 type FeedItem = FunctionReturnType<typeof generatedApi.social.feedPage>['page'][number]
 type FeedAction = 'open_companion' | 'open_guidance' | 'comment' | 'like' | 'save' | 'follow' | 'report' | 'report_comment'
 type PostMedia = { storageId: string; kind: string; url?: string | null }
+
+function MentionBody({ body, mentions, numberOfLines }: { body: string; mentions?: StoredMention[]; numberOfLines?: number }) {
+  const theme = useAppTheme()
+  const segments = splitBodyIntoSegments(body, mentions ?? [])
+  return (
+    <AppText numberOfLines={numberOfLines}>
+      {segments.map((segment, index) => segment.type === 'mention' ? (
+        <AppText key={index} variant="bodyStrong" color={theme.colors.socialText}>@{segment.username}</AppText>
+      ) : (
+        <AppText key={index}>{segment.text}</AppText>
+      ))}
+    </AppText>
+  )
+}
 
 export function SocialFeedCard({ item, signedIn, following, followBusy = false, onToggleFollow, onAction }: {
   item: FeedItem
@@ -177,7 +192,7 @@ function PostCard({ item, signedIn, following, followBusy, onToggleFollow, onAct
         </View>
         {post.ownPost ? <Pressable accessibilityRole="button" accessibilityLabel="Post options" onPress={openPostOptions} hitSlop={4} style={({ pressed }) => [styles.optionsButton, pressed && styles.pressed]}><AppIcon name="ellipsis-horizontal" color={theme.colors.text} size={21} /></Pressable> : null}
       </View>
-      {post.body ? <AppText>{post.body}</AppText> : null}
+      {post.body ? <MentionBody body={post.body} mentions={post.mentions} /> : null}
       {post.media.filter((media: PostMedia) => media.kind === 'image' && media.url).map((media: PostMedia, index: number) => <Image key={`${media.storageId}-${index}`} source={{ uri: media.url as string }} resizeMode="cover" style={styles.image} accessibilityLabel="Post image" />)}
       {post.media.filter((media: PostMedia) => media.kind === 'video' && media.url).map((media: PostMedia, index: number) => <Pressable key={`${media.storageId}-video-${index}`} accessibilityRole="link" accessibilityLabel="Open post video" onPress={() => void openVideo(media.url as string)} style={[styles.videoLink, { borderColor: theme.colors.border }]}><AppText variant="bodyStrong" color={theme.colors.socialText}>Open post video</AppText><AppText variant="caption" color={theme.colors.textMuted}>Opens through your device's supported video app</AppText></Pressable>)}
       <View style={[styles.counts, { borderBottomColor: theme.colors.border }]}><AppText variant="caption" color={theme.colors.textMuted}>{likeCount} likes</AppText><AppText variant="caption" color={theme.colors.textMuted}>{post.commentCount} comments</AppText></View>
@@ -220,8 +235,18 @@ function CommentsSheet({ visible, postId, signedIn, onClose, onReported }: { vis
   const { results: comments, status, loadMore } = usePaginatedQuery(mobileApi.social.commentPage, visible ? { postId } : 'skip', { initialNumItems: 12 })
   const createComment = useMutation(mobileApi.social.createComment)
   const [body, setBody] = useState('')
+  const [mentionCaret, setMentionCaret] = useState(0)
+  const mentionToken = activeMentionQuery(body, mentionCaret)
+  const mentionSuggestions = useQuery(mobileApi.social.mentionLookup, visible && mentionToken ? { query: mentionToken } : 'skip')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+
+  function insertMention(username: string) {
+    const before = body.slice(0, mentionCaret).replace(/@[a-z0-9_]*$/i, `@${username} `)
+    const next = before + body.slice(mentionCaret)
+    setBody(next)
+    setMentionCaret(before.length)
+  }
 
   async function submit() {
     const trimmed = body.trim()
@@ -248,10 +273,10 @@ function CommentsSheet({ visible, postId, signedIn, onClose, onReported }: { vis
           </View>
           <FlatList style={styles.commentScroll} contentContainerStyle={styles.commentList} keyboardShouldPersistTaps="handled" data={comments} keyExtractor={(comment) => String(comment._id)} onEndReached={() => { if (status === 'CanLoadMore') loadMore(12) }} onEndReachedThreshold={0.4} ListEmptyComponent={status === 'LoadingFirstPage' ? (
               <AppText color={theme.colors.textMuted}>Loading comments.</AppText>
-            ) : <AppText color={theme.colors.textMuted}>No comments yet.</AppText>} renderItem={({ item: comment }: { item: { _id: string; authorDisplayName: string; body: string; createdAt: number; ownComment: boolean } }) => (
+            ) : <AppText color={theme.colors.textMuted}>No comments yet.</AppText>} renderItem={({ item: comment }) => (
               <View style={[styles.comment, { borderBottomColor: theme.colors.border }]}>
                 <AppText variant="bodyStrong">{comment.authorDisplayName}</AppText>
-                <AppText>{comment.body}</AppText>
+                <MentionBody body={comment.body} mentions={comment.mentions} />
                 <View style={styles.authorRow}>
                   <AppText variant="caption" color={theme.colors.textMuted}>{formatMessageTimestamp(comment.createdAt)}</AppText>
                   {signedIn && !comment.ownComment ? <ReportAction targetType="comment" targetId={String(comment._id)} label="Report comment" compact onReported={onReported} /> : null}
@@ -263,13 +288,33 @@ function CommentsSheet({ visible, postId, signedIn, onClose, onReported }: { vis
               <TextInput
                 accessibilityLabel="Write a comment"
                 value={body}
-                onChangeText={(value) => { setBody(value); setError('') }}
+                onChangeText={(value) => { setBody(value); setError(''); setMentionCaret(value.length) }}
+                onSelectionChange={(event) => setMentionCaret(event.nativeEvent.selection.start)}
                 placeholder="Write a respectful comment"
                 placeholderTextColor={theme.colors.textMuted}
                 multiline
                 maxLength={501}
                 style={[styles.commentInput, theme.typography.body, { color: theme.colors.text, borderColor: body.length > 500 ? theme.colors.danger : theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}
               />
+              {mentionToken && mentionSuggestions && mentionSuggestions.length > 0 ? (
+                <View style={[styles.mentionMenu, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
+                  {mentionSuggestions.map((suggestion) => (
+                    <Pressable
+                      key={suggestion.userId}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Mention ${suggestion.displayName} as ${suggestion.username}`}
+                      onPress={() => insertMention(suggestion.username)}
+                      style={({ pressed }) => [styles.mentionOption, pressed && styles.pressed]}
+                    >
+                      <Avatar name={suggestion.displayName} size={28} />
+                      <View style={styles.mentionOptionCopy}>
+                        <AppText variant="bodyStrong" numberOfLines={1}>{suggestion.displayName}</AppText>
+                        <AppText variant="caption" color={theme.colors.socialText}>@{suggestion.username}</AppText>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
               <AppText variant="caption" color={body.length > 500 ? theme.colors.danger : theme.colors.textMuted}>{body.length}/500</AppText>
               {error ? <AppText accessibilityRole="alert" color={theme.colors.danger}>{error}</AppText> : null}
               <ActionButton label={busy ? 'Posting comment' : 'Post comment'} onPress={() => void submit()} disabled={busy || !body.trim() || body.length > 500} />
@@ -317,4 +362,7 @@ const styles = StyleSheet.create({
   commentList: { gap: 4, paddingBottom: 4 },
   comment: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 8, gap: 3 },
   commentInput: { minHeight: 80, maxHeight: 120, borderWidth: 1, borderRadius: 12, padding: 12, textAlignVertical: 'top' },
+  mentionMenu: { borderWidth: 1, borderRadius: 12, padding: 6, gap: 2, maxHeight: 200 },
+  mentionOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 8 },
+  mentionOptionCopy: { flex: 1, gap: 1 },
 })

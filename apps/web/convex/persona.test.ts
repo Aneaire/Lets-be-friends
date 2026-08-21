@@ -132,14 +132,38 @@ describe('Persona webhook state transitions', () => {
     const t = createTest()
     await insertUser(t, { clerkUserId: 'admin-reversal', role: 'reviewer', verificationStatus: 'not_started' })
     const userId = await insertUser(t, { clerkUserId: 'member-reversal' })
-    const requestId = await insertAttempt(t, userId, { inquiryId: 'inq_reversal', decision: 'passed' })
-    await t.withIdentity({ subject: 'admin-reversal' }).mutation(api.admin.reviewMemberVerification, {
-      verificationRequestId: requestId,
-      decision: 'approved',
-      note: 'Initial Persona pass reviewed.',
+    const now = Date.now()
+    const requestId = await t.run(async (ctx) => {
+      const requestId = await ctx.db.insert('verificationRequests', {
+        userId,
+        reason: 'member',
+        personaInquiryId: 'inq_reversal',
+        personaTemplateId: 'itmpl_test',
+        personaEnvironmentId: 'env_test',
+        personaStatus: 'completed',
+        personaDecision: 'passed',
+        verificationSource: 'persona',
+        adminStatus: 'approved',
+        isCurrent: true,
+        attempt: 1,
+        providerCompletedAt: now,
+        adminQueuedAt: now,
+        reviewedAt: now,
+        reviewerUserId: userId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.patch(userId, {
+        verificationStatus: 'approved',
+        verificationSource: 'persona',
+        identityVerifiedAt: now,
+        identityExpiresAt: now + 86_400_000,
+        updatedAt: now,
+      })
+      return requestId
     })
 
-    const repeatedPassTime = Date.now() + 1_000
+    const repeatedPassTime = now + 1_000
     expect(await t.mutation(internal.persona.applyWebhookEvent, {
       eventId: 'evt_repeated_pass',
       eventName: 'inquiry.approved',
@@ -174,7 +198,6 @@ describe('Persona webhook state transitions', () => {
     expect(result.user).not.toHaveProperty('identityVerifiedAt')
     expect(result.user).not.toHaveProperty('identityExpiresAt')
     expect(result.audits.map((audit) => audit.action)).toContain('member_verification.reopened_by_provider')
-    expect(result.audits.map((audit) => audit.action)).toContain('member_verification.approved')
   })
 
   it('ignores equal-time and newer lifecycle regressions', async () => {
@@ -386,29 +409,23 @@ describe('booking identity eligibility', () => {
 })
 
 describe('mandatory admin identity review', () => {
-  it('approves only the exact current Persona-passed attempt', async () => {
+  it('keeps dormant Persona attempts out of the actionable identity queue', async () => {
     const t = createTest()
     await insertUser(t, { clerkUserId: 'admin-reviewer', role: 'reviewer', verificationStatus: 'not_started' })
     const userId = await insertUser(t, { clerkUserId: 'member-approved' })
     const requestId = await insertAttempt(t, userId, { inquiryId: 'inq_approved', decision: 'passed' })
-    const historicalId = await insertAttempt(t, userId, { inquiryId: 'inq_historical', decision: 'passed', isCurrent: false })
 
-    await t.withIdentity({ subject: 'admin-reviewer' }).mutation(api.admin.reviewMemberVerification, {
+    await expect(t.withIdentity({ subject: 'admin-reviewer' }).mutation(api.admin.reviewMemberVerification, {
       verificationRequestId: requestId,
       decision: 'approved',
       note: 'Reviewed in Persona.',
-    })
+    })).rejects.toThrow(/Only the current completed identity attempt can receive an admin decision/)
 
-    const result = await t.run(async (ctx) => ({
-      user: await ctx.db.get(userId),
-      request: await ctx.db.get(requestId),
-      historical: await ctx.db.get(historicalId),
-    }))
-    expect(result.request?.adminStatus).toBe('approved')
-    expect(result.historical?.adminStatus).toBe('pending')
-    expect(result.user).toMatchObject({ verificationStatus: 'approved', verificationSource: 'persona' })
-    expect(result.user?.identityVerifiedAt).toEqual(expect.any(Number))
-    expect(result.user?.identityExpiresAt).toBeGreaterThan(result.user?.identityVerifiedAt ?? 0)
+    const rows = await t.withIdentity({ subject: 'admin-reviewer' }).query(api.admin.memberVerifications, { status: 'pending' })
+    expect(rows).toEqual([])
+    const result = await t.run(async (ctx) => ({ user: await ctx.db.get(userId), request: await ctx.db.get(requestId) }))
+    expect(result.request?.adminStatus).toBe('pending')
+    expect(result.user?.verificationStatus).not.toBe('approved')
   })
 
   it('keeps Companion profile approval separate from identity approval', async () => {
@@ -488,7 +505,7 @@ describe('mandatory admin identity review', () => {
     expect(rows).toEqual([])
   })
 
-  it('blocks an approval override for a Persona decline but permits a noted rejection', async () => {
+  it('blocks both approve and reject admin decisions for a dormant Persona attempt', async () => {
     const t = createTest()
     await insertUser(t, { clerkUserId: 'admin-decline', role: 'admin', verificationStatus: 'not_started' })
     const userId = await insertUser(t, { clerkUserId: 'member-declined' })
@@ -499,15 +516,23 @@ describe('mandatory admin identity review', () => {
       verificationRequestId: requestId,
       decision: 'approved',
       note: 'Override attempt.',
-    })).rejects.toThrow(/identity provider declined or did not complete/)
+    })).rejects.toThrow(/Only the current completed identity attempt can receive an admin decision/)
 
-    await admin.mutation(api.admin.reviewMemberVerification, {
+    await expect(admin.mutation(api.admin.reviewMemberVerification, {
       verificationRequestId: requestId,
       decision: 'rejected',
       note: 'Persona declined the identity result.',
-    })
+    })).rejects.toThrow(/Only the current completed identity attempt can receive an admin decision/)
+
     const result = await t.run(async (ctx) => ({ request: await ctx.db.get(requestId), user: await ctx.db.get(userId) }))
-    expect(result.request?.adminStatus).toBe('rejected')
-    expect(result.user?.verificationStatus).toBe('rejected')
+    expect(result.request?.adminStatus).toBe('pending')
+    expect(result.user?.verificationStatus).not.toBe('rejected')
+  })
+
+  it('returns a clear disabled-workflow error when trying to start Persona', async () => {
+    const t = createTest()
+    await insertUser(t, { clerkUserId: 'persona-starter', verificationStatus: 'not_started' })
+    await expect(t.withIdentity({ subject: 'persona-starter' }).action(api.persona.startInquiry, { intent: 'member' }))
+      .rejects.toThrow(/no longer available/)
   })
 })

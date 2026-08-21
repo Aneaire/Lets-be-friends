@@ -2,9 +2,10 @@ import { action, internalMutation, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { v } from 'convex/values'
-import { hasCurrentIdentityApproval } from './identityVerification'
+import { hasCurrentIdentityApproval, identityTestBypassAllowed, parseIdentityDate, validateIdentityFields } from './identityVerification'
 import { requireViewer, writeAudit } from './lib'
 import { syncUserCompanionLocation } from './companionLocations'
+import { createNotification } from './notifications'
 
 const DAY_MS = 24 * 60 * 60 * 1_000
 const ACCESS_MS = 5 * 60 * 1_000
@@ -60,9 +61,26 @@ export const current = query({
   args: {},
   handler: async (ctx) => {
     const viewer = await requireViewer(ctx)
-    const records = await ctx.db.query('identityRecords').withIndex('by_user_created_at', (q) => q.eq('userId', viewer._id)).order('desc').take(10)
-    const record = records.find((candidate) => candidate.stage !== 'purged') ?? null
-    if (!record) return null
+    const requests = await ctx.db.query('verificationRequests').withIndex('by_user_current', (q) => q.eq('userId', viewer._id).eq('isCurrent', true)).collect()
+    const request = requests
+      .sort((a, b) => (b.attempt ?? 0) - (a.attempt ?? 0) || b.updatedAt - a.updatedAt)[0]
+    if (
+      !request?.identityRecordId
+      || request.verificationSource !== 'in_app'
+      || request.reason === 'booking'
+    ) return null
+    const record = await ctx.db.get(request.identityRecordId)
+    if (!record || record.stage === 'purged' || record.userId !== viewer._id) return null
+    // Require the bidirectional request backlink, in-app provenance, and the
+    // current/newest attempt invariants before exposing any record fields.
+    if (
+      record.verificationRequestId !== request._id
+      || request.identityRecordId !== record._id
+      || record.source !== 'in_app'
+      || request.verificationSource !== 'in_app'
+      || record.reason === 'booking'
+    ) return null
+    if (record.stage === 'approved' && !hasCurrentIdentityApproval(viewer)) return null
     const images = await ctx.db.query('identityRecordImages').withIndex('by_record_kind', (q) => q.eq('identityRecordId', record._id)).collect()
     return {
       _id: record._id,
@@ -91,22 +109,49 @@ export const start = mutation({
   args: { reason, selectedIdType: documentType },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (hasCurrentIdentityApproval(viewer)) return { mode: 'approved' as const }
+    if (args.reason === 'booking') throw new Error('Booking-linked identity verification is no longer available')
+    // A still-valid approval can be renewed pre-expiry. While the renewal is in
+    // progress the prior entitlement stays active and is never downgraded.
+    const renewing = hasCurrentIdentityApproval(viewer)
+    if (args.reason === 'companion_application') {
+      if (renewing) return { mode: 'approved' as const }
+      const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+      if (!companion) throw new Error('Save the Companion application before starting identity verification')
+    }
     const currentRequests = await ctx.db.query('verificationRequests').withIndex('by_user_current', (q) => q.eq('userId', viewer._id).eq('isCurrent', true)).collect()
-    const activeInApp = currentRequests.find((request) => request.verificationSource === 'in_app' && request.identityRecordId && request.adminStatus !== 'approved' && request.adminStatus !== 'rejected')
-    if (activeInApp?.identityRecordId) return { mode: 'continue' as const, identityRecordId: activeInApp.identityRecordId }
-    const activePersona = currentRequests.find((request) => request.verificationSource === 'persona' && request.adminStatus !== 'approved' && request.adminStatus !== 'rejected')
-    if (activePersona) throw new Error('An existing identity attempt is still active. Complete or close it before starting another.')
+    // Historical booking attempts are never resumed and are superseded below
+    // whenever a fresh member attempt is started.
+    const newestCurrent = currentRequests
+      .sort((a, b) => (b.attempt ?? 0) - (a.attempt ?? 0) || b.updatedAt - a.updatedAt)[0]
+    const activeInApp = newestCurrent?.verificationSource === 'in_app'
+      && newestCurrent.identityRecordId
+      && newestCurrent.reason !== 'booking'
+      && newestCurrent.adminStatus !== 'approved'
+      && newestCurrent.adminStatus !== 'rejected'
+      ? newestCurrent
+      : undefined
+    if (activeInApp?.identityRecordId) {
+      const activeRecord = await ctx.db.get(activeInApp.identityRecordId)
+      if (activeRecord && activeRecord.userId === viewer._id && activeRecord.verificationRequestId === activeInApp._id && activeRecord.stage !== 'purged') {
+        return { mode: 'continue' as const, identityRecordId: activeInApp.identityRecordId }
+      }
+    }
 
     const now = Date.now()
     const earlier = await ctx.db.query('verificationRequests').withIndex('by_user', (q) => q.eq('userId', viewer._id)).collect()
+    // A stale Persona attempt or a historical booking attempt can be replaced
+    // by a fresh in-app attempt. The newest active request wins; everything
+    // else is superseded.
     for (const request of earlier.filter((candidate) => candidate.isCurrent === true)) {
       await ctx.db.patch(request._id, { isCurrent: false, supersededAt: now, updatedAt: now })
     }
     const attempt = Math.max(0, ...earlier.map((request) => request.attempt ?? 0)) + 1
+    const reason = args.reason === 'member' && (renewing || viewer.verificationStatus === 'approved' || viewer.verificationStatus === 'rejected')
+      ? 'reverification' as const
+      : args.reason
     const identityRecordId = await ctx.db.insert('identityRecords', {
       userId: viewer._id,
-      reason: args.reason,
+      reason,
       source: 'in_app',
       stage: 'draft',
       selectedIdType: args.selectedIdType,
@@ -115,7 +160,7 @@ export const start = mutation({
     })
     const verificationRequestId = await ctx.db.insert('verificationRequests', {
       userId: viewer._id,
-      reason: args.reason,
+      reason,
       personaStatus: 'not_started',
       personaDecision: 'unknown',
       verificationSource: 'in_app',
@@ -128,9 +173,13 @@ export const start = mutation({
       updatedAt: now,
     })
     await ctx.db.patch(identityRecordId, { verificationRequestId })
-    await ctx.db.patch(viewer._id, { verificationStatus: 'pending', updatedAt: now })
+    // A renewal keeps a still-valid prior entitlement active. Only a fresh
+    // attempt moves the member to pending.
+    if (!renewing) {
+      await ctx.db.patch(viewer._id, { verificationStatus: 'pending', updatedAt: now })
+    }
     await syncUserCompanionLocation(ctx, viewer._id)
-    await writeAudit(ctx, { actorUserId: viewer._id, action: 'identity_record.started', targetType: 'identityRecord', targetId: String(identityRecordId) })
+    await writeAudit(ctx, { actorUserId: viewer._id, action: 'identity_record.started', targetType: 'identityRecord', targetId: String(identityRecordId), after: { reason, attempt, renewal: renewing } })
     return { mode: 'started' as const, identityRecordId }
   },
 })
@@ -164,7 +213,7 @@ export const claimStoredImage = internalMutation({
   args: { clerkUserId: v.string(), identityRecordId: v.id('identityRecords'), kind: imageKind, storageId: v.id('_storage'), contentType: v.string(), cameraCaptureToken: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const viewer = await requireViewerBySubject(ctx, args.clerkUserId)
-    const record = await requireOwnedRecord(ctx, args.identityRecordId, viewer._id)
+    const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     if (!['draft', 'confirmation_required', 'failed'].includes(record.stage)) throw new Error('This identity attempt cannot accept another image')
     if (args.kind === 'selfie') {
       if (!record.fieldsConfirmedAt) throw new Error('Confirm the ID details before taking a selfie')
@@ -242,7 +291,7 @@ export const prepareExtraction = internalMutation({
   args: { clerkUserId: v.string(), identityRecordId: v.id('identityRecords') },
   handler: async (ctx, args) => {
     const viewer = await requireViewerBySubject(ctx, args.clerkUserId)
-    const record = await requireOwnedRecord(ctx, args.identityRecordId, viewer._id)
+    const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     if (!['draft', 'failed'].includes(record.stage)) throw new Error('This identity attempt is not ready for extraction')
     const image = await activeImage(ctx, record._id, 'id_front')
     const backImage = await activeImage(ctx, record._id, 'id_back')
@@ -258,7 +307,7 @@ export const completeExtraction = internalMutation({
   args: { clerkUserId: v.string(), identityRecordId: v.id('identityRecords'), extraction: extractionValidator },
   handler: async (ctx, args) => {
     const viewer = await requireViewerBySubject(ctx, args.clerkUserId)
-    const record = await requireOwnedRecord(ctx, args.identityRecordId, viewer._id)
+    const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     if (record.stage !== 'extracting') throw new Error('This extraction is no longer active')
     const now = Date.now()
     await ctx.db.patch(record._id, { stage: 'confirmation_required', extraction: args.extraction, extractionCompletedAt: now, updatedAt: now })
@@ -270,7 +319,7 @@ export const failExtraction = internalMutation({
   args: { clerkUserId: v.string(), identityRecordId: v.id('identityRecords'), failureCode: v.string() },
   handler: async (ctx, args) => {
     const viewer = await requireViewerBySubject(ctx, args.clerkUserId)
-    const record = await requireOwnedRecord(ctx, args.identityRecordId, viewer._id)
+    const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     const now = Date.now()
     await ctx.db.patch(record._id, { stage: 'failed', extractionFailureCode: args.failureCode, updatedAt: now })
     if (record.verificationRequestId) await ctx.db.patch(record.verificationRequestId, { identityStage: 'failed', providerFailureCode: args.failureCode, updatedAt: now })
@@ -284,11 +333,13 @@ export const confirmFields = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    const record = await requireOwnedRecord(ctx, args.identityRecordId, viewer._id)
+    const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     if (record.stage !== 'confirmation_required') throw new Error('The extracted details are not ready for confirmation')
     const fullLegalName = normalizeRequiredText(args.fullLegalName, 2, 120, 'Full legal name')
-    const dateOfBirth = normalizeDate(args.dateOfBirth, true, 'Date of birth')!
-    const expirationDate = normalizeDate(args.expirationDate, false, 'Expiration date')
+    const dateOfBirth = args.dateOfBirth.trim()
+    const expirationDate = args.expirationDate?.trim() || undefined
+    const policy = validateIdentityFields({ dateOfBirth, idType: args.idType, expirationDate })
+    if (!policy.ok) throw new Error(policy.error)
     const idNumberLast4 = normalizeLast4(args.idNumberLast4)
     const nationality = normalizeOptionalText(args.nationality, 80)
     const now = Date.now()
@@ -301,7 +352,7 @@ export const issueSelfieCaptureToken = mutation({
   args: { identityRecordId: v.id('identityRecords') },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    const record = await requireOwnedRecord(ctx, args.identityRecordId, viewer._id)
+    const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     if (record.stage !== 'confirmation_required' || !record.fieldsConfirmedAt) throw new Error('Confirm the ID details before opening the camera')
     const token = crypto.randomUUID()
     const expiresAt = Date.now() + CAPTURE_TOKEN_MS
@@ -314,15 +365,22 @@ export const submit = mutation({
   args: { identityRecordId: v.id('identityRecords'), reviewConsent: v.boolean() },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    const record = await requireOwnedRecord(ctx, args.identityRecordId, viewer._id)
+    const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     if (!args.reviewConsent) throw new Error('Consent is required before submitting these records for safety review')
     if (record.stage !== 'confirmation_required' || !record.fieldsConfirmedAt || !record.thirdPartyProcessingConsentedAt) throw new Error('Complete and confirm the ID details first')
+    if (!record.dateOfBirth || !record.idType) throw new Error('Complete and confirm the ID details first')
+    const policy = validateIdentityFields({ dateOfBirth: record.dateOfBirth, idType: record.idType, expirationDate: record.expirationDate })
+    if (!policy.ok) throw new Error(policy.error)
     if (!(await activeImage(ctx, record._id, 'id_front')) || !(await activeImage(ctx, record._id, 'selfie'))) throw new Error('An ID image and current camera selfie are required')
     if (!record.verificationRequestId) throw new Error('Identity verification request is unavailable')
     const now = Date.now()
     await ctx.db.patch(record._id, { stage: 'ready_for_review', reviewConsentedAt: now, submittedAt: now, updatedAt: now })
     await ctx.db.patch(record.verificationRequestId, { identityStage: 'ready_for_review', adminStatus: 'pending', providerCompletedAt: now, adminQueuedAt: now, updatedAt: now })
-    await ctx.db.patch(viewer._id, { verificationStatus: 'pending', updatedAt: now })
+    // A renewal keeps a still-valid prior entitlement active; only a fresh
+    // attempt (or one whose prior entitlement already lapsed) moves to pending.
+    if (!hasCurrentIdentityApproval(viewer)) {
+      await ctx.db.patch(viewer._id, { verificationStatus: 'pending', updatedAt: now })
+    }
     await syncUserCompanionLocation(ctx, viewer._id)
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'identity_record.submitted', targetType: 'identityRecord', targetId: String(record._id) })
   },
@@ -430,6 +488,81 @@ export const purgeExpired = internalMutation({
   },
 })
 
+export const processIdentityExpiry = internalMutation({
+  args: { now: v.optional(v.number()), limit: v.optional(v.number()), cursor: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const now = args.now ?? Date.now()
+    const limit = Math.min(Math.max(args.limit ?? 100, 1), 500)
+    const page = await ctx.db.query('users')
+      .withIndex('by_identity_expires_at', (q) => q.lte('identityExpiresAt', now + 30 * DAY_MS))
+      .paginate({ cursor: args.cursor ?? null, numItems: limit })
+    const rows = page.page
+    let expiring = 0
+    let expired = 0
+    let skipped = 0
+    for (const user of rows) {
+      if (user.verificationStatus !== 'approved' || !user.identityExpiresAt) {
+        skipped += 1
+        continue
+      }
+      if (identityTestBypassAllowed(user) && user.identityTestBypass === true) {
+        skipped += 1
+        continue
+      }
+      if (user.identityExpiresAt <= now) {
+        await createNotification(ctx, {
+          recipientUserId: user._id,
+          kind: 'identity_verification_expired',
+          priority: 'attention',
+          dedupeKey: `identity-verification-expired:${user._id}:${user.identityExpiresAt}`,
+        })
+        await ctx.db.patch(user._id, {
+          verificationStatus: 'not_started',
+          verificationSource: undefined,
+          identityVerifiedAt: undefined,
+          identityExpiresAt: undefined,
+          updatedAt: now,
+        })
+        await syncUserCompanionLocation(ctx, user._id)
+        await writeAudit(ctx, {
+          action: 'identity_verification.expired',
+          targetType: 'user',
+          targetId: String(user._id),
+          before: { verificationStatus: user.verificationStatus, identityExpiresAt: user.identityExpiresAt },
+          after: { verificationStatus: 'not_started' },
+        })
+        expired += 1
+        continue
+      }
+      if (user.identityExpiresAt <= now + 7 * DAY_MS) {
+        await createNotification(ctx, {
+          recipientUserId: user._id,
+          kind: 'identity_verification_expiring',
+          priority: 'attention',
+          dedupeKey: `identity-verification-expiring:${user._id}:${user.identityExpiresAt}:7`,
+        })
+        expiring += 1
+      } else {
+        await createNotification(ctx, {
+          recipientUserId: user._id,
+          kind: 'identity_verification_expiring',
+          priority: 'standard',
+          dedupeKey: `identity-verification-expiring:${user._id}:${user.identityExpiresAt}:30`,
+        })
+        expiring += 1
+      }
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.identityRecords.processIdentityExpiry, {
+        now,
+        limit,
+        cursor: page.continueCursor,
+      })
+    }
+    return { checked: rows.length, expiring, expired, skipped, remaining: page.isDone ? 'done' : 'more' }
+  },
+})
+
 export function buildOpenAiIdentityRequest(bytes: ArrayBuffer, contentType: string, selectedIdType: DocumentType, backImage?: { bytes: ArrayBuffer; contentType: string }) {
   const dataUrl = `data:${normalizeImageType(contentType)};base64,${arrayBufferToBase64(bytes)}`
   const imageContent = [
@@ -508,9 +641,31 @@ async function requireViewerBySubject(ctx: { db: any }, subject: string) {
   return viewer
 }
 
-async function requireOwnedRecord(ctx: { db: any }, recordId: Id<'identityRecords'>, userId: Id<'users'>) {
+async function requireCurrentLinkedInAppRecord(ctx: { db: any }, recordId: Id<'identityRecords'>, userId: Id<'users'>) {
   const record = await ctx.db.get(recordId) as Doc<'identityRecords'> | null
   if (!record || record.userId !== userId) throw new Error('Identity record not found')
+  if (record.reason === 'booking') throw new Error('This booking identity attempt is no longer active. Start a new attempt.')
+  if (!record.verificationRequestId) throw new Error('This identity record is not part of a current identity attempt')
+  const request = await ctx.db.get(record.verificationRequestId) as Doc<'verificationRequests'> | null
+  if (
+    !request
+    || request.userId !== userId
+    || request.identityRecordId !== record._id
+    || record.source !== 'in_app'
+    || request.isCurrent !== true
+    || request.verificationSource !== 'in_app'
+  ) {
+    throw new Error('This identity attempt has been superseded. Start a new attempt.')
+  }
+  if (request.reason === 'booking') throw new Error('This booking identity attempt is no longer active. Start a new attempt.')
+  const currentRequests = await ctx.db.query('verificationRequests')
+    .withIndex('by_user_current', (q: any) => q.eq('userId', userId).eq('isCurrent', true))
+    .collect() as Doc<'verificationRequests'>[]
+  const newestCurrent = currentRequests
+    .sort((a, b) => (b.attempt ?? 0) - (a.attempt ?? 0) || b.updatedAt - a.updatedAt)[0]
+  if (newestCurrent?._id !== request._id) {
+    throw new Error('This identity attempt has been superseded. Start a new attempt.')
+  }
   return record
 }
 
@@ -525,8 +680,7 @@ function retentionMs() { const configured = Number(process.env.IDENTITY_RECORD_R
 function normalizeRequiredText(value: string, min: number, max: number, label: string) { const normalized = value.trim().replace(/\s+/g, ' '); if (normalized.length < min || normalized.length > max) throw new Error(`${label} must be ${min} to ${max} characters`); return normalized }
 function normalizeOptionalText(value: unknown, max: number) { if (typeof value !== 'string') return undefined; const normalized = value.trim().replace(/\s+/g, ' ').slice(0, max); return normalized || undefined }
 function normalizeLast4(value: string | undefined) { if (!value) return undefined; const normalized = value.replace(/[^a-zA-Z0-9]/g, '').slice(-4); return normalized.length <= 4 && normalized.length > 0 ? normalized : undefined }
-function normalizeDate(value: string | undefined, required: boolean, label: string) { if (!value?.trim()) { if (required) throw new Error(`${label} is required`); return undefined }; const normalized = value.trim(); if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized) || Number.isNaN(Date.parse(`${normalized}T00:00:00Z`))) throw new Error(`${label} must be a valid date`); return normalized }
-function safeDate(value: unknown) { try { return normalizeDate(typeof value === 'string' ? value : undefined, false, 'Date') } catch { return undefined } }
+function safeDate(value: unknown) { if (typeof value !== 'string') return undefined; const parsed = parseIdentityDate(value.trim()); return parsed ? value.trim() : undefined }
 function arrayBufferToBase64(buffer: ArrayBuffer) { const bytes = new Uint8Array(buffer); let binary = ''; for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000)); return btoa(binary) }
 function publicFailureCode(error: unknown) { const message = error instanceof Error ? error.message : ''; if (message === 'provider_unavailable') return 'provider_unavailable'; if (message.startsWith('provider_')) return 'provider_error'; if (message === 'invalid_response' || message === 'missing_output' || message === 'incomplete_response') return 'invalid_extraction'; return 'extraction_failed' }
 function hasLegalHold(record: Doc<'identityRecords'>) { return Boolean(record.legalHoldSetAt && (!record.legalHoldReleasedAt || record.legalHoldReleasedAt < record.legalHoldSetAt)) }

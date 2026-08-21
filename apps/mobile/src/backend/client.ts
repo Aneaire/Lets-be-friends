@@ -3,6 +3,7 @@ import type { Id } from '../../../web/convex/_generated/dataModel'
 
 export const mobileApi = {
   companions: {
+    listExploreDirectory: generatedApi.companions.listExploreDirectory,
     listApproved: generatedApi.companions.listApproved,
     getPublic: generatedApi.companions.getPublic,
     toggleSaveProfile: generatedApi.companions.toggleSaveProfile,
@@ -62,6 +63,7 @@ export const mobileApi = {
     byUser: generatedApi.social.byUser,
     commentsForPost: generatedApi.social.commentsForPost,
     commentPage: generatedApi.social.commentPage,
+    mentionLookup: generatedApi.social.mentionLookup,
     createPost: generatedApi.social.createPost,
     mediaUploadUsage: generatedApi.social.mediaUploadUsage,
     generatePostMediaUploadUrl: generatedApi.social.generatePostMediaUploadUrl,

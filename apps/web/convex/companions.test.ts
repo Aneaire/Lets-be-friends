@@ -59,6 +59,43 @@ async function insertApprovedCompanion(
 }
 
 describe('nearby companion discovery privacy', () => {
+  it('includes unverified members in Explore without exposing them as Companions', async () => {
+    const t = createTest()
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert('users', {
+        clerkUserId: 'unverified-member',
+        displayName: 'Unverified Member',
+        role: 'member',
+        verificationStatus: 'not_started',
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert('users', {
+        clerkUserId: 'suspended-member',
+        displayName: 'Suspended Member',
+        role: 'member',
+        verificationStatus: 'not_started',
+        suspended: true,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    const directory = await t.query(api.companions.listExploreDirectory, {})
+    expect(directory).toEqual([
+      expect.objectContaining({
+        displayName: 'Unverified Member',
+        kind: 'member',
+        verified: false,
+        bookable: false,
+      }),
+    ])
+    expect(directory[0]).not.toHaveProperty('approximateLatitude')
+    expect(directory[0]).not.toHaveProperty('approximateLongitude')
+  })
+
   it('ignores legacy visibility flags and indexes every eligible approved companion', async () => {
     const t = createTest()
     await insertApprovedCompanion(t, 'legacy-true', { latitude: 10.31, longitude: 123.89 }, true)

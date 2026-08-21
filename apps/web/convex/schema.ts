@@ -91,6 +91,10 @@ const postMedia = v.object({
   contentType: v.string(),
   size: v.number(),
 })
+const mentionEntry = v.object({
+  userId: v.id('users'),
+  username: v.string(),
+})
 const directAttachment = v.object({
   storageId: v.id('_storage'),
   kind: v.union(v.literal('image'), v.literal('video'), v.literal('file')),
@@ -131,12 +135,15 @@ const notificationKind = v.union(
   v.literal('booking_review_window_opened'),
   v.literal('direct_message'),
   v.literal('post_commented'),
+  v.literal('mention'),
   v.literal('new_follower'),
   v.literal('review_received'),
   v.literal('companion_application_approved'),
   v.literal('companion_application_rejected'),
   v.literal('identity_verification_approved'),
   v.literal('identity_verification_rejected'),
+  v.literal('identity_verification_expiring'),
+  v.literal('identity_verification_expired'),
   v.literal('report_reviewing'),
   v.literal('report_resolved'),
   v.literal('report_dismissed'),
@@ -172,7 +179,9 @@ export default defineSchema({
   })
     .index('by_clerk_user_id', ['clerkUserId'])
     .index('by_username', ['username'])
-    .index('by_role', ['role']),
+    .index('by_role', ['role'])
+    .index('by_identity_expires_at', ['identityExpiresAt'])
+    .searchIndex('search_display_name', { searchField: 'displayName' }),
   verificationRequests: defineTable({
     userId: v.id('users'),
     reason: v.union(v.literal('member'), v.literal('booking'), v.literal('companion_application'), v.literal('reverification')),
@@ -655,6 +664,7 @@ export default defineSchema({
     authorId: v.id('users'),
     body: v.string(),
     media: v.optional(v.array(postMedia)),
+    mentions: v.optional(v.array(mentionEntry)),
     experienceBookingId: v.optional(v.id('bookings')),
     reportable: v.boolean(),
     hidden: v.boolean(),
@@ -677,6 +687,7 @@ export default defineSchema({
     postId: v.id('posts'),
     authorId: v.id('users'),
     body: v.string(),
+    mentions: v.optional(v.array(mentionEntry)),
     reportable: v.boolean(),
     hidden: v.boolean(),
     createdAt: v.number(),

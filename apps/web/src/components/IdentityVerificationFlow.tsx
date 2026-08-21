@@ -7,6 +7,7 @@ import { api } from '../../convex/_generated/api'
 
 export type IdentityIntent = 'member' | 'companion_application'
 export type IdentityReturnTo = '/app' | '/profile' | '/onboarding' | '/become-companion'
+export type IdentityMobileReturnTo = 'profile' | 'companion'
 type DocumentType = 'passport' | 'drivers_license' | 'national_id' | 'residence_permit' | 'other_government_id'
 type CameraTarget = 'id_front' | 'id_back' | 'selfie'
 type DetailStep = 2 | 3 | 4
@@ -40,7 +41,7 @@ export function useIdentityVerification(intent: IdentityIntent = 'member') {
   return { begin, busy, message: '', error: '' }
 }
 
-export function IdentityVerificationPage({ intent, returnTo }: { intent: IdentityIntent; returnTo: IdentityReturnTo }) {
+export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { intent: IdentityIntent; returnTo: IdentityReturnTo; mobileReturn?: IdentityMobileReturnTo }) {
   const { isSignedIn } = useAuth()
   const navigate = useNavigate()
   const current = useQuery(api.identityRecords.current, isSignedIn ? {} : 'skip')
@@ -100,6 +101,12 @@ export function IdentityVerificationPage({ intent, returnTo }: { intent: Identit
 
   const leavePage = () => {
     closeCamera()
+    if (mobileReturn) {
+      // Only the fixed letsbefriends deep links are ever used for the mobile
+      // handoff return. Arbitrary redirects are never accepted.
+      window.location.assign(`letsbefriends://${mobileReturn}`)
+      return
+    }
     void navigateToReturn(navigate, returnTo)
   }
 
@@ -221,6 +228,26 @@ export function IdentityVerificationPage({ intent, returnTo }: { intent: Identit
     try {
       await submit({ identityRecordId: current._id, reviewConsent })
       closeCamera()
+    } catch (error) {
+      fail(error)
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  const startRenewal = async () => {
+    setWorking(true)
+    setLocalError('')
+    try {
+      const started = await start({ reason: 'reverification', selectedIdType })
+      if (started.mode === 'started' || started.mode === 'continue') {
+        setFront(null)
+        setBack(null)
+        setFields({})
+        setDetailStep(null)
+        setSelfieBlob(null)
+        setSelfieSaved(false)
+      }
     } catch (error) {
       fail(error)
     } finally {
@@ -383,7 +410,7 @@ export function IdentityVerificationPage({ intent, returnTo }: { intent: Identit
                     <IdentityField label="Full legal name" value={fields.fullLegalName} wide onChange={(value) => setFields((currentFields) => ({ ...currentFields, fullLegalName: value }))} />
                     <IdentityField label="Date of birth" type="date" value={fields.dateOfBirth} onChange={(value) => setFields((currentFields) => ({ ...currentFields, dateOfBirth: value }))} />
                     <IdentityField label="Last 4 ID characters" value={fields.idNumberLast4} maxLength={4} optional onChange={(value) => setFields((currentFields) => ({ ...currentFields, idNumberLast4: value }))} />
-                    <IdentityField label="Expiration date" type="date" value={fields.expirationDate} optional onChange={(value) => setFields((currentFields) => ({ ...currentFields, expirationDate: value }))} />
+                    <IdentityField label="Expiration date" type="date" value={fields.expirationDate} required={requiresExpirationDate(fields.idType ?? selectedIdType)} optional={!requiresExpirationDate(fields.idType ?? selectedIdType)} onChange={(value) => setFields((currentFields) => ({ ...currentFields, expirationDate: value }))} />
                     <IdentityField label="Nationality" value={fields.nationality} optional onChange={(value) => setFields((currentFields) => ({ ...currentFields, nationality: value }))} />
                   </div>
                   <button type="button" className="btn btn-self btn-lg identity-primary-action" onClick={() => void saveFieldsForReview()} disabled={working}>{working ? 'Saving your details...' : 'Save and check details'}</button>
@@ -409,7 +436,7 @@ export function IdentityVerificationPage({ intent, returnTo }: { intent: Identit
                 </>
               )}
 
-              {submitted && <div className="identity-submitted"><span><Check size={24} aria-hidden="true" /></span><h3 className="text-h2">{approved ? 'Identity approved' : 'Submitted securely'}</h3><p className="text-body muted">{approved ? 'You can continue using the identity-protected parts of your account.' : 'A safety reviewer will make the final decision. Your booking access stays locked until approval.'}</p><button type="button" className="btn btn-self btn-lg" onClick={leavePage}>Return to your account</button></div>}
+              {submitted && <div className="identity-submitted"><span><Check size={24} aria-hidden="true" /></span><h3 className="text-h2">{approved ? 'Identity approved' : 'Submitted securely'}</h3><p className="text-body muted">{approved ? 'Your current identity approval is active. You can renew it before it expires.' : 'A safety reviewer will make the final decision. Your booking access stays locked until approval.'}</p>{approved && <button type="button" className="btn btn-secondary btn-lg" onClick={() => void startRenewal()} disabled={working}>{working ? 'Starting a renewal...' : 'Renew identity check'}</button>}<button type="button" className="btn btn-self btn-lg" onClick={leavePage}>Return to your account</button></div>}
               {localError && <div className="notice notice-danger" role="alert">{localError}</div>}
             </div>
           </section>
@@ -506,8 +533,8 @@ function IdentityCamera({ target, videoRef, working, onCapture, onCancel }: { ta
   )
 }
 
-function IdentityField({ label, value, onChange, type = 'text', maxLength, optional, wide }: { label: string; value?: string; onChange: (value: string) => void; type?: string; maxLength?: number; optional?: boolean; wide?: boolean }) {
-  return <label className="field-row" data-wide={wide || undefined}><span className="label">{label}{optional && <span className="label-aux">Optional</span>}</span><input className="field" type={type} value={value ?? ''} maxLength={maxLength} onChange={(event) => onChange(event.currentTarget.value)} /></label>
+function IdentityField({ label, value, onChange, type = 'text', maxLength, optional, required, wide }: { label: string; value?: string; onChange: (value: string) => void; type?: string; maxLength?: number; optional?: boolean; required?: boolean; wide?: boolean }) {
+  return <label className="field-row" data-wide={wide || undefined}><span className="label">{label}{optional && <span className="label-aux">Optional</span>}{required && <span className="label-aux">Required</span>}</span><input className="field" type={type} value={value ?? ''} maxLength={maxLength} onChange={(event) => onChange(event.currentTarget.value)} /></label>
 }
 
 function IdentityReviewItem({ label, value, wide }: { label: string; value?: string; wide?: boolean }) {
@@ -525,6 +552,7 @@ async function uploadFile(uploadImage: any, identityRecordId: any, kind: 'id_fro
 function emptyToUndefined(value?: string) { const normalized = value?.trim(); return normalized ? normalized : undefined }
 function formatFileSize(bytes: number) { return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB` }
 function documentTypeLabel(value: DocumentType) { return ({ passport: 'Passport', drivers_license: "Driver's license", national_id: 'National ID', residence_permit: 'Residence permit', other_government_id: 'Other government ID' } as const)[value] }
+function requiresExpirationDate(value: DocumentType) { return value === 'passport' || value === 'drivers_license' || value === 'residence_permit' }
 
 async function videoFrameToBlob(video: HTMLVideoElement): Promise<Blob> {
   const maxSide = 2200

@@ -11,11 +11,13 @@ export function CompanionCard({ companion }: { companion: DiscoveryCompanionView
   const theme = useAppTheme()
   const format = companion.sessionModes.map((mode) => mode === 'in_person' ? 'In person' : 'Online').join(' + ')
 
+  const isCompanion = companion.kind !== 'member'
   return (
     <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`View ${companion.name}, Companion in ${companion.location}`}
-      onPress={() => router.push({ pathname: '/companion-profile/[id]', params: { id: companion.id } })}
+      accessibilityRole={isCompanion ? 'button' : undefined}
+      accessibilityLabel={isCompanion ? `View ${companion.name}, Companion in ${companion.location}` : `${companion.name}, member`}
+      disabled={!isCompanion}
+      onPress={isCompanion ? () => router.push({ pathname: '/companion-profile/[id]', params: { id: companion.id } }) : undefined}
       style={({ pressed }) => [styles.row, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }, pressed && styles.pressed]}>
       <Avatar uri={companion.imageUrl} name={companion.name} size={64} />
       <View style={styles.content}>
@@ -23,12 +25,12 @@ export function CompanionCard({ companion }: { companion: DiscoveryCompanionView
           <AppText variant="bodyStrong" numberOfLines={1}>{companion.name}</AppText>
           {companion.verified ? <View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.self }]} /> : null}
         </View>
-        <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{[companion.location, companion.distanceLabel].filter(Boolean).join(' · ')}</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{isCompanion ? [companion.location, companion.distanceLabel].filter(Boolean).join(' · ') : 'Member'}</AppText>
         <AppText numberOfLines={2}>{companion.intro}</AppText>
         <AppText variant="caption" color={theme.colors.social} numberOfLines={1}>{companion.strengths.slice(0, 3).join(' · ')}</AppText>
         <View style={styles.meta}>
-          <AppText variant="caption" color={theme.colors.textMuted}>{format}</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>{typeof companion.rating === 'number' && companion.reviewCount ? `★ ${companion.rating.toFixed(1)} (${companion.reviewCount})` : 'New Companion'}</AppText>
+          {isCompanion ? <AppText variant="caption" color={theme.colors.textMuted}>{format}</AppText> : null}
+          {isCompanion ? <AppText variant="caption" color={theme.colors.textMuted}>{typeof companion.rating === 'number' && companion.reviewCount ? `★ ${companion.rating.toFixed(1)} (${companion.reviewCount})` : 'New Companion'}</AppText> : null}
           {companion.rateLabel ? <AppText variant="caption" color={theme.colors.social}>{companion.rateLabel}</AppText> : null}
         </View>
       </View>

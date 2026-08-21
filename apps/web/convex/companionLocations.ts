@@ -1,3 +1,4 @@
+import { GeospatialIndex } from '@convex-dev/geospatial'
 import { components } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
@@ -8,21 +9,17 @@ const nearbyResultLimit = 100
 type NearbyMode = 'online' | 'in_person' | 'both'
 type LocationFilters = { mode: NearbyMode }
 
-async function companionLocationIndex() {
-  const { GeospatialIndex } = await import('@convex-dev/geospatial')
-  return new GeospatialIndex<Id<'companionProfiles'>, LocationFilters>(
-    components.geospatial,
-    { logLevel: 'WARN' },
-  )
-}
+const companionLocationIndex = new GeospatialIndex<Id<'companionProfiles'>, LocationFilters>(
+  components.geospatial,
+  { logLevel: 'WARN' },
+)
 
 export async function findNearbyCompanionLocations(
   ctx: QueryCtx,
   origin: { latitude: number; longitude: number },
   radiusKm: number,
 ) {
-  const companionLocations = await companionLocationIndex()
-  return await companionLocations.nearest(ctx, {
+  return await companionLocationIndex.nearest(ctx, {
     point: origin,
     maxDistance: radiusKm * 1_000,
     limit: nearbyResultLimit,
@@ -35,8 +32,7 @@ export async function syncCompanionLocation(
   companion: Doc<'companionProfiles'>,
   user: Doc<'users'> | null,
 ) {
-  const companionLocations = await companionLocationIndex()
-  const existing = await companionLocations.get(ctx, companion._id)
+  const existing = await companionLocationIndex.get(ctx, companion._id)
   const roundedLatitude = typeof companion.approximateLatitude === 'number' ? roundCoordinate(companion.approximateLatitude) : undefined
   const roundedLongitude = typeof companion.approximateLongitude === 'number' ? roundCoordinate(companion.approximateLongitude) : undefined
   const indexable = Boolean(
@@ -50,7 +46,7 @@ export async function syncCompanionLocation(
 
   if (!indexable) {
     if (!existing) return 'unchanged' as const
-    await companionLocations.remove(ctx, companion._id)
+    await companionLocationIndex.remove(ctx, companion._id)
     return 'removed' as const
   }
 
@@ -71,7 +67,7 @@ export async function syncCompanionLocation(
     return 'unchanged' as const
   }
 
-  await companionLocations.insert(ctx, companion._id, coordinates, { mode }, 0)
+  await companionLocationIndex.insert(ctx, companion._id, coordinates, { mode }, 0)
   return existing ? 'updated' as const : 'inserted' as const
 }
 

@@ -2,7 +2,7 @@ import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { api, internal } from './_generated/api'
 import schema from './schema'
-import { classifyReceipt, classifyTicket, pushMessage } from './pushNotifications'
+import { classifyReceipt, classifyTicket, nativePushBody, pushMessage } from './pushNotifications'
 
 const modules = import.meta.glob('./**/*.ts')
 const projectId = 'a32cb8bc-1021-43b6-82ea-d5376ba33340'
@@ -207,6 +207,13 @@ describe('push notification registration and delivery', () => {
     })
     expect(Object.keys(direct.data)).toEqual(['version', 'notificationId'])
     expect(JSON.stringify(direct)).not.toMatch(/actor|conversation|booking|route|url|attachment|text|note|location|price|category/i)
+    expect(nativePushBody('mention')).toBe('Someone mentioned you.')
+    expect(nativePushBody('post_commented')).toBe('You have a new update.')
+    expect(nativePushBody('identity_verification_expiring')).toBe('Your identity approval expires soon.')
+    expect(nativePushBody('identity_verification_expired')).toBe('Your identity approval has expired.')
+    const expiring = pushMessage({ token: tokenOne, platform: 'ios', notificationId: 'notification-expiring', kind: 'identity_verification_expiring', unreadCount: 0 })
+    expect(expiring.body).toBe('Your identity approval expires soon.')
+    expect(expiring).not.toHaveProperty('channelId')
     expect(classifyTicket({ status: 'error', details: { error: 'MessageRateExceeded' } })).toEqual({ status: 'retry', errorCode: 'message_rate_exceeded' })
     expect(classifyReceipt(undefined)).toEqual({ status: 'retry_receipt', errorCode: 'receipt_pending' })
   })

@@ -23,6 +23,7 @@ export type DiscoveryCompanionViewModel = {
   userId?: string
   saved?: boolean
   following?: boolean
+  kind?: 'member' | 'companion'
 }
 
 export type CompanionDetailViewModel = DiscoveryCompanionViewModel & {
@@ -50,6 +51,8 @@ export type ApprovedCompanionRecord = {
   userId?: string
   saved?: boolean
   following?: boolean
+  kind?: 'member' | 'companion'
+  verified?: boolean
 }
 
 export function mapApprovedCompanion(companion: ApprovedCompanionRecord): DiscoveryCompanionViewModel {
@@ -68,12 +71,13 @@ export function mapApprovedCompanion(companion: ApprovedCompanionRecord): Discov
     rateLabel: formatHourlyRate(companion.hourlyRateCentavos),
     hourlyRateCentavos: companion.hourlyRateCentavos,
     distanceLabel: typeof companion.distanceKm === 'number' ? `${companion.distanceKm.toFixed(1)} km away` : undefined,
-    verified: true,
+    verified: companion.verified ?? true,
     bookable: companion.bookable === true,
     viewerBookingEligibility: companion.viewerBookingEligibility,
     userId: companion.userId,
     saved: companion.saved,
     following: companion.following,
+    kind: companion.kind ?? 'companion',
   }
 }
 
@@ -81,7 +85,7 @@ export function mapPublicCompanion(companion: ApprovedCompanionRecord): Companio
   return {
     ...mapApprovedCompanion(companion),
     source: 'convex',
-    verified: true,
+    verified: companion.verified ?? true,
     bio: companion.bio,
     boundaries: companion.boundaries ?? [],
   }

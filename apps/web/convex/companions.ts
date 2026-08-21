@@ -15,6 +15,73 @@ import { isHiddenByPreference, requireNotBlocked } from './safety'
 
 const nearbyRadiusOptions = [5, 10, 25, 50, 100] as const
 
+export const listExploreDirectory = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewer(ctx)
+    const users = await ctx.db.query('users').collect()
+    const visibleUsers = []
+
+    for (const user of users) {
+      if (user.suspended) continue
+      if (viewer && viewer._id !== user._id && await isHiddenByPreference(ctx, viewer._id, user._id)) continue
+
+      const companion = await ctx.db
+        .query('companionProfiles')
+        .withIndex('by_user', (q) => q.eq('userId', user._id))
+        .first()
+      const isLiveCompanion = companion?.status === 'approved' && hasCurrentIdentityApproval(user)
+      const [profileImage, followedUser] = await Promise.all([
+        profileImageUrl(ctx, user),
+        viewer ? ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', user._id)).first() : null,
+      ])
+
+      visibleUsers.push(isLiveCompanion ? {
+        ...publicCompanionProfile(companion),
+        _id: companion._id,
+        userId: user._id,
+        kind: 'companion' as const,
+        username: user.username,
+        displayName: user.displayName,
+        profileImageUrl: profileImage,
+        bio: user.bio,
+        bookable: hasConfiguredHourlyRate(companion.hourlyRateCentavos),
+        verified: true,
+        viewerCanBook: canBookCompanion(viewer ? String(viewer._id) : null, String(user._id)),
+        viewerBookingEligibility: bookingEligibility(
+          viewer ? String(viewer._id) : null,
+          viewer?.verificationStatus,
+          String(user._id),
+          viewer ? hasCurrentIdentityApproval(viewer) : false,
+        ),
+        following: Boolean(followedUser),
+      } : {
+        _id: user._id,
+        userId: user._id,
+        kind: 'member' as const,
+        username: user.username,
+        displayName: user.displayName,
+        profileImageUrl: profileImage,
+        bio: user.bio,
+        intro: user.bio ?? 'A member of the Let\'s Be Friends community.',
+        city: 'Member',
+        mode: 'online' as const,
+        strengths: [],
+        categories: user.onboardingCategories ?? [],
+        rating: 0,
+        reviewCount: 0,
+        bookable: false,
+        verified: hasCurrentIdentityApproval(user),
+        viewerCanBook: false,
+        viewerBookingEligibility: viewer?._id === user._id ? 'own_profile' as const : undefined,
+        following: Boolean(followedUser),
+      })
+    }
+
+    return visibleUsers.sort((a, b) => a.displayName.localeCompare(b.displayName))
+  },
+})
+
 export const listApproved = query({
   args: {
     latitude: v.optional(v.number()),

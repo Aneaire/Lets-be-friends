@@ -1,9 +1,10 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { activityCategories, normalizeUsername, usernameValidationError } from '@lets-be-friends/shared'
-import { requireViewer, writeAudit } from './lib'
+import { getViewer, requireViewer, writeAudit } from './lib'
 import { hasCurrentIdentityApproval, identityTestBypassAllowed } from './identityVerification'
 import { syncUserCompanionLocation } from './companionLocations'
+import { isHiddenByPreference } from './safety'
 
 const currentTermsVersion = '2026-08-13'
 
@@ -26,6 +27,29 @@ export const viewer = query({
       identityTestBypassAvailable: identityTestBypassAllowed(user),
       identityTestBypassActive: identityTestBypassAllowed(user) && user.identityTestBypass === true,
       profileImageUrl: await profileImageUrl(ctx, user),
+    }
+  },
+})
+
+export const publicProfile = query({
+  args: { userId: v.id('users') },
+  handler: async (ctx, args) => {
+    const [viewer, user] = await Promise.all([getViewer(ctx), ctx.db.get(args.userId)])
+    if (!user || user.suspended) return null
+    if (viewer && viewer._id !== user._id && await isHiddenByPreference(ctx, viewer._id, user._id)) return null
+    const following = viewer
+      ? await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', user._id)).first()
+      : null
+    return {
+      _id: user._id,
+      displayName: user.displayName,
+      username: user.username,
+      bio: user.bio,
+      onboardingCategories: user.onboardingCategories ?? [],
+      profileImageUrl: await profileImageUrl(ctx, user),
+      identityVerified: hasCurrentIdentityApproval(user),
+      following: Boolean(following),
+      isViewer: viewer?._id === user._id,
     }
   },
 })

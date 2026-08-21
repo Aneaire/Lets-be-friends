@@ -22,7 +22,7 @@ function SettingsPage() {
 
       <div className="admin-stat-grid">
         <ReadOnlySetting label="Admin app" value="Separate TanStack Start app" />
-        <ReadOnlySetting label="Local port" value="3001" />
+        <ReadOnlySetting label="Local port" value="3003" />
         <ReadOnlySetting label="Permissions" value="Admin and reviewer split" />
         <ReadOnlySetting label="Categories" value="Code-backed" />
       </div>

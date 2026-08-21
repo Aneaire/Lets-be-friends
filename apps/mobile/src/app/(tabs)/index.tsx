@@ -5,6 +5,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, Image, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
 import { api as generatedApi } from '../../../../web/convex/_generated/api'
+import { activeMentionQuery } from '@lets-be-friends/shared'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi, type PostMediaUploadId, type StorageId, type UserId } from '@/backend/client'
@@ -62,6 +63,9 @@ function ConnectedHome() {
   useAppToastMessage(postError)
   const [composerOpen, setComposerOpen] = useState(false)
   const [mediaAssets, setMediaAssets] = useState<ImagePicker.ImagePickerAsset[]>([])
+  const [mentionCaret, setMentionCaret] = useState(0)
+  const mentionToken = activeMentionQuery(postBody, mentionCaret)
+  const mentionSuggestions = useQuery(mobileApi.social.mentionLookup, mentionToken ? { query: mentionToken } : 'skip')
   const [authorFollowState, setAuthorFollowState] = useState<Record<string, { following: boolean; busy: boolean }>>({})
   const followRequests = useRef(new Set<string>())
 
@@ -160,6 +164,14 @@ function ConnectedHome() {
     }
   }
 
+  function insertMention(username: string) {
+    const before = postBody.slice(0, mentionCaret).replace(/@[a-z0-9_]*$/i, `@${username} `)
+    const after = postBody.slice(mentionCaret)
+    const next = before + after
+    setPostBody(next)
+    setMentionCaret(before.length)
+  }
+
   async function updateFollowing(authorId: string, currentFollowing: boolean) {
     if (followRequests.current.has(authorId)) return undefined
     followRequests.current.add(authorId)
@@ -229,7 +241,8 @@ function ConnectedHome() {
             <TextInput
               accessibilityLabel="Create a text post"
               value={postBody}
-              onChangeText={(value) => { setPostBody(value); setPostError('') }}
+              onChangeText={(value) => { setPostBody(value); setPostError(''); setMentionCaret(value.length) }}
+              onSelectionChange={(event) => { setMentionCaret(event.nativeEvent.selection.start) }}
               placeholder="Ask for help, share an idea, or start a conversation"
               placeholderTextColor={theme.colors.textMuted}
               multiline
@@ -237,6 +250,25 @@ function ConnectedHome() {
               style={[styles.postInput, theme.typography.body, { color: theme.colors.text, borderColor: postBody.length > 1_000 ? theme.colors.danger : theme.colors.border, backgroundColor: theme.colors.background }]}
               autoFocus
             />
+            {mentionToken && mentionSuggestions && mentionSuggestions.length > 0 ? (
+              <View style={[styles.mentionMenu, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
+                {mentionSuggestions.map((suggestion) => (
+                  <Pressable
+                    key={suggestion.userId}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Mention ${suggestion.displayName} as ${suggestion.username}`}
+                    onPress={() => insertMention(suggestion.username)}
+                    style={({ pressed }) => [styles.mentionOption, pressed && styles.pressed]}
+                  >
+                    <Avatar name={suggestion.displayName} size={28} />
+                    <View style={styles.mentionOptionCopy}>
+                      <AppText variant="bodyStrong" numberOfLines={1}>{suggestion.displayName}</AppText>
+                      <AppText variant="caption" color={theme.colors.socialText}>@{suggestion.username}</AppText>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             {mediaAssets.length ? <View style={styles.mediaGrid}>{mediaAssets.map((asset, index) => <View key={asset.assetId ?? asset.uri} style={[styles.mediaPreview, { borderColor: theme.colors.border }]}>{asset.type === 'image' ? <Image source={{ uri: asset.uri }} accessibilityLabel={`Selected post photo ${index + 1}`} style={styles.previewImage} /> : <View style={styles.videoPreview}><AppIcon name="videocam-outline" color={theme.colors.socialText} /><AppText variant="caption">Video {index + 1} ready</AppText></View>}<Pressable accessibilityRole="button" accessibilityLabel={`Remove selected media ${index + 1}`} onPress={() => setMediaAssets((current) => current.filter((_, itemIndex) => itemIndex !== index))} style={[styles.removeMedia, { backgroundColor: theme.colors.inverse }]}><AppIcon name="close" color={theme.colors.inverseText} size={18} /></Pressable></View>)}</View> : null}
             <View style={styles.publishRow}><Pressable accessibilityRole="button" accessibilityLabel="Add photos or videos" onPress={() => void chooseMedia()} disabled={creating || mediaAssets.length >= maximumPostMediaItems || mediaUsage?.remaining === 0} style={styles.mediaButton}><AppIcon name="images-outline" color={theme.colors.socialText} /><AppText variant="caption" color={theme.colors.socialText}>Photos or videos</AppText></Pressable>{composerOpen ? <><AppText variant="caption" color={postBody.length > 1_000 ? theme.colors.danger : theme.colors.textMuted}>{postBody.length}/1,000</AppText><ActionButton label={creating ? 'Posting' : 'Post'} onPress={() => void publish()} disabled={creating || (!postBody.trim() && mediaAssets.length === 0) || postBody.length > 1_000} style={styles.postButton} /></> : null}</View>
             {composerOpen && mediaUsage ? <AppText variant="caption" color={theme.colors.textMuted}>{mediaAssets.length}/5 selected, {mediaUsage.remaining} media uploads remaining today</AppText> : null}
@@ -300,6 +332,9 @@ const styles = StyleSheet.create({
   videoPreview: { minHeight: 80, alignItems: 'center', justifyContent: 'center', gap: 5 },
   removeMedia: { position: 'absolute', right: 8, top: 8, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   postButton: { minHeight: 44, paddingHorizontal: 18 },
+  mentionMenu: { borderWidth: 1, borderRadius: 12, padding: 6, gap: 2, maxHeight: 200 },
+  mentionOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 8 },
+  mentionOptionCopy: { flex: 1, gap: 1 },
   signInCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8, marginTop: 10 },
   filters: { flexDirection: 'row', gap: 8, marginVertical: 16 },
   feed: { gap: 10 },

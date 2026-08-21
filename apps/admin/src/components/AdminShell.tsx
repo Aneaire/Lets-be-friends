@@ -9,7 +9,7 @@ import { api } from '../../../web/convex/_generated/api'
 import type { AdminNavItem, AdminRole } from '../lib/adminAccess'
 import { getAdminGateState, getAdminNavSections } from '../lib/adminAccess'
 
-const userAppUrl = import.meta.env.VITE_USER_APP_URL ?? 'http://localhost:3000'
+const userAppUrl = import.meta.env.VITE_USER_APP_URL ?? 'http://localhost:3005'
 
 const iconByRoute: Record<string, React.ReactNode> = {
   '/overview': <BarChart3 size={16} />,

@@ -64,7 +64,7 @@ function SignedInProfile({ profile, bio, role, signOut }: {
   const [message, setMessage] = useState('')
   useAppToastMessage(message)
   const [openingVerification, setOpeningVerification] = useState(false)
-  const verificationUrl = buildMobileWebHandoffUrl(resolveMobileWebAppConfiguration())
+  const verificationUrl = buildMobileWebHandoffUrl(resolveMobileWebAppConfiguration(), { intent: 'member', mobileReturn: 'profile' })
   const companionApplication = useQuery(mobileApi.companions.myApplication, {})
   const hasCompanionTools = role === 'companion' || Boolean(companionApplication)
   const approvedCompanion = companionApplication?.status === 'approved'
