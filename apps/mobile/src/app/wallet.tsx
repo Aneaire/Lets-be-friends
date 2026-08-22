@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   copy: { flex: 1, gap: 4 },
   input: { minHeight: 52, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
   currentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
-  status: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  status: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   qr: { width: '100%', aspectRatio: 1, borderRadius: 16, backgroundColor: '#FFFFFF' },
   history: { gap: 10 },
   row: { borderBottomWidth: 1, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14 },

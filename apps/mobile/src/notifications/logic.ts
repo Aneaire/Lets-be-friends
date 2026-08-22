@@ -5,6 +5,59 @@ export type PushPreference = {
   pendingDisable: boolean
 }
 
+export type PushUiState =
+  | { status: 'unavailable'; message: string }
+  | { status: 'loading'; message: string }
+  | { status: 'availability_error'; message: string }
+  | { status: 'pending_disable'; message: string }
+  | { status: 'disabled'; message: string }
+  | { status: 'denied'; message: string }
+  | { status: 'enabled'; message: string }
+  | { status: 'error'; message: string }
+
+export function resolvePushUiState(input: {
+  nativeAvailable: boolean
+  memberReady: boolean
+  accountMatches: boolean
+  bootstrapStatus: 'idle' | 'loading' | 'ready' | 'error'
+  backendTimedOut: boolean
+  serverState?: { available: boolean; registered: boolean }
+  busy: boolean
+  failed: boolean
+  permission: 'granted' | 'denied' | 'undetermined' | 'unavailable'
+  preference: PushPreference
+}): PushUiState {
+  if (!input.nativeAvailable) return { status: 'unavailable', message: 'Push notifications require a physical iOS or Android development build.' }
+  if (!input.memberReady) return { status: 'unavailable', message: 'Push notifications are available after your signed-in member profile is ready.' }
+  if (input.bootstrapStatus === 'error') return { status: 'availability_error', message: 'Notification availability could not be checked. Please try again.' }
+  if (!input.accountMatches || input.bootstrapStatus === 'idle' || input.bootstrapStatus === 'loading') return { status: 'loading', message: 'Checking notification availability.' }
+  if (input.serverState === undefined) {
+    return input.backendTimedOut
+      ? { status: 'availability_error', message: 'Notification availability is taking too long to load. Check your connection and try again.' }
+      : { status: 'loading', message: 'Checking notification availability.' }
+  }
+  if (input.busy) return { status: 'loading', message: input.preference.pendingDisable ? 'Turning off push notifications.' : input.preference.optedIn ? 'Updating push notifications.' : 'Enabling push notifications.' }
+  if (input.preference.pendingDisable) return { status: 'pending_disable', message: 'Push was turned off on this device, but server cleanup still needs to finish.' }
+  if (input.permission === 'denied') return { status: 'denied', message: 'Notifications are blocked. Open device settings to allow them.' }
+  if (input.preference.optedIn && input.serverState.registered) {
+    return input.serverState.available
+      ? { status: 'enabled', message: 'Generic account updates may appear on this device.' }
+      : { status: 'enabled', message: 'Push delivery is unavailable, but this device is still registered. You can turn it off.' }
+  }
+  if (!input.serverState.available) return { status: 'unavailable', message: 'Push notifications are not available in this build.' }
+  if (input.failed) return { status: 'error', message: 'Push notification settings could not be updated. Please try again.' }
+  return { status: 'disabled', message: 'Push notifications are off for this account on this device.' }
+}
+
+export function pushSettingsAction(status: PushUiState['status']) {
+  if (status === 'availability_error') return 'retry_availability' as const
+  if (status === 'disabled' || status === 'error') return 'enable' as const
+  if (status === 'enabled') return 'disable' as const
+  if (status === 'pending_disable') return 'retry_disable' as const
+  if (status === 'denied') return 'open_settings' as const
+  return 'none' as const
+}
+
 export function parsePushPayload(value: unknown): PushPayload | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const entries = Object.entries(value)

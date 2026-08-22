@@ -60,5 +60,5 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.74 },
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   copy: { flex: 1, gap: 2 },
-  status: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  status: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
 })

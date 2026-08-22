@@ -7,18 +7,9 @@ import { mobileApi } from '@/backend/client'
 import { mobileNotificationRoute, type MobileNotificationDestination } from '@/data/notifications'
 import { useMobileMember } from '@/member/MobileMember'
 
-import { foregroundPermissionAction, parsePushPayload, resolvePushTap, responseEventKey, revokePushRegistration, shouldApplyBadge, shouldRequestPermission, shouldRevokeOnSignOut, shouldSilentlyRefresh, type PushPreference } from './logic'
+import { foregroundPermissionAction, parsePushPayload, resolvePushTap, resolvePushUiState, responseEventKey, revokePushRegistration, shouldApplyBadge, shouldRequestPermission, shouldRevokeOnSignOut, shouldSilentlyRefresh, type PushPreference, type PushUiState } from './logic'
 import { nativePushAdapter } from './nativeAdapter'
 import { readPushPreference, writePushPreference } from './preferences'
-
-type PushUiState =
-  | { status: 'unavailable'; message: string }
-  | { status: 'loading'; message: string }
-  | { status: 'pending_disable'; message: string }
-  | { status: 'disabled'; message: string }
-  | { status: 'denied'; message: string }
-  | { status: 'enabled'; message: string }
-  | { status: 'error'; message: string }
 
 type PushContextValue = {
   state: PushUiState
@@ -26,6 +17,7 @@ type PushContextValue = {
   disable: () => Promise<void>
   openSettings: () => Promise<void>
   retryDisable: () => Promise<void>
+  retryAvailability: () => Promise<void>
   cleanupForSignOut: () => Promise<void>
 }
 
@@ -35,6 +27,7 @@ const PushContext = createContext<PushContextValue>({
   disable: async () => {},
   openSettings: async () => {},
   retryDisable: async () => {},
+  retryAvailability: async () => {},
   cleanupForSignOut: async () => {},
 })
 
@@ -53,43 +46,78 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
   const [permission, setPermission] = useState<'granted' | 'denied' | 'undetermined' | 'unavailable'>('unavailable')
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [bootstrap, setBootstrap] = useState<{ accountId: string | null; status: 'idle' | 'loading' | 'ready' | 'error' }>({ accountId: null, status: 'idle' })
+  const [backendTimedOut, setBackendTimedOut] = useState(false)
+  const bootstrapGeneration = useRef(0)
   const loadedAccount = useRef<string | null>(null)
   const launchRetryAccount = useRef<string | null>(null)
   const handledResponses = useRef(new Set<string>())
   const pendingResponse = useRef<{ data: unknown; responseIdentifier?: string } | null>(null)
 
-  useEffect(() => {
+  const bootstrapAccount = useCallback(async (targetAccountId: string) => {
+    const generation = ++bootstrapGeneration.current
     loadedAccount.current = null
     launchRetryAccount.current = null
     setPreference({ optedIn: false, pendingDisable: false })
     setPermission('unavailable')
     setInstallationId(null)
     setFailed(false)
-    if (!accountId) return
-    let cancelled = false
-    void Promise.all([
-      readPushPreference(accountId),
-      nativePushAdapter.getPermissionState(),
-      nativePushAdapter.available ? nativePushAdapter.ensureInstallation() : Promise.resolve(null),
-    ]).then(async ([saved, currentPermission, installation]) => {
-      if (cancelled) return
+    setBackendTimedOut(false)
+    setBootstrap({ accountId: targetAccountId, status: 'loading' })
+    try {
+      const [saved, currentPermission, installation] = await Promise.all([
+        readPushPreference(targetAccountId),
+        nativePushAdapter.getPermissionState(),
+        nativePushAdapter.available ? nativePushAdapter.ensureInstallation() : Promise.resolve(null),
+      ])
+      if (bootstrapGeneration.current !== generation) return
       const currentPreference = installation?.freshInstall
         ? { optedIn: false, pendingDisable: false }
         : saved
       if (installation?.freshInstall) {
-        await nativePushAdapter.unregister().catch(() => {})
-        await writePushPreference(accountId, currentPreference)
+        void nativePushAdapter.unregister().catch(() => {})
+        await writePushPreference(targetAccountId, currentPreference)
       }
-      if (cancelled) return
-      loadedAccount.current = accountId
+      if (bootstrapGeneration.current !== generation) return
+      loadedAccount.current = targetAccountId
       setPreference(currentPreference)
       setPermission(currentPermission)
       setInstallationId(installation?.installationId ?? null)
-    }).catch(() => {
-      if (!cancelled) setFailed(true)
-    })
-    return () => { cancelled = true }
-  }, [accountId])
+      setBootstrap({ accountId: targetAccountId, status: 'ready' })
+    } catch {
+      if (bootstrapGeneration.current === generation) setBootstrap({ accountId: targetAccountId, status: 'error' })
+    }
+  }, [])
+
+  useEffect(() => {
+    bootstrapGeneration.current += 1
+    loadedAccount.current = null
+    setBootstrap({ accountId, status: accountId ? 'loading' : 'idle' })
+    if (accountId) void bootstrapAccount(accountId)
+    else {
+      launchRetryAccount.current = null
+      setPreference({ optedIn: false, pendingDisable: false })
+      setPermission('unavailable')
+      setInstallationId(null)
+      setFailed(false)
+      setBackendTimedOut(false)
+    }
+    return () => { bootstrapGeneration.current += 1 }
+  }, [accountId, bootstrapAccount])
+
+  useEffect(() => {
+    if (!ready || bootstrap.status !== 'ready' || bootstrap.accountId !== accountId || !installationId || serverState !== undefined) {
+      setBackendTimedOut(false)
+      return
+    }
+    const timeout = setTimeout(() => setBackendTimedOut(true), 8_000)
+    return () => clearTimeout(timeout)
+  }, [accountId, bootstrap.accountId, bootstrap.status, installationId, ready, serverState])
+
+  const retryAvailability = useCallback(async () => {
+    if (!accountId) return
+    await bootstrapAccount(accountId)
+  }, [accountId, bootstrapAccount])
 
   const currentInstallationId = useCallback(async () => {
     if (installationId) return installationId
@@ -297,24 +325,20 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
     void handleResponse(pendingResponse.current)
   }, [handleResponse, ready])
 
-  const state = useMemo<PushUiState>(() => {
-    if (!nativePushAdapter.available) return { status: 'unavailable', message: 'Push notifications require a physical iOS or Android development build.' }
-    if (!ready) return { status: 'unavailable', message: 'Push notifications are available after your signed-in member profile is ready.' }
-    if (serverState === undefined || loadedAccount.current !== accountId) return { status: 'loading', message: 'Checking notification availability.' }
-    if (busy) return { status: 'loading', message: preference.pendingDisable ? 'Turning off push notifications.' : preference.optedIn ? 'Updating push notifications.' : 'Enabling push notifications.' }
-    if (preference.pendingDisable) return { status: 'pending_disable', message: 'Push was turned off on this device, but server cleanup still needs to finish.' }
-    if (permission === 'denied') return { status: 'denied', message: 'Notifications are blocked. Open device settings to allow them.' }
-    if (preference.optedIn && serverState.registered) {
-      return serverState.available
-        ? { status: 'enabled', message: 'Generic account updates may appear on this device.' }
-        : { status: 'enabled', message: 'Push delivery is unavailable, but this device is still registered. You can turn it off.' }
-    }
-    if (!serverState.available) return { status: 'unavailable', message: 'Push notifications are not available in this build.' }
-    if (failed) return { status: 'error', message: 'Push notification settings could not be updated. Please try again.' }
-    return { status: 'disabled', message: 'Push notifications are off for this account on this device.' }
-  }, [accountId, busy, failed, permission, preference.optedIn, preference.pendingDisable, ready, serverState])
+  const state = useMemo<PushUiState>(() => resolvePushUiState({
+    nativeAvailable: nativePushAdapter.available,
+    memberReady: ready,
+    accountMatches: bootstrap.accountId === accountId && loadedAccount.current === accountId,
+    bootstrapStatus: bootstrap.status,
+    backendTimedOut,
+    serverState,
+    busy,
+    failed,
+    permission,
+    preference,
+  }), [accountId, backendTimedOut, bootstrap.accountId, bootstrap.status, busy, failed, permission, preference, ready, serverState])
 
-  return <PushContext.Provider value={{ state, enable, disable, openSettings, retryDisable, cleanupForSignOut }}>{children}</PushContext.Provider>
+  return <PushContext.Provider value={{ state, enable, disable, openSettings, retryDisable, retryAvailability, cleanupForSignOut }}>{children}</PushContext.Provider>
 }
 
 export function usePushNotifications() {

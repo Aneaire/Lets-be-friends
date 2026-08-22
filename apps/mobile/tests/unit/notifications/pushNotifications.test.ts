@@ -3,8 +3,10 @@ import {
   installationBoundary,
   parsePushPayload,
   parsePushPreference,
+  pushSettingsAction,
   pushPreferenceKey,
   resolvePushTap,
+  resolvePushUiState,
   responseEventKey,
   revokePushRegistration,
   serializePushPreference,
@@ -36,6 +38,51 @@ jest.mock('expo-notifications', () => ({
 }))
 
 describe('push notification pure logic', () => {
+  const readyUiInput = {
+    nativeAvailable: true,
+    memberReady: true,
+    accountMatches: true,
+    bootstrapStatus: 'ready' as const,
+    backendTimedOut: false,
+    serverState: { available: true, registered: false },
+    busy: false,
+    failed: false,
+    permission: 'undetermined' as const,
+    preference: { optedIn: false, pendingDisable: false },
+  }
+
+  it('shows bootstrap failure instead of leaving availability loading forever', () => {
+    expect(resolvePushUiState({
+      ...readyUiInput,
+      accountMatches: false,
+      bootstrapStatus: 'error',
+      serverState: undefined,
+    })).toEqual({
+      status: 'availability_error',
+      message: 'Notification availability could not be checked. Please try again.',
+    })
+  })
+
+  it('bounds backend loading and recovers when server state arrives', () => {
+    expect(resolvePushUiState({ ...readyUiInput, backendTimedOut: false, serverState: undefined }).status).toBe('loading')
+    expect(resolvePushUiState({ ...readyUiInput, backendTimedOut: true, serverState: undefined }).status).toBe('availability_error')
+    expect(resolvePushUiState({ ...readyUiInput, backendTimedOut: true }).status).toBe('disabled')
+  })
+
+  it('keeps a normally available unregistered device disabled and actionable', () => {
+    expect(resolvePushUiState(readyUiInput)).toEqual({
+      status: 'disabled',
+      message: 'Push notifications are off for this account on this device.',
+    })
+  })
+
+  it('maps availability retry separately from enabling notifications', () => {
+    expect(pushSettingsAction('availability_error')).toBe('retry_availability')
+    expect(pushSettingsAction('loading')).toBe('none')
+    expect(pushSettingsAction('disabled')).toBe('enable')
+    expect(pushSettingsAction('error')).toBe('enable')
+  })
+
   it('strictly accepts only the opaque versioned payload', () => {
     expect(parsePushPayload({ version: 1, notificationId: 'notification-1' })).toEqual({ version: 1, notificationId: 'notification-1' })
     expect(parsePushPayload({ version: 1, notificationId: 'notification-1', route: '/messages' })).toBeNull()

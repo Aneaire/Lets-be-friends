@@ -4,7 +4,7 @@
     "slug": "lets-be-friends",
     "version": "0.1.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/official-app-icon.png",
     "scheme": "letsbefriends",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -16,14 +16,14 @@
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "monochromeImage": "./assets/images/adaptive-icon-monochrome.png"
+        "foregroundImage": "./assets/images/official-adaptive-foreground.png",
+        "monochromeImage": "./assets/images/official-adaptive-monochrome.png"
       },
       "predictiveBackGestureEnabled": true
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/official-favicon.png"
     },
     "plugins": [
       "expo-router",
@@ -49,7 +49,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/adaptive-icon-monochrome.png",
+          "icon": "./assets/images/official-notification-icon.png",
           "color": "#000000",
           "defaultChannel": "account-updates"
         }

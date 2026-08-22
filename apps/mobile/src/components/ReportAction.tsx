@@ -10,21 +10,30 @@ import { AppText } from './Typography'
 
 type ReportTarget = 'profile' | 'message' | 'review' | 'post' | 'comment' | 'user'
 
-export function ReportAction({ targetType, targetId, label, compact = false, onReported }: {
+export function ReportAction({ targetType, targetId, label, compact = false, open: controlledOpen, onOpenChange, showTrigger = true, onReported }: {
   targetType: ReportTarget
   targetId: string
   label: string
   compact?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  showTrigger?: boolean
   onReported?: () => void
 }) {
   const theme = useAppTheme()
   const createReport = useMutation(mobileApi.reports.create)
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [reported, setReported] = useState(false)
   const busyRef = useRef(false)
+  const open = controlledOpen ?? internalOpen
+
+  function setOpen(next: boolean) {
+    if (controlledOpen === undefined) setInternalOpen(next)
+    onOpenChange?.(next)
+  }
 
   async function submit() {
     const trimmed = reason.trim()
@@ -56,7 +65,7 @@ export function ReportAction({ targetType, targetId, label, compact = false, onR
 
   return (
     <>
-      {compact ? (
+      {showTrigger && compact ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={reported ? 'Report sent' : label}
@@ -65,9 +74,9 @@ export function ReportAction({ targetType, targetId, label, compact = false, onR
           style={styles.compact}>
           <AppText variant="caption" color={theme.colors.danger}>{reported ? 'Report sent' : label}</AppText>
         </Pressable>
-      ) : (
+      ) : showTrigger ? (
         <ActionButton label={reported ? 'Report sent' : label} onPress={() => { setMessage(''); setOpen(true) }} intent="danger" secondary disabled={reported} />
-      )}
+      ) : null}
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => !busy && setOpen(false)}>
         <View style={[styles.scrim, { backgroundColor: theme.colors.scrim }]}>
           <View style={[styles.sheet, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>

@@ -69,7 +69,7 @@ function CompanionRecommendation({ item, onAction }: { item: Extract<FeedItem, {
 
 function GuidanceCard({ item, onAction }: { item: Extract<FeedItem, { kind: 'guidance' }>; onAction: (action: FeedAction) => void }) {
   const theme = useAppTheme()
-  return <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}><AppText variant="caption" color={theme.colors.socialText}>{item.reason}</AppText><AppText variant="heading">{item.title}</AppText><AppText color={theme.colors.textMuted}>{item.body}</AppText><ActionButton label={item.actionLabel} onPress={() => { onAction('open_guidance'); router.push('/explore') }} secondary /></View>
+  return <View style={[styles.card, styles.guidanceCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}><AppText variant="caption" color={theme.colors.socialText}>{item.reason}</AppText><AppText variant="bodyStrong">{item.title}</AppText><AppText color={theme.colors.textMuted}>{item.body}</AppText><ActionButton label={item.actionLabel} onPress={() => { onAction('open_guidance'); router.push('/explore') }} secondary style={styles.guidanceAction} /></View>
 }
 
 function PostCard({ item, signedIn, following, followBusy, onToggleFollow, onAction }: {
@@ -90,7 +90,8 @@ function PostCard({ item, signedIn, following, followBusy, onToggleFollow, onAct
   const [likeCount, setLikeCount] = useState(post.likeCount)
   const [saved, setSaved] = useState(post.saved)
   const [commentsOpen, setCommentsOpen] = useState(false)
-  const [ownerMenuOpen, setOwnerMenuOpen] = useState(false)
+  const [optionsOpen, setOptionsOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editBody, setEditBody] = useState(post.body)
   const [busy, setBusy] = useState(false)
@@ -169,30 +170,35 @@ function PostCard({ item, signedIn, following, followBusy, onToggleFollow, onAct
   }
 
   function openPostOptions() {
-    setOwnerMenuOpen(true)
+    setOptionsOpen(true)
   }
 
   function editFromOptions() {
-    setOwnerMenuOpen(false)
+    setOptionsOpen(false)
     setEditing(true)
   }
 
   function deleteFromOptions() {
-    setOwnerMenuOpen(false)
+    setOptionsOpen(false)
     setTimeout(confirmDelete, 220)
+  }
+
+  function reportFromOptions() {
+    setOptionsOpen(false)
+    setTimeout(() => setReportOpen(true), 220)
   }
 
   return (
     <View style={[styles.card, styles.postCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
       <View style={styles.identity}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`View ${post.authorDisplayName}'s profile`} onPress={() => openMemberProfile(String(post.authorId), post.authorCompanionProfileId ? String(post.authorCompanionProfileId) : undefined)} style={({ pressed }) => pressed && styles.pressed}>
-          <Avatar uri={post.authorProfileImageUrl} name={post.authorDisplayName} size={44} />
+        <Pressable accessibilityRole="button" accessibilityLabel={`View ${post.authorDisplayName}'s profile`} onPress={() => openMemberProfile(String(post.authorId), post.authorCompanionProfileId ? String(post.authorCompanionProfileId) : undefined)} hitSlop={3} style={({ pressed }) => pressed && styles.pressed}>
+          <Avatar uri={post.authorProfileImageUrl} name={post.authorDisplayName} size={38} />
         </Pressable>
         <View style={styles.identityCopy}>
           <View style={styles.authorRow}><Pressable accessibilityRole="button" accessibilityLabel={`View ${post.authorDisplayName}'s profile`} onPress={() => openMemberProfile(String(post.authorId), post.authorCompanionProfileId ? String(post.authorCompanionProfileId) : undefined)} style={({ pressed }) => [styles.authorLink, pressed && styles.pressed]}><AppText variant="bodyStrong">{post.authorDisplayName}</AppText></Pressable>{signedIn && !post.ownPost ? <Pressable accessibilityRole="button" accessibilityLabel={following ? `Unfollow ${post.authorDisplayName}` : `Follow ${post.authorDisplayName}`} accessibilityState={{ disabled: followBusy }} disabled={followBusy} onPress={() => void follow()} style={styles.smallAction}><AppText variant="caption" color={followBusy ? theme.colors.textMuted : theme.colors.socialText}>{following ? 'Following' : 'Follow'}</AppText></Pressable> : null}</View>
           <AppText variant="caption" color={theme.colors.textMuted}>{formatMessageTimestamp(post.createdAt)}</AppText>
         </View>
-        {post.ownPost ? <Pressable accessibilityRole="button" accessibilityLabel="Post options" onPress={openPostOptions} hitSlop={4} style={({ pressed }) => [styles.optionsButton, pressed && styles.pressed]}><AppIcon name="ellipsis-horizontal" color={theme.colors.text} size={21} /></Pressable> : null}
+        {signedIn ? <Pressable accessibilityRole="button" accessibilityLabel="Post options" onPress={openPostOptions} style={({ pressed }) => [styles.optionsButton, pressed && styles.pressed]}><AppIcon name="ellipsis-horizontal" color={theme.colors.text} size={20} /></Pressable> : null}
       </View>
       {post.body ? <MentionBody body={post.body} mentions={post.mentions} /> : null}
       {post.media.filter((media: PostMedia) => media.kind === 'image' && media.url).map((media: PostMedia, index: number) => <Image key={`${media.storageId}-${index}`} source={{ uri: media.url as string }} resizeMode="cover" style={styles.image} accessibilityLabel="Post image" />)}
@@ -203,24 +209,28 @@ function PostCard({ item, signedIn, following, followBusy, onToggleFollow, onAct
         <PostAction label="Comment on post" icon="chatbubble-outline" onPress={() => { setCommentsOpen(true); onAction('comment') }} />
         <PostAction label={saved ? 'Remove post from saved' : 'Save post'} icon={saved ? 'bookmark' : 'bookmark-outline'} active={saved} disabled={!signedIn || busy} onPress={() => void save()} />
       </View>
-      {!post.ownPost && signedIn ? <ReportAction targetType="post" targetId={String(post._id)} label="Report post" compact onReported={() => onAction('report')} /> : null}
-      <Modal visible={ownerMenuOpen} transparent animationType="fade" onRequestClose={() => setOwnerMenuOpen(false)}>
+      {!post.ownPost && signedIn ? <ReportAction targetType="post" targetId={String(post._id)} label="Report post" open={reportOpen} onOpenChange={setReportOpen} showTrigger={false} onReported={() => onAction('report')} /> : null}
+      <Modal visible={optionsOpen} transparent animationType="fade" onRequestClose={() => setOptionsOpen(false)}>
         <View style={[styles.scrim, { backgroundColor: theme.colors.scrim }]}> 
-          <Pressable accessibilityRole="button" accessibilityLabel="Close post options" onPress={() => setOwnerMenuOpen(false)} style={styles.backdropDismiss} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Close post options" onPress={() => setOptionsOpen(false)} style={styles.backdropDismiss} />
           <View style={[styles.optionSheet, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}> 
             <View style={[styles.optionHandle, { backgroundColor: theme.colors.borderStrong }]} />
-            <View style={styles.optionHeader}><AppText variant="heading">Your post</AppText><AppText variant="caption" color={theme.colors.textMuted}>Choose what you want to change.</AppText></View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Edit post" onPress={editFromOptions} style={({ pressed }) => [styles.optionRow, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
+            <View style={styles.optionHeader}><AppText variant="bodyStrong">{post.ownPost ? 'Your post' : 'Post options'}</AppText></View>
+            {post.ownPost ? <><Pressable accessibilityRole="button" accessibilityLabel="Edit post" onPress={editFromOptions} style={({ pressed }) => [styles.optionRow, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
               <View style={[styles.optionIcon, { backgroundColor: theme.colors.socialSoft }]}><AppIcon name="create-outline" color={theme.colors.socialText} size={21} /></View>
-              <View style={styles.optionCopy}><AppText variant="bodyStrong">Edit post</AppText><AppText variant="caption" color={theme.colors.textMuted}>Change the text in this post</AppText></View>
+              <View style={styles.optionCopy}><AppText variant="bodyStrong">Edit post</AppText></View>
               <AppIcon name="chevron-forward" color={theme.colors.textMuted} size={19} />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Delete post" onPress={deleteFromOptions} style={({ pressed }) => [styles.optionRow, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
               <View style={[styles.optionIcon, { backgroundColor: theme.colors.surface }]}><AppIcon name="trash-outline" color={theme.colors.danger} size={21} /></View>
-              <View style={styles.optionCopy}><AppText variant="bodyStrong" color={theme.colors.danger}>Delete post</AppText><AppText variant="caption" color={theme.colors.textMuted}>Remove it from member feeds</AppText></View>
+              <View style={styles.optionCopy}><AppText variant="bodyStrong" color={theme.colors.danger}>Delete post</AppText></View>
               <AppIcon name="chevron-forward" color={theme.colors.danger} size={19} />
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Cancel post options" onPress={() => setOwnerMenuOpen(false)} style={({ pressed }) => [styles.optionCancel, { borderColor: theme.colors.border }, pressed && styles.pressed]}><AppText variant="bodyStrong">Cancel</AppText></Pressable>
+            </Pressable></> : <Pressable accessibilityRole="button" accessibilityLabel="Report post" onPress={reportFromOptions} style={({ pressed }) => [styles.optionRow, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
+              <View style={[styles.optionIcon, { backgroundColor: theme.colors.surface }]}><AppIcon name="flag-outline" color={theme.colors.danger} size={21} /></View>
+              <View style={styles.optionCopy}><AppText variant="bodyStrong" color={theme.colors.danger}>Report post</AppText></View>
+              <AppIcon name="chevron-forward" color={theme.colors.danger} size={19} />
+            </Pressable>}
+            <Pressable accessibilityRole="button" accessibilityLabel="Cancel post options" onPress={() => setOptionsOpen(false)} style={({ pressed }) => [styles.optionCancel, { borderColor: theme.colors.border }, pressed && styles.pressed]}><AppText variant="bodyStrong">Cancel</AppText></Pressable>
           </View>
         </View>
       </Modal>
@@ -340,29 +350,31 @@ function openMemberProfile(userId: string, companionProfileId?: string) {
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 },
-  postCard: { paddingVertical: 8, gap: 6 },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  card: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 7 },
+  guidanceCard: { gap: 6 },
+  guidanceAction: { minHeight: 44, marginTop: 2 },
+  postCard: { padding: 10, gap: 4 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   identityCopy: { flex: 1, gap: 1 },
   authorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   authorLink: { flexShrink: 1 },
-  optionsButton: { width: 36, height: 36, marginRight: -6, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
+  optionsButton: { width: 44, height: 44, marginRight: -8, marginVertical: -4, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   smallAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 3 },
   image: { width: '100%', aspectRatio: 4 / 3, borderRadius: 10 },
   videoLink: { minHeight: 60, borderWidth: 1, borderRadius: 10, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
-  counts: { flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth },
+  counts: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 2, paddingBottom: 3, borderBottomWidth: StyleSheet.hairlineWidth },
   actions: { flexDirection: 'row' },
-  postAction: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
+  postAction: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginVertical: -4 },
   pressed: { opacity: 0.68 },
   scrim: { flex: 1, justifyContent: 'flex-end' },
   backdropDismiss: { position: 'absolute', inset: 0 },
-  optionSheet: { borderWidth: 1, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24, gap: 10 },
+  optionSheet: { borderWidth: 1, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 14, paddingTop: 8, paddingBottom: 18, gap: 7 },
   optionHandle: { width: 38, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 4 },
-  optionHeader: { gap: 2, paddingBottom: 4 },
-  optionRow: { minHeight: 64, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  optionIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  optionHeader: { paddingBottom: 2 },
+  optionRow: { minHeight: 52, borderWidth: 1, borderRadius: 13, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  optionIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   optionCopy: { flex: 1, gap: 1 },
-  optionCancel: { minHeight: 48, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  optionCancel: { minHeight: 44, borderWidth: 1, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   sheet: { borderWidth: 1, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, paddingBottom: 28, gap: 10, maxHeight: '88%' },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

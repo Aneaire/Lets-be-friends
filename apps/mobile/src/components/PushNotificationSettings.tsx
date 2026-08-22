@@ -3,21 +3,19 @@ import { StyleSheet, View } from 'react-native'
 import { ActionButton } from '@/components/ActionButton'
 import { AppText } from '@/components/Typography'
 import { usePushNotifications } from '@/notifications/PushNotifications'
+import { pushSettingsAction } from '@/notifications/logic'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 export function PushNotificationSettings() {
   const theme = useAppTheme()
   const push = usePushNotifications()
-  const canEnable = push.state.status === 'disabled' || push.state.status === 'error'
-  const canDisable = push.state.status === 'enabled'
-  const canRetryDisable = push.state.status === 'pending_disable'
-  const canOpenSettings = push.state.status === 'denied'
+  const action = pushSettingsAction(push.state.status)
 
   return (
     <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
       <AppText variant="bodyStrong">Push notifications</AppText>
       <AppText variant="caption" color={theme.colors.textMuted}>{push.state.message}</AppText>
-      {canEnable ? (
+      {action === 'enable' ? (
         <ActionButton
           label="Enable push notifications"
           onPress={() => void push.enable()}
@@ -26,7 +24,16 @@ export function PushNotificationSettings() {
           style={styles.action}
         />
       ) : null}
-      {canDisable ? (
+      {action === 'retry_availability' ? (
+        <ActionButton
+          label="Check notification availability again"
+          onPress={() => void push.retryAvailability()}
+          intent="self"
+          secondary
+          style={styles.action}
+        />
+      ) : null}
+      {action === 'disable' ? (
         <ActionButton
           label="Turn off push notifications"
           onPress={() => void push.disable()}
@@ -35,7 +42,7 @@ export function PushNotificationSettings() {
           style={styles.action}
         />
       ) : null}
-      {canRetryDisable ? (
+      {action === 'retry_disable' ? (
         <ActionButton
           label="Retry turning off"
           onPress={() => void push.retryDisable()}
@@ -44,7 +51,7 @@ export function PushNotificationSettings() {
           style={styles.action}
         />
       ) : null}
-      {canOpenSettings ? (
+      {action === 'open_settings' ? (
         <ActionButton
           label="Open device settings"
           onPress={() => void push.openSettings()}
