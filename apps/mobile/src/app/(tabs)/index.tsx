@@ -10,17 +10,17 @@ import { activeMentionQuery } from '@lets-be-friends/shared'
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi, type PostMediaUploadId, type StorageId, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
-import { ActionButton } from '@/components/ActionButton'
-import { Avatar } from '@/components/Avatar'
-import { AppIcon } from '@/components/AppIcon'
-import { useAppToastMessage } from '@/components/AppToast'
-import { Brand } from '@/components/Brand'
-import { Chip } from '@/components/Chip'
-import { Screen } from '@/components/Screen'
-import { SocialFeedCard } from '@/components/SocialFeedCard'
-import { StateView } from '@/components/StateView'
-import { FeedSkeleton } from '@/components/Skeleton'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { Avatar } from '@/design-system/atoms/Avatar'
+import { AppIcon } from '@/design-system/atoms/AppIcon'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { Brand } from '@/design-system/atoms/Brand'
+import { Chip } from '@/design-system/atoms/Chip'
+import { Screen } from '@/design-system/templates/Screen'
+import { SocialFeedCard } from '@/features/social/SocialFeedCard'
+import { StateView } from '@/design-system/molecules/StateView'
+import { FeedSkeleton } from '@/design-system/atoms/Skeleton'
+import { AppText } from '@/design-system/atoms/Typography'
 import { dedupeFeedItems, maximumPostMediaItems, postMediaValidationError } from '@/data/discovery'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -318,24 +318,24 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 16, paddingBottom: 48 },
+  content: { paddingHorizontal: 16, paddingBottom: 32 },
   listScreen: { paddingHorizontal: 0, paddingBottom: 0 },
-  listContent: { paddingHorizontal: 14, paddingBottom: 48 },
+  listContent: { paddingHorizontal: 14, paddingBottom: 32 },
   separator: { height: 8 },
   loadMore: { paddingTop: 18 },
   state: { paddingHorizontal: 16 },
-  topBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  topBar: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   titleCopy: { flex: 1, minWidth: 0, gap: 1 },
   topActions: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 4 },
-  iconButton: { position: 'relative', width: 44, height: 44, borderWidth: 1, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  iconButton: { position: 'relative', width: 44, height: 44, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   profileButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   badge: { position: 'absolute', top: -4, right: -4, minWidth: 19, height: 19, borderRadius: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   composer: { borderWidth: 1, borderRadius: 13, padding: 6, flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   composerOpen: { padding: 12, alignItems: 'flex-start', gap: 10, marginTop: 10 },
   collapsedComposer: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   composerCopy: { flex: 1, gap: 7 },
-  composerPrompt: { flex: 1, minHeight: 40, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, justifyContent: 'center' },
-  compactMediaButton: { width: 44, height: 44, borderWidth: 1, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  composerPrompt: { flex: 1, minHeight: 40, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, justifyContent: 'center' },
+  compactMediaButton: { width: 44, height: 44, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.68 },
   postInput: { minHeight: 48, maxHeight: 120, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingTop: 11, textAlignVertical: 'top' },
   publishRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   previewImage: { width: '100%', aspectRatio: 4 / 3 },
   videoPreview: { minHeight: 80, alignItems: 'center', justifyContent: 'center', gap: 5 },
   removeMedia: { position: 'absolute', right: 8, top: 8, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  postButton: { minHeight: 44, paddingHorizontal: 18 },
+  postButton: { minHeight: 44, paddingHorizontal: 16 },
   mentionMenu: { borderWidth: 1, borderRadius: 12, padding: 6, gap: 2, maxHeight: 200 },
   mentionOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 8 },
   mentionOptionCopy: { flex: 1, gap: 1 },

@@ -2,7 +2,7 @@
 
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { MessageDeliveryStatus } from '../../src/components/MessageDeliveryStatus'
+import { MessageDeliveryStatus } from '../../src/design-system/atoms/MessageDeliveryStatus'
 
 afterEach(cleanup)
 

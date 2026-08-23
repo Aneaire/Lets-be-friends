@@ -1,4 +1,4 @@
-import AppTabs from '@/components/AppTabs'
+import AppTabs from '@/design-system/templates/AppTabs'
 
 export default function TabsLayout() {
   return <AppTabs />

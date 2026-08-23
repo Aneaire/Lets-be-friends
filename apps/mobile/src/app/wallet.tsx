@@ -6,9 +6,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Image, StyleSheet, TextInput, View } from 'react-native'
 
 import { mobileApi, type PaymongoTopUpId } from '@/backend/client'
-import { ActionButton } from '@/components/ActionButton'
-import { Screen } from '@/components/Screen'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { Screen } from '@/design-system/templates/Screen'
+import { AppText } from '@/design-system/atoms/Typography'
 import {
   formatQrExpiry,
   formatWalletTimestamp,
@@ -223,15 +223,15 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 24, paddingBottom: 64, gap: 18 },
+  content: { paddingTop: 16, paddingBottom: 40, gap: 16 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
   header: { gap: 7 },
-  notice: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 4 },
+  notice: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 4 },
   metrics: { gap: 10 },
-  metric: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 4 },
-  panel: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 12 },
+  metric: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 4 },
+  panel: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 12 },
   copy: { flex: 1, gap: 4 },
-  input: { minHeight: 52, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
+  input: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
   currentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   status: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   qr: { width: '100%', aspectRatio: 1, borderRadius: 16, backgroundColor: '#FFFFFF' },

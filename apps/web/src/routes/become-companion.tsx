@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
-import { useIdentityVerification } from '../components/IdentityVerificationFlow'
+import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { identityEntitlementStatus, memberVerificationPresentation, type MemberVerificationPresentation } from '../lib/memberVerification'
 
 export const Route = createFileRoute('/become-companion')({ component: BecomeCompanionPage })

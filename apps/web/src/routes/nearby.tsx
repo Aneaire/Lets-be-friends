@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { ArrowLeft, ArrowUpRight, LocateFixed, MapPin, RotateCcw, Search, X } from 'lucide-react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
-import { ApproximateLocationMap } from '../components/ApproximateLocationMap'
+import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
 import {
   geolocationErrorMessage,
   nearbyRadiusOptions,

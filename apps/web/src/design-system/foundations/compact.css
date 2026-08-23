@@ -1,0 +1,315 @@
+@layer base {
+  :root {
+    --density-space-1: 0.25rem;
+    --density-space-2: 0.5rem;
+    --density-space-3: 0.75rem;
+    --density-space-4: 1rem;
+    --density-space-6: 1.5rem;
+    --density-control: 2.5rem;
+    --density-touch: 2.75rem;
+    --density-card-padding: 0.875rem;
+    --density-text-pair-gap: 0.125rem;
+    --density-text-stack-gap: 0.25rem;
+    --density-text-section-gap: 0.375rem;
+    --density-page-gutter: clamp(0.875rem, 3vw, 1.5rem);
+    --density-section-gap: clamp(1.25rem, 3vw, 2rem);
+  }
+}
+
+@layer components {
+  .btn {
+    min-height: var(--density-control);
+    padding: 0.5rem 0.8rem;
+  }
+
+  .btn-self,
+  .btn-social {
+    color: var(--accent-control-foreground);
+  }
+
+  .btn-sm {
+    min-height: 2.25rem;
+    padding: 0.4rem 0.65rem;
+  }
+
+  .btn-lg {
+    min-height: var(--density-touch);
+    padding: 0.65rem 1rem;
+  }
+
+  .density-action-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--density-space-2);
+    margin-top: var(--density-space-3);
+  }
+
+  .density-action-grid .btn {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--density-touch);
+    padding-inline: 0.35rem;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+  }
+
+  .field:not(textarea) {
+    min-height: var(--density-control);
+  }
+
+  .booking-request-card:not([data-density="compact"]) {
+    gap: var(--density-text-section-gap);
+  }
+
+  .booking-request-card-meta {
+    margin-top: var(--density-text-pair-gap);
+  }
+
+  .identity-work-header .text-meta,
+  .hosting-editor-header .text-meta {
+    margin-top: var(--density-text-stack-gap);
+  }
+
+  .settings-page-header {
+    gap: var(--density-text-stack-gap);
+  }
+
+  .worklist-row-meta {
+    row-gap: var(--density-text-stack-gap);
+  }
+
+  .member-profile-copy {
+    gap: 0.625rem;
+  }
+
+  .web-app-shell .workspace-header {
+    padding: 1.5rem var(--density-page-gutter) 1rem;
+  }
+
+  .web-app-shell .workspace-body {
+    padding: 1.25rem var(--density-page-gutter) 2.5rem;
+  }
+
+  .web-app-shell .workspace-body > section + section,
+  .web-app-shell .workspace-body > div + section {
+    margin-top: var(--density-section-gap);
+  }
+
+  .web-app-shell .worklist-row,
+  .web-app-shell .social-composer,
+  .web-app-shell .social-post,
+  .web-app-shell .social-reserve-card {
+    padding: var(--density-card-padding);
+  }
+
+  .web-app-shell .direct-thread-header,
+  .web-app-shell .direct-message-list {
+    padding: var(--density-card-padding);
+  }
+
+  .web-app-shell .direct-message-composer {
+    padding: 0.75rem var(--density-card-padding) 0.625rem;
+  }
+
+  .profile-page,
+  .onboarding-page,
+  .notifications-page {
+    padding-inline: var(--density-page-gutter);
+  }
+
+  .identity-page {
+    padding: var(--density-page-gutter);
+  }
+
+  .identity-work-header,
+  .identity-work-body,
+  .onboarding-stage,
+  .booking-dialog-header,
+  .booking-dialog-body {
+    padding: var(--density-card-padding);
+  }
+
+  .admin-sidebar {
+    padding: 1rem 0.75rem;
+  }
+
+  .admin-sidebar-brand {
+    gap: 0.625rem;
+    padding: 0.125rem 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .admin-nav {
+    gap: 0.75rem;
+  }
+
+  .admin-nav-link {
+    min-height: var(--density-touch);
+    padding: 0.5rem 0.625rem;
+  }
+
+  .admin-topbar {
+    min-height: 3.5rem;
+    padding: 0.5rem var(--density-page-gutter);
+  }
+
+  .admin-content {
+    padding: 1.5rem var(--density-page-gutter) 3rem;
+  }
+
+  .admin-page-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .admin-stat {
+    padding: var(--density-card-padding);
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 0.625rem 0.75rem;
+  }
+
+  @media (max-width: 980px) {
+    .admin-sidebar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 0.75rem;
+      overflow: hidden;
+      padding: 0.5rem var(--density-page-gutter);
+      background: var(--app-bg);
+    }
+
+    .admin-sidebar-brand {
+      min-height: var(--density-touch);
+      padding: 0;
+      margin: 0;
+      border: 0;
+    }
+
+    .admin-brand-logo {
+      width: 1.75rem;
+      height: 1.75rem;
+    }
+
+    .admin-brand-title,
+    .admin-brand-subtitle {
+      display: none;
+    }
+
+    .admin-nav {
+      min-width: 0;
+      flex-direction: row;
+      gap: 0.25rem;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+      scrollbar-width: none;
+    }
+
+    .admin-nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .admin-nav .rail-section {
+      display: contents;
+    }
+
+    .admin-nav .rail-section-title {
+      display: none;
+    }
+
+    .admin-nav-link {
+      flex: 0 0 auto;
+      min-height: var(--density-touch);
+    }
+  }
+
+  @media (max-width: 767px) {
+    .btn,
+    .btn-sm,
+    .field:not(textarea) {
+      min-height: var(--density-touch);
+    }
+
+    .web-app-shell .workspace-header {
+      padding: 1.25rem var(--density-page-gutter) 0.875rem;
+    }
+
+    .web-app-shell .workspace-body {
+      padding: 1rem var(--density-page-gutter) 2rem;
+    }
+
+    .web-app-shell .social-page {
+      padding-top: 0.75rem;
+    }
+
+    .web-app-shell .social-timeline-header {
+      min-height: 3.25rem;
+      padding: 0.5rem var(--density-page-gutter);
+    }
+
+    .web-app-shell .social-feed-tabs {
+      padding-inline: var(--density-page-gutter);
+    }
+
+    .profile-page,
+    .onboarding-page,
+    .notifications-page {
+      padding-block: 1.25rem 2rem;
+    }
+
+    .identity-page-back {
+      margin-bottom: 1rem;
+    }
+
+    .identity-page-grid {
+      gap: 1.25rem;
+    }
+
+    .identity-step-rail {
+      margin-top: 1.25rem;
+    }
+
+    .admin-content {
+      padding-block: 1rem 2rem;
+    }
+
+    .admin-page-header {
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .admin-stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .admin-stat-value {
+      font-size: 1.5rem;
+    }
+
+    .admin-filter-row {
+      gap: 0.5rem;
+    }
+
+    .admin-filter-row .field {
+      min-width: min(9rem, 100%);
+    }
+  }
+
+  @media (max-width: 420px) {
+    .admin-stat-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .admin-topbar {
+      align-items: center;
+      flex-direction: row;
+    }
+  }
+}

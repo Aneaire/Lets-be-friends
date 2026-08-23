@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from 'convex/react'
 import { api } from '../../../web/convex/_generated/api'
-import { AdminTable } from '../components/AdminTable'
+import { AdminTable } from '../design-system/organisms/AdminTable'
 
 export const Route = createFileRoute('/audit-logs')({ component: AuditLogsPage })
 

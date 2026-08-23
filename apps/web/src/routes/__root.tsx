@@ -1,11 +1,12 @@
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
-import { Header, Footer } from '../components/AppShell'
-import { OnboardingGate } from '../components/OnboardingGate'
-import { AppProviders } from '../components/Providers'
-import { Toaster } from '../components/ui/sonner'
+import { Header, Footer } from '../design-system/templates/AppShell'
+import { OnboardingGate } from '../features/onboarding/OnboardingGate'
+import { AppProviders } from '../features/platform/Providers'
+import { Toaster } from '../design-system/primitives/sonner'
 import appCss from '../styles.css?url'
+import compactCss from '../design-system/foundations/compact.css?url'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -19,6 +20,7 @@ export const Route = createRootRoute({
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
       { rel: 'preload', href: '/fonts/bricolage-grotesque-latin-wght-normal.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
       { rel: 'stylesheet', href: appCss },
+      { rel: 'stylesheet', href: compactCss },
     ],
   }),
   shellComponent: RootDocument,

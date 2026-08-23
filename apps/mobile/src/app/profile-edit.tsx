@@ -5,13 +5,13 @@ import { useRef, useState } from 'react'
 import { Platform, StyleSheet, TextInput, View } from 'react-native'
 
 import { mobileApi, type StorageId } from '@/backend/client'
-import { ActionButton } from '@/components/ActionButton'
-import { AppHeader } from '@/components/AppHeader'
-import { useAppToastMessage } from '@/components/AppToast'
-import { Avatar } from '@/components/Avatar'
-import { Screen } from '@/components/Screen'
-import { StateView } from '@/components/StateView'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { Avatar } from '@/design-system/atoms/Avatar'
+import { Screen } from '@/design-system/templates/Screen'
+import { StateView } from '@/design-system/molecules/StateView'
+import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -168,7 +168,7 @@ function goBackOrProfile() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 16, paddingBottom: 48, gap: 18 },
+  content: { paddingHorizontal: 16, paddingBottom: 32, gap: 16 },
   state: { paddingHorizontal: 16 },
   photoSection: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 4 },
   photoCopy: { flex: 1, gap: 5 },

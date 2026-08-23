@@ -6,16 +6,16 @@ import { StyleSheet, View } from 'react-native'
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
-import { ActionButton } from '@/components/ActionButton'
-import { AppHeader } from '@/components/AppHeader'
-import { useAppToastMessage } from '@/components/AppToast'
-import { Avatar } from '@/components/Avatar'
-import { Chip } from '@/components/Chip'
-import { MemberSafetyActions } from '@/components/MemberSafetyActions'
-import { ReportAction } from '@/components/ReportAction'
-import { Screen, Section } from '@/components/Screen'
-import { StateView } from '@/components/StateView'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { Avatar } from '@/design-system/atoms/Avatar'
+import { Chip } from '@/design-system/atoms/Chip'
+import { MemberSafetyActions } from '@/features/safety/MemberSafetyActions'
+import { ReportAction } from '@/features/safety/ReportAction'
+import { Screen, Section } from '@/design-system/templates/Screen'
+import { StateView } from '@/design-system/molecules/StateView'
+import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -129,7 +129,7 @@ function goBackOrExplore() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 16, paddingBottom: 64 },
+  content: { paddingHorizontal: 16, paddingBottom: 40 },
   state: { paddingHorizontal: 16 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18 },
   identityCopy: { flex: 1, gap: 4 },

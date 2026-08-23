@@ -11,8 +11,8 @@ import { useMobileMember } from '@/member/MobileMember'
 import { onboardingDecision } from '@/member/onboarding'
 import { AppThemeProvider } from '@/theme/ThemeProvider'
 import { useReducedMotion } from '@/utils/accessibility'
-import { AppToastHost } from '@/components/AppToast'
-import { ConnectivityBanner } from '@/components/ConnectivityBanner'
+import { AppToastHost } from '@/design-system/molecules/AppToast'
+import { ConnectivityBanner } from '@/design-system/molecules/ConnectivityBanner'
 
 export default function RootLayout() {
   const scheme = useColorScheme()

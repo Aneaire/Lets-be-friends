@@ -4,11 +4,11 @@ import { router, type ErrorBoundaryProps } from 'expo-router'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
-import { ActionButton } from '@/components/ActionButton'
-import { Avatar } from '@/components/Avatar'
-import { Screen } from '@/components/Screen'
-import { StateView } from '@/components/StateView'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { Avatar } from '@/design-system/atoms/Avatar'
+import { Screen } from '@/design-system/templates/Screen'
+import { StateView } from '@/design-system/molecules/StateView'
+import { AppText } from '@/design-system/atoms/Typography'
 import { conversationPreview, formatMessageTimestamp } from '@/data/messageViewModels'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -67,7 +67,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 16, paddingBottom: 48 },
+  content: { paddingHorizontal: 16, paddingBottom: 32 },
   state: { paddingHorizontal: 16 },
   header: { paddingTop: 16, gap: 5, marginBottom: 12 },
   list: { gap: 0 },

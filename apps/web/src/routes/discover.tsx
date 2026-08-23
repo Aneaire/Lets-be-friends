@@ -1,37 +1,13 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { SignInButton, useAuth } from '@clerk/react'
+import { useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, Heart, LayoutGrid, MapPin, Search, SlidersHorizontal, Star, X } from 'lucide-react'
+import { LayoutGrid, MapPin, Search, SlidersHorizontal, X } from 'lucide-react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { CompanionListItem, type DiscoveryCompanion } from '../design-system/organisms/CompanionListItem'
 
 export const Route = createFileRoute('/discover')({ component: DiscoverPage })
-
-type DiscoveryCompanion = {
-  _id: string
-  displayName: string
-  city: string
-  mode: 'online' | 'in_person' | 'both'
-  rating: number
-  reviewCount?: number
-  intro: string
-  strengths: string[]
-  categories?: string[]
-  bookable?: boolean
-  viewerCanBook?: boolean
-  viewerBookingEligibility?: 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
-  saved?: boolean
-  following?: boolean
-  userId?: string
-  profileImageUrl?: string
-  distanceKm?: number
-  latitude?: number
-  longitude?: number
-  bio?: string
-  kind?: 'member' | 'companion'
-  verified?: boolean
-}
 
 type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 
@@ -307,20 +283,24 @@ function DiscoverPage() {
         </Link>
       </section>
 
-      <section aria-label="Results" className="mt-5">
+      <section aria-label="Results" className="discover-results mt-5">
         {filtered.length === 0 ? (
           <div className="empty-state">
             <p className="empty-state-title">No matches with these filters.</p>
             <p className="text-meta">Try another activity or clear the filters to see everyone.</p>
           </div>
         ) : (
-          <div className="panel">
+          <div className="panel discover-results-panel">
             <div className="worklist" role="list">
               {filtered.map((companion) => (
-                <CompanionRow
+                <CompanionListItem
                   key={companion._id}
                   companion={companion}
                   signedIn={Boolean(isSignedIn)}
+                  profileLink={Link}
+                  profileLinkProps={companion.kind !== 'member'
+                    ? { to: '/companion-profile', search: { companionProfileId: companion._id } }
+                    : { to: '/member-profile', search: { userId: companion.userId } }}
                   onFollow={async () => {
                     if (!companion.userId) return
                     await toggleFollow({ userId: companion.userId as any })
@@ -445,113 +425,6 @@ function DiscoverPage() {
   )
 }
 
-function CompanionRow({ companion, signedIn, onFollow }: { companion: DiscoveryCompanion; signedIn: boolean; onFollow: () => Promise<void> }) {
-  const hasDistance = typeof companion.distanceKm === 'number'
-  const hasCompanionProfile = companion.kind !== 'member'
-
-  return (
-    <article className="discover-host-row" data-nearby={hasDistance} role="listitem">
-      <div className="discover-host-avatar">
-        {hasCompanionProfile ? <Link to="/companion-profile" search={{ companionProfileId: companion._id }} className="discover-host-avatar-link" aria-label={`View ${companion.displayName}'s profile`}>
-          <ProfilePhoto imageUrl={companion.profileImageUrl} name={companion.displayName} size="lg" />
-        </Link> : <Link to="/member-profile" search={{ userId: companion.userId }} className="discover-host-avatar-link" aria-label={`View ${companion.displayName}'s profile`}>
-          <ProfilePhoto imageUrl={companion.profileImageUrl} name={companion.displayName} size="lg" />
-        </Link>}
-      </div>
-
-      <div className="discover-host-main">
-        <header className="discover-host-identity">
-          <div className="discover-host-name-row">
-            <h2>
-              {hasCompanionProfile ? <Link
-                to="/companion-profile"
-                search={{ companionProfileId: companion._id }}
-                className="discover-host-name-link"
-              >
-                <span>{companion.displayName}</span>
-                <ArrowUpRight size={13} aria-hidden="true" />
-              </Link> : <Link to="/member-profile" search={{ userId: companion.userId }} className="discover-host-name-link">
-                <span>{companion.displayName}</span>
-                <ArrowUpRight size={13} aria-hidden="true" />
-              </Link>}
-            </h2>
-            {companion.verified ? <TrustChip state="verified" /> : <TrustChip state="awaiting" />}
-            {!hasCompanionProfile && (
-              <FollowIconButton companion={companion} signedIn={signedIn} onFollow={onFollow} />
-            )}
-          </div>
-          {hasCompanionProfile && <div className="discover-host-context"><span>{companion.city}</span><span aria-hidden="true">/</span><span>{formatMode(companion.mode)}</span></div>}
-        </header>
-
-        <p className="discover-host-intro">{companion.intro}</p>
-
-        {companion.strengths.length > 0 && (
-          <ul className="discover-host-strengths" aria-label={`${companion.displayName}'s Strengths`}>
-            {companion.strengths.slice(0, 3).map((strength) => <li key={strength}>{strength}</li>)}
-          </ul>
-        )}
-
-        <div className="discover-host-mobile-facts">
-          {hasDistance && <DistanceStamp distanceKm={companion.distanceKm!} compact />}
-          {hasCompanionProfile && <RatingSummary rating={companion.rating} reviewCount={companion.reviewCount ?? 0} />}
-        </div>
-      </div>
-
-      {hasCompanionProfile && <aside className="discover-host-side" aria-label={`Actions and proximity for ${companion.displayName}`}>
-        <div className="discover-host-desktop-facts">
-          {hasDistance && <DistanceStamp distanceKm={companion.distanceKm!} />}
-          {hasCompanionProfile && <RatingSummary rating={companion.rating} reviewCount={companion.reviewCount ?? 0} />}
-        </div>
-
-        <div className="discover-host-actions">
-          <Link to="/companion-profile" search={{ companionProfileId: companion._id }} className="btn btn-social btn-sm">Profile</Link>
-          <FollowIconButton companion={companion} signedIn={signedIn} onFollow={onFollow} />
-        </div>
-      </aside>}
-    </article>
-  )
-}
-
-function FollowIconButton({ companion, signedIn, onFollow }: { companion: DiscoveryCompanion; signedIn: boolean; onFollow: () => Promise<void> }) {
-  const label = companion.following ? `Unfollow ${companion.displayName}` : `Follow ${companion.displayName}`
-  const button = (
-    <button
-      type="button"
-      onClick={signedIn ? onFollow : undefined}
-      className="discover-follow-icon"
-      data-active={companion.following}
-      disabled={signedIn && (!companion.userId || companion.viewerBookingEligibility === 'own_profile')}
-      aria-label={label}
-      title={label}
-    >
-      <Heart size={17} fill={companion.following ? 'currentColor' : 'none'} aria-hidden="true" />
-    </button>
-  )
-
-  return signedIn ? button : <SignInButton mode="modal">{button}</SignInButton>
-}
-
-function DistanceStamp({ distanceKm, compact = false }: { distanceKm: number; compact?: boolean }) {
-  return (
-    <div className="discover-host-distance" data-compact={compact} aria-label={`${distanceKm} kilometers away`}>
-      <span>Nearby</span>
-      <strong className="tabular">{distanceKm}</strong>
-      <small>km away</small>
-    </div>
-  )
-}
-
-function RatingSummary({ rating, reviewCount }: { rating: number; reviewCount: number }) {
-  return (
-    <div className="discover-host-rating">
-      <Star size={14} fill="currentColor" aria-hidden="true" />
-      <strong className="tabular" aria-label={`${rating.toFixed(1)} out of 5 stars`}>{rating.toFixed(1)}</strong>
-      <span>·</span>
-      <span className="tabular">{reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}</span>
-    </div>
-  )
-}
-
 function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="filter-section">
@@ -591,38 +464,4 @@ function ToggleChip({ selected, onClick, children }: { selected: boolean; onClic
       {children}
     </button>
   )
-}
-
-function TrustChip({ state }: { state: 'verified' | 'awaiting' }) {
-  const label = state === 'verified' ? 'Identity checked' : 'Not identity checked'
-  return (
-    <span className="trust-chip" data-state={state}>
-      <span className="trust-chip-dot" aria-hidden="true" />
-      {label}
-    </span>
-  )
-}
-
-function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: string; size?: 'lg' }) {
-  const className = size === 'lg' ? 'profile-photo profile-photo-lg' : 'profile-photo'
-  return (
-    <span className={className} aria-hidden="true">
-      {imageUrl ? <img src={imageUrl} alt="" /> : <span>{initials(name)}</span>}
-    </span>
-  )
-}
-
-function formatMode(mode: DiscoveryCompanion['mode']) {
-  if (mode === 'both') return 'Online and in-person'
-  if (mode === 'in_person') return 'In-person'
-  return 'Online'
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
 }

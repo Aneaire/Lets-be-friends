@@ -4,11 +4,11 @@ import { router, type ErrorBoundaryProps } from 'expo-router'
 import { StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
-import { AppHeader } from '@/components/AppHeader'
-import { Screen } from '@/components/Screen'
-import { SettingsRow } from '@/components/SettingsRow'
-import { StateView } from '@/components/StateView'
-import { AppText } from '@/components/Typography'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
+import { Screen } from '@/design-system/templates/Screen'
+import { SettingsRow } from '@/design-system/molecules/SettingsRow'
+import { StateView } from '@/design-system/molecules/StateView'
+import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -118,7 +118,7 @@ function goBackOrProfile() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 16, paddingBottom: 56, gap: 18 },
+  content: { paddingHorizontal: 16, paddingBottom: 40, gap: 16 },
   state: { paddingHorizontal: 16 },
   status: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 4 },
   group: { gap: 7 },

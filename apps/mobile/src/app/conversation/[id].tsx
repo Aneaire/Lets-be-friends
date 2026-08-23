@@ -3,17 +3,20 @@ import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { router, useFocusEffect, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { mobileApi, type ConversationId } from '@/backend/client'
-import { ActionButton } from '@/components/ActionButton'
-import { Avatar } from '@/components/Avatar'
-import { BookingCard } from '@/components/BookingCard'
-import { AppIcon } from '@/components/AppIcon'
-import { useAppToastMessage } from '@/components/AppToast'
-import { ReportAction } from '@/components/ReportAction'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { Avatar } from '@/design-system/atoms/Avatar'
+import { IconButton } from '@/design-system/atoms/IconButton'
+import { BookingCard } from '@/design-system/organisms/BookingCard'
+import { AppIcon } from '@/design-system/atoms/AppIcon'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { ReportAction } from '@/features/safety/ReportAction'
+import { AppText } from '@/design-system/atoms/Typography'
+import { CompactComposer } from '@/features/messaging/CompactComposer'
+import { MessageBubble } from '@/features/messaging/MessageBubble'
 import { bookingDestinationForViewer } from '@/data/bookingActions'
 import {
   formatFileSize,
@@ -138,10 +141,10 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.threadHeader, { borderBottomColor: theme.colors.border }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back to conversations" onPress={() => goBackOrMessages()} style={styles.back}><AppText variant="heading">‹</AppText></Pressable>
+          <IconButton label="Back to conversations" icon="chevron-back" onPress={() => goBackOrMessages()} style={styles.back} />
           <Avatar uri={conversation.otherProfileImageUrl ?? undefined} name={conversation.otherDisplayName} size={42} />
           <View style={styles.headerCopy}><AppText variant="bodyStrong">{conversation.otherDisplayName}</AppText><AppText variant="caption" color={theme.colors.textMuted}>{suspended ? 'Conversation paused' : 'Private member conversation'}</AppText></View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Safety options for ${conversation.otherDisplayName}`} onPress={() => router.push({ pathname: '/safety' as never, params: { userId: String(conversation.otherUserId), name: conversation.otherDisplayName } } as never)} style={styles.safetyButton}><AppIcon name="shield-outline" color={theme.colors.selfText} /></Pressable>
+          <IconButton label={`Safety options for ${conversation.otherDisplayName}`} icon="shield-outline" tone="self" onPress={() => router.push({ pathname: '/safety' as never, params: { userId: String(conversation.otherUserId), name: conversation.otherDisplayName } } as never)} style={styles.safetyButton} />
         </View>
         <FlatList
           ref={listRef}
@@ -166,19 +169,7 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
         {suspended || contactUnavailable ? <View style={[styles.suspended, { borderTopColor: theme.colors.border }]}><AppText color={theme.colors.textMuted}>{contactUnavailable ? 'New contact is stopped for this member connection. Existing messages and booking records remain available.' : 'This conversation is paused and cannot receive new messages.'}</AppText></View> : (
           <View style={[styles.composer, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
             <AppText variant="caption" color={theme.colors.textMuted}>Use messages to keep plans and important context together.</AppText>
-            <View style={styles.composeRow}>
-              <TextInput
-                accessibilityLabel="Message"
-                value={body}
-                onChangeText={setBody}
-                placeholder="Write a message"
-                placeholderTextColor={theme.colors.textMuted}
-                multiline
-                maxLength={2_100}
-                style={[styles.input, theme.typography.body, { color: theme.colors.text, borderColor: counter.overLimit ? theme.colors.danger : theme.colors.border, backgroundColor: theme.colors.background }]}
-              />
-              <ActionButton label={sending ? 'Sending' : 'Send'} onPress={onSend} disabled={sending || counter.overLimit || !body.trim()} style={styles.send} />
-            </View>
+            <CompactComposer value={body} onChange={setBody} onSubmit={onSend} maxLength={2_100} sending={sending} disabled={counter.overLimit} />
             <AppText variant="caption" color={counter.overLimit ? theme.colors.danger : theme.colors.textMuted}>{counter.count.toLocaleString()}/2,000 characters</AppText>
           </View>
         )}
@@ -233,10 +224,12 @@ function MessageItem({ message, otherName, viewerId }: {
   }
 
   return (
-    <View style={[styles.bubbleWrap, message.sentByViewer ? styles.ownWrap : styles.otherWrap]}>
-      <View style={styles.messageColumn}>
-        <View accessibilityLabel={`${message.sentByViewer ? 'You' : otherName} said: ${message.body || 'File attachment'}`} style={[styles.bubble, { backgroundColor: message.sentByViewer ? theme.colors.surfaceRaised : theme.colors.socialSoft }]}>
-          {message.body ? <AppText>{message.body}</AppText> : null}
+    <MessageBubble
+      direction={message.sentByViewer ? 'outgoing' : 'incoming'}
+      authorName={otherName}
+      body={message.body}
+      timestamp={formatMessageTimestamp(message.createdAt)}
+      attachments={message.attachments.length ? <>
           {message.attachments.map((item, index) => {
             const storageId = String(item.storageId)
             const url = item.url
@@ -253,12 +246,12 @@ function MessageItem({ message, otherName, viewerId }: {
               </Pressable>
             )
           })}
-          <AppText variant="caption" color={theme.colors.textMuted} style={styles.time}>{formatMessageTimestamp(message.createdAt)}</AppText>
-        </View>
+        </> : undefined}
+      footer={<>
         {attachmentError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{attachmentError}</AppText> : null}
         {!message.sentByViewer ? <ReportAction targetType="message" targetId={String(message._id)} label="Report message" compact /> : null}
-      </View>
-    </View>
+      </>}
+    />
   )
 }
 
@@ -273,28 +266,19 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  state: { justifyContent: 'center', padding: 20, gap: 16 },
+  state: { justifyContent: 'center', padding: 14, gap: 16 },
   threadHeader: { minHeight: 68, borderBottomWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  back: { width: 44, height: 48, justifyContent: 'center' },
+  back: { width: 44, height: 48 },
   headerCopy: { flex: 1 },
-  safetyButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  messages: { padding: 16, gap: 12 },
+  safetyButton: { width: 44, height: 44 },
+  messages: { padding: 14, gap: 12 },
   messagesEmpty: { flexGrow: 1, justifyContent: 'center' },
   empty: { alignItems: 'center', gap: 8 },
-  bubbleWrap: { flexDirection: 'row' },
-  ownWrap: { justifyContent: 'flex-end', paddingLeft: 48 },
-  otherWrap: { justifyContent: 'flex-start', paddingRight: 48 },
-  messageColumn: { maxWidth: '100%', gap: 4 },
-  bubble: { maxWidth: '100%', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, gap: 6 },
   attachmentMeta: { minHeight: 44, borderTopWidth: 1, paddingTop: 6, justifyContent: 'center', gap: 1 },
-  time: { alignSelf: 'flex-end' },
   bookingMessage: { gap: 8 },
   bookingSnapshot: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 4 },
   composer: { borderTopWidth: 1, padding: 12, gap: 8 },
-  composeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  input: { flex: 1, maxHeight: 112, minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingTop: 12, textAlignVertical: 'top' },
-  send: { minHeight: 48 },
-  suspended: { borderTopWidth: 1, padding: 16 },
+  suspended: { borderTopWidth: 1, padding: 14 },
   pressed: { opacity: 0.62 },
 })
 

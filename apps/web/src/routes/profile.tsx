@@ -6,7 +6,7 @@ import type React from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
-import { useIdentityVerification } from '../components/IdentityVerificationFlow'
+import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
 

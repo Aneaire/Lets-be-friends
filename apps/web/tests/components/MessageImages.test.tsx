@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { MessageImageGallery, MessageImageViewer, type MessageImage } from '../../src/components/MessageImages'
+import { MessageImageGallery, MessageImageViewer, type MessageImage } from '../../src/design-system/molecules/MessageImages'
 
 afterEach(cleanup)
 

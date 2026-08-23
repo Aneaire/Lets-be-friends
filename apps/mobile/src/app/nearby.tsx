@@ -7,13 +7,13 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { mobileApi } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
-import { ActionButton } from '@/components/ActionButton'
-import { AppHeader } from '@/components/AppHeader'
-import { Chip } from '@/components/Chip'
-import { CompanionCard } from '@/components/CompanionCard'
-import { ProductMap } from '@/components/ProductMap'
-import { StateView } from '@/components/StateView'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
+import { Chip } from '@/design-system/atoms/Chip'
+import { CompanionCard } from '@/design-system/organisms/CompanionCard'
+import { ProductMap } from '@/design-system/organisms/ProductMap'
+import { StateView } from '@/design-system/molecules/StateView'
+import { AppText } from '@/design-system/atoms/Typography'
 import { mapApprovedCompanion, type ApprovedCompanionRecord, type DiscoveryCompanionViewModel } from '@/data/companionViewModels'
 import { defaultDiscoveryFilters, discoveryCategories, discoveryModes, discoveryStrengths, filterDiscoveryCompanions, type DiscoveryFilters } from '@/data/discovery'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -141,11 +141,11 @@ function roundOrigin(origin: { latitude: number; longitude: number }) { return {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   headerWrap: { paddingHorizontal: 16 },
-  prompt: { flexGrow: 1, justifyContent: 'center', padding: 16, gap: 16 },
+  prompt: { flexGrow: 1, justifyContent: 'center', padding: 14, gap: 16 },
   list: { paddingHorizontal: 16, paddingBottom: 40 },
   listHeader: { gap: 12, paddingVertical: 14 },
   radii: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  input: { minHeight: 50, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14 },
+  input: { minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14 },
   orRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   orLine: { height: 1, flex: 1 },
   horizontal: { gap: 8, paddingRight: 16 },

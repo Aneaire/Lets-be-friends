@@ -6,17 +6,17 @@ import { useCallback, useRef, useState } from 'react'
 import { Alert, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type BookingId } from '@/backend/client'
-import { ActionButton } from '@/components/ActionButton'
-import { useAppToastMessage } from '@/components/AppToast'
-import { BookingCancelAction } from '@/components/BookingCancelAction'
-import { BookingCompletionAction } from '@/components/BookingCompletionAction'
-import { BookingEvidencePanel } from '@/components/BookingEvidencePanel'
-import { BookingLifecycleDetails } from '@/components/BookingLifecycleDetails'
-import { BookingMessagesButton } from '@/components/BookingMessagesButton'
-import { PlanThread } from '@/components/PlanThread'
-import { BookingSafetyActions } from '@/components/BookingSafetyActions'
-import { Screen } from '@/components/Screen'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { BookingCancelAction } from '@/features/booking/BookingCancelAction'
+import { BookingCompletionAction } from '@/features/booking/BookingCompletionAction'
+import { BookingEvidencePanel } from '@/design-system/organisms/BookingEvidencePanel'
+import { BookingLifecycleDetails } from '@/design-system/organisms/BookingLifecycleDetails'
+import { BookingMessagesButton } from '@/features/booking/BookingMessagesButton'
+import { PlanThread } from '@/features/booking/PlanThread'
+import { BookingSafetyActions } from '@/features/booking/BookingSafetyActions'
+import { Screen } from '@/design-system/templates/Screen'
+import { AppText } from '@/design-system/atoms/Typography'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
 import { bookingStatusPresentation, formatBookingSchedule, formatDuration } from '@/data/bookingViewModels'
 import { useMobileMember } from '@/member/MobileMember'
@@ -199,11 +199,11 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 24, paddingBottom: 64, gap: 18 },
+  content: { paddingTop: 16, paddingBottom: 40, gap: 16 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
   header: { gap: 6 },
-  status: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 5 },
-  details: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 16 },
+  status: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 5 },
+  details: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 16 },
   detailRow: { gap: 4 },
   notes: { gap: 8 },
   actions: { gap: 10 },

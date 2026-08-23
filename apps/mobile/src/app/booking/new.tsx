@@ -6,11 +6,11 @@ import { useMemo, useRef, useState } from 'react'
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { mobileApi, type CompanionProfileId } from '@/backend/client'
-import { ActionButton } from '@/components/ActionButton'
-import { AppIcon } from '@/components/AppIcon'
-import { useAppToastMessage } from '@/components/AppToast'
-import { Screen } from '@/components/Screen'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppIcon } from '@/design-system/atoms/AppIcon'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { Screen } from '@/design-system/templates/Screen'
+import { AppText } from '@/design-system/atoms/Typography'
 import { bookingPriceEstimate } from '@/data/bookingPricing'
 import { parseManilaBookingInput } from '@/data/bookingViewModels'
 import { mapPublicCompanion, type ApprovedCompanionRecord, type SessionMode } from '@/data/companionViewModels'
@@ -226,7 +226,7 @@ function goBackOr(fallback: '/explore') {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 64, gap: 12 },
+  content: { paddingBottom: 40, gap: 12 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
   navRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 16 },
   back: { width: 48, height: 48, justifyContent: 'center' },
@@ -237,8 +237,8 @@ const styles = StyleSheet.create({
   scheduleButton: { flex: 1, minHeight: 64, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 9 },
   scheduleCopy: { flex: 1, gap: 1 },
   pressed: { opacity: 0.72 },
-  input: { minHeight: 52, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
+  input: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
   notes: { minHeight: 112, paddingTop: 14, textAlignVertical: 'top' },
-  summary: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 12, marginVertical: 8 },
+  summary: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 12, marginVertical: 8 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 16 },
 })

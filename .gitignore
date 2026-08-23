@@ -17,3 +17,5 @@ apps/*/.vercel
 apps/*/.tanstack
 apps/*/.env
 apps/*/.env.*
+storybook-static/
+storybook-static-mobile/

@@ -7,11 +7,11 @@ import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react
 
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi } from '@/backend/client'
-import { ActionButton } from '@/components/ActionButton'
-import { AppIcon } from '@/components/AppIcon'
-import { useAppToastMessage } from '@/components/AppToast'
-import { Screen } from '@/components/Screen'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppIcon } from '@/design-system/atoms/AppIcon'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { Screen } from '@/design-system/templates/Screen'
+import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
 import { onboardingDecision } from '@/member/onboarding'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -438,17 +438,17 @@ function OnboardingState({
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 44 },
-  header: { paddingTop: 24, gap: 10 },
+  content: { paddingBottom: 32 },
+  header: { paddingTop: 16, gap: 10 },
   stepRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   progressTrack: { height: 4, overflow: 'hidden', borderRadius: 2, backgroundColor: '#D8D8D8' },
   progressValue: { height: '100%', borderRadius: 2 },
   heroTitle: { fontSize: 38, lineHeight: 40, letterSpacing: -1.2, maxWidth: 360 },
   heroCopy: { fontSize: 15, lineHeight: 22, maxWidth: 340 },
-  section: { marginTop: 28, gap: 10 },
+  section: { marginTop: 24, gap: 10 },
   sectionHeader: { gap: 3, marginBottom: 2 },
-  usernameRow: { minHeight: 54, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' },
-  usernameInput: { flex: 1, minHeight: 52, paddingHorizontal: 6 },
+  usernameRow: { minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' },
+  usernameInput: { flex: 1, minHeight: 48, paddingHorizontal: 6 },
   availability: { fontWeight: '600' },
   locationCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
   terms: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   radio: { width: 22, height: 22, borderWidth: 2, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   goalCopy: { flex: 1, gap: 1 },
-  actions: { marginTop: 30, gap: 3 },
+  actions: { marginTop: 24, gap: 3 },
   signOutLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   backLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   signOutText: { fontWeight: '600', textAlign: 'center' },

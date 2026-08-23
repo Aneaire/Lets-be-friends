@@ -6,10 +6,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { mobileApi, type BookingId, type CompanionProfileId } from '@/backend/client'
-import { ActionButton } from '@/components/ActionButton'
-import { useAppToastMessage } from '@/components/AppToast'
-import { Screen } from '@/components/Screen'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { Screen } from '@/design-system/templates/Screen'
+import { AppText } from '@/design-system/atoms/Typography'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
 import { bookingPriceEstimate } from '@/data/bookingPricing'
 import { parseManilaBookingInput } from '@/data/bookingViewModels'
@@ -203,15 +203,15 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 64, gap: 12 },
+  content: { paddingBottom: 40, gap: 12 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
   navRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 16 },
   back: { width: 48, height: 48, justifyContent: 'center' },
   fieldLabel: { marginTop: 8 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choice: { minHeight: 44, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, justifyContent: 'center' },
-  input: { minHeight: 52, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
+  input: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
   notes: { minHeight: 112, paddingTop: 14, textAlignVertical: 'top' },
-  summary: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 8, marginVertical: 8 },
+  summary: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8, marginVertical: 8 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 16 },
 })

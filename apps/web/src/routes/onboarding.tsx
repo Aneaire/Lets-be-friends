@@ -5,10 +5,10 @@ import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
 import { activityCategories, normalizeUsername, usernameValidationError } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
-import { ApproximateLocationMap } from '../components/ApproximateLocationMap'
+import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
 import { geolocationErrorMessage, roundCoordinates, type Coordinates } from '../lib/geo'
 import { goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
-import { useIdentityVerification } from '../components/IdentityVerificationFlow'
+import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 
 export const Route = createFileRoute('/onboarding')({ component: OnboardingPage })

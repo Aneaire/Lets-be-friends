@@ -31,6 +31,8 @@ describe('semantic theme tokens', () => {
       expect(contrastRatio(palette.selfText, palette.surfaceRaised)).toBeGreaterThanOrEqual(4.5)
       expect(contrastRatio(palette.socialText, palette.background)).toBeGreaterThanOrEqual(4.5)
       expect(contrastRatio(palette.socialText, palette.surfaceRaised)).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(palette.success, palette.successSoft)).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(palette.warning, palette.warningSoft)).toBeGreaterThanOrEqual(4.5)
     }
     expect(light.colors.background).not.toBe(dark.colors.background)
     expect(light.colors.text).not.toBe(dark.colors.text)
@@ -39,5 +41,20 @@ describe('semantic theme tokens', () => {
   it('falls back to the light system palette when the scheme is unavailable', () => {
     expect(resolveTheme(undefined).scheme).toBe('light')
     expect(resolveTheme(null).colors).toEqual(resolveTheme('light').colors)
+  })
+
+  it('keeps compact spacing without shrinking touch targets below 44 pixels', () => {
+    const theme = resolveTheme('light')
+
+    expect(theme.density.screenGutter).toBe(16)
+    expect(theme.density.cardPadding).toBeLessThan(theme.density.screenGutter)
+    expect(theme.density.textPairGap).toBe(2)
+    expect(theme.density.textStackGap).toBe(4)
+    expect(theme.density.textSectionGap).toBe(6)
+    expect(theme.density.compactControlHeight).toBeGreaterThanOrEqual(44)
+    expect(theme.density.controlHeight).toBeGreaterThanOrEqual(theme.density.compactControlHeight)
+    expect(theme.spacing.xxs).toBe(4)
+    expect(theme.typography.caption.lineHeight).toBe(18)
+    expect(theme.typography.body.lineHeight).toBe(23)
   })
 })

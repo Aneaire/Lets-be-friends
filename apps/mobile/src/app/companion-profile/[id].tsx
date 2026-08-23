@@ -7,16 +7,16 @@ import { Image, Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type CompanionProfileId, type ReviewId, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
-import { ActionButton } from '@/components/ActionButton'
-import { AppHeader } from '@/components/AppHeader'
-import { useAppToastMessage } from '@/components/AppToast'
-import { Avatar } from '@/components/Avatar'
-import { Chip } from '@/components/Chip'
-import { ReportAction } from '@/components/ReportAction'
-import { MemberSafetyActions } from '@/components/MemberSafetyActions'
-import { Screen, Section } from '@/components/Screen'
-import { StateView } from '@/components/StateView'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { Avatar } from '@/design-system/atoms/Avatar'
+import { Chip } from '@/design-system/atoms/Chip'
+import { ReportAction } from '@/features/safety/ReportAction'
+import { MemberSafetyActions } from '@/features/safety/MemberSafetyActions'
+import { Screen, Section } from '@/design-system/templates/Screen'
+import { StateView } from '@/design-system/molecules/StateView'
+import { AppText } from '@/design-system/atoms/Typography'
 import { mapPublicCompanion, resolveCompanionBookingAction, type ApprovedCompanionRecord, type CompanionDetailViewModel } from '@/data/companionViewModels'
 import { formatMessageTimestamp } from '@/data/messageViewModels'
 import { useMobileMember } from '@/member/MobileMember'
@@ -229,7 +229,7 @@ function goBackOrExplore() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 16, paddingBottom: 64 },
+  content: { paddingHorizontal: 16, paddingBottom: 40 },
   state: { paddingHorizontal: 16 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18 },
   identityCopy: { flex: 1, gap: 3 },
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   sectionTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   reviewList: { marginTop: 8 },
   review: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 12, gap: 5 },
-  reviewActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  reviewActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   textAction: { minHeight: 44, justifyContent: 'center' },
   postList: { gap: 10, marginTop: 10 },
   post: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },

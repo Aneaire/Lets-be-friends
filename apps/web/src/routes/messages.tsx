@@ -5,10 +5,11 @@ import { ArrowLeft, CircleCheck, FileText, Flag, Image as ImageIcon, LoaderCircl
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
-import { BookingRequestCard } from '../components/BookingRequestCard'
-import { BookingRequestEditor, type EditableBookingRequest } from '../components/BookingRequestEditor'
-import { MessageDeliveryStatus } from '../components/MessageDeliveryStatus'
-import { MessageImageGallery, MessageImageViewer, type MessageImage } from '../components/MessageImages'
+import { BookingRequestCard } from '../features/booking/BookingRequestCard'
+import { BookingRequestEditor, type EditableBookingRequest } from '../features/booking/BookingRequestEditor'
+import { MessageDeliveryStatus } from '../design-system/atoms/MessageDeliveryStatus'
+import { Avatar } from '../design-system/atoms/Avatar'
+import { MessageImageGallery, MessageImageViewer, type MessageImage } from '../design-system/molecules/MessageImages'
 import {
   MAX_CHAT_ATTACHMENTS,
   formatFileSize,
@@ -126,7 +127,7 @@ function MessagesPage() {
             >
               <ArrowLeft size={18} aria-hidden="true" />
             </button>
-            <ProfileAvatar name={thread.conversation.otherDisplayName} imageUrl={thread.conversation.otherProfileImageUrl} />
+            <Avatar name={thread.conversation.otherDisplayName} src={thread.conversation.otherProfileImageUrl} decorative />
             <div className="min-w-0 direct-thread-identity">
               <div className="direct-thread-name-row">
                 <h2 className="text-h2">{thread.conversation.otherDisplayName}</h2>
@@ -595,7 +596,7 @@ function ConversationList({
           className="conversation-rail-link"
           aria-current={conversation._id === selectedConversationId ? 'page' : undefined}
         >
-          <ProfileAvatar name={conversation.otherDisplayName} imageUrl={conversation.otherProfileImageUrl} />
+          <Avatar name={conversation.otherDisplayName} src={conversation.otherProfileImageUrl} decorative />
           <span className="min-w-0">
             <strong>{conversation.otherDisplayName}</strong>
             <span>{conversation.lastMessageBody
@@ -635,18 +636,6 @@ function EmptyInbox() {
       </div>
     </div>
   )
-}
-
-function ProfileAvatar({ name, imageUrl }: { name: string; imageUrl?: string }) {
-  return (
-    <span className="avatar" aria-hidden="true">
-      {imageUrl ? <img src={imageUrl} alt="" /> : initials(name)}
-    </span>
-  )
-}
-
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?'
 }
 
 function formatMessageTime(timestamp: number) {

@@ -3,7 +3,7 @@ import { SignInButton, useAuth, useUser } from '@clerk/react'
 import { useQuery } from 'convex/react'
 import { Moon, Sun, UserRound, UserRoundCog } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
-import { useThemeChoice } from '../components/ThemeToggle'
+import { useThemeChoice } from '../design-system/atoms/ThemeToggle'
 
 export const Route = createFileRoute('/settings')({ component: SettingsPage })
 

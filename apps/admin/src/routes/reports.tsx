@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { api } from '../../../web/convex/_generated/api'
-import { ActionNote } from '../components/ActionNote'
+import { ActionNote } from '../design-system/molecules/ActionNote'
 
 type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed' | 'all'
 type TargetType = 'all' | 'profile' | 'booking' | 'message' | 'review' | 'post' | 'comment' | 'user'

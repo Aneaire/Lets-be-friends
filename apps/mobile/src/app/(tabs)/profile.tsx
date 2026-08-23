@@ -7,13 +7,13 @@ import { StyleSheet, View } from 'react-native'
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/backend/config'
 import { mobileApi } from '@/backend/client'
-import { Avatar } from '@/components/Avatar'
-import { useAppToastMessage } from '@/components/AppToast'
-import { PushNotificationSettings } from '@/components/PushNotificationSettings'
-import { Screen } from '@/components/Screen'
-import { SettingsRow } from '@/components/SettingsRow'
-import { StateView } from '@/components/StateView'
-import { AppText } from '@/components/Typography'
+import { Avatar } from '@/design-system/atoms/Avatar'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { PushNotificationSettings } from '@/features/settings/PushNotificationSettings'
+import { Screen } from '@/design-system/templates/Screen'
+import { SettingsRow } from '@/design-system/molecules/SettingsRow'
+import { StateView } from '@/design-system/molecules/StateView'
+import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
 import { buildSignedInProfileViewModel } from '@/member/profileViewModel'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -200,10 +200,10 @@ function ProfileState({ title, detail, loading = false, actionLabel, onAction, f
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 16, paddingBottom: 48, gap: 22 },
+  content: { paddingHorizontal: 16, paddingBottom: 32, gap: 16 },
   state: { paddingHorizontal: 16 },
   header: { paddingTop: 12, gap: 2 },
-  memberCard: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 14 },
+  memberCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 14 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   identityCopy: { flex: 1, gap: 2 },
   verification: { borderWidth: 1, borderRadius: 14, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 12 },

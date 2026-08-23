@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { applyTheme, readStoredTheme, saveTheme } from '../../src/components/ThemeToggle'
+import { applyTheme, readStoredTheme, saveTheme } from '../../src/design-system/atoms/ThemeToggle'
 
 describe('theme preference', () => {
   beforeEach(() => {

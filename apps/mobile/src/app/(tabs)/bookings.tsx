@@ -5,11 +5,11 @@ import { useMemo, useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
-import { BookingCard } from '@/components/BookingCard'
-import { Chip } from '@/components/Chip'
-import { Screen } from '@/components/Screen'
-import { StateView } from '@/components/StateView'
-import { AppText } from '@/components/Typography'
+import { BookingCard } from '@/design-system/organisms/BookingCard'
+import { Chip } from '@/design-system/atoms/Chip'
+import { Screen } from '@/design-system/templates/Screen'
+import { StateView } from '@/design-system/molecules/StateView'
+import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -89,7 +89,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 16, paddingBottom: 48 },
+  content: { paddingHorizontal: 16, paddingBottom: 32 },
   state: { paddingHorizontal: 16 },
   header: { paddingTop: 16, gap: 5, marginBottom: 16 },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },

@@ -3,7 +3,7 @@ import { useAuth } from '@clerk/react'
 import { useQuery } from 'convex/react'
 import { activityCategories } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
-import { SocialPage } from '../components/SocialPage'
+import { SocialPage } from '../features/social/SocialPage'
 
 const homeTitle = "Everyday Help and Real Connections | Let's Be Friends"
 const homeDescription = 'Find verified Companions who offer everyday help, shared activities, and friendly company, or become a Companion and earn by sharing your Strengths.'

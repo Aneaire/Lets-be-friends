@@ -2,8 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { api } from '../../../web/convex/_generated/api'
-import { ActionNote } from '../components/ActionNote'
-import { AdminTable } from '../components/AdminTable'
+import { ActionNote } from '../design-system/molecules/ActionNote'
+import { AdminTable } from '../design-system/organisms/AdminTable'
 
 type Visibility = 'visible' | 'hidden' | 'all'
 

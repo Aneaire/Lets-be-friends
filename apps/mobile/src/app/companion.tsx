@@ -8,10 +8,10 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/backend/config'
 import { mobileApi } from '@/backend/client'
-import { ActionButton } from '@/components/ActionButton'
-import { useAppToastMessage } from '@/components/AppToast'
-import { Screen, Section } from '@/components/Screen'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { Screen, Section } from '@/design-system/templates/Screen'
+import { AppText } from '@/design-system/atoms/Typography'
 import {
   companionApplicationStatusCopy,
   initialCompanionApplicationForm,
@@ -295,16 +295,16 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 24, paddingBottom: 64, gap: 20 },
+  content: { paddingTop: 16, paddingBottom: 40, gap: 16 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
   header: { gap: 10 },
-  statusCard: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 10 },
+  statusCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
   fieldGroup: { gap: 8, marginTop: 14 },
-  input: { minHeight: 52, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12 },
+  input: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12 },
   multiline: { minHeight: 110 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 44, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
-  nearby: { borderWidth: 1, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
+  nearby: { borderWidth: 1, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
   nearbyCopy: { flex: 1, gap: 4 },
   stepHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   progressTrack: { height: 4, borderRadius: 2, overflow: 'hidden', marginTop: 10 },

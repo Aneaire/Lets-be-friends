@@ -9,6 +9,11 @@
     "dev:admin": "pnpm --filter @lets-be-friends/admin dev",
     "dev:mobile": "pnpm --filter @lets-be-friends/mobile dev",
     "dev:mobile:tunnel": "pnpm --filter @lets-be-friends/mobile dev:tunnel",
+    "storybook": "storybook dev -p 6006",
+    "storybook:mobile": "storybook dev -p 6007 -c apps/mobile/.storybook",
+    "build-storybook": "storybook build",
+    "build-storybook:mobile": "storybook build -c apps/mobile/.storybook -o storybook-static-mobile",
+    "test-storybook": "vitest run --config vitest.storybook.config.ts",
     "dev:all": "pnpm --parallel --filter @lets-be-friends/web --filter @lets-be-friends/admin dev",
     "build": "pnpm --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile build",
     "test": "pnpm --filter @lets-be-friends/shared --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile test",
@@ -18,7 +23,19 @@
     "seed:pampanga": "pnpm --filter @lets-be-friends/web seed:pampanga"
   },
   "devDependencies": {
+    "@storybook/addon-a11y": "10.5.10",
+    "@storybook/addon-vitest": "10.5.10",
+    "@storybook/react-native-web-vite": "10.5.10",
+    "@storybook/react-vite": "10.5.10",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/browser-playwright": "4.1.5",
+    "playwright": "^1.62.1",
     "pnpm": "^10.24.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-native-web": "~0.21.2",
+    "storybook": "10.5.10",
+    "vitest": "4.1.5",
     "youch": "^4.1.1",
     "youch-core": "^0.3.3"
   }

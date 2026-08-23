@@ -6,13 +6,13 @@ import { StyleSheet, View } from 'react-native'
 
 import { mobileApi, type UserId } from '@/backend/client'
 import type { FunctionReturnType } from 'convex/server'
-import { ActionButton } from '@/components/ActionButton'
-import { AppHeader } from '@/components/AppHeader'
-import { Avatar } from '@/components/Avatar'
-import { MemberSafetyActions } from '@/components/MemberSafetyActions'
-import { useAppToastMessage } from '@/components/AppToast'
-import { Screen, Section } from '@/components/Screen'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
+import { Avatar } from '@/design-system/atoms/Avatar'
+import { MemberSafetyActions } from '@/features/safety/MemberSafetyActions'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { Screen, Section } from '@/design-system/templates/Screen'
+import { AppText } from '@/design-system/atoms/Typography'
 import { safeProductError } from '@/data/productErrors'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -56,4 +56,4 @@ function SafetyCenter({ targetUserId, targetName }: { targetUserId?: string; tar
 
 function Guidance({ text }: { text: string }) { const theme = useAppTheme(); return <View style={styles.guidance}><View style={[styles.bullet, { backgroundColor: theme.colors.self }]} /><AppText style={styles.guidanceText}>{text}</AppText></View> }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 16, paddingBottom: 56 }, state: { paddingHorizontal: 16, gap: 18 }, hero: { borderWidth: 1, borderRadius: 20, padding: 18, gap: 8 }, guidance: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 10 }, guidanceText: { flex: 1 }, bullet: { width: 7, height: 7, borderRadius: 4, marginTop: 8 }, member: { minHeight: 64, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }, memberCopy: { flex: 1, gap: 2 }, compact: { minHeight: 42, paddingHorizontal: 12 } })
+const styles = StyleSheet.create({ content: { paddingHorizontal: 16, paddingBottom: 40 }, state: { paddingHorizontal: 16, gap: 16 }, hero: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 }, guidance: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 10 }, guidanceText: { flex: 1 }, bullet: { width: 7, height: 7, borderRadius: 4, marginTop: 8 }, member: { minHeight: 64, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }, memberCopy: { flex: 1, gap: 2 }, compact: { minHeight: 42, paddingHorizontal: 12 } })

@@ -1,0 +1,1282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Atomic Storybook proposal | Let's Be Friends</title>
+  <style>
+    @font-face {
+      font-family: "Bricolage Grotesque";
+      src: url("../../apps/web/public/fonts/bricolage-grotesque-latin-wght-normal.woff2") format("woff2");
+      font-display: swap;
+      font-style: normal;
+      font-weight: 200 800;
+    }
+
+    :root {
+      color-scheme: light;
+      --paper: #f7f7f7;
+      --ink: #111111;
+      --muted: #666666;
+      --soft: #8a8a8a;
+      --line: #d9d9d9;
+      --line-strong: #a7a7a7;
+      --panel: #ffffff;
+      --panel-inverse: #111111;
+      --blue: #1093ed;
+      --blue-soft: #eaf6fe;
+      --pink: #c1519c;
+      --pink-soft: #faeef6;
+      --danger: #b42318;
+      --success: #18754a;
+      --shadow: 0 20px 60px rgb(0 0 0 / 8%);
+      --radius: 18px;
+      --display: "Bricolage Grotesque", "Arial Narrow", Arial, sans-serif;
+      --body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--body);
+      font-size: 16px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input { font: inherit; }
+    a { color: inherit; }
+    a:focus-visible, button:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--blue) 35%, transparent);
+      outline-offset: 3px;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 17rem minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .rail {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 1.25rem;
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: .7rem;
+      padding: .4rem .35rem 1.2rem;
+      border-bottom: 1px solid var(--line);
+      font-family: var(--display);
+      font-weight: 750;
+      line-height: 1.05;
+    }
+
+    .brand-mark {
+      position: relative;
+      width: 1.65rem;
+      height: 1.65rem;
+      flex: none;
+    }
+    .brand-mark::before, .brand-mark::after {
+      content: "";
+      position: absolute;
+      width: .8rem;
+      height: 1.25rem;
+      border: 2px solid var(--ink);
+      border-radius: 999px 999px .3rem .3rem;
+      top: .18rem;
+    }
+    .brand-mark::before { left: .2rem; border-color: var(--blue); transform: rotate(-13deg); }
+    .brand-mark::after { right: .2rem; border-color: var(--pink); transform: rotate(13deg); }
+
+    .rail-kicker {
+      margin: 1.2rem .35rem .45rem;
+      color: var(--soft);
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .rail nav { display: grid; gap: .15rem; }
+    .rail nav a {
+      display: grid;
+      grid-template-columns: 1.7rem 1fr;
+      align-items: center;
+      min-height: 2.4rem;
+      padding: .3rem .35rem;
+      border-radius: .55rem;
+      color: var(--muted);
+      font-size: .84rem;
+      text-decoration: none;
+    }
+    .rail nav a:hover, .rail nav a[aria-current="true"] {
+      background: #f1f1f1;
+      color: var(--ink);
+    }
+    .rail nav span:first-child {
+      color: var(--soft);
+      font-family: var(--mono);
+      font-size: .68rem;
+    }
+
+    .rail-foot {
+      margin-top: auto;
+      padding: 1rem .35rem 0;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .75rem;
+    }
+    .rail-foot strong { display: block; color: var(--ink); font-weight: 650; }
+
+    main { min-width: 0; }
+    .section {
+      width: min(1180px, calc(100% - 4rem));
+      margin: 0 auto;
+      padding: 6.5rem 0;
+      scroll-margin-top: 1rem;
+    }
+    .section + .section { border-top: 1px solid var(--line); }
+
+    .hero {
+      min-height: 96vh;
+      display: grid;
+      align-content: center;
+      padding-top: 4rem;
+      padding-bottom: 4rem;
+    }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .55rem 1.5rem;
+      align-items: center;
+      margin-bottom: 2.1rem;
+      font-family: var(--mono);
+      color: var(--muted);
+      font-size: .72rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .proposal-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 1.8rem;
+      padding: 0 .65rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      color: var(--ink);
+      background: var(--panel);
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 {
+      max-width: 13ch;
+      margin-bottom: 1.5rem;
+      font-family: var(--display);
+      font-size: clamp(3.8rem, 8.5vw, 8.8rem);
+      font-weight: 720;
+      line-height: .86;
+      letter-spacing: -.075em;
+    }
+    h1 span { color: var(--soft); }
+    h2 {
+      max-width: 17ch;
+      margin-bottom: 1.2rem;
+      font-family: var(--display);
+      font-size: clamp(2.4rem, 5vw, 5.2rem);
+      font-weight: 680;
+      line-height: .93;
+      letter-spacing: -.055em;
+    }
+    h3 {
+      font-family: var(--display);
+      font-size: 1.3rem;
+      line-height: 1.15;
+      letter-spacing: -.025em;
+    }
+    .lede {
+      max-width: 48rem;
+      color: var(--muted);
+      font-size: clamp(1.08rem, 1.6vw, 1.35rem);
+    }
+    .hero-bottom {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(17rem, .8fr);
+      gap: 2rem;
+      align-items: end;
+      margin-top: clamp(3rem, 8vw, 7rem);
+    }
+    .thesis {
+      padding: 1.5rem;
+      background: var(--panel-inverse);
+      color: #ffffff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .thesis-label {
+      margin-bottom: 2.5rem;
+      color: #aaa;
+      font-family: var(--mono);
+      font-size: .7rem;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+    .thesis p:last-child {
+      max-width: 33rem;
+      margin-bottom: 0;
+      font-family: var(--display);
+      font-size: clamp(1.5rem, 3vw, 2.7rem);
+      font-weight: 600;
+      line-height: 1.05;
+      letter-spacing: -.035em;
+    }
+    .hero-note {
+      padding-left: 1rem;
+      border-left: 3px solid var(--blue);
+      color: var(--muted);
+      font-size: .9rem;
+    }
+    .hero-note strong { color: var(--ink); }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin-bottom: 1.3rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 2.2rem; height: 1px; background: var(--line-strong); }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 1fr minmax(18rem, .7fr);
+      gap: 2rem;
+      align-items: end;
+      margin-bottom: 3rem;
+    }
+    .section-head p { margin-bottom: .4rem; color: var(--muted); }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .stat {
+      min-height: 10.5rem;
+      padding: 1.25rem;
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .stat:last-child { border-right: 0; }
+    .stat-label { color: var(--muted); font-size: .78rem; }
+    .stat-value {
+      font-family: var(--display);
+      font-size: clamp(2.4rem, 4vw, 4.4rem);
+      font-weight: 690;
+      line-height: .9;
+      letter-spacing: -.055em;
+    }
+    .stat-unit { margin-left: .2rem; color: var(--soft); font-family: var(--mono); font-size: .7rem; }
+
+    .audit-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .audit-card, .rule-card, .phase-card, .decision-card, .source-card {
+      padding: 1.35rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    .audit-card .surface {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: .7rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .surface-dot { width: .55rem; height: .55rem; border-radius: 50%; background: var(--ink); }
+    .audit-card:nth-child(2) .surface-dot { background: var(--pink); }
+    .audit-card:nth-child(3) .surface-dot { background: var(--blue); }
+    .audit-card p:last-child, .rule-card p:last-child, .source-card p:last-child { margin-bottom: 0; color: var(--muted); font-size: .88rem; }
+
+    .finding {
+      display: grid;
+      grid-template-columns: 2.2rem minmax(0, 1fr);
+      gap: 1rem;
+      padding: 1.25rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .finding:last-child { border-bottom: 0; }
+    .finding-index { color: var(--soft); font-family: var(--mono); font-size: .72rem; }
+    .finding h3 { margin-bottom: .4rem; }
+    .finding p { max-width: 55rem; margin-bottom: 0; color: var(--muted); }
+
+    .recommendation {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(20rem, .9fr);
+      gap: 1rem;
+    }
+    .recommendation-main {
+      min-height: 26rem;
+      padding: clamp(1.5rem, 4vw, 3.2rem);
+      border-radius: var(--radius);
+      background: var(--panel-inverse);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .recommendation-main .eyebrow { color: #aaa; }
+    .recommendation-main .eyebrow::before { background: #666; }
+    .recommendation-main h3 {
+      max-width: 16ch;
+      margin-bottom: 1.2rem;
+      font-size: clamp(2.2rem, 4.5vw, 4.8rem);
+      line-height: .93;
+    }
+    .recommendation-main p { max-width: 40rem; margin-bottom: 0; color: #bcbcbc; }
+    .recommendation-side { display: grid; gap: 1rem; }
+    .rule-card strong {
+      display: block;
+      margin-bottom: .6rem;
+      font-family: var(--display);
+      font-size: 1.2rem;
+    }
+    .rule-card[data-accent="blue"] { border-top: 4px solid var(--blue); }
+    .rule-card[data-accent="pink"] { border-top: 4px solid var(--pink); }
+
+    .assembly {
+      display: grid;
+      grid-template-columns: minmax(18rem, .72fr) minmax(0, 1.28fr);
+      gap: 1rem;
+      align-items: stretch;
+    }
+    .assembly-map {
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    .assembly-step {
+      position: relative;
+      width: 100%;
+      padding: 1rem;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      background: transparent;
+      color: var(--muted);
+      text-align: left;
+      cursor: pointer;
+      display: grid;
+      grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+      gap: .8rem;
+      align-items: center;
+    }
+    .assembly-step:last-child { border-bottom: 0; }
+    .assembly-step:hover { color: var(--ink); }
+    .assembly-step[aria-selected="true"] {
+      border-radius: .8rem;
+      background: var(--ink);
+      color: white;
+    }
+    .assembly-index { font-family: var(--mono); font-size: .7rem; color: var(--soft); }
+    .assembly-step[aria-selected="true"] .assembly-index { color: #aaa; }
+    .assembly-name { font-family: var(--display); font-size: 1.25rem; font-weight: 650; }
+    .assembly-count { font-family: var(--mono); font-size: .68rem; }
+    .assembly-detail {
+      position: relative;
+      min-height: 35rem;
+      padding: clamp(1.5rem, 4vw, 3rem);
+      border-radius: var(--radius);
+      background: var(--panel-inverse);
+      color: white;
+      overflow: hidden;
+    }
+    .assembly-detail::after {
+      content: attr(data-symbol);
+      position: absolute;
+      right: -1.5rem;
+      bottom: -5rem;
+      color: rgb(255 255 255 / 6%);
+      font-family: var(--display);
+      font-size: 22rem;
+      font-weight: 750;
+      line-height: 1;
+      pointer-events: none;
+    }
+    .detail-kicker { color: #aaa; font-family: var(--mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+    .assembly-detail h3 { max-width: 18ch; margin: 2rem 0 1rem; font-size: clamp(2rem, 4vw, 4rem); }
+    .assembly-detail > p { max-width: 42rem; color: #bcbcbc; }
+    .detail-test {
+      max-width: 42rem;
+      margin-top: 2rem;
+      padding-top: 1.2rem;
+      border-top: 1px solid #333;
+    }
+    .detail-test dt { margin-bottom: .25rem; color: #aaa; font-family: var(--mono); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; }
+    .detail-test dd { margin: 0 0 1rem; }
+    .examples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin-top: 2rem;
+    }
+    .example-chip {
+      padding: .45rem .7rem;
+      border: 1px solid #444;
+      border-radius: 999px;
+      color: #ddd;
+      font-family: var(--mono);
+      font-size: .7rem;
+    }
+
+    .dependency-rule {
+      margin-top: 1rem;
+      padding: 1.5rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    .dependency-flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      align-items: center;
+      gap: .5rem;
+      margin-top: 1.3rem;
+    }
+    .dependency-node {
+      position: relative;
+      min-height: 5.8rem;
+      padding: .8rem;
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-family: var(--display);
+      font-weight: 650;
+    }
+    .dependency-node:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      right: -.85rem;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      width: 1.2rem;
+      height: 1.2rem;
+      background: var(--panel);
+      color: var(--soft);
+      font-family: var(--mono);
+      font-size: .8rem;
+    }
+    .dependency-node:first-child { border-color: var(--pink); background: var(--pink-soft); }
+    .dependency-node:last-child { border-color: var(--blue); background: var(--blue-soft); }
+
+    .split {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    .code-card {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    .code-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: .8rem 1rem;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    pre {
+      margin: 0;
+      padding: 1.2rem;
+      overflow: auto;
+      color: #e6e6e6;
+      background: #111;
+      font-family: var(--mono);
+      font-size: .75rem;
+      line-height: 1.65;
+      tab-size: 2;
+    }
+    .code-note { padding: 1rem; color: var(--muted); font-size: .82rem; }
+    .tree-folder { color: #85c7f5; }
+    .tree-file { color: #f1aed9; }
+    .tree-dim { color: #777; }
+
+    .mapping-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+    table { width: 100%; border-collapse: collapse; min-width: 760px; }
+    th, td { padding: 1rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    tr:last-child td { border-bottom: 0; }
+    th { color: var(--muted); font-family: var(--mono); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; }
+    td { font-size: .88rem; }
+    td:first-child { font-family: var(--mono); font-size: .76rem; }
+    .tier {
+      display: inline-flex;
+      padding: .2rem .48rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      font-family: var(--mono);
+      font-size: .66rem;
+      white-space: nowrap;
+    }
+    .tier.feature { border-color: var(--pink); color: #84336c; background: var(--pink-soft); }
+    .tier.atom { border-color: var(--blue); color: #08629f; background: var(--blue-soft); }
+
+    .story-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    .story-card {
+      min-height: 14rem;
+      padding: 1.3rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+    }
+    .story-card .story-index { color: var(--soft); font-family: var(--mono); font-size: .68rem; }
+    .story-card h3 { margin: 1.8rem 0 .55rem; }
+    .story-card p { margin-bottom: 0; color: var(--muted); font-size: .87rem; }
+    .story-card code { margin-top: auto; padding-top: 1.2rem; color: var(--ink); font-family: var(--mono); font-size: .7rem; }
+
+    .phase-list { display: grid; gap: .75rem; }
+    .phase-card {
+      display: grid;
+      grid-template-columns: 5.5rem minmax(0, 1fr) minmax(14rem, .55fr);
+      gap: 1rem;
+      align-items: start;
+    }
+    .phase-id { color: var(--soft); font-family: var(--mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+    .phase-card h3 { margin-bottom: .35rem; }
+    .phase-card p { margin-bottom: 0; color: var(--muted); font-size: .88rem; }
+    .exit {
+      padding-left: 1rem;
+      border-left: 2px solid var(--line);
+      color: var(--muted);
+      font-size: .8rem;
+    }
+    .exit strong { display: block; margin-bottom: .25rem; color: var(--ink); font-family: var(--mono); font-size: .66rem; letter-spacing: .07em; text-transform: uppercase; }
+    .phase-card:nth-child(3) .exit { border-color: var(--pink); }
+    .phase-card:nth-child(2) .exit { border-color: var(--blue); }
+
+    .guardrails {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .7rem 2rem;
+      padding: 1.5rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    .guardrail { display: grid; grid-template-columns: 1.5rem 1fr; gap: .8rem; }
+    .guardrail-mark { color: var(--success); font-family: var(--mono); }
+    .guardrail p { margin: 0; color: var(--muted); font-size: .88rem; }
+
+    .decision-intro {
+      padding: clamp(1.5rem, 4vw, 3rem);
+      border-radius: var(--radius);
+      background: var(--panel-inverse);
+      color: #fff;
+    }
+    .decision-intro h2 { max-width: 14ch; }
+    .decision-intro p { max-width: 48rem; margin-bottom: 0; color: #bcbcbc; }
+    .decision-list { display: grid; gap: .75rem; margin-top: 1rem; }
+    .decision-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 1rem;
+      align-items: center;
+    }
+    .decision-card h3 { margin-bottom: .3rem; }
+    .decision-card p { margin-bottom: 0; color: var(--muted); font-size: .86rem; }
+    .decision-toggle {
+      min-width: 8.5rem;
+      min-height: 2.7rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: .76rem;
+      font-weight: 650;
+    }
+    .decision-toggle[aria-pressed="true"] { border-color: var(--blue); background: var(--blue); color: white; }
+    .decision-card[data-tone="social"] .decision-toggle[aria-pressed="true"] { border-color: var(--pink); background: var(--pink); }
+    .decision-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 1rem;
+      align-items: center;
+      margin-top: 1rem;
+      padding: 1.3rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    .decision-summary p { margin: 0; color: var(--muted); font-size: .85rem; }
+    .copy-button {
+      min-height: 2.7rem;
+      padding: 0 1rem;
+      border: 1px solid var(--ink);
+      border-radius: 999px;
+      background: var(--ink);
+      color: white;
+      cursor: pointer;
+      font-weight: 650;
+      font-size: .78rem;
+    }
+
+    .source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .source-card { display: block; text-decoration: none; transition: transform 160ms ease, border-color 160ms ease; }
+    .source-card:hover { transform: translateY(-2px); border-color: var(--line-strong); }
+    .source-card span { display: block; margin-bottom: 1.5rem; color: var(--soft); font-family: var(--mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
+    .source-card h3 { margin-bottom: .55rem; }
+
+    .footer {
+      width: min(1180px, calc(100% - 4rem));
+      margin: 0 auto;
+      padding: 2rem 0 4rem;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 2rem;
+      color: var(--muted);
+      font-size: .75rem;
+    }
+
+    .mobile-bar { display: none; }
+
+    @media (max-width: 980px) {
+      .app { display: block; }
+      .rail { display: none; }
+      .mobile-bar {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 3.5rem;
+        padding: .7rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: rgb(247 247 247 / 92%);
+        backdrop-filter: blur(14px);
+      }
+      .mobile-bar .brand { padding: 0; border: 0; font-size: .84rem; }
+      .mobile-bar a { color: var(--muted); font-family: var(--mono); font-size: .7rem; }
+      .section, .footer { width: min(100% - 2rem, 760px); }
+      .section { padding: 5rem 0; }
+      .hero { min-height: auto; padding-top: 5rem; }
+      .hero-bottom, .section-head, .recommendation, .assembly { grid-template-columns: 1fr; }
+      .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stat:nth-child(2) { border-right: 0; }
+      .stat:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .audit-grid, .story-grid { grid-template-columns: 1fr; }
+      .dependency-flow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .dependency-node:nth-child(3)::after { display: none; }
+      .split { grid-template-columns: 1fr; }
+      .phase-card { grid-template-columns: 4.5rem minmax(0, 1fr); }
+      .phase-card .exit { grid-column: 2; }
+    }
+
+    @media (max-width: 620px) {
+      .section, .footer { width: min(100% - 1.25rem, 760px); }
+      h1 { font-size: clamp(3.2rem, 18vw, 5rem); }
+      h2 { font-size: clamp(2.2rem, 11vw, 3.3rem); overflow-wrap: anywhere; }
+      .hero-meta { align-items: flex-start; flex-direction: column; }
+      .stat-grid, .source-grid, .guardrails { grid-template-columns: 1fr; }
+      .stat { border-right: 0; border-bottom: 1px solid var(--line); }
+      .stat:nth-child(3) { border-bottom: 1px solid var(--line); }
+      .stat:last-child { border-bottom: 0; }
+      .dependency-flow { grid-template-columns: 1fr; }
+      .dependency-node:not(:last-child)::after { content: "↓"; right: auto; bottom: -.86rem; }
+      .assembly-map { min-width: 0; overflow: hidden; }
+      .assembly-step { grid-template-columns: 2rem minmax(0, 1fr) auto; gap: .55rem; padding-inline: .75rem; }
+      .assembly-name { min-width: 0; }
+      .assembly-detail { min-height: 39rem; }
+      .phase-card { grid-template-columns: 1fr; }
+      .phase-card .exit { grid-column: 1; }
+      .decision-card, .decision-summary { grid-template-columns: 1fr; }
+      .decision-toggle, .copy-button { width: 100%; }
+      .footer { flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+
+    @media print {
+      .rail, .mobile-bar, .decision-toggle, .copy-button { display: none !important; }
+      .app { display: block; }
+      .section, .footer { width: 100%; padding: 2rem 0; break-inside: avoid; }
+      .hero { min-height: auto; }
+      body { background: white; }
+      .audit-card, .rule-card, .phase-card, .decision-card, .source-card, .code-card { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="mobile-bar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>Atomic proposal</span></div>
+    <a href="#decisions">Review decisions</a>
+  </div>
+
+  <div class="app">
+    <aside class="rail" aria-label="Proposal navigation">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>Let's Be Friends<br />system proposal</span></div>
+      <div class="rail-kicker">Contents</div>
+      <nav>
+        <a href="#proposal"><span>00</span><span>Proposal</span></a>
+        <a href="#audit"><span>01</span><span>Current system</span></a>
+        <a href="#approach"><span>02</span><span>Recommendation</span></a>
+        <a href="#model"><span>03</span><span>Atomic model</span></a>
+        <a href="#structure"><span>04</span><span>Code structure</span></a>
+        <a href="#stories"><span>05</span><span>Story standard</span></a>
+        <a href="#migration"><span>06</span><span>Migration plan</span></a>
+        <a href="#decisions"><span>07</span><span>Decisions</span></a>
+        <a href="#sources"><span>08</span><span>Sources</span></a>
+      </nav>
+      <div class="rail-foot"><strong>Proposal only</strong>No application code or dependencies changed.</div>
+    </aside>
+
+    <main>
+      <section class="section hero" id="proposal">
+        <div>
+          <div class="hero-meta">
+            <span class="proposal-chip">For confirmation</span>
+            <span>Repository scan · 22 Aug 2026</span>
+            <span>Web + admin + mobile</span>
+          </div>
+          <h1>Build the system <span>from real screens.</span></h1>
+          <p class="lede">A practical plan to refactor the current interface into a documented component system. Atomic design supplies the vocabulary. Storybook supplies the workshop, tests, and review surface.</p>
+        </div>
+        <div class="hero-bottom">
+          <div class="thesis">
+            <p class="thesis-label">The proposal in one sentence</p>
+            <p>Use atomic tiers for reusable presentation, keep connected product behavior inside features, and migrate one complete journey at a time.</p>
+          </div>
+          <div class="hero-note"><strong>No big-bang rewrite.</strong> The current product stays usable while each migrated component gains stories, states, tests, and a clear owner.</div>
+        </div>
+      </section>
+
+      <section class="section" id="audit">
+        <div class="eyebrow">01 · Current system</div>
+        <div class="section-head">
+          <h2>The UI is already a system. It is hidden in flat folders.</h2>
+          <p>The repository has useful primitives and semantics, but page code, connected behavior, and reusable presentation often live side by side. The largest risk is not missing components. It is extracting the wrong boundaries.</p>
+        </div>
+
+        <div class="stat-grid" aria-label="Repository interface inventory">
+          <div class="stat"><span class="stat-label">UI components across three apps</span><span><span class="stat-value">53</span><span class="stat-unit">TSX</span></span></div>
+          <div class="stat"><span class="stat-label">Route and screen modules</span><span><span class="stat-value">54</span><span class="stat-unit">TSX</span></span></div>
+          <div class="stat"><span class="stat-label">Web stylesheet</span><span><span class="stat-value">11,764</span><span class="stat-unit">LINES</span></span></div>
+          <div class="stat"><span class="stat-label">Storybook files today</span><span><span class="stat-value">0</span><span class="stat-unit">STORIES</span></span></div>
+        </div>
+
+        <div class="audit-grid">
+          <article class="audit-card">
+            <div class="surface"><span>Web</span><span class="surface-dot" aria-hidden="true"></span></div>
+            <h3>19 components · 17 routes</h3>
+            <p>Strong semantic CSS tokens exist, but a single stylesheet owns foundations, page layouts, feature styles, responsive rules, and component variants.</p>
+          </article>
+          <article class="audit-card">
+            <div class="surface"><span>Admin</span><span class="surface-dot" aria-hidden="true"></span></div>
+            <h3>4 components · 13 routes</h3>
+            <p>Reusable table and shell patterns have started to emerge. Most route modules still assemble admin-specific states and actions directly.</p>
+          </article>
+          <article class="audit-card">
+            <div class="surface"><span>Mobile</span><span class="surface-dot" aria-hidden="true"></span></div>
+            <h3>30 components · 24 screens</h3>
+            <p>The mobile app has the clearest primitive layer, including AppText, ActionButton, Avatar, Chip, Screen, and theme tokens. It needs a renderer-specific catalog.</p>
+          </article>
+        </div>
+
+        <div style="margin-top: 2rem">
+          <div class="finding">
+            <div class="finding-index">F1</div>
+            <div><h3>Large modules hide several component responsibilities.</h3><p><code>app.tsx</code> is 1,338 lines, <code>SocialPage.tsx</code> is 912 lines, and <code>IdentityVerificationFlow.tsx</code> is 569 lines. They mix orchestration with reusable visual patterns.</p></div>
+          </div>
+          <div class="finding">
+            <div class="finding-index">F2</div>
+            <div><h3>The product already has a semantic token language.</h3><p>Self actions use blue, social actions use pink, and danger actions use red. The refactor should preserve these meanings and make them visible as documented component intents.</p></div>
+          </div>
+          <div class="finding">
+            <div class="finding-index">F3</div>
+            <div><h3>Web and mobile share concepts, not rendering code.</h3><p>Both surfaces have buttons, avatars, chips, booking cards, shells, and theme tokens. React DOM and React Native still need separate implementations. Shared names and semantic contracts are safer than forced component reuse.</p></div>
+          </div>
+          <div class="finding">
+            <div class="finding-index">F4</div>
+            <div><h3>Several connected components cannot enter Storybook unchanged.</h3><p>Clerk, Convex, routing, maps, theme state, and provider access need controlled adapters or presentational splits before their states can render deterministically.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="approach">
+        <div class="eyebrow">02 · Recommendation</div>
+        <div class="section-head">
+          <h2>Adopt a hybrid atomic architecture.</h2>
+          <p>Pure atomic folders become vague once domain behavior appears. The proposed model keeps atomic design where it is strongest, then adds a parallel feature layer for booking, messaging, identity, safety, discovery, and account behavior.</p>
+        </div>
+
+        <div class="recommendation">
+          <article class="recommendation-main">
+            <div>
+              <div class="eyebrow">Recommended direction</div>
+              <h3>Atomic for form. Features for behavior.</h3>
+            </div>
+            <p>Atoms through templates describe reusable UI composition. Features own domain decisions, provider access, mutations, and routing. Pages connect those two worlds and should stay thin.</p>
+          </article>
+          <div class="recommendation-side">
+            <article class="rule-card" data-accent="blue"><strong>Share contracts before code</strong><p>Align token names, component names, intents, and states across web and mobile. Promote implementations only after two real consumers prove they are compatible.</p></article>
+            <article class="rule-card" data-accent="pink"><strong>Migrate a complete journey</strong><p>Start with booking because it exercises social actions, status, money, dates, empty states, editing, and responsive layout. It will test the system better than an isolated button catalog.</p></article>
+            <article class="rule-card"><strong>Keep routes boring</strong><p>A route should resolve access and data, select a page composition, and supply handlers. It should not define a new button, card, status treatment, or layout rule.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="model">
+        <div class="eyebrow">03 · Atomic model</div>
+        <div class="section-head">
+          <h2>Classify by responsibility, not size.</h2>
+          <p>Click each level to inspect its boundary. The deciding questions are what the component knows, which dependencies it imports, and whether it remains useful outside one feature.</p>
+        </div>
+
+        <div class="assembly">
+          <div class="assembly-map" role="tablist" aria-label="Atomic tiers">
+            <button class="assembly-step" id="tier-foundations" role="tab" aria-controls="tier-detail" aria-selected="true" tabindex="0" data-tier="foundations"><span class="assembly-index">00</span><span class="assembly-name">Foundations</span><span class="assembly-count">TOKENS</span></button>
+            <button class="assembly-step" id="tier-atoms" role="tab" aria-controls="tier-detail" aria-selected="false" tabindex="-1" data-tier="atoms"><span class="assembly-index">01</span><span class="assembly-name">Atoms</span><span class="assembly-count">ONE CONTROL</span></button>
+            <button class="assembly-step" id="tier-molecules" role="tab" aria-controls="tier-detail" aria-selected="false" tabindex="-1" data-tier="molecules"><span class="assembly-index">02</span><span class="assembly-name">Molecules</span><span class="assembly-count">ONE TASK</span></button>
+            <button class="assembly-step" id="tier-organisms" role="tab" aria-controls="tier-detail" aria-selected="false" tabindex="-1" data-tier="organisms"><span class="assembly-index">03</span><span class="assembly-name">Organisms</span><span class="assembly-count">ONE SECTION</span></button>
+            <button class="assembly-step" id="tier-templates" role="tab" aria-controls="tier-detail" aria-selected="false" tabindex="-1" data-tier="templates"><span class="assembly-index">04</span><span class="assembly-name">Templates</span><span class="assembly-count">LAYOUT</span></button>
+            <button class="assembly-step" id="tier-pages" role="tab" aria-controls="tier-detail" aria-selected="false" tabindex="-1" data-tier="pages"><span class="assembly-index">05</span><span class="assembly-name">Pages</span><span class="assembly-count">REAL STATE</span></button>
+            <button class="assembly-step" id="tier-features" role="tab" aria-controls="tier-detail" aria-selected="false" tabindex="-1" data-tier="features"><span class="assembly-index">↗</span><span class="assembly-name">Features</span><span class="assembly-count">BEHAVIOR</span></button>
+          </div>
+          <article class="assembly-detail" id="tier-detail" role="tabpanel" aria-labelledby="tier-foundations" data-symbol="00" aria-live="polite">
+            <div class="detail-kicker" id="tier-kicker">Tier 00 · Shared vocabulary</div>
+            <h3 id="tier-title">Foundations define every legal visual decision.</h3>
+            <p id="tier-description">Color roles, spacing, typography, radii, shadows, breakpoints, motion, and icon rules live here. Foundations are values and guidance, not rendered components.</p>
+            <dl class="detail-test">
+              <dt>Pass test</dt><dd id="tier-pass">Web and mobile can express the same semantic intent even when their token values or rendering APIs differ.</dd>
+              <dt>Must not know</dt><dd id="tier-no">Routes, users, bookings, Convex documents, or component state.</dd>
+            </dl>
+            <div class="examples" id="tier-examples"><span class="example-chip">color.self</span><span class="example-chip">color.social</span><span class="example-chip">space.4</span><span class="example-chip">type.body</span></div>
+          </article>
+        </div>
+
+        <div class="dependency-rule">
+          <h3>One-way dependency rule</h3>
+          <p style="color:var(--muted); margin-bottom:0">Dependencies move toward simpler layers. Features may compose the atomic stack. The atomic stack never imports routes, provider clients, or feature modules.</p>
+          <div class="dependency-flow" aria-label="Dependency direction from pages to foundations">
+            <div class="dependency-node">Pages</div>
+            <div class="dependency-node">Templates</div>
+            <div class="dependency-node">Organisms</div>
+            <div class="dependency-node">Molecules</div>
+            <div class="dependency-node">Atoms</div>
+            <div class="dependency-node">Foundations</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="structure">
+        <div class="eyebrow">04 · Code structure</div>
+        <div class="section-head">
+          <h2>Keep the taxonomy visible without scattering ownership.</h2>
+          <p>Start inside each app. Do not create shared packages on day one. After a component has two proven consumers and matching behavior, promote it to a package in a separate decision.</p>
+        </div>
+
+        <div class="split">
+          <article class="code-card">
+            <div class="code-head"><span>Proposed web and admin shape</span><span>React DOM</span></div>
+            <pre><span class="tree-folder">.storybook/</span>
+  main.ts
+  preview.tsx
+  mocks/
+
+<span class="tree-folder">apps/web/src/</span>
+  <span class="tree-folder">design-system/</span>
+    foundations/
+    atoms/
+      Button/
+        <span class="tree-file">Button.tsx</span>
+        <span class="tree-file">Button.stories.tsx</span>
+    molecules/
+    organisms/
+    templates/
+  <span class="tree-folder">features/</span>
+    booking/
+    messaging/
+    identity/
+  routes/
+
+<span class="tree-folder">apps/admin/src/</span>
+  design-system/
+  features/
+  routes/
+
+<span class="tree-dim"># Later, only with proven reuse</span>
+<span class="tree-folder">packages/ui-web/</span></pre>
+            <div class="code-note">One root Storybook can catalog web and admin because both use React DOM and Vite. Stories stay beside their components so changes cannot drift away from examples.</div>
+          </article>
+
+          <article class="code-card">
+            <div class="code-head"><span>Proposed mobile shape</span><span>React Native</span></div>
+            <pre><span class="tree-folder">apps/mobile/</span>
+  <span class="tree-folder">.storybook/</span>
+    main.ts
+    preview.tsx
+  <span class="tree-folder">src/design-system/</span>
+    foundations/
+    atoms/
+      ActionButton/
+        <span class="tree-file">ActionButton.tsx</span>
+        <span class="tree-file">ActionButton.stories.tsx</span>
+    molecules/
+    organisms/
+    templates/
+  <span class="tree-folder">src/features/</span>
+    booking/
+    notifications/
+    safety/
+  src/app/
+
+<span class="tree-dim"># Shared across renderers</span>
+<span class="tree-folder">packages/shared/</span>
+  domain rules
+  view-model functions
+  semantic token types</pre>
+            <div class="code-note">Use React Native Web Storybook first for searchable documentation and browser tests. Keep on-device checks for maps, native modules, permissions, and platform-specific fidelity.</div>
+          </article>
+        </div>
+
+        <div style="margin-top:2.5rem" class="mapping-wrap">
+          <table>
+            <thead><tr><th>Current code</th><th>Proposed home</th><th>Refactor move</th><th>Reason</th></tr></thead>
+            <tbody>
+              <tr><td>BrandLogo.tsx</td><td><span class="tier atom">Atom</span></td><td>Move with its story and usage guidance.</td><td>No domain data. It is a single visual identity element.</td></tr>
+              <tr><td>ThemeToggle.tsx</td><td><span class="tier">Molecule</span></td><td>Separate the controlled switch from persistence.</td><td>The UI is reusable. Reading and saving the member choice belongs in a feature adapter.</td></tr>
+              <tr><td>BookingRequestCard.tsx</td><td><span class="tier">Organism</span> + <span class="tier feature">Feature</span></td><td>Keep a pure card that receives state and events. Move async decision handling into booking.</td><td>Presentation has many valuable states. Mutations and error ownership are domain behavior.</td></tr>
+              <tr><td>BookingRequestFields.tsx</td><td><span class="tier">Molecule</span></td><td>Keep controlled fields and validation display together.</td><td>It performs one form task and can appear in create and edit flows.</td></tr>
+              <tr><td>WorkspaceShell</td><td><span class="tier">Template</span></td><td>Move layout and slots. Keep route data outside.</td><td>It defines page structure through title, rail, toolbar, actions, and body slots.</td></tr>
+              <tr><td>IdentityVerificationFlow.tsx</td><td><span class="tier feature">Feature</span></td><td>Extract visual controls, but keep the workflow state machine together.</td><td>Identity steps, provider state, and access rules should not be disguised as a generic organism.</td></tr>
+              <tr><td>AdminTable.tsx</td><td><span class="tier">Organism</span></td><td>Add density, loading, empty, overflow, and long-content stories.</td><td>It is a complete reusable content section with responsive behavior.</td></tr>
+              <tr><td>Mobile ActionButton.tsx</td><td><span class="tier atom">Atom</span></td><td>Document intent, pressed, disabled, icon, and theme states.</td><td>It is already close to the right boundary and uses semantic intents.</td></tr>
+              <tr><td>Mobile BookingSafetyActions</td><td><span class="tier feature">Feature</span></td><td>Compose smaller actions but keep booking safety decisions in the feature.</td><td>Permission and lifecycle rules are product behavior, not generic UI.</td></tr>
+              <tr><td>styles.css</td><td><span class="tier">Foundations + colocated styles</span></td><td>Extract tokens first, then move component rules during each vertical slice.</td><td>A mechanical file split would change location without improving ownership.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="stories">
+        <div class="eyebrow">05 · Story standard</div>
+        <div class="section-head">
+          <h2>A story is a state contract, not a gallery tile.</h2>
+          <p>Every reusable component should document the states that matter to a member, Companion, or admin. Stories should render deterministically without a live account, backend, clock, or network.</p>
+        </div>
+
+        <div class="story-grid">
+          <article class="story-card"><span class="story-index">S1</span><h3>Core variants</h3><p>Default, semantic intent, size, density, selected state, and supported composition.</p><code>Default · Self · Social · Danger</code></article>
+          <article class="story-card"><span class="story-index">S2</span><h3>Interaction</h3><p>Use <code>play</code> functions for keyboard use, menus, forms, toggles, dialogs, and callback assertions.</p><code>Opens · Submits · Rejects</code></article>
+          <article class="story-card"><span class="story-index">S3</span><h3>Data states</h3><p>Represent loading, empty, partial, error, success, offline, and recovery when the component owns those states.</p><code>Loading · Empty · Error · Retry</code></article>
+          <article class="story-card"><span class="story-index">S4</span><h3>Content pressure</h3><p>Use long names, long Strengths, missing images, zero values, large amounts, and realistic booking notes.</p><code>LongContent · MissingMedia</code></article>
+          <article class="story-card"><span class="story-index">S5</span><h3>Environment</h3><p>Render light and dark themes plus narrow, standard, and wide viewports. Test both user roles when permissions affect presentation.</p><code>Dark · Narrow · CompanionView</code></article>
+          <article class="story-card"><span class="story-index">S6</span><h3>Quality gates</h3><p>Every story is a render check. Add accessibility failure gates for new work, interactions for behavior, and visual snapshots for stable patterns.</p><code>render + a11y + play + visual</code></article>
+        </div>
+
+        <div class="split" style="margin-top:1rem">
+          <article class="code-card">
+            <div class="code-head"><span>Sidebar contract</span><span>Simple and searchable</span></div>
+            <pre>Foundations/
+  Color semantics
+  Typography
+  Spacing
+Atoms/
+Molecules/
+Organisms/
+Templates/
+Features/
+  Booking/
+  Messaging/
+Pages/
+  Web/
+  Admin/</pre>
+            <div class="code-note">Use the file hierarchy for Storybook titles. Use tags for <code>web</code>, <code>admin</code>, <code>mobile</code>, <code>stable</code>, <code>experimental</code>, and feature ownership.</div>
+          </article>
+          <article class="code-card">
+            <div class="code-head"><span>Component story contract</span><span>CSF 3</span></div>
+            <pre>const meta = {
+  component: BookingRequestCard,
+  tags: ['autodocs', 'web', 'booking'],
+  parameters: { a11y: { test: 'error' } },
+  args: { onDecide: fn(), onEdit: fn() },
+} satisfies Meta&lt;typeof BookingRequestCard&gt;
+
+export const PendingForMember: Story = { ... }
+export const NeedsCompanionDecision: Story = {
+  play: async ({ canvas, userEvent }) =&gt; { ... }
+}
+export const LongContent: Story = { ... }
+export const DecisionError: Story = { ... }</pre>
+            <div class="code-note">Autodocs provides the baseline. Add short MDX guidance only when usage, content, accessibility, or composition rules need more than generated props.</div>
+          </article>
+        </div>
+
+        <div class="guardrails" style="margin-top:1rem">
+          <div class="guardrail"><span class="guardrail-mark">✓</span><p>Stories use fixed dates, deterministic IDs, local fixtures, and mocked handlers.</p></div>
+          <div class="guardrail"><span class="guardrail-mark">✓</span><p>Global decorators provide themes and safe provider substitutes once.</p></div>
+          <div class="guardrail"><span class="guardrail-mark">✓</span><p>New components fail CI on accessibility violations. Existing debt can start as visible warnings with named owners.</p></div>
+          <div class="guardrail"><span class="guardrail-mark">✓</span><p>Application tests remain. Storybook does not replace Convex authorization, transaction, route, or view-model tests.</p></div>
+          <div class="guardrail"><span class="guardrail-mark">✓</span><p>Stories cover real product language and realistic member or Companion content.</p></div>
+          <div class="guardrail"><span class="guardrail-mark">✓</span><p>Native-only mobile behavior keeps explicit emulator or device verification.</p></div>
+        </div>
+      </section>
+
+      <section class="section" id="migration">
+        <div class="eyebrow">06 · Migration plan</div>
+        <div class="section-head">
+          <h2>Refactor in slices that can ship independently.</h2>
+          <p>Each phase has a stop condition. A phase is complete when the migrated code is in use, its stories and tests pass, and no duplicate implementation remains in that slice.</p>
+        </div>
+
+        <div class="phase-list">
+          <article class="phase-card"><div class="phase-id">Phase 0</div><div><h3>Interface inventory and rules</h3><p>Capture distinct controls, cards, forms, navigation, shells, and states across web, admin, and mobile. Record duplicates and intentional exceptions. Agree on naming and dependency rules.</p></div><div class="exit"><strong>Exit check</strong>Every current UI pattern has an owner, proposed tier, and keep, merge, split, or retire decision.</div></article>
+          <article class="phase-card"><div class="phase-id">Phase 1</div><div><h3>Storybook spine and foundations</h3><p>Add the React Vite Storybook, import the real global tokens, provide light and dark modes, define viewports, add provider mocks, and document semantic accents.</p></div><div class="exit"><strong>Exit check</strong>A static Storybook build succeeds. New stories can run render and accessibility checks in the existing Vitest workflow.</div></article>
+          <article class="phase-card"><div class="phase-id">Phase 2</div><div><h3>Booking vertical slice</h3><p>Extract Button, StatusPill, booking fields, BookingRequestCard, editor, and WorkspaceShell boundaries. Split presentation from mutation logic. Migrate the booking surfaces in <code>app.tsx</code> and <code>messages.tsx</code>.</p></div><div class="exit"><strong>Exit check</strong>Member and Companion booking states render in Storybook and in the app with focused tests for decisions, editing, errors, and long content.</div></article>
+          <article class="phase-card"><div class="phase-id">Phase 3</div><div><h3>Page and feature extraction</h3><p>Repeat the slice for messaging, discovery, account, identity, safety, and social. Extract only proven patterns. Keep provider calls and domain rules in their owning features.</p></div><div class="exit"><strong>Exit check</strong>Route files mostly compose page components and connect data. The web stylesheet no longer owns migrated component rules.</div></article>
+          <article class="phase-card"><div class="phase-id">Phase 4</div><div><h3>Admin and mobile catalogs</h3><p>Add admin stories to the web catalog. Create a separate React Native Web Storybook for mobile primitives and compositions. Align semantic contracts without forcing renderer sharing.</p></div><div class="exit"><strong>Exit check</strong>Admin and mobile components have the same documentation standard. Native-only gaps are listed and manually verified.</div></article>
+          <article class="phase-card"><div class="phase-id">Phase 5</div><div><h3>Enforcement and cleanup</h3><p>Add import-boundary checks, a story requirement for reusable components, static Storybook builds in CI, and a retirement pass for dead CSS and duplicate components.</p></div><div class="exit"><strong>Exit check</strong>The repository gates, Storybook build, component tests, and agreed visual checks pass from a clean checkout.</div></article>
+        </div>
+
+        <div style="margin-top:2rem" class="guardrails">
+          <div class="guardrail"><span class="guardrail-mark">1</span><p>No bulk file move before the interface inventory and naming agreement.</p></div>
+          <div class="guardrail"><span class="guardrail-mark">2</span><p>No shared package until two consumers prove matching props, behavior, and styling needs.</p></div>
+          <div class="guardrail"><span class="guardrail-mark">3</span><p>No connected backend or auth client inside atoms, molecules, organisms, or templates.</p></div>
+          <div class="guardrail"><span class="guardrail-mark">4</span><p>No page migration without stories for important empty, loading, error, and permission states.</p></div>
+          <div class="guardrail"><span class="guardrail-mark">5</span><p>No removal of old code until the new component is used by the real route and focused tests pass.</p></div>
+          <div class="guardrail"><span class="guardrail-mark">6</span><p>No change to the black-and-white theme or the established self, social, admin, and danger meanings.</p></div>
+        </div>
+      </section>
+
+      <section class="section" id="decisions">
+        <div class="decision-intro">
+          <div class="eyebrow">07 · Confirmation</div>
+          <h2>Five decisions unlock implementation.</h2>
+          <p>The recommended choices are selected. Toggle any item that needs revision, then copy the summary into your reply. Approval of this proposal would authorize planning the refactor. It would not authorize dependency installation, code migration, publication, or deployment.</p>
+        </div>
+
+        <div class="decision-list">
+          <article class="decision-card"><div><h3>Use the hybrid architecture</h3><p>Atomic tiers own reusable presentation. Feature folders own connected product behavior.</p></div><button class="decision-toggle" type="button" aria-pressed="true" data-decision="Hybrid architecture">Recommended</button></article>
+          <article class="decision-card"><div><h3>Start with one React DOM Storybook</h3><p>Web and admin share one catalog. Mobile gets a renderer-specific catalog in a later phase.</p></div><button class="decision-toggle" type="button" aria-pressed="true" data-decision="One web and admin Storybook">Recommended</button></article>
+          <article class="decision-card" data-tone="social"><div><h3>Use booking as the first slice</h3><p>Booking tests the component boundaries with social actions, roles, status, money, forms, and errors.</p></div><button class="decision-toggle" type="button" aria-pressed="true" data-decision="Booking first slice">Recommended</button></article>
+          <article class="decision-card"><div><h3>Share semantics before implementations</h3><p>Web and mobile align names, tokens, intents, and state contracts. Code moves to packages only after proven reuse.</p></div><button class="decision-toggle" type="button" aria-pressed="true" data-decision="Contracts before shared code">Recommended</button></article>
+          <article class="decision-card"><div><h3>Migrate incrementally</h3><p>Each journey moves only after focused stories and tests exist. There is no all-at-once rewrite.</p></div><button class="decision-toggle" type="button" aria-pressed="true" data-decision="Incremental migration">Recommended</button></article>
+        </div>
+
+        <div class="decision-summary">
+          <p id="decision-status">All five recommended decisions are selected.</p>
+          <button class="copy-button" id="copy-decisions" type="button">Copy decision summary</button>
+        </div>
+      </section>
+
+      <section class="section" id="sources">
+        <div class="eyebrow">08 · Research sources</div>
+        <div class="section-head">
+          <h2>Primary guidance behind the proposal.</h2>
+          <p>The plan uses Brad Frost's original methodology and current Storybook documentation. Repository findings come from a local source inventory on 22 August 2026.</p>
+        </div>
+        <div class="source-grid">
+          <a class="source-card" href="https://atomicdesign.bradfrost.com/chapter-2/" target="_blank" rel="noreferrer"><span>Atomic Design · Brad Frost</span><h3>Atomic design methodology</h3><p>Defines atoms, molecules, organisms, templates, and pages as concurrent views of a system, not a linear build sequence.</p></a>
+          <a class="source-card" href="https://bradfrost.com/blog/post/interface-inventory/" target="_blank" rel="noreferrer"><span>Brad Frost</span><h3>Interface inventory</h3><p>Explains why a component audit should expose distinct treatments, duplication, and responsive risk before a system refactor.</p></a>
+          <a class="source-card" href="https://storybook.js.org/docs/writing-stories/naming-components-and-hierarchy" target="_blank" rel="noreferrer"><span>Storybook docs</span><h3>Naming and hierarchy</h3><p>Documents folder-based story organization and explicit category paths for large component catalogs.</p></a>
+          <a class="source-card" href="https://storybook.js.org/docs/writing-tests" target="_blank" rel="noreferrer"><span>Storybook docs</span><h3>UI testing</h3><p>Describes stories as render tests and play functions as the mechanism for deterministic interaction checks.</p></a>
+          <a class="source-card" href="https://storybook.js.org/docs/writing-tests/accessibility-testing" target="_blank" rel="noreferrer"><span>Storybook docs</span><h3>Accessibility tests</h3><p>Documents project and story-level failure policies, including a gradual path for existing accessibility debt.</p></a>
+          <a class="source-card" href="https://storybook.js.org/docs/get-started/frameworks/react-native-web-vite" target="_blank" rel="noreferrer"><span>Storybook 10.5 docs</span><h3>React Native Web</h3><p>Compares browser-based React Native stories with on-device Storybook and explains the fidelity and feature tradeoff.</p></a>
+          <a class="source-card" href="https://storybook.js.org/docs/writing-stories/mocking-data-and-modules/mocking-providers" target="_blank" rel="noreferrer"><span>Storybook docs</span><h3>Mocking providers</h3><p>Shows how global and story-specific decorators supply deterministic theme, role, and provider context.</p></a>
+          <a class="source-card" href="https://storybook.js.org/docs/writing-docs/autodocs" target="_blank" rel="noreferrer"><span>Storybook docs</span><h3>Autodocs</h3><p>Positions generated documentation as a baseline that teams can extend with focused MDX guidance.</p></a>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <span>Let's Be Friends · Atomic Storybook proposal</span>
+        <span>Prepared for review · No application behavior changed</span>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    const tiers = {
+      foundations: {
+        symbol: '00', kicker: 'Tier 00 · Shared vocabulary',
+        title: 'Foundations define every legal visual decision.',
+        description: 'Color roles, spacing, typography, radii, shadows, breakpoints, motion, and icon rules live here. Foundations are values and guidance, not rendered components.',
+        pass: 'Web and mobile can express the same semantic intent even when their token values or rendering APIs differ.',
+        no: 'Routes, users, bookings, Convex documents, or component state.',
+        examples: ['color.self', 'color.social', 'space.4', 'type.body']
+      },
+      atoms: {
+        symbol: '01', kicker: 'Tier 01 · One control or element',
+        title: 'Atoms have one clear visual or interaction job.',
+        description: 'An atom cannot be split into smaller product components without losing its purpose. It accepts semantic props and remains independent of domain data.',
+        pass: 'It can render from props alone and is useful in at least two compositions.',
+        no: 'Booking status rules, routing, provider clients, remote data, or feature permissions.',
+        examples: ['Button', 'Avatar', 'AppText', 'Chip', 'BrandLogo']
+      },
+      molecules: {
+        symbol: '02', kicker: 'Tier 02 · One small task',
+        title: 'Molecules combine atoms into a portable task.',
+        description: 'A molecule coordinates a small group of elements. It may own local interaction state, but it should not orchestrate a product workflow.',
+        pass: 'Its name describes a user-facing task or compact unit, and it can move between page sections.',
+        no: 'Data fetching, mutations, access checks, or a multi-step feature state machine.',
+        examples: ['FormField', 'StatusPill', 'SettingsRow', 'MessageDeliveryStatus']
+      },
+      organisms: {
+        symbol: '03', kicker: 'Tier 03 · One interface section',
+        title: 'Organisms are complete, reusable sections.',
+        description: 'An organism can use domain language and several lower-level components. It receives prepared data and emits events instead of calling backend clients itself.',
+        pass: 'It owns one coherent region of a screen and its important states can be expressed as story args.',
+        no: 'Route loaders, Clerk or Convex hooks, navigation decisions, or cross-page orchestration.',
+        examples: ['BookingRequestCard', 'AdminTable', 'ConversationHeader', 'CompanionCard']
+      },
+      templates: {
+        symbol: '04', kicker: 'Tier 04 · Page structure',
+        title: 'Templates define layout contracts with slots.',
+        description: 'Templates arrange page regions and responsive behavior. They demonstrate how organisms work together without binding the layout to live content or one route.',
+        pass: 'Real pages can supply title, rail, toolbar, actions, and body content without changing the template.',
+        no: 'Fetching, auth state, product decisions, or final page content.',
+        examples: ['WorkspaceShell', 'MarketingPage', 'AdminShell', 'MobileScreen']
+      },
+      pages: {
+        symbol: '05', kicker: 'Tier 05 · Real content and route context',
+        title: 'Pages prove the parts work as a whole.',
+        description: 'A page combines templates, features, and final content for a route or screen. Page stories should focus on meaningful whole-screen states and responsive composition.',
+        pass: 'The module reads like assembly and has little visual CSS or reusable component markup of its own.',
+        no: 'New primitive styling, duplicate cards, or buried feature rules.',
+        examples: ['DiscoverPage', 'MessagesPage', 'ReportsPage', 'BookingDetailScreen']
+      },
+      features: {
+        symbol: '↗', kicker: 'Parallel layer · Product behavior',
+        title: 'Features own the rules that should not leak downward.',
+        description: 'Features connect authentication, backend data, domain rules, navigation, analytics, and mutations to presentational components. This is a parallel ownership layer, not a sixth atomic tier.',
+        pass: 'A feature can change how product behavior works without changing the API of unrelated UI components.',
+        no: 'Generic visual primitives or app-wide layout rules.',
+        examples: ['booking', 'messaging', 'identity', 'safety', 'discovery']
+      }
+    }
+
+    const tabs = [...document.querySelectorAll('.assembly-step')]
+    const detail = document.querySelector('#tier-detail')
+    function showTier(key) {
+      const tier = tiers[key]
+      if (!tier || !detail) return
+      tabs.forEach((tab) => {
+        const selected = tab.dataset.tier === key
+        tab.setAttribute('aria-selected', String(selected))
+        tab.tabIndex = selected ? 0 : -1
+      })
+      detail.setAttribute('aria-labelledby', `tier-${key}`)
+      detail.dataset.symbol = tier.symbol
+      document.querySelector('#tier-kicker').textContent = tier.kicker
+      document.querySelector('#tier-title').textContent = tier.title
+      document.querySelector('#tier-description').textContent = tier.description
+      document.querySelector('#tier-pass').textContent = tier.pass
+      document.querySelector('#tier-no').textContent = tier.no
+      document.querySelector('#tier-examples').innerHTML = tier.examples.map((item) => `<span class="example-chip">${item}</span>`).join('')
+    }
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => showTier(tab.dataset.tier))
+      tab.addEventListener('keydown', (event) => {
+        if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return
+        event.preventDefault()
+        const direction = event.key === 'ArrowDown' ? 1 : -1
+        const next = tabs[(index + direction + tabs.length) % tabs.length]
+        next.focus()
+        showTier(next.dataset.tier)
+      })
+    })
+
+    const navLinks = [...document.querySelectorAll('.rail nav a')]
+    const sections = navLinks.map((link) => document.querySelector(link.getAttribute('href'))).filter(Boolean)
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+      if (!visible) return
+      navLinks.forEach((link) => link.setAttribute('aria-current', String(link.getAttribute('href') === `#${visible.target.id}`)))
+    }, { rootMargin: '-15% 0px -65% 0px', threshold: [0, .2, .5] })
+    sections.forEach((section) => observer.observe(section))
+
+    const decisionButtons = [...document.querySelectorAll('.decision-toggle')]
+    const decisionStatus = document.querySelector('#decision-status')
+    function updateDecisions() {
+      const selected = decisionButtons.filter((button) => button.getAttribute('aria-pressed') === 'true')
+      decisionStatus.textContent = selected.length === decisionButtons.length
+        ? 'All five recommended decisions are selected.'
+        : `${selected.length} of ${decisionButtons.length} recommended decisions selected. Unselected items need revision.`
+    }
+    decisionButtons.forEach((button) => button.addEventListener('click', () => {
+      const selected = button.getAttribute('aria-pressed') === 'true'
+      button.setAttribute('aria-pressed', String(!selected))
+      button.textContent = selected ? 'Needs revision' : 'Recommended'
+      updateDecisions()
+    }))
+
+    document.querySelector('#copy-decisions').addEventListener('click', async (event) => {
+      const approved = decisionButtons.filter((button) => button.getAttribute('aria-pressed') === 'true').map((button) => button.dataset.decision)
+      const revise = decisionButtons.filter((button) => button.getAttribute('aria-pressed') !== 'true').map((button) => button.dataset.decision)
+      const text = `Atomic Storybook proposal\nApproved: ${approved.join(', ') || 'None'}\nNeeds revision: ${revise.join(', ') || 'None'}`
+      try {
+        await navigator.clipboard.writeText(text)
+        event.currentTarget.textContent = 'Copied'
+      } catch {
+        const area = document.createElement('textarea')
+        area.value = text
+        document.body.appendChild(area)
+        area.select()
+        document.execCommand('copy')
+        area.remove()
+        event.currentTarget.textContent = 'Copied'
+      }
+      window.setTimeout(() => { event.currentTarget.textContent = 'Copy decision summary' }, 1800)
+    })
+  </script>
+</body>
+</html>

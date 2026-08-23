@@ -6,7 +6,7 @@ import type React from 'react'
 import { canCancelBooking, canCompleteBooking, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
-import { WorkspaceShell } from '../components/AppShell'
+import { WorkspaceShell } from '../design-system/templates/AppShell'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
 
 export const Route = createFileRoute('/companion')({

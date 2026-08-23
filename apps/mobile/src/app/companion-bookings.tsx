@@ -4,9 +4,9 @@ import { router, type ErrorBoundaryProps } from 'expo-router'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
-import { ActionButton } from '@/components/ActionButton'
-import { Screen } from '@/components/Screen'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { Screen } from '@/design-system/templates/Screen'
+import { AppText } from '@/design-system/atoms/Typography'
 import { bookingStatusPresentation, formatBookingSchedule, formatDuration } from '@/data/bookingViewModels'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -93,14 +93,14 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 24, paddingBottom: 64, gap: 22 },
+  content: { paddingTop: 16, paddingBottom: 40, gap: 16 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
   header: { gap: 10 },
   section: { gap: 12 },
   list: { gap: 12 },
-  card: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 7 },
+  card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 7 },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   cardCopy: { flex: 1, gap: 2 },
-  empty: { borderWidth: 1, borderRadius: 22, padding: 20, gap: 8 },
+  empty: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
   pressed: { opacity: 0.72 },
 })

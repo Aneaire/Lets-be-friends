@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { useEffect, useState } from 'react'
 import { api } from '../../../web/convex/_generated/api'
-import { ActionNote } from '../components/ActionNote'
+import { ActionNote } from '../design-system/molecules/ActionNote'
 
 type VerificationStatus = 'not_ready' | 'pending' | 'approved' | 'rejected' | 'all'
 

@@ -6,12 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { mobileApi } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
-import { ActionButton } from '@/components/ActionButton'
-import { Chip } from '@/components/Chip'
-import { CompanionCard } from '@/components/CompanionCard'
-import { Screen } from '@/components/Screen'
-import { StateView } from '@/components/StateView'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { Chip } from '@/design-system/atoms/Chip'
+import { CompanionCard } from '@/design-system/organisms/CompanionCard'
+import { Screen } from '@/design-system/templates/Screen'
+import { StateView } from '@/design-system/molecules/StateView'
+import { AppText } from '@/design-system/atoms/Typography'
 import {
   activeDiscoveryFilterCount,
   defaultDiscoveryFilters,
@@ -143,7 +143,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   state: { paddingHorizontal: 16 },
-  list: { paddingHorizontal: 16, paddingBottom: 44 },
+  list: { paddingHorizontal: 16, paddingBottom: 32 },
   header: { paddingTop: 14, gap: 12, marginBottom: 14 },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   titleCopy: { flex: 1, gap: 4 },
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   clearButton: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
   gap: { height: 8 },
   scrim: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderWidth: 1, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, paddingBottom: 28, gap: 12, maxHeight: '82%' },
+  sheet: { borderWidth: 1, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 14, paddingBottom: 28, gap: 12, maxHeight: '82%' },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

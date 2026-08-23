@@ -4,9 +4,9 @@ import { router, type ErrorBoundaryProps } from 'expo-router'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
-import { ActionButton } from '@/components/ActionButton'
-import { Screen } from '@/components/Screen'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { Screen } from '@/design-system/templates/Screen'
+import { AppText } from '@/design-system/atoms/Typography'
 import { mobileNotificationRoute, notificationAge, notificationGroup, type MobileNotificationDestination } from '@/data/notifications'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -75,15 +75,15 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 48 },
+  content: { paddingBottom: 32 },
   header: { paddingTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { gap: 8, paddingVertical: 28 },
-  section: { gap: 10, marginBottom: 28 },
-  row: { borderWidth: 1, borderRadius: 18, padding: 15, gap: 10 },
+  title: { gap: 8, paddingVertical: 20 },
+  section: { gap: 10, marginBottom: 20 },
+  row: { borderWidth: 1, borderRadius: 16, padding: 15, gap: 10 },
   rowMain: { flexDirection: 'row', gap: 12 },
   dot: { width: 8, height: 8, borderWidth: 1, borderRadius: 4, marginTop: 7 },
   copy: { flex: 1, gap: 3 },
   loadMore: { alignItems: 'center', paddingVertical: 16 },
-  state: { alignItems: 'center', gap: 10, paddingVertical: 40 },
+  state: { alignItems: 'center', gap: 10, paddingVertical: 20 },
   fullState: { flexGrow: 1, justifyContent: 'center' },
 })

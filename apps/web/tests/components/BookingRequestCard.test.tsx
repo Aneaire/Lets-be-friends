@@ -3,7 +3,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Id } from '../../convex/_generated/dataModel'
-import { BookingRequestCard, type BookingRequestView } from '../../src/components/BookingRequestCard'
+import { BookingRequestCard, type BookingRequestView } from '../../src/features/booking/BookingRequestCard'
 
 afterEach(cleanup)
 

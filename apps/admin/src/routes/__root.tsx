@@ -1,10 +1,11 @@
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
-import { AdminGate } from '../components/AdminShell'
-import { AdminProviders } from '../components/AdminProviders'
+import { AdminGate } from '../features/admin-access/AdminShell'
+import { AdminProviders } from '../features/platform/AdminProviders'
 import appCss from '../../../web/src/styles.css?url'
 import adminCss from '../admin.css?url'
+import compactCss from '../../../web/src/design-system/foundations/compact.css?url'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -18,6 +19,7 @@ export const Route = createRootRoute({
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
       { rel: 'stylesheet', href: appCss },
       { rel: 'stylesheet', href: adminCss },
+      { rel: 'stylesheet', href: compactCss },
     ],
   }),
   shellComponent: RootDocument,

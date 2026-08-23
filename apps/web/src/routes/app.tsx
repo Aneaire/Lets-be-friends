@@ -8,13 +8,12 @@ import type React from 'react'
 import { activityCategories, calculateMemberWalletBookingPrice, canCancelBooking, canCompleteBooking, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import { WorkspaceShell } from '../components/AppShell'
-import { BookingRequestEditor, type EditableBookingRequest } from '../components/BookingRequestEditor'
-import { MeetingSeam } from '../components/AppNavigation'
-import { BookingRequestFields } from '../components/BookingRequestFields'
-import { BookingActionsMenu } from '../components/BookingActionsMenu'
+import { WorkspaceShell } from '../design-system/templates/AppShell'
+import { BookingRequestEditor, type EditableBookingRequest } from '../features/booking/BookingRequestEditor'
+import { BookingRequestFields } from '../features/booking/BookingRequestFields'
+import { BookingActionsMenu } from '../features/booking/BookingActionsMenu'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
-import { useIdentityVerification } from '../components/IdentityVerificationFlow'
+import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
 import { findCompanions } from '../lib/discoverySearch'
 
@@ -710,7 +709,6 @@ function WalletDialog({ finance, onClose, restoreFocusTo, onCreateTopUp, onAddTe
         <header className="booking-dialog-header">
           <div>
             <p className="eyebrow">Your booking wallet</p>
-            <MeetingSeam />
             <h2 id="booking-balance-dialog-title" className="text-h2 mt-1">Balance</h2>
           </div>
           <button type="button" className="social-icon-button booking-dialog-close" aria-label="Close balance" onClick={onClose}>
@@ -797,7 +795,6 @@ function BookingRow({
       </div>
 
       <div className="booking-plan-context">
-        <MeetingSeam />
         <span>{status.label}</span>
       </div>
 
@@ -1108,7 +1105,6 @@ function BookingDialog({
         <header className="booking-dialog-header">
           <div>
             <p className="eyebrow">New booking</p>
-            <MeetingSeam />
             <h2 id="booking-dialog-title" className="text-h2 mt-1">{selectedCompanion ? `Book with ${selectedCompanion.displayName.trim().split(/\s+/)[0] ?? ''}` : 'Book a time'}</h2>
           </div>
           <button

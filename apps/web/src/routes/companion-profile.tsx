@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import { formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
-import { MeetingSeam } from '../components/AppNavigation'
+import { PostCard } from '../features/social/PostCard'
 
 export const Route = createFileRoute('/companion-profile')({
   validateSearch: (search: Record<string, unknown>): { companionProfileId?: string } => (
@@ -86,7 +86,7 @@ function CompanionProfilePage() {
           </div>
 
           <aside className="companion-profile-decision" aria-label={`Plan with ${companion.displayName}`}>
-            <div className="companion-profile-planline"><MeetingSeam /><span>Help · Trust · Connection</span></div>
+            <div className="companion-profile-planline"><span>Help · Trust · Connection</span></div>
             <p className="companion-profile-trust">Identity checked and Companion profile reviewed.</p>
             {companion.hourlyRateCentavos !== undefined ? (
               <p className="companion-profile-rate">
@@ -228,16 +228,19 @@ function CompanionProfilePage() {
           {posts === undefined && <div className="empty-state">Loading posts...</div>}
           {posts && posts.length === 0 && <div className="empty-state">No posts from this member yet.</div>}
           {posts && posts.length > 0 && (
-            <div className="panel">
-              <div className="worklist">
-                {posts.slice(0, 6).map((post) => (
-                  <article key={post._id} className="worklist-row">
-                    <div className="worklist-row-meta tabular">{formatTime(post.createdAt)}</div>
-                    {post.body && <p className="text-body muted whitespace-pre-wrap">{post.body}</p>}
-                    {post.media.length > 0 && <CompanionPostMediaGrid media={post.media} />}
-                  </article>
-                ))}
-              </div>
+            <div className="companion-social-timeline">
+              {posts.slice(0, 6).map((post) => (
+                <PostCard
+                  key={post._id}
+                  author={companion.displayName}
+                  imageUrl={companion.profileImageUrl}
+                  timestamp={formatTime(post.createdAt)}
+                  className="companion-social-post"
+                >
+                  {post.body && <p className="ds-post-copy whitespace-pre-wrap">{post.body}</p>}
+                  {post.media.length > 0 && <CompanionPostMediaGrid media={post.media} />}
+                </PostCard>
+              ))}
             </div>
           )}
         </aside>

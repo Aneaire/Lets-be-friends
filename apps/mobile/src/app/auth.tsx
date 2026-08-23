@@ -16,12 +16,12 @@ import {
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { safeAuthErrorMessage } from '@/auth/errors'
 import { googleOAuthNextStep } from '@/auth/googleOAuth'
-import { ActionButton } from '@/components/ActionButton'
-import { AppIcon } from '@/components/AppIcon'
-import { hideAppToast, showAppToast, type AppToastTone } from '@/components/AppToast'
-import { Brand } from '@/components/Brand'
-import { Screen } from '@/components/Screen'
-import { AppText } from '@/components/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppIcon } from '@/design-system/atoms/AppIcon'
+import { hideAppToast, showAppToast, type AppToastTone } from '@/design-system/molecules/AppToast'
+import { Brand } from '@/design-system/atoms/Brand'
+import { Screen } from '@/design-system/templates/Screen'
+import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 type AuthMode = 'sign_in' | 'sign_up'
@@ -516,17 +516,17 @@ function AuthState({
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 56 },
+  content: { paddingBottom: 40 },
   brand: { paddingTop: 20 },
-  header: { paddingTop: 42, gap: 14 },
-  form: { marginTop: 30, gap: 18 },
+  header: { paddingTop: 28, gap: 14 },
+  form: { marginTop: 24, gap: 16 },
   divider: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   dividerLine: { flex: 1, height: 1 },
   field: { gap: 8 },
-  input: { minHeight: 54, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
+  input: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
   revealButton: { position: 'absolute', right: 5, top: 5, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   forgotButton: { minHeight: 44, alignSelf: 'flex-end', justifyContent: 'center', marginTop: -12 },
   textButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  modeButton: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 22 },
+  modeButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 22 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
 })

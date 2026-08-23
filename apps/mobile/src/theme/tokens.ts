@@ -10,6 +10,28 @@ export const spacing = {
   xxl: 48,
 } as const
 
+/**
+ * Mobile-first density values shared by screens and reusable components.
+ * Controls keep a comfortable touch target while visual padding stays compact.
+ */
+export const density = {
+  screenGutter: 16,
+  screenBottom: 32,
+  tabletGutter: 20,
+  sectionGap: 24,
+  contentGap: 16,
+  cardPadding: 14,
+  compactCardPadding: 12,
+  cardGap: 8,
+  textPairGap: 2,
+  textStackGap: 4,
+  textSectionGap: 6,
+  controlHeight: 48,
+  compactControlHeight: 44,
+  controlRadius: 14,
+  sheetPadding: 14,
+} as const
+
 export const radii = {
   sm: 10,
   md: 16,
@@ -49,6 +71,10 @@ export type ThemeColors = {
   socialSoft: string
   selfSoft: string
   danger: string
+  success: string
+  warning: string
+  successSoft: string
+  warningSoft: string
   scrim: string
 }
 
@@ -56,6 +82,7 @@ export type ThemeTokens = {
   scheme: ColorScheme
   colors: ThemeColors
   spacing: typeof spacing
+  density: typeof density
   radii: typeof radii
   typography: typeof typography
 }
@@ -81,6 +108,10 @@ const palettes: Record<ColorScheme, ThemeColors> = {
     socialSoft: '#F7EAF2',
     selfSoft: '#E7F4FD',
     danger: '#B42318',
+    success: '#17663A',
+    warning: '#7A4A00',
+    successSoft: '#EAF7EF',
+    warningSoft: '#FFF5DD',
     scrim: 'rgba(0, 0, 0, 0.56)',
   },
   dark: {
@@ -103,6 +134,10 @@ const palettes: Record<ColorScheme, ThemeColors> = {
     socialSoft: '#321D2B',
     selfSoft: '#112B3C',
     danger: '#FF6B6B',
+    success: '#6FD69B',
+    warning: '#F2C66D',
+    successSoft: '#163124',
+    warningSoft: '#352A13',
     scrim: 'rgba(0, 0, 0, 0.72)',
   },
 }
@@ -113,6 +148,7 @@ export function resolveTheme(scheme: ColorScheme | null | undefined): ThemeToken
     scheme: resolvedScheme,
     colors: palettes[resolvedScheme],
     spacing,
+    density,
     radii,
     typography,
   }
