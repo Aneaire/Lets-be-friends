@@ -1,14 +1,18 @@
 import { useMutation } from 'convex/react'
 import { useRef, useState } from 'react'
-import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { mobileApi, type BookingId } from '@/backend/client'
 import { validateCancellationReason } from '@/data/bookingLifecycle'
 import { safeProductError } from '@/data/productErrors'
-import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { TextField } from '@/design-system/atoms/Field'
 import { AppText } from '@/design-system/atoms/Typography'
+import { ConfirmationDialog } from '@/design-system/molecules/ConfirmationDialog'
+import { FormField } from '@/design-system/molecules/FormField'
+import { useAppTheme } from '@/theme/ThemeProvider'
+import { density } from '@/theme/tokens'
 
 export function BookingCancelAction({ bookingId, participantLabel }: {
   bookingId: BookingId
@@ -51,67 +55,52 @@ export function BookingCancelAction({ bookingId, participantLabel }: {
     }
   }
 
+  const reasonError = reason.length > 1_000 ? 'Cancellation reasons can be up to 1,000 characters.' : undefined
+
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Cancel booking"
+      <ActionButton
+        label="Cancel booking"
         accessibilityHint={`Cancels this booking as the ${participantLabel}`}
+        intent="danger"
+        secondary
         onPress={() => { setMessage(''); setOpen(true) }}
-        style={({ pressed }) => [styles.button, { borderColor: theme.colors.danger }, pressed && styles.pressed]}>
-        <AppText variant="bodyStrong" color={theme.colors.danger}>Cancel booking</AppText>
-      </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
-        <View style={[styles.scrim, { backgroundColor: theme.colors.scrim }]}>
-          <View style={[styles.modal, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-            <View style={styles.header}>
-              <View style={styles.copy}>
-                <AppText variant="heading">Cancel this booking?</AppText>
-                <AppText variant="caption" color={theme.colors.textMuted}>Cancellation cannot be undone. Current cancellation and wallet rules will apply.</AppText>
-              </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Close cancellation form" disabled={busy} onPress={close} style={styles.close}>
-                <AppText variant="heading">×</AppText>
-              </Pressable>
-            </View>
-            <TextInput
-              accessibilityLabel="Cancellation reason, optional"
+      />
+      <ConfirmationDialog
+        visible={open}
+        onClose={close}
+        onConfirm={cancel}
+        title="Cancel this booking?"
+        description="Cancellation cannot be undone. Current cancellation and wallet rules will apply."
+        confirmLabel="Confirm cancellation"
+        busyLabel="Cancelling booking"
+        cancelLabel="Keep booking"
+        intent="danger"
+        busy={busy}>
+        <View style={styles.form}>
+          <FormField
+            label="Cancellation reason"
+            optional
+            error={reasonError}
+            hint={`${reason.length}/1,000 characters`}>
+            <TextField
               value={reason}
               onChangeText={(value) => { setReason(value); setMessage('') }}
-              placeholder="Optional reason for the other participant"
-              placeholderTextColor={theme.colors.textMuted}
+              placeholder="Reason for the other participant"
               multiline
               maxLength={1_001}
               editable={!busy}
-              style={[styles.input, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surfaceRaised, borderColor: reason.length > 1_000 ? theme.colors.danger : theme.colors.border }]}
+              style={styles.input}
             />
-            <AppText variant="caption" color={reason.length > 1_000 ? theme.colors.danger : theme.colors.textMuted}>{reason.length}/1,000</AppText>
-            {message ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{message}</AppText> : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={busy ? 'Cancelling booking' : 'Confirm cancellation'}
-              accessibilityState={{ disabled: busy }}
-              disabled={busy}
-              onPress={() => void cancel()}
-              style={({ pressed }) => [styles.dangerButton, { backgroundColor: theme.colors.danger, borderColor: theme.colors.danger }, busy && styles.disabled, pressed && styles.pressed]}>
-              <AppText variant="bodyStrong" color={theme.colors.inverseText}>{busy ? 'Cancelling booking' : 'Confirm cancellation'}</AppText>
-            </Pressable>
-            <ActionButton label="Keep booking" onPress={close} disabled={busy} secondary />
-          </View>
+          </FormField>
+          {message ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{message}</AppText> : null}
         </View>
-      </Modal>
+      </ConfirmationDialog>
     </>
   )
 }
 
 const styles = StyleSheet.create({
-  button: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  scrim: { flex: 1, padding: 14, justifyContent: 'center' },
-  modal: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 12, maxHeight: '90%' },
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  copy: { flex: 1, gap: 4 },
-  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  input: { minHeight: 120, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingTop: 13, textAlignVertical: 'top' },
-  dangerButton: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  disabled: { opacity: 0.52 },
-  pressed: { opacity: 0.76 },
+  form: { gap: density.cardGap },
+  input: { minHeight: 120 },
 })

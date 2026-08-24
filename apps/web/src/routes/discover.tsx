@@ -2,9 +2,11 @@ import { Link, createFileRoute } from '@tanstack/react-router'
 import { useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LayoutGrid, MapPin, Search, SlidersHorizontal, X } from 'lucide-react'
+import { LayoutGrid, MapPin, SlidersHorizontal, X } from 'lucide-react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { SearchField } from '../design-system/molecules/SearchField'
+import { SegmentedControl } from '../design-system/molecules/SegmentedControl'
 import { CompanionListItem, type DiscoveryCompanion } from '../design-system/organisms/CompanionListItem'
 
 export const Route = createFileRoute('/discover')({ component: DiscoverPage })
@@ -190,28 +192,26 @@ function DiscoverPage() {
 
       <div className="discover-toolbar" role="region" aria-label="Filters">
         <div className="discover-toolbar-primary">
-          <div className="discover-search" role="search">
-            <Search size={15} aria-hidden="true" />
-            <input
-              type="search"
-              className="discover-search-input"
-              placeholder="Search by name, city, or activity"
-              aria-label="Search people"
-              value={query}
-              onChange={(event) => setQuery(event.currentTarget.value)}
-            />
-            {query && (
-              <button type="button" className="discover-search-clear" aria-label="Clear search" onClick={() => setQuery('')}>
-                <X size={13} aria-hidden="true" />
-              </button>
-            )}
-          </div>
-          <div className="mode-pillgroup" role="group" aria-label="Mode">
-            <ModeChip value="all" current={mode} onChange={setMode}>Anywhere</ModeChip>
-            <ModeChip value="online" current={mode} onChange={setMode}>Online</ModeChip>
-            <ModeChip value="in_person" current={mode} onChange={setMode}>In-person</ModeChip>
-            <ModeChip value="both" current={mode} onChange={setMode}>Both</ModeChip>
-          </div>
+          <SearchField
+            className="discover-search-field"
+            label="Search people"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search by name, city, or activity"
+          />
+          <SegmentedControl
+            className="mode-pillgroup"
+            label="Session format"
+            options={[
+              { value: 'all', label: 'Anywhere' },
+              { value: 'online', label: 'Online' },
+              { value: 'in_person', label: 'In-person' },
+              { value: 'both', label: 'Both' },
+            ]}
+            value={mode}
+            onChange={setMode}
+            tone="social"
+          />
           <div className="discover-toolbar-trailing">
             <label className="bookable-toggle">
               <input
@@ -358,7 +358,7 @@ function DiscoverPage() {
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCategory(null)}>
                 Clear
               </button>
-              <button type="button" className="btn btn-self btn-sm" onClick={() => setCategoriesOpen(false)}>
+              <button type="button" className="btn btn-social btn-sm" onClick={() => setCategoriesOpen(false)}>
                 Show {filtered.length} {filtered.length === 1 ? 'result' : 'results'}
               </button>
             </footer>
@@ -414,7 +414,7 @@ function DiscoverPage() {
               <button type="button" className="btn btn-ghost btn-sm" onClick={clearAllFilters}>
                 Clear all
               </button>
-              <button type="button" className="btn btn-self btn-sm" onClick={() => setFiltersOpen(false)}>
+              <button type="button" className="btn btn-social btn-sm" onClick={() => setFiltersOpen(false)}>
                 Show {filtered.length} {filtered.length === 1 ? 'result' : 'results'}
               </button>
             </footer>
@@ -431,30 +431,6 @@ function FilterSection({ title, children }: { title: string; children: React.Rea
       <p className="filter-section-title">{title}</p>
       <div className="filter-section-row">{children}</div>
     </div>
-  )
-}
-
-function ModeChip<T extends ModeFilter>({
-  value,
-  current,
-  onChange,
-  children,
-}: {
-  value: T
-  current: T
-  onChange: (next: T) => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      className="chip"
-      data-selected={current === value}
-      aria-pressed={current === value}
-      onClick={() => onChange(value)}
-    >
-      {children}
-    </button>
   )
 }
 

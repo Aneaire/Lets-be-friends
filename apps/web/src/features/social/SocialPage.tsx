@@ -2,25 +2,22 @@ import { activeMentionQuery, splitBodyIntoSegments, type FeedInstrumentationActi
 import { Link, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
-import { ImagePlus, Send, X } from 'lucide-react'
+import { ImagePlus, Send } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
+import { Avatar } from '../../design-system/atoms/Avatar'
+import { CommentBubble } from './CommentBubble'
 import { PostActionsMenu } from './PostActionsMenu'
 import { PostActionBar } from './PostActionBar'
+import { PostCard } from './PostCard'
+import { PostMediaGrid } from './PostMediaGrid'
 
 type FeedItem = NonNullable<ReturnType<typeof useQuery<typeof api.social.feed>>>[number]
 type FeedPostItem = Extract<FeedItem, { kind: 'post' }>
 type FeedPost = FeedPostItem['post']
 type PostComment = NonNullable<ReturnType<typeof useQuery<typeof api.social.commentsForPost>>>[number]
 type FeedFilter = 'for_you' | 'following' | 'saved'
-type PostMediaItem = {
-  storageId: Id<'_storage'>
-  kind: 'image' | 'video'
-  contentType: string
-  size: number
-  url: string | null
-}
 type SelectedMedia = {
   file: File
   kind: 'image' | 'video'
@@ -243,20 +240,7 @@ export function SocialPage({ postId }: { postId?: string }) {
                 multiline
               />
               {selectedMedia.length > 0 && (
-                <div className="social-media-preview-grid" data-count={selectedMedia.length}>
-                  {selectedMedia.map((item, index) => (
-                    <div className="social-media-preview" key={item.previewUrl}>
-                      {item.kind === 'image' ? (
-                        <img src={item.previewUrl} alt="" />
-                      ) : (
-                        <video src={item.previewUrl} muted playsInline />
-                      )}
-                      <button type="button" className="social-media-remove" onClick={() => removeSelectedMedia(index)} aria-label="Remove media">
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                <PostMediaGrid mode="preview" media={selectedMedia} onRemove={removeSelectedMedia} />
               )}
               <div className="social-composer-toolbar">
                 <div className="social-upload-actions">
@@ -507,74 +491,61 @@ function PostRow({
     }
   }
 
+  const authorAction = post.ownPost ? (
+    <Link to="/profile" className="social-post-author-link">{post.authorDisplayName}</Link>
+  ) : post.authorCompanionProfileId ? (
+    <Link
+      to="/companion-profile"
+      search={{ companionProfileId: post.authorCompanionProfileId }}
+      className="social-post-author-link"
+    >
+      {post.authorDisplayName}
+    </Link>
+  ) : undefined
+
+  const avatarAction = post.ownPost ? (
+    <Link to="/profile" className="social-post-avatar-link" aria-label="View your profile">
+      <Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="large" decorative />
+    </Link>
+  ) : post.authorCompanionProfileId ? (
+    <Link
+      to="/companion-profile"
+      search={{ companionProfileId: post.authorCompanionProfileId }}
+      className="social-post-avatar-link"
+      aria-label={`View ${post.authorDisplayName}'s profile`}
+    >
+      <Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="large" decorative />
+    </Link>
+  ) : undefined
+
   return (
-    <article ref={rowRef} id={`post-${post._id}`} className="social-post" tabIndex={focusComments ? -1 : undefined}>
-      {post.ownPost ? (
-        <Link
-          to="/profile"
-          className="avatar avatar-lg social-post-avatar social-post-avatar-link"
-          aria-label="View your profile"
-        >
-          {post.authorProfileImageUrl
-            ? <img src={post.authorProfileImageUrl} alt="" />
-            : initials(post.authorDisplayName)}
-        </Link>
-      ) : post.authorCompanionProfileId ? (
-        <Link
-          to="/companion-profile"
-          search={{ companionProfileId: post.authorCompanionProfileId }}
-          className="avatar avatar-lg social-post-avatar social-post-avatar-link"
-          aria-label={`View ${post.authorDisplayName}'s profile`}
-        >
-          {post.authorProfileImageUrl
-            ? <img src={post.authorProfileImageUrl} alt="" />
-            : initials(post.authorDisplayName)}
-        </Link>
-      ) : (
-        <span className="avatar avatar-lg social-post-avatar" aria-hidden="true">
-          {post.authorProfileImageUrl
-            ? <img src={post.authorProfileImageUrl} alt="" />
-            : initials(post.authorDisplayName)}
-        </span>
-      )}
-      <div className="social-post-body">
-        <div className="social-post-head">
-          <div className="social-post-identity-line">
-            {post.ownPost ? (
-              <Link to="/profile" className="social-post-author-link">{post.authorDisplayName}</Link>
-            ) : post.authorCompanionProfileId ? (
-              <Link
-                to="/companion-profile"
-                search={{ companionProfileId: post.authorCompanionProfileId }}
-                className="social-post-author-link"
-              >
-                {post.authorDisplayName}
-              </Link>
-            ) : (
-              <h2 className="text-h3">{post.authorDisplayName}</h2>
-            )}
-            <span className="dot" aria-hidden="true" />
-            <time className="tabular" dateTime={new Date(post.createdAt).toISOString()}>{formatTime(post.createdAt)}</time>
-            {post.experienceBookingId && (
-              <>
-                <span className="dot" aria-hidden="true" />
-                <span>Experience post</span>
-              </>
-            )}
-          </div>
-          <div className="social-post-actions-top">
-            {viewerReady ? (
-              <PostActionsMenu
-                ownedByViewer={post.ownPost}
-                disabled={Boolean(actionPending)}
-                onEdit={post.ownPost ? editFromOptions : undefined}
-                onDelete={post.ownPost ? () => void deleteFromOptions() : undefined}
-                onReport={!post.ownPost ? () => void reportFromOptions() : undefined}
-              />
-            ) : null}
-          </div>
-        </div>
-        {editing ? (
+    <PostCard
+      ref={rowRef}
+      id={`post-${post._id}`}
+      tabIndex={focusComments ? -1 : undefined}
+      author={post.authorDisplayName}
+      imageUrl={post.authorProfileImageUrl}
+      timestamp={formatTime(post.createdAt)}
+      dateTime={new Date(post.createdAt).toISOString()}
+      authorAction={authorAction}
+      avatarAction={avatarAction}
+      meta={post.experienceBookingId ? (
+        <>
+          <span className="ds-post-meta-separator" aria-hidden="true">·</span>
+          <span>Experience post</span>
+        </>
+      ) : undefined}
+      actions={viewerReady ? (
+        <PostActionsMenu
+          ownedByViewer={post.ownPost}
+          disabled={Boolean(actionPending)}
+          onEdit={post.ownPost ? editFromOptions : undefined}
+          onDelete={post.ownPost ? () => void deleteFromOptions() : undefined}
+          onReport={!post.ownPost ? () => void reportFromOptions() : undefined}
+        />
+      ) : undefined}
+    >
+      {editing ? (
           <form
             className="social-edit-form"
             onSubmit={async (event) => {
@@ -672,8 +643,7 @@ function PostRow({
             )}
           </div>
         )}
-      </div>
-    </article>
+    </PostCard>
   )
 }
 
@@ -681,51 +651,34 @@ function CommentRow({ comment, canReport, onReport }: { comment: PostComment; ca
   const [reporting, setReporting] = useState(false)
   const [reportError, setReportError] = useState('')
   return (
-    <article className="social-comment">
-      <span className="avatar" aria-hidden="true">{initials(comment.authorDisplayName)}</span>
-      <div className="min-w-0">
-        <div className="social-comment-head">
-          <strong>{comment.authorDisplayName}</strong>
-          <span aria-hidden="true">·</span>
-          <time className="tabular" dateTime={new Date(comment.createdAt).toISOString()}>{formatTime(comment.createdAt)}</time>
-          {canReport && (
-            <button
-              type="button"
-              disabled={reporting}
-              className="social-comment-report"
-              onClick={async () => {
-                setReporting(true)
-                setReportError('')
-                try {
-                  await onReport()
-                } catch (error) {
-                  setReportError(error instanceof Error ? error.message : 'Comment could not be reported.')
-                } finally {
-                  setReporting(false)
-                }
-              }}
-            >
-              {reporting ? 'Reporting...' : 'Report'}
-            </button>
-          )}
-        </div>
-        <MentionText body={comment.body} mentions={comment.mentions} />
-        {reportError && <p className="social-comment-error">{reportError}</p>}
-      </div>
-    </article>
-  )
-}
-
-function PostMediaGrid({ media }: { media: PostMediaItem[] }) {
-  return (
-    <div className="social-media-grid" data-count={media.length}>
-      {media.map((item) => (
-        <div key={item.storageId} className="social-media-item">
-          {item.url && item.kind === 'image' && <img src={item.url} alt="" loading="lazy" />}
-          {item.url && item.kind === 'video' && <video src={item.url} controls playsInline preload="metadata" />}
-        </div>
-      ))}
-    </div>
+    <CommentBubble
+      author={comment.authorDisplayName}
+      timestamp={formatTime(comment.createdAt)}
+      dateTime={new Date(comment.createdAt).toISOString()}
+      actions={canReport ? (
+        <button
+          type="button"
+          disabled={reporting}
+          className="social-comment-report"
+          onClick={async () => {
+            setReporting(true)
+            setReportError('')
+            try {
+              await onReport()
+            } catch (error) {
+              setReportError(error instanceof Error ? error.message : 'Comment could not be reported.')
+            } finally {
+              setReporting(false)
+            }
+          }}
+        >
+          {reporting ? 'Reporting...' : 'Report'}
+        </button>
+      ) : undefined}
+    >
+      <MentionText body={comment.body} mentions={comment.mentions} />
+      {reportError && <p className="social-comment-error">{reportError}</p>}
+    </CommentBubble>
   )
 }
 

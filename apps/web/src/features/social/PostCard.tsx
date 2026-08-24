@@ -5,10 +5,12 @@ export const PostCard = forwardRef<HTMLElement, HTMLAttributes<HTMLElement> & {
   author: string
   imageUrl?: string | null
   timestamp: string
+  dateTime?: string
   meta?: ReactNode
   avatarAction?: ReactNode
+  authorAction?: ReactNode
   actions?: ReactNode
-}>(function PostCard({ author, imageUrl, timestamp, meta, avatarAction, actions, children, className = '', ...props }, ref) {
+}>(function PostCard({ author, imageUrl, timestamp, dateTime, meta, avatarAction, authorAction, actions, children, className = '', ...props }, ref) {
   const avatar = <Avatar name={author} src={imageUrl} size="large" decorative />
 
   return (
@@ -16,9 +18,9 @@ export const PostCard = forwardRef<HTMLElement, HTMLAttributes<HTMLElement> & {
       <header className="ds-post-head">
         <div className="ds-post-avatar">{avatarAction ?? avatar}</div>
         <div className="ds-post-identity">
-          <strong>{author}</strong>
+          {authorAction ?? <strong>{author}</strong>}
           <span className="ds-post-meta-separator" aria-hidden="true">·</span>
-          <time>{timestamp}</time>
+          <time dateTime={dateTime}>{timestamp}</time>
           {meta}
         </div>
         {actions}

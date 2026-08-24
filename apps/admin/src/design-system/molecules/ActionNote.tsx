@@ -38,6 +38,8 @@ export function ActionNote({
   return (
     <form
       className="action-note"
+      aria-label={`${label} action note`}
+      aria-busy={busy || undefined}
       onSubmit={async (event) => {
         event.preventDefault()
         const trimmed = note.trim()
@@ -60,12 +62,17 @@ export function ActionNote({
     >
       <textarea
         className="field action-note-field"
+        aria-label={requireNote ? `${placeholder} required` : placeholder}
         value={note}
         onChange={(event) => setNote(event.currentTarget.value)}
         placeholder={requireNote ? `${placeholder} required` : placeholder}
         rows={2}
       />
-      {error && <p className="text-tiny action-note-error">{error}</p>}
+      {error && (
+        <p role="alert" className="text-tiny action-note-error">
+          {error}
+        </p>
+      )}
       <div className="action-note-actions">
         <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { setOpen(false); setError('') }}>
           Cancel

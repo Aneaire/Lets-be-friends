@@ -1,9 +1,13 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useQuery } from 'convex/react'
+import { useAuth } from '@clerk/react'
+import { useMutation, useQuery } from 'convex/react'
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowUpRight, LocateFixed, MapPin, RotateCcw, Search, X } from 'lucide-react'
+import { ArrowLeft, LocateFixed, MapPin, RotateCcw } from 'lucide-react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { EmptyState } from '../design-system/molecules/FeedbackState'
+import { SearchField } from '../design-system/molecules/SearchField'
+import { CompanionListItem, type DiscoveryCompanion } from '../design-system/organisms/CompanionListItem'
 import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
 import {
   geolocationErrorMessage,
@@ -18,6 +22,8 @@ type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 
 type NearbyCompanion = {
   _id: string
+  userId?: string
+  kind?: 'member' | 'companion'
   displayName: string
   city: string
   mode: 'online' | 'in_person' | 'both'
@@ -32,10 +38,13 @@ type NearbyCompanion = {
   latitude?: number
   longitude?: number
   bio?: string
+  verified?: boolean
 }
 
 function NearbySearchPage() {
   const navigate = useNavigate()
+  const { isSignedIn } = useAuth()
+  const toggleFollow = useMutation(api.social.toggleFollow)
   const [location, setLocation] = useState<Coordinates | null>(null)
   const [originMode, setOriginMode] = useState<'device' | 'custom' | null>(null)
   const [radiusKm, setRadiusKm] = useState<NearbyRadiusKm>(25)
@@ -139,7 +148,7 @@ function NearbySearchPage() {
             <p role="status" aria-live="polite">{locationStatus}</p>
           </div>
           <div className="nearby-search-origin-actions">
-            <button type="button" className="btn btn-self btn-sm" onClick={useCurrentLocation}>
+            <button type="button" className="btn btn-social btn-sm" onClick={useCurrentLocation}>
               <LocateFixed size={15} aria-hidden="true" />
               Use my location
             </button>
@@ -151,22 +160,14 @@ function NearbySearchPage() {
         </div>
 
         <div className="nearby-search-filterbar" role="region" aria-label="Nearby search filters">
-          <label className="nearby-filter-search">
-            <span className="sr-only">Search nearby Companions</span>
-            <Search size={15} aria-hidden="true" />
-            <input
-              type="search"
-              aria-label="Search nearby Companions"
+          <div className="nearby-filter-search">
+            <SearchField
+              label="Search nearby Companions"
               value={query}
+              onChange={setQuery}
               placeholder="Search people or activities"
-              onChange={(event) => setQuery(event.currentTarget.value)}
             />
-            {query && (
-              <button type="button" aria-label="Clear search" onClick={() => setQuery('')}>
-                <X size={13} aria-hidden="true" />
-              </button>
-            )}
-          </label>
+          </div>
 
           <label className="nearby-filter-field">
             <span>Radius</span>
@@ -259,67 +260,37 @@ function NearbySearchPage() {
           </header>
 
           {!location ? (
-            <div className="nearby-results-empty">
-              <MapPin size={20} aria-hidden="true" />
-              <strong>Start with an area</strong>
-              <p>Use your location or place a travel pin. Approved Companions with current identity approval can appear.</p>
-            </div>
+            <EmptyState
+              icon={<MapPin size={20} aria-hidden="true" />}
+              title="Start with an area"
+              description="Use your location or place a travel pin. Approved Companions with current identity approval can appear."
+            />
           ) : companionsQuery === undefined ? (
-            <div className="nearby-results-empty" role="status">Finding nearby people...</div>
+            <EmptyState title="Finding nearby people..." />
           ) : filtered.length === 0 ? (
-            <div className="nearby-results-empty">
-              <strong>No matches here yet</strong>
-              <p>Try a larger radius or reset a filter.</p>
-            </div>
+            <EmptyState
+              title="No matches here yet"
+              description="Try a larger radius or reset a filter."
+            />
           ) : (
             <div className="nearby-results-list">
-              {filtered.map((companion) => <NearbyResult key={companion._id} companion={companion} />)}
+              {filtered.map((companion) => (
+                <CompanionListItem
+                  key={companion._id}
+                  companion={{ ...companion, kind: 'companion' } as DiscoveryCompanion}
+                  signedIn={Boolean(isSignedIn)}
+                  profileLink={Link}
+                  profileLinkProps={{ to: '/companion-profile', search: { companionProfileId: companion._id } }}
+                  onFollow={async () => {
+                    if (!companion.userId) return
+                    await toggleFollow({ userId: companion.userId as any })
+                  }}
+                />
+              ))}
             </div>
           )}
         </aside>
       </div>
     </main>
   )
-}
-
-function NearbyResult({ companion }: { companion: NearbyCompanion }) {
-  return (
-    <Link
-      to="/companion-profile"
-      search={{ companionProfileId: companion._id }}
-      className="nearby-result-card"
-    >
-      <span className="profile-photo" aria-hidden="true">
-        {companion.profileImageUrl
-          ? <img src={companion.profileImageUrl} alt="" />
-          : <span>{initials(companion.displayName)}</span>}
-      </span>
-      <span className="nearby-result-body">
-        <span className="nearby-result-name">
-          <strong>{companion.displayName}</strong>
-          <ArrowUpRight size={13} aria-hidden="true" />
-        </span>
-        <span className="nearby-result-context">
-          {typeof companion.distanceKm === 'number' ? `${companion.distanceKm} km away` : 'Online'}
-          <span aria-hidden="true">·</span>
-          {companion.city}
-        </span>
-        <span className="nearby-result-intro">{companion.intro}</span>
-        <span className="nearby-result-meta">
-          <strong>{companion.rating.toFixed(1)}</strong>
-          <span>{companion.reviewCount ?? 0} {companion.reviewCount === 1 ? 'review' : 'reviews'}</span>
-          {companion.bookable && <span>Available</span>}
-        </span>
-      </span>
-    </Link>
-  )
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
 }

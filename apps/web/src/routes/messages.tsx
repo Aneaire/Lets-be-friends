@@ -1,14 +1,18 @@
 import { SignInButton, useAuth } from '@clerk/react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
-import { ArrowLeft, CircleCheck, FileText, Flag, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Send, ShieldCheck, Video, X } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, CircleCheck, FileText, Flag, Image as ImageIcon, LoaderCircle, MessageCircle, ShieldCheck, Video, X } from 'lucide-react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
 import { BookingRequestCard } from '../features/booking/BookingRequestCard'
 import { BookingRequestEditor, type EditableBookingRequest } from '../features/booking/BookingRequestEditor'
-import { MessageDeliveryStatus } from '../design-system/atoms/MessageDeliveryStatus'
 import { Avatar } from '../design-system/atoms/Avatar'
+import { CompactComposer } from '../features/messaging/CompactComposer'
+import { ConversationListItemContent } from '../features/messaging/ConversationListItem'
+import { MessageBubble } from '../features/messaging/MessageBubble'
+import { PendingOutgoingMessageBubble } from '../features/messaging/PendingOutgoingMessageBubble'
+import { AttachmentMetaRow } from '../design-system/molecules/AttachmentMetaRow'
 import { MessageImageGallery, MessageImageViewer, type MessageImage } from '../design-system/molecules/MessageImages'
 import {
   MAX_CHAT_ATTACHMENTS,
@@ -206,47 +210,45 @@ function MessagesPage() {
                     </button>
                   </article>
                 ) : (
-                  <article className="direct-message" data-own={message.sentByViewer}>
-                    <DirectMessageContent
-                      attachments={message.attachments}
-                      body={message.body}
-                      createdAt={message.createdAt}
-                      onOpenImage={setOpenImage}
-                    />
-                    {message.sentByViewer && <MessageDeliveryStatus state="sent" />}
-                    <button
-                      type="button"
-                      className="direct-message-report"
-                      aria-label="Report message"
-                      title="Report message"
-                      onClick={async () => {
-                        setError('')
-                        try {
-                          await report({ targetType: 'message', targetId: message._id, reason: 'Message needs safety review' })
-                          setNotice('Message sent to safety review.')
-                        } catch (reportError) {
-                          setNotice('')
-                          setError(reportError instanceof Error ? reportError.message : 'Message could not be reported.')
-                        }
-                      }}
-                    >
-                      <Flag size={14} aria-hidden="true" />
-                    </button>
-                  </article>
+                  <DirectMessageContent
+                    direction={message.sentByViewer ? 'outgoing' : 'incoming'}
+                    attachments={message.attachments}
+                    body={message.body}
+                    createdAt={message.createdAt}
+                    status={message.sentByViewer ? 'sent' : undefined}
+                    onOpenImage={setOpenImage}
+                    actions={(
+                      <button
+                        type="button"
+                        className="direct-message-report"
+                        aria-label="Report message"
+                        title="Report message"
+                        onClick={async () => {
+                          setError('')
+                          try {
+                            await report({ targetType: 'message', targetId: message._id, reason: 'Message needs safety review' })
+                            setNotice('Message sent to safety review.')
+                          } catch (reportError) {
+                            setNotice('')
+                            setError(reportError instanceof Error ? reportError.message : 'Message could not be reported.')
+                          }
+                        }}
+                      >
+                        <Flag size={14} aria-hidden="true" />
+                      </button>
+                    )}
+                  />
                 )}
               </Fragment>
             ))}
             {pendingOutgoing && !thread.messages.some((message) => message._id === pendingOutgoing.messageId) && (
-              <article className="direct-message" data-own="true" data-pending="true">
-                <div className="direct-message-bubble">
-                  {pendingOutgoing.body && <p className="direct-message-copy whitespace-pre-wrap">{pendingOutgoing.body}</p>}
-                  {pendingOutgoing.attachmentNames.length > 0 && (
-                    <p className="direct-message-pending-files">{pendingOutgoing.attachmentNames.join(', ')}</p>
-                  )}
-                  <time dateTime={new Date(pendingOutgoing.createdAt).toISOString()}>{formatMessageTime(pendingOutgoing.createdAt)}</time>
-                </div>
-                <MessageDeliveryStatus state={pendingOutgoing.messageId ? 'sent' : 'sending'} />
-              </article>
+              <PendingOutgoingMessageBubble
+                body={pendingOutgoing.body}
+                attachmentNames={pendingOutgoing.attachmentNames}
+                timestamp={formatMessageTime(pendingOutgoing.createdAt)}
+                dateTime={new Date(pendingOutgoing.createdAt).toISOString()}
+                acknowledged={Boolean(pendingOutgoing.messageId)}
+              />
             )}
             <div ref={threadEndRef} />
           </div>
@@ -296,15 +298,21 @@ function MessagesPage() {
 }
 
 function DirectMessageContent({
+  direction,
   attachments,
   body,
   createdAt,
+  status,
   onOpenImage,
+  actions,
 }: {
+  direction: 'incoming' | 'outgoing'
   attachments: ThreadAttachment[]
   body?: string
   createdAt: number
+  status?: 'sent'
   onOpenImage: (image: MessageImage) => void
+  actions?: ReactNode
 }) {
   const images = attachments.flatMap((attachment) => (
     attachment.kind === 'image' && attachment.url
@@ -312,22 +320,18 @@ function DirectMessageContent({
       : []
   ))
   const otherAttachments = attachments.filter((attachment) => attachment.kind !== 'image' || !attachment.url)
-  const hasBubble = Boolean(body || otherAttachments.length > 0)
 
   return (
-    <div className="direct-message-content" data-images={images.length > 0 ? 'true' : undefined}>
-      {images.length > 0 && <MessageImageGallery images={images} onOpen={onOpenImage} />}
-      {hasBubble && (
-        <div className="direct-message-bubble">
-          {otherAttachments.length > 0 && <MessageAttachments attachments={otherAttachments} />}
-          {body && <p className="direct-message-copy whitespace-pre-wrap">{body}</p>}
-          {images.length === 0 && <time dateTime={new Date(createdAt).toISOString()}>{formatMessageTime(createdAt)}</time>}
-        </div>
-      )}
-      {images.length > 0 && (
-        <time className="direct-message-media-time" dateTime={new Date(createdAt).toISOString()}>{formatMessageTime(createdAt)}</time>
-      )}
-    </div>
+    <MessageBubble
+      direction={direction}
+      body={body}
+      timestamp={formatMessageTime(createdAt)}
+      dateTime={new Date(createdAt).toISOString()}
+      status={status}
+      media={images.length > 0 ? <MessageImageGallery images={images} onOpen={onOpenImage} /> : undefined}
+      attachments={otherAttachments.length > 0 ? <MessageAttachments attachments={otherAttachments} /> : undefined}
+      actions={actions}
+    />
   )
 }
 
@@ -385,25 +389,36 @@ function MessageComposer({
   const [body, setBody] = useState('')
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const [sending, setSending] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const attachmentRef = useRef(attachments)
+  const cancelledRef = useRef<Set<string>>(new Set())
+  const mountedRef = useRef(true)
+  const sendingRef = useRef(false)
   attachmentRef.current = attachments
 
-  useEffect(() => () => {
-    attachmentRef.current.forEach((attachment) => {
-      if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
-    })
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      cancelledRef.current.clear()
+      attachmentRef.current.forEach((attachment) => {
+        if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+      })
+    }
   }, [])
 
   const removeAttachment = (id: string) => {
+    if (sendingRef.current) return
+    const removed = attachmentRef.current.find((attachment) => attachment.id === id)
+    if (removed?.status === 'preparing') cancelledRef.current.add(id)
+    else cancelledRef.current.delete(id)
     setAttachments((current) => {
-      const removed = current.find((attachment) => attachment.id === id)
       if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl)
       return current.filter((attachment) => attachment.id !== id)
     })
   }
 
   const addFiles = async (files: File[]) => {
+    if (sendingRef.current) return
     const available = MAX_CHAT_ATTACHMENTS - attachments.length
     if (available <= 0) {
       onError('Messages can include up to 4 files.')
@@ -420,20 +435,30 @@ function MessageComposer({
     setAttachments((current) => [...current, ...pending])
 
     for (const item of pending) {
+      if (!mountedRef.current) break
+      if (cancelledRef.current.delete(item.id)) continue
       try {
         const prepared = await prepareChatAttachment(item.source, (progress) => {
+          if (!mountedRef.current || cancelledRef.current.has(item.id) || !attachmentRef.current.some((attachment) => attachment.id === item.id)) return
           setAttachments((current) => current.map((attachment) => attachment.id === item.id ? { ...attachment, progress } : attachment))
         })
         const previewUrl = prepared.kind === 'image' || prepared.kind === 'video' ? URL.createObjectURL(prepared.file) : undefined
+        if (!mountedRef.current || cancelledRef.current.has(item.id)) {
+          if (previewUrl) URL.revokeObjectURL(previewUrl)
+          continue
+        }
         setAttachments((current) => current.map((attachment) => attachment.id === item.id
           ? { ...attachment, prepared, previewUrl, progress: 100, status: 'ready' }
           : attachment))
       } catch (caught) {
+        if (!mountedRef.current || cancelledRef.current.has(item.id)) continue
         const message = caught instanceof Error ? caught.message : 'File could not be prepared.'
         setAttachments((current) => current.map((attachment) => attachment.id === item.id
           ? { ...attachment, status: 'error', error: message }
           : attachment))
         onError(message)
+      } finally {
+        cancelledRef.current.delete(item.id)
       }
     }
   }
@@ -442,129 +467,107 @@ function MessageComposer({
   const hasErrors = attachments.some((attachment) => attachment.status === 'error')
   const canSend = Boolean(body.trim() || attachments.length > 0) && !hasPending && !hasErrors && !sending
 
-  return (
-    <form
-      className="direct-message-composer"
-      onSubmit={async (event) => {
-        event.preventDefault()
-        if (!canSend) return
-        setSending(true)
-        onError('')
-        onSending({
-          body: body.trim(),
-          attachmentNames: attachments.map((attachment) => attachment.source.name),
-          createdAt: Date.now(),
+  const send = async () => {
+    if (sendingRef.current || !canSend) return
+    sendingRef.current = true
+    setSending(true)
+    onError('')
+    onSending({
+      body: body.trim(),
+      attachmentNames: attachments.map((attachment) => attachment.source.name),
+      createdAt: Date.now(),
+    })
+    const grants: Array<{ uploadId: Id<'directMessageUploads'>; storageId?: Id<'_storage'>; claimed?: boolean }> = []
+    try {
+      for (const attachment of attachments) {
+        if (!attachment.prepared) throw new Error('Wait for every file to finish preparing.')
+        const grant = await generateUpload({})
+        const tracked = { uploadId: grant.uploadId, storageId: undefined as Id<'_storage'> | undefined, claimed: false }
+        grants.push(tracked)
+        const response = await fetch(grant.uploadUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': attachment.prepared.file.type },
+          body: attachment.prepared.file,
         })
-        const grants: Array<{ uploadId: Id<'directMessageUploads'>; storageId?: Id<'_storage'>; claimed?: boolean }> = []
-        try {
-          for (const attachment of attachments) {
-            if (!attachment.prepared) throw new Error('Wait for every file to finish preparing.')
-            const grant = await generateUpload({})
-            const tracked = { uploadId: grant.uploadId, storageId: undefined as Id<'_storage'> | undefined, claimed: false }
-            grants.push(tracked)
-            const response = await fetch(grant.uploadUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': attachment.prepared.file.type },
-              body: attachment.prepared.file,
-            })
-            if (!response.ok) throw new Error(`${attachment.source.name} could not be uploaded.`)
-            const result = await response.json() as { storageId: Id<'_storage'> }
-            tracked.storageId = result.storageId
-            await registerUpload({
-              uploadId: grant.uploadId,
-              storageId: result.storageId,
-              fileName: attachment.prepared.file.name,
-              originalSize: attachment.prepared.originalSize,
-              compressionPercent: attachment.prepared.compressionPercent,
-            })
-          }
-          const messageId = await sendMessage({
-            conversationId,
-            body,
-            attachmentUploadIds: grants.map((grant) => grant.uploadId),
-          })
-          grants.forEach((grant) => { grant.claimed = true })
-          attachments.forEach((attachment) => {
-            if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
-          })
-          setAttachments([])
-          setBody('')
-          if (fileInputRef.current) fileInputRef.current.value = ''
-          onSent(messageId)
-        } catch (caught) {
-          await Promise.allSettled(grants.filter((grant) => !grant.claimed).map((grant) => discardUpload({
-            uploadId: grant.uploadId,
-            storageId: grant.storageId,
-          })))
-          onSendFailed()
-          onError(caught instanceof Error ? caught.message : 'Message could not be sent.')
-        } finally {
-          setSending(false)
-        }
-      }}
-    >
-      {attachments.length > 0 && (
-        <div className="direct-composer-tray" aria-label="Selected files">
-          {attachments.map((attachment) => (
-            <div key={attachment.id} className="direct-composer-file" data-state={attachment.status}>
-              <AttachmentPreview attachment={attachment} />
-              <span className="min-w-0">
-                <strong>{attachment.source.name}</strong>
-                <small>
-                  {attachment.status === 'preparing'
-                    ? `Compressing · ${attachment.progress}%`
-                    : attachment.status === 'error'
-                      ? attachment.error
-                      : attachment.prepared?.compressionPercent
-                        ? `${attachment.prepared.compressionPercent}% smaller · ${formatFileSize(attachment.prepared.file.size)} from ${formatFileSize(attachment.prepared.originalSize)}`
-                        : `Original · ${formatFileSize(attachment.source.size)}`}
-                </small>
-              </span>
-              <button type="button" onClick={() => removeAttachment(attachment.id)} aria-label={`Remove ${attachment.source.name}`}>
-                <X size={14} aria-hidden="true" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="direct-composer-controls">
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="sr-only"
-          accept="image/*,video/*,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-          onChange={(event) => {
-            void addFiles(Array.from(event.currentTarget.files ?? []))
-            event.currentTarget.value = ''
-          }}
+        if (!response.ok) throw new Error(`${attachment.source.name} could not be uploaded.`)
+        const result = await response.json() as { storageId: Id<'_storage'> }
+        tracked.storageId = result.storageId
+        await registerUpload({
+          uploadId: grant.uploadId,
+          storageId: result.storageId,
+          fileName: attachment.prepared.file.name,
+          originalSize: attachment.prepared.originalSize,
+          compressionPercent: attachment.prepared.compressionPercent,
+        })
+      }
+      const messageId = await sendMessage({
+        conversationId,
+        body,
+        attachmentUploadIds: grants.map((grant) => grant.uploadId),
+      })
+      grants.forEach((grant) => { grant.claimed = true })
+      attachments.forEach((attachment) => {
+        if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+      })
+      setAttachments([])
+      setBody('')
+      onSent(messageId)
+    } catch (caught) {
+      await Promise.allSettled(grants.filter((grant) => !grant.claimed).map((grant) => discardUpload({
+        uploadId: grant.uploadId,
+        storageId: grant.storageId,
+      })))
+      onSendFailed()
+      onError(caught instanceof Error ? caught.message : 'Message could not be sent.')
+    } finally {
+      setSending(false)
+      sendingRef.current = false
+    }
+  }
+
+  return (
+    <CompactComposer
+      variant="thread"
+      value={body}
+      placeholder={`Message ${recipientName}`}
+      canSubmit={canSend}
+      sending={sending}
+      preparing={hasPending}
+      attachments={attachments.length > 0 ? attachments.map((attachment) => (
+        <AttachmentMetaRow
+          key={attachment.id}
+          leading={<AttachmentPreview attachment={attachment} />}
+          name={attachment.source.name}
+          detail={attachment.status === 'preparing'
+            ? 'Compressing media before upload'
+            : attachment.status === 'error'
+              ? attachment.error
+              : attachment.prepared?.compressionPercent
+                ? `${attachment.prepared.compressionPercent}% smaller · ${formatFileSize(attachment.prepared.file.size)} from ${formatFileSize(attachment.prepared.originalSize)}`
+                : `Original · ${formatFileSize(attachment.source.size)}`}
+          state={attachment.status === 'preparing'
+            ? `${attachment.progress}%`
+            : attachment.status === 'error'
+              ? 'Preparation failed'
+              : 'Ready'}
+          stateTone={attachment.status === 'preparing'
+            ? 'progress'
+            : attachment.status === 'error'
+              ? 'danger'
+              : 'success'}
+          action={(
+            <button type="button" className="ds-compact-composer-remove" onClick={() => removeAttachment(attachment.id)} disabled={sending} aria-label={`Remove ${attachment.source.name}`}>
+              <X size={14} aria-hidden="true" />
+            </button>
+          )}
         />
-        <button type="button" className="direct-attach-button" onClick={() => fileInputRef.current?.click()} disabled={sending || attachments.length >= MAX_CHAT_ATTACHMENTS} aria-label="Attach files" title="Attach files">
-          <Paperclip size={18} aria-hidden="true" />
-        </button>
-        <textarea
-          name="body"
-          className="field"
-          rows={1}
-          maxLength={2000}
-          value={body}
-          onChange={(event) => setBody(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault()
-              event.currentTarget.form?.requestSubmit()
-            }
-          }}
-          placeholder={`Message ${recipientName}`}
-          aria-label="Message"
-        />
-        <button className="btn btn-social direct-send-button" disabled={!canSend}>
-          {sending || hasPending ? <LoaderCircle className="direct-spinner" size={16} aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}
-          <span>{sending ? 'Sending…' : hasPending ? 'Preparing…' : 'Send'}</span>
-        </button>
-      </div>
-      <p className="direct-composer-hint">Press Enter to send · Shift+Enter for a new line · Large media is compressed automatically</p>
-    </form>
+      )) : undefined}
+      onFilesSelected={(files) => { void addFiles(files) }}
+      attachDisabled={attachments.length >= MAX_CHAT_ATTACHMENTS}
+      onChange={setBody}
+      onSubmit={() => { void send() }}
+      hint={<>Press Enter to send · Shift+Enter for a new line · Large media is compressed automatically</>}
+    />
   )
 }
 
@@ -596,27 +599,15 @@ function ConversationList({
           className="conversation-rail-link"
           aria-current={conversation._id === selectedConversationId ? 'page' : undefined}
         >
-          <Avatar name={conversation.otherDisplayName} src={conversation.otherProfileImageUrl} decorative />
-          <span className="min-w-0">
-            <strong>{conversation.otherDisplayName}</strong>
-            <span>{conversation.lastMessageBody
-              ? `${conversation.lastMessageSentByViewer ? 'You: ' : ''}${conversation.lastMessageBody}`
-              : conversation.lastMessageAttachmentCount > 0
-                ? `${conversation.lastMessageSentByViewer ? 'You: ' : ''}${conversation.lastMessageAttachmentCount === 1 ? 'Sent a file' : `Sent ${conversation.lastMessageAttachmentCount} files`}`
-                : 'Start a conversation'}</span>
-          </span>
-          <span className="conversation-card-trailing">
-            {conversation.lastMessageCreatedAt !== undefined && (
-              <time dateTime={new Date(conversation.lastMessageCreatedAt).toISOString()}>
-                {formatConversationListTime(conversation.lastMessageCreatedAt)}
-              </time>
-            )}
-            {conversation.unreadCount > 0 && (
-              <span className="conversation-unread-badge tabular" aria-label={`${conversation.unreadCount} unread message${conversation.unreadCount === 1 ? '' : 's'}`}>
-                {conversation.unreadCount}
-              </span>
-            )}
-          </span>
+          <ConversationListItemContent
+            name={conversation.otherDisplayName}
+            imageUrl={conversation.otherProfileImageUrl}
+            preview={conversationPreview(conversation)}
+            timeLabel={conversation.lastMessageCreatedAt === undefined ? undefined : formatConversationListTime(conversation.lastMessageCreatedAt)}
+            dateTime={conversation.lastMessageCreatedAt === undefined ? undefined : new Date(conversation.lastMessageCreatedAt).toISOString()}
+            unreadCount={conversation.unreadCount}
+            suspended={conversation.otherUserSuspended}
+          />
         </Link>
       ))}
       <Link to="/discover" className="btn btn-social btn-sm mt-3">Find people</Link>
@@ -645,6 +636,14 @@ function formatMessageTime(timestamp: number) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(timestamp)
+}
+
+function conversationPreview(conversation: Conversation) {
+  const viewerPrefix = conversation.lastMessageSentByViewer ? 'You: ' : ''
+  if (conversation.lastMessageBody) return `${viewerPrefix}${conversation.lastMessageBody}`
+  if (conversation.lastMessageAttachmentCount === 1) return `${viewerPrefix}Sent a file`
+  if (conversation.lastMessageAttachmentCount > 1) return `${viewerPrefix}Sent ${conversation.lastMessageAttachmentCount} files`
+  return 'Start a conversation'
 }
 
 function formatConversationListTime(timestamp: number) {

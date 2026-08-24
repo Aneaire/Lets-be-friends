@@ -1,7 +1,8 @@
 import { activityCategories, calculateMemberWalletBookingPrice } from '@lets-be-friends/shared'
-import { X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Id } from '../../../convex/_generated/dataModel'
+import { Button } from '../../design-system/atoms/Button'
+import { Dialog } from '../../design-system/molecules/Dialog'
 import { BookingRequestFields } from './BookingRequestFields'
 
 export type SaveBookingRequest = {
@@ -38,7 +39,6 @@ export function BookingRequestEditor({
   onClose: () => void
   onSave: (request: SaveBookingRequest) => Promise<void>
 }) {
-  const dialogRef = useRef<HTMLDivElement>(null)
   const [category, setCategory] = useState(booking.category)
   const [mode, setMode] = useState<'online' | 'in_person'>(booking.mode)
   const [durationMinutes, setDurationMinutes] = useState(booking.durationMinutes)
@@ -64,24 +64,6 @@ export function BookingRequestEditor({
   useEffect(() => {
     if (!modeOptions.includes(mode)) setMode(modeOptions[0])
   }, [modeOptions, mode])
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    const focusFrame = window.requestAnimationFrame(() => dialogRef.current?.focus())
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !busy) {
-        event.preventDefault()
-        onClose()
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.cancelAnimationFrame(focusFrame)
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
-    }
-  }, [onClose, busy])
 
   function submit() {
     if (busy) return
@@ -109,66 +91,47 @@ export function BookingRequestEditor({
   }
 
   return (
-    <div
-      className="booking-dialog-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose()
-      }}
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Update the plan with ${booking.companionDisplayName}`}
+      description="Edit your request"
+      closeLabel="Close edit dialog"
+      busy={busy}
+      className="booking-request-editor-dialog"
+      bodyClassName="booking-request-editor-body"
+      footer={(
+        <>
+          <Button intent="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
+          <Button intent="social" loading={busy} loadingLabel="Saving" onClick={submit}>Save changes</Button>
+        </>
+      )}
     >
-      <div
-        ref={dialogRef}
-        id="booking-edit-dialog"
-        className="booking-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="booking-edit-dialog-title"
-        tabIndex={-1}
-      >
-        <header className="booking-dialog-header">
-          <div>
-            <p className="eyebrow">Edit your request</p>
-            <h2 id="booking-edit-dialog-title" className="text-h2 mt-1">Update the plan with {booking.companionDisplayName}</h2>
-          </div>
-          <button type="button" className="social-icon-button booking-dialog-close" aria-label="Close edit dialog" onClick={onClose} disabled={busy}>
-            <X size={16} aria-hidden="true" />
-          </button>
-        </header>
+      {error && <div className="notice notice-danger text-meta" role="alert"><span className="notice-icon">!</span><span>{error}</span></div>}
 
-        <div className="booking-dialog-body">
-          {error && <div className="notice notice-danger text-meta" role="alert"><span className="notice-icon">!</span><span>{error}</span></div>}
-
-          <BookingRequestFields
-            category={category}
-            categoryOptions={categoryOptions}
-            onCategoryChange={setCategory}
-            mode={mode}
-            modeOptions={modeOptions}
-            onModeChange={setMode}
-            durationMinutes={durationMinutes}
-            onDurationMinutesChange={setDurationMinutes}
-            requestedAt={requestedAt}
-            requestedTime={requestedTime}
-            onRequestedDayChange={(date) => {
-              const [hours, minutes] = requestedTime.split(':').map(Number)
-              const next = new Date(date)
-              next.setHours(hours || 0, minutes || 0, 0, 0)
-              setRequestedAt(next)
-            }}
-            onRequestedTimeChange={setRequestedTime}
-            notes={notes}
-            onNotesChange={setNotes}
-            estimate={estimate}
-            disabled={busy}
-          />
-
-          <div className="flex gap-2 flex-wrap">
-            <button type="button" className="btn btn-social" disabled={busy} onClick={submit}>
-              {busy ? 'Saving…' : 'Save changes'}
-            </button>
-            <button type="button" className="btn btn-neutral" disabled={busy} onClick={onClose}>Cancel</button>
-          </div>
-        </div>
-      </div>
-    </div>
+      <BookingRequestFields
+        category={category}
+        categoryOptions={categoryOptions}
+        onCategoryChange={setCategory}
+        mode={mode}
+        modeOptions={modeOptions}
+        onModeChange={setMode}
+        durationMinutes={durationMinutes}
+        onDurationMinutesChange={setDurationMinutes}
+        requestedAt={requestedAt}
+        requestedTime={requestedTime}
+        onRequestedDayChange={(date) => {
+          const [hours, minutes] = requestedTime.split(':').map(Number)
+          const next = new Date(date)
+          next.setHours(hours || 0, minutes || 0, 0, 0)
+          setRequestedAt(next)
+        }}
+        onRequestedTimeChange={setRequestedTime}
+        notes={notes}
+        onNotesChange={setNotes}
+        estimate={estimate}
+        disabled={busy}
+      />
+    </Dialog>
   )
 }

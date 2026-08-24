@@ -32,6 +32,7 @@ const preview: Preview = {
       },
     },
   },
+  initialGlobals: { viewport: 'mobileDefault', theme: 'light' },
   decorators: [
     (Story, context) => {
       const dark = context.globals.theme === 'dark'

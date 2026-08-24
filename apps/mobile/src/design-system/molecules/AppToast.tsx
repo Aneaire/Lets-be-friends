@@ -1,12 +1,9 @@
-import Toast, { type ToastConfig, type ToastConfigParams } from 'react-native-toast-message'
+import Toast, { type ToastConfig } from 'react-native-toast-message'
 import { useEffect } from 'react'
-import { StyleSheet, View } from 'react-native'
 
-import { useAppTheme } from '@/theme/ThemeProvider'
 import { useReducedMotion } from '@/utils/accessibility'
 
-import { AppIcon, type AppIconName } from '@/design-system/atoms/AppIcon'
-import { AppText } from '@/design-system/atoms/Typography'
+import { ToastCardPresentation } from './ToastCardPresentation'
 
 export type AppToastTone = 'info' | 'success' | 'error'
 
@@ -40,13 +37,30 @@ export function useAppToastMessage(message: string | null | undefined) {
 }
 
 export function AppToastHost() {
-  const theme = useAppTheme()
   const reduceMotion = useReducedMotion()
 
   const config: ToastConfig = {
-    appInfo: (params) => <ToastCard {...params} icon="information-circle-outline" accent={theme.colors.self} live="polite" />,
-    appSuccess: (params) => <ToastCard {...params} icon="checkmark-circle-outline" accent={theme.colors.social} live="polite" />,
-    appError: (params) => <ToastCard {...params} icon="alert-circle-outline" accent={theme.colors.danger} live="assertive" />,
+    appInfo: ({ text1, onPress }) => (
+      <ToastCardPresentation
+        message={text1 ?? ''}
+        tone="info"
+        onPress={onPress ?? hideAppToast}
+      />
+    ),
+    appSuccess: ({ text1, onPress }) => (
+      <ToastCardPresentation
+        message={text1 ?? ''}
+        tone="success"
+        onPress={onPress ?? hideAppToast}
+      />
+    ),
+    appError: ({ text1, onPress }) => (
+      <ToastCardPresentation
+        message={text1 ?? ''}
+        tone="error"
+        onPress={onPress ?? hideAppToast}
+      />
+    ),
   }
 
   return (
@@ -60,46 +74,3 @@ export function AppToastHost() {
     />
   )
 }
-
-function ToastCard({ text1, onPress, icon, accent, live }: ToastConfigParams<unknown> & {
-  icon: AppIconName
-  accent: string
-  live: 'polite' | 'assertive'
-}) {
-  const theme = useAppTheme()
-
-  return (
-    <View
-      accessibilityRole="alert"
-      accessibilityLiveRegion={live}
-      onTouchEnd={onPress}
-      style={[
-        styles.card,
-        { backgroundColor: theme.colors.surfaceRaised, borderColor: accent },
-      ]}>
-      <AppIcon name={icon} color={accent} size={22} />
-      <AppText variant="bodyStrong" style={styles.copy}>{text1}</AppText>
-    </View>
-  )
-}
-
-const styles = StyleSheet.create({
-  card: {
-    width: '92%',
-    maxWidth: 560,
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  copy: { flex: 1 },
-})

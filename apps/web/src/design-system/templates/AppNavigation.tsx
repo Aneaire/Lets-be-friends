@@ -24,6 +24,7 @@ import { activePrimaryNavigation, primaryNavigation } from '../../lib/navigation
 import { formatNotificationTime, webDestination, type NotificationDestination } from '../../lib/notifications'
 import { BrandLogo } from '../atoms/BrandLogo'
 import { ThemeToggle } from '../atoms/ThemeToggle'
+import { NotificationItemContent } from '../molecules/NotificationItemContent'
 
 const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -275,6 +276,7 @@ function HeaderSearchIdentity({ person }: { person: HeaderSearchPerson }) {
 function NotificationNavigation() {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const unreadCount = useQuery(api.notifications.unreadCount) ?? 0
   const notifications = useQuery(api.notifications.recent, { limit: 6 })
   const conversations = useQuery(api.conversations.list, {})
@@ -288,7 +290,10 @@ function NotificationNavigation() {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
     }
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setOpen(false)
+      requestAnimationFrame(() => triggerRef.current?.focus())
     }
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
@@ -299,20 +304,30 @@ function NotificationNavigation() {
   }, [open])
 
   return <div className="notification-navigation" ref={rootRef}>
-    <button type="button" className="notification-trigger" aria-label={unreadCount ? `Open notifications, ${unreadCount} unread` : 'Open notifications'} aria-expanded={open} aria-controls="notification-panel" onClick={() => setOpen((value) => !value)}>
+    <button ref={triggerRef} type="button" className="notification-trigger" aria-label={unreadCount ? `Open notifications, ${unreadCount} unread` : 'Open notifications'} aria-haspopup="dialog" aria-expanded={open} aria-controls="notification-panel" onClick={() => setOpen((value) => !value)}>
       <Bell size={19} aria-hidden="true" />
       {unreadCount > 0 && <span className="notification-badge tabular">{unreadCount > 99 ? '99+' : unreadCount}</span>}
     </button>
-    {open && <section id="notification-panel" className="notification-panel" aria-label="Latest notifications">
-      <header><strong>Notifications</strong><button type="button" disabled={!unreadCount} onClick={() => void markAllRead()}><CheckCheck size={14} />Mark all as read</button></header>
-      {messagesUnread > 0 && <Link to="/messages" className="notification-message-summary" onClick={() => setOpen(false)}><MessageCircle size={16} /><span><strong>Messages</strong><small>{messagesUnread} unread {messagesUnread === 1 ? 'message' : 'messages'}</small></span></Link>}
+    {open && <section id="notification-panel" className="notification-panel" role="dialog" aria-label="Latest notifications">
+      <header><strong>Notifications</strong><button type="button" disabled={!unreadCount} onClick={() => void markAllRead()}><CheckCheck size={14} aria-hidden="true" />Mark all as read</button></header>
+      {messagesUnread > 0 && <Link to="/messages" className="notification-message-summary" onClick={() => setOpen(false)}><MessageCircle size={16} aria-hidden="true" /><span><strong>Messages</strong><small>{messagesUnread} unread {messagesUnread === 1 ? 'message' : 'messages'}</small></span></Link>}
       <div className="notification-panel-list">
         {notifications === undefined ? <p className="notification-panel-state">Loading...</p> : notifications.length === 0 ? <p className="notification-panel-state">You are all caught up.</p> : notifications.map((notification) => {
           const destination = webDestination(notification.destination as NotificationDestination)
-          return <Link key={notification.id} {...destination} className="notification-panel-item" data-unread={!notification.readAt} data-tone={notification.tone} onClick={() => {
+          return <Link key={notification.id} {...destination} className="notification-panel-item" onClick={() => {
             setOpen(false)
             if (!notification.readAt) void markRead({ notificationId: notification.id as never })
-          }}><span className="notification-dot" /><span><strong>{notification.title}</strong><small>{notification.body}</small><time>{formatNotificationTime(notification.createdAt)}</time></span></Link>
+          }}>
+            <NotificationItemContent
+              title={notification.title}
+              body={notification.body}
+              timeLabel={formatNotificationTime(notification.createdAt)}
+              dateTime={new Date(notification.createdAt).toISOString()}
+              density="compact"
+              tone={notification.tone}
+              unread={!notification.readAt}
+            />
+          </Link>
         })}
       </div>
       <Link to="/notifications" className="notification-panel-footer" onClick={() => setOpen(false)}>View all</Link>

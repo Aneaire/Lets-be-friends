@@ -10,8 +10,22 @@ const config: StorybookConfig = {
     name: '@storybook/react-vite',
     options: {},
   },
-  staticDirs: ['../apps/web/public'],
+  staticDirs: [
+    { from: '../apps/web/public', to: '/' },
+    { from: '../apps/admin/public', to: '/admin-assets' },
+  ],
   docs: { defaultName: 'Documentation' },
+  viteFinal: async (viteConfig) => ({
+    ...viteConfig,
+    resolve: {
+      ...viteConfig.resolve,
+      dedupe: [
+        ...(viteConfig.resolve?.dedupe ?? []),
+        'react',
+        'react-dom',
+      ],
+    },
+  }),
 }
 
 export default config

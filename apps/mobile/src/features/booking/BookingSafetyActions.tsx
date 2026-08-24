@@ -1,7 +1,7 @@
 import type { BookingStatus } from '@lets-be-friends/shared'
 import { useMutation } from 'convex/react'
 import { useRef, useState } from 'react'
-import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type BookingId } from '@/backend/client'
 import {
@@ -12,7 +12,11 @@ import {
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { TextField } from '@/design-system/atoms/Field'
 import { AppText } from '@/design-system/atoms/Typography'
+import { Dialog } from '@/design-system/molecules/Dialog'
+import { FormField } from '@/design-system/molecules/FormField'
+import { density } from '@/theme/tokens'
 
 export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
   bookingId: BookingId
@@ -102,88 +106,106 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
         ? <ActionButton label="Report sent" onPress={() => undefined} disabled secondary />
         : <ActionButton label="Report this booking" onPress={() => open('report')} secondary />}
       {message ? <AppText accessibilityLiveRegion="polite" variant="caption" color={theme.colors.textMuted}>{message}</AppText> : null}
-      <Modal visible={form !== null} transparent animationType="fade" onRequestClose={close}>
-        <View style={[styles.scrim, { backgroundColor: theme.colors.scrim }]}>
-          <View style={[styles.modal, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalTitle}>
-                <AppText variant="heading">{form === 'report' ? 'Report this booking' : 'Review this booking'}</AppText>
-                <AppText variant="caption" color={theme.colors.textMuted}>
-                  {form === 'report'
-                    ? 'Describe what happened. This goes to the safety review team and may place a hold on booking funds.'
-                    : 'Choose a rating from 1 to 5. Written feedback is optional.'}
-                </AppText>
+      <Dialog
+        visible={form !== null}
+        onClose={close}
+        closeLabel="Close form"
+        title={form === 'report' ? 'Report this booking' : 'Review this booking'}
+        description={form === 'report'
+          ? 'Describe what happened. This goes to the safety review team and may place a hold on booking funds.'
+          : 'Choose a rating from 1 to 5. Written feedback is optional.'}
+        busy={busy}
+        footer={(
+          <View style={styles.actions}>
+            <ActionButton
+              label={form === 'report' ? 'Send report' : 'Submit review'}
+              onPress={() => { void (form === 'report' ? report() : review()) }}
+              intent={form === 'report' ? 'danger' : 'social'}
+              loading={busy}
+            />
+            <ActionButton label="Cancel" onPress={close} intent="neutral" disabled={busy} secondary />
+          </View>
+        )}>
+        <View style={styles.form}>
+          {form === 'report' ? (
+            <FormField
+              label="Report details"
+              error={reason.length > 2_000 ? 'Report details can be up to 2,000 characters.' : undefined}
+              hint={`${reason.length}/2,000 characters`}>
+              <TextField
+                value={reason}
+                onChangeText={(value) => { setReason(value); setMessage('') }}
+                placeholder="Explain why this booking needs a safety review"
+                multiline
+                maxLength={2_001}
+                editable={!busy}
+                style={styles.multiline}
+              />
+            </FormField>
+          ) : (
+            <>
+              <View accessibilityRole="radiogroup" style={styles.ratings}>
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <Pressable
+                    key={value}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`${value} star${value === 1 ? '' : 's'}`}
+                    accessibilityState={{ checked: rating === value, disabled: busy }}
+                    disabled={busy}
+                    onPress={() => { setRating(value); setMessage('') }}
+                    style={({ pressed }) => [
+                      styles.rating,
+                      {
+                        borderColor: rating === value ? theme.colors.socialControl : theme.colors.border,
+                        backgroundColor: rating === value ? theme.colors.socialSoft : theme.colors.surfaceRaised,
+                      },
+                      busy && styles.disabled,
+                      pressed && styles.pressed,
+                    ]}>
+                    <AppText variant="bodyStrong" color={rating === value ? theme.colors.socialText : theme.colors.text}>{value} ★</AppText>
+                  </Pressable>
+                ))}
               </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Close form" disabled={busy} onPress={close} style={styles.close}>
-                <AppText variant="heading">×</AppText>
-              </Pressable>
-            </View>
-            {form === 'report' ? (
-              <>
-                <TextInput
-                  accessibilityLabel="Booking report reason"
-                  value={reason}
-                  onChangeText={(value) => { setReason(value); setMessage('') }}
-                  placeholder="Explain why this booking needs a safety review"
-                  placeholderTextColor={theme.colors.textMuted}
-                  multiline
-                  maxLength={2_001}
-                  editable={!busy}
-                  style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surfaceRaised, borderColor: reason.length > 2_000 ? theme.colors.danger : theme.colors.border }]}
-                />
-                <AppText variant="caption" color={reason.length > 2_000 ? theme.colors.danger : theme.colors.textMuted}>{reason.length}/2,000</AppText>
-                <ActionButton label={busy ? 'Sending report' : 'Send report'} onPress={() => void report()} disabled={busy} />
-              </>
-            ) : (
-              <>
-                <View accessibilityRole="radiogroup" style={styles.ratings}>
-                  {[1, 2, 3, 4, 5].map((value) => (
-                    <Pressable
-                      key={value}
-                      accessibilityRole="radio"
-                      accessibilityLabel={`${value} star${value === 1 ? '' : 's'}`}
-                      accessibilityState={{ checked: rating === value, disabled: busy }}
-                      disabled={busy}
-                      onPress={() => { setRating(value); setMessage('') }}
-                      style={[styles.rating, { borderColor: rating === value ? theme.colors.social : theme.colors.border, backgroundColor: rating === value ? theme.colors.socialSoft : theme.colors.surfaceRaised }]}>
-                      <AppText variant="bodyStrong" color={rating === value ? theme.colors.social : theme.colors.text}>{value} ★</AppText>
-                    </Pressable>
-                  ))}
-                </View>
-                <TextInput
-                  accessibilityLabel="Review text, optional"
+              <FormField
+                label="Review"
+                optional
+                error={reviewBody.length > 2_000 ? 'Reviews can be up to 2,000 characters.' : undefined}
+                hint={`${reviewBody.length}/2,000 characters`}>
+                <TextField
                   value={reviewBody}
                   onChangeText={(value) => { setReviewBody(value); setMessage('') }}
                   placeholder="Share optional feedback"
-                  placeholderTextColor={theme.colors.textMuted}
                   multiline
                   maxLength={2_001}
                   editable={!busy}
-                  style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surfaceRaised, borderColor: reviewBody.length > 2_000 ? theme.colors.danger : theme.colors.border }]}
+                  style={styles.multiline}
                 />
-                <AppText variant="caption" color={reviewBody.length > 2_000 ? theme.colors.danger : theme.colors.textMuted}>{reviewBody.length}/2,000</AppText>
-                <ActionButton label={busy ? 'Submitting review' : 'Submit review'} onPress={() => void review()} disabled={busy} />
-              </>
-            )}
-            {message && form ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{message}</AppText> : null}
-            <ActionButton label="Cancel" onPress={close} disabled={busy} secondary />
-          </View>
+              </FormField>
+            </>
+          )}
+          {message && form ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{message}</AppText> : null}
         </View>
-      </Modal>
+      </Dialog>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  section: { gap: 10 },
-  copy: { gap: 4 },
-  scrim: { flex: 1, padding: 14, justifyContent: 'center' },
-  modal: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 12, maxHeight: '90%' },
-  modalHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  modalTitle: { flex: 1, gap: 4 },
-  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  input: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14 },
-  multiline: { minHeight: 120, paddingTop: 13, textAlignVertical: 'top' },
-  ratings: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  rating: { minWidth: 54, minHeight: 44, borderWidth: 1, borderRadius: 999, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  section: { gap: density.cardGap },
+  copy: { gap: density.textStackGap },
+  form: { gap: density.cardGap },
+  actions: { gap: density.cardGap },
+  multiline: { minHeight: 120 },
+  ratings: { flexDirection: 'row', flexWrap: 'wrap', gap: density.cardGap },
+  rating: {
+    minWidth: 54,
+    minHeight: density.controlHeight,
+    borderWidth: 1,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  disabled: { opacity: 0.52 },
+  pressed: { opacity: 0.76 },
 })

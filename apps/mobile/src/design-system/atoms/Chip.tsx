@@ -5,7 +5,7 @@ import { AppText } from '@/design-system/atoms/Typography'
 
 export function Chip({ label, selected = false, onPress, accent = 'social', accessibilityLabel }: { label: string; selected?: boolean; onPress?: () => void; accent?: 'social' | 'self'; accessibilityLabel?: string }) {
   const theme = useAppTheme()
-  const accentColor = theme.colors[accent]
+  const accentColor = accent === 'self' ? theme.colors.selfControl : theme.colors.socialControl
 
   if (!onPress) {
     return (
@@ -20,6 +20,7 @@ export function Chip({ label, selected = false, onPress, accent = 'social', acce
       accessibilityRole="button"
       accessibilityState={{ selected }}
       accessibilityLabel={accessibilityLabel ?? label}
+      aria-pressed={selected}
       onPress={onPress}
       hitSlop={6}
       style={({ pressed }) => [

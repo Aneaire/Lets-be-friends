@@ -25,15 +25,15 @@ export function CompanionCard({ companion }: { companion: DiscoveryCompanionView
       <View style={styles.content}>
         <View style={styles.nameRow}>
           <AppText variant="bodyStrong" numberOfLines={1}>{companion.name}</AppText>
-          {companion.verified ? <View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.self }]} /> : null}
+          {companion.verified ? <View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.textMuted }]} /> : null}
         </View>
         <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{isCompanion ? [companion.location, companion.distanceLabel].filter(Boolean).join(' · ') : 'Member'}</AppText>
         <AppText numberOfLines={2}>{companion.intro}</AppText>
-        <AppText variant="caption" color={theme.colors.social} numberOfLines={1}>{companion.strengths.slice(0, 3).join(' · ')}</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{companion.strengths.slice(0, 3).join(' · ')}</AppText>
         <View style={styles.meta}>
           {isCompanion ? <AppText variant="caption" color={theme.colors.textMuted}>{format}</AppText> : null}
           {isCompanion ? <AppText variant="caption" color={theme.colors.textMuted}>{typeof companion.rating === 'number' && companion.reviewCount ? `★ ${companion.rating.toFixed(1)} (${companion.reviewCount})` : 'New Companion'}</AppText> : null}
-          {companion.rateLabel ? <AppText variant="caption" color={theme.colors.social}>{companion.rateLabel}</AppText> : null}
+          {companion.rateLabel ? <AppText variant="caption" color={theme.colors.textMuted}>{companion.rateLabel}</AppText> : null}
         </View>
       </View>
     </Pressable>

@@ -10,12 +10,14 @@ export function CommentBubble({
   author,
   imageUrl,
   timestamp,
+  authorAction,
   children,
   action,
 }: {
   author: string
   imageUrl?: string | null
   timestamp: string
+  authorAction?: ReactNode
   children: ReactNode
   action?: ReactNode
 }) {
@@ -26,7 +28,7 @@ export function CommentBubble({
       <Avatar uri={imageUrl ?? undefined} name={author} size={32} />
       <View style={styles.copy}>
         <View style={styles.header}>
-          <AppText variant="bodyStrong" numberOfLines={1}>{author}</AppText>
+          {authorAction ?? <AppText variant="bodyStrong" numberOfLines={1}>{author}</AppText>}
           <AppText variant="caption" color={theme.colors.textMuted}>·</AppText>
           <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{timestamp}</AppText>
           {action ? <View style={styles.action}>{action}</View> : null}

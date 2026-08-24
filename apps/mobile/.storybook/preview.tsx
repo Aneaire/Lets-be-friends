@@ -1,5 +1,6 @@
 import type { Preview } from '@storybook/react-native-web-vite'
 import { View } from 'react-native'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import { AppThemeProvider } from '../src/theme/ThemeProvider'
 import { resolveTheme, type ColorScheme } from '../src/theme/tokens'
@@ -30,12 +31,26 @@ const preview: Preview = {
     (Story, context) => {
       const scheme: ColorScheme = context.globals.theme === 'dark' ? 'dark' : 'light'
       const theme = resolveTheme(scheme)
+      const canvasPadding = context.parameters.mobileCanvasPadding ?? 16
+
       return (
-      <AppThemeProvider scheme={scheme}>
-        <View style={{ flex: 1, minHeight: '100vh' as never, padding: 16, backgroundColor: theme.colors.background }}>
-          <Story />
-        </View>
-      </AppThemeProvider>
+        <SafeAreaProvider
+          initialMetrics={{
+            frame: { x: 0, y: 0, width: 390, height: 844 },
+            insets: { top: 24, right: 0, bottom: 24, left: 0 },
+          }}>
+          <AppThemeProvider scheme={scheme}>
+            <View
+              style={{
+                flex: 1,
+                minHeight: '100vh' as never,
+                padding: canvasPadding,
+                backgroundColor: theme.colors.background,
+              }}>
+              <Story />
+            </View>
+          </AppThemeProvider>
+        </SafeAreaProvider>
       )
     },
   ],

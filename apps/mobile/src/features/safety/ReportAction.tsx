@@ -1,12 +1,16 @@
 import { useMutation } from 'convex/react'
 import { useRef, useState } from 'react'
-import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { TextField } from '@/design-system/atoms/Field'
 import { AppText } from '@/design-system/atoms/Typography'
+import { BottomSheet } from '@/design-system/molecules/BottomSheet'
+import { FormField } from '@/design-system/molecules/FormField'
+import { density } from '@/theme/tokens'
 
 type ReportTarget = 'profile' | 'message' | 'review' | 'post' | 'comment' | 'user'
 
@@ -33,6 +37,11 @@ export function ReportAction({ targetType, targetId, label, compact = false, ope
   function setOpen(next: boolean) {
     if (controlledOpen === undefined) setInternalOpen(next)
     onOpenChange?.(next)
+  }
+
+  function close() {
+    if (busyRef.current) return
+    setOpen(false)
   }
 
   async function submit() {
@@ -77,44 +86,44 @@ export function ReportAction({ targetType, targetId, label, compact = false, ope
       ) : showTrigger ? (
         <ActionButton label={reported ? 'Report sent' : label} onPress={() => { setMessage(''); setOpen(true) }} intent="danger" secondary disabled={reported} />
       ) : null}
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => !busy && setOpen(false)}>
-        <View style={[styles.scrim, { backgroundColor: theme.colors.scrim }]}>
-          <View style={[styles.sheet, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-            <View style={styles.header}>
-              <View style={styles.copy}>
-                <AppText variant="heading">Send a safety report</AppText>
-                <AppText variant="caption" color={theme.colors.textMuted}>Reports are private. Include only the details needed for review.</AppText>
-              </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Close report" disabled={busy} onPress={() => setOpen(false)} style={styles.close}><AppText variant="heading">×</AppText></Pressable>
-            </View>
-            <TextInput
-              accessibilityLabel="Report details"
+      <BottomSheet
+        visible={open}
+        onClose={close}
+        closeLabel="Close report"
+        title="Send a safety report"
+        description="Reports are private. Include only the details needed for review."
+        busy={busy}
+        footer={(
+          <View style={styles.actions}>
+            <ActionButton label="Send report" onPress={() => void submit()} intent="danger" loading={busy} />
+            <ActionButton label="Cancel" onPress={close} intent="neutral" secondary disabled={busy} />
+          </View>
+        )}>
+        <View style={styles.form}>
+          <FormField
+            label="Report details"
+            error={reason.length > 2_000 ? 'Report details can be up to 2,000 characters.' : undefined}
+            hint={`${reason.length}/2,000 characters`}>
+            <TextField
               value={reason}
               onChangeText={(value) => { setReason(value); setMessage('') }}
               placeholder="What happened?"
-              placeholderTextColor={theme.colors.textMuted}
               multiline
               maxLength={2_001}
               editable={!busy}
-              style={[styles.input, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surfaceRaised, borderColor: reason.length > 2_000 ? theme.colors.danger : theme.colors.border }]}
+              style={styles.input}
             />
-            <AppText variant="caption" color={reason.length > 2_000 ? theme.colors.danger : theme.colors.textMuted}>{reason.length}/2,000</AppText>
-            {message ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{message}</AppText> : null}
-            <ActionButton label={busy ? 'Sending report' : 'Send report'} onPress={() => void submit()} intent="danger" disabled={busy} />
-            <ActionButton label="Cancel" onPress={() => setOpen(false)} intent="danger" secondary disabled={busy} />
-          </View>
+          </FormField>
+          {message ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{message}</AppText> : null}
         </View>
-      </Modal>
+      </BottomSheet>
     </>
   )
 }
 
 const styles = StyleSheet.create({
-  compact: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
-  scrim: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderWidth: 1, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 14, paddingBottom: 28, gap: 12 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  copy: { flex: 1, gap: 3 },
-  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  input: { minHeight: 128, borderWidth: 1, borderRadius: 12, padding: 13, textAlignVertical: 'top' },
+  compact: { minHeight: density.controlHeight, justifyContent: 'center', paddingHorizontal: density.textStackGap },
+  form: { gap: density.cardGap },
+  actions: { gap: density.cardGap },
+  input: { minHeight: 128 },
 })

@@ -19,7 +19,7 @@ export function ActionButton({
 }: {
   label: string
   onPress: () => void
-  intent?: 'social' | 'self' | 'danger'
+  intent?: 'neutral' | 'social' | 'self' | 'danger'
   secondary?: boolean
   disabled?: boolean
   accessibilityHint?: string
@@ -29,7 +29,21 @@ export function ActionButton({
   loading?: boolean
 }) {
   const theme = useAppTheme()
-  const accent = intent === 'self' ? theme.colors.selfControl : intent === 'social' ? theme.colors.socialControl : theme.colors.danger
+  const control = intent === 'neutral'
+    ? theme.colors.inverse
+    : intent === 'self'
+      ? theme.colors.selfControl
+      : intent === 'social'
+        ? theme.colors.socialControl
+        : theme.colors.danger
+  const outline = intent === 'neutral'
+    ? theme.colors.inverse
+    : intent === 'self'
+      ? theme.colors.selfText
+      : intent === 'social'
+        ? theme.colors.socialText
+        : theme.colors.danger
+  const foreground = intent === 'neutral' ? theme.colors.inverseText : theme.colors.accentText
 
   return (
     <Pressable
@@ -37,19 +51,20 @@ export function ActionButton({
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: disabled || loading, busy: loading }}
+      aria-busy={loading || undefined}
       disabled={disabled || loading}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
         compact && styles.compact,
-        { backgroundColor: secondary ? theme.colors.background : accent, borderColor: accent },
+        { backgroundColor: secondary ? theme.colors.background : control, borderColor: secondary ? outline : control },
         (disabled || loading) && styles.disabled,
         pressed && styles.pressed,
         style,
       ]}>
       <View style={styles.content}>
-        {loading ? <AppIcon name="hourglass-outline" size={18} color={secondary ? accent : theme.colors.accentText} /> : icon ? <AppIcon name={icon} size={20} color={secondary ? accent : theme.colors.accentText} /> : null}
-        <AppText variant="bodyStrong" color={secondary ? accent : theme.colors.accentText}>{loading ? `${label}…` : label}</AppText>
+        {loading ? <AppIcon name="hourglass-outline" size={18} color={secondary ? outline : foreground} /> : icon ? <AppIcon name={icon} size={20} color={secondary ? outline : foreground} /> : null}
+        <AppText variant="bodyStrong" color={secondary ? outline : foreground}>{loading ? `${label}…` : label}</AppText>
       </View>
     </Pressable>
   )

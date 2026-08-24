@@ -35,6 +35,7 @@ export function BookingActionsMenu({ onCancel, onEditRequest, onReport }: Bookin
   }, [open])
 
   function runAction(action: () => void) {
+    triggerRef.current?.focus()
     setOpen(false)
     action()
   }
@@ -61,7 +62,7 @@ export function BookingActionsMenu({ onCancel, onEditRequest, onReport }: Bookin
             </button>
           )}
           {onEditRequest && (
-            <button type="button" className="booking-actions-item" data-tone="self" onClick={() => runAction(onEditRequest)}>
+            <button type="button" className="booking-actions-item" data-tone="social" onClick={() => runAction(onEditRequest)}>
               Edit request
             </button>
           )}

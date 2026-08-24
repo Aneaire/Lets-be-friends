@@ -1,5 +1,4 @@
-import { useEffect, useRef } from 'react'
-import { X } from 'lucide-react'
+import { Dialog } from './Dialog'
 
 export type MessageImage = {
   storageId: string
@@ -26,35 +25,17 @@ export function MessageImageGallery({ images, onOpen }: { images: MessageImage[]
 }
 
 export function MessageImageViewer({ image, onClose }: { image: MessageImage; onClose: () => void }) {
-  const closeRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    closeRef.current?.focus()
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', closeOnEscape)
-    return () => {
-      document.body.style.overflow = previousOverflow
-      document.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [onClose])
-
   return (
-    <div className="direct-image-viewer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <section className="direct-image-viewer" role="dialog" aria-modal="true" aria-labelledby="direct-image-viewer-title">
-        <header className="direct-image-viewer-header">
-          <h2 id="direct-image-viewer-title">{image.fileName}</h2>
-          <button ref={closeRef} type="button" className="direct-image-viewer-close" aria-label="Close image" onClick={onClose}>
-            <X size={20} aria-hidden="true" />
-          </button>
-        </header>
-        <div className="direct-image-viewer-stage">
-          <img src={image.url} alt={image.fileName} />
-        </div>
-      </section>
-    </div>
+    <Dialog
+      open
+      onClose={onClose}
+      title={image.fileName}
+      closeLabel="Close image"
+      size="large"
+      className="direct-image-viewer"
+      bodyClassName="direct-image-viewer-stage"
+    >
+      <img src={image.url} alt={image.fileName} />
+    </Dialog>
   )
 }

@@ -6,11 +6,12 @@ import { PostActionBar } from './PostActionBar'
 import { PostActionsMenu } from './PostActionsMenu'
 import { PostCard } from './PostCard'
 
-function SocialPost({ owner }: { owner: boolean }) {
+function SocialPost({ owner, author = 'Gelo Santiago' }: { owner: boolean; author?: string }) {
   return (
     <PostCard
-      author="Gelo Santiago"
+      author={author}
       timestamp="Aug 14, 9:22 PM"
+      dateTime="2026-08-14T13:22:00.000Z"
       actions={(
         <PostActionsMenu
           ownedByViewer={owner}
@@ -67,12 +68,21 @@ export const OwnerPost: Story = {
   ),
 }
 
+export const LongIdentityNarrow: Story = {
+  render: () => (
+    <SocialStoryTimeline>
+      <SocialPost owner={false} author="María Alexandra de la Cruz-Santos" />
+    </SocialStoryTimeline>
+  ),
+}
+
 export const Comment: Story = {
   render: () => (
     <SocialStoryTimeline>
       <CommentBubble
         author="Alex Rivera"
         timestamp="9:28 PM"
+        dateTime="2026-08-14T13:28:00.000Z"
         actions={(
           <button type="button" className="ds-comment-action" aria-label="Report comment">
             Report

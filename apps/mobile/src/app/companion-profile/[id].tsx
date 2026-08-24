@@ -3,7 +3,7 @@ import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { useState } from 'react'
-import { Image, Pressable, StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type CompanionProfileId, type ReviewId, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
@@ -17,6 +17,8 @@ import { MemberSafetyActions } from '@/features/safety/MemberSafetyActions'
 import { Screen, Section } from '@/design-system/templates/Screen'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
+import { PostCard } from '@/features/social/PostCard'
+import { PostMediaGrid } from '@/features/social/PostMediaGrid'
 import { mapPublicCompanion, resolveCompanionBookingAction, type ApprovedCompanionRecord, type CompanionDetailViewModel } from '@/data/companionViewModels'
 import { formatMessageTimestamp } from '@/data/messageViewModels'
 import { useMobileMember } from '@/member/MobileMember'
@@ -115,10 +117,11 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
       <View style={styles.identity}>
         <Avatar uri={companion.imageUrl} name={companion.name} size={88} />
         <View style={styles.identityCopy}>
-          <View style={styles.nameRow}><AppText variant="title">{companion.name}</AppText><View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.self }]} /></View>
+          <View style={styles.nameRow}><AppText variant="title">{companion.name}</AppText>{companion.verified ? <View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.textMuted }]} /> : null}</View>
           <AppText color={theme.colors.textMuted}>{companion.location}</AppText>
           {companion.distanceLabel ? <AppText variant="caption" color={theme.colors.textMuted}>{companion.distanceLabel} approximate</AppText> : null}
           <View style={styles.identityMeta}><AppText variant="caption">{companion.reviewCount ? `★ ${companion.rating?.toFixed(1)} from ${companion.reviewCount}` : 'New Companion'}</AppText><AppText variant="caption">{modeLabels.join(' + ')}</AppText></View>
+          <AppText variant="caption" color={theme.colors.textMuted}>{companion.verified ? 'Identity verified · Companion profile approved' : 'Companion profile in review'}</AppText>
         </View>
       </View>
       <AppText variant="heading">{companion.intro}</AppText>
@@ -133,12 +136,11 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
       <Section>
         <AppText variant="heading">Strengths and what they offer</AppText>
         <View style={styles.chips}>{companion.strengths.map((strength) => <Chip key={strength} label={strength} />)}</View>
-        <View style={[styles.details, { borderColor: theme.colors.border }]}>
+        <View style={styles.details}>
           <Detail label="Everyday help and activities" value={companion.categories.join(', ')} />
           <Detail label="Session format" value={modeLabels.join(' and ')} />
           {companion.boundaries.length ? <Detail label="Boundaries" value={companion.boundaries.join(', ')} /> : null}
           {companion.rateLabel ? <Detail label="Rate" value={companion.rateLabel} /> : null}
-          <Detail label="Trust" value="Current identity approval and approved public Companion profile" />
         </View>
       </Section>
 
@@ -149,7 +151,7 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
 
       <Section>
         <View style={styles.sectionTitle}><AppText variant="heading">Posts</AppText><AppText variant="caption" color={theme.colors.textMuted}>Read only</AppText></View>
-        {posts === undefined ? <AppText color={theme.colors.textMuted}>Loading posts.</AppText> : posts.length ? <View style={styles.postList}>{posts.map((post) => <ProfilePost key={post._id} post={post} />)}</View> : <AppText color={theme.colors.textMuted}>No public posts yet.</AppText>}
+        {posts === undefined ? <AppText color={theme.colors.textMuted}>Loading posts.</AppText> : posts.length ? <View style={styles.postList}>{posts.map((post) => <ProfilePost key={post._id} post={post} companionName={companion.name} imageUrl={companion.imageUrl} />)}</View> : <AppText color={theme.colors.textMuted}>No public posts yet.</AppText>}
       </Section>
 
       <Section style={styles.bottomSection}>
@@ -188,7 +190,7 @@ function ReviewList({ reviews, signedIn }: { reviews: Review[]; signedIn: boolea
   </View>)}</View>
 }
 
-function ProfilePost({ post }: { post: Post }) {
+function ProfilePost({ post, companionName, imageUrl }: { post: Post; companionName: string; imageUrl?: string }) {
   const theme = useAppTheme()
   const [mediaError, setMediaError] = useState('')
 
@@ -201,13 +203,11 @@ function ProfilePost({ post }: { post: Post }) {
     }
   }
 
-  return <View style={[styles.post, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
-    <AppText>{post.body}</AppText>
-    {post.media.filter((media) => media.kind === 'image' && media.url).map((media, index) => <Image key={`${media.storageId}-${index}`} source={{ uri: media.url! }} resizeMode="cover" style={styles.postImage} accessibilityLabel="Post image" />)}
-    {post.media.filter((media) => media.kind === 'video' && media.url).map((media, index) => <Pressable key={`${media.storageId}-video-${index}`} accessibilityRole="link" accessibilityLabel="Open post video" onPress={() => void openVideo(media.url!)} style={[styles.postVideoLink, { borderColor: theme.colors.border }]}><AppText variant="bodyStrong" color={theme.colors.socialText}>Open post video</AppText><AppText variant="caption" color={theme.colors.textMuted}>Opens through your device's supported video app</AppText></Pressable>)}
+  return <PostCard author={companionName} imageUrl={imageUrl} timestamp={formatMessageTimestamp(post.createdAt)} meta={<AppText variant="caption" color={theme.colors.textMuted}>· {post.likeCount} likes · {post.commentCount} comments</AppText>}>
+    {post.body ? <AppText>{post.body}</AppText> : null}
+    {post.media.length > 0 ? <PostMediaGrid media={post.media} onOpenVideo={(url) => void openVideo(url)} /> : null}
     {mediaError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{mediaError}</AppText> : null}
-    <AppText variant="caption" color={theme.colors.textMuted}>{formatMessageTimestamp(post.createdAt)} · {post.likeCount} likes · {post.commentCount} comments</AppText>
-  </View>
+  </PostCard>
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   stickyActions: { flexDirection: 'row', gap: 10, width: '100%', maxWidth: 760, alignSelf: 'center' },
   flexAction: { flex: 1, minHeight: 46, paddingHorizontal: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  details: { borderTopWidth: 1, marginTop: 14, paddingTop: 12, gap: 12 },
+  details: { gap: 12, marginTop: 14 },
   detailRow: { gap: 3 },
   detailValue: { flex: 1 },
   sectionTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
@@ -249,8 +249,5 @@ const styles = StyleSheet.create({
   reviewActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   textAction: { minHeight: 44, justifyContent: 'center' },
   postList: { gap: 10, marginTop: 10 },
-  post: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
-  postImage: { width: '100%', aspectRatio: 4 / 3, borderRadius: 10 },
-  postVideoLink: { minHeight: 60, borderWidth: 1, borderRadius: 10, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
   bottomSection: { gap: 10 },
 })

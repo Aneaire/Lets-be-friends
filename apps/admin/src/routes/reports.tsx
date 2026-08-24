@@ -3,6 +3,7 @@ import { useAction, useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { api } from '../../../web/convex/_generated/api'
 import { ActionNote } from '../design-system/molecules/ActionNote'
+import { AdminWorklistPagePresentation } from '../design-system/templates/AdminWorklistPagePresentation'
 
 type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed' | 'all'
 type TargetType = 'all' | 'profile' | 'booking' | 'message' | 'review' | 'post' | 'comment' | 'user'
@@ -19,50 +20,44 @@ function ReportsPage() {
   const readAdminEvidence = useAction(api.bookingEvidence.readAdminEvidence)
 
   return (
-    <>
-      <header className="admin-page-header">
-        <div>
-          <p className="eyebrow">Moderation</p>
-          <h1 className="text-h1 mt-2">Reports</h1>
-          <p className="lede mt-2">Triage member-submitted concerns about profiles, bookings, messages, reviews, posts, comments, and users.</p>
-        </div>
-      </header>
-
-      <div className="admin-filter-row">
-        <label className="field-row">
-          <span className="label">Status</span>
-          <select className="field" value={status} onChange={(event) => setStatus(event.currentTarget.value as ReportStatus)}>
-            <option value="open">Open</option>
-            <option value="reviewing">Reviewing</option>
-            <option value="resolved">Resolved</option>
-            <option value="dismissed">Dismissed</option>
-            <option value="all">All</option>
-          </select>
-        </label>
-        <label className="field-row">
-          <span className="label">Target</span>
-          <select className="field" value={targetType} onChange={(event) => setTargetType(event.currentTarget.value as TargetType)}>
-            <option value="all">All targets</option>
-            <option value="profile">Profiles</option>
-            <option value="booking">Bookings</option>
-            <option value="message">Messages</option>
-            <option value="review">Reviews</option>
-            <option value="post">Posts</option>
-            <option value="comment">Comments</option>
-            <option value="user">Users</option>
-          </select>
-        </label>
-      </div>
-
-      {rows === undefined ? (
-        <div className="admin-empty">Loading reports...</div>
-      ) : rows.length === 0 ? (
-        <div className="admin-empty">No reports match this filter.</div>
-      ) : (
-        <div className="panel">
-          <div className="worklist">
-            {rows.map((report) => (
-              <article key={report._id} className="worklist-row">
+    <AdminWorklistPagePresentation
+      eyebrow="Moderation"
+      title="Reports"
+      description="Triage member-submitted concerns about profiles, bookings, messages, reviews, posts, comments, and users."
+      filterControls={(
+        <>
+          <label className="field-row">
+            <span className="label">Status</span>
+            <select className="field" value={status} onChange={(event) => setStatus(event.currentTarget.value as ReportStatus)}>
+              <option value="open">Open</option>
+              <option value="reviewing">Reviewing</option>
+              <option value="resolved">Resolved</option>
+              <option value="dismissed">Dismissed</option>
+              <option value="all">All</option>
+            </select>
+          </label>
+          <label className="field-row">
+            <span className="label">Target</span>
+            <select className="field" value={targetType} onChange={(event) => setTargetType(event.currentTarget.value as TargetType)}>
+              <option value="all">All targets</option>
+              <option value="profile">Profiles</option>
+              <option value="booking">Bookings</option>
+              <option value="message">Messages</option>
+              <option value="review">Reviews</option>
+              <option value="post">Posts</option>
+              <option value="comment">Comments</option>
+              <option value="user">Users</option>
+            </select>
+          </label>
+        </>
+      )}
+      rows={rows}
+      getKey={(report) => report._id}
+      loading="Loading reports..."
+      empty="No reports match this filter."
+      ariaLabel="Safety reports"
+      renderRecord={(report) => (
+        <>
                 <div className="worklist-row-head">
                   <div>
                     <h2 className="text-h3">{report.targetSummary}</h2>
@@ -174,12 +169,9 @@ function ReportsPage() {
                     </div>
                   </div>
                 )}
-                {report.reviewerNote && <p className="text-meta">Last internal note: {report.reviewerNote}</p>}
-              </article>
-            ))}
-          </div>
-        </div>
+          {report.reviewerNote && <p className="text-meta">Last internal note: {report.reviewerNote}</p>}
+        </>
       )}
-    </>
+    />
   )
 }

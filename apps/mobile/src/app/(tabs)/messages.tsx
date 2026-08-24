@@ -1,15 +1,14 @@
 import type { FunctionReturnType } from 'convex/server'
 import { useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
-import { ActionButton } from '@/design-system/atoms/ActionButton'
-import { Avatar } from '@/design-system/atoms/Avatar'
 import { Screen } from '@/design-system/templates/Screen'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { conversationPreview, formatMessageTimestamp } from '@/data/messageViewModels'
+import { ConversationListItem } from '@/features/messaging/ConversationListItem'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -39,22 +38,17 @@ function ConversationInbox({ conversations }: { conversations: Conversation[] })
 }
 
 function ConversationRow({ conversation }: { conversation: Conversation }) {
-  const theme = useAppTheme()
-  const preview = conversationPreview(conversation.lastMessageBody, conversation.lastMessageAttachmentCount)
+  const preview = `${conversation.lastMessageSentByViewer ? 'You: ' : ''}${conversationPreview(conversation.lastMessageBody, conversation.lastMessageAttachmentCount)}`
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Open conversation with ${conversation.otherDisplayName}${conversation.unreadCount ? `, ${conversation.unreadCount} unread` : ''}`}
+    <ConversationListItem
+      name={conversation.otherDisplayName}
+      imageUrl={conversation.otherProfileImageUrl}
+      preview={preview}
+      timeLabel={conversation.lastMessageCreatedAt ? formatMessageTimestamp(conversation.lastMessageCreatedAt) : undefined}
+      unreadCount={conversation.unreadCount}
+      suspended={conversation.otherUserSuspended}
       onPress={() => router.push({ pathname: '/conversation/[id]', params: { id: String(conversation._id) } })}
-      style={({ pressed }) => [styles.preview, { borderBottomColor: theme.colors.border }, pressed && styles.pressed]}>
-      <Avatar uri={conversation.otherProfileImageUrl ?? undefined} name={conversation.otherDisplayName} size={52} />
-      <View style={styles.previewCopy}>
-        <View style={styles.nameRow}><AppText variant="bodyStrong" numberOfLines={1}>{conversation.otherDisplayName}</AppText>{conversation.lastMessageCreatedAt ? <AppText variant="caption" color={theme.colors.textMuted}>{formatMessageTimestamp(conversation.lastMessageCreatedAt)}</AppText> : null}</View>
-        <AppText numberOfLines={2} color={conversation.unreadCount ? theme.colors.text : theme.colors.textMuted}>{conversation.lastMessageSentByViewer ? 'You: ' : ''}{preview}</AppText>
-        <AppText variant="caption" color={conversation.otherUserSuspended ? theme.colors.danger : theme.colors.textMuted}>{conversation.otherUserSuspended ? 'Conversation paused for safety' : 'Private member conversation'}</AppText>
-      </View>
-      {conversation.unreadCount > 0 ? <View accessibilityLabel={`${conversation.unreadCount} unread messages`} style={[styles.unread, { backgroundColor: theme.colors.social }]}><AppText variant="caption" color={theme.colors.accentText}>{conversation.unreadCount}</AppText></View> : null}
-    </Pressable>
+    />
   )
 }
 
@@ -71,9 +65,4 @@ const styles = StyleSheet.create({
   state: { paddingHorizontal: 16 },
   header: { paddingTop: 16, gap: 5, marginBottom: 12 },
   list: { gap: 0 },
-  preview: { minHeight: 82, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  previewCopy: { flex: 1, gap: 2 },
-  nameRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  unread: { minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
-  pressed: { opacity: 0.62 },
 })

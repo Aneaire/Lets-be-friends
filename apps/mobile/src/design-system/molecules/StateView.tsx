@@ -17,14 +17,15 @@ export function StateView({ eyebrow, title, detail, actionLabel, onAction, loadi
   intent?: 'social' | 'self'
 }) {
   const theme = useAppTheme()
+  const accentText = intent === 'self' ? theme.colors.selfText : theme.colors.socialText
   return (
     <View style={[embedded ? styles.embedded : styles.state, embedded && { borderColor: theme.colors.border }]}>
       <View style={styles.copy}>
-        {eyebrow ? <AppText variant="label" color={theme.colors[intent]}>{eyebrow}</AppText> : null}
+        {eyebrow ? <AppText variant="label" color={accentText}>{eyebrow}</AppText> : null}
         <AppText variant={embedded ? 'heading' : 'title'}>{title}</AppText>
         {detail ? <AppText color={theme.colors.textMuted}>{detail}</AppText> : null}
       </View>
-      {loading ? <ActivityIndicator accessibilityLabel="Loading" color={theme.colors[intent]} /> : null}
+      {loading ? <ActivityIndicator accessibilityLabel="Loading" color={accentText} /> : null}
       {actionLabel && onAction ? <ActionButton label={actionLabel} onPress={onAction} intent={intent} secondary /> : null}
     </View>
   )

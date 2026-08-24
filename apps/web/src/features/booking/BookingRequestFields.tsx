@@ -97,7 +97,9 @@ export function BookingRequestFields(props: Props) {
         <Calendar
           value={requestedAt}
           variant="social"
+          aria-label="Booking date"
           min={new Date()}
+          disabled={disabled}
           onChange={onRequestedDayChange}
         />
       </label>

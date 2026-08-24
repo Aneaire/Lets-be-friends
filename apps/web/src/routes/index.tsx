@@ -1,9 +1,8 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, Navigate, createFileRoute } from '@tanstack/react-router'
 import { useAuth } from '@clerk/react'
 import { useQuery } from 'convex/react'
 import { activityCategories } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
-import { SocialPage } from '../features/social/SocialPage'
 
 const homeTitle = "Everyday Help and Real Connections | Let's Be Friends"
 const homeDescription = 'Find verified Companions who offer everyday help, shared activities, and friendly company, or become a Companion and earn by sharing your Strengths.'
@@ -170,12 +169,12 @@ const homeFaqs = [
 
 function HomePage() {
   const { isSignedIn } = useAuth()
-  const companionsResult = useQuery(api.companions.listApproved, {}) as HomeCompanion[] | undefined
+  const companionsResult = useQuery(api.companions.listApproved, isSignedIn ? 'skip' : {}) as HomeCompanion[] | undefined
   const companions = companionsResult ?? []
   const companionsLoading = companionsResult === undefined
   const featured = companions.slice(0, 4)
 
-  if (isSignedIn) return <SocialPage />
+  if (isSignedIn) return <Navigate to="/social" replace />
 
   return (
     <main>

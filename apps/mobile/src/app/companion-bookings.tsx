@@ -1,13 +1,14 @@
 import type { FunctionReturnType } from 'convex/server'
 import { useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
-import { Screen } from '@/design-system/templates/Screen'
 import { AppText } from '@/design-system/atoms/Typography'
-import { bookingStatusPresentation, formatBookingSchedule, formatDuration } from '@/data/bookingViewModels'
+import { StateView } from '@/design-system/molecules/StateView'
+import { BookingCard } from '@/design-system/organisms/BookingCard'
+import { Screen } from '@/design-system/templates/Screen'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -18,7 +19,7 @@ export default function CompanionBookingsScreen() {
   if (member.status === 'signed_out') return <CompanionBookingsState title="Sign in to view incoming bookings" action="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <CompanionBookingsState title="Incoming bookings need account services" action="Return to Profile" onPress={() => router.replace('/profile')} />
   if (member.status === 'unavailable' || member.status === 'error') return <CompanionBookingsState title="Incoming bookings are unavailable" detail="Your member account could not be connected safely." />
-  if (member.status !== 'ready') return <CompanionBookingsState title="Loading incoming bookings" />
+  if (member.status !== 'ready') return <CompanionBookingsState title="Loading incoming bookings" loading />
   return <ReadyCompanionBookingsScreen />
 }
 
@@ -26,7 +27,7 @@ function ReadyCompanionBookingsScreen() {
   const theme = useAppTheme()
   const application = useQuery(mobileApi.companions.myApplication, {})
   const bookings = useQuery(mobileApi.bookings.forCompanion, {})
-  if (application === undefined || bookings === undefined) return <CompanionBookingsState title="Loading incoming bookings" />
+  if (application === undefined || bookings === undefined) return <CompanionBookingsState title="Loading incoming bookings" loading />
   if (!application) return <CompanionBookingsState title="Create a Companion profile first" detail="Incoming booking requests appear after you have a Companion profile." action="Open Companion tools" onPress={() => router.replace('/companion')} />
 
   const active = bookings.filter((booking) => ['request_sent', 'accepted', 'verification_required', 'pending_admin_review'].includes(booking.status))
@@ -40,10 +41,11 @@ function ReadyCompanionBookingsScreen() {
         <AppText color={theme.colors.textMuted}>{active.length} active {active.length === 1 ? 'booking' : 'bookings'} for your Companion profile.</AppText>
       </View>
       {active.length === 0 ? (
-        <View style={[styles.empty, { borderColor: theme.colors.border }]}>
-          <AppText variant="heading">No one is waiting on you</AppText>
-          <AppText color={theme.colors.textMuted}>New booking requests from members will appear here.</AppText>
-        </View>
+        <StateView
+          embedded
+          title="No one is waiting on you"
+          detail="New booking requests from members will appear here."
+        />
       ) : <BookingSection label="Active" bookings={active} />}
       {history.length > 0 ? <BookingSection label="History" bookings={history} /> : null}
       <ActionButton label="Companion profile and status" onPress={() => router.push('/companion')} intent="self" secondary />
@@ -62,30 +64,37 @@ function BookingSection({ label, bookings }: { label: string; bookings: Companio
 }
 
 function CompanionBookingRow({ booking }: { booking: CompanionBooking }) {
-  const theme = useAppTheme()
-  const status = bookingStatusPresentation[booking.status]
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${booking.category} booking from ${booking.memberDisplayName}, ${status.label}`}
+    <BookingCard
+      booking={{
+        id: String(booking._id),
+        participantName: booking.memberDisplayName,
+        participantPreposition: 'from',
+        category: booking.category,
+        mode: booking.mode,
+        requestedAt: booking.requestedAt,
+        durationMinutes: booking.durationMinutes,
+        status: booking.status,
+        memberTotalCentavos: booking.memberTotalCentavos,
+      }}
       onPress={() => router.push({ pathname: '/companion-booking/[id]', params: { id: String(booking._id) } })}
-      style={({ pressed }) => [styles.card, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }, pressed && styles.pressed]}>
-      <View style={styles.cardHead}>
-        <View style={styles.cardCopy}>
-          <AppText variant="bodyStrong">{booking.memberDisplayName}</AppText>
-          <AppText>{booking.category}</AppText>
-        </View>
-        <AppText variant="caption" color={theme.colors.social}>{status.label}</AppText>
-      </View>
-      <AppText variant="caption" color={theme.colors.textMuted}>{formatBookingSchedule(booking.requestedAt)}</AppText>
-      <AppText variant="caption" color={theme.colors.textMuted}>{booking.mode === 'in_person' ? 'In-person session' : 'Online session'}, {formatDuration(booking.durationMinutes)}</AppText>
-    </Pressable>
+    />
   )
 }
 
-function CompanionBookingsState({ title, detail, action, onPress }: { title: string; detail?: string; action?: string; onPress?: () => void }) {
-  const theme = useAppTheme()
-  return <Screen contentStyle={styles.state}><AppText variant="label" color={theme.colors.social}>INCOMING BOOKINGS</AppText><AppText variant="title">{title}</AppText>{detail ? <AppText color={theme.colors.textMuted}>{detail}</AppText> : null}{action && onPress ? <ActionButton label={action} onPress={onPress} secondary /> : null}</Screen>
+function CompanionBookingsState({ title, detail, action, onPress, loading = false }: { title: string; detail?: string; action?: string; onPress?: () => void; loading?: boolean }) {
+  return (
+    <Screen scroll={false} contentStyle={styles.state}>
+      <StateView
+        eyebrow="INCOMING BOOKINGS"
+        title={title}
+        detail={detail}
+        actionLabel={action}
+        onAction={onPress}
+        loading={loading}
+      />
+    </Screen>
+  )
 }
 
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
@@ -98,9 +107,4 @@ const styles = StyleSheet.create({
   header: { gap: 10 },
   section: { gap: 12 },
   list: { gap: 12 },
-  card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 7 },
-  cardHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  cardCopy: { flex: 1, gap: 2 },
-  empty: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
-  pressed: { opacity: 0.72 },
 })

@@ -1,10 +1,11 @@
 import type { HTMLAttributes, ReactNode } from 'react'
 import { Avatar } from '../../design-system/atoms/Avatar'
 
-export function CommentBubble({ author, imageUrl, timestamp, actions, children, className = '', ...props }: HTMLAttributes<HTMLElement> & {
+export function CommentBubble({ author, imageUrl, timestamp, dateTime, actions, children, className = '', ...props }: HTMLAttributes<HTMLElement> & {
   author: string
   imageUrl?: string | null
   timestamp: string
+  dateTime?: string
   actions?: ReactNode
 }) {
   return (
@@ -14,7 +15,7 @@ export function CommentBubble({ author, imageUrl, timestamp, actions, children, 
         <header className="ds-comment-head">
           <strong>{author}</strong>
           <span aria-hidden="true">·</span>
-          <time>{timestamp}</time>
+          <time dateTime={dateTime}>{timestamp}</time>
           {actions ? <div className="ds-comment-actions">{actions}</div> : null}
         </header>
         <div className="ds-comment-body">{children}</div>

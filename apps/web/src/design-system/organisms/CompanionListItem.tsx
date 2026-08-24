@@ -44,7 +44,7 @@ export function CompanionListItem({ companion, signedIn, onFollow, profileLink: 
   )
 
   return (
-    <article className="discover-host-row" data-nearby={hasDistance} role="listitem">
+    <div className="discover-host-row" data-nearby={hasDistance} role="listitem">
       {profileLink(
         <Avatar name={companion.displayName} src={companion.profileImageUrl} size="large" decorative />,
         'discover-host-avatar-link',
@@ -98,7 +98,7 @@ export function CompanionListItem({ companion, signedIn, onFollow, profileLink: 
         )}
         <FollowIconButton companion={companion} signedIn={signedIn} onFollow={onFollow} />
       </aside>
-    </article>
+    </div>
   )
 }
 

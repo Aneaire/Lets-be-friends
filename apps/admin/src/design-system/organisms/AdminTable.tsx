@@ -22,7 +22,11 @@ export function AdminTable<Row>({
   if (rows.length === 0) return <div className="admin-empty">{empty}</div>
 
   return (
-    <div className="admin-table-scroll">
+    <div
+      className="admin-table-scroll"
+      role="region"
+      aria-label="Scrollable data table"
+      tabIndex={0}>
       <table className="admin-table">
         <thead>
           <tr>

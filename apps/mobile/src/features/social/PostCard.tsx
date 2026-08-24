@@ -10,6 +10,9 @@ export function PostCard({
   author,
   imageUrl,
   timestamp,
+  avatarAction,
+  authorAction,
+  meta,
   headerAction,
   children,
   footer,
@@ -17,6 +20,9 @@ export function PostCard({
   author: string
   imageUrl?: string | null
   timestamp: string
+  avatarAction?: ReactNode
+  authorAction?: ReactNode
+  meta?: ReactNode
   headerAction?: ReactNode
   children: ReactNode
   footer?: ReactNode
@@ -34,11 +40,12 @@ export function PostCard({
       ]}
     >
       <View style={styles.header}>
-        <Avatar uri={imageUrl ?? undefined} name={author} size={38} />
+        {avatarAction ?? <Avatar uri={imageUrl ?? undefined} name={author} size={38} />}
         <View style={styles.identityLine}>
-          <AppText variant="bodyStrong" numberOfLines={1}>{author}</AppText>
+          {authorAction ?? <AppText variant="bodyStrong" numberOfLines={1}>{author}</AppText>}
           <AppText variant="caption" color={theme.colors.textMuted}>·</AppText>
           <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{timestamp}</AppText>
+          {meta}
         </View>
         {headerAction ? <View style={styles.headerAction}>{headerAction}</View> : null}
       </View>

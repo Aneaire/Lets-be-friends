@@ -6,6 +6,7 @@ import { api } from '../../convex/_generated/api'
 import { formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
 import { PostCard } from '../features/social/PostCard'
+import { PostMediaGrid } from '../features/social/PostMediaGrid'
 
 export const Route = createFileRoute('/companion-profile')({
   validateSearch: (search: Record<string, unknown>): { companionProfileId?: string } => (
@@ -17,7 +18,6 @@ export const Route = createFileRoute('/companion-profile')({
 type CompanionProfile = NonNullable<ReturnType<typeof useQuery<typeof api.companions.getPublic>>>
 type CompanionReview = NonNullable<ReturnType<typeof useQuery<typeof api.reviews.forCompanion>>>[number]
 type CompanionPost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUser>>>[number]
-type CompanionPostMedia = { storageId: Id<'_storage'>; kind: 'image' | 'video'; url: string | null }
 
 function CompanionProfilePage() {
   const { companionProfileId } = Route.useSearch()
@@ -238,7 +238,7 @@ function CompanionProfilePage() {
                   className="companion-social-post"
                 >
                   {post.body && <p className="ds-post-copy whitespace-pre-wrap">{post.body}</p>}
-                  {post.media.length > 0 && <CompanionPostMediaGrid media={post.media} />}
+                  {post.media.length > 0 && <PostMediaGrid media={post.media} className="profile-post-media" />}
                 </PostCard>
               ))}
             </div>
@@ -284,19 +284,6 @@ function CompanionBookingAction({
     <SignInButton mode="modal">
       <button type="button" className="btn btn-self btn-sm">Sign in to plan</button>
     </SignInButton>
-  )
-}
-
-function CompanionPostMediaGrid({ media }: { media: CompanionPostMedia[] }) {
-  return (
-    <div className="social-media-grid profile-post-media" data-count={media.length}>
-      {media.map((item) => (
-        <div key={item.storageId} className="social-media-item">
-          {item.url && item.kind === 'image' && <img src={item.url} alt="" loading="lazy" />}
-          {item.url && item.kind === 'video' && <video src={item.url} controls playsInline preload="metadata" />}
-        </div>
-      ))}
-    </div>
   )
 }
 

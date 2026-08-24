@@ -38,9 +38,9 @@ export function AppHeader({ title, subtitle, back = false, onBack, action }: {
 
 const styles = StyleSheet.create({
   header: { minHeight: density.controlHeight + 4, flexDirection: 'row', alignItems: 'center', gap: density.cardGap, borderBottomWidth: StyleSheet.hairlineWidth },
-  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  back: { width: density.controlHeight, height: density.controlHeight, alignItems: 'center', justifyContent: 'center' },
   copy: { flex: 1, gap: 1 },
-  action: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
-  spacer: { width: 44 },
+  action: { minWidth: density.controlHeight, minHeight: density.controlHeight, alignItems: 'flex-end', justifyContent: 'center' },
+  spacer: { width: density.controlHeight },
   pressed: { opacity: 0.62 },
 })

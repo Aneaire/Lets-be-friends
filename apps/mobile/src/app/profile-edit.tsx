@@ -2,17 +2,15 @@ import * as ImagePicker from 'expo-image-picker'
 import { useMutation } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
 import { useRef, useState } from 'react'
-import { Platform, StyleSheet, TextInput, View } from 'react-native'
+import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native'
 
 import { mobileApi, type StorageId } from '@/backend/client'
-import { ActionButton } from '@/design-system/atoms/ActionButton'
-import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
-import { Avatar } from '@/design-system/atoms/Avatar'
+import { ProfileEditContent } from '@/member/ProfileEditContent'
+import { canSaveProfileEdit, profileEditFieldCopy } from '@/member/profileEditFields'
+import { useMobileMember } from '@/member/MobileMember'
 import { Screen } from '@/design-system/templates/Screen'
 import { StateView } from '@/design-system/molecules/StateView'
-import { AppText } from '@/design-system/atoms/Typography'
-import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024
@@ -39,8 +37,8 @@ function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMob
   const [message, setMessage] = useState('')
   useAppToastMessage(message)
   const busyRef = useRef(false)
-  const nameLength = displayName.trim().length
-  const canSave = nameLength > 0 && nameLength <= 80 && bio.trim().length <= 500 && !busy
+  const { nameLength, bioLength, nameHint, nameError, bioHint, bioError } = profileEditFieldCopy(displayName, bio)
+  const canSave = canSaveProfileEdit(nameLength, bioLength, busy)
 
   async function chooseImage() {
     if (busyRef.current) return
@@ -110,47 +108,28 @@ function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMob
   }
 
   return (
-    <Screen contentStyle={styles.content}>
-      <AppHeader title="Edit profile" back onBack={goBackOrProfile} />
-      <View style={styles.photoSection}>
-        <Avatar uri={imageAsset?.uri ?? viewer.profileImageUrl ?? undefined} name={displayName || viewer.displayName} size={88} />
-        <View style={styles.photoCopy}>
-          <AppText variant="bodyStrong">Profile photo</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>Choose an existing image up to 5 MB.</AppText>
-          <ActionButton label={imageAsset ? 'Choose another photo' : 'Choose photo'} onPress={() => void chooseImage()} intent="self" secondary disabled={busy} style={styles.compactButton} />
-        </View>
-      </View>
-
-      <View style={styles.field}>
-        <View style={styles.labelRow}><AppText variant="bodyStrong">Display name</AppText><AppText variant="caption" color={nameLength > 80 ? theme.colors.danger : theme.colors.textMuted}>{nameLength}/80</AppText></View>
-        <TextInput
-          accessibilityLabel="Display name"
-          value={displayName}
-          onChangeText={(value) => { setDisplayName(value); setMessage('') }}
-          maxLength={81}
-          autoCapitalize="words"
-          style={[styles.input, theme.typography.body, { color: theme.colors.text, borderColor: nameLength > 80 ? theme.colors.danger : theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}
-        />
-      </View>
-
-      <View style={styles.field}>
-        <View style={styles.labelRow}><AppText variant="bodyStrong">Bio</AppText><AppText variant="caption" color={bio.trim().length > 500 ? theme.colors.danger : theme.colors.textMuted}>{bio.trim().length}/500</AppText></View>
-        <TextInput
-          accessibilityLabel="Bio"
-          value={bio}
-          onChangeText={(value) => { setBio(value); setMessage('') }}
-          placeholder="A short introduction for your member profile"
-          placeholderTextColor={theme.colors.textMuted}
-          multiline
-          maxLength={501}
-          textAlignVertical="top"
-          style={[styles.input, styles.bio, theme.typography.body, { color: theme.colors.text, borderColor: bio.trim().length > 500 ? theme.colors.danger : theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}
-        />
-      </View>
-
-      <ActionButton label={busy ? 'Saving profile' : 'Save profile'} onPress={() => void save()} intent="self" disabled={!canSave} />
-      <ActionButton label="Cancel" onPress={goBackOrProfile} intent="self" secondary disabled={busy} />
-    </Screen>
+    <KeyboardAvoidingView
+      style={[styles.kav, { backgroundColor: theme.colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ProfileEditContent
+        avatarUri={imageAsset?.uri ?? viewer.profileImageUrl ?? undefined}
+        avatarName={displayName || viewer.displayName}
+        displayName={displayName}
+        bio={bio}
+        busy={busy}
+        canSave={canSave}
+        imagePicked={Boolean(imageAsset)}
+        nameHint={nameHint}
+        nameError={nameError}
+        bioHint={bioHint}
+        bioError={bioError}
+        onChangeName={(value) => { setDisplayName(value); setMessage('') }}
+        onChangeBio={(value) => { setBio(value); setMessage('') }}
+        onChoosePhoto={() => void chooseImage()}
+        onSave={() => void save()}
+        onCancel={goBackOrProfile}
+      />
+    </KeyboardAvoidingView>
   )
 }
 
@@ -168,13 +147,6 @@ function goBackOrProfile() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 16, paddingBottom: 32, gap: 16 },
+  kav: { flex: 1 },
   state: { paddingHorizontal: 16 },
-  photoSection: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 4 },
-  photoCopy: { flex: 1, gap: 5 },
-  compactButton: { alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 14 },
-  field: { gap: 8 },
-  labelRow: { minHeight: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  input: { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 11 },
-  bio: { minHeight: 132 },
 })

@@ -25,6 +25,10 @@ export function ActionMenu({ label = 'Options', items, disabled = false }: { lab
   }, [open])
 
   useEffect(() => {
+    if (disabled) setOpen(false)
+  }, [disabled])
+
+  useEffect(() => {
     if (!open) return
     itemRefs.current.find((item) => item && !item.disabled)?.focus()
   }, [open])

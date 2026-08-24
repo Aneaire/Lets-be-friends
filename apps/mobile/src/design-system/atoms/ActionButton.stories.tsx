@@ -13,5 +13,7 @@ type Story = StoryObj<typeof meta>
 
 export const Social: Story = {}
 export const Self: Story = { args: { label: 'Save profile', intent: 'self' } }
-export const Secondary: Story = { args: { label: 'View details', secondary: true } }
+export const Neutral: Story = { args: { label: 'Continue', intent: 'neutral' } }
+export const Secondary: Story = { args: { label: 'View details', intent: 'neutral', secondary: true } }
+export const Danger: Story = { args: { label: 'Delete', intent: 'danger' } }
 export const Disabled: Story = { args: { disabled: true } }

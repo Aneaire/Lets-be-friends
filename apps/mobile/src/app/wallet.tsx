@@ -3,7 +3,7 @@ import type { FunctionReturnType } from 'convex/server'
 import { useAction, useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
-import { Image, StyleSheet, TextInput, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { mobileApi, type PaymongoTopUpId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -16,8 +16,11 @@ import {
   parseWalletAmount,
   topUpPresentation,
   walletBalanceRows,
-  type WalletTopUpStatus,
 } from '@/data/wallet'
+import {
+  WalletPresentation,
+  type WalletTopUpItem,
+} from '@/features/finance/WalletPresentation'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -41,7 +44,6 @@ function ReadyWalletScreen() {
 }
 
 function WalletView({ wallet }: { wallet: Wallet }) {
-  const theme = useAppTheme()
   const createTopUp = useAction(mobileApi.paymongo.createMemberTopUp)
   const refreshTopUp = useAction(mobileApi.paymongo.refreshMemberTopUp)
   const [amount, setAmount] = useState('1000')
@@ -117,100 +119,48 @@ function WalletView({ wallet }: { wallet: Wallet }) {
   }
 
   return (
-    <Screen contentStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.header}>
-        <AppText variant="label" color={theme.colors.self}>BOOKING WALLET</AppText>
-        <AppText variant="title">Your booking balance</AppText>
-        <AppText color={theme.colors.textMuted}>Use available balance for booking requests. Reserved and pending money is not available for a new request.</AppText>
-      </View>
-
-      {!wallet.enabled ? (
-        <View style={[styles.notice, { backgroundColor: theme.colors.socialSoft, borderColor: theme.colors.social }]}>
-          <AppText variant="bodyStrong">New wallet top-ups are unavailable</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>Existing balances and top-up history remain visible.</AppText>
-        </View>
-      ) : null}
-
-      <View style={styles.metrics}>
-        {walletBalanceRows(wallet).map((row) => (
-          <View key={row.key} style={[styles.metric, { backgroundColor: row.key === 'available' ? theme.colors.selfSoft : theme.colors.surface, borderColor: row.key === 'available' ? theme.colors.self : theme.colors.border }]}>
-            <AppText variant="caption" color={theme.colors.textMuted}>{row.label}</AppText>
-            <AppText variant="heading">{row.value}</AppText>
-          </View>
-        ))}
-      </View>
-
-      <View style={[styles.panel, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-        <View style={styles.copy}>
-          <AppText variant="heading">Add balance with QR Ph</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>Enter PHP 100 to PHP 100,000. Only a provider-confirmed paid intent credits this wallet.</AppText>
-        </View>
-        <TextInput
-          accessibilityLabel="Top-up amount in PHP"
-          value={amount}
-          onChangeText={(value) => { setAmount(value); setMessage('') }}
-          placeholder="1000.00"
-          placeholderTextColor={theme.colors.textMuted}
-          inputMode="decimal"
-          editable={!busy && !activeTopUp && !waitingForCreatedTopUp && wallet.enabled}
-          style={[styles.input, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}
-        />
-        <ActionButton
-          label={busy === 'create' ? 'Creating QR Ph top-up' : activeTopUp || waitingForCreatedTopUp ? 'A QR attempt is still active' : 'Create QR Ph top-up'}
-          onPress={() => void create()}
-          intent="self"
-          disabled={busy !== null || Boolean(activeTopUp) || waitingForCreatedTopUp || !wallet.enabled}
-        />
-      </View>
-
-      {displayTopUp ? <CurrentTopUp topUp={displayTopUp} now={clockNow} busy={busy === String(displayTopUp._id)} onRefresh={() => void refresh(displayTopUp._id as PaymongoTopUpId)} /> : null}
-      {message ? <AppText accessibilityLiveRegion="polite" color={theme.colors.textMuted}>{message}</AppText> : null}
-
-      <View style={styles.history}>
-        <AppText variant="heading">Recent top-ups</AppText>
-        {wallet.topUps.length === 0 ? <AppText color={theme.colors.textMuted}>No member-wallet top-ups yet.</AppText> : wallet.topUps.map((topUp) => <TopUpRow key={String(topUp._id)} topUp={topUp} now={clockNow} />)}
-      </View>
-      <ActionButton label="Return to Profile" onPress={() => router.replace('/profile')} secondary intent="self" />
-    </Screen>
+    <WalletPresentation
+      enabled={wallet.enabled}
+      balances={walletBalanceRows(wallet)}
+      amount={amount}
+      onAmountChange={(value) => {
+        setAmount(value)
+        setMessage('')
+      }}
+      createLabel={activeTopUp || waitingForCreatedTopUp
+        ? 'A QR attempt is still active'
+        : 'Create QR Ph top-up'}
+      createDisabled={busy !== null || Boolean(activeTopUp) || waitingForCreatedTopUp || !wallet.enabled}
+      createBusy={busy === 'create'}
+      onCreate={() => void create()}
+      currentTopUp={displayTopUp ? walletTopUpItem(displayTopUp, clockNow) : undefined}
+      refreshBusy={Boolean(displayTopUp && busy === String(displayTopUp._id))}
+      onRefresh={() => {
+        if (displayTopUp) void refresh(displayTopUp._id as PaymongoTopUpId)
+      }}
+      message={message}
+      topUps={wallet.topUps.map((topUp) => walletTopUpItem(topUp, clockNow))}
+      onReturn={() => router.replace('/profile')}
+    />
   )
 }
 
-function CurrentTopUp({ topUp, now, busy, onRefresh }: { topUp: TopUp; now: number; busy: boolean; onRefresh: () => void }) {
-  const theme = useAppTheme()
+function walletTopUpItem(topUp: TopUp, now: number): WalletTopUpItem {
   const presentation = topUpPresentation(topUp.status, topUp.expiresAt, now)
-  return (
-    <View style={[styles.panel, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-      <View style={styles.currentHeader}>
-        <View style={styles.copy}>
-          <AppText variant="heading">Current QR attempt</AppText>
-          <AppText variant="bodyStrong">{formatPhp(topUp.amountCentavos)}</AppText>
-        </View>
-        <View style={[styles.status, { backgroundColor: presentation.payable ? theme.colors.socialSoft : theme.colors.selfSoft }]}>
-          <AppText variant="caption" color={presentation.payable ? theme.colors.social : theme.colors.self}>{presentation.label}</AppText>
-        </View>
-      </View>
-      <AppText variant="caption" color={theme.colors.textMuted}>{presentation.detail}</AppText>
-      {topUp.status === 'awaiting_payment' && topUp.expiresAt !== undefined ? <AppText variant="caption" color={theme.colors.textMuted}>{formatQrExpiry(topUp.expiresAt, now)}</AppText> : null}
-      {presentation.payable && topUp.qrImageUrl ? (
-        <Image accessibilityLabel={`QR Ph code for ${formatPhp(topUp.amountCentavos)} top-up`} source={{ uri: topUp.qrImageUrl }} resizeMode="contain" style={styles.qr} />
-      ) : null}
-      {topUp.providerIntentId && presentation.active ? <ActionButton label={busy ? 'Refreshing provider status' : 'Refresh provider status'} onPress={onRefresh} disabled={busy} secondary intent="self" /> : null}
-    </View>
-  )
-}
-
-function TopUpRow({ topUp, now }: { topUp: TopUp; now: number }) {
-  const theme = useAppTheme()
-  const presentation = topUpPresentation(topUp.status, topUp.expiresAt, now)
-  return (
-    <View style={[styles.row, { borderColor: theme.colors.border }]}>
-      <View style={styles.rowCopy}>
-        <AppText variant="bodyStrong">{formatPhp(topUp.amountCentavos)}</AppText>
-        <AppText variant="caption" color={theme.colors.textMuted}>{formatWalletTimestamp(topUp.createdAt)}</AppText>
-      </View>
-      <AppText variant="caption" color={presentation.payable ? theme.colors.social : theme.colors.textMuted}>{presentation.label}</AppText>
-    </View>
-  )
+  return {
+    id: String(topUp._id),
+    amountLabel: formatPhp(topUp.amountCentavos),
+    createdLabel: formatWalletTimestamp(topUp.createdAt),
+    statusLabel: presentation.label,
+    detail: presentation.detail,
+    active: presentation.active,
+    payable: presentation.payable,
+    expiryLabel: topUp.status === 'awaiting_payment' && topUp.expiresAt !== undefined
+      ? formatQrExpiry(topUp.expiresAt, now)
+      : undefined,
+    qrImageUrl: topUp.qrImageUrl ?? undefined,
+    canRefresh: Boolean(topUp.providerIntentId && presentation.active),
+  }
 }
 
 function WalletState({ title, detail, action, onPress }: { title: string; detail?: string; action?: string; onPress?: () => void }) {
@@ -223,19 +173,5 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 16, paddingBottom: 40, gap: 16 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
-  header: { gap: 7 },
-  notice: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 4 },
-  metrics: { gap: 10 },
-  metric: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 4 },
-  panel: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 12 },
-  copy: { flex: 1, gap: 4 },
-  input: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16 },
-  currentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
-  status: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  qr: { width: '100%', aspectRatio: 1, borderRadius: 16, backgroundColor: '#FFFFFF' },
-  history: { gap: 10 },
-  row: { borderBottomWidth: 1, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14 },
-  rowCopy: { flex: 1, gap: 2 },
 })

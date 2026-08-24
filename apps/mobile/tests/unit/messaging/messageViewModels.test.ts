@@ -33,6 +33,7 @@ describe('message view models', () => {
   it('creates truthful inbox previews', () => {
     expect(conversationPreview('  See you soon  ', 0)).toBe('See you soon')
     expect(conversationPreview('', 1)).toBe('Shared a file')
+    expect(conversationPreview(undefined, 3)).toBe('Shared 3 files')
     expect(conversationPreview(undefined, 0)).toBe('No messages yet')
   })
 })

@@ -3,17 +3,37 @@ import { AppIcon, type AppIconName } from './AppIcon'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
 
-export function IconButton({ label, icon, tone = 'neutral', disabled = false, onPress, style }: {
+export function IconButton({ label, icon, tone = 'neutral', disabled = false, loading = false, onPress, style }: {
   label: string
   icon: AppIconName
   tone?: 'neutral' | 'self' | 'social' | 'danger'
   disabled?: boolean
+  loading?: boolean
   onPress: () => void
   style?: ViewStyle
 }) {
   const theme = useAppTheme()
+  const inactive = disabled || loading
   const color = tone === 'self' ? theme.colors.selfText : tone === 'social' ? theme.colors.socialText : tone === 'danger' ? theme.colors.danger : theme.colors.textMuted
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} hitSlop={2} style={({ pressed }) => [styles.button, { backgroundColor: pressed ? theme.colors.surface : 'transparent' }, disabled && styles.disabled, style]}><AppIcon name={icon} size={20} color={color} /></Pressable>
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: inactive, busy: loading }}
+      aria-busy={loading || undefined}
+      disabled={inactive}
+      onPress={onPress}
+      hitSlop={2}
+      style={({ pressed }) => [
+        styles.button,
+        { backgroundColor: pressed ? theme.colors.surface : 'transparent' },
+        inactive && styles.disabled,
+        style,
+      ]}>
+      <AppIcon name={loading ? 'hourglass-outline' : icon} size={20} color={color} />
+    </Pressable>
+  )
 }
 
-const styles = StyleSheet.create({ button: { width: density.compactControlHeight, height: density.compactControlHeight, borderRadius: density.controlRadius, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.5 } })
+const styles = StyleSheet.create({ button: { width: density.controlHeight, height: density.controlHeight, borderRadius: density.controlRadius, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.5 } })

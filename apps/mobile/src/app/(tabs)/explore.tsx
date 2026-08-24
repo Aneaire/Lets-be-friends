@@ -1,23 +1,21 @@
 import { useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
 import { useMemo, useState } from 'react'
-import { FlatList, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { FlatList, Pressable, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { mobileApi } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
-import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Chip } from '@/design-system/atoms/Chip'
 import { CompanionCard } from '@/design-system/organisms/CompanionCard'
 import { Screen } from '@/design-system/templates/Screen'
+import { SearchField } from '@/design-system/molecules/SearchField'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
+import { DiscoveryFilterSheet } from '@/features/discovery/DiscoveryFilterSheet'
 import {
   activeDiscoveryFilterCount,
   defaultDiscoveryFilters,
-  discoveryCategories,
-  discoveryModes,
-  discoveryStrengths,
   filterDiscoveryCompanions,
   includeUnavailableCompanions,
   type DiscoveryFilters,
@@ -75,15 +73,7 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
                 <AppText variant="label" color={theme.colors.socialText}>NEARBY</AppText>
               </Pressable>
             </View>
-            <TextInput
-              accessibilityLabel="Search people"
-              placeholder="Search names, Strengths, or interests"
-              placeholderTextColor={theme.colors.textMuted}
-              value={query}
-              onChangeText={setQuery}
-              returnKeyType="search"
-              style={[styles.search, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}
-            />
+            <SearchField label="Search people" value={query} onChange={setQuery} placeholder="Search names, Strengths, or interests" />
             <View style={styles.quickFilters}>
               <Chip label={filters.bookableOnly ? 'Bookable only' : 'Include unavailable'} selected={filters.bookableOnly} onPress={() => setFilters((current) => ({ ...current, bookableOnly: !current.bookableOnly }))} />
               <Chip label={`Filters ${activeDiscoveryFilterCount(filters)}`} selected={Boolean(filters.category || filters.strength || filters.mode !== 'all')} onPress={() => setFilterSheet(true)} />
@@ -106,29 +96,8 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
           />
         }
       />
-      <FilterSheet visible={filterSheet} filters={filters} onChange={setFilters} onClose={() => setFilterSheet(false)} />
+      <DiscoveryFilterSheet visible={filterSheet} filters={filters} onChange={setFilters} onClose={() => setFilterSheet(false)} />
     </SafeAreaView>
-  )
-}
-
-function FilterSheet({ visible, filters, onChange, onClose }: { visible: boolean; filters: DiscoveryFilters; onChange: (filters: DiscoveryFilters) => void; onClose: () => void }) {
-  const theme = useAppTheme()
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={[styles.scrim, { backgroundColor: theme.colors.scrim }]}>
-        <View style={[styles.sheet, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-          <View style={styles.sheetHeader}><AppText variant="heading">Discovery filters</AppText><Pressable accessibilityRole="button" accessibilityLabel="Close filters" onPress={onClose} style={styles.close}><AppText variant="heading">×</AppText></Pressable></View>
-          <AppText variant="bodyStrong">Session format</AppText>
-          <View style={styles.chips}>{discoveryModes.map((mode) => <Chip key={mode.id} label={mode.label} selected={filters.mode === mode.id} onPress={() => onChange({ ...filters, mode: mode.id })} />)}</View>
-          <AppText variant="bodyStrong">Everyday help and activities</AppText>
-          <FlatList horizontal data={discoveryCategories} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalChips} renderItem={({ item }) => <Chip label={item} selected={filters.category === item} onPress={() => onChange({ ...filters, category: filters.category === item ? undefined : item })} />} />
-          <AppText variant="bodyStrong">Strength</AppText>
-          <FlatList horizontal data={discoveryStrengths} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalChips} renderItem={({ item }) => <Chip label={item} selected={filters.strength === item} onPress={() => onChange({ ...filters, strength: filters.strength === item ? undefined : item })} />} />
-          <ActionButton label="Show results" onPress={onClose} />
-          <ActionButton label="Reset filters" onPress={() => onChange(includeUnavailableCompanions(defaultDiscoveryFilters))} secondary />
-        </View>
-      </View>
-    </Modal>
   )
 }
 
@@ -148,15 +117,8 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   titleCopy: { flex: 1, gap: 4 },
   nearbyButton: { minWidth: 64, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
-  search: { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14 },
   quickFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   resultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   clearButton: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
   gap: { height: 8 },
-  scrim: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderWidth: 1, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 14, paddingBottom: 28, gap: 12, maxHeight: '82%' },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  horizontalChips: { gap: 8, paddingRight: 16 },
 })

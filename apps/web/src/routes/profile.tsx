@@ -7,12 +7,12 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
+import { PostMediaGrid } from '../features/social/PostMediaGrid'
 
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
 
 type ProfilePost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUser>>>[number]
 type ProfileReview = NonNullable<ReturnType<typeof useQuery<typeof api.reviews.forCompanion>>>[number]
-type ProfilePostMedia = { storageId: Id<'_storage'>; kind: 'image' | 'video'; url: string | null }
 type ProfileContentTab = 'posts' | 'reviews'
 
 function ProfilePage() {
@@ -215,7 +215,7 @@ function ProfilePage() {
                       </div>
                     </div>
                     {post.body && <p className="text-body muted whitespace-pre-wrap">{post.body}</p>}
-                    {post.media.length > 0 && <ProfilePostMediaGrid media={post.media} />}
+                    {post.media.length > 0 && <PostMediaGrid media={post.media} className="profile-post-media" />}
                   </article>
                 ))}
               </div>
@@ -426,19 +426,6 @@ async function uploadProfileImage(
   if (!result.ok) throw new Error('Profile image upload failed.')
   const { storageId } = await result.json() as { storageId: string }
   return storageId as Id<'_storage'>
-}
-
-function ProfilePostMediaGrid({ media }: { media: ProfilePostMedia[] }) {
-  return (
-    <div className="social-media-grid profile-post-media" data-count={media.length}>
-      {media.map((item) => (
-        <div key={item.storageId} className="social-media-item">
-          {item.url && item.kind === 'image' && <img src={item.url} alt="" loading="lazy" />}
-          {item.url && item.kind === 'video' && <video src={item.url} controls playsInline preload="metadata" />}
-        </div>
-      ))}
-    </div>
-  )
 }
 
 function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: string; size?: 'lg' | 'xl' }) {

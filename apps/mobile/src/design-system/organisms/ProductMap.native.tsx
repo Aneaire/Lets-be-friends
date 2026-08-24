@@ -4,8 +4,10 @@ import { Pressable, StyleSheet, View } from 'react-native'
 
 import type { ProductMapProps } from './ProductMap'
 import { AppText } from '@/design-system/atoms/Typography'
+import { useAppTheme } from '@/theme/ThemeProvider'
 
 export function ProductMap({ center, radiusKm, points = [], onSelectPoint }: ProductMapProps) {
+  const theme = useAppTheme()
   const mapCenter = center
     ? [center.longitude, center.latitude] as [number, number]
     : [...productMapInitialView.center] as [number, number]
@@ -28,8 +30,8 @@ export function ProductMap({ center, radiusKm, points = [], onSelectPoint }: Pro
         ) : null}
         {points.map((point) => (
           <Marker key={point.id} id={`companion-${point.id}`} lngLat={[point.longitude, point.latitude]}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Open ${point.name}'s profile`} onPress={() => onSelectPoint?.(point.id)} style={styles.personMarker}>
-              <AppText variant="label" color="#FFFFFF">{initials(point.name)}</AppText>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Open ${point.name}'s profile`} onPress={() => onSelectPoint?.(point.id)} style={[styles.personMarker, { backgroundColor: theme.colors.socialControl }]}>
+              <AppText variant="label" color={theme.colors.accentText}>{initials(point.name)}</AppText>
             </Pressable>
           </Marker>
         ))}
@@ -65,5 +67,5 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
   originMarker: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#1093ED', alignItems: 'center', justifyContent: 'center' },
   originDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#1093ED' },
-  personMarker: { minWidth: 38, height: 38, paddingHorizontal: 7, borderRadius: 19, backgroundColor: '#C1519C', borderWidth: 3, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  personMarker: { minWidth: 48, height: 48, paddingHorizontal: 9, borderRadius: 24, borderWidth: 3, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
 })

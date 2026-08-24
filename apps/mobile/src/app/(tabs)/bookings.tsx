@@ -6,8 +6,8 @@ import { Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
 import { BookingCard } from '@/design-system/organisms/BookingCard'
-import { Chip } from '@/design-system/atoms/Chip'
 import { Screen } from '@/design-system/templates/Screen'
+import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
@@ -44,17 +44,24 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
         <AppText variant="title">Bookings</AppText>
         <AppText color={theme.colors.textMuted}>Scan requests, upcoming plans, and history.</AppText>
       </View>
-      <View style={styles.filters}>
-        <Chip label={`Upcoming ${grouped.active.length}`} selected={filter === 'active'} onPress={() => setFilter('active')} />
-        <Chip label={`Requests ${grouped.requests.length}`} selected={filter === 'requests'} onPress={() => setFilter('requests')} />
-        <Chip label={`Past ${grouped.past.length}`} selected={filter === 'past'} onPress={() => setFilter('past')} />
-      </View>
+      <SegmentedControl
+        label="Booking status"
+        value={filter}
+        onChange={setFilter}
+        tone="social"
+        style={styles.filters}
+        options={[
+          { value: 'active', label: `Upcoming ${grouped.active.length}` },
+          { value: 'requests', label: `Requests ${grouped.requests.length}` },
+          { value: 'past', label: `Past ${grouped.past.length}` },
+        ]}
+      />
       {visible.length ? <View style={styles.list}>{visible.map((booking) => (
         <BookingCard
           key={booking._id}
           booking={{
             id: booking._id,
-            companionName: booking.companionDisplayName,
+            participantName: booking.companionDisplayName,
             category: booking.category,
             mode: booking.mode,
             requestedAt: booking.requestedAt,
@@ -92,7 +99,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 32 },
   state: { paddingHorizontal: 16 },
   header: { paddingTop: 16, gap: 5, marginBottom: 16 },
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  filters: { marginBottom: 16 },
   list: { gap: 10 },
   companionLink: { minHeight: 48, justifyContent: 'center', alignItems: 'center', marginTop: 18 },
 })

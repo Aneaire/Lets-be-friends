@@ -35,20 +35,20 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
   const pending = booking.status === 'request_sent'
   const canDecide = pending && !isRequester
   const canEdit = pending && isRequester
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<'accepted' | 'declined' | null>(null)
   const [actionError, setActionError] = useState('')
 
   const status = statusMeta(booking.status, isRequester)
 
   async function decide(decision: 'accepted' | 'declined') {
-    setBusy(true)
+    setBusy(decision)
     setActionError('')
     try {
       await onDecide(booking.bookingId, decision)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'The decision could not be saved.')
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
 
@@ -107,16 +107,26 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
       <div className="booking-request-card-actions">
         {canDecide && (
           <>
-            <button type="button" className="btn btn-social btn-sm" disabled={busy} onClick={() => void decide('accepted')}>
-              {busy ? 'Saving…' : 'Accept request'}
+            <button
+              type="button"
+              className="btn btn-social btn-sm"
+              disabled={busy !== null}
+              aria-busy={busy === 'accepted' || undefined}
+              onClick={() => void decide('accepted')}>
+              {busy === 'accepted' ? 'Accepting…' : 'Accept request'}
             </button>
-            <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void decide('declined')}>
-              Decline
+            <button
+              type="button"
+              className="btn btn-danger btn-sm"
+              disabled={busy !== null}
+              aria-busy={busy === 'declined' || undefined}
+              onClick={() => void decide('declined')}>
+              {busy === 'declined' ? 'Declining…' : 'Decline'}
             </button>
           </>
         )}
         {canEdit && (
-          <button type="button" className="btn btn-self btn-sm" disabled={busy} onClick={() => onEdit(booking)}>
+          <button type="button" className="btn btn-social btn-sm" disabled={busy !== null} onClick={() => onEdit(booking)}>
             Edit request
           </button>
         )}

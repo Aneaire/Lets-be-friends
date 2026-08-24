@@ -55,11 +55,14 @@ pnpm build-storybook
 pnpm build-storybook:mobile
 ```
 
-Run browser smoke and accessibility checks for web and admin stories:
+Run browser smoke and accessibility checks for web, admin, and mobile stories:
 
 ```bash
 pnpm test-storybook
+pnpm test-storybook:mobile
 ```
+
+The mobile command renders React Native stories through React Native Web in headless Chromium. Continue to verify safe areas, native back behavior, keyboard avoidance, permissions, and platform integrations in an installed development client.
 
 Every reusable component should have stories for its meaningful states. Include a 320 px or 390 px viewport for any component that can appear on a phone. Stories use the application styles and semantic color tokens, so they remain representative of production.
 

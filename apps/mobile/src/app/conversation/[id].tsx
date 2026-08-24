@@ -3,19 +3,18 @@ import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { router, useFocusEffect, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native'
+import { AppState, FlatList, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { mobileApi, type ConversationId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
-import { Avatar } from '@/design-system/atoms/Avatar'
-import { IconButton } from '@/design-system/atoms/IconButton'
 import { BookingCard } from '@/design-system/organisms/BookingCard'
-import { AppIcon } from '@/design-system/atoms/AppIcon'
+import { AttachmentMetaRow } from '@/design-system/molecules/AttachmentMetaRow'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { ReportAction } from '@/features/safety/ReportAction'
 import { AppText } from '@/design-system/atoms/Typography'
 import { CompactComposer } from '@/features/messaging/CompactComposer'
+import { BookingMessageShell, ConversationThreadHeader } from '@/features/messaging/ConversationThreadPresentation'
 import { MessageBubble } from '@/features/messaging/MessageBubble'
 import { bookingDestinationForViewer } from '@/data/bookingActions'
 import {
@@ -140,12 +139,13 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={[styles.threadHeader, { borderBottomColor: theme.colors.border }]}>
-          <IconButton label="Back to conversations" icon="chevron-back" onPress={() => goBackOrMessages()} style={styles.back} />
-          <Avatar uri={conversation.otherProfileImageUrl ?? undefined} name={conversation.otherDisplayName} size={42} />
-          <View style={styles.headerCopy}><AppText variant="bodyStrong">{conversation.otherDisplayName}</AppText><AppText variant="caption" color={theme.colors.textMuted}>{suspended ? 'Conversation paused' : 'Private member conversation'}</AppText></View>
-          <IconButton label={`Safety options for ${conversation.otherDisplayName}`} icon="shield-outline" tone="self" onPress={() => router.push({ pathname: '/safety' as never, params: { userId: String(conversation.otherUserId), name: conversation.otherDisplayName } } as never)} style={styles.safetyButton} />
-        </View>
+        <ConversationThreadHeader
+          name={conversation.otherDisplayName}
+          imageUrl={conversation.otherProfileImageUrl}
+          paused={suspended}
+          onBack={goBackOrMessages}
+          onSafety={() => router.push({ pathname: '/safety' as never, params: { userId: String(conversation.otherUserId), name: conversation.otherDisplayName } } as never)}
+        />
         <FlatList
           ref={listRef}
           data={chronologicalMessages}
@@ -204,22 +204,18 @@ function MessageItem({ message, otherName, viewerId }: {
       companionUserId: message.booking.companionUserId ? String(message.booking.companionUserId) : undefined,
     })
     return (
-      <View style={styles.bookingMessage}>
-        {message.body ? <AppText variant="caption" color={theme.colors.textMuted}>{message.body}</AppText> : null}
-        {destination ? (
+      <BookingMessageShell
+        body={message.body}
+        category={message.booking.category}
+        booking={destination ? (
           <BookingCard
             compact
-            booking={{ id: String(message.booking.bookingId), companionName: message.booking.companionDisplayName, category: message.booking.category, mode: message.booking.mode, requestedAt: message.booking.requestedAt, durationMinutes: message.booking.durationMinutes, status: message.booking.status, memberTotalCentavos: message.booking.memberTotalCentavos }}
+            booking={{ id: String(message.booking.bookingId), participantName: message.booking.companionDisplayName, category: message.booking.category, mode: message.booking.mode, requestedAt: message.booking.requestedAt, durationMinutes: message.booking.durationMinutes, status: message.booking.status, memberTotalCentavos: message.booking.memberTotalCentavos }}
             onPress={() => router.push(destination)}
           />
-        ) : (
-          <View style={[styles.bookingSnapshot, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}>
-            <AppText variant="bodyStrong">{message.booking.category}</AppText>
-            <AppText variant="caption" color={theme.colors.textMuted}>Booking details are not linked because your role in this booking could not be verified.</AppText>
-          </View>
-        )}
-        {!message.sentByViewer ? <ReportAction targetType="message" targetId={String(message._id)} label="Report message" compact /> : null}
-      </View>
+        ) : undefined}
+        reportAction={!message.sentByViewer ? <ReportAction targetType="message" targetId={String(message._id)} label="Report message" compact /> : undefined}
+      />
     )
   }
 
@@ -234,16 +230,15 @@ function MessageItem({ message, otherName, viewerId }: {
             const storageId = String(item.storageId)
             const url = item.url
             return (
-              <Pressable
+              <AttachmentMetaRow
                 key={`${storageId}-${index}`}
-                accessibilityRole={url ? 'link' : undefined}
-                accessibilityLabel={url ? `Open private attachment ${item.fileName}` : `${item.fileName}, attachment link unavailable`}
-                disabled={!url}
-                onPress={() => void openAttachment(storageId)}
-                style={({ pressed }) => [styles.attachmentMeta, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
-                <AppText variant="caption" numberOfLines={1} color={url ? theme.colors.socialText : theme.colors.text}>{item.fileName}</AppText>
-                <AppText variant="caption" color={theme.colors.textMuted}>{formatFileSize(item.size)} · {url ? 'Open private attachment' : 'Secure link unavailable'}</AppText>
-              </Pressable>
+                name={item.fileName}
+                detail={`${formatFileSize(item.size)} · ${url ? 'Open private attachment' : 'Secure link unavailable'}`}
+                state={url ? 'default' : 'danger'}
+                actionRole="link"
+                actionLabel={url ? `Open private attachment ${item.fileName}` : undefined}
+                onAction={url ? () => openAttachment(storageId) : undefined}
+              />
             )
           })}
         </> : undefined}
@@ -267,19 +262,11 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   state: { justifyContent: 'center', padding: 14, gap: 16 },
-  threadHeader: { minHeight: 68, borderBottomWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  back: { width: 44, height: 48 },
-  headerCopy: { flex: 1 },
-  safetyButton: { width: 44, height: 44 },
   messages: { padding: 14, gap: 12 },
   messagesEmpty: { flexGrow: 1, justifyContent: 'center' },
   empty: { alignItems: 'center', gap: 8 },
-  attachmentMeta: { minHeight: 44, borderTopWidth: 1, paddingTop: 6, justifyContent: 'center', gap: 1 },
-  bookingMessage: { gap: 8 },
-  bookingSnapshot: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 4 },
   composer: { borderTopWidth: 1, padding: 12, gap: 8 },
   suspended: { borderTopWidth: 1, padding: 14 },
-  pressed: { opacity: 0.62 },
 })
 
 function goBackOrMessages() {

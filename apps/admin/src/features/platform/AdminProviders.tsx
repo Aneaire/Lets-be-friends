@@ -28,8 +28,7 @@ const clerkAppearance = {
   },
   elements: {
     modalBackdrop: {
-      backgroundColor: 'color-mix(in oklch, var(--text) 24%, transparent)',
-      backdropFilter: 'blur(2px)',
+      backgroundColor: 'color-mix(in oklch, var(--text) 32%, transparent)',
     },
     cardBox: {
       backgroundColor: 'var(--surface)',

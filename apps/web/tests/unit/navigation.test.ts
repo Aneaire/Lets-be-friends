@@ -4,14 +4,14 @@ import { activePrimaryNavigation, isWorkspacePath, primaryNavigation } from '../
 describe('application navigation', () => {
   it('keeps frequent member destinations in a stable order', () => {
     expect(primaryNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
-      { label: 'Home', to: '/' },
+      { label: 'Home', to: '/social' },
       { label: 'Explore', to: '/discover' },
       { label: 'Messages', to: '/messages' },
       { label: 'Bookings', to: '/app' },
     ])
   })
 
-  it('treats the social alias as Home', () => {
+  it('treats the public landing route and social feed as Home', () => {
     expect(activePrimaryNavigation('/')).toBe('home')
     expect(activePrimaryNavigation('/social')).toBe('home')
   })

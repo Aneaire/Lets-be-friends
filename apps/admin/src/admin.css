@@ -106,8 +106,7 @@
     min-height: 4rem;
     padding: 0.75rem clamp(1rem, 2.5vw, 2rem);
     border-bottom: 1px solid var(--rule);
-    background: color-mix(in oklch, var(--app-bg) 94%, transparent);
-    backdrop-filter: saturate(120%) blur(8px);
+    background: var(--app-bg);
   }
 
   .admin-user-name {
@@ -253,6 +252,11 @@
     background: var(--surface);
   }
 
+  .admin-table-scroll:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+
   .admin-table {
     width: 100%;
     min-width: 52rem;
@@ -347,23 +351,6 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 0.5rem;
-  }
-
-  .admin-icon-button {
-    display: inline-grid;
-    place-items: center;
-    width: 2rem;
-    height: 2rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface);
-    color: var(--text-muted);
-  }
-
-  .admin-icon-button:hover {
-    border-color: var(--border-strong);
-    color: var(--text);
-    background: var(--surface-sunk);
   }
 
   .admin-code {

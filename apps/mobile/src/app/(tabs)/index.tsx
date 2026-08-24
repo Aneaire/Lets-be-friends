@@ -3,7 +3,7 @@ import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { FlatList, Image, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { FlatList, Platform, Pressable, StyleSheet, View } from 'react-native'
 import { api as generatedApi } from '../../../../web/convex/_generated/api'
 import { activeMentionQuery } from '@lets-be-friends/shared'
 
@@ -15,8 +15,9 @@ import { Avatar } from '@/design-system/atoms/Avatar'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Brand } from '@/design-system/atoms/Brand'
-import { Chip } from '@/design-system/atoms/Chip'
+import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { Screen } from '@/design-system/templates/Screen'
+import { PostComposer } from '@/features/social/PostComposer'
 import { SocialFeedCard } from '@/features/social/SocialFeedCard'
 import { StateView } from '@/design-system/molecules/StateView'
 import { FeedSkeleton } from '@/design-system/atoms/Skeleton'
@@ -27,6 +28,12 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 
 type FeedFilter = 'for_you' | 'following' | 'saved'
 type FeedItem = FunctionReturnType<typeof generatedApi.social.feedPage>['page'][number]
+
+const feedFilterOptions = [
+  { value: 'for_you', label: 'For you' },
+  { value: 'following', label: 'Following' },
+  { value: 'saved', label: 'Saved' },
+] satisfies Array<{ value: FeedFilter; label: string }>
 type FeedAction = 'open_companion' | 'open_guidance' | 'comment' | 'like' | 'save' | 'follow' | 'report' | 'report_comment'
 
 export default function HomeScreen() {
@@ -69,7 +76,7 @@ function ConnectedHome() {
   const [mentionCaret, setMentionCaret] = useState(0)
   const mentionToken = activeMentionQuery(postBody, mentionCaret)
   const mentionSuggestions = useQuery(mobileApi.social.mentionLookup, mentionToken ? { query: mentionToken } : 'skip')
-  const [authorFollowState, setAuthorFollowState] = useState<Record<string, { following: boolean; busy: boolean }>>({})
+  const [authorFollowBusy, setAuthorFollowBusy] = useState<Record<string, boolean>>({})
   const followRequests = useRef(new Set<string>())
 
   useEffect(() => {
@@ -175,22 +182,20 @@ function ConnectedHome() {
     setMentionCaret(before.length)
   }
 
-  async function updateFollowing(authorId: string, currentFollowing: boolean) {
+  async function updateFollowing(authorId: string) {
     if (followRequests.current.has(authorId)) return undefined
     followRequests.current.add(authorId)
-    setAuthorFollowState((state) => ({
-      ...state,
-      [authorId]: { following: state[authorId]?.following ?? currentFollowing, busy: true },
-    }))
+    setAuthorFollowBusy((state) => ({ ...state, [authorId]: true }))
     try {
-      const following = await toggleFollow({ userId: authorId as UserId })
-      setAuthorFollowState((state) => ({ ...state, [authorId]: { following, busy: false } }))
-      return following
+      return await toggleFollow({ userId: authorId as UserId })
     } finally {
       followRequests.current.delete(authorId)
-      setAuthorFollowState((state) => state[authorId]
-        ? { ...state, [authorId]: { ...state[authorId], busy: false } }
-        : state)
+      setAuthorFollowBusy((state) => {
+        if (!state[authorId]) return state
+        const next = { ...state }
+        delete next[authorId]
+        return next
+      })
     }
   }
 
@@ -233,9 +238,8 @@ function ConnectedHome() {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         renderItem={({ item }) => {
           const authorId = item.kind === 'post' ? String(item.post.authorId) : undefined
-          const followState = authorId ? authorFollowState[authorId] : undefined
-          const following = item.kind === 'post' ? followState?.following ?? item.post.followingAuthor : undefined
-          return <SocialFeedCard item={item} signedIn={signedIn} following={following} followBusy={followState?.busy} onToggleFollow={authorId && following !== undefined ? () => updateFollowing(authorId, following) : undefined} onAction={(action) => instrument(item, action)} />
+          const following = item.kind === 'post' ? item.post.followingAuthor : undefined
+          return <SocialFeedCard item={item} signedIn={signedIn} following={following} followBusy={authorId ? Boolean(authorFollowBusy[authorId]) : false} onToggleFollow={authorId && following !== undefined ? () => updateFollowing(authorId) : undefined} onAction={(action) => instrument(item, action)} />
         }}
         ListHeaderComponent={<>
       <View style={styles.topBar}>
@@ -247,56 +251,41 @@ function ConnectedHome() {
       </View>
 
       {signedIn ? (
-        <View style={[styles.composer, composerOpen && styles.composerOpen, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}> 
-          {!composerOpen ? <View style={styles.collapsedComposer}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={() => setComposerOpen(true)} hitSlop={2} style={[styles.composerPrompt, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}><AppText color={theme.colors.textMuted} numberOfLines={1}>What could feel easier together?</AppText></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Add photos or videos" onPress={() => { setComposerOpen(true); void chooseMedia() }} disabled={creating || mediaUsage?.remaining === 0} style={({ pressed }) => [styles.compactMediaButton, { borderColor: theme.colors.border }, pressed && styles.pressed]}><AppIcon name="images-outline" color={theme.colors.socialText} /></Pressable>
-          </View> : <View style={styles.composerCopy}>
-            <TextInput
-              accessibilityLabel="Create a text post"
-              value={postBody}
-              onChangeText={(value) => { setPostBody(value); setPostError(''); setMentionCaret(value.length) }}
-              onSelectionChange={(event) => { setMentionCaret(event.nativeEvent.selection.start) }}
-              placeholder="Ask for help, share an idea, or start a conversation"
-              placeholderTextColor={theme.colors.textMuted}
-              multiline
-              maxLength={1_001}
-              style={[styles.postInput, theme.typography.body, { color: theme.colors.text, borderColor: postBody.length > 1_000 ? theme.colors.danger : theme.colors.border, backgroundColor: theme.colors.background }]}
-              autoFocus
-            />
-            {mentionToken && mentionSuggestions && mentionSuggestions.length > 0 ? (
-              <View style={[styles.mentionMenu, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
-                {mentionSuggestions.map((suggestion) => (
-                  <Pressable
-                    key={suggestion.userId}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Mention ${suggestion.displayName} as ${suggestion.username}`}
-                    onPress={() => insertMention(suggestion.username)}
-                    style={({ pressed }) => [styles.mentionOption, pressed && styles.pressed]}
-                  >
-                    <Avatar name={suggestion.displayName} size={28} />
-                    <View style={styles.mentionOptionCopy}>
-                      <AppText variant="bodyStrong" numberOfLines={1}>{suggestion.displayName}</AppText>
-                      <AppText variant="caption" color={theme.colors.socialText}>@{suggestion.username}</AppText>
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-            {mediaAssets.length ? <View style={styles.mediaGrid}>{mediaAssets.map((asset, index) => <View key={asset.assetId ?? asset.uri} style={[styles.mediaPreview, { borderColor: theme.colors.border }]}>{asset.type === 'image' ? <Image source={{ uri: asset.uri }} accessibilityLabel={`Selected post photo ${index + 1}`} style={styles.previewImage} /> : <View style={styles.videoPreview}><AppIcon name="videocam-outline" color={theme.colors.socialText} /><AppText variant="caption">Video {index + 1} ready</AppText></View>}<Pressable accessibilityRole="button" accessibilityLabel={`Remove selected media ${index + 1}`} onPress={() => setMediaAssets((current) => current.filter((_, itemIndex) => itemIndex !== index))} style={[styles.removeMedia, { backgroundColor: theme.colors.inverse }]}><AppIcon name="close" color={theme.colors.inverseText} size={18} /></Pressable></View>)}</View> : null}
-            <View style={styles.publishRow}><Pressable accessibilityRole="button" accessibilityLabel="Add photos or videos" onPress={() => void chooseMedia()} disabled={creating || mediaAssets.length >= maximumPostMediaItems || mediaUsage?.remaining === 0} style={styles.mediaButton}><AppIcon name="images-outline" color={theme.colors.socialText} /><AppText variant="caption" color={theme.colors.socialText}>Photos or videos</AppText></Pressable>{composerOpen ? <><AppText variant="caption" color={postBody.length > 1_000 ? theme.colors.danger : theme.colors.textMuted}>{postBody.length}/1,000</AppText><ActionButton label={creating ? 'Posting' : 'Post'} onPress={() => void publish()} disabled={creating || (!postBody.trim() && mediaAssets.length === 0) || postBody.length > 1_000} style={styles.postButton} /></> : null}</View>
-            {composerOpen && mediaUsage ? <AppText variant="caption" color={theme.colors.textMuted}>{mediaAssets.length}/5 selected, {mediaUsage.remaining} media uploads remaining today</AppText> : null}
-          </View>}
-        </View>
+        <PostComposer
+          expanded={composerOpen}
+          body={postBody}
+          busy={creating}
+          media={mediaAssets.map((asset) => ({
+            key: asset.assetId ?? asset.uri,
+            kind: asset.type === 'image' ? 'image' : 'video',
+            previewUrl: asset.type === 'image' ? asset.uri : undefined,
+          }))}
+          mediaLimit={maximumPostMediaItems}
+          remainingUploads={mediaUsage?.remaining}
+          mentionSuggestions={mentionToken ? mentionSuggestions ?? [] : []}
+          onExpand={() => setComposerOpen(true)}
+          onBodyChange={(value) => {
+            setPostBody(value)
+            setPostError('')
+          }}
+          onCaretChange={setMentionCaret}
+          onChooseMedia={() => void chooseMedia()}
+          onRemoveMedia={(index) => setMediaAssets((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+          onSelectMention={insertMention}
+          onPublish={() => void publish()}
+        />
       ) : (
         <View style={[styles.signInCard, { borderColor: theme.colors.border }]}><AppText variant="bodyStrong">Join the conversation</AppText><AppText variant="caption" color={theme.colors.textMuted}>{auth.status === 'unconfigured' ? 'Account services are not configured in this build. Public For You activity remains read only.' : 'Sign in to post, follow, save, comment, and shape your feed.'}</AppText>{auth.status === 'signed_out' ? <ActionButton label="Sign in" onPress={() => router.push('/auth')} secondary /> : null}</View>
       )}
 
-      <View style={styles.filters}>
-        <Chip label="For you" selected={filter === 'for_you'} onPress={() => setFilter('for_you')} />
-        <Chip label="Following" selected={filter === 'following'} onPress={() => setFilter('following')} />
-        <Chip label="Saved" selected={filter === 'saved'} onPress={() => setFilter('saved')} />
-      </View>
+      <SegmentedControl
+        label="Community feed"
+        options={feedFilterOptions}
+        value={filter}
+        onChange={setFilter}
+        tone="social"
+        style={styles.feedFilter}
+      />
         </>}
         ListEmptyComponent={!canQuery
           ? <StateView embedded title={`Sign in to view ${filter}`} detail="This feed uses your real account relationships and saved posts." actionLabel={auth.status === 'signed_out' ? 'Sign in' : undefined} onAction={auth.status === 'signed_out' ? () => router.push('/auth') : undefined} />
@@ -330,26 +319,7 @@ const styles = StyleSheet.create({
   iconButton: { position: 'relative', width: 44, height: 44, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   profileButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   badge: { position: 'absolute', top: -4, right: -4, minWidth: 19, height: 19, borderRadius: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
-  composer: { borderWidth: 1, borderRadius: 13, padding: 6, flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  composerOpen: { padding: 12, alignItems: 'flex-start', gap: 10, marginTop: 10 },
-  collapsedComposer: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  composerCopy: { flex: 1, gap: 7 },
-  composerPrompt: { flex: 1, minHeight: 40, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, justifyContent: 'center' },
-  compactMediaButton: { width: 44, height: 44, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  pressed: { opacity: 0.68 },
-  postInput: { minHeight: 48, maxHeight: 120, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingTop: 11, textAlignVertical: 'top' },
-  publishRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
-  mediaButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
-  mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  mediaPreview: { width: '48%', borderWidth: 1, borderRadius: 12, overflow: 'hidden', position: 'relative' },
-  previewImage: { width: '100%', aspectRatio: 4 / 3 },
-  videoPreview: { minHeight: 80, alignItems: 'center', justifyContent: 'center', gap: 5 },
-  removeMedia: { position: 'absolute', right: 8, top: 8, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  postButton: { minHeight: 44, paddingHorizontal: 16 },
-  mentionMenu: { borderWidth: 1, borderRadius: 12, padding: 6, gap: 2, maxHeight: 200 },
-  mentionOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 8 },
-  mentionOptionCopy: { flex: 1, gap: 1 },
   signInCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8, marginTop: 10 },
-  filters: { flexDirection: 'row', gap: 8, marginVertical: 10 },
+  feedFilter: { marginVertical: 10 },
   feed: { gap: 10 },
 })

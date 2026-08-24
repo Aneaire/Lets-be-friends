@@ -23,12 +23,12 @@ const baseBooking: BookingRequestView = {
   settlementBlocked: false,
 }
 
-function renderCard(booking: BookingRequestView) {
+function renderCard(booking: BookingRequestView, viewerId = 'companion-1' as Id<'users'>) {
   return render(
     <BookingRequestCard
       intro="Michael sent a booking request with the session details."
       booking={booking}
-      viewerId={'companion-1' as Id<'users'>}
+      viewerId={viewerId}
       onDecide={vi.fn()}
       onEdit={vi.fn()}
     />,
@@ -44,6 +44,14 @@ describe('BookingRequestCard', () => {
     expect(screen.getByText(/Your entitlement/)).toBeTruthy()
     expect(screen.getByText(/Bring your favorite game/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Accept request' })).toBeTruthy()
+  })
+
+  it('presents the requester edit action with social intent', () => {
+    renderCard(baseBooking, baseBooking.memberId)
+
+    const edit = screen.getByRole('button', { name: 'Edit request' })
+    expect(edit.classList.contains('btn-social')).toBe(true)
+    expect(edit.classList.contains('btn-self')).toBe(false)
   })
 
   it('reduces an accepted booking to its essential summary', () => {

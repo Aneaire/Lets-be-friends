@@ -1,32 +1,42 @@
 import { useMutation, useQuery } from 'convex/react'
 import { useRef, useState } from 'react'
-import { Alert, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type UserId } from '@/backend/client'
+import { ConfirmationDialog } from '@/design-system/molecules/ConfirmationDialog'
 import { safeProductError } from '@/data/productErrors'
-import { useAppTheme } from '@/theme/ThemeProvider'
 
-import { ActionButton } from '@/design-system/atoms/ActionButton'
-import { useAppToastMessage } from '@/design-system/molecules/AppToast'
-import { AppText } from '@/design-system/atoms/Typography'
+import {
+  MemberSafetyActionsPresentation,
+  memberBlockConfirmationCopy,
+} from './MemberSafetyActionsPresentation'
 
-export function MemberSafetyActions({ userId, displayName }: { userId: string; displayName: string }) {
-  const theme = useAppTheme()
-  const relationship = useQuery(mobileApi.safety.relationship, { userId: userId as UserId })
+export function MemberSafetyActions({
+  userId,
+  displayName,
+}: {
+  userId: string
+  displayName: string
+}) {
+  const relationship = useQuery(mobileApi.safety.relationship, {
+    userId: userId as UserId,
+  })
   const setBlocked = useMutation(mobileApi.safety.setBlocked)
   const setMuted = useMutation(mobileApi.safety.setMuted)
   const [busy, setBusy] = useState<'block' | 'mute' | null>(null)
   const mutationLock = useRef<'block' | 'mute' | null>(null)
   const [message, setMessage] = useState('')
-  useAppToastMessage(message)
+  const [confirmationOpen, setConfirmationOpen] = useState(false)
+  const blocked = Boolean(relationship?.blocked)
+  const confirmation = memberBlockConfirmationCopy(displayName, blocked)
 
-  async function updateBlock(blocked: boolean) {
+  async function updateBlock(nextBlocked: boolean) {
     if (busy || mutationLock.current) return
     mutationLock.current = 'block'
     setBusy('block')
     setMessage('')
     try {
-      await setBlocked({ userId: userId as UserId, blocked })
+      await setBlocked({ userId: userId as UserId, blocked: nextBlocked })
+      setConfirmationOpen(false)
     } catch (error) {
       setMessage(safeProductError('update_safety', error))
     } finally {
@@ -50,16 +60,35 @@ export function MemberSafetyActions({ userId, displayName }: { userId: string; d
     }
   }
 
-  function changeBlock() {
-    const blocked = Boolean(relationship?.blocked)
-    Alert.alert(blocked ? `Unblock ${displayName}?` : `Block ${displayName}?`, blocked ? 'They will be able to contact and discover you again.' : 'New messages, bookings, follows, comments, and discovery between you will stop. Existing booking history, messages, reports, and safety records stay available.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: blocked ? 'Unblock' : 'Block member', style: blocked ? 'default' : 'destructive', onPress: () => void updateBlock(!blocked) },
-    ])
+  function closeConfirmation() {
+    if (mutationLock.current) return
+    setConfirmationOpen(false)
   }
 
-  const disabled = relationship === undefined || busy !== null
-  return <View style={styles.container}><AppText variant="caption" color={theme.colors.textMuted}>Muting removes this member from your feed and noncritical updates. Blocking also stops new contact and booking requests.</AppText><View style={styles.actions}><ActionButton label={busy === 'mute' ? 'Updating' : relationship?.muted ? 'Unmute' : 'Mute'} onPress={() => void updateMute(!relationship?.muted)} disabled={disabled} intent="self" secondary style={styles.action} /><ActionButton label={busy === 'block' ? 'Updating' : relationship?.blocked ? 'Unblock' : 'Block'} onPress={changeBlock} disabled={disabled} intent="danger" secondary style={styles.action} /></View>{relationship?.blockedByOther ? <AppText variant="caption" color={theme.colors.textMuted}>Contact is unavailable for this member connection.</AppText> : null}</View>
+  return (
+    <>
+      <MemberSafetyActionsPresentation
+        relationship={relationship}
+        busy={busy}
+        message={message}
+        onToggleMute={() => void updateMute(!relationship?.muted)}
+        onChangeBlock={() => {
+          setMessage('')
+          setConfirmationOpen(true)
+        }}
+      />
+      <ConfirmationDialog
+        visible={confirmationOpen}
+        onClose={closeConfirmation}
+        onConfirm={() => updateBlock(!blocked)}
+        title={confirmation.title}
+        description={confirmation.description}
+        confirmLabel={confirmation.confirmLabel}
+        busyLabel={blocked ? 'Unblocking member' : 'Blocking member'}
+        cancelLabel="Keep current safety setting"
+        intent={confirmation.intent}
+        busy={busy === 'block'}
+      />
+    </>
+  )
 }
-
-const styles = StyleSheet.create({ container: { gap: 8 }, actions: { flexDirection: 'row', gap: 8 }, action: { flex: 1, minHeight: 46 } })

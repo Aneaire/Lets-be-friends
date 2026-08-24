@@ -89,7 +89,7 @@ function ConnectedMemberProfile({ id }: { id: string }) {
         <View style={styles.identityCopy}>
           <AppText variant="title">{userProfile.displayName}</AppText>
           {userProfile.username ? <AppText color={theme.colors.textMuted}>@{userProfile.username}</AppText> : null}
-          <AppText variant="caption" color={userProfile.identityVerified ? theme.colors.selfText : theme.colors.textMuted}>{userProfile.identityVerified ? 'Identity checked' : 'Not identity checked'}</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>{userProfile.identityVerified ? 'Identity checked' : 'Not identity checked'}</AppText>
         </View>
       </View>
 

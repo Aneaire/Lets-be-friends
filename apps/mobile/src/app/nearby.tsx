@@ -2,19 +2,20 @@ import * as Location from 'expo-location'
 import { useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
 import { useMemo, useState } from 'react'
-import { FlatList, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import { FlatList, ScrollView, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { mobileApi } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
+import { SearchField } from '@/design-system/molecules/SearchField'
 import { Chip } from '@/design-system/atoms/Chip'
 import { CompanionCard } from '@/design-system/organisms/CompanionCard'
 import { ProductMap } from '@/design-system/organisms/ProductMap'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
-import { mapApprovedCompanion, type ApprovedCompanionRecord, type DiscoveryCompanionViewModel } from '@/data/companionViewModels'
+import { mapApprovedCompanion, type ApprovedCompanionRecord } from '@/data/companionViewModels'
 import { defaultDiscoveryFilters, discoveryCategories, discoveryModes, discoveryStrengths, filterDiscoveryCompanions, type DiscoveryFilters } from '@/data/discovery'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -92,7 +93,7 @@ export default function NearbyScreen() {
           {locationError ? <AppText accessibilityRole="alert" color={theme.colors.danger}>{locationError}</AppText> : null}
           <ActionButton label={locating ? 'Finding your location' : 'Use current location'} onPress={() => void locate()} disabled={locating} />
           <View style={styles.orRow}><View style={[styles.orLine, { backgroundColor: theme.colors.border }]} /><AppText variant="caption" color={theme.colors.textMuted}>OR SEARCH A TRAVEL AREA</AppText><View style={[styles.orLine, { backgroundColor: theme.colors.border }]} /></View>
-          <TextInput accessibilityLabel="Travel area" placeholder="City, neighborhood, or landmark" placeholderTextColor={theme.colors.textMuted} value={travelArea} onChangeText={setTravelArea} returnKeyType="search" onSubmitEditing={() => void locateTravelArea()} style={[styles.input, theme.typography.body, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]} />
+          <SearchField label="Travel area" value={travelArea} onChange={setTravelArea} placeholder="City, neighborhood, or landmark" autoCapitalize="words" onSubmitEditing={() => void locateTravelArea()} />
           <ActionButton label={locating ? 'Searching area' : 'Search travel area'} onPress={() => void locateTravelArea()} secondary disabled={locating || travelArea.trim().length < 2} />
           <ActionButton label="Return to Explore" onPress={() => router.replace('/explore')} secondary />
         </ScrollView>
@@ -108,7 +109,7 @@ export default function NearbyScreen() {
             <AppText variant="bodyStrong">Around {originLabel}</AppText>
             <AppText color={theme.colors.textMuted}>The map and results use rounded search and Companion areas. Exact addresses are never shown.</AppText>
             <View style={styles.radii}>{radii.map((radius) => <Chip key={radius} label={`${radius} km`} selected={radiusKm === radius} onPress={() => setRadiusKm(radius)} />)}</View>
-            <TextInput accessibilityLabel="Search nearby Companions" placeholder="Search names, Strengths, or interests" placeholderTextColor={theme.colors.textMuted} value={query} onChangeText={setQuery} style={[styles.input, theme.typography.body, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]} />
+            <SearchField label="Search nearby Companions" value={query} onChange={setQuery} placeholder="Search names, Strengths, or interests" />
             <View style={styles.radii}>{discoveryModes.map((item) => <Chip key={item.id} label={item.label} selected={filters.mode === item.id} onPress={() => setFilters((current) => ({ ...current, mode: item.id }))} />)}<Chip label="Bookable" selected={filters.bookableOnly} onPress={() => setFilters((current) => ({ ...current, bookableOnly: !current.bookableOnly }))} /></View>
             <FlatList horizontal data={discoveryCategories} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} renderItem={({ item }) => <Chip label={item} selected={filters.category === item} onPress={() => setFilters((current) => ({ ...current, category: current.category === item ? undefined : item }))} />} />
             <FlatList horizontal data={discoveryStrengths} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} renderItem={({ item }) => <Chip label={item} selected={filters.strength === item} onPress={() => setFilters((current) => ({ ...current, strength: current.strength === item ? undefined : item }))} />} />
@@ -145,7 +146,6 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingBottom: 40 },
   listHeader: { gap: 12, paddingVertical: 14 },
   radii: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  input: { minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14 },
   orRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   orLine: { height: 1, flex: 1 },
   horizontal: { gap: 8, paddingRight: 16 },

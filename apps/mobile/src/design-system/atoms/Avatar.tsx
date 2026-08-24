@@ -23,6 +23,7 @@ export function Avatar({ uri, name, size = 64 }: { uri?: string; name: string; s
 
   return (
     <View
+      accessibilityRole="image"
       accessibilityLabel={`${name} has no profile photo`}
       style={[styles.fallback, { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}> 
       <AppIcon name="person" color={theme.colors.textMuted} size={Math.max(18, Math.round(size * 0.5))} />
