@@ -54,10 +54,13 @@ function UploadPreviewStory() {
   const [media, setMedia] = useState(previewMedia)
 
   return (
-    <div className="social-story-timeline">
-      <div className="social-composer">
+    <div className="social-story-timeline social-upload-preview-story">
+      <div className="social-composer social-composer-standalone">
         <div className="social-composer-body">
-          <strong>Photos ready to share</strong>
+          <div className="social-upload-preview-heading">
+            <strong>Ready to share</strong>
+            <span className="text-meta">{media.length} photos selected</span>
+          </div>
           {media.length > 0 ? (
             <PostMediaGrid
               mode="preview"

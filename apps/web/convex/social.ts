@@ -118,13 +118,31 @@ async function feedPageResult(ctx: any, args: {
     }
 
     const rankedPosts = await rankPostCandidates(ctx, result.page, viewer, args.paginationOpts.numItems)
-    const postItems = await Promise.all(rankedPosts.map(async (candidate) => ({
+    let postItems = await Promise.all(rankedPosts.map(async (candidate) => ({
       kind: 'post' as const,
       itemKey: `post:${candidate.post._id}`,
       source: candidate.source,
       reason: candidate.reason,
       post: await enrichPost(ctx, candidate.post, viewer),
     })))
+    if (viewer && args.paginationOpts.cursor === null) {
+      const newestOwnPost = result.page.find((post: Doc<'posts'>) => (
+        post.authorId === viewer._id && isModerationVisible(post) && !post.deletedAt
+      ))
+      if (newestOwnPost) {
+        const ownItemKey = `post:${newestOwnPost._id}`
+        const rankedOwnItem = postItems.find((item) => item.itemKey === ownItemKey)
+        const ownItem = rankedOwnItem ?? {
+          kind: 'post' as const,
+          itemKey: ownItemKey,
+          source: 'recent' as const,
+          reason: 'Your newest post',
+          post: await enrichPost(ctx, newestOwnPost, viewer),
+        }
+        postItems = [ownItem, ...postItems.filter((item) => item.itemKey !== ownItemKey)]
+          .slice(0, args.paginationOpts.numItems)
+      }
+    }
     if (args.paginationOpts.cursor !== null || postItems.length >= 8) return { ...result, page: postItems }
     const companionItems = await approvedCompanionFallback(ctx, viewer, 3)
     return {
@@ -260,6 +278,7 @@ export const commentsForPost = query({
         return {
           ...comment,
           authorDisplayName: author?.displayName ?? 'Member',
+          authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
           ownComment: viewer?._id === comment.authorId,
         }
       }))
@@ -280,7 +299,12 @@ export const commentPage = query({
       page: (await Promise.all(result.page.filter(isModerationVisible).map(async (comment) => {
         if (viewer && viewer._id !== comment.authorId && await isHiddenByPreference(ctx, viewer._id, comment.authorId)) return null
         const author = await ctx.db.get(comment.authorId)
-        return { ...comment, authorDisplayName: author?.displayName ?? 'Member', ownComment: viewer?._id === comment.authorId }
+        return {
+          ...comment,
+          authorDisplayName: author?.displayName ?? 'Member',
+          authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
+          ownComment: viewer?._id === comment.authorId,
+        }
       }))).flatMap((comment) => comment ? [comment] : []),
     }
   },
@@ -476,6 +500,43 @@ export const createComment = mutation({
       dedupeKey: `comment-mention:${commentId}:${mention.userId}`,
     })))
     return commentId
+  },
+})
+
+export const editComment = mutation({
+  args: { commentId: v.id('postComments'), body: v.string() },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const comment = await ctx.db.get(args.commentId)
+    if (!comment || comment.authorId !== viewer._id || comment.hidden) {
+      throw new Error('Only the author can edit this comment')
+    }
+    const post = await ctx.db.get(comment.postId)
+    if (!post || post.hidden || post.deletedAt) throw new Error('Post not found')
+    const body = args.body.trim()
+    if (body.length < 1) throw new Error('Comment cannot be empty')
+    if (body.length > 500) throw new Error('Comment is too long')
+    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_COMMENT, 'comment')
+    await ctx.db.patch(args.commentId, {
+      body,
+      mentions: mentions.length > 0 ? mentions : undefined,
+      updatedAt: Math.max(Date.now(), comment.updatedAt + 1, comment.createdAt + 1),
+    })
+    await Promise.all(mentions.map((mention) => createNotification(ctx, {
+      recipientUserId: mention.userId,
+      actorUserId: viewer._id,
+      kind: 'mention',
+      priority: 'standard',
+      postId: post._id,
+      commentId: comment._id,
+      dedupeKey: `comment-mention:${comment._id}:${mention.userId}`,
+    })))
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'post.comment.edited',
+      targetType: 'comment',
+      targetId: String(args.commentId),
+    })
   },
 })
 

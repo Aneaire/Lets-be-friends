@@ -2,6 +2,7 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-r
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { Header, Footer } from '../design-system/templates/AppShell'
+import { MobileAuthGate } from '../features/auth/MobileAuthGate'
 import { OnboardingGate } from '../features/onboarding/OnboardingGate'
 import { AppProviders } from '../features/platform/Providers'
 import { Toaster } from '../design-system/primitives/sonner'
@@ -37,14 +38,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         <AppProviders>
           <OnboardingGate>
-            <div className="app-frame web-app-shell">
-              <a className="skip-link" href="#main-content">Skip to main content</a>
-              <Header />
-              <div className="app-frame-main" id="main-content" tabIndex={-1}>
-                {children}
+            <MobileAuthGate>
+              <div className="app-frame web-app-shell">
+                <a className="skip-link" href="#main-content">Skip to main content</a>
+                <Header />
+                <div className="app-frame-main" id="main-content" tabIndex={-1}>
+                  {children}
+                </div>
+                <Footer />
               </div>
-              <Footer />
-            </div>
+            </MobileAuthGate>
           </OnboardingGate>
           <Toaster />
         </AppProviders>

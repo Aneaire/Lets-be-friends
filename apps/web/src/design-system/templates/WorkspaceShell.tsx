@@ -23,8 +23,18 @@ export function WorkspaceShell({
   variant = 'default',
   children,
 }: WorkspaceShellProps) {
+  const shellClassName = [
+    'workspace',
+    mobileNavigation ? 'workspace-has-mobile-navigation' : '',
+  ].filter(Boolean).join(' ')
+
   return (
-    <main className="workspace" data-variant={variant}>
+    <main
+      className={shellClassName}
+      data-variant={variant}
+      data-has-actions={actions ? 'true' : undefined}
+      data-has-status={status ? 'true' : undefined}
+      data-has-toolbar={toolbar ? 'true' : undefined}>
       <div className="workspace-main">
         <div className="workspace-header">
           <div className="workspace-heading">
@@ -40,7 +50,11 @@ export function WorkspaceShell({
             {mobileNavigation}
           </nav>
         )}
-        {toolbar && <div className="workspace-toolbar">{toolbar}</div>}
+        {toolbar && (
+          <div className="workspace-toolbar" aria-label="Workspace tools">
+            {toolbar}
+          </div>
+        )}
         <div className="workspace-body">{children}</div>
       </div>
       <aside

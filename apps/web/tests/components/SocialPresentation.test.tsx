@@ -46,7 +46,11 @@ describe('social timeline presentation', () => {
     expect(header?.querySelector('.ds-post-avatar')?.contains(screen.getByRole('link', { name: "View Gelo Santiago's profile" }))).toBe(true)
     expect(time.tagName).toBe('TIME')
     expect(time.getAttribute('datetime')).toBe('2026-08-14T13:22:00.000Z')
-    expect(header?.textContent).toContain('Gelo Santiago·Aug 14, 9:22 PM·Experience post')
+    expect(time.parentElement?.classList.contains('ds-post-meta')).toBe(true)
+    expect(time.parentElement?.previousElementSibling).toBe(
+      screen.getByRole('link', { name: 'Gelo Santiago' }),
+    )
+    expect(header?.textContent).toContain('Gelo SantiagoAug 14, 9:22 PM·Experience post')
     expect(header?.contains(copy)).toBe(false)
     expect(copy.parentElement?.classList.contains('ds-post-body')).toBe(true)
     expect(screen.getByRole('button', { name: 'Post options' })).toBeTruthy()
@@ -64,15 +68,16 @@ describe('social timeline presentation', () => {
     expect(article.querySelector('.ds-post-identity strong')?.textContent).toBe('Gelo Santiago')
   })
 
-  it('keeps comment identity, time, body, and report action together', () => {
+  it('stacks comment time below identity and exposes edited metadata', () => {
     render(
       <CommentBubble
         author="Alex Rivera"
         timestamp="9:28 PM"
         dateTime="2026-08-14T13:28:00.000Z"
+        edited
         className="custom-comment"
         data-comment-id="comment-456"
-        actions={<button type="button" aria-label="Report comment">Report</button>}
+        actions={<button type="button" aria-label="Comment options">Options</button>}
       >
         I am available on Saturday morning.
       </CommentBubble>,
@@ -81,14 +86,17 @@ describe('social timeline presentation', () => {
     const article = screen.getByRole('article')
     const header = article.querySelector('header')
     const time = screen.getByText('9:28 PM')
+    const identity = header?.querySelector('.ds-comment-identity')
 
     expect(article.classList.contains('ds-comment-bubble')).toBe(true)
     expect(article.classList.contains('custom-comment')).toBe(true)
     expect(article.getAttribute('data-comment-id')).toBe('comment-456')
-    expect(header?.textContent).toContain('Alex Rivera·9:28 PM')
+    expect(identity?.firstElementChild?.textContent).toBe('Alex Rivera')
+    expect(identity?.lastElementChild?.textContent).toBe('9:28 PM·Edited')
     expect(time.tagName).toBe('TIME')
     expect(time.getAttribute('datetime')).toBe('2026-08-14T13:28:00.000Z')
+    expect(screen.getByText('Edited')).toBeTruthy()
     expect(screen.getByText('I am available on Saturday morning.')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Report comment' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Comment options' })).toBeTruthy()
   })
 })

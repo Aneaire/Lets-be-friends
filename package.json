@@ -21,7 +21,8 @@
     "typecheck": "pnpm --filter @lets-be-friends/shared --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile typecheck",
     "convex:dev": "pnpm --filter @lets-be-friends/web convex:dev",
     "convex:codegen": "pnpm --filter @lets-be-friends/web convex:codegen",
-    "seed:pampanga": "pnpm --filter @lets-be-friends/web seed:pampanga"
+    "seed:pampanga": "pnpm --filter @lets-be-friends/web seed:pampanga",
+    "seed:philippines": "pnpm --filter @lets-be-friends/web seed:philippines"
   },
   "devDependencies": {
     "@storybook/addon-a11y": "10.5.10",

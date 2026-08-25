@@ -29,12 +29,12 @@ This document tracks the compact, minimal, content-first redesign across web, ad
 
 The bounded Storybook migration and compact presentation pass are complete for the current plan:
 
-- Web and admin Storybook now cover provider-free primitives, overlays, messaging, social content, booking request fields and cards, notifications, navigation/workspace shells, access gates, action notes, responsive tables, and reusable worklist pages.
+- Web and admin Storybook now cover provider-free primitives, overlays, messaging, social content, booking request fields and cards, notifications, navigation/workspace shells, branded admin access states, action notes, responsive tables, and reusable worklist pages.
 - Mobile Storybook covers infrastructure, Android-safe controls, overlays, messaging, social content, booking cards/lifecycle/evidence, discovery filters, maps, notifications, settings, safety actions, profile presentation, member wallet, and Companion finance.
 - Connected routes retain Convex, Clerk, Expo Router, native API, PayMongo, timer, mutation-lock, evidence-access, and error-boundary ownership. Provider-free presentations own visual structure, semantic states, copy, and callbacks.
 - The admin Companion review, identity verification, and safety reports routes use the shared worklist-page presentation while retaining their domain-specific evidence and mutation behavior.
 - Mobile wallet and Companion finance use compact, provider-free presentations with realistic empty, unavailable, busy, active, paid, failed, past-due, long-value, 320 px, and dark-mode stories.
-- Static visual QA covered web social content, admin worklists at desktop and 320 px dark mode, and mobile wallet/finance at 320 px, standard mobile width, light, and dark. It found a duplicate-React static Storybook failure; root Storybook now deduplicates `react` and `react-dom`, and the repaired static social story was visually confirmed.
+- Static visual QA covered web social content, admin worklists at desktop and 320 px dark mode, and mobile wallet/finance at 320 px, standard mobile width, light, and dark. It found a duplicate-React static Storybook failure; root Storybook now deduplicates `react` and `react-dom`, and the repaired static social story was visually confirmed. A focused 320/390 px confirmation pass also verified stacked social timestamps, owner/non-owner comment menus, edited metadata, and compact notification actions/errors.
 - Independent OpenCode DeepSeek V4 Flash workers reran type, unit, web/admin Storybook, mobile Storybook, and sequential build lanes against HEAD `fe109d0739795c5d00cc7badde791c5a18afe213` plus the dirty candidate state. The affected Storybook test/build lanes were independently rerun after the React-deduplication fix.
 - Installed-device checks remain outstanding for safe areas, IME and keyboard avoidance, hardware/gesture Back, TalkBack order, font scaling, reduced motion, sheets, permissions, native maps, notifications/deep links, pickers, uploads, image/video behavior, and offline recovery.
 
@@ -42,8 +42,8 @@ The bounded Storybook migration and compact presentation pass are complete for t
 | --- | --- |
 | `git diff --check` | Passed |
 | `pnpm typecheck` | Passed across shared, web, admin, and mobile |
-| `pnpm test` | Passed: shared 27, web 288, admin 4, mobile 122 |
-| `pnpm test-storybook` | Passed: 30 files, 147 tests |
+| `pnpm test` | Passed: shared 27, web 295, admin 4, mobile 122 |
+| `pnpm test-storybook` | Passed: 30 files, 149 tests |
 | `pnpm test-storybook:mobile` | Passed: 35 files, 199 tests |
 | `pnpm build` | Passed across web, admin, and mobile; web/admin emitted existing large-chunk warnings |
 | `pnpm build-storybook` | Passed; unresolved font, Tailwind/lightningcss at-rule, and large-chunk warnings remain non-fatal |
@@ -64,7 +64,7 @@ The bounded Storybook migration and compact presentation pass are complete for t
 | Attachments | Partial message/social media implementations | Add shared attachment and thumbnail states | Image, file, preparing, uploading, failed, retry, remove |
 | Conversations | Route-local rows | Add web/mobile `ConversationListItem` | Read/unread, attachment preview, safety state, long names |
 | Notifications | Route-local rows | Add web/mobile `NotificationRow` | Read/unread, tone, long copy, busy secondary action |
-| Social content | Web/mobile `PostCard`, `CommentBubble`, post media, action menu/sheet, mobile `PostActionBar`, `PostFollowAction`, `PostComposer`, `EditPostSheet`, and shared comments sheet | Production adoption is complete for the current feed slice. Keep connected mutations, mentions, uploads, navigation, and instrumentation in their owners | Own/other, fresh liked/saved/count/follow props, edited, media-only, long body, comments, busy, 320 px |
+| Social content | Web/mobile `PostCard`, `CommentBubble`, post media, action menu/sheet, mobile `PostActionBar`, `PostFollowAction`, `PostComposer`, `EditPostSheet`, and shared comments sheet | Production adoption is complete for the current feed slice. Web comments use owner-aware menus, backend-authorized editing, recalculated mentions, and timestamp-derived edited metadata while connected mutations, uploads, navigation, and instrumentation remain in their owners | Own/other, fresh liked/saved/count/follow props, edited, media-only, long body, comments, busy, 320 px |
 | Messaging | Existing web/mobile `MessageBubble`, `CompactComposer` | Finish production adoption while preserving connected logic | Incoming/outgoing, pending, sent, failed, attachments, disabled |
 | Booking | Existing request, lifecycle, evidence, and card components | Consolidate presentation without changing state machines | Every status, busy/error, long notes, missing optional data |
 | Discovery | Web `CompanionListItem`; mobile `CompanionCard` | Reuse in nearby and profile-adjacent results | Own profile, member, Companion, modes, ratings, long content |
@@ -142,7 +142,7 @@ The bounded Storybook migration and compact presentation pass are complete for t
 ### Web and admin
 
 - Accessibility failures remain test errors; the baseline `CompanionListItem` role violation is fixed.
-- Calendar, dialogs, confirmations, search, segmented controls, image handling, conversation rows, notification rows, attachments, booking request controls, app navigation, workspace shells, admin access states, filters, action notes, responsive tables, and worklist pages have direct stories.
+- Calendar, dialogs, confirmations, search, segmented controls, image handling, conversation rows, notification rows, attachments, booking request controls, app navigation, workspace shells, and branded admin access states have direct stories alongside filters, action notes, responsive tables, and worklist pages; access-state coverage includes light, dark, loading, and narrow layouts.
 - Interaction tests cover action menus, segmented controls, search behavior, dialogs, image viewing, calendar Escape/focus restoration, filters, administrative actions, and other keyboard-driven controls.
 - The static Storybook build deduplicates React so web components and the Storybook renderer share one runtime even when workspace package versions resolve separately.
 
@@ -150,7 +150,7 @@ The bounded Storybook migration and compact presentation pass are complete for t
 
 - Screen, AppTabs, AppHeader, AppToast, ConnectivityBanner, SettingsRow, StateView, ActionSheet, dialogs, bottom sheets, CompanionCard, lifecycle details, evidence, ProductMap, conversations, notifications, attachments, safety actions, push settings, member wallet, and Companion finance have direct stories.
 - The dedicated mobile Storybook Vitest/browser configuration and root script enforce interaction and accessibility checks.
-- Social stories cover post and comment presentation, long linked identity at 320 px, post options, edit-post and comments sheets, display/upload media, composer states, and refreshed reaction/save/count props.
+- Social stories cover stacked identity metadata, owner/non-owner comment options, edited comments, long linked identity at 320 px, post options, edit-post and comments sheets, display/upload media, composer states, and refreshed reaction/save/count props.
 - Finance stories cover unavailable top-ups, empty history, active QR, create/refresh busy states, confirmation copy, past-due obligations, empty ledgers, large values, 320 px, and dark mode.
 - Native development-client verification remains required for safe areas, keyboard avoidance, hardware back, sheets, pickers, maps, permissions, uploads, images/videos, notifications, and deep links.
 

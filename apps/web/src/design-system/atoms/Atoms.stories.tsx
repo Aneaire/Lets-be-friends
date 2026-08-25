@@ -15,8 +15,12 @@ export const ButtonIntents: Story = {
   render: () => <div className="ds-story-row"><Button intent="social">Message</Button><Button intent="self">Save profile</Button><Button intent="neutral">Details</Button><Button intent="danger">Delete</Button></div>,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(getComputedStyle(canvas.getByRole('button', { name: 'Message' })).color).toBe('rgb(255, 255, 255)')
-    expect(getComputedStyle(canvas.getByRole('button', { name: 'Save profile' })).color).toBe('rgb(255, 255, 255)')
+    const messageButton = getComputedStyle(canvas.getByRole('button', { name: 'Message' }))
+    const saveButton = getComputedStyle(canvas.getByRole('button', { name: 'Save profile' }))
+    expect(messageButton.backgroundColor).toBe('rgb(193, 81, 156)')
+    expect(saveButton.backgroundColor).toBe('rgb(16, 147, 237)')
+    expect(messageButton.color).toBe('rgb(255, 255, 255)')
+    expect(saveButton.color).toBe('rgb(255, 255, 255)')
   },
 }
 export const ButtonLoadingDisabled: Story = { render: () => <div className="ds-story-row"><Button intent="social" loading loadingLabel="Sending">Send message</Button><Button disabled>Unavailable</Button><IconButton label="Save post" tone="social"><Bookmark size={18} /></IconButton><IconButton label="Add" tone="self"><Plus size={18} /></IconButton></div> }

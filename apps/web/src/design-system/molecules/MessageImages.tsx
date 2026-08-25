@@ -1,4 +1,4 @@
-import { Dialog } from './Dialog'
+import { ImageViewerDialog } from './OpenableImage'
 
 export type MessageImage = {
   storageId: string
@@ -26,16 +26,12 @@ export function MessageImageGallery({ images, onOpen }: { images: MessageImage[]
 
 export function MessageImageViewer({ image, onClose }: { image: MessageImage; onClose: () => void }) {
   return (
-    <Dialog
+    <ImageViewerDialog
       open
       onClose={onClose}
       title={image.fileName}
-      closeLabel="Close image"
-      size="large"
-      className="direct-image-viewer"
-      bodyClassName="direct-image-viewer-stage"
-    >
-      <img src={image.url} alt={image.fileName} />
-    </Dialog>
+      src={image.url}
+      alt={image.fileName}
+    />
   )
 }

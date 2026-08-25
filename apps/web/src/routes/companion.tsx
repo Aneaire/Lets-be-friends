@@ -8,6 +8,7 @@ import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
 import { WorkspaceShell } from '../design-system/templates/AppShell'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
+import { OpenableImage } from '../design-system/molecules/OpenableImage'
 
 export const Route = createFileRoute('/companion')({
   validateSearch: (search: Record<string, unknown>): { bookingId?: string } => typeof search.bookingId === 'string' ? { bookingId: search.bookingId } : {},
@@ -396,7 +397,7 @@ function FinancePanel({
                     <span className="status-pill" data-tone={topUpTone(qrTopUp.status)}>{qrTopUp.status.replace('_', ' ')}</span>
                   </div>
                   {qrTopUp.qrImageUrl && qrTopUp.status === 'awaiting_payment' && (
-                    <img src={qrTopUp.qrImageUrl} alt={`QR Ph code for ${formatPhp(qrTopUp.amountCentavos)} top-up`} className="mx-auto max-w-64 rounded-lg bg-white p-3" />
+                    <OpenableImage src={qrTopUp.qrImageUrl} alt={`QR Ph code for ${formatPhp(qrTopUp.amountCentavos)} top-up`} className="mx-auto max-w-64 rounded-lg bg-white p-3" />
                   )}
                   {qrTopUp.expiresAt && <p className="text-meta tabular">Expires {formatManilaDate(qrTopUp.expiresAt)}</p>}
                   {qrTopUp.status === 'expired' && <p className="text-meta">This attempt is preserved in history. Start a new QR above.</p>}

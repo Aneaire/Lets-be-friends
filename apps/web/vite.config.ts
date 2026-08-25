@@ -7,6 +7,9 @@ import { nitro } from 'nitro/vite'
 
 export default defineConfig({
   envDir: '../..',
+  optimizeDeps: {
+    include: ['maplibre-gl'],
+  },
   resolve: {
     dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
     tsconfigPaths: true,

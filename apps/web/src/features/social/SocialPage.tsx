@@ -3,10 +3,13 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { ImagePlus, Send } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { Avatar } from '../../design-system/atoms/Avatar'
+import { ConfirmationDialog } from '../../design-system/molecules/Dialog'
+import { CommentActionsMenu } from './CommentActionsMenu'
 import { CommentBubble } from './CommentBubble'
 import { PostActionsMenu } from './PostActionsMenu'
 import { PostActionBar } from './PostActionBar'
@@ -36,6 +39,7 @@ export function SocialPage({ postId }: { postId?: string }) {
   const editPost = useMutation(api.social.editPost)
   const deletePost = useMutation(api.social.deletePost)
   const createComment = useMutation(api.social.createComment)
+  const editComment = useMutation(api.social.editComment)
   const generatePostMediaUploadUrl = useMutation(api.social.generatePostMediaUploadUrl)
   const registerPostMediaUpload = useMutation(api.social.registerPostMediaUpload)
   const discardPostMediaUpload = useMutation(api.social.discardPostMediaUpload)
@@ -47,7 +51,7 @@ export function SocialPage({ postId }: { postId?: string }) {
   const feedSessionId = useRef(`feed-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const impressedItemKeys = useRef(new Set<string>())
   const recordedActionKeys = useRef(new Set<string>())
-  const [notice, setNotice] = useState('')
+  const setNotice = useCallback((message: string) => toast.success(message), [])
   const [error, setError] = useState('')
   const [posting, setPosting] = useState(false)
   const [composerBody, setComposerBody] = useState('')
@@ -180,12 +184,6 @@ export function SocialPage({ postId }: { postId?: string }) {
           ))}
         </div>
 
-        {notice && (
-          <div className="notice notice-success social-notice" role="status" aria-live="polite">
-            <span className="notice-icon">✓</span>
-            <span>{notice}</span>
-          </div>
-        )}
         {error && (
           <div className="notice notice-danger social-notice" role="alert">
             <span className="notice-icon">!</span>
@@ -200,7 +198,6 @@ export function SocialPage({ postId }: { postId?: string }) {
               event.preventDefault()
               setPosting(true)
               setError('')
-              setNotice('')
               let mediaUploadIds: Id<'postMediaUploads'>[] = []
               try {
                 const body = composerBody.trim()
@@ -330,6 +327,10 @@ export function SocialPage({ postId }: { postId?: string }) {
                     recordAction(item, 'report')
                     setNotice('Report sent to safety review.')
                   }}
+                  onEditComment={async (commentId, body) => {
+                    await editComment({ commentId, body })
+                    setNotice('Comment updated.')
+                  }}
                   onReportComment={async (commentId) => {
                     await report({ targetType: 'comment', targetId: commentId, reason: 'Comment needs safety review' })
                     recordAction(item, 'report_comment')
@@ -433,6 +434,7 @@ function PostRow({
   onLike,
   onSave,
   onReport,
+  onEditComment,
   onReportComment,
 }: {
   post: FeedPost
@@ -444,6 +446,7 @@ function PostRow({
   onLike: () => Promise<void>
   onSave: () => Promise<void>
   onReport: () => Promise<void>
+  onEditComment: (commentId: Id<'postComments'>, body: string) => Promise<void>
   onReportComment: (commentId: Id<'postComments'>) => Promise<void>
 }) {
   const [commentsOpen, setCommentsOpen] = useState(false)
@@ -451,6 +454,7 @@ function PostRow({
   const [commentError, setCommentError] = useState('')
   const [commentBody, setCommentBody] = useState('')
   const [editing, setEditing] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [actionPending, setActionPending] = useState('')
   const [actionError, setActionError] = useState('')
   const comments = useQuery(api.social.commentsForPost, commentsOpen ? { postId: post._id } : 'skip') as PostComment[] | undefined
@@ -467,11 +471,11 @@ function PostRow({
   }
 
   async function deleteFromOptions() {
-    if (!window.confirm('Delete this post and its comments?')) return
     setActionPending('delete')
     setActionError('')
     try {
       await onDelete()
+      setDeleteConfirmOpen(false)
     } catch (deleteError) {
       setActionError(deleteError instanceof Error ? deleteError.message : 'Post could not be deleted.')
     } finally {
@@ -540,11 +544,20 @@ function PostRow({
           ownedByViewer={post.ownPost}
           disabled={Boolean(actionPending)}
           onEdit={post.ownPost ? editFromOptions : undefined}
-          onDelete={post.ownPost ? () => void deleteFromOptions() : undefined}
+          onDelete={post.ownPost ? () => setDeleteConfirmOpen(true) : undefined}
           onReport={!post.ownPost ? () => void reportFromOptions() : undefined}
         />
       ) : undefined}
     >
+      <ConfirmationDialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={deleteFromOptions}
+        title="Delete this post?"
+        description="This also deletes its comments. This action cannot be undone."
+        confirmLabel="Delete post"
+        busy={actionPending === 'delete'}
+      />
       {editing ? (
           <form
             className="social-edit-form"
@@ -637,7 +650,13 @@ function PostRow({
             ) : (
               <div className="social-comment-list">
                 {comments.map((comment) => (
-                  <CommentRow key={comment._id} comment={comment} canReport={viewerReady} onReport={() => onReportComment(comment._id)} />
+                  <CommentRow
+                    key={comment._id}
+                    comment={comment}
+                    viewerReady={viewerReady}
+                    onEdit={(body) => onEditComment(comment._id, body)}
+                    onReport={() => onReportComment(comment._id)}
+                  />
                 ))}
               </div>
             )}
@@ -647,37 +666,106 @@ function PostRow({
   )
 }
 
-function CommentRow({ comment, canReport, onReport }: { comment: PostComment; canReport: boolean; onReport: () => Promise<void> }) {
-  const [reporting, setReporting] = useState(false)
-  const [reportError, setReportError] = useState('')
+function CommentRow({
+  comment,
+  viewerReady,
+  onEdit,
+  onReport,
+}: {
+  comment: PostComment
+  viewerReady: boolean
+  onEdit: (body: string) => Promise<void>
+  onReport: () => Promise<void>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [editBody, setEditBody] = useState(comment.body)
+  const [actionPending, setActionPending] = useState<'edit' | 'report' | ''>('')
+  const [actionError, setActionError] = useState('')
+
+  function beginEditing() {
+    setEditBody(comment.body)
+    setActionError('')
+    setEditing(true)
+  }
+
+  async function reportComment() {
+    setActionPending('report')
+    setActionError('')
+    try {
+      await onReport()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Comment could not be reported.')
+    } finally {
+      setActionPending('')
+    }
+  }
+
   return (
     <CommentBubble
       author={comment.authorDisplayName}
+      imageUrl={comment.authorProfileImageUrl}
       timestamp={formatTime(comment.createdAt)}
       dateTime={new Date(comment.createdAt).toISOString()}
-      actions={canReport ? (
-        <button
-          type="button"
-          disabled={reporting}
-          className="social-comment-report"
-          onClick={async () => {
-            setReporting(true)
-            setReportError('')
+      edited={comment.updatedAt > comment.createdAt}
+      actions={viewerReady ? (
+        <CommentActionsMenu
+          ownedByViewer={comment.ownComment}
+          disabled={editing || Boolean(actionPending)}
+          onEdit={comment.ownComment ? beginEditing : undefined}
+          onReport={!comment.ownComment ? () => void reportComment() : undefined}
+        />
+      ) : undefined}
+    >
+      {editing ? (
+        <form
+          className="social-comment-edit-form"
+          onSubmit={async (event) => {
+            event.preventDefault()
+            setActionPending('edit')
+            setActionError('')
             try {
-              await onReport()
+              await onEdit(editBody)
+              setEditing(false)
             } catch (error) {
-              setReportError(error instanceof Error ? error.message : 'Comment could not be reported.')
+              setActionError(error instanceof Error ? error.message : 'Comment could not be updated.')
             } finally {
-              setReporting(false)
+              setActionPending('')
             }
           }}
         >
-          {reporting ? 'Reporting...' : 'Report'}
-        </button>
-      ) : undefined}
-    >
-      <MentionText body={comment.body} mentions={comment.mentions} />
-      {reportError && <p className="social-comment-error">{reportError}</p>}
+          <MentionField
+            value={editBody}
+            onChange={setEditBody}
+            name="comment-edit"
+            className="field"
+            maxLength={500}
+            placeholder="Update your comment"
+            ariaLabel="Edit comment"
+          />
+          <div className="social-comment-edit-actions">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={actionPending === 'edit'}
+              onClick={() => {
+                setEditing(false)
+                setActionError('')
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-social btn-sm"
+              disabled={actionPending === 'edit'}
+            >
+              {actionPending === 'edit' ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <MentionText body={comment.body} mentions={comment.mentions} />
+      )}
+      {actionError && <p className="social-comment-error" role="alert">{actionError}</p>}
     </CommentBubble>
   )
 }

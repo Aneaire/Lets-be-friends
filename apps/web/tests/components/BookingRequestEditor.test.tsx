@@ -54,6 +54,7 @@ describe('BookingRequestEditor', () => {
     expect((time as HTMLInputElement).value).toBe('14:30')
     expect((notes as HTMLTextAreaElement).value).toBe('Meet somewhere quiet.')
     expect(screen.getByText(/Estimated booking total/)).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toContain('This does not charge your balance.')
 
     fireEvent.change(category, { target: { value: 'Walking and outdoors' } })
     fireEvent.change(mode, { target: { value: 'in_person' } })

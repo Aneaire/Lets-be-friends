@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { ReactNode } from 'react'
+import { expect, fn, userEvent, within } from 'storybook/test'
 
+import { CommentActionsMenu } from './CommentActionsMenu'
 import { CommentBubble } from './CommentBubble'
 import { PostActionBar } from './PostActionBar'
 import { PostActionsMenu } from './PostActionsMenu'
@@ -76,7 +78,7 @@ export const LongIdentityNarrow: Story = {
   ),
 }
 
-export const Comment: Story = {
+export const ViewerComment: Story = {
   render: () => (
     <SocialStoryTimeline>
       <CommentBubble
@@ -84,13 +86,60 @@ export const Comment: Story = {
         timestamp="9:28 PM"
         dateTime="2026-08-14T13:28:00.000Z"
         actions={(
-          <button type="button" className="ds-comment-action" aria-label="Report comment">
-            Report
-          </button>
+          <CommentActionsMenu
+            ownedByViewer={false}
+            onReport={fn()}
+          />
         )}
       >
         I am available on Saturday morning.
       </CommentBubble>
     </SocialStoryTimeline>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Comment options' }),
+    )
+    await expect(
+      canvas.getByRole('menuitem', { name: 'Report comment' }),
+    ).toBeVisible()
+    await expect(
+      canvas.queryByRole('menuitem', { name: 'Edit comment' }),
+    ).not.toBeInTheDocument()
+  },
+}
+
+export const EditedOwnerComment: Story = {
+  render: () => (
+    <SocialStoryTimeline>
+      <CommentBubble
+        author="Gelo Santiago"
+        timestamp="9:28 PM"
+        dateTime="2026-08-14T13:28:00.000Z"
+        edited
+        actions={(
+          <CommentActionsMenu
+            ownedByViewer
+            onEdit={fn()}
+          />
+        )}
+      >
+        Saturday morning works for me.
+      </CommentBubble>
+    </SocialStoryTimeline>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Edited')).toBeVisible()
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Comment options' }),
+    )
+    await expect(
+      canvas.getByRole('menuitem', { name: 'Edit comment' }),
+    ).toBeVisible()
+    await expect(
+      canvas.queryByRole('menuitem', { name: 'Report comment' }),
+    ).not.toBeInTheDocument()
+  },
 }

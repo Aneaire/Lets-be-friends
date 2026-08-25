@@ -5,9 +5,11 @@ import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Avatar } from '../../src/design-system/atoms/Avatar'
 import { Button } from '../../src/design-system/atoms/Button'
-import { Input } from '../../src/design-system/atoms/Field'
+import { Checkbox, Input } from '../../src/design-system/atoms/Field'
+import { StatusBadge } from '../../src/design-system/atoms/StatusBadge'
 import { ActionMenu } from '../../src/design-system/molecules/ActionMenu'
 import { Dialog } from '../../src/design-system/molecules/Dialog'
+import { InlineNotice } from '../../src/design-system/molecules/FeedbackState'
 import { FormField } from '../../src/design-system/molecules/FormField'
 import { SearchField } from '../../src/design-system/molecules/SearchField'
 import { SegmentedControl } from '../../src/design-system/molecules/SegmentedControl'
@@ -39,6 +41,28 @@ describe('atomic design-system components', () => {
     const input = screen.getByLabelText('Username')
     expect(input.getAttribute('aria-invalid')).toBe('true')
     expect(input.getAttribute('aria-describedby')).toBe(screen.getByRole('alert').id)
+  })
+
+  it('gives a checkbox its visible label and forwards its controlled state', () => {
+    const onChange = vi.fn()
+    render(<Checkbox label="Available to book" checked onChange={onChange} />)
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Available to book' })
+    expect((checkbox as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(checkbox)
+    expect(onChange).toHaveBeenCalledOnce()
+  })
+
+  it('announces notices and exposes semantic status tones', () => {
+    render(
+      <>
+        <InlineNotice tone="warning" title="Review the total">No charge has been made.</InlineNotice>
+        <StatusBadge tone="success">Completed</StatusBadge>
+      </>,
+    )
+
+    expect(screen.getByRole('status').textContent).toContain('No charge has been made.')
+    expect(screen.getByText('Completed').getAttribute('data-tone')).toBe('success')
   })
 
   it('supports menu focus navigation, Escape, and trigger focus restoration', () => {

@@ -4,6 +4,7 @@ import { useMutation, useQuery } from 'convex/react'
 import { ArrowLeft, Heart } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
+import { OpenableImage } from '../design-system/molecules/OpenableImage'
 
 export const Route = createFileRoute('/member-profile')({
   validateSearch: (search: Record<string, unknown>): { userId?: string } => (
@@ -41,8 +42,10 @@ function MemberProfilePage() {
     <main className="marketing-page member-profile-page">
       <Link to="/discover" className="member-profile-back"><ArrowLeft size={15} aria-hidden="true" />Explore people</Link>
       <section className="panel member-profile-card">
-        <div className="member-profile-photo" aria-hidden="true">
-          {profile.profileImageUrl ? <img src={profile.profileImageUrl} alt="" /> : <span>{initials(profile.displayName)}</span>}
+        <div className="member-profile-photo" aria-hidden={profile.profileImageUrl ? undefined : true}>
+          {profile.profileImageUrl
+            ? <OpenableImage src={profile.profileImageUrl} alt={`${profile.displayName} profile photo`} />
+            : <span>{initials(profile.displayName)}</span>}
         </div>
         <div className="member-profile-copy">
           <div className="member-profile-heading">

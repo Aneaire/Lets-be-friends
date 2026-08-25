@@ -24,11 +24,38 @@ type Story = StoryObj<typeof meta>
 
 export const Loading: Story = {
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
     await expect(
-      within(canvasElement).getByRole('heading', {
-        name: 'Loading admin access',
+      canvas.getByRole('img', { name: "Let's Be Friends" }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('heading', {
+        name: 'Preparing your workspace',
       }),
     ).toBeVisible()
+    await expect(canvas.getByRole('main')).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
+    await expect(canvas.getByRole('status')).toHaveTextContent(
+      'Verifying secure access',
+    )
+  },
+}
+
+export const LoadingNarrowDark: Story = {
+  globals: { viewport: 'mobileSmall', theme: 'dark' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(
+      canvasElement.clientWidth,
+    )
+    await expect(
+      canvas.getByRole('heading', {
+        name: 'Preparing your workspace',
+      }),
+    ).toBeVisible()
+    await expect(canvas.getByRole('status')).toBeVisible()
   },
 }
 
@@ -43,6 +70,12 @@ export const SignedOut: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('img', { name: "Let's Be Friends" }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('heading', { name: 'Admin sign in' }),
+    ).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Sign in' }))
     await expect(signIn).toHaveBeenCalledOnce()
   },
@@ -51,8 +84,15 @@ export const SignedOut: Story = {
 export const SyncProfile: Story = {
   args: { state: 'sync_profile' },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('img', { name: "Let's Be Friends" }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('heading', { name: 'Sync profile' }),
+    ).toBeVisible()
     await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'Sync profile' }),
+      canvas.getByRole('button', { name: 'Sync profile' }),
     )
     await expect(syncProfile).toHaveBeenCalledOnce()
   },
@@ -62,6 +102,12 @@ export const Denied: Story = {
   args: { state: 'denied' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('img', { name: "Let's Be Friends" }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('heading', { name: 'Admin access required' }),
+    ).toBeVisible()
     await userEvent.click(
       canvas.getByRole('button', {
         name: 'Sign out and switch account',
@@ -78,8 +124,15 @@ export const DeniedNarrowDark: Story = {
   globals: { viewport: 'mobileSmall', theme: 'dark' },
   args: { state: 'denied' },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(
       canvasElement.clientWidth,
     )
+    await expect(
+      canvas.getByRole('img', { name: "Let's Be Friends" }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('heading', { name: 'Admin access required' }),
+    ).toBeVisible()
   },
 }

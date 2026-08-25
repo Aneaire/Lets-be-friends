@@ -41,6 +41,7 @@ describe('BookingRequestCard', () => {
 
     expect(container.firstElementChild?.getAttribute('data-density')).toBe('full')
     expect(screen.getByText(/Michael sent a booking request/)).toBeTruthy()
+    expect(screen.getByText('Angelo is waiting for your reply')).toBeTruthy()
     expect(screen.getByText(/Your entitlement/)).toBeTruthy()
     expect(screen.getByText(/Bring your favorite game/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Accept request' })).toBeTruthy()
@@ -50,6 +51,7 @@ describe('BookingRequestCard', () => {
     renderCard(baseBooking, baseBooking.memberId)
 
     const edit = screen.getByRole('button', { name: 'Edit request' })
+    expect(screen.getByText("Awaiting Michael Reeves's reply")).toBeTruthy()
     expect(edit.classList.contains('btn-social')).toBe(true)
     expect(edit.classList.contains('btn-self')).toBe(false)
   })
@@ -58,7 +60,7 @@ describe('BookingRequestCard', () => {
     const { container } = renderCard({ ...baseBooking, status: 'accepted' })
 
     expect(container.firstElementChild?.getAttribute('data-density')).toBe('compact')
-    expect(screen.getByText('Accepted')).toBeTruthy()
+    expect(screen.getByText('Accepted').getAttribute('data-tone')).toBe('success')
     expect(screen.queryByText(/Michael sent a booking request/)).toBeNull()
     expect(screen.queryByText(/Your entitlement/)).toBeNull()
     expect(screen.queryByText(/Bring your favorite game/)).toBeNull()

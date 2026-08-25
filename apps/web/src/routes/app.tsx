@@ -16,6 +16,7 @@ import { identityEntitlementStatus, memberVerificationPresentation } from '../li
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
 import { findCompanions } from '../lib/discoverySearch'
+import { OpenableImage } from '../design-system/molecules/OpenableImage'
 
 export const Route = createFileRoute('/app')({
   validateSearch: (search: Record<string, unknown>): { companionProfileId?: string; bookingId?: string } => ({
@@ -650,7 +651,7 @@ function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
                   {qrExpired && qrTopUp.status !== 'paid' && <p className="text-meta">This QR expired. You can create a fresh top-up.</p>}
                   {showPayableQr && qrTopUp.qrImageUrl && (
                     <>
-                      <img src={qrTopUp.qrImageUrl} alt={`QR Ph code for ${formatPhp(qrTopUp.amountCentavos)} wallet top-up`} className="mx-auto max-w-64 rounded-lg bg-white p-3" />
+                      <OpenableImage src={qrTopUp.qrImageUrl} alt={`QR Ph code for ${formatPhp(qrTopUp.amountCentavos)} wallet top-up`} className="mx-auto max-w-64 rounded-lg bg-white p-3" />
                       <a href={qrTopUp.qrImageUrl} download={`lets-be-friends-qr-ph-${qrTopUp._id}.png`} className="btn btn-neutral btn-sm">
                         Download QR
                       </a>

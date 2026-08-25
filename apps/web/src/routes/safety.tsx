@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { OpenableImage } from '../design-system/molecules/OpenableImage'
 
 export const Route = createFileRoute('/safety')({ component: SafetyPage })
 
@@ -44,7 +45,7 @@ function SafetyPage() {
           </div>
         </div>
         <figure className="marketing-photo safety-hero-photo">
-          <img
+          <OpenableImage
             src="/images/marketing/public-cafe-meetup.webp"
             alt="Two women having a relaxed first conversation in a bright public cafe"
             loading="eager"

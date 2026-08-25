@@ -1,8 +1,14 @@
 import { calculateMemberWalletBookingPrice } from '@lets-be-friends/shared'
 import { v } from 'convex/values'
-import type { Doc } from './_generated/dataModel'
-import { internalMutation } from './_generated/server'
+import type { Doc, Id } from './_generated/dataModel'
+import { internal } from './_generated/api'
+import { internalAction, internalMutation } from './_generated/server'
 import { syncCompanionLocation } from './companionLocations'
+import {
+  approvedPhilippinesCompanions,
+  pendingCompanionApplicants,
+  philippinesMembers,
+} from './seeds/philippinesCatalog'
 
 const dayMs = 24 * 60 * 60 * 1_000
 
@@ -685,5 +691,563 @@ export const seedPresentationAccount = internalMutation({
       bookingIds,
       conversationIds,
     }
+  },
+})
+
+const developmentConfirmation = v.literal('development')
+const peopleBatchSize = 10
+const activityBatchSize = 8
+
+function requireDevelopmentConfirmation(confirm: string) {
+  if (confirm !== 'development') throw new Error('Development seed confirmation is required')
+}
+
+function philippinesCompanionClerkUserId(key: string) {
+  return `seed:philippines:companion:${key}`
+}
+
+function philippinesMemberClerkUserId(key: string) {
+  return `seed:philippines:member:${key}`
+}
+
+function philippinesApplicantClerkUserId(key: string) {
+  return `seed:philippines:applicant:${key}`
+}
+
+export const seedPhilippinesPeopleBatch = internalMutation({
+  args: {
+    confirm: developmentConfirmation,
+    start: v.number(),
+    referenceTime: v.number(),
+  },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const people = [
+      ...approvedPhilippinesCompanions.map((seed) => ({ kind: 'approved_companion' as const, seed })),
+      ...philippinesMembers.map((seed) => ({ kind: 'member' as const, seed })),
+      ...pendingCompanionApplicants.map((seed) => ({ kind: 'applicant' as const, seed })),
+    ]
+    const batch = people.slice(args.start, args.start + peopleBatchSize)
+    let usersCreated = 0
+    let usersUpdated = 0
+    let profilesCreated = 0
+    let profilesUpdated = 0
+
+    for (const [batchIndex, item] of batch.entries()) {
+      const catalogIndex = args.start + batchIndex
+      const isMember = item.kind === 'member'
+      const isApplicant = item.kind === 'applicant'
+      const clerkUserId = isMember
+        ? philippinesMemberClerkUserId(item.seed.key)
+        : isApplicant
+          ? philippinesApplicantClerkUserId(item.seed.key)
+          : philippinesCompanionClerkUserId(item.seed.key)
+      const existingUser = await ctx.db.query('users')
+        .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId))
+        .unique()
+      const userFields = {
+        username: item.seed.key.replaceAll('-', '_'),
+        displayName: item.seed.displayName,
+        bio: item.seed.bio,
+        onboardingCategories: isMember ? [...item.seed.onboardingCategories] : [...item.seed.categories],
+        onboardingGoal: isMember ? 'member' as const : 'companion' as const,
+        onboardingCompletedAt: args.referenceTime,
+        ...(!isMember ? {
+          approximateLatitude: item.seed.latitude,
+          approximateLongitude: item.seed.longitude,
+          approximateLocationConsentedAt: args.referenceTime,
+        } : {}),
+        termsAcceptedAt: args.referenceTime,
+        termsVersion: '2026-08-13',
+        role: isMember ? 'member' as const : 'companion' as const,
+        verificationStatus: isApplicant ? 'pending' as const : 'approved' as const,
+        verificationSource: isApplicant ? 'in_app' as const : 'persona' as const,
+        ...(isApplicant ? {} : {
+          identityVerifiedAt: args.referenceTime,
+          identityExpiresAt: args.referenceTime + 3_650 * dayMs,
+        }),
+        suspended: isMember && catalogIndex >= approvedPhilippinesCompanions.length + philippinesMembers.length - 4,
+        updatedAt: args.referenceTime,
+      }
+      const userId = existingUser
+        ? (await ctx.db.patch(existingUser._id, userFields), existingUser._id)
+        : await ctx.db.insert('users', { clerkUserId, ...userFields, createdAt: args.referenceTime })
+      if (existingUser) usersUpdated += 1
+      else usersCreated += 1
+
+      if (isMember) continue
+      const existingProfile = await ctx.db.query('companionProfiles')
+        .withIndex('by_user', (q) => q.eq('userId', userId))
+        .unique()
+      const profileFields = {
+        displayName: item.seed.displayName,
+        intro: item.seed.intro,
+        city: item.seed.city,
+        approximateArea: item.seed.approximateArea,
+        approximateLatitude: item.seed.latitude,
+        approximateLongitude: item.seed.longitude,
+        nearbyDiscoveryEnabled: true,
+        strengths: [...item.seed.strengths],
+        categories: [...item.seed.categories],
+        boundaries: ['Public places only', 'No dating or romantic expectations'],
+        mode: item.seed.mode,
+        hourlyRateCentavos: item.seed.hourlyRateCentavos,
+        status: isApplicant ? 'pending_review' as const : 'approved' as const,
+        applicationNote: isApplicant
+          ? 'Development seed awaiting admin review.'
+          : 'Development seed for Philippines discovery testing.',
+        rating: isApplicant ? 0 : 4.5 + (catalogIndex % 5) / 10,
+        reviewCount: isApplicant ? 0 : 2,
+        updatedAt: args.referenceTime,
+      }
+      const profileId = existingProfile?._id ?? await ctx.db.insert('companionProfiles', {
+        userId,
+        ...profileFields,
+        createdAt: args.referenceTime,
+      })
+      if (existingProfile) {
+        await ctx.db.patch(existingProfile._id, profileFields)
+        profilesUpdated += 1
+      } else profilesCreated += 1
+      const [user, profile] = await Promise.all([ctx.db.get(userId), ctx.db.get(profileId)])
+      if (!profile) throw new Error(`Seeded Companion profile was not saved: ${item.seed.key}`)
+      await syncCompanionLocation(ctx, profile, user)
+    }
+
+    return { processed: batch.length, usersCreated, usersUpdated, profilesCreated, profilesUpdated }
+  },
+})
+
+const pampangaActivitySeeds = pampangaCompanions.map((seed) => ({
+  key: seed.key,
+  displayName: seed.displayName,
+  categories: [...seed.categories],
+  mode: seed.mode,
+  hourlyRateCentavos: 50_000,
+  clerkUserId: `seed:pampanga:${seed.key}`,
+}))
+
+const philippinesActivitySeeds = [
+  ...pampangaActivitySeeds,
+  ...approvedPhilippinesCompanions.map((seed) => ({
+    key: seed.key,
+    displayName: seed.displayName,
+    categories: seed.categories,
+    mode: seed.mode,
+    hourlyRateCentavos: seed.hourlyRateCentavos,
+    clerkUserId: philippinesCompanionClerkUserId(seed.key),
+  })),
+]
+
+export const seedPhilippinesActivityBatch = internalMutation({
+  args: {
+    confirm: developmentConfirmation,
+    start: v.number(),
+    referenceTime: v.number(),
+  },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const batch = philippinesActivitySeeds.slice(args.start, args.start + activityBatchSize)
+    const activeMembers = philippinesMembers.slice(0, philippinesMembers.length - 4)
+    let postsCreated = 0
+    let bookingsCreated = 0
+    let reviewsCreated = 0
+
+    for (const [batchIndex, seed] of batch.entries()) {
+      const companionIndex = args.start + batchIndex
+      const companionUser = await ctx.db.query('users')
+        .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', seed.clerkUserId))
+        .unique()
+      if (!companionUser) throw new Error(`Seed the Companion first: ${seed.key}`)
+      const profile = await ctx.db.query('companionProfiles')
+        .withIndex('by_user', (q) => q.eq('userId', companionUser._id))
+        .unique()
+      if (!profile) throw new Error(`Companion profile is missing: ${seed.key}`)
+
+      const existingPosts = await ctx.db.query('posts')
+        .withIndex('by_author', (q) => q.eq('authorId', companionUser._id))
+        .collect()
+      const postBodies = [
+        `${seed.displayName} is opening a relaxed ${seed.categories[0].toLowerCase()} session this week. Clear expectations and kind conversation are welcome.`,
+        `A good shared experience can be simple. ${seed.displayName} recommends choosing a comfortable pace and a public meeting place.`,
+      ]
+      for (const [postIndex, body] of postBodies.entries()) {
+        if (existingPosts.some((post) => post.body === body && !post.deletedAt)) continue
+        const createdAt = args.referenceTime - (companionIndex * 2 + postIndex + 1) * 60 * 60 * 1_000
+        await ctx.db.insert('posts', {
+          authorId: companionUser._id,
+          body,
+          media: [],
+          reportable: true,
+          hidden: false,
+          createdAt,
+          updatedAt: createdAt,
+        })
+        postsCreated += 1
+      }
+
+      for (let historyIndex = 0; historyIndex < 2; historyIndex += 1) {
+        const memberSeed = activeMembers[(companionIndex * 2 + historyIndex) % activeMembers.length]
+        const member = await ctx.db.query('users')
+          .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', philippinesMemberClerkUserId(memberSeed.key)))
+          .unique()
+        if (!member) throw new Error(`Seed the member first: ${memberSeed.key}`)
+        const notes = `Development seed completed experience ${historyIndex + 1} with ${seed.displayName}.`
+        const memberBookings = await ctx.db.query('bookings')
+          .withIndex('by_member', (q) => q.eq('memberId', member._id))
+          .collect()
+        let booking = memberBookings.find((row) => row.companionProfileId === profile._id && row.notes === notes)
+        if (!booking) {
+          const requestedAt = args.referenceTime - (20 + historyIndex * 7 + companionIndex % 9) * dayMs
+          const completedAt = requestedAt + 60 * 60 * 1_000
+          const price = calculateMemberWalletBookingPrice(profile.hourlyRateCentavos ?? seed.hourlyRateCentavos, 60)
+          const bookingId = await ctx.db.insert('bookings', {
+            memberId: member._id,
+            companionProfileId: profile._id,
+            category: seed.categories[historyIndex % seed.categories.length],
+            mode: seed.mode === 'online' ? 'online' : 'in_person',
+            requestedAt,
+            durationMinutes: 60,
+            notes,
+            status: 'closed',
+            ...price,
+            settlementState: 'settled',
+            memberCompletedAt: completedAt,
+            companionCompletedAt: completedAt,
+            jointlyCompletedAt: completedAt,
+            settlementEligibleAt: completedAt,
+            settlementResolvedAt: completedAt + dayMs,
+            settlementResolution: 'released',
+            createdAt: requestedAt - dayMs,
+            updatedAt: completedAt + dayMs,
+          })
+          booking = await ctx.db.get(bookingId) ?? undefined
+          bookingsCreated += 1
+        }
+        if (!booking) throw new Error(`Historical booking was not saved: ${seed.key}`)
+        const existingReview = await ctx.db.query('reviews')
+          .withIndex('by_booking_reviewer', (q) => q.eq('bookingId', booking!._id).eq('reviewerId', member._id))
+          .first()
+        if (!existingReview) {
+          const createdAt = booking.jointlyCompletedAt ?? booking.updatedAt
+          await ctx.db.insert('reviews', {
+            bookingId: booking._id,
+            reviewerId: member._id,
+            revieweeId: companionUser._id,
+            companionProfileId: profile._id,
+            rating: (companionIndex + historyIndex) % 4 === 0 ? 4 : 5,
+            body: `${seed.displayName} communicated clearly and kept the session comfortable. I appreciated the thoughtful pace.`,
+            hidden: false,
+            createdAt: createdAt + 30 * 60 * 1_000,
+            updatedAt: createdAt + 30 * 60 * 1_000,
+          })
+          reviewsCreated += 1
+        }
+      }
+
+      const incomingMemberSeed = activeMembers[(companionIndex * 3 + 5) % activeMembers.length]
+      const incomingMember = await ctx.db.query('users')
+        .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', philippinesMemberClerkUserId(incomingMemberSeed.key)))
+        .unique()
+      if (!incomingMember) throw new Error(`Seed the member first: ${incomingMemberSeed.key}`)
+      const incomingNotes = `Development seed incoming request for ${seed.displayName}.`
+      const incomingBookings = await ctx.db.query('bookings')
+        .withIndex('by_member', (q) => q.eq('memberId', incomingMember._id))
+        .collect()
+      if (!incomingBookings.some((row) => row.companionProfileId === profile._id && row.notes === incomingNotes)) {
+        const durationMinutes = companionIndex % 3 === 0 ? 90 : 60
+        const requestedAt = args.referenceTime + (2 + companionIndex % 21) * dayMs
+        const price = calculateMemberWalletBookingPrice(profile.hourlyRateCentavos ?? seed.hourlyRateCentavos, durationMinutes)
+        await ctx.db.insert('bookings', {
+          memberId: incomingMember._id,
+          companionProfileId: profile._id,
+          category: seed.categories[0],
+          mode: seed.mode === 'online' ? 'online' : 'in_person',
+          requestedAt,
+          durationMinutes,
+          notes: incomingNotes,
+          status: companionIndex % 4 === 0 ? 'accepted' : 'request_sent',
+          ...price,
+          settlementState: 'reserved',
+          createdAt: args.referenceTime - (companionIndex % 5) * 60 * 60 * 1_000,
+          updatedAt: args.referenceTime,
+        })
+        bookingsCreated += 1
+      }
+    }
+
+    return { processed: batch.length, postsCreated, bookingsCreated, reviewsCreated }
+  },
+})
+
+export const seedPhilippinesAdminFixtures = internalMutation({
+  args: { confirm: developmentConfirmation, referenceTime: v.number() },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    let identityRecordsCreated = 0
+    let verificationRequestsCreated = 0
+    const identityImageNeeds: Array<{
+      identityRecordId: Id<'identityRecords'>
+      userId: Id<'users'>
+      kind: 'id_front' | 'selfie'
+      seedKey: string
+    }> = []
+
+    for (const [index, seed] of pendingCompanionApplicants.entries()) {
+      const user = await ctx.db.query('users')
+        .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', philippinesApplicantClerkUserId(seed.key)))
+        .unique()
+      if (!user) throw new Error(`Seed the applicant first: ${seed.key}`)
+      const requests = await ctx.db.query('verificationRequests')
+        .withIndex('by_user', (q) => q.eq('userId', user._id))
+        .collect()
+      let request = requests.find((row) => row.reason === 'companion_application' && row.isCurrent === true)
+      let identityRecord = request?.identityRecordId ? await ctx.db.get(request.identityRecordId) : null
+      const recordFields = {
+        reason: 'companion_application' as const,
+        source: 'in_app' as const,
+        stage: 'ready_for_review' as const,
+        selectedIdType: 'national_id' as const,
+        fullLegalName: `Seed Applicant ${index + 1}`,
+        dateOfBirth: `199${index}-01-15`,
+        idType: 'national_id' as const,
+        idNumberLast4: `${4100 + index}`,
+        nationality: 'Filipino',
+        fieldsConfirmedAt: args.referenceTime - dayMs,
+        thirdPartyProcessingConsentedAt: args.referenceTime - dayMs,
+        reviewConsentedAt: args.referenceTime - dayMs,
+        submittedAt: args.referenceTime - 12 * 60 * 60 * 1_000,
+        updatedAt: args.referenceTime,
+      }
+      if (!identityRecord) {
+        const identityRecordId = await ctx.db.insert('identityRecords', {
+          userId: user._id,
+          ...recordFields,
+          createdAt: args.referenceTime - dayMs,
+        })
+        identityRecord = await ctx.db.get(identityRecordId)
+        identityRecordsCreated += 1
+      } else await ctx.db.patch(identityRecord._id, recordFields)
+      if (!identityRecord) throw new Error(`Identity record was not saved: ${seed.key}`)
+      const requestFields = {
+        reason: 'companion_application' as const,
+        personaStatus: 'not_started' as const,
+        personaDecision: 'unknown' as const,
+        verificationSource: 'in_app' as const,
+        identityRecordId: identityRecord._id,
+        identityStage: 'ready_for_review' as const,
+        extractionNeedsReview: false,
+        adminStatus: 'pending' as const,
+        isCurrent: true,
+        attempt: 1,
+        providerCompletedAt: args.referenceTime - 12 * 60 * 60 * 1_000,
+        adminQueuedAt: args.referenceTime - 12 * 60 * 60 * 1_000,
+        updatedAt: args.referenceTime,
+      }
+      if (!request) {
+        const requestId = await ctx.db.insert('verificationRequests', {
+          userId: user._id,
+          ...requestFields,
+          createdAt: args.referenceTime - dayMs,
+        })
+        request = await ctx.db.get(requestId) ?? undefined
+        verificationRequestsCreated += 1
+      } else await ctx.db.patch(request._id, requestFields)
+      if (!request) throw new Error(`Verification request was not saved: ${seed.key}`)
+      await ctx.db.patch(identityRecord._id, { verificationRequestId: request._id })
+
+      for (const kind of ['id_front', 'selfie'] as const) {
+        const existingImage = await ctx.db.query('identityRecordImages')
+          .withIndex('by_record_kind', (q) => q.eq('identityRecordId', identityRecord._id).eq('kind', kind))
+          .unique()
+        if (existingImage?.storageId && !existingImage.purgedAt) continue
+        identityImageNeeds.push({ identityRecordId: identityRecord._id, userId: user._id, kind, seedKey: seed.key })
+      }
+    }
+
+    const reporter = await ctx.db.query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', philippinesMemberClerkUserId(philippinesMembers[0].key)))
+      .unique()
+    if (!reporter) throw new Error('Seeded report author is missing')
+    const reportStatuses = ['open', 'open', 'reviewing', 'resolved', 'dismissed', 'open', 'reviewing', 'resolved'] as const
+    let reportsCreated = 0
+    let postsHidden = 0
+    let reviewsHidden = 0
+
+    for (let index = 0; index < reportStatuses.length; index += 1) {
+      const activitySeed = philippinesActivitySeeds[pampangaActivitySeeds.length + index]
+      const companionUser = await ctx.db.query('users')
+        .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', activitySeed.clerkUserId))
+        .unique()
+      if (!companionUser) throw new Error(`Seeded report target is missing: ${activitySeed.key}`)
+      const profile = await ctx.db.query('companionProfiles')
+        .withIndex('by_user', (q) => q.eq('userId', companionUser._id))
+        .unique()
+      if (!profile) throw new Error(`Seeded report profile is missing: ${activitySeed.key}`)
+      const posts = await ctx.db.query('posts').withIndex('by_author', (q) => q.eq('authorId', companionUser._id)).collect()
+      const reviews = await ctx.db.query('reviews').withIndex('by_companion_profile', (q) => q.eq('companionProfileId', profile._id)).collect()
+      const bookings = await ctx.db.query('bookings').withIndex('by_companion', (q) => q.eq('companionProfileId', profile._id)).collect()
+      const post = posts[0]
+      const review = reviews[0]
+      const booking = bookings[0]
+      if (!post || !review || !booking) throw new Error(`Seed activity before admin fixtures: ${activitySeed.key}`)
+      if (index < 4 && !post.hidden) {
+        await ctx.db.patch(post._id, { hidden: true, updatedAt: args.referenceTime })
+        postsHidden += 1
+      }
+      if (index < 4 && review.hidden !== true) {
+        await ctx.db.patch(review._id, { hidden: true, updatedAt: args.referenceTime })
+        reviewsHidden += 1
+      }
+      const target = index % 3 === 0
+        ? { targetType: 'post' as const, targetId: String(post._id) }
+        : index % 3 === 1
+          ? { targetType: 'review' as const, targetId: String(review._id) }
+          : { targetType: 'booking' as const, targetId: String(booking._id), bookingId: booking._id }
+      const reason = `Development seed report ${index + 1}.`
+      const reporterReports = await ctx.db.query('reports').withIndex('by_reporter', (q) => q.eq('reporterId', reporter._id)).collect()
+      const existingReport = reporterReports.find((row) => row.reason === reason)
+      const status = reportStatuses[index]
+      const reportFields = {
+        ...target,
+        reason,
+        status,
+        ...('bookingId' in target && target.bookingId && status === 'open' ? { settlementHoldAppliedAt: args.referenceTime } : {}),
+        ...(status === 'resolved' || status === 'dismissed' ? { settlementHoldReleasedAt: args.referenceTime } : {}),
+        ...(status !== 'open' ? { reviewerNote: `Development seed ${status} report.` } : {}),
+        updatedAt: args.referenceTime,
+      }
+      if (existingReport) await ctx.db.patch(existingReport._id, reportFields)
+      else {
+        await ctx.db.insert('reports', {
+          reporterId: reporter._id,
+          ...reportFields,
+          createdAt: args.referenceTime - (index + 1) * 60 * 60 * 1_000,
+        })
+        reportsCreated += 1
+      }
+      if ('bookingId' in target && target.bookingId && status === 'open' && booking.settlementState !== 'blocked') {
+        await ctx.db.patch(booking._id, {
+          settlementState: 'blocked',
+          settlementBlockedAt: args.referenceTime,
+          updatedAt: args.referenceTime,
+        })
+      }
+    }
+
+    return {
+      identityRecordsCreated,
+      verificationRequestsCreated,
+      identityImageNeeds,
+      reportsCreated,
+      postsHidden,
+      reviewsHidden,
+    }
+  },
+})
+
+export const seedPhilippinesIdentityImages = internalMutation({
+  args: {
+    confirm: developmentConfirmation,
+    referenceTime: v.number(),
+    images: v.array(v.object({
+      identityRecordId: v.id('identityRecords'),
+      userId: v.id('users'),
+      kind: v.union(v.literal('id_front'), v.literal('selfie')),
+      storageId: v.id('_storage'),
+      size: v.number(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    let created = 0
+    let updated = 0
+    for (const image of args.images) {
+      const identityRecord = await ctx.db.get(image.identityRecordId)
+      if (!identityRecord || identityRecord.userId !== image.userId) {
+        throw new Error('Seeded identity image does not match its identity record')
+      }
+      const existing = await ctx.db.query('identityRecordImages')
+        .withIndex('by_record_kind', (q) => q.eq('identityRecordId', image.identityRecordId).eq('kind', image.kind))
+        .unique()
+      const fields = {
+        storageId: image.storageId,
+        contentType: 'image/jpeg',
+        size: image.size,
+        createdAt: args.referenceTime - dayMs,
+        retentionDueAt: args.referenceTime + 365 * dayMs,
+        purgeAfter: args.referenceTime + 365 * dayMs,
+        purgedAt: undefined,
+        purgeReason: undefined,
+      }
+      if (existing) {
+        await ctx.db.patch(existing._id, fields)
+        updated += 1
+      } else {
+        await ctx.db.insert('identityRecordImages', {
+          identityRecordId: image.identityRecordId,
+          userId: image.userId,
+          kind: image.kind,
+          ...fields,
+        })
+        created += 1
+      }
+    }
+    return { created, updated }
+  },
+})
+
+export const seedPhilippinesDevelopment = internalAction({
+  args: { confirm: developmentConfirmation },
+  handler: async (ctx, args): Promise<{
+    referenceTime: number
+    peopleBatches: number
+    activityBatches: number
+  }> => {
+    requireDevelopmentConfirmation(args.confirm)
+    const referenceTime = Date.now()
+    await ctx.runMutation(internal.seeds.seedPampangaCompanions, {})
+    let peopleBatches = 0
+    const peopleTotal = approvedPhilippinesCompanions.length + philippinesMembers.length + pendingCompanionApplicants.length
+    for (let start = 0; start < peopleTotal; start += peopleBatchSize) {
+      await ctx.runMutation(internal.seeds.seedPhilippinesPeopleBatch, {
+        confirm: 'development',
+        start,
+        referenceTime,
+      })
+      peopleBatches += 1
+    }
+    let activityBatches = 0
+    for (let start = 0; start < philippinesActivitySeeds.length; start += activityBatchSize) {
+      await ctx.runMutation(internal.seeds.seedPhilippinesActivityBatch, {
+        confirm: 'development',
+        start,
+        referenceTime,
+      })
+      activityBatches += 1
+    }
+    const adminFixtures = await ctx.runMutation(internal.seeds.seedPhilippinesAdminFixtures, {
+      confirm: 'development',
+      referenceTime,
+    })
+    if (adminFixtures.identityImageNeeds.length > 0) {
+      const images = []
+      for (const need of adminFixtures.identityImageNeeds) {
+        const blob = new Blob([`Development seed ${need.kind} for ${need.seedKey}`], { type: 'image/jpeg' })
+        images.push({
+          identityRecordId: need.identityRecordId,
+          userId: need.userId,
+          kind: need.kind,
+          storageId: await ctx.storage.store(blob),
+          size: blob.size,
+        })
+      }
+      await ctx.runMutation(internal.seeds.seedPhilippinesIdentityImages, {
+        confirm: 'development',
+        referenceTime,
+        images,
+      })
+    }
+    return { referenceTime, peopleBatches, activityBatches }
   },
 })

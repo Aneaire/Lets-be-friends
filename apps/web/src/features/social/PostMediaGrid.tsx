@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import { OpenableImage } from '../../design-system/molecules/OpenableImage'
 
 type MediaKind = 'image' | 'video'
 
@@ -54,9 +55,17 @@ export function PostMediaGrid(props: PostMediaGridProps) {
               </button>
             </div>
           ))
-        : props.media.map((item) => (
+        : props.media.map((item, index) => (
             <div key={item.storageId} className="social-media-item">
-              {item.url && item.kind === 'image' && <img src={item.url} alt="" loading="lazy" />}
+              {item.url && item.kind === 'image' && (
+                <OpenableImage
+                  src={item.url}
+                  alt={`Image ${index + 1} shared in this post`}
+                  openLabel={`Open post image ${index + 1}`}
+                  viewerTitle={`Post image ${index + 1}`}
+                  loading="lazy"
+                />
+              )}
               {item.url && item.kind === 'video' && <video src={item.url} controls playsInline preload="metadata" />}
             </div>
           ))}

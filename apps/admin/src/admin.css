@@ -340,15 +340,91 @@
     text-align: center;
   }
 
+  .admin-loading {
+    display: grid;
+    min-height: 100svh;
+    place-items: center;
+    padding: clamp(1.5rem, 6vw, 4rem);
+    background: var(--app-bg);
+    color: var(--text);
+  }
+
+  .admin-loading-inner {
+    display: grid;
+    width: min(100%, 28rem);
+    justify-items: center;
+    gap: 1.5rem;
+    text-align: center;
+  }
+
+  .admin-access-logo {
+    display: block;
+    width: clamp(10.5rem, 32vw, 12.75rem);
+    height: auto;
+  }
+
+  .admin-access-copy {
+    display: grid;
+    justify-items: center;
+    gap: 0.5rem;
+  }
+
+  .admin-access-copy :is(.eyebrow, .text-h1, .lede) {
+    margin: 0;
+  }
+
+  .admin-access-copy .lede {
+    max-width: 38ch;
+    color: var(--text-muted);
+  }
+
+  .admin-loading-status {
+    display: inline-flex;
+    width: min(100%, 17rem);
+    min-height: var(--density-touch, 2.75rem);
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--rule);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
   .admin-standalone {
-    width: min(100% - 2.5rem, 40rem);
-    margin-inline: auto;
-    padding-block: 20vh 4rem;
+    display: grid;
+    min-height: 100svh;
+    place-items: center;
+    padding: clamp(1.5rem, 6vw, 4rem);
+    background: var(--app-bg);
+    color: var(--text);
+  }
+
+  .admin-standalone-inner {
+    display: grid;
+    width: min(100%, 32rem);
+    justify-items: center;
+    gap: 1.5rem;
+    text-align: center;
+  }
+
+  .admin-standalone-action {
+    display: grid;
+    width: 100%;
+    justify-items: center;
+    padding-top: 0.25rem;
+  }
+
+  .admin-standalone-action > .btn {
+    width: min(100%, 18rem);
   }
 
   .admin-standalone-actions {
     display: flex;
     align-items: center;
+    justify-content: center;
     flex-wrap: wrap;
     gap: 0.5rem;
   }
@@ -394,6 +470,31 @@
 
     .admin-stat-grid {
       grid-template-columns: 1fr;
+    }
+
+    .admin-loading,
+    .admin-standalone {
+      padding-inline: 1.25rem;
+    }
+
+    .admin-loading-inner,
+    .admin-standalone-inner {
+      gap: 1.25rem;
+    }
+
+    .admin-standalone-actions {
+      width: min(100%, 18rem);
+      flex-direction: column;
+    }
+
+    .admin-standalone-actions .btn {
+      width: 100%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .admin-loading .ds-spinner {
+      animation: none;
     }
   }
 }

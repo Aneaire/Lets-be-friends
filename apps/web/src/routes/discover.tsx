@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { LayoutGrid, MapPin, SlidersHorizontal, X } from 'lucide-react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { Checkbox } from '../design-system/atoms/Field'
 import { SearchField } from '../design-system/molecules/SearchField'
 import { SegmentedControl } from '../design-system/molecules/SegmentedControl'
 import { CompanionListItem, type DiscoveryCompanion } from '../design-system/organisms/CompanionListItem'
@@ -213,14 +214,12 @@ function DiscoverPage() {
             tone="social"
           />
           <div className="discover-toolbar-trailing">
-            <label className="bookable-toggle">
-              <input
-                type="checkbox"
-                checked={bookableOnly}
-                onChange={(event) => setBookableOnly(event.currentTarget.checked)}
-              />
-              <span>Available to book</span>
-            </label>
+            <Checkbox
+              className="bookable-toggle"
+              label="Available to book"
+              checked={bookableOnly}
+              onChange={(event) => setBookableOnly(event.currentTarget.checked)}
+            />
             <button
               type="button"
               className="btn btn-neutral btn-sm filters-trigger"

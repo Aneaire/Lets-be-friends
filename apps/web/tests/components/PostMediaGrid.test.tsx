@@ -29,6 +29,7 @@ describe('PostMediaGrid', () => {
     expect(grid?.children).toHaveLength(3)
     expect(image?.getAttribute('src')).toBe('/photo.webp')
     expect(image?.getAttribute('loading')).toBe('lazy')
+    expect(screen.getByRole('button', { name: 'Open post image 1' })).toBe(image)
     expect(video?.getAttribute('src')).toBe('/clip.mp4')
     expect(video?.controls).toBe(true)
     expect(video?.playsInline).toBe(true)

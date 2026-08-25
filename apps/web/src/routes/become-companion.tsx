@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { identityEntitlementStatus, memberVerificationPresentation, type MemberVerificationPresentation } from '../lib/memberVerification'
 
@@ -40,7 +41,7 @@ function BecomeCompanionPage() {
             </div>
             <div className="companion-hero-visual">
               <figure className="marketing-photo companion-hero-photo">
-                <img
+                <OpenableImage
                   src="/images/marketing/photography-walk.webp"
                   alt="Two friends sharing a photography walk beside a colorful public mural"
                   loading="eager"
@@ -608,7 +609,11 @@ function CompanionProfilePreview({
       <div className="companion-preview-label"><span>Member preview</span><span>Updates as you type</span></div>
       <div className="companion-preview-person">
         {profileImageUrl ? (
-          <img src={profileImageUrl} alt="" className="companion-preview-avatar" />
+          <OpenableImage
+            src={profileImageUrl}
+            alt={`${name} profile photo preview`}
+            className="companion-preview-avatar"
+          />
         ) : (
           <span className="companion-preview-avatar companion-preview-initials" aria-hidden="true">{initials}</span>
         )}

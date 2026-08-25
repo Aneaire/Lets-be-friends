@@ -179,6 +179,26 @@ describe('social feed behavior', () => {
     expect(posts.find((post) => post.body === 'member post').authorCompanionProfileId).toBeUndefined()
   })
 
+  it("keeps the viewer's newest own post at the top of For You", async () => {
+    const t = createTest()
+    const viewerId = await insertUser(t, 'viewer')
+    const followedId = await insertUser(t, 'followed')
+    await t.run(async (ctx) => ctx.db.insert('follows', {
+      followerId: viewerId,
+      followingId: followedId,
+      createdAt: 300,
+    }))
+    await insertPost(t, viewerId, 'older own post', { createdAt: 100 })
+    const newestOwnPostId = await insertPost(t, viewerId, 'newest own post', { createdAt: 200 })
+    await insertPost(t, followedId, 'high relationship post', { createdAt: 250 })
+
+    const items = await t.withIdentity({ subject: 'viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
+    const posts = items.filter((item) => item.kind === 'post')
+
+    expect(posts[0]).toMatchObject({ itemKey: `post:${newestOwnPostId}`, post: { body: 'newest own post' } })
+    expect(posts.filter((item) => item.itemKey === `post:${newestOwnPostId}`)).toHaveLength(1)
+  })
+
   it('keeps Following chronological and Following/Saved free of fallback items', async () => {
     const t = createTest()
     const viewerId = await insertUser(t, 'viewer')
@@ -405,5 +425,74 @@ describe('post and comment mentions', () => {
     expect(byUsername.map((row) => row.userId)).not.toContain(String(world.blockedId))
     const byDisplay = await author.query(api.social.mentionLookup, { query: 'jay' })
     expect(byDisplay.map((row) => row.username)).toContain('jay')
+  })
+})
+
+describe('comment editing', () => {
+  it('lets the owner edit, recalculates mentions, and advances updatedAt', async () => {
+    const t = createTest()
+    const now = Date.now()
+    const { authorId, mayaId, postId, commentId } = await t.run(async (ctx) => {
+      const authorId = await ctx.db.insert('users', { clerkUserId: 'comment-author', displayName: 'Comment author', username: 'comment_author', role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now, updatedAt: now })
+      const mayaId = await ctx.db.insert('users', { clerkUserId: 'comment-maya', displayName: 'Maya', username: 'maya_friend', role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now, updatedAt: now })
+      const postId = await ctx.db.insert('posts', { authorId, body: 'Base post', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      const commentId = await ctx.db.insert('postComments', { postId, authorId, body: 'Before edit', reportable: true, hidden: false, createdAt: now - 1_000, updatedAt: now - 1_000 })
+      return { authorId, mayaId, postId, commentId }
+    })
+
+    const author = t.withIdentity({ subject: 'comment-author' })
+    await author.mutation(api.social.editComment, {
+      commentId,
+      body: '  Updated for @maya_friend  ',
+    })
+
+    const comment = await t.run(async (ctx) => ctx.db.get(commentId))
+    expect(comment).toMatchObject({
+      postId,
+      authorId,
+      body: 'Updated for @maya_friend',
+      mentions: [{ userId: String(mayaId), username: 'maya_friend' }],
+    })
+    expect(comment!.updatedAt).toBeGreaterThan(comment!.createdAt)
+  })
+
+  it('rejects edits from anyone except the comment owner', async () => {
+    const t = createTest()
+    const ownerId = await insertUser(t, 'comment-owner')
+    await insertUser(t, 'other-member')
+    const postId = await insertPost(t, ownerId, 'Base post')
+    const commentId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('postComments', { postId, authorId: ownerId, body: 'Owner comment', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+    })
+
+    const other = t.withIdentity({ subject: 'other-member' })
+    await expect(
+      other.mutation(api.social.editComment, { commentId, body: 'Changed' }),
+    ).rejects.toThrow('Only the author can edit this comment')
+    expect((await t.run(async (ctx) => ctx.db.get(commentId)))?.body).toBe('Owner comment')
+  })
+
+  it('rejects empty, over-limit, and hidden comment edits', async () => {
+    const t = createTest()
+    const ownerId = await insertUser(t, 'comment-validator')
+    const postId = await insertPost(t, ownerId, 'Base post')
+    const commentId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('postComments', { postId, authorId: ownerId, body: 'Valid comment', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+    })
+    const owner = t.withIdentity({ subject: 'comment-validator' })
+
+    await expect(
+      owner.mutation(api.social.editComment, { commentId, body: '   ' }),
+    ).rejects.toThrow('Comment cannot be empty')
+    await expect(
+      owner.mutation(api.social.editComment, { commentId, body: 'a'.repeat(501) }),
+    ).rejects.toThrow('Comment is too long')
+
+    await t.run(async (ctx) => ctx.db.patch(commentId, { hidden: true }))
+    await expect(
+      owner.mutation(api.social.editComment, { commentId, body: 'Still hidden' }),
+    ).rejects.toThrow('Only the author can edit this comment')
   })
 })

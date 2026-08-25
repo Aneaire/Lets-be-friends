@@ -19,9 +19,10 @@ export const PostCard = forwardRef<HTMLElement, HTMLAttributes<HTMLElement> & {
         <div className="ds-post-avatar">{avatarAction ?? avatar}</div>
         <div className="ds-post-identity">
           {authorAction ?? <strong>{author}</strong>}
-          <span className="ds-post-meta-separator" aria-hidden="true">·</span>
-          <time dateTime={dateTime}>{timestamp}</time>
-          {meta}
+          <div className="ds-post-meta">
+            <time dateTime={dateTime}>{timestamp}</time>
+            {meta}
+          </div>
         </div>
         {actions}
       </header>

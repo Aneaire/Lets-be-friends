@@ -8,6 +8,7 @@ import type { Id } from '../../convex/_generated/dataModel'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { PostMediaGrid } from '../features/social/PostMediaGrid'
+import { OpenableImage } from '../design-system/molecules/OpenableImage'
 
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
 
@@ -431,8 +432,8 @@ async function uploadProfileImage(
 function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: string; size?: 'lg' | 'xl' }) {
   const className = size === 'xl' ? 'profile-photo profile-photo-xl' : size === 'lg' ? 'profile-photo profile-photo-lg' : 'profile-photo'
   return (
-    <span className={className} aria-hidden="true">
-      {imageUrl ? <img src={imageUrl} alt="" /> : <span>{initials(name)}</span>}
+    <span className={className} aria-hidden={imageUrl ? undefined : true}>
+      {imageUrl ? <OpenableImage src={imageUrl} alt={`${name} profile photo`} /> : <span>{initials(name)}</span>}
     </span>
   )
 }

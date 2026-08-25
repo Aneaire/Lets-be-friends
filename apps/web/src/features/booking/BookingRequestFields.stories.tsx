@@ -47,9 +47,8 @@ type Story = StoryObj<typeof meta>
 export const EstimatedTotal: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/Estimated booking total:/)).toHaveTextContent(
-      '₱525.00',
-    )
+    await expect(canvas.getByRole('status')).toHaveTextContent('Estimated booking total')
+    await expect(canvas.getByRole('status')).toHaveTextContent('₱525.00')
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(
       canvasElement.clientWidth,
     )
@@ -103,7 +102,7 @@ export const NoEstimateYet: Story = {
   args: { estimate: undefined },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).queryByText(/Estimated booking total:/),
+      within(canvasElement).queryByRole('status'),
     ).not.toBeInTheDocument()
   },
 }

@@ -1,6 +1,7 @@
 import { formatPhp, type BookingStatus } from '@lets-be-friends/shared'
 import { useState } from 'react'
 import type { Id } from '../../../convex/_generated/dataModel'
+import { StatusBadge } from '../../design-system/atoms/StatusBadge'
 
 export type BookingRequestView = {
   bookingId: Id<'bookings'>
@@ -71,34 +72,41 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
             )}
           </div>
         </div>
-        <span className="status-pill" data-tone={status.tone}>{status.label}</span>
+        <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
       </div>
 
       {pending && (
         <>
-          <div className="booking-plan-context">
-            <span>{status.label}</span>
+          <div className="booking-request-card-state">
+            <span aria-hidden="true" />
+            <span>
+              {isRequester
+                ? `Awaiting ${booking.companionDisplayName}'s reply`
+                : `${booking.memberDisplayName} is waiting for your reply`}
+            </span>
           </div>
 
           {intro && <p className="booking-request-card-body">{intro}</p>}
 
-          {booking.memberTotalCentavos !== undefined && (
-            <p className="text-meta">
-              {isRequester ? (
-                <>
-                  Booking total <strong className="tabular">{formatPhp(booking.memberTotalCentavos)}</strong>
-                  {' · '}Includes service fee.
-                </>
-              ) : (
-                <>
-                  Your entitlement <strong className="tabular">{formatPhp(booking.companionEarningsCentavos ?? 0)}</strong>
-                  {' · '}the member paid {formatPhp(booking.memberTotalCentavos)} total, which includes the service fee.
-                </>
-              )}
-            </p>
-          )}
+          <div className="booking-request-card-details">
+            {booking.memberTotalCentavos !== undefined && (
+              <p className="booking-request-card-total">
+                {isRequester ? (
+                  <>
+                    Booking total <strong className="tabular">{formatPhp(booking.memberTotalCentavos)}</strong>
+                    {' · '}Includes service fee.
+                  </>
+                ) : (
+                  <>
+                    Your entitlement <strong className="tabular">{formatPhp(booking.companionEarningsCentavos ?? 0)}</strong>
+                    {' · '}the member paid {formatPhp(booking.memberTotalCentavos)} total, which includes the service fee.
+                  </>
+                )}
+              </p>
+            )}
 
-          {booking.notes && <p className="text-meta">Note: {booking.notes}</p>}
+            {booking.notes && <p className="booking-request-card-note"><span>Note</span>{booking.notes}</p>}
+          </div>
         </>
       )}
 

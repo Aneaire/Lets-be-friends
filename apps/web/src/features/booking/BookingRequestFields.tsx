@@ -1,4 +1,7 @@
 import { formatPhp } from '@lets-be-friends/shared'
+import { Input, Select } from '../../design-system/atoms/Field'
+import { InlineNotice } from '../../design-system/molecules/FeedbackState'
+import { FormField } from '../../design-system/molecules/FormField'
 import { Calendar } from '../../design-system/organisms/Calendar'
 
 export type BookingPriceEstimate = {
@@ -48,33 +51,29 @@ export function BookingRequestFields(props: Props) {
 
   return (
     <>
-      <label className="field-row">
-        <span className="label">What would you like to do?</span>
-        <select
+      <FormField label="What would you like to do?">
+        <Select
           name="category"
           value={category}
           onChange={(event) => onCategoryChange(event.currentTarget.value)}
-          className="field"
           disabled={disabled}
         >
           {categoryOptions.map((option) => <option key={option}>{option}</option>)}
-        </select>
-      </label>
+        </Select>
+      </FormField>
 
       <div className="booking-dialog-paired-fields">
-        <label className="field-row">
-          <span className="label">Mode</span>
-          <select
+        <FormField label="Mode">
+          <Select
             name="mode"
             value={mode}
             onChange={(event) => onModeChange(event.currentTarget.value as 'online' | 'in_person')}
-            className="field"
             disabled={disabled}
           >
             {modeOptions.includes('online') && <option value="online">Online</option>}
             {modeOptions.includes('in_person') && <option value="in_person">In person</option>}
-          </select>
-        </label>
+          </Select>
+        </FormField>
         <label className="field-row">
           <span className="label">Duration <span className="label-aux">hours</span></span>
           <select
@@ -104,10 +103,9 @@ export function BookingRequestFields(props: Props) {
         />
       </label>
 
-      <label className="field-row">
-        <span className="label">Time</span>
-        <input type="time" name="requestedTime" required value={requestedTime} onChange={(event) => onRequestedTimeChange(event.currentTarget.value)} className="field" disabled={disabled} />
-      </label>
+      <FormField label="Time">
+        <Input type="time" name="requestedTime" required value={requestedTime} onChange={(event) => onRequestedTimeChange(event.currentTarget.value)} disabled={disabled} />
+      </FormField>
 
       <label className="field-row">
         <span className="label">Anything you would like them to know? <span className="label-aux">shared with the Companion</span></span>
@@ -115,13 +113,10 @@ export function BookingRequestFields(props: Props) {
       </label>
 
       {estimate && (
-        <div className="notice text-meta">
-          <span className="notice-icon">₱</span>
-          <span>
-            Estimated booking total: <strong className="tabular">{formatPhp(estimate.memberTotalCentavos)}</strong>
-            {' · '}Includes service fee. This does not charge your balance. The amount is reserved from your wallet only if the Companion accepts.
-          </span>
-        </div>
+        <InlineNotice title="Estimated booking total">
+          <strong className="tabular">{formatPhp(estimate.memberTotalCentavos)}</strong>
+          {' · '}Includes service fee. This does not charge your balance. The amount is reserved from your wallet only if the Companion accepts.
+        </InlineNotice>
       )}
     </>
   )

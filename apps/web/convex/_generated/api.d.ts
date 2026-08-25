@@ -29,6 +29,7 @@ import type * as reports from "../reports.js";
 import type * as reviews from "../reviews.js";
 import type * as safety from "../safety.js";
 import type * as seeds from "../seeds.js";
+import type * as seeds_philippinesCatalog from "../seeds/philippinesCatalog.js";
 import type * as social from "../social.js";
 import type * as users from "../users.js";
 
@@ -60,6 +61,7 @@ declare const fullApi: ApiFromModules<{
   reviews: typeof reviews;
   safety: typeof safety;
   seeds: typeof seeds;
+  "seeds/philippinesCatalog": typeof seeds_philippinesCatalog;
   social: typeof social;
   users: typeof users;
 }>;

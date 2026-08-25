@@ -3,6 +3,7 @@ import { useAuth } from '@clerk/react'
 import { useQuery } from 'convex/react'
 import { activityCategories } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { OpenableImage } from '../design-system/molecules/OpenableImage'
 
 const homeTitle = "Everyday Help and Real Connections | Let's Be Friends"
 const homeDescription = 'Find verified Companions who offer everyday help, shared activities, and friendly company, or become a Companion and earn by sharing your Strengths.'
@@ -207,7 +208,7 @@ function HomePage() {
           </div>
         </div>
         <div className="invitation-hero-art">
-          <img
+          <OpenableImage
             src="/images/marketing/market-friends.webp"
             srcSet="/images/marketing/market-friends-768.webp 768w, /images/marketing/market-friends.webp 1536w"
             sizes="(max-width: 900px) calc(100vw - 1.75rem), 48vw"
@@ -438,7 +439,7 @@ function MarketingActivityImage({
   sizes: string
 }) {
   return (
-    <img
+    <OpenableImage
       src={activity.image}
       srcSet={`${activity.image.replace('.webp', '-768.webp')} 768w, ${activity.image} 1536w`}
       sizes={sizes}

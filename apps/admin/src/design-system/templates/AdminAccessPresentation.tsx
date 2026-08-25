@@ -1,5 +1,6 @@
 import { LogOut } from 'lucide-react'
 import type React from 'react'
+import splashLogoUrl from '../../assets/splash-logo.svg'
 
 export type AdminAccessState =
   | 'loading'
@@ -21,12 +22,7 @@ export function AdminAccessPresentation({
   onSignOut: () => void | Promise<void>
 }) {
   if (state === 'loading') {
-    return (
-      <AdminStandalonePresentation
-        title="Loading admin access"
-        body="Checking your account and role."
-      />
-    )
+    return <AdminLoadingPresentation />
   }
 
   if (state === 'signed_out') {
@@ -78,6 +74,33 @@ export function AdminAccessPresentation({
   )
 }
 
+function AdminLoadingPresentation() {
+  return (
+    <main className="admin-loading" aria-busy="true">
+      <div
+        className="admin-loading-inner"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true">
+        <img
+          className="admin-access-logo"
+          src={splashLogoUrl}
+          alt="Let's Be Friends"
+        />
+        <div className="admin-access-copy">
+          <p className="eyebrow">Admin workspace</p>
+          <h1 className="text-h1">Preparing your workspace</h1>
+          <p className="lede">Checking your account and role.</p>
+        </div>
+        <div className="admin-loading-status" aria-label="Verifying secure access">
+          <span className="ds-spinner" aria-hidden="true" />
+          <span>Verifying secure access</span>
+        </div>
+      </div>
+    </main>
+  )
+}
+
 export function AdminStandalonePresentation({
   title,
   body,
@@ -89,10 +112,19 @@ export function AdminStandalonePresentation({
 }) {
   return (
     <main className="admin-standalone">
-      <p className="eyebrow">Let&apos;s Be Friends Admin</p>
-      <h1 className="text-h1 mt-2">{title}</h1>
-      <p className="lede mt-2">{body}</p>
-      {action && <div className="mt-6">{action}</div>}
+      <div className="admin-standalone-inner">
+        <img
+          className="admin-access-logo"
+          src={splashLogoUrl}
+          alt="Let's Be Friends"
+        />
+        <div className="admin-access-copy">
+          <p className="eyebrow">Admin workspace</p>
+          <h1 className="text-h1">{title}</h1>
+          <p className="lede">{body}</p>
+        </div>
+        {action && <div className="admin-standalone-action">{action}</div>}
+      </div>
     </main>
   )
 }

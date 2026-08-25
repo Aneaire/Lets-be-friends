@@ -7,6 +7,7 @@ import { formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
 import { PostCard } from '../features/social/PostCard'
 import { PostMediaGrid } from '../features/social/PostMediaGrid'
+import { OpenableImage } from '../design-system/molecules/OpenableImage'
 
 export const Route = createFileRoute('/companion-profile')({
   validateSearch: (search: Record<string, unknown>): { companionProfileId?: string } => (
@@ -309,8 +310,8 @@ function ReviewRow({ review, signedIn, onSave }: { review: CompanionReview; sign
 function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: string; size?: 'lg' }) {
   const className = size === 'lg' ? 'profile-photo profile-photo-lg' : 'profile-photo'
   return (
-    <span className={className} aria-hidden="true">
-      {imageUrl ? <img src={imageUrl} alt="" /> : <span>{initials(name)}</span>}
+    <span className={className} aria-hidden={imageUrl ? undefined : true}>
+      {imageUrl ? <OpenableImage src={imageUrl} alt={`${name} profile photo`} /> : <span>{initials(name)}</span>}
     </span>
   )
 }
