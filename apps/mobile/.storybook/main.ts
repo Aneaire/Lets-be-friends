@@ -3,6 +3,9 @@ import { fileURLToPath } from 'node:url'
 
 const ioniconsMock = fileURLToPath(new URL('./mocks/Ionicons.tsx', import.meta.url))
 const expoRouterMock = fileURLToPath(new URL('./mocks/expo-router.tsx', import.meta.url))
+const expoLinkingMock = fileURLToPath(new URL('./mocks/expo-linking.ts', import.meta.url))
+const convexReactMock = fileURLToPath(new URL('./mocks/convex-react.ts', import.meta.url))
+const backendClientMock = fileURLToPath(new URL('./mocks/backend-client.ts', import.meta.url))
 
 const config: StorybookConfig = {
   stories: ['../src/**/*.stories.@(ts|tsx)'],
@@ -15,6 +18,13 @@ const config: StorybookConfig = {
   viteFinal: async (viteConfig) => {
     const existingAlias = viteConfig.resolve?.alias
     const ioniconsAlias = { find: '@expo/vector-icons/Ionicons', replacement: ioniconsMock }
+    const storyAliases = [
+      ioniconsAlias,
+      { find: 'expo-router', replacement: expoRouterMock },
+      { find: 'expo-linking', replacement: expoLinkingMock },
+      { find: 'convex/react', replacement: convexReactMock },
+      { find: '@/backend/client', replacement: backendClientMock },
+    ]
 
     return {
       ...viteConfig,
@@ -30,8 +40,8 @@ const config: StorybookConfig = {
       resolve: {
         ...viteConfig.resolve,
         alias: Array.isArray(existingAlias)
-          ? [ioniconsAlias, { find: 'expo-router', replacement: expoRouterMock }, ...existingAlias]
-          : { ...existingAlias, '@expo/vector-icons/Ionicons': ioniconsMock, 'expo-router': expoRouterMock },
+          ? [...storyAliases, ...existingAlias]
+          : { ...existingAlias, '@expo/vector-icons/Ionicons': ioniconsMock, 'expo-router': expoRouterMock, 'expo-linking': expoLinkingMock, 'convex/react': convexReactMock, '@/backend/client': backendClientMock },
       },
     }
   },

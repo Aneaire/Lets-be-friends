@@ -6,11 +6,11 @@ import * as Notifications from 'expo-notifications'
 import * as SecureStore from 'expo-secure-store'
 import { AppState, Linking, Platform } from 'react-native'
 
-import { installationBoundary } from './logic'
+import { installationBoundary, pushInstallationKey, pushInstallMarkerKey } from './logic'
 import type { NativePermissionState, NativePushAdapter, NativePushResponse } from './nativeAdapter'
 
-const INSTALLATION_KEY = 'push:installation-id'
-const INSTALL_MARKER_KEY = 'push:install-marker'
+const INSTALLATION_KEY = pushInstallationKey()
+const INSTALL_MARKER_KEY = pushInstallMarkerKey()
 const INSTALL_MARKER_FILE = 'push-install-marker'
 const CHANNEL_ID = 'account-updates'
 let installationPromise: Promise<{ installationId: string; freshInstall: boolean }> | null = null

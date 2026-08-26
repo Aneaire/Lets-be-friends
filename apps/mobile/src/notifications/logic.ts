@@ -70,7 +70,22 @@ export function parsePushPayload(value: unknown): PushPayload | null {
 }
 
 export function pushPreferenceKey(clerkUserId: string) {
-  return `push:preference:${clerkUserId}`
+  return pushSecureStorageKey('preference', clerkUserId)
+}
+
+export function pushInstallationKey() {
+  return pushSecureStorageKey('installation-id')
+}
+
+export function pushInstallMarkerKey() {
+  return pushSecureStorageKey('install-marker')
+}
+
+function pushSecureStorageKey(namespace: string, scope?: string) {
+  const encodedScope = scope
+    ? Array.from(scope, (character) => character.codePointAt(0)!.toString(16)).join('-')
+    : undefined
+  return ['push', namespace, encodedScope].filter(Boolean).join('.')
 }
 
 export function parsePushPreference(value: string | null): PushPreference {

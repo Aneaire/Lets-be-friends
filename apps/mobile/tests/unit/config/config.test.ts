@@ -13,6 +13,9 @@ const appConfig = jest.requireActual('../../../app.json') as {
     plugins: Array<string | [string, { icon?: string }]>
   }
 }
+const easConfig = jest.requireActual('../../../eas.json') as {
+  build: { preview: { autoIncrement?: boolean } }
+}
 
 describe('mobile official brand assets', () => {
   it('uses official-mark derivatives for every configured app icon surface', () => {
@@ -22,6 +25,10 @@ describe('mobile official brand assets', () => {
     expect(appConfig.expo.android.adaptiveIcon.monochromeImage).toBe('./assets/images/official-adaptive-monochrome.png')
     expect(appConfig.expo.web.favicon).toBe('./assets/images/official-favicon.png')
     expect(notificationsPlugin?.[1].icon).toBe('./assets/images/official-notification-icon.png')
+  })
+
+  it('increments preview builds so Android installs the current launcher assets', () => {
+    expect(easConfig.build.preview.autoIncrement).toBe(true)
   })
 })
 

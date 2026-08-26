@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite'
 import { expect, userEvent, within } from 'storybook/test'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { StyleSheet, View } from 'react-native'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { density } from '@/theme/tokens'
+import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { BottomSheetPresentation } from './BottomSheet'
-import { Surface } from './Surface'
 
 const meta = {
   title: 'Mobile/Molecules/Bottom sheet',
@@ -51,12 +51,12 @@ function SheetBody({ variant }: { variant: SheetVariant }) {
     return (
       <View style={styles.sections}>
         {preferenceSections.map(([label, value]) => (
-          <Surface key={label} compact sunk>
+          <StoryPanel key={label}>
             <View style={styles.sectionCopy}>
               <AppText variant="bodyStrong">{label}</AppText>
               <AppText variant="caption">{value}</AppText>
             </View>
-          </Surface>
+          </StoryPanel>
         ))}
       </View>
     )
@@ -65,18 +65,23 @@ function SheetBody({ variant }: { variant: SheetVariant }) {
   if (variant === 'narrow') {
     return (
       <View style={styles.sections}>
-        <Surface compact sunk><AppText variant="bodyStrong">People you follow</AppText></Surface>
-        <Surface compact sunk><AppText variant="bodyStrong">Verified members</AppText></Surface>
-        <Surface compact sunk><AppText variant="bodyStrong">No one</AppText></Surface>
+        <StoryPanel><AppText variant="bodyStrong">People you follow</AppText></StoryPanel>
+        <StoryPanel><AppText variant="bodyStrong">Verified members</AppText></StoryPanel>
+        <StoryPanel><AppText variant="bodyStrong">No one</AppText></StoryPanel>
       </View>
     )
   }
 
   return (
-    <Surface compact sunk>
+    <StoryPanel>
       <AppText>Weekday evenings after 6 PM, or Saturday morning.</AppText>
-    </Surface>
+    </StoryPanel>
   )
+}
+
+function StoryPanel({ children }: { children: ReactNode }) {
+  const theme = useAppTheme()
+  return <View style={[styles.panel, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>{children}</View>
 }
 
 function SheetStory({ initialVisible, variant = 'default' }: { initialVisible: boolean; variant?: SheetVariant }) {
@@ -126,4 +131,5 @@ const styles = StyleSheet.create({
   actions: { gap: density.cardGap },
   sections: { gap: density.cardGap },
   sectionCopy: { gap: density.textPairGap },
+  panel: { borderWidth: 1, borderRadius: 14, padding: density.compactCardPadding },
 })

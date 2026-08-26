@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
-import { MobileMemberStateProvider } from './MobileMember'
+import { MobileMemberStateProvider } from './MobileMemberContext'
 
 type Props = {
   children: ReactNode

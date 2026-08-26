@@ -10,6 +10,7 @@ import {
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
 import { AppText } from '@/design-system/atoms/Typography'
+import { StatusBadge } from '@/design-system/atoms/StatusBadge'
 
 export type BookingCardView = {
   id: string
@@ -45,9 +46,7 @@ export function BookingCard({ booking, onPress, compact = false }: { booking: Bo
           <AppText variant="bodyStrong">{booking.category}</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>{participantPreposition} {booking.participantName}</AppText>
         </View>
-        <View style={[styles.status, { backgroundColor: theme.colors.socialSoft }]}>
-          <AppText variant="caption" color={theme.colors.socialText}>{status.label}</AppText>
-        </View>
+        <StatusBadge label={status.label} tone="social" />
       </View>
       <AppText variant="caption">{formatBookingSchedule(booking.requestedAt)}</AppText>
       <AppText variant="caption" color={theme.colors.textMuted}>
@@ -63,5 +62,4 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.74 },
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   copy: { flex: 1, gap: density.textPairGap },
-  status: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
 })

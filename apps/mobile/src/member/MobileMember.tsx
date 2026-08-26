@@ -1,11 +1,14 @@
 import type { FunctionReturnType } from 'convex/server'
 import { useConvexAuth, useMutation, useQuery } from 'convex/react'
-import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { type PropsWithChildren, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi } from '@/backend/client'
 
 import { isViewerForClerkUser } from './account'
+import { MobileMemberStateProvider } from './MobileMemberContext'
+
+export { MobileMemberStateProvider, useMobileMember } from './MobileMemberContext'
 
 type Viewer = NonNullable<FunctionReturnType<typeof mobileApi.users.viewer>>
 type MemberVerification = FunctionReturnType<typeof mobileApi.users.latestMemberVerification>
@@ -16,12 +19,6 @@ export type MobileMemberState =
   | { status: 'loading' | 'syncing' }
   | { status: 'unavailable' | 'error'; message: string }
   | { status: 'ready'; viewer: Viewer; verification: MemberVerification }
-
-const MobileMemberContext = createContext<MobileMemberState>({ status: 'unconfigured' })
-
-export function MobileMemberStateProvider({ value, children }: PropsWithChildren<{ value: MobileMemberState }>) {
-  return <MobileMemberContext.Provider value={value}>{children}</MobileMemberContext.Provider>
-}
 
 export function AuthenticatedMemberProvider({ children }: PropsWithChildren) {
   const auth = useMobileAuth()
@@ -94,9 +91,5 @@ export function AuthenticatedMemberProvider({ children }: PropsWithChildren) {
     return { status: 'ready', viewer, verification }
   }, [auth, convexAuth.isAuthenticated, convexAuth.isLoading, syncingUserId, syncErrorUserId, verification, viewer])
 
-  return <MobileMemberContext.Provider value={value}>{children}</MobileMemberContext.Provider>
-}
-
-export function useMobileMember() {
-  return useContext(MobileMemberContext)
+  return <MobileMemberStateProvider value={value}>{children}</MobileMemberStateProvider>
 }

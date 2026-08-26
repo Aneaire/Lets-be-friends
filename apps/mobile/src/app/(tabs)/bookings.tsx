@@ -10,6 +10,9 @@ import { Screen } from '@/design-system/templates/Screen'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppIcon } from '@/design-system/atoms/AppIcon'
+import { EmptyState } from '@/design-system/molecules/FeedbackState'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -72,12 +75,11 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
           onPress={() => router.push({ pathname: '/booking/[id]', params: { id: String(booking._id) } })}
         />
       ))}</View> : (
-        <StateView
-          embedded
+        <EmptyState
+          icon={<AppIcon name="calendar-outline" color={theme.colors.textMuted} size={26} />}
           title={filter === 'active' ? 'No upcoming sessions' : filter === 'requests' ? 'No open requests' : 'No past bookings'}
-          detail={filter === 'past' ? 'Completed and closed bookings will appear here.' : 'Explore approved Companions when you are ready to make a plan.'}
-          actionLabel={filter === 'past' ? undefined : 'Explore Companions'}
-          onAction={filter === 'past' ? undefined : () => router.push('/explore')}
+          description={filter === 'past' ? 'Completed and closed bookings will appear here.' : 'Explore approved Companions when you are ready to make a plan.'}
+          action={filter === 'past' ? undefined : <ActionButton label="Explore Companions" onPress={() => router.push('/explore')} secondary />}
         />
       )}
       <Pressable accessibilityRole="button" accessibilityLabel="Open Companion incoming bookings" onPress={() => router.push('/companion-bookings')} style={styles.companionLink}>

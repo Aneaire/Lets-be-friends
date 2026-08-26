@@ -9,6 +9,7 @@ import {
   type NotificationRowTone,
 } from '@/design-system/molecules/NotificationRow'
 import { StateView } from '@/design-system/molecules/StateView'
+import { InlineNotice } from '@/design-system/molecules/FeedbackState'
 import { Screen } from '@/design-system/templates/Screen'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -107,15 +108,7 @@ export function NotificationCenterPresentation({
         )}
       />
 
-      {error ? (
-        <AppText
-          accessibilityRole="alert"
-          color={theme.colors.danger}
-          variant="caption"
-          style={styles.error}>
-          {error}
-        </AppText>
-      ) : null}
+      {error ? <InlineNotice title="Notification update failed" tone="danger">{error}</InlineNotice> : null}
 
       {loadingFirstPage ? (
         <StateView
@@ -196,7 +189,6 @@ export function NotificationCenterPresentation({
 
 const styles = StyleSheet.create({
   content: { paddingBottom: density.screenBottom },
-  error: { marginTop: density.cardGap },
   section: { gap: density.cardGap, marginTop: density.sectionGap },
   list: { gap: 0 },
   loadMore: { alignItems: 'center', paddingVertical: density.contentGap },

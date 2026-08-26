@@ -9,6 +9,7 @@ import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
+import { Checkbox } from '@/design-system/atoms/Field'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Screen } from '@/design-system/templates/Screen'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -348,22 +349,16 @@ function ConsentChoice({
 }) {
   const theme = useAppTheme()
   return (
-    <Pressable
-      accessibilityRole="checkbox"
-      accessibilityLabel={label}
-      accessibilityState={{ checked, disabled }}
+    <Checkbox
+      label={label}
+      checked={checked}
       disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
+      onChange={onPress}
+      style={[
         styles.consent,
         { backgroundColor: checked ? theme.colors.selfSoft : theme.colors.surface, borderColor: checked ? theme.colors.self : theme.colors.border },
-        pressed && styles.pressed,
-      ]}>
-      <View style={[styles.checkbox, { borderColor: checked ? theme.colors.self : theme.colors.borderStrong, backgroundColor: checked ? theme.colors.self : 'transparent' }]}>
-        {checked ? <AppText variant="caption" color={theme.colors.background}>✓</AppText> : null}
-      </View>
-      <AppText variant="caption" style={styles.consentCopy}>{label}</AppText>
-    </Pressable>
+      ]}
+    />
   )
 }
 
@@ -452,9 +447,7 @@ const styles = StyleSheet.create({
   availability: { fontWeight: '600' },
   locationCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
   terms: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
-  consent: { minHeight: 58, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  checkbox: { width: 22, height: 22, borderWidth: 2, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  consentCopy: { flex: 1, lineHeight: 20 },
+  consent: { minHeight: 58, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, alignItems: 'flex-start', gap: 12 },
   goal: { minHeight: 68, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
   radio: { width: 22, height: 22, borderWidth: 2, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   radioDot: { width: 10, height: 10, borderRadius: 5 },

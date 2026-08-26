@@ -3,6 +3,8 @@ import {
   installationBoundary,
   parsePushPayload,
   parsePushPreference,
+  pushInstallationKey,
+  pushInstallMarkerKey,
   pushSettingsAction,
   pushPreferenceKey,
   resolvePushTap,
@@ -93,6 +95,9 @@ describe('push notification pure logic', () => {
 
   it('keeps opt-in and pending cleanup scoped to a Clerk account', () => {
     expect(pushPreferenceKey('user-a')).not.toBe(pushPreferenceKey('user-b'))
+    expect(pushPreferenceKey('user:with/slash')).toMatch(/^[A-Za-z0-9._-]+$/)
+    expect(pushInstallationKey()).toMatch(/^[A-Za-z0-9._-]+$/)
+    expect(pushInstallMarkerKey()).toMatch(/^[A-Za-z0-9._-]+$/)
     const stored = serializePushPreference({ optedIn: true, pendingDisable: true })
     expect(parsePushPreference(stored)).toEqual({ optedIn: true, pendingDisable: true })
     expect(parsePushPreference('invalid')).toEqual({ optedIn: false, pendingDisable: false })

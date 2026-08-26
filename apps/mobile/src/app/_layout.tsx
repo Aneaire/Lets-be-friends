@@ -43,14 +43,14 @@ function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
     <>
       <AccountRouteCoordinator />
       <Stack screenOptions={{ headerShown: false, animation: reduceMotion ? 'none' : 'slide_from_right' }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="companion-profile/[id]" />
-        <Stack.Screen name="member-profile/[id]" />
-        <Stack.Screen name="nearby" />
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="auth" />
         </Stack.Protected>
         <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="companion-profile/[id]" />
+          <Stack.Screen name="member-profile/[id]" />
+          <Stack.Screen name="nearby" />
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="profile-edit" />
           <Stack.Screen name="companion-finance" />
@@ -62,6 +62,7 @@ function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
           <Stack.Screen name="companion-booking/[id]" />
           <Stack.Screen name="conversation/[id]" />
           <Stack.Screen name="notifications" />
+          <Stack.Screen name="post-comments/[id]" />
           <Stack.Screen name="wallet" />
           <Stack.Screen name="safety" />
         </Stack.Protected>
