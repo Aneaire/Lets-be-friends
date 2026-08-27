@@ -1,4 +1,6 @@
 import {
+  ANDROID_NOTIFICATION_CHANNEL_ID,
+  androidNotificationChannelSettings,
   foregroundPermissionAction,
   installationBoundary,
   parsePushPayload,
@@ -75,6 +77,19 @@ describe('push notification pure logic', () => {
     expect(resolvePushUiState(readyUiInput)).toEqual({
       status: 'disabled',
       message: 'Push notifications are off for this account on this device.',
+    })
+  })
+
+  it('uses a new high-importance Android channel for visible account updates', () => {
+    expect(ANDROID_NOTIFICATION_CHANNEL_ID).toBe('account-updates-v2')
+    expect(androidNotificationChannelSettings({ highImportance: 4, secretVisibility: -1 })).toEqual({
+      name: 'Account updates',
+      importance: 4,
+      lockscreenVisibility: -1,
+      sound: 'default',
+      vibrationPattern: [0, 180],
+      enableLights: false,
+      showBadge: true,
     })
   })
 

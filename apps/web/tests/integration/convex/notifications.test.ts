@@ -31,6 +31,18 @@ describe('notifications', () => {
     expect(scheduled[0].name).toBe('pushNotifications:deliverNotification')
   })
 
+  it('rejects priorities that are not declared by the notification catalog', async () => {
+    const t = convexTest(schema, modules)
+    const alexId = await user(t, 'alex')
+    await expect(t.run((ctx) => createNotification(ctx, {
+      recipientUserId: alexId,
+      kind: 'booking_accepted',
+      priority: 'attention',
+      dedupeKey: 'invalid-priority',
+    }))).rejects.toThrow('Priority attention is not allowed for booking_accepted')
+    expect(await t.run((ctx) => ctx.db.query('notifications').collect())).toEqual([])
+  })
+
   it('paginates safe presentation and omits actor identity for system notifications', async () => {
     const t = convexTest(schema, modules)
     const alexId = await user(t, 'alex')
@@ -79,6 +91,34 @@ describe('notifications', () => {
     expect(await sam.query(api.notifications.unreadCount, {})).toBe(1)
     expect(await alex.mutation(api.social.toggleFollow, { userId: samId })).toBe(false)
     expect(await sam.query(api.notifications.unreadCount, {})).toBe(1)
+  })
+
+  it('notifies the post author when another member likes the post and never on unlike', async () => {
+    const t = convexTest(schema, modules)
+    const authorId = await user(t, 'author')
+    await user(t, 'reader')
+    const postId = await t.run((ctx) => ctx.db.insert('posts', {
+      authorId,
+      body: 'A post',
+      reportable: true,
+      hidden: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }))
+    const reader = t.withIdentity({ subject: 'reader' })
+    const author = t.withIdentity({ subject: 'author' })
+
+    expect(await reader.mutation(api.social.toggleLike, { postId })).toBe(true)
+    const first = await author.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(first.page).toHaveLength(1)
+    expect(first.page[0]).toMatchObject({
+      kind: 'post_liked',
+      title: 'New like',
+      body: 'reader liked your post.',
+      destination: { type: 'post', postId: String(postId) },
+    })
+    expect(await reader.mutation(api.social.toggleLike, { postId })).toBe(false)
+    expect(await author.query(api.notifications.unreadCount, {})).toBe(1)
   })
 
   it('notifies only the other participant when the second completion opens reviews', async () => {

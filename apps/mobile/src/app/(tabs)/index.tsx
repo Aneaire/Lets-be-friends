@@ -18,7 +18,10 @@ import { Brand } from '@/design-system/atoms/Brand'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { Screen } from '@/design-system/templates/Screen'
 import { PostComposer } from '@/features/social/PostComposer'
+import { HomeFeedLoadingScreen } from '@/features/social/HomeFeedLoadingScreen'
 import { SocialFeedCard } from '@/features/social/SocialFeedCard'
+import { homeAccountPresentation } from '@/features/social/homePresentation'
+import { preparePostMedia, uploadPostMedia } from '@/features/social/postMediaUpload'
 import { StateView } from '@/design-system/molecules/StateView'
 import { FeedSkeleton } from '@/design-system/atoms/Skeleton'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -52,6 +55,8 @@ function ConnectedHome() {
   const requestedPostId = typeof params.postId === 'string' ? params.postId : ''
   const [filter, setFilter] = useState<FeedFilter>('for_you')
   const signedIn = member.status === 'ready'
+  const accountPresentation = homeAccountPresentation(auth.status, member.status)
+  const accountLoading = accountPresentation === 'account_loading'
   const canQuery = filter === 'for_you' || signedIn
   const feedPage = usePaginatedQuery(generatedApi.social.feedPage, canQuery ? { filter } : 'skip', { initialNumItems: 20 })
   const feedItems = useMemo(() => dedupeFeedItems(feedPage.results), [feedPage.results])
@@ -101,25 +106,19 @@ function ConnectedHome() {
     try {
       if (mediaAssets.length > (mediaUsage?.remaining ?? 0)) throw new Error('Daily media quota reached')
       const preparedAssets = await Promise.all(mediaAssets.map(async (asset) => {
-        const source = await fetch(asset.uri)
-        if (!source.ok) throw new Error('The selected media could not be read.')
-        const blob = await source.blob()
-        const mimeType = asset.mimeType || blob.type
-        const validationError = postMediaValidationError({ type: asset.type, mimeType, fileSize: blob.size })
+        const prepared = await preparePostMedia(asset)
+        const validationError = postMediaValidationError({ type: asset.type, mimeType: prepared.mimeType, fileSize: prepared.fileSize })
         if (validationError) throw new Error(validationError)
-        return { blob, mimeType }
+        return prepared
       }))
       const uploadIds: PostMediaUploadId[] = []
       for (const prepared of preparedAssets) {
         const grant = await generateMediaUpload({})
         const granted = { uploadId: grant.uploadId as PostMediaUploadId, storageId: undefined as StorageId | undefined }
         grantedUploads.push(granted)
-        const upload = await fetch(grant.uploadUrl, { method: 'POST', headers: { 'Content-Type': prepared.mimeType }, body: prepared.blob })
-        if (!upload.ok) throw new Error('A media upload failed. No media was attached to your post.')
-        const result = await upload.json() as { storageId?: StorageId }
-        if (!result.storageId) throw new Error('A media upload was incomplete. No media was attached to your post.')
-        granted.storageId = result.storageId
-        await registerMediaUpload({ uploadId: granted.uploadId, storageId: result.storageId })
+        const storageId = await uploadPostMedia(grant.uploadUrl, prepared) as StorageId
+        granted.storageId = storageId
+        await registerMediaUpload({ uploadId: granted.uploadId, storageId })
         uploadIds.push(granted.uploadId)
       }
       await createPost({ body, mediaUploadIds: uploadIds.length ? uploadIds : undefined })
@@ -227,6 +226,8 @@ function ConnectedHome() {
     return dedupeFeedItems([focusedItem, ...feedItems])
   }, [canQuery, feedItems, requestedPost, requestedPostId])
 
+  if (accountLoading) return <HomeFeedLoadingScreen />
+
   return (
     <Screen scroll={false} contentStyle={styles.listScreen}>
       <FlatList
@@ -290,7 +291,7 @@ function ConnectedHome() {
         ListEmptyComponent={!canQuery
           ? <StateView embedded title={`Sign in to view ${filter}`} detail="This feed uses your real account relationships and saved posts." actionLabel={auth.status === 'signed_out' ? 'Sign in' : undefined} onAction={auth.status === 'signed_out' ? () => router.push('/auth') : undefined} />
           : feedPage.status === 'LoadingFirstPage'
-            ? <View><FeedSkeleton /><FeedSkeleton /></View>
+            ? <View style={styles.skeletonList}><FeedSkeleton /><FeedSkeleton /><FeedSkeleton /></View>
             : <StateView embedded title={filter === 'following' ? 'No posts from followed members yet' : filter === 'saved' ? 'No saved posts yet' : 'No community posts yet'} detail={filter === 'for_you' ? 'Approved Companion recommendations and guidance appear when available.' : 'Use For You and Explore to find people and posts that matter to you.'} />}
         ListFooterComponent={feedPage.status === 'CanLoadMore' ? <View style={styles.loadMore}><ActionButton label="Load more updates" onPress={() => feedPage.loadMore(20)} intent="social" secondary /></View> : feedPage.status === 'LoadingMore' ? <View style={styles.loadMore}><AppText variant="caption" color={theme.colors.textMuted}>Loading more updates.</AppText></View> : null}
       />
@@ -321,5 +322,6 @@ const styles = StyleSheet.create({
   badge: { position: 'absolute', top: -4, right: -4, minWidth: 19, height: 19, borderRadius: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   signInCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8, marginTop: 10 },
   feedFilter: { marginVertical: 10 },
+  skeletonList: { gap: 8 },
   feed: { gap: 10 },
 })

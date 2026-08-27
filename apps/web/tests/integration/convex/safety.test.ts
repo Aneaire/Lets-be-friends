@@ -37,10 +37,12 @@ describe('member safety preferences', () => {
     const samId = await user(t, 'sam')
     await t.withIdentity({ subject: 'sam' }).mutation(api.safety.setMuted, { userId: alexId, muted: true })
     const created = await t.run(async (ctx) => ({
-      social: await createNotification(ctx, { recipientUserId: samId, actorUserId: alexId, kind: 'new_follower', priority: 'standard', dedupeKey: 'social' }),
-      critical: await createNotification(ctx, { recipientUserId: samId, actorUserId: alexId, kind: 'booking_accepted', priority: 'attention', dedupeKey: 'critical' }),
+      follower: await createNotification(ctx, { recipientUserId: samId, actorUserId: alexId, kind: 'new_follower', priority: 'standard', dedupeKey: 'social-follow' }),
+      like: await createNotification(ctx, { recipientUserId: samId, actorUserId: alexId, kind: 'post_liked', priority: 'standard', dedupeKey: 'social-like' }),
+      critical: await createNotification(ctx, { recipientUserId: samId, actorUserId: alexId, kind: 'booking_cancelled', priority: 'attention', dedupeKey: 'critical' }),
     }))
-    expect(created.social).toBeNull()
+    expect(created.follower).toBeNull()
+    expect(created.like).toBeNull()
     expect(created.critical).toBeTruthy()
   })
 

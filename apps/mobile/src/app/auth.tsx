@@ -15,7 +15,7 @@ import {
 
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { safeAuthErrorMessage } from '@/auth/errors'
-import { googleOAuthNextStep } from '@/auth/googleOAuth'
+import { GOOGLE_OAUTH_REDIRECT_OPTIONS, googleOAuthNextStep } from '@/auth/googleOAuth'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { hideAppToast, showAppToast, type AppToastTone } from '@/design-system/molecules/AppToast'
@@ -127,7 +127,7 @@ function ClerkAuthForm() {
     try {
       const result = await startSSOFlow({
         strategy: 'oauth_google',
-        redirectUrl: AuthSession.makeRedirectUri({ scheme: 'letsbefriends', path: 'auth/callback' }),
+        redirectUrl: AuthSession.makeRedirectUri(GOOGLE_OAUTH_REDIRECT_OPTIONS),
       })
       const nextStep = googleOAuthNextStep(result)
 
@@ -139,7 +139,7 @@ function ClerkAuthForm() {
         await result.setActive({
           session: result.createdSessionId,
           navigate: async ({ session }) => {
-            if (!session.currentTask) router.replace('/onboarding')
+            if (!session.currentTask) router.replace('/auth/callback' as never)
           },
         })
         return

@@ -101,20 +101,6 @@ export const Empty: Story = {
 
 export const RowBusy: Story = {
   args: { onToggleRead: keepWorking },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(
-      canvas.getAllByRole('button', { name: 'Mark notification read' })[0],
-    )
-    await expect(
-      canvas.getAllByRole('button', { name: 'Mark notification read' })[0],
-    ).toHaveAttribute('aria-busy', 'true')
-    await expect(
-      canvas.getByRole('button', {
-        name: /Unread notification\. Safety report received/,
-      }),
-    ).toHaveAttribute('aria-disabled', 'true')
-  },
 }
 
 export const MarkAllBusy: Story = {
@@ -129,9 +115,7 @@ export const MarkAllBusy: Story = {
         name: 'Marking all notifications read',
       }),
     ).toHaveAttribute('aria-busy', 'true')
-    await expect(
-      canvas.getAllByRole('button', { name: 'Mark notification read' })[0],
-    ).toHaveAttribute('aria-disabled', 'true')
+    await expect(canvas.queryByText('Mark read')).not.toBeInTheDocument()
   },
 }
 

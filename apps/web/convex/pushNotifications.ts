@@ -3,6 +3,9 @@ import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { internalAction, internalMutation, mutation, query } from './_generated/server'
 import { requireViewer } from './lib'
+import { buildNativePushPresentation, fallbackNativePushBody, type NativePushBody, type NativePushPresentation } from './notificationCatalog'
+
+export type { NativePushBody, NativePushPresentation } from './notificationCatalog'
 
 const EXPO_SEND_URL = 'https://exp.host/--/api/v2/push/send'
 const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts'
@@ -21,16 +24,15 @@ const INSTALLATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}
 const EXPO_TOKEN = /^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$/
 
 const platformValidator = v.union(v.literal('ios'), v.literal('android'))
-export type NativePushBody = 'You have a new message.' | 'Someone mentioned you.' | 'You have a booking update.' | 'Your identity approval expires soon.' | 'Your identity approval has expired.' | 'You have a new update.'
 export type PushMessage = {
   to: string
-  title: "Let's Be Friends"
-  body: NativePushBody
+  title: string
+  body: string
   data: { version: 1; notificationId: string }
   badge: number
   sound: 'default'
-  priority: 'default'
-  channelId?: 'account-updates'
+  priority: 'high'
+  channelId?: 'account-updates-v2'
 }
 
 type PushConfiguration =
@@ -224,7 +226,7 @@ export const claimDeliveries = internalMutation({
       .filter((delivery) => !args.notificationId || delivery.notificationId === args.notificationId)
       .sort((a, b) => a.nextAttemptAt - b.nextAttemptAt)
       .slice(0, MAX_SEND_BATCH)
-    const claimed: Array<{ deliveryId: Id<'pushDeliveries'>; notificationId: Id<'notifications'>; deviceId: Id<'pushDevices'>; expoPushToken: string; platform: 'ios' | 'android'; sendGeneration: number; tokenRevision: number; kind: Doc<'notifications'>['kind']; unreadCount: number }> = []
+    const claimed: Array<{ deliveryId: Id<'pushDeliveries'>; notificationId: Id<'notifications'>; deviceId: Id<'pushDevices'>; expoPushToken: string; platform: 'ios' | 'android'; sendGeneration: number; tokenRevision: number; kind: Doc<'notifications'>['kind']; unreadCount: number; presentation: NativePushPresentation }> = []
 
     for (const delivery of candidates) {
       if (delivery.createdAt <= args.now - MAX_DELIVERY_AGE_MS) {
@@ -248,6 +250,7 @@ export const claimDeliveries = internalMutation({
       const unread = await ctx.db.query('notifications')
         .withIndex('by_recipient_read_at', (q) => q.eq('recipientUserId', delivery.userId).eq('readAt', undefined))
         .collect()
+      const presentation = await notificationPushPresentation(ctx, notification)
       const leaseExpiresAt = args.now + SEND_LEASE_MS
       const sendGeneration = (delivery.sendGeneration ?? 0) + 1
       await ctx.db.patch(delivery._id, {
@@ -271,6 +274,7 @@ export const claimDeliveries = internalMutation({
         tokenRevision: device.tokenRevision,
         kind: notification.kind,
         unreadCount: unread.length,
+        presentation,
       })
     }
     return claimed
@@ -482,6 +486,7 @@ async function sendDueDeliveries(
       notificationId: row.notificationId,
       kind: row.kind,
       unreadCount: row.unreadCount,
+      presentation: row.presentation,
     }),
   }))
   let results: Array<{ deliveryId: Id<'pushDeliveries'>; sendGeneration: number; sentTokenRevision: number; status: 'ticket' | 'retry' | 'permanent'; ticketId?: string; errorCode?: string }>
@@ -546,26 +551,64 @@ export function pushMessage(input: {
   notificationId: Id<'notifications'> | string
   kind: Doc<'notifications'>['kind']
   unreadCount: number
+  presentation?: NativePushPresentation
 }): PushMessage {
+  const presentation = input.presentation ?? nativePushPresentation({ kind: input.kind })
   return {
     to: input.token,
-    title: "Let's Be Friends",
-    body: nativePushBody(input.kind),
+    title: presentation.title,
+    body: presentation.body,
     data: { version: 1, notificationId: String(input.notificationId) },
     badge: Math.max(0, Math.floor(input.unreadCount)),
     sound: 'default',
-    priority: 'default',
-    ...(input.platform === 'android' ? { channelId: 'account-updates' as const } : {}),
+    priority: 'high',
+    ...(input.platform === 'android' ? { channelId: 'account-updates-v2' as const } : {}),
   }
 }
 
+export function nativePushPresentation(input: {
+  kind: Doc<'notifications'>['kind']
+  actorName?: string
+  messageBody?: string
+  messageAttachmentCount?: number
+  commentBody?: string
+  isComment?: boolean
+}): NativePushPresentation {
+  return buildNativePushPresentation(input.kind, input)
+}
+
 export function nativePushBody(kind: Doc<'notifications'>['kind']): NativePushBody {
-  if (kind === 'direct_message') return 'You have a new message.'
-  if (kind === 'mention') return 'Someone mentioned you.'
-  if (kind.startsWith('booking_')) return 'You have a booking update.'
-  if (kind === 'identity_verification_expiring') return 'Your identity approval expires soon.'
-  if (kind === 'identity_verification_expired') return 'Your identity approval has expired.'
-  return 'You have a new update.'
+  return fallbackNativePushBody(kind)
+}
+
+async function notificationPushPresentation(ctx: { db: any }, notification: Doc<'notifications'>): Promise<NativePushPresentation> {
+  const [actor, message, comment] = await Promise.all([
+    notification.actorUserId ? ctx.db.get(notification.actorUserId) as Promise<Doc<'users'> | null> : null,
+    notification.messageId ? ctx.db.get(notification.messageId) as Promise<Doc<'directMessages'> | null> : null,
+    notification.commentId ? ctx.db.get(notification.commentId) as Promise<Doc<'postComments'> | null> : null,
+  ])
+  const actorAvailable = Boolean(actor && !actor.suspended)
+  const messageMatches = Boolean(
+    actorAvailable
+    && message
+    && message.senderId === notification.actorUserId
+    && message.conversationId === notification.conversationId,
+  )
+  const commentMatches = Boolean(
+    actorAvailable
+    && comment
+    && !comment.hidden
+    && comment.authorId === notification.actorUserId
+    && comment.postId === notification.postId,
+  )
+  return nativePushPresentation({
+    kind: notification.kind,
+    actorName: actorAvailable ? actor!.displayName : undefined,
+    messageBody: messageMatches ? message!.body : undefined,
+    messageAttachmentCount: messageMatches ? message!.attachments?.length ?? 0 : 0,
+    commentBody: commentMatches ? comment!.body : undefined,
+    isComment: Boolean(notification.commentId),
+  })
 }
 
 export function classifyTicket(ticket: ExpoTicket | undefined): { status: 'ticket' | 'retry' | 'permanent'; ticketId?: string; errorCode?: string } {

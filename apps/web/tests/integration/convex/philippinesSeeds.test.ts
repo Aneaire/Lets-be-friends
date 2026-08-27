@@ -28,6 +28,27 @@ async function seedCounts(t: ReturnType<typeof createTest>) {
   }))
 }
 
+async function devMediaSnapshot(t: ReturnType<typeof createTest>) {
+  return await t.run(async (ctx) => {
+    const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', 'seed:pampanga:alyssa-bacolor')).unique()
+    if (!user) throw new Error('Development sample Companion user is missing')
+    const profile = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).unique()
+    if (!profile) throw new Error('Development sample Companion profile is missing')
+    const posts = await ctx.db.query('posts').withIndex('by_author', (q) => q.eq('authorId', user._id)).collect()
+    const reviews = await ctx.db.query('reviews').withIndex('by_companion_profile', (q) => q.eq('companionProfileId', profile._id)).collect()
+    const imagePost = posts.find((post) => post.media?.some((item) => item.kind === 'image'))
+    const imageReview = reviews.find((review) => review.imageStorageId)
+    return {
+      imagePosts: posts.filter((post) => post.media?.some((item) => item.kind === 'image')).length,
+      imageReviews: reviews.filter((review) => review.imageStorageId).length,
+      postStorageId: imagePost?.media?.find((item) => item.kind === 'image')?.storageId ?? null,
+      postContentType: imagePost?.media?.find((item) => item.kind === 'image')?.contentType ?? null,
+      reviewStorageId: imageReview?.imageStorageId ?? null,
+      postUrl: imagePost?.media?.find((item) => item.kind === 'image')?.storageId ? await ctx.storage.getUrl(imagePost!.media!.find((item) => item.kind === 'image')!.storageId) : null,
+    }
+  })
+}
+
 describe('Philippines development seed', () => {
   it('creates the full regional dataset, activity, and admin queues idempotently', async () => {
     const t = createTest()
@@ -102,6 +123,15 @@ describe('Philippines development seed', () => {
     await t.action(internal.seeds.seedPhilippinesDevelopment, { confirm: 'development' })
     expect(await seedCounts(t)).toEqual(expectedCounts)
 
+    const firstDevMedia = await devMediaSnapshot(t)
+    expect(firstDevMedia.imagePosts).toBe(1)
+    expect(firstDevMedia.imageReviews).toBe(1)
+    expect(firstDevMedia.postStorageId).toBeTruthy()
+    expect(firstDevMedia.reviewStorageId).toBeTruthy()
+    expect(firstDevMedia.postContentType).toBe('image/webp')
+    expect(firstDevMedia.postStorageId).toBe(firstDevMedia.reviewStorageId)
+    expect(firstDevMedia.postUrl).toBeTruthy()
+
     const now = Date.now()
     await t.run(async (ctx) => {
       await ctx.db.insert('users', {
@@ -144,5 +174,11 @@ describe('Philippines development seed', () => {
     const approvedVerification = await admin.query(api.admin.memberVerifications, { status: 'approved' })
     expect(approvedVerification).toHaveLength(1)
     expect(approvedVerification[0].memberVerificationStatus).toBe('approved')
+
+    const repeatedDevMedia = await devMediaSnapshot(t)
+    expect(repeatedDevMedia.imagePosts).toBe(1)
+    expect(repeatedDevMedia.imageReviews).toBe(1)
+    expect(repeatedDevMedia.postStorageId).toBe(firstDevMedia.postStorageId)
+    expect(repeatedDevMedia.reviewStorageId).toBe(firstDevMedia.reviewStorageId)
   }, 30_000)
 })

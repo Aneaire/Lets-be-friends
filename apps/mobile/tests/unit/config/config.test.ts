@@ -8,9 +8,9 @@ import {
 const appConfig = jest.requireActual('../../../app.json') as {
   expo: {
     icon: string
-    android: { adaptiveIcon: { foregroundImage: string; monochromeImage: string } }
+    android: { adaptiveIcon: { foregroundImage: string; monochromeImage: string }; predictiveBackGestureEnabled: boolean }
     web: { favicon: string }
-    plugins: Array<string | [string, { icon?: string }]>
+    plugins: Array<string | [string, { icon?: string; defaultChannel?: string }]>
   }
 }
 const easConfig = jest.requireActual('../../../eas.json') as {
@@ -19,12 +19,17 @@ const easConfig = jest.requireActual('../../../eas.json') as {
 
 describe('mobile official brand assets', () => {
   it('uses official-mark derivatives for every configured app icon surface', () => {
-    const notificationsPlugin = appConfig.expo.plugins.find((plugin): plugin is [string, { icon?: string }] => Array.isArray(plugin) && plugin[0] === 'expo-notifications')
+    const notificationsPlugin = appConfig.expo.plugins.find((plugin): plugin is [string, { icon?: string; defaultChannel?: string }] => Array.isArray(plugin) && plugin[0] === 'expo-notifications')
     expect(appConfig.expo.icon).toBe('./assets/images/official-app-icon.png')
     expect(appConfig.expo.android.adaptiveIcon.foregroundImage).toBe('./assets/images/official-adaptive-foreground.png')
     expect(appConfig.expo.android.adaptiveIcon.monochromeImage).toBe('./assets/images/official-adaptive-monochrome.png')
     expect(appConfig.expo.web.favicon).toBe('./assets/images/official-favicon.png')
     expect(notificationsPlugin?.[1].icon).toBe('./assets/images/official-notification-icon.png')
+    expect(notificationsPlugin?.[1].defaultChannel).toBe('account-updates-v2')
+  })
+
+  it('uses the supported Android back path', () => {
+    expect(appConfig.expo.android.predictiveBackGestureEnabled).toBe(false)
   })
 
   it('increments preview builds so Android installs the current launcher assets', () => {

@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
+import { notificationKindValidator, notificationPriorityValidator } from './notificationCatalog'
 
 const role = v.union(
   v.literal('member'),
@@ -125,30 +126,6 @@ const feedAction = v.union(
   v.literal('report_comment'),
 )
 const feedSurface = v.union(v.literal('for_you'), v.literal('following'), v.literal('saved'))
-const notificationKind = v.union(
-  v.literal('booking_request'),
-  v.literal('booking_request_updated'),
-  v.literal('booking_accepted'),
-  v.literal('booking_declined'),
-  v.literal('booking_cancelled'),
-  v.literal('booking_completion_confirmed'),
-  v.literal('booking_review_window_opened'),
-  v.literal('direct_message'),
-  v.literal('post_commented'),
-  v.literal('mention'),
-  v.literal('new_follower'),
-  v.literal('review_received'),
-  v.literal('companion_application_approved'),
-  v.literal('companion_application_rejected'),
-  v.literal('identity_verification_approved'),
-  v.literal('identity_verification_rejected'),
-  v.literal('identity_verification_expiring'),
-  v.literal('identity_verification_expired'),
-  v.literal('report_reviewing'),
-  v.literal('report_resolved'),
-  v.literal('report_dismissed'),
-)
-
 export default defineSchema({
   users: defineTable({
     clerkUserId: v.string(),
@@ -561,10 +538,11 @@ export default defineSchema({
   notifications: defineTable({
     recipientUserId: v.id('users'),
     actorUserId: v.optional(v.id('users')),
-    kind: notificationKind,
-    priority: v.union(v.literal('attention'), v.literal('standard')),
+    kind: notificationKindValidator,
+    priority: notificationPriorityValidator,
     bookingId: v.optional(v.id('bookings')),
     conversationId: v.optional(v.id('directConversations')),
+    messageId: v.optional(v.id('directMessages')),
     postId: v.optional(v.id('posts')),
     commentId: v.optional(v.id('postComments')),
     reviewId: v.optional(v.id('reviews')),

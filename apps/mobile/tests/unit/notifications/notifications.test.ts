@@ -1,4 +1,20 @@
-import { mobileNotificationRoute, notificationAge, notificationGroup } from '@/data/notifications'
+import { mobileNotificationRoute, notificationAge, notificationGroup, notificationReadAction } from '@/data/notifications'
+
+describe('notification read action', () => {
+  it('offers mark as read for an unread notification', () => {
+    expect(notificationReadAction(true)).toEqual({
+      label: 'Mark as read',
+      icon: 'checkmark-circle-outline',
+    })
+  })
+
+  it('offers mark as unread for a read notification', () => {
+    expect(notificationReadAction(false)).toEqual({
+      label: 'Mark as unread',
+      icon: 'mail-unread-outline',
+    })
+  })
+})
 
 describe('mobile notification helpers', () => {
   it('dispatches to existing booking and conversation screens', () => {

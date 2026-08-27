@@ -1,5 +1,22 @@
 export type PushPayload = { version: 1; notificationId: string }
 
+export const ANDROID_NOTIFICATION_CHANNEL_ID = 'account-updates-v2'
+
+export function androidNotificationChannelSettings<TImportance, TVisibility>(input: {
+  highImportance: TImportance
+  secretVisibility: TVisibility
+}) {
+  return {
+    name: 'Account updates',
+    importance: input.highImportance,
+    lockscreenVisibility: input.secretVisibility,
+    sound: 'default' as const,
+    vibrationPattern: [0, 180],
+    enableLights: false,
+    showBadge: true,
+  }
+}
+
 export type PushPreference = {
   optedIn: boolean
   pendingDisable: boolean

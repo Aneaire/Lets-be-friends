@@ -644,7 +644,15 @@ export const toggleLike = mutation({
       await ctx.db.delete(existing._id)
       return false
     }
-    await ctx.db.insert('postReactions', { userId: viewer._id, postId: args.postId, reaction: 'like', createdAt: Date.now() })
+    const reactionId = await ctx.db.insert('postReactions', { userId: viewer._id, postId: args.postId, reaction: 'like', createdAt: Date.now() })
+    await createNotification(ctx, {
+      recipientUserId: post.authorId,
+      actorUserId: viewer._id,
+      kind: 'post_liked',
+      priority: 'standard',
+      postId: post._id,
+      dedupeKey: `post-like:${reactionId}:created`,
+    })
     return true
   },
 })

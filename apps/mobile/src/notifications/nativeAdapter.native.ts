@@ -6,13 +6,12 @@ import * as Notifications from 'expo-notifications'
 import * as SecureStore from 'expo-secure-store'
 import { AppState, Linking, Platform } from 'react-native'
 
-import { installationBoundary, pushInstallationKey, pushInstallMarkerKey } from './logic'
+import { ANDROID_NOTIFICATION_CHANNEL_ID, androidNotificationChannelSettings, installationBoundary, pushInstallationKey, pushInstallMarkerKey } from './logic'
 import type { NativePermissionState, NativePushAdapter, NativePushResponse } from './nativeAdapter'
 
 const INSTALLATION_KEY = pushInstallationKey()
 const INSTALL_MARKER_KEY = pushInstallMarkerKey()
 const INSTALL_MARKER_FILE = 'push-install-marker'
-const CHANNEL_ID = 'account-updates'
 let installationPromise: Promise<{ installationId: string; freshInstall: boolean }> | null = null
 
 Notifications.setNotificationHandler({
@@ -100,15 +99,13 @@ async function ensureInstallation() {
 }
 
 async function ensureAndroidChannel() {
-  await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-    name: 'Account updates',
-    importance: Notifications.AndroidImportance.DEFAULT,
-    lockscreenVisibility: Notifications.AndroidNotificationVisibility.SECRET,
-    sound: 'default',
-    vibrationPattern: [0, 180],
-    enableLights: false,
-    showBadge: true,
-  })
+  await Notifications.setNotificationChannelAsync(
+    ANDROID_NOTIFICATION_CHANNEL_ID,
+    androidNotificationChannelSettings({
+      highImportance: Notifications.AndroidImportance.HIGH,
+      secretVisibility: Notifications.AndroidNotificationVisibility.SECRET,
+    }),
+  )
 }
 
 function permissionState(permission: Notifications.NotificationPermissionsStatus): NativePermissionState {

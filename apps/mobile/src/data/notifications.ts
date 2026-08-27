@@ -8,6 +8,12 @@ export type MobileNotificationDestination =
   | { type: 'safety' }
   | { type: 'notifications' }
 
+export function notificationReadAction(unread: boolean) {
+  return unread
+    ? { label: 'Mark as read', icon: 'checkmark-circle-outline' as const }
+    : { label: 'Mark as unread', icon: 'mail-unread-outline' as const }
+}
+
 export function mobileNotificationRoute(destination: MobileNotificationDestination) {
   switch (destination.type) {
     case 'booking': return destination.audience === 'companion'

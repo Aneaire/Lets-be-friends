@@ -2,7 +2,7 @@ import { calculateMemberWalletBookingPrice } from '@lets-be-friends/shared'
 import { v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
-import { internalAction, internalMutation } from './_generated/server'
+import { internalAction, internalMutation, internalQuery } from './_generated/server'
 import { syncCompanionLocation } from './companionLocations'
 import {
   approvedPhilippinesCompanions,
@@ -861,6 +861,69 @@ function philippinesApplicantClerkUserId(key: string) {
   return `seed:philippines:applicant:${key}`
 }
 
+// Deterministic development sample media. The image is a visible photograph
+// derived from the in-repo marketing asset photography-walk-768.webp,
+// resized and re-encoded as a small ~240x160 WebP. It is embedded as base64 so
+// the seed stays offline and self-contained, and decoded with a pure helper so
+// it does not depend on Node Buffer or an atob global.
+const devSampleCompanionKey = 'alyssa-bacolor'
+const devSampleImageBase64 =
+  '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'
+
+function decodeBase64ToBytes(base64: string) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  const clean = base64.replace(/=+$/, '')
+  const bytes: number[] = []
+  let buffer = 0
+  let bits = 0
+  for (const char of clean) {
+    const value = alphabet.indexOf(char)
+    if (value < 0) continue
+    buffer = (buffer << 6) | value
+    bits += 6
+    if (bits >= 8) {
+      bits -= 8
+      bytes.push((buffer >> bits) & 0xff)
+    }
+  }
+  return Uint8Array.from(bytes)
+}
+
+function devSampleImageBlob() {
+  return new Blob([decodeBase64ToBytes(devSampleImageBase64)], { type: 'image/webp' })
+}
+
+async function resolveDevSampleCompanion(ctx: any) {
+  const user = await ctx.db
+    .query('users')
+    .withIndex('by_clerk_user_id', (q: any) => q.eq('clerkUserId', `seed:pampanga:${devSampleCompanionKey}`))
+    .unique()
+  if (!user) return null
+  const profile = await ctx.db
+    .query('companionProfiles')
+    .withIndex('by_user', (q: any) => q.eq('userId', user._id))
+    .unique()
+  if (!profile) return null
+  return { userId: user._id as Id<'users'>, profileId: profile._id as Id<'companionProfiles'> }
+}
+
+async function devSampleTargetPost(ctx: any, userId: Id<'users'>) {
+  const posts = await ctx.db.query('posts').withIndex('by_author', (q: any) => q.eq('authorId', userId)).collect()
+  return posts
+    .filter((post: Doc<'posts'>) => !post.deletedAt && post.hidden !== true)
+    .sort((a: Doc<'posts'>, b: Doc<'posts'>) => a.createdAt - b.createdAt)[0] ?? null
+}
+
+async function devSampleTargetReview(ctx: any, profileId: Id<'companionProfiles'>) {
+  const reviews = await ctx.db
+    .query('reviews')
+    .withIndex('by_companion_profile', (q: any) => q.eq('companionProfileId', profileId))
+    .collect()
+  return reviews
+    .filter((review: Doc<'reviews'>) => review.hidden !== true)
+    .sort((a: Doc<'reviews'>, b: Doc<'reviews'>) => a.createdAt - b.createdAt)[0] ?? null
+}
+
 export const seedPhilippinesPeopleBatch = internalMutation({
   args: {
     confirm: developmentConfirmation,
@@ -1355,6 +1418,50 @@ export const seedPhilippinesIdentityImages = internalMutation({
   },
 })
 
+export const seedPhilippinesDevMediaStatus = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const target = await resolveDevSampleCompanion(ctx)
+    if (!target) return { attachPost: false, attachReview: false }
+    const post = await devSampleTargetPost(ctx, target.userId)
+    const review = await devSampleTargetReview(ctx, target.profileId)
+    return {
+      attachPost: Boolean(post && !post.media?.some((item: { kind: string }) => item.kind === 'image')),
+      attachReview: Boolean(review && !review.imageStorageId),
+    }
+  },
+})
+
+export const seedPhilippinesAttachDevMedia = internalMutation({
+  args: {
+    confirm: developmentConfirmation,
+    storageId: v.id('_storage'),
+    contentType: v.string(),
+    size: v.number(),
+  },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const target = await resolveDevSampleCompanion(ctx)
+    if (!target) return { postAttached: false, reviewAttached: false }
+    let postAttached = false
+    let reviewAttached = false
+    const post = await devSampleTargetPost(ctx, target.userId)
+    if (post && !post.media?.some((item: { kind: string }) => item.kind === 'image')) {
+      await ctx.db.patch(post._id, {
+        media: [{ storageId: args.storageId, kind: 'image', contentType: args.contentType, size: args.size }],
+        updatedAt: Date.now(),
+      })
+      postAttached = true
+    }
+    const review = await devSampleTargetReview(ctx, target.profileId)
+    if (review && !review.imageStorageId) {
+      await ctx.db.patch(review._id, { imageStorageId: args.storageId, updatedAt: Date.now() })
+      reviewAttached = true
+    }
+    return { postAttached, reviewAttached }
+  },
+})
+
 export const seedPhilippinesDevelopment = internalAction({
   args: { confirm: developmentConfirmation },
   handler: async (ctx, args): Promise<{
@@ -1404,6 +1511,16 @@ export const seedPhilippinesDevelopment = internalAction({
         confirm: 'development',
         referenceTime,
         images,
+      })
+    }
+    const devMediaStatus = await ctx.runQuery(internal.seeds.seedPhilippinesDevMediaStatus, {})
+    if (devMediaStatus.attachPost || devMediaStatus.attachReview) {
+      const imageBlob = devSampleImageBlob()
+      await ctx.runMutation(internal.seeds.seedPhilippinesAttachDevMedia, {
+        confirm: 'development',
+        storageId: await ctx.storage.store(imageBlob),
+        contentType: 'image/webp',
+        size: imageBlob.size,
       })
     }
     return { referenceTime, peopleBatches, activityBatches }

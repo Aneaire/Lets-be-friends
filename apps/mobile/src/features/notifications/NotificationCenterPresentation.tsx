@@ -147,6 +147,7 @@ export function NotificationCenterPresentation({
                       body={notification.body}
                       timeLabel={notification.timeLabel}
                       tone={notification.tone}
+                      density="compact"
                       unread={notification.unread}
                       disabled={markAllBusy || (busy !== null && busy.id !== notification.id)}
                       openBusy={busy?.id === notification.id && busy.action === 'open'}

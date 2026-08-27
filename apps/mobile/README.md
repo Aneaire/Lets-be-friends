@@ -90,7 +90,7 @@ Authenticated booking, finance, companion, evidence, and conversation APIs are s
 - The Messages tab badge continues to aggregate only live unread counts from real conversations.
 - The native app badge separately mirrors the authoritative in-app notification unread count.
 - A ready signed-in member can explicitly enable push notifications from Profile. The app never requests notification permission on startup, sign-in, onboarding, or mount.
-- Native payloads contain only `{ version: 1, notificationId }` and generic lock-screen copy. Taps resolve their destination through the authenticated Convex `notifications.open` mutation.
+- Native routing data contains only `{ version: 1, notificationId }`. Message alerts show the sender name and a whitespace-normalized preview of up to 120 characters, while social alerts identify the member and action. Account and booking alerts keep generic copy. Android and iOS can hide preview text when the member's device privacy settings require it. Taps resolve their destination through the authenticated Convex `notifications.open` mutation.
 - In-app notification destinations preserve booking, conversation, post, and member IDs. Post notifications focus the requested public post, follower notifications open the actor's public member profile, and report updates open the Safety Center.
 - Push preferences are scoped to the Clerk user on this installation. Returning opted-in accounts may silently refresh their Expo token while foregrounded, but switching accounts never opts the later account in automatically.
 - A cache marker separates a current app install from iOS Keychain values that can survive uninstall. A missing marker, including conservative cache eviction, rotates the installation ID, unregisters native notifications, and requires explicit re-opt-in instead of inheriting consent.
@@ -121,7 +121,7 @@ Install the development APK from the authorized EAS build result. Ordinary TypeS
 
 Push notifications require a physical iOS or Android development build. Expo Go and the web export intentionally report push as unavailable. After installing `expo-notifications`, `expo-device`, or `expo-crypto`, or after changing the notification config plugin, create and install a fresh native development build before testing.
 
-The app config already contains the Expo project ID and uses `assets/images/adaptive-icon-monochrome.png` for the Android notification icon. Android Firebase credentials and iOS APNs credentials must be provisioned through the authorized Expo/EAS project before real delivery can work. `android.googleServicesFile` is intentionally omitted until a real `google-services.json` is provisioned, so local typecheck, tests, config evaluation, and web export do not depend on a missing credential file.
+The app config contains the Expo project ID, the Android Firebase client configuration, and the official monochrome notification icon. The matching FCM V1 service account credential must also be provisioned through the authorized Expo/EAS project before real Android delivery can work. The app uses the versioned `account-updates-v2` Android channel so installed copies receive the intended high-importance channel instead of retaining the earlier default-importance setting.
 
 Set these values only in the Convex deployment environment:
 

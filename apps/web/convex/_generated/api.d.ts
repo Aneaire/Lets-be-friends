@@ -21,6 +21,7 @@ import type * as identityRecords from "../identityRecords.js";
 import type * as identityVerification from "../identityVerification.js";
 import type * as lib from "../lib.js";
 import type * as migrations from "../migrations.js";
+import type * as notificationCatalog from "../notificationCatalog.js";
 import type * as notifications from "../notifications.js";
 import type * as paymongo from "../paymongo.js";
 import type * as persona from "../persona.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   identityVerification: typeof identityVerification;
   lib: typeof lib;
   migrations: typeof migrations;
+  notificationCatalog: typeof notificationCatalog;
   notifications: typeof notifications;
   paymongo: typeof paymongo;
   persona: typeof persona;

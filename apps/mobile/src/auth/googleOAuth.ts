@@ -11,6 +11,18 @@ export type GoogleOAuthNextStep =
   | 'additional_requirements'
   | 'incomplete'
 
+export const GOOGLE_OAUTH_CALLBACK_PATH = 'auth/callback'
+export const GOOGLE_OAUTH_REDIRECT_OPTIONS = {
+  scheme: 'letsbefriends',
+  path: GOOGLE_OAUTH_CALLBACK_PATH,
+  isTripleSlashed: true,
+} as const
+
+export function normalizeGoogleOAuthCallbackPath(path: string) {
+  const callback = path.match(/^letsbefriends:\/\/\/?auth\/callback([?#].*)?$/i)
+  return callback ? `/${GOOGLE_OAUTH_CALLBACK_PATH}${callback[1] ?? ''}` : path
+}
+
 export function googleOAuthNextStep(result: GoogleOAuthResult): GoogleOAuthNextStep {
   if (result.createdSessionId) return 'activate_session'
   if (result.authSessionResult && result.authSessionResult.type !== 'success') return 'cancelled'

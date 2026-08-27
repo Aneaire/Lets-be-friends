@@ -2,7 +2,7 @@ import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { api, internal } from '../../../convex/_generated/api'
 import schema from '../../../convex/schema'
-import { classifyReceipt, classifyTicket, nativePushBody, pushMessage } from '../../../convex/pushNotifications'
+import { classifyReceipt, classifyTicket, nativePushBody, nativePushPresentation, pushMessage } from '../../../convex/pushNotifications'
 import { convexModules } from '../../helpers/convex'
 
 const modules = convexModules
@@ -101,6 +101,25 @@ describe('push notification registration and delivery', () => {
     expect(deliveries[0]).not.toHaveProperty('expoPushToken')
   })
 
+  it('claims the exact sender and bounded message preview for a direct message', async () => {
+    const t = convexTest(schema, modules)
+    const alexId = await user(t, 'alex')
+    const samId = await user(t, 'sam')
+    const alex = t.withIdentity({ subject: 'alex' })
+    await t.withIdentity({ subject: 'sam' }).mutation(api.pushNotifications.registerDevice, { installationId: installOne, expoPushToken: tokenOne, platform: 'android', projectId })
+    const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
+    const messageId = await alex.mutation(api.conversations.sendMessage, { conversationId, body: '  Meet me by the library.\nTomorrow works.  ' })
+    const notification = await t.run((ctx) => ctx.db.query('notifications')
+      .withIndex('by_recipient_dedupe', (q) => q.eq('recipientUserId', samId).eq('dedupeKey', `direct-message:${messageId}`))
+      .unique())
+    expect(notification).toMatchObject({ actorUserId: alexId, conversationId, messageId })
+    await t.mutation(internal.pushNotifications.prepareDeliveries, { notificationId: notification!._id, projectId })
+
+    const claimed = await t.mutation(internal.pushNotifications.claimDeliveries, { now: Date.now(), projectId, notificationId: notification!._id })
+    expect(claimed).toHaveLength(1)
+    expect(claimed[0].presentation).toEqual({ title: 'alex', body: 'Meet me by the library. Tomorrow works.' })
+  })
+
   it('does not reclaim an active send lease and ignores a late first result after reclaim', async () => {
     const t = convexTest(schema, modules)
     const alexId = await user(t, 'alex')
@@ -194,20 +213,30 @@ describe('push notification registration and delivery', () => {
     expect(await t.run((ctx) => ctx.db.get(deliveryId))).toMatchObject({ state: 'permanent_failure', receiptAttempts: 5, errorCode: 'receipt_attempts_exhausted' })
   })
 
-  it('keeps payloads generic and classifies bounded retry cases', () => {
-    const direct = pushMessage({ token: tokenOne, platform: 'android', notificationId: 'notification-1', kind: 'direct_message', unreadCount: 3 })
+  it('builds descriptive bounded previews while keeping routing data opaque', () => {
+    const presentation = nativePushPresentation({
+      kind: 'direct_message',
+      actorName: '  Alex Rivera  ',
+      messageBody: 'See you near the station.\nI will arrive at 4 PM.',
+    })
+    const direct = pushMessage({ token: tokenOne, platform: 'android', notificationId: 'notification-1', kind: 'direct_message', unreadCount: 3, presentation })
     expect(direct).toEqual({
       to: tokenOne,
-      title: "Let's Be Friends",
-      body: 'You have a new message.',
+      title: 'Alex Rivera',
+      body: 'See you near the station. I will arrive at 4 PM.',
       data: { version: 1, notificationId: 'notification-1' },
       badge: 3,
       sound: 'default',
-      priority: 'default',
-      channelId: 'account-updates',
+      priority: 'high',
+      channelId: 'account-updates-v2',
     })
     expect(Object.keys(direct.data)).toEqual(['version', 'notificationId'])
-    expect(JSON.stringify(direct)).not.toMatch(/actor|conversation|booking|route|url|attachment|text|note|location|price|category/i)
+    expect(JSON.stringify(direct.data)).not.toMatch(/actor|conversation|booking|route|url|attachment|text|note|location|price|category/i)
+    expect(nativePushPresentation({ kind: 'direct_message', actorName: 'Alex', messageAttachmentCount: 1 })).toEqual({ title: 'Alex', body: 'Sent you an attachment.' })
+    expect(nativePushPresentation({ kind: 'post_liked', actorName: 'Sam' })).toEqual({ title: 'Sam', body: 'Liked your post.' })
+    const longPreview = nativePushPresentation({ kind: 'direct_message', actorName: 'Alex', messageBody: 'x'.repeat(150) }).body
+    expect(Array.from(longPreview)).toHaveLength(120)
+    expect(longPreview.endsWith('…')).toBe(true)
     expect(nativePushBody('mention')).toBe('Someone mentioned you.')
     expect(nativePushBody('post_commented')).toBe('You have a new update.')
     expect(nativePushBody('identity_verification_expiring')).toBe('Your identity approval expires soon.')

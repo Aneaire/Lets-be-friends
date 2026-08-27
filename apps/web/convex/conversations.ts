@@ -273,6 +273,7 @@ export const sendMessage = mutation({
       kind: 'direct_message',
       priority: 'standard',
       conversationId: conversation._id,
+      messageId,
       dedupeKey: `direct-message:${messageId}`,
     })
     return messageId

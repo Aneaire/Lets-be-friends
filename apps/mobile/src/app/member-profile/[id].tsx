@@ -1,12 +1,13 @@
 import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import { useRef, useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Avatar } from '@/design-system/atoms/Avatar'
@@ -17,7 +18,9 @@ import { Screen, Section } from '@/design-system/templates/Screen'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
+import { memberSafetyDisclosure } from '@/member/memberProfilePresentation'
 import { useAppTheme } from '@/theme/ThemeProvider'
+import { density } from '@/theme/tokens'
 
 export default function MemberProfileScreen() {
   const params = useLocalSearchParams<{ id?: string }>()
@@ -38,6 +41,7 @@ function ConnectedMemberProfile({ id }: { id: string }) {
   const startConversation = useMutation(mobileApi.conversations.start)
   const [following, setFollowing] = useState<boolean | null>(null)
   const [busy, setBusy] = useState<'follow' | 'message' | null>(null)
+  const [safetyExpanded, setSafetyExpanded] = useState(false)
   const actionLock = useRef<'follow' | 'message' | null>(null)
   const [message, setMessage] = useState('')
   useAppToastMessage(message)
@@ -49,6 +53,7 @@ function ConnectedMemberProfile({ id }: { id: string }) {
   const signedIn = member.status === 'ready'
   const ownProfile = userProfile.isViewer
   const isFollowing = following ?? userProfile.following
+  const safetyDisclosure = memberSafetyDisclosure(safetyExpanded)
 
   async function follow() {
     if (!signedIn || ownProfile || busy || actionLock.current) return
@@ -97,8 +102,8 @@ function ConnectedMemberProfile({ id }: { id: string }) {
 
       <View style={styles.actions}>
         {ownProfile ? <ActionButton label="Edit profile" onPress={() => router.push('/profile-edit')} intent="self" style={styles.action} /> : signedIn ? <>
-          <ActionButton label={busy === 'message' ? 'Opening' : 'Message'} onPress={() => void openConversation()} disabled={busy !== null} intent="social" secondary style={styles.action} />
-          <ActionButton label={busy === 'follow' ? 'Updating' : isFollowing ? 'Following' : 'Follow'} onPress={() => void follow()} disabled={busy !== null} intent="social" style={styles.action} />
+          <ActionButton label={busy === 'message' ? 'Opening' : 'Message'} onPress={() => void openConversation()} disabled={busy !== null} intent="social" secondary icon="chatbubble-outline" style={styles.action} />
+          <ActionButton label={busy === 'follow' ? 'Updating' : isFollowing ? 'Following' : 'Follow'} onPress={() => void follow()} disabled={busy !== null} intent="social" icon={isFollowing ? 'checkmark' : 'person-add-outline'} style={styles.action} />
         </> : <ActionButton label="Sign in to connect" onPress={() => router.push('/auth')} disabled={auth.status !== 'signed_out'} intent="social" style={styles.action} />}
       </View>
 
@@ -108,8 +113,30 @@ function ConnectedMemberProfile({ id }: { id: string }) {
       </Section>
 
       {signedIn && !ownProfile ? <Section style={styles.safety}>
-        <ReportAction targetType="user" targetId={String(userProfile._id)} label="Report this member" />
-        <MemberSafetyActions userId={String(userProfile._id)} displayName={userProfile.displayName} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={safetyDisclosure.label}
+          accessibilityHint={safetyDisclosure.hint}
+          accessibilityState={{ expanded: safetyExpanded }}
+          onPress={() => setSafetyExpanded((expanded) => !expanded)}
+          style={({ pressed }) => [
+            styles.safetyDisclosure,
+            { borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
+            pressed && styles.pressed,
+          ]}>
+          <View style={[styles.safetyIcon, { backgroundColor: theme.colors.background }]}>
+            <AppIcon name="shield-checkmark-outline" color={theme.colors.textMuted} size={20} />
+          </View>
+          <View style={styles.safetyCopy}>
+            <AppText variant="bodyStrong">{safetyDisclosure.label}</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted}>Report, mute, or block this member</AppText>
+          </View>
+          <AppIcon name={safetyDisclosure.icon} color={theme.colors.textMuted} size={18} />
+        </Pressable>
+        {safetyExpanded ? <View style={styles.safetyActions}>
+          <ReportAction targetType="user" targetId={String(userProfile._id)} label="Report this member" />
+          <MemberSafetyActions userId={String(userProfile._id)} displayName={userProfile.displayName} />
+        </View> : null}
       </Section> : null}
     </Screen>
   )
@@ -136,5 +163,18 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 10, marginTop: 18 },
   action: { flex: 1 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  safety: { gap: 12 },
+  safety: { gap: density.cardGap },
+  safetyDisclosure: {
+    minHeight: density.controlHeight,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: density.controlRadius,
+    padding: density.compactCardPadding,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  safetyIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  safetyCopy: { flex: 1, minWidth: 0, gap: density.textPairGap },
+  safetyActions: { gap: density.cardGap, paddingTop: density.textStackGap },
+  pressed: { opacity: 0.72 },
 })

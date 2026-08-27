@@ -1,6 +1,9 @@
+import { useRef, useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
+import { notificationReadAction } from '@/data/notifications'
 import { AppText } from '@/design-system/atoms/Typography'
+import { ActionSheet } from '@/design-system/molecules/ActionSheet'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density as densityTokens } from '@/theme/tokens'
 
@@ -45,23 +48,46 @@ export function NotificationRow({
   const openLabel = [unread ? 'Unread notification.' : undefined, title, body, timeLabel]
     .filter(Boolean)
     .join(' ')
-  const toggleLabel = unread ? 'Mark notification read' : 'Mark notification unread'
+  const readAction = notificationReadAction(unread)
   const inactive = disabled || openBusy || toggleBusy
+  const [optionsOpen, setOptionsOpen] = useState(false)
+  const longPressHandled = useRef(false)
+
+  function openNotification() {
+    if (longPressHandled.current) {
+      longPressHandled.current = false
+      return
+    }
+    void onOpen()
+  }
+
+  function showOptions() {
+    longPressHandled.current = true
+    setOptionsOpen(true)
+  }
 
   return (
-    <View style={[
-      styles.row,
-      density === 'compact' ? styles.compact : styles.comfortable,
-      { borderBottomColor: theme.colors.border, backgroundColor: unread ? theme.colors.surface : theme.colors.background },
-    ]}>
+    <>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={openLabel}
+        accessibilityHint={`Tap to open. Touch and hold to ${readAction.label.toLowerCase()}.`}
         accessibilityState={{ disabled: inactive, busy: openBusy }}
         aria-busy={openBusy || undefined}
         disabled={inactive}
-        onPress={() => void onOpen()}
-        style={({ pressed }) => [styles.main, pressed && styles.pressed, inactive && styles.disabled]}>
+        delayLongPress={450}
+        onPress={openNotification}
+        onLongPress={showOptions}
+        onPressOut={() => {
+          if (longPressHandled.current) setTimeout(() => { longPressHandled.current = false }, 0)
+        }}
+        style={({ pressed }) => [
+          styles.row,
+          density === 'compact' ? styles.compact : styles.comfortable,
+          { borderBottomColor: theme.colors.border, backgroundColor: unread ? theme.colors.surface : theme.colors.background },
+          pressed && styles.pressed,
+          inactive && styles.disabled,
+        ]}>
         <View
           importantForAccessibility="no-hide-descendants"
           style={[
@@ -75,34 +101,28 @@ export function NotificationRow({
           {timeLabel ? <AppText variant="caption" color={theme.colors.textMuted}>{timeLabel}</AppText> : null}
         </View>
       </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={toggleLabel}
-        accessibilityState={{ disabled: inactive, busy: toggleBusy }}
-        aria-busy={toggleBusy || undefined}
-        disabled={inactive}
-        onPress={() => void onToggleRead()}
-        style={({ pressed }) => [styles.toggle, pressed && styles.pressed, inactive && styles.disabled]}>
-        <AppText variant="caption" color={theme.colors.textMuted}>{unread ? 'Mark read' : 'Mark unread'}</AppText>
-      </Pressable>
-    </View>
+      <ActionSheet
+        visible={optionsOpen}
+        title="Notification options"
+        description={title}
+        items={[{
+          label: readAction.label,
+          icon: readAction.icon,
+          onPress: () => void onToggleRead(),
+        }]}
+        busy={toggleBusy}
+        onClose={() => setOptionsOpen(false)}
+      />
+    </>
   )
 }
 
 const styles = StyleSheet.create({
-  row: { borderBottomWidth: StyleSheet.hairlineWidth },
-  comfortable: { padding: densityTokens.cardPadding, gap: densityTokens.cardGap },
-  compact: { padding: densityTokens.compactCardPadding, gap: densityTokens.textStackGap },
-  main: { minHeight: densityTokens.compactControlHeight, minWidth: 0, flexDirection: 'row', gap: densityTokens.compactCardPadding },
+  row: { minHeight: densityTokens.compactControlHeight, minWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row' },
+  comfortable: { padding: densityTokens.cardPadding, gap: densityTokens.compactCardPadding },
+  compact: { padding: densityTokens.compactCardPadding, gap: densityTokens.cardGap },
   dot: { width: 8, height: 8, borderWidth: 1, borderRadius: 4, marginTop: 7 },
   copy: { flex: 1, minWidth: 0, gap: densityTokens.textPairGap },
-  toggle: {
-    minHeight: densityTokens.compactControlHeight,
-    alignSelf: 'flex-start',
-    justifyContent: 'center',
-    paddingHorizontal: densityTokens.cardGap,
-    marginHorizontal: -densityTokens.cardGap,
-  },
   pressed: { opacity: 0.62 },
   disabled: { opacity: 0.52 },
 })

@@ -31,14 +31,19 @@ describe('direct conversations', () => {
 
     const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
     await expect(sam.mutation(api.conversations.start, { otherUserId: alexId })).resolves.toBe(conversationId)
-    await alex.mutation(api.conversations.sendMessage, { conversationId, body: '  Hello Sam  ' })
-    await sam.mutation(api.conversations.sendMessage, { conversationId, body: 'Hi Alex' })
+    const alexMessageId = await alex.mutation(api.conversations.sendMessage, { conversationId, body: '  Hello Sam  ' })
+    const samMessageId = await sam.mutation(api.conversations.sendMessage, { conversationId, body: 'Hi Alex' })
 
     const alexNotifications = await alex.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
     const samNotifications = await sam.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
     expect(alexNotifications.page).toMatchObject([{ kind: 'direct_message', body: 'sam sent you a message.', destination: { type: 'conversation', conversationId } }])
     expect(samNotifications.page).toMatchObject([{ kind: 'direct_message', body: 'alex sent you a message.', destination: { type: 'conversation', conversationId } }])
     expect(JSON.stringify(samNotifications.page)).not.toContain('Hello Sam')
+    const storedNotifications = await t.run((ctx) => ctx.db.query('notifications').collect())
+    expect(storedNotifications).toEqual(expect.arrayContaining([
+      expect.objectContaining({ recipientUserId: samId, actorUserId: alexId, conversationId, messageId: alexMessageId }),
+      expect.objectContaining({ recipientUserId: alexId, actorUserId: samId, conversationId, messageId: samMessageId }),
+    ]))
 
     const thread = await alex.query(api.conversations.messages, { conversationId })
     expect(thread.conversation.otherDisplayName).toBe('sam')

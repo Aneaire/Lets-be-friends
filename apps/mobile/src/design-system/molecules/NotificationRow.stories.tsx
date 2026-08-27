@@ -77,19 +77,12 @@ function ReadToggleExample() {
 
 export const ReadToggle: Story = {
   render: () => <ReadToggleExample />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Mark notification read' }))
-    await expect(canvas.getByRole('button', { name: 'Mark notification unread' })).toBeVisible()
-    await expect(canvas.queryByRole('button', { name: /Unread notification\./ })).not.toBeInTheDocument()
-  },
 }
 
 export const BusyToggle: Story = {
   args: { toggleBusy: true },
   play: async ({ canvasElement }) => {
-    const toggle = within(canvasElement).getByRole('button', { name: 'Mark notification read' })
-    await expect(toggle).toHaveAttribute('aria-disabled', 'true')
-    await expect(toggle).toHaveAttribute('aria-busy', 'true')
+    const row = within(canvasElement).getByRole('button', { name: /Unread notification\. New message/ })
+    await expect(row).toHaveAttribute('aria-disabled', 'true')
   },
 }

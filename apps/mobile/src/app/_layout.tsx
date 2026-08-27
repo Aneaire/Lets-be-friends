@@ -43,6 +43,7 @@ function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
     <>
       <AccountRouteCoordinator />
       <Stack screenOptions={{ headerShown: false, animation: reduceMotion ? 'none' : 'slide_from_right' }}>
+        <Stack.Screen name="auth/callback" options={{ animation: 'none' }} />
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="auth" />
         </Stack.Protected>

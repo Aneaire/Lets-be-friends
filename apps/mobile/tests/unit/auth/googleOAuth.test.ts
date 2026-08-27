@@ -1,6 +1,28 @@
-import { googleOAuthNextStep } from '@/auth/googleOAuth'
+import {
+  GOOGLE_OAUTH_CALLBACK_PATH,
+  GOOGLE_OAUTH_REDIRECT_OPTIONS,
+  googleOAuthNextStep,
+  normalizeGoogleOAuthCallbackPath,
+} from '@/auth/googleOAuth'
 
 describe('mobile Google OAuth outcomes', () => {
+  it('returns through a registered mobile callback route', () => {
+    expect(GOOGLE_OAUTH_CALLBACK_PATH).toBe('auth/callback')
+    expect(GOOGLE_OAUTH_REDIRECT_OPTIONS).toEqual({
+      scheme: 'letsbefriends',
+      path: 'auth/callback',
+      isTripleSlashed: true,
+    })
+  })
+
+  it('normalizes current and legacy native callback URLs to the registered route', () => {
+    expect(normalizeGoogleOAuthCallbackPath('letsbefriends:///auth/callback?created_session_id=sess_123'))
+      .toBe('/auth/callback?created_session_id=sess_123')
+    expect(normalizeGoogleOAuthCallbackPath('letsbefriends://auth/callback?created_session_id=sess_123'))
+      .toBe('/auth/callback?created_session_id=sess_123')
+    expect(normalizeGoogleOAuthCallbackPath('/profile')).toBe('/profile')
+  })
+
   it('prioritizes a created session for activation', () => {
     expect(googleOAuthNextStep({
       createdSessionId: 'sess_123',

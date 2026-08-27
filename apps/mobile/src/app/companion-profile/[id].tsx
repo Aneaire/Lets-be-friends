@@ -3,26 +3,30 @@ import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { useState } from 'react'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Image, Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type CompanionProfileId, type ReviewId, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { Chip } from '@/design-system/atoms/Chip'
 import { ReportAction } from '@/features/safety/ReportAction'
 import { MemberSafetyActions } from '@/features/safety/MemberSafetyActions'
+import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { Screen, Section } from '@/design-system/templates/Screen'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { PostCard } from '@/features/social/PostCard'
 import { PostMediaGrid } from '@/features/social/PostMediaGrid'
+import { companionContentTabHeader, companionContentTabs, defaultCompanionContentTab, type CompanionContentTab } from '@/features/companion/companionProfilePresentation'
 import { mapPublicCompanion, resolveCompanionBookingAction, type ApprovedCompanionRecord, type CompanionDetailViewModel } from '@/data/companionViewModels'
 import { formatMessageTimestamp } from '@/data/messageViewModels'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
+import { density } from '@/theme/tokens'
 
 type Review = FunctionReturnType<typeof mobileApi.reviews.forCompanion>[number]
 type Post = FunctionReturnType<typeof mobileApi.social.byUser>[number]
@@ -58,9 +62,11 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
   const bookingAction = resolveCompanionBookingAction(companion)
   const [saved, setSaved] = useState(Boolean(companion.saved))
   const [following, setFollowing] = useState(Boolean(companion.following))
+  const [contentTab, setContentTab] = useState<CompanionContentTab>(defaultCompanionContentTab())
   const [busy, setBusy] = useState<'message' | 'save' | 'follow' | null>(null)
   const [message, setMessage] = useState('')
   useAppToastMessage(message)
+  const contentHeader = companionContentTabHeader(contentTab, { rating: companion.rating, reviewCount: companion.reviewCount })
   const modeLabels = companion.sessionModes.map((mode) => mode === 'online' ? 'Online' : 'In person')
   const signedIn = member.status === 'ready'
   const ownProfile = signedIn && String(member.viewer._id) === companion.userId
@@ -145,14 +151,38 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
       </Section>
 
       <Section>
-        <View style={styles.sectionTitle}><AppText variant="heading">Reviews</AppText><AppText variant="caption" color={theme.colors.textMuted}>{reviews?.length ?? 0} shown</AppText></View>
-        {reviews === undefined ? <AppText color={theme.colors.textMuted}>Loading reviews.</AppText> : reviews.length ? <ReviewList reviews={reviews} signedIn={signedIn} /> : <AppText color={theme.colors.textMuted}>No public reviews yet.</AppText>}
+        <SegmentedControl
+          label={`${companion.name} profile content`}
+          options={companionContentTabs.map((tab) => ({ value: tab.value, label: tab.label }))}
+          value={contentTab}
+          onChange={setContentTab}
+          tone="social"
+          style={styles.contentTabs}
+        />
       </Section>
 
-      <Section>
-        <View style={styles.sectionTitle}><AppText variant="heading">Posts</AppText><AppText variant="caption" color={theme.colors.textMuted}>Read only</AppText></View>
-        {posts === undefined ? <AppText color={theme.colors.textMuted}>Loading posts.</AppText> : posts.length ? <View style={styles.postList}>{posts.map((post) => <ProfilePost key={post._id} post={post} companionName={companion.name} imageUrl={companion.imageUrl} />)}</View> : <AppText color={theme.colors.textMuted}>No public posts yet.</AppText>}
-      </Section>
+      {contentTab === 'posts' ? (
+        <View style={styles.tabPanel}>
+          <View style={styles.panelHeader}>
+            <View style={styles.panelHeaderCopy}>
+              <AppText variant="heading">{contentHeader.title}</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>{contentHeader.description}</AppText>
+            </View>
+          </View>
+          {posts === undefined ? <AppText color={theme.colors.textMuted}>Loading posts.</AppText> : posts.length ? <View style={styles.cardList}>{posts.map((post) => <View key={post._id} style={[styles.postCard, { borderColor: theme.colors.border }]}><ProfilePost post={post} companionName={companion.name} imageUrl={companion.imageUrl} /></View>)}</View> : <AppText color={theme.colors.textMuted}>No public posts yet.</AppText>}
+        </View>
+      ) : (
+        <View style={styles.tabPanel}>
+          <View style={styles.panelHeader}>
+            <View style={styles.panelHeaderCopy}>
+              <AppText variant="heading">{contentHeader.title}</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>{contentHeader.description}</AppText>
+            </View>
+            {contentHeader.ratingSummary ? <AppText variant="bodyStrong" color={theme.colors.socialText} style={styles.ratingSummary}>{contentHeader.ratingSummary}</AppText> : null}
+          </View>
+          {reviews === undefined ? <AppText color={theme.colors.textMuted}>Loading reviews.</AppText> : reviews.length ? <ReviewList reviews={reviews} signedIn={signedIn} /> : <AppText color={theme.colors.textMuted}>No public reviews yet.</AppText>}
+        </View>
+      )}
 
       <Section style={styles.bottomSection}>
         <AppText variant="caption" color={theme.colors.textMuted}>{bookingAction.explanation}</AppText>
@@ -164,7 +194,6 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
 }
 
 function ReviewList({ reviews, signedIn }: { reviews: Review[]; signedIn: boolean }) {
-  const theme = useAppTheme()
   const toggleSave = useMutation(mobileApi.reviews.toggleSave)
   const [savedIds, setSavedIds] = useState(() => new Set(reviews.filter((review) => review.saved).map((review) => String(review._id))))
 
@@ -182,12 +211,34 @@ function ReviewList({ reviews, signedIn }: { reviews: Review[]; signedIn: boolea
     }
   }
 
-  return <View style={styles.reviewList}>{reviews.map((review) => <View key={review._id} style={[styles.review, { borderBottomColor: theme.colors.border }]}>
-    <View style={styles.sectionTitle}><AppText variant="bodyStrong">{review.reviewerDisplayName}</AppText><AppText variant="caption">{review.rating} ★</AppText></View>
+  return <View style={styles.cardList}>{reviews.map((review) => <ReviewCard key={review._id} review={review} signedIn={signedIn} saved={savedIds.has(String(review._id))} onToggleSave={() => void toggle(review)} />)}</View>
+}
+
+function ReviewCard({ review, signedIn, saved, onToggleSave }: { review: Review; signedIn: boolean; saved: boolean; onToggleSave: () => void }) {
+  const theme = useAppTheme()
+
+  return <View style={[styles.reviewCard, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}>
+    <View style={styles.reviewHeader}>
+      <Avatar uri={review.reviewerProfileImageUrl ?? undefined} name={review.reviewerDisplayName} size={38} />
+      <View style={styles.reviewIdentity}>
+        <AppText variant="bodyStrong" numberOfLines={1}>{review.reviewerDisplayName}</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>{formatMessageTimestamp(review.createdAt)}</AppText>
+      </View>
+    </View>
+    <ReviewStars rating={review.rating} />
     {review.body ? <AppText>{review.body}</AppText> : null}
-    <AppText variant="caption" color={theme.colors.textMuted}>{formatMessageTimestamp(review.createdAt)}</AppText>
-    {signedIn ? <View style={styles.reviewActions}><Pressable accessibilityRole="button" accessibilityLabel={savedIds.has(String(review._id)) ? 'Unsave review' : 'Save review'} onPress={() => void toggle(review)} style={styles.textAction}><AppText variant="caption" color={theme.colors.socialText}>{savedIds.has(String(review._id)) ? 'Saved' : 'Save'}</AppText></Pressable><ReportAction targetType="review" targetId={String(review._id)} label="Report review" compact /></View> : null}
-  </View>)}</View>
+    {review.imageUrl ? <Image source={{ uri: review.imageUrl }} resizeMode="cover" accessibilityRole="image" accessibilityLabel={`Photo shared with ${review.reviewerDisplayName}'s review`} style={[styles.reviewImage, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} /> : null}
+    {signedIn ? <View style={styles.reviewActions}><Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Unsave review' : 'Save review'} onPress={onToggleSave} style={styles.textAction}><AppText variant="caption" color={theme.colors.socialText}>{saved ? 'Saved' : 'Save'}</AppText></Pressable><ReportAction targetType="review" targetId={String(review._id)} label="Report review" compact /></View> : null}
+  </View>
+}
+
+function ReviewStars({ rating }: { rating: number }) {
+  const theme = useAppTheme()
+  const filled = Math.round(rating)
+  return <View accessibilityRole="text" accessibilityLabel={`${rating.toFixed(1)} out of 5 stars`} style={styles.starsRow}>
+    <View style={styles.stars}>{Array.from({ length: 5 }, (_, index) => <AppIcon key={index} name={index < filled ? 'star' : 'star-outline'} color={index < filled ? theme.colors.socialText : theme.colors.textMuted} size={14} />)}</View>
+    <AppText variant="caption" color={theme.colors.textMuted}>{rating.toFixed(1)}</AppText>
+  </View>
 }
 
 function ProfilePost({ post, companionName, imageUrl }: { post: Post; companionName: string; imageUrl?: string }) {
@@ -244,10 +295,20 @@ const styles = StyleSheet.create({
   detailRow: { gap: 3 },
   detailValue: { flex: 1 },
   sectionTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  reviewList: { marginTop: 8 },
-  review: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 12, gap: 5 },
-  reviewActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  contentTabs: { marginTop: 2 },
+  tabPanel: { marginTop: 6, gap: 10 },
+  panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
+  panelHeaderCopy: { flex: 1, gap: 2 },
+  ratingSummary: { flexShrink: 0, textAlign: 'right' },
+  cardList: { gap: 10 },
+  postCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: density.controlRadius, overflow: 'hidden' },
+  reviewCard: { gap: density.textStackGap, paddingHorizontal: density.compactCardPadding, paddingVertical: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: density.controlRadius },
+  reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: density.cardGap },
+  reviewIdentity: { flex: 1, minWidth: 0, gap: 1 },
+  starsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stars: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  reviewImage: { width: '100%', aspectRatio: 4 / 3, borderWidth: StyleSheet.hairlineWidth, borderRadius: 8 },
+  reviewActions: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 2 },
   textAction: { minHeight: 44, justifyContent: 'center' },
-  postList: { gap: 10, marginTop: 10 },
   bottomSection: { gap: 10 },
 })

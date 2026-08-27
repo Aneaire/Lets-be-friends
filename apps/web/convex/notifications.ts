@@ -4,9 +4,10 @@ import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { mutation, query, type MutationCtx } from './_generated/server'
 import { requireViewer } from './lib'
+import { buildInAppNotificationCopy, notificationDefinition, type NotificationKind as CatalogNotificationKind } from './notificationCatalog'
 import { areUsersBlocked, preference } from './safety'
 
-export type NotificationKind = Doc<'notifications'>['kind']
+export type NotificationKind = CatalogNotificationKind
 export type NotificationPriority = Doc<'notifications'>['priority']
 
 export type NotificationDestination =
@@ -27,6 +28,7 @@ export type CreateNotificationInput = {
   dedupeKey: string
   bookingId?: Id<'bookings'>
   conversationId?: Id<'directConversations'>
+  messageId?: Id<'directMessages'>
   postId?: Id<'posts'>
   commentId?: Id<'postComments'>
   reviewId?: Id<'reviews'>
@@ -40,9 +42,13 @@ export async function createNotification(ctx: { db: any; scheduler?: never }, in
 export async function createNotification(ctx: MutationCtx | { db: any; scheduler?: never }, input: CreateNotificationInput) {
   if (input.actorUserId === input.recipientUserId) return null
   if (!input.dedupeKey.trim()) throw new Error('Notification dedupe key is required')
+  const definition = notificationDefinition(input.kind)
+  if (!definition.allowedPriorities.includes(input.priority)) {
+    throw new Error(`Priority ${input.priority} is not allowed for ${input.kind}`)
+  }
   const recipient = await ctx.db.get(input.recipientUserId)
   if (!recipient) return null
-  if (input.actorUserId && ['direct_message', 'post_commented', 'mention', 'new_follower'].includes(input.kind)) {
+  if (input.actorUserId && definition.respectsSocialPreferences) {
     if (await areUsersBlocked(ctx, input.recipientUserId, input.actorUserId)) return null
     if ((await preference(ctx, input.recipientUserId, input.actorUserId))?.mutedAt) return null
   }
@@ -158,7 +164,12 @@ async function presentNotification(ctx: { db: any }, notification: Doc<'notifica
   const actorAvailable = Boolean(actor && !actor.suspended)
   const actorName = actorAvailable ? actor!.displayName : 'Let\'s Be Friends'
   const target = await resolveTarget(ctx, notification, viewerId)
-  const copy = notificationCopy(notification.kind, actorName, target, Boolean(notification.commentId))
+  const copy = buildInAppNotificationCopy(notification.kind, {
+    actorName,
+    targetAvailable: target.available,
+    category: target.category,
+    isComment: Boolean(notification.commentId),
+  })
   return {
     id: String(notification._id),
     kind: notification.kind,
@@ -183,7 +194,9 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
   destination: NotificationDestination
   category?: string
 }> {
-  if (notification.bookingId) {
+  const destination = notificationDefinition(notification.kind).destination
+  if (destination === 'booking') {
+    if (!notification.bookingId) return { available: false, destination: { type: 'notifications' } }
     const booking = await ctx.db.get(notification.bookingId) as Doc<'bookings'> | null
     if (!booking) return { available: false, destination: { type: 'notifications' } }
     const companion = await ctx.db.get(booking.companionProfileId) as Doc<'companionProfiles'> | null
@@ -191,63 +204,37 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
     if (!audience) return { available: false, destination: { type: 'notifications' } }
     return { available: true, destination: { type: 'booking', audience, bookingId: String(booking._id) }, category: booking.category }
   }
-  if (notification.postId) {
+  if (destination === 'post') {
+    if (!notification.postId) return { available: false, destination: { type: 'notifications' } }
     const post = await ctx.db.get(notification.postId) as Doc<'posts'> | null
     const author = post ? await ctx.db.get(post.authorId) as Doc<'users'> | null : null
     return post && !post.hidden && !post.deletedAt && author && !author.suspended
       ? { available: true, destination: { type: 'post', postId: String(post._id) } }
       : { available: false, destination: { type: 'notifications' } }
   }
-  if (notification.conversationId) {
+  if (destination === 'conversation') {
+    if (!notification.conversationId) return { available: false, destination: { type: 'notifications' } }
     const conversation = await ctx.db.get(notification.conversationId) as Doc<'directConversations'> | null
     const participant = conversation && (conversation.participantOneId === viewerId || conversation.participantTwoId === viewerId)
     return participant
       ? { available: true, destination: { type: 'conversation', conversationId: String(conversation!._id) } }
       : { available: false, destination: { type: 'notifications' } }
   }
-  if (notification.companionProfileId) {
+  if (destination === 'companion') {
+    if (!notification.companionProfileId) return { available: false, destination: { type: 'notifications' } }
     const companion = await ctx.db.get(notification.companionProfileId)
     return { available: Boolean(companion), destination: { type: 'companion' } }
   }
-  if (notification.verificationRequestId) return { available: true, destination: { type: 'identity' } }
-  if (notification.kind === 'identity_verification_expiring' || notification.kind === 'identity_verification_expired') {
-    return { available: true, destination: { type: 'identity' } }
+  if (destination === 'identity') return { available: true, destination: { type: 'identity' } }
+  if (destination === 'safety') {
+    return notification.reportId
+      ? { available: true, destination: { type: 'safety' } }
+      : { available: false, destination: { type: 'notifications' } }
   }
-  if (notification.reportId) return { available: true, destination: { type: 'safety' } }
-  if (notification.kind === 'new_follower' && notification.actorUserId) {
+  if (destination === 'profile' && notification.actorUserId) {
     return { available: true, destination: { type: 'profile', userId: String(notification.actorUserId) } }
   }
-  return { available: true, destination: { type: 'notifications' } }
-}
-
-function notificationCopy(kind: NotificationKind, actorName: string, target: { available: boolean; category?: string }, isComment = false) {
-  const category = target.category ? ` for ${target.category}` : ''
-  const unavailable = target.available ? '' : ' This item is no longer available.'
-  switch (kind) {
-    case 'booking_request': return { title: 'New booking request', body: `${actorName} sent a booking request${category}.${unavailable}`, tone: 'social' as const }
-    case 'booking_request_updated': return { title: 'Booking request updated', body: `${actorName} updated the booking request${category}.${unavailable}`, tone: 'social' as const }
-    case 'booking_accepted': return { title: 'Booking accepted', body: `${actorName} accepted your booking request${category}.${unavailable}`, tone: 'social' as const }
-    case 'booking_declined': return { title: 'Booking declined', body: `${actorName} declined your booking request${category}.${unavailable}`, tone: 'danger' as const }
-    case 'booking_cancelled': return { title: 'Booking cancelled', body: `${actorName} cancelled the booking${category}.${unavailable}`, tone: 'social' as const }
-    case 'booking_completion_confirmed': return { title: 'Completion confirmation needed', body: `${actorName} confirmed the experience is complete. Add your confirmation when ready.${unavailable}`, tone: 'social' as const }
-    case 'booking_review_window_opened': return { title: 'Review window open', body: `Both participants confirmed the experience. You can now leave a review.${unavailable}`, tone: 'social' as const }
-    case 'direct_message': return { title: 'New message', body: `${actorName} sent you a message.${unavailable}`, tone: 'social' as const }
-    case 'post_commented': return { title: 'New comment', body: `${actorName} commented on your post.${unavailable}`, tone: 'social' as const }
-    case 'mention': return isComment
-      ? { title: 'You were mentioned', body: `${actorName} mentioned you in a comment.${unavailable}`, tone: 'social' as const }
-      : { title: 'You were mentioned', body: `${actorName} mentioned you in a post.${unavailable}`, tone: 'social' as const }
-    case 'new_follower': return { title: 'New follower', body: `${actorName} followed you.`, tone: 'social' as const }
-    case 'review_received': return { title: 'Review received', body: `${actorName} left you a review.${unavailable}`, tone: 'social' as const }
-    case 'companion_application_approved': return { title: 'Companion application approved', body: 'Your Companion application was approved.', tone: 'self' as const }
-    case 'companion_application_rejected': return { title: 'Companion application not approved', body: 'Your Companion application was not approved. Open Companion tools for your current status.', tone: 'danger' as const }
-    case 'identity_verification_approved': return { title: 'Identity verification approved', body: 'Your identity verification was approved.', tone: 'self' as const }
-    case 'identity_verification_rejected': return { title: 'Identity verification not approved', body: 'Your identity verification was not approved. Open your account to review the next step.', tone: 'danger' as const }
-    case 'identity_verification_expiring': return { title: 'Identity verification expiring soon', body: 'Your identity approval expires soon. Renew it before your booking access pauses.', tone: 'self' as const }
-    case 'identity_verification_expired': return { title: 'Identity verification expired', body: 'Your identity approval has expired. Complete a new check to restore booking access.', tone: 'self' as const }
-    case 'report_reviewing': return { title: 'Report under review', body: 'The safety team is reviewing your report.', tone: 'self' as const }
-    case 'report_resolved': return { title: 'Report resolved', body: 'The safety team resolved your report.', tone: 'self' as const }
-    case 'report_dismissed': return { title: 'Report closed', body: 'The safety team closed your report.', tone: 'danger' as const }
-  }
+  return { available: false, destination: { type: 'notifications' } }
 }
 
 function boundedLimit(value: number | undefined, fallback: number, maximum: number) {
