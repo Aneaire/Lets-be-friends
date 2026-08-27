@@ -12,6 +12,36 @@ import {
 
 const dayMs = 24 * 60 * 60 * 1_000
 
+const pampangaReviewMembers = [
+  { key: 'jules', displayName: 'Jules' },
+  { key: 'pat', displayName: 'Pat' },
+  { key: 'robin', displayName: 'Robin' },
+  { key: 'casey', displayName: 'Casey' },
+  { key: 'drew', displayName: 'Drew' },
+  { key: 'alex', displayName: 'Alex' },
+  { key: 'taylor', displayName: 'Taylor' },
+] as const
+
+const pampangaReviewBodies = [
+  'Communication was clear from the start, and the whole experience felt comfortable.',
+  'The plan was thoughtful, easy to follow, and paced well for me.',
+  'I appreciated the friendly conversation and the clear expectations throughout.',
+  'Everything felt organized and relaxed. I would gladly make another plan together.',
+  'A kind and dependable Companion who made the session easy to enjoy.',
+  'The experience matched the profile and stayed comfortable from beginning to end.',
+  'Warm, respectful, and attentive to the pace we agreed on.',
+] as const
+
+function seededRatings(rating: number, reviewCount: number) {
+  const targetTotal = Math.round(rating * reviewCount * 2) / 2
+  let remainingAboveFour = targetTotal - reviewCount * 4
+  return Array.from({ length: reviewCount }, () => {
+    const increase = Math.min(1, Math.max(0, remainingAboveFour))
+    remainingAboveFour -= increase
+    return 4 + increase
+  })
+}
+
 const pampangaCompanions = [
   {
     key: 'alyssa-bacolor',
@@ -149,8 +179,47 @@ export const seedPampangaCompanions = internalMutation({
     const now = Date.now()
     let created = 0
     let updated = 0
+    let reviewMembersCreated = 0
+    let reviewMembersUpdated = 0
+    let bookingsCreated = 0
+    let reviewsCreated = 0
+    let reviewsUpdated = 0
+
+    const reviewMembers: Array<Doc<'users'>> = []
+    for (const memberSeed of pampangaReviewMembers) {
+      const clerkUserId = `seed:pampanga:review-member:${memberSeed.key}`
+      const existingMember = await ctx.db
+        .query('users')
+        .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId))
+        .unique()
+      const memberFields = {
+        username: `pampanga_review_${memberSeed.key}`,
+        displayName: memberSeed.displayName,
+        onboardingGoal: 'member' as const,
+        onboardingCompletedAt: now,
+        termsAcceptedAt: now,
+        termsVersion: '2026-08-13',
+        role: 'member' as const,
+        verificationStatus: 'approved' as const,
+        verificationSource: 'persona' as const,
+        identityVerifiedAt: now,
+        identityExpiresAt: now + 3_650 * dayMs,
+        suspended: false,
+        updatedAt: now,
+      }
+      const memberId = existingMember
+        ? (await ctx.db.patch(existingMember._id, memberFields), existingMember._id)
+        : await ctx.db.insert('users', { clerkUserId, ...memberFields, createdAt: now })
+      if (existingMember) reviewMembersUpdated += 1
+      else reviewMembersCreated += 1
+      const member = await ctx.db.get(memberId)
+      if (!member) throw new Error(`Seeded review member was not saved: ${memberSeed.key}`)
+      reviewMembers.push(member)
+    }
 
     for (const seed of pampangaCompanions) {
+      const ratings = seededRatings(seed.rating, seed.reviewCount)
+      const aggregateRating = ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length
       const clerkUserId = `seed:pampanga:${seed.key}`
       const existingUser = await ctx.db
         .query('users')
@@ -203,7 +272,7 @@ export const seedPampangaCompanions = internalMutation({
         hourlyRateCentavos: 50_000,
         status: 'approved' as const,
         applicationNote: 'Development seed for Pampanga nearby-search testing.',
-        rating: seed.rating,
+        rating: aggregateRating,
         reviewCount: seed.reviewCount,
         updatedAt: now,
       }
@@ -224,11 +293,89 @@ export const seedPampangaCompanions = internalMutation({
       const [user, companion] = await Promise.all([ctx.db.get(userId), ctx.db.get(companionProfileId)])
       if (!companion) throw new Error(`Seeded Companion profile was not saved: ${seed.key}`)
       await syncCompanionLocation(ctx, companion, user)
+
+      const historicalBookings = await ctx.db
+        .query('bookings')
+        .withIndex('by_companion', (q) => q.eq('companionProfileId', companionProfileId))
+        .collect()
+      for (let reviewIndex = 0; reviewIndex < seed.reviewCount; reviewIndex += 1) {
+        const notes = `Development seed completed experience ${reviewIndex + 1} with ${seed.displayName}.`
+        let booking = historicalBookings.find((row) => row.notes === notes)
+        if (!booking) {
+          const member = reviewMembers[reviewIndex % reviewMembers.length]
+          const requestedAt = now - (reviewIndex + 7) * dayMs
+          const completedAt = requestedAt + 60 * 60 * 1_000
+          const price = calculateMemberWalletBookingPrice(50_000, 60)
+          const bookingId = await ctx.db.insert('bookings', {
+            memberId: member._id,
+            companionProfileId,
+            category: seed.categories[reviewIndex % seed.categories.length],
+            mode: 'in_person',
+            requestedAt,
+            durationMinutes: 60,
+            notes,
+            status: 'closed',
+            ...price,
+            settlementState: 'settled',
+            memberCompletedAt: completedAt,
+            companionCompletedAt: completedAt,
+            jointlyCompletedAt: completedAt,
+            settlementEligibleAt: completedAt,
+            settlementResolvedAt: completedAt + dayMs,
+            settlementResolution: 'released',
+            createdAt: requestedAt - dayMs,
+            updatedAt: completedAt + dayMs,
+          })
+          booking = await ctx.db.get(bookingId) ?? undefined
+          if (!booking) throw new Error(`Seeded review booking was not saved: ${seed.key}`)
+          historicalBookings.push(booking)
+          bookingsCreated += 1
+        }
+
+        const reviewFields = {
+          revieweeId: userId,
+          companionProfileId,
+          rating: ratings[reviewIndex],
+          body: pampangaReviewBodies[reviewIndex % pampangaReviewBodies.length],
+          hidden: false,
+          createdAt: (booking.jointlyCompletedAt ?? booking.updatedAt) + 30 * 60 * 1_000,
+          updatedAt: now,
+        }
+        const existingReview = await ctx.db
+          .query('reviews')
+          .withIndex('by_booking_reviewer', (q) => q.eq('bookingId', booking!._id).eq('reviewerId', booking!.memberId))
+          .first()
+        if (existingReview) {
+          await ctx.db.patch(existingReview._id, reviewFields)
+          reviewsUpdated += 1
+        } else {
+          await ctx.db.insert('reviews', {
+            bookingId: booking._id,
+            reviewerId: booking.memberId,
+            ...reviewFields,
+          })
+          reviewsCreated += 1
+        }
+      }
+
+      const reviews = await ctx.db.query('reviews')
+        .withIndex('by_companion_profile', (q) => q.eq('companionProfileId', companionProfileId))
+        .collect()
+      await ctx.db.patch(companionProfileId, {
+        rating: reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length,
+        reviewCount: reviews.length,
+        updatedAt: now,
+      })
     }
 
     return {
       created,
       updated,
+      reviewMembersCreated,
+      reviewMembersUpdated,
+      bookingsCreated,
+      reviewsCreated,
+      reviewsUpdated,
       total: pampangaCompanions.length,
       note: 'All eligible approved Companions are indexed using approximate coordinates.',
     }
@@ -893,10 +1040,10 @@ export const seedPhilippinesActivityBatch = internalMutation({
           .unique()
         if (!member) throw new Error(`Seed the member first: ${memberSeed.key}`)
         const notes = `Development seed completed experience ${historyIndex + 1} with ${seed.displayName}.`
-        const memberBookings = await ctx.db.query('bookings')
-          .withIndex('by_member', (q) => q.eq('memberId', member._id))
+        const companionBookings = await ctx.db.query('bookings')
+          .withIndex('by_companion', (q) => q.eq('companionProfileId', profile._id))
           .collect()
-        let booking = memberBookings.find((row) => row.companionProfileId === profile._id && row.notes === notes)
+        let booking = companionBookings.find((row) => row.notes === notes)
         if (!booking) {
           const requestedAt = args.referenceTime - (20 + historyIndex * 7 + companionIndex % 9) * dayMs
           const completedAt = requestedAt + 60 * 60 * 1_000
@@ -926,13 +1073,13 @@ export const seedPhilippinesActivityBatch = internalMutation({
         }
         if (!booking) throw new Error(`Historical booking was not saved: ${seed.key}`)
         const existingReview = await ctx.db.query('reviews')
-          .withIndex('by_booking_reviewer', (q) => q.eq('bookingId', booking!._id).eq('reviewerId', member._id))
+          .withIndex('by_booking_reviewer', (q) => q.eq('bookingId', booking!._id).eq('reviewerId', booking!.memberId))
           .first()
         if (!existingReview) {
           const createdAt = booking.jointlyCompletedAt ?? booking.updatedAt
           await ctx.db.insert('reviews', {
             bookingId: booking._id,
-            reviewerId: member._id,
+            reviewerId: booking.memberId,
             revieweeId: companionUser._id,
             companionProfileId: profile._id,
             rating: (companionIndex + historyIndex) % 4 === 0 ? 4 : 5,
@@ -943,6 +1090,17 @@ export const seedPhilippinesActivityBatch = internalMutation({
           })
           reviewsCreated += 1
         }
+      }
+
+      const reviews = await ctx.db.query('reviews')
+        .withIndex('by_companion_profile', (q) => q.eq('companionProfileId', profile._id))
+        .collect()
+      if (reviews.length > 0) {
+        await ctx.db.patch(profile._id, {
+          rating: reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length,
+          reviewCount: reviews.length,
+          updatedAt: args.referenceTime,
+        })
       }
 
       const incomingMemberSeed = activeMembers[(companionIndex * 3 + 5) % activeMembers.length]

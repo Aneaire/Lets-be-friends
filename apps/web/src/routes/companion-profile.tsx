@@ -5,9 +5,8 @@ import { useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import { formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
-import { PostCard } from '../features/social/PostCard'
-import { PostMediaGrid } from '../features/social/PostMediaGrid'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
+import { ProfileContentPanel } from '../features/profile/ProfileContentPanel'
 
 export const Route = createFileRoute('/companion-profile')({
   validateSearch: (search: Record<string, unknown>): { companionProfileId?: string } => (
@@ -30,6 +29,8 @@ function CompanionProfilePage() {
   const toggleSaveProfile = useMutation(api.companions.toggleSaveProfile)
   const toggleFollow = useMutation(api.social.toggleFollow)
   const toggleSaveReview = useMutation(api.reviews.toggleSave)
+  const toggleLikeReview = useMutation(api.reviews.toggleLike)
+  const createReviewComment = useMutation(api.reviews.createComment)
   const report = useMutation(api.reports.create)
   const startConversation = useMutation(api.conversations.start)
   const [notice, setNotice] = useState('')
@@ -57,7 +58,7 @@ function CompanionProfilePage() {
   }
 
   return (
-    <main className="marketing-page-wide companion-profile-page">
+    <main className="profile-page companion-profile-page">
       {(notice || messageError) && (
         <div className={messageError ? 'notice notice-danger mb-6' : 'notice notice-success mb-6'}>
           <span className="notice-icon">{messageError ? '!' : '✓'}</span>
@@ -194,58 +195,30 @@ function CompanionProfilePage() {
         </div>
       </section>
 
-      <div className="discover-grid">
-        <section>
-          <header className="mb-3">
-            <p className="eyebrow">Ratings</p>
-            <h2 className="text-h2 mt-1">What past plans felt like</h2>
-          </header>
-          {reviews === undefined && <div className="empty-state">Loading reviews...</div>}
-          {reviews && reviews.length === 0 && <div className="empty-state">No reviews yet.</div>}
-          {reviews && reviews.length > 0 && (
-            <div className="panel">
-              <div className="worklist">
-                {reviews.map((review) => (
-                  <ReviewRow
-                    key={review._id}
-                    review={review}
-                    signedIn={Boolean(isSignedIn)}
-                    onSave={async () => {
-                      await toggleSaveReview({ reviewId: review._id })
-                      setNotice(review.saved ? 'Rating removed from saved.' : 'Rating saved.')
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        <aside>
-          <header className="mb-3">
-            <p className="eyebrow">Posts</p>
-            <h2 className="text-h2 mt-1">A little more about {companion.displayName}</h2>
-          </header>
-          {posts === undefined && <div className="empty-state">Loading posts...</div>}
-          {posts && posts.length === 0 && <div className="empty-state">No posts from this member yet.</div>}
-          {posts && posts.length > 0 && (
-            <div className="companion-social-timeline">
-              {posts.slice(0, 6).map((post) => (
-                <PostCard
-                  key={post._id}
-                  author={companion.displayName}
-                  imageUrl={companion.profileImageUrl}
-                  timestamp={formatTime(post.createdAt)}
-                  className="companion-social-post"
-                >
-                  {post.body && <p className="ds-post-copy whitespace-pre-wrap">{post.body}</p>}
-                  {post.media.length > 0 && <PostMediaGrid media={post.media} className="profile-post-media" />}
-                </PostCard>
-              ))}
-            </div>
-          )}
-        </aside>
-      </div>
+      <ProfileContentPanel
+        ownerName={companion.displayName}
+        posts={posts}
+        reviews={reviews}
+        rating={companion.rating}
+        reviewCount={companion.reviewCount}
+        postsDescription={`Posts visible from ${companion.displayName}'s member profile.`}
+        emptyPostsDescription="This member has not shared a post yet."
+        emptyReviewsDescription="Reviews will appear here after members complete plans together."
+        onLikeReview={isSignedIn ? (review) => toggleLikeReview({ reviewId: review._id as Id<'reviews'> }) : undefined}
+        onCommentReview={isSignedIn ? (review, body) => createReviewComment({ reviewId: review._id as Id<'reviews'>, body }) : undefined}
+        reviewAction={(review) => isSignedIn ? (
+          <button
+            type="button"
+            onClick={async () => {
+              await toggleSaveReview({ reviewId: review._id as Id<'reviews'> })
+              setNotice(review.saved ? 'Rating removed from saved.' : 'Rating saved.')
+            }}
+            className="btn btn-neutral btn-sm"
+          >
+            {review.saved ? 'Saved rating' : 'Save rating'}
+          </button>
+        ) : null}
+      />
     </main>
   )
 }
@@ -288,25 +261,6 @@ function CompanionBookingAction({
   )
 }
 
-function ReviewRow({ review, signedIn, onSave }: { review: CompanionReview; signedIn: boolean; onSave: () => Promise<void> }) {
-  return (
-    <article className="worklist-row">
-      <div className="worklist-row-head">
-        <div className="min-w-0">
-          <h3 className="text-h3">{review.rating}★ from {review.reviewerDisplayName}</h3>
-          <div className="worklist-row-meta tabular">{formatTime(review.createdAt)}</div>
-        </div>
-        {signedIn && (
-          <button onClick={onSave} className="btn btn-neutral btn-sm">
-            {review.saved ? 'Saved rating' : 'Save rating'}
-          </button>
-        )}
-      </div>
-      {review.body && <p className="text-body muted">{review.body}</p>}
-    </article>
-  )
-}
-
 function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: string; size?: 'lg' }) {
   const className = size === 'lg' ? 'profile-photo profile-photo-lg' : 'profile-photo'
   return (
@@ -320,15 +274,6 @@ function formatMode(mode: string) {
   if (mode === 'both') return 'Online and in-person'
   if (mode === 'in_person') return 'In-person'
   return 'Online'
-}
-
-function formatTime(timestamp: number) {
-  return new Date(timestamp).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
 }
 
 function initials(name: string) {

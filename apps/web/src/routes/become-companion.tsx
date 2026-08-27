@@ -3,7 +3,14 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
-import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
+import {
+  activityCategories,
+  activityCategoryOptions,
+  friendStrengths,
+  maximumActivityCategoryLength,
+  maximumCompanionActivityCategories,
+  validateActivityCategories,
+} from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
@@ -312,7 +319,14 @@ function CompanionAuthPanel() {
           title="Everyday help and activities"
           rationale="Choose what you feel comfortable offering. Every category is reviewed before it appears on your profile."
         >
-          <ChipGroup label="Activities" values={activityCategories} selected={selectedCategories} setSelected={setSelectedCategories} />
+          <ChipGroup
+            label="Activities"
+            values={activityCategories}
+            selected={selectedCategories}
+            setSelected={setSelectedCategories}
+            allowCustom
+            maximum={maximumCompanionActivityCategories}
+          />
         </NumberedSection>
 
         <NumberedSection
@@ -669,12 +683,31 @@ function ChipGroup({
   values,
   selected,
   setSelected,
+  allowCustom = false,
+  maximum,
 }: {
   label: string
   values: readonly string[]
   selected: string[]
   setSelected: (next: string[]) => void
+  allowCustom?: boolean
+  maximum?: number
 }) {
+  const [customValue, setCustomValue] = useState('')
+  const [customError, setCustomError] = useState('')
+  const displayedValues = allowCustom ? activityCategoryOptions(selected) : values
+
+  const addCustomValue = () => {
+    const result = validateActivityCategories([...selected, customValue], maximum)
+    if (!result.ok) {
+      setCustomError(result.message)
+      return
+    }
+    setSelected(result.value)
+    setCustomValue('')
+    setCustomError('')
+  }
+
   return (
     <fieldset className="companion-chip-group">
       <legend className="sr-only">{label}</legend>
@@ -683,7 +716,7 @@ function ChipGroup({
         <span className="text-meta tabular">{selected.length} selected</span>
       </div>
       <div className="flex flex-wrap gap-2">
-        {values.map((value) => {
+        {displayedValues.map((value) => {
           const isSelected = selected.includes(value)
           return (
             <button
@@ -691,9 +724,11 @@ function ChipGroup({
               key={value}
               data-selected={isSelected}
               aria-pressed={isSelected}
-              onClick={() =>
+              disabled={!isSelected && maximum !== undefined && selected.length >= maximum}
+              onClick={() => {
+                setCustomError('')
                 setSelected(isSelected ? selected.filter((item) => item !== value) : [...selected, value])
-              }
+              }}
               className="chip"
             >
               {value}
@@ -701,6 +736,40 @@ function ChipGroup({
           )
         })}
       </div>
+      {allowCustom && (
+        <>
+          <div className="category-custom-entry mt-3">
+            <label className="field-row">
+              <span className="label">Add your own category</span>
+              <input
+                className="field"
+                value={customValue}
+                maxLength={maximumActivityCategoryLength}
+                disabled={maximum !== undefined && selected.length >= maximum}
+                onChange={(event) => {
+                  setCustomValue(event.currentTarget.value)
+                  setCustomError('')
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return
+                  event.preventDefault()
+                  addCustomValue()
+                }}
+                placeholder="For example, museum visits"
+              />
+            </label>
+            <button
+              type="button"
+              className="btn btn-self btn-sm"
+              disabled={maximum !== undefined && selected.length >= maximum}
+              onClick={addCustomValue}
+            >
+              Add category
+            </button>
+          </div>
+          {customError && <p className="field-row-help category-custom-error" role="alert">{customError}</p>}
+        </>
+      )}
     </fieldset>
   )
 }

@@ -38,13 +38,13 @@ describe('Philippines development seed', () => {
     })
 
     const expectedCounts = {
-      users: 128,
+      users: 135,
       profiles: 96,
       approvedProfiles: 88,
       pendingProfiles: 8,
       posts: 176,
-      bookings: 264,
-      reviews: 176,
+      bookings: 360,
+      reviews: 272,
       identityRecords: 8,
       identityRecordImages: 16,
       verificationRequests: 8,
@@ -90,7 +90,7 @@ describe('Philippines development seed', () => {
       newCompanionUsers: 80,
       islandGroups: { luzon: 56, visayas: 14, mindanao: 10 },
       incoming: 88,
-      completed: 176,
+      completed: 272,
       acceptedIncoming: 22,
       requestedIncoming: 66,
       suspended: 4,

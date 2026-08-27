@@ -1,4 +1,11 @@
-import { activityCategories, friendStrengths, type CompanionApplicationStatus } from '@lets-be-friends/shared'
+import {
+  activityCategoryOptions,
+  friendStrengths,
+  maximumActivityCategoryLength,
+  maximumCompanionActivityCategories,
+  validateActivityCategories,
+  type CompanionApplicationStatus,
+} from '@lets-be-friends/shared'
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, useQuery } from 'convex/react'
 import * as Linking from 'expo-linking'
@@ -190,7 +197,12 @@ function ReadyCompanionScreen() {
         {setupStep === 1 ? <>
           <AppText variant="caption" color={theme.colors.textMuted}>Choose the everyday Strengths and activities you feel comfortable offering.</AppText>
           <SelectionGroup label="Strengths" options={friendStrengths} selected={form.strengths} onChange={(strengths) => editForm((current) => ({ ...current, strengths }))} disabled={busy !== null} />
-          <SelectionGroup label="Activities" options={activityCategories} selected={form.categories} onChange={(categories) => editForm((current) => ({ ...current, categories }))} disabled={busy !== null} />
+          <SelectionGroup label="Activities" options={activityCategoryOptions(form.categories)} selected={form.categories} onChange={(categories) => editForm((current) => ({ ...current, categories }))} disabled={busy !== null} maximum={maximumCompanionActivityCategories} />
+          <CustomCategoryInput
+            selected={form.categories}
+            onChange={(categories) => editForm((current) => ({ ...current, categories }))}
+            disabled={busy !== null}
+          />
         </> : null}
         {setupStep === 2 ? <>
           <AppText variant="caption" color={theme.colors.textMuted}>Clear boundaries help both people plan a comfortable experience.</AppText>
@@ -219,7 +231,7 @@ function ModePicker({ value, onChange, disabled }: { value: CompanionMode; onCha
   return <SelectionGroup label="Session format" options={['both', 'online', 'in_person'] as const} selected={[value]} onChange={(values) => onChange(values[0] as CompanionMode)} disabled={disabled} labels={{ both: 'Online and in-person', online: 'Online only', in_person: 'In-person only' }} single />
 }
 
-function SelectionGroup({ label, options, selected, onChange, disabled, labels, single = false }: {
+function SelectionGroup({ label, options, selected, onChange, disabled, labels, single = false, maximum }: {
   label: string
   options: readonly string[]
   selected: string[]
@@ -227,6 +239,7 @@ function SelectionGroup({ label, options, selected, onChange, disabled, labels, 
   disabled: boolean
   labels?: Record<string, string>
   single?: boolean
+  maximum?: number
 }) {
   const theme = useAppTheme()
   return (
@@ -235,13 +248,14 @@ function SelectionGroup({ label, options, selected, onChange, disabled, labels, 
       <View style={styles.chips}>
         {options.map((option) => {
           const active = selected.includes(option)
+          const optionDisabled = disabled || (!active && maximum !== undefined && selected.length >= maximum)
           return (
             <Pressable
               key={option}
               accessibilityRole={single ? 'radio' : 'checkbox'}
               accessibilityLabel={labels?.[option] ?? option}
-              accessibilityState={{ checked: active, disabled }}
-              disabled={disabled}
+              accessibilityState={{ checked: active, disabled: optionDisabled }}
+              disabled={optionDisabled}
               onPress={() => onChange(single ? [option] : active ? selected.filter((item) => item !== option) : [...selected, option])}
               style={({ pressed }) => [styles.chip, { borderColor: active ? theme.colors.self : theme.colors.border, backgroundColor: active ? theme.colors.selfSoft : theme.colors.background }, pressed && styles.pressed]}>
               <AppText variant="caption" color={active ? theme.colors.self : theme.colors.text}>{labels?.[option] ?? option}</AppText>
@@ -249,6 +263,48 @@ function SelectionGroup({ label, options, selected, onChange, disabled, labels, 
           )
         })}
       </View>
+    </View>
+  )
+}
+
+function CustomCategoryInput({ selected, onChange, disabled }: {
+  selected: string[]
+  onChange: (categories: string[]) => void
+  disabled: boolean
+}) {
+  const theme = useAppTheme()
+  const [value, setValue] = useState('')
+  const [error, setError] = useState('')
+
+  function addCategory() {
+    const result = validateActivityCategories([...selected, value], maximumCompanionActivityCategories)
+    if (!result.ok) {
+      setError(result.message)
+      return
+    }
+    onChange(result.value)
+    setValue('')
+    setError('')
+  }
+
+  const atLimit = selected.length >= maximumCompanionActivityCategories
+  return (
+    <View style={styles.fieldGroup}>
+      <FieldLabel label="Add your own category" />
+      <TextInput
+        accessibilityLabel="Custom activity category"
+        value={value}
+        maxLength={maximumActivityCategoryLength}
+        editable={!disabled && !atLimit}
+        returnKeyType="done"
+        onChangeText={(next) => { setValue(next); setError('') }}
+        onSubmitEditing={addCategory}
+        placeholder="For example, museum visits"
+        placeholderTextColor={theme.colors.textMuted}
+        style={[styles.input, theme.typography.body, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+      />
+      <ActionButton label="Add category" onPress={addCategory} intent="self" secondary disabled={disabled || atLimit} />
+      {error ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{error}</AppText> : null}
     </View>
   )
 }

@@ -1,14 +1,15 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LayoutGrid, MapPin, SlidersHorizontal, X } from 'lucide-react'
-import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
+import { activityCategoriesMatch, activityCategoryOptions, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { Checkbox } from '../design-system/atoms/Field'
 import { SearchField } from '../design-system/molecules/SearchField'
 import { SegmentedControl } from '../design-system/molecules/SegmentedControl'
 import { CompanionListItem, type DiscoveryCompanion } from '../design-system/organisms/CompanionListItem'
+import { CategoryFilterDialog } from '../features/discovery/CategoryFilterDialog'
 
 export const Route = createFileRoute('/discover')({ component: DiscoverPage })
 
@@ -25,14 +26,16 @@ function DiscoverPage() {
   const [query, setQuery] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
-  const categoryStripRef = useRef<HTMLDivElement>(null)
-  const categoryWrapRef = useRef<HTMLDivElement>(null)
+  const categories = useMemo(
+    () => activityCategoryOptions(...companions.map((companion) => companion.categories)),
+    [companions],
+  )
 
   const filtered = useMemo(() => {
     const searchTerm = query.trim().toLowerCase()
     return companions.filter((companion) => {
       if (mode !== 'all' && (companion.kind !== 'companion' || (companion.mode !== mode && !(mode === 'online' && companion.mode === 'both')))) return false
-      if (category && !(companion.categories ?? []).includes(category)) return false
+      if (category && !(companion.categories ?? []).some((value) => activityCategoriesMatch(value, category))) return false
       if (strength && (companion.kind !== 'companion' || !companion.strengths.includes(strength))) return false
       if (bookableOnly && !companion.bookable) return false
       if (searchTerm) {
@@ -66,117 +69,10 @@ function DiscoverPage() {
     const handler = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       if (filtersOpen) setFiltersOpen(false)
-      if (categoriesOpen) setCategoriesOpen(false)
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [filtersOpen, categoriesOpen])
-
-  useEffect(() => {
-    const strip = categoryStripRef.current
-    const wrap = categoryWrapRef.current
-    if (!strip || !wrap) return
-    const update = () => {
-      wrap.dataset.start = String(strip.scrollLeft <= 1)
-      wrap.dataset.end = String(strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 2)
-    }
-    update()
-    strip.addEventListener('scroll', update, { passive: true })
-    const ro = new ResizeObserver(update)
-    ro.observe(strip)
-    return () => {
-      strip.removeEventListener('scroll', update)
-      ro.disconnect()
-    }
-  }, [])
-
-  useEffect(() => {
-    const el = categoryStripRef.current
-    if (!el) return
-
-    let startX = 0
-    let startScroll = 0
-    let active = false
-    let hasDragged = false
-    let rafId = 0
-    const samples: { x: number; t: number }[] = []
-
-    const cancelMomentum = () => {
-      if (rafId) cancelAnimationFrame(rafId)
-      rafId = 0
-    }
-
-    const applyMomentum = (velocity: number) => {
-      const tick = () => {
-        el.scrollLeft += velocity
-        velocity *= 0.92
-        rafId = Math.abs(velocity) > 0.5 ? requestAnimationFrame(tick) : 0
-      }
-      rafId = requestAnimationFrame(tick)
-    }
-
-    const onMouseDown = (event: MouseEvent) => {
-      if (event.button !== 0) return
-      cancelMomentum()
-      active = true
-      hasDragged = false
-      startX = event.clientX
-      startScroll = el.scrollLeft
-      samples.length = 0
-      event.preventDefault()
-    }
-
-    const onMouseMove = (event: MouseEvent) => {
-      if (!active) return
-      const now = performance.now()
-      samples.push({ x: event.clientX, t: now })
-      if (samples.length > 6) samples.shift()
-      const dx = event.clientX - startX
-      if (Math.abs(dx) > 4) {
-        hasDragged = true
-        el.dataset.dragging = 'true'
-      }
-      if (hasDragged) el.scrollLeft = startScroll - dx
-    }
-
-    const onMouseUp = () => {
-      if (!active) return
-      active = false
-      delete el.dataset.dragging
-
-      if (hasDragged) {
-        // Calculate velocity from recent samples (ignore stale ones)
-        const recent = samples.filter((s) => performance.now() - s.t < 100)
-        if (recent.length >= 2) {
-          const first = recent[0]
-          const last = recent[recent.length - 1]
-          const dt = last.t - first.t
-          if (dt > 0) {
-            const velocity = ((first.x - last.x) / dt) * 16
-            if (Math.abs(velocity) > 1) applyMomentum(velocity)
-          }
-        }
-
-        const absorb = (e: MouseEvent) => {
-          e.stopPropagation()
-          e.preventDefault()
-          el.removeEventListener('click', absorb, true)
-        }
-        el.addEventListener('click', absorb, true)
-      }
-      hasDragged = false
-    }
-
-    el.addEventListener('mousedown', onMouseDown)
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-    return () => {
-      cancelMomentum()
-      el.removeEventListener('mousedown', onMouseDown)
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-    }
-  }, [])
+  }, [filtersOpen])
 
   return (
     <main className="marketing-page-wide discover-page">
@@ -225,10 +121,9 @@ function DiscoverPage() {
               className="btn btn-neutral btn-sm filters-trigger"
               onClick={() => setCategoriesOpen(true)}
               aria-expanded={categoriesOpen}
-              aria-controls="categories-dialog"
             >
               <LayoutGrid size={14} aria-hidden="true" />
-              <span>Everyday help</span>
+              <span className="filters-trigger-label">{category ?? 'Everyday help'}</span>
               {category !== null && <span className="filters-trigger-badge tabular">1</span>}
             </button>
             <button
@@ -242,21 +137,6 @@ function DiscoverPage() {
               <span>Strengths</span>
               {moreFilterCount > 0 && <span className="filters-trigger-badge tabular">{moreFilterCount}</span>}
             </button>
-          </div>
-        </div>
-
-        <div className="category-strip-wrap" ref={categoryWrapRef} data-start="true" data-end="false">
-          <div className="category-strip" ref={categoryStripRef} role="group" aria-label="Activity category">
-            <ToggleChip selected={category === null} onClick={() => setCategory(null)}>Everything</ToggleChip>
-            {activityCategories.map((value) => (
-              <ToggleChip
-                key={value}
-                selected={category === value}
-                onClick={() => setCategory(category === value ? null : value)}
-              >
-                {value}
-              </ToggleChip>
-            ))}
           </div>
         </div>
 
@@ -311,59 +191,14 @@ function DiscoverPage() {
         )}
       </section>
 
-      {categoriesOpen && (
-        <div
-          className="filters-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setCategoriesOpen(false)
-          }}
-        >
-          <div
-            id="categories-dialog"
-            className="categories-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="categories-dialog-title"
-          >
-            <header className="filters-drawer-header">
-              <div>
-                <p className="eyebrow">Everyday help</p>
-                <h2 id="categories-dialog-title" className="text-h2 mt-1">What would you like to do?</h2>
-              </div>
-              <button
-                type="button"
-                className="social-icon-button"
-                aria-label="Close Things to do"
-                onClick={() => setCategoriesOpen(false)}
-              >
-                <X size={16} />
-              </button>
-            </header>
-            <div className="categories-dialog-body">
-              <div className="filter-section-row">
-                <ToggleChip selected={category === null} onClick={() => setCategory(null)}>Everything</ToggleChip>
-                {activityCategories.map((value) => (
-                  <ToggleChip
-                    key={value}
-                    selected={category === value}
-                    onClick={() => setCategory(category === value ? null : value)}
-                  >
-                    {value}
-                  </ToggleChip>
-                ))}
-              </div>
-            </div>
-            <footer className="filters-drawer-footer">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCategory(null)}>
-                Clear
-              </button>
-              <button type="button" className="btn btn-social btn-sm" onClick={() => setCategoriesOpen(false)}>
-                Show {filtered.length} {filtered.length === 1 ? 'result' : 'results'}
-              </button>
-            </footer>
-          </div>
-        </div>
-      )}
+      <CategoryFilterDialog
+        open={categoriesOpen}
+        categories={categories}
+        selectedCategory={category}
+        resultCount={filtered.length}
+        onChange={setCategory}
+        onClose={() => setCategoriesOpen(false)}
+      />
 
       {filtersOpen && (
         <div

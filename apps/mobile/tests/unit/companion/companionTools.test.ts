@@ -13,7 +13,10 @@ describe('Companion mobile models and validation', () => {
   }
 
   it('normalizes a valid application using shared Strengths and activities', () => {
-    expect(validateCompanionApplication(validForm)).toEqual({
+    expect(validateCompanionApplication({
+      ...validForm,
+      categories: ['  Board   game nights  ', 'coffee and meals'],
+    })).toEqual({
       ok: true,
       value: {
         intro: validForm.intro,
@@ -21,7 +24,7 @@ describe('Companion mobile models and validation', () => {
         mode: 'both',
         hourlyRateCentavos: 50_000,
         strengths: ['Good listener'],
-        categories: ['Coffee and meals'],
+        categories: ['Board game nights', 'Coffee and meals'],
         boundaries: ['Public places only', 'No dating expectations'],
         applicationNote: 'Ready for review.',
       },
@@ -31,6 +34,8 @@ describe('Companion mobile models and validation', () => {
   it('rejects missing safety content, unknown choices, and rates outside backend limits', () => {
     expect(validateCompanionApplication({ ...validForm, intro: 'Too short' })).toMatchObject({ ok: false })
     expect(validateCompanionApplication({ ...validForm, strengths: ['Invented Strength'] })).toMatchObject({ ok: false, message: 'Review the selected Strengths.' })
+    expect(validateCompanionApplication({ ...validForm, categories: ['Everything'] })).toMatchObject({ ok: false, message: 'Everything is a filter and cannot be saved as a category.' })
+    expect(validateCompanionApplication({ ...validForm, categories: ['Board games', ' board games '] })).toMatchObject({ ok: false, message: 'Choose each category only once.' })
     expect(validateCompanionApplication({ ...validForm, boundaries: '  ' })).toMatchObject({ ok: false, message: 'Add at least one clear boundary.' })
     expect(validateHourlyRate('99.99')).toEqual({ ok: false, message: 'Set an hourly rate from PHP 100 to PHP 10,000.' })
     expect(validateHourlyRate('10000')).toEqual({ ok: true, hourlyRateCentavos: 1_000_000 })

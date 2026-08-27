@@ -17,6 +17,7 @@ import { useIdentityVerification } from '../features/identity/IdentityVerificati
 import { prepareEvidenceImage } from '../lib/chatAttachments'
 import { findCompanions } from '../lib/discoverySearch'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
+import { ReviewForm } from '../features/profile/ReviewForm'
 
 export const Route = createFileRoute('/app')({
   validateSearch: (search: Record<string, unknown>): { companionProfileId?: string; bookingId?: string } => ({
@@ -406,8 +407,8 @@ function AppPage() {
                         ? 'Completion confirmed. Waiting for the Companion to confirm separately.'
                         : 'Both people confirmed completion. The review window is open.')
                     }}
-                    onReview={async (rating, body) => {
-                      await submitReview({ bookingId: booking._id, rating, body })
+                    onReview={async (rating, body, imageUploadId) => {
+                      await submitReview({ bookingId: booking._id, rating, body, imageUploadId })
                       setNotice('Review submitted.')
                     }}
                     onReport={async () => {
@@ -451,8 +452,8 @@ function AppPage() {
                         ? 'Completion confirmed. Waiting for the Companion to confirm separately.'
                         : 'Both people confirmed completion. The review window is open.')
                     }}
-                    onReview={async (rating, body) => {
-                      await submitReview({ bookingId: booking._id, rating, body })
+                    onReview={async (rating, body, imageUploadId) => {
+                      await submitReview({ bookingId: booking._id, rating, body, imageUploadId })
                       setNotice('Review submitted.')
                     }}
                     onReport={async () => {
@@ -737,7 +738,7 @@ function BookingRow({
   booking: Booking
   onCancel: () => Promise<void>
   onComplete: () => Promise<void>
-  onReview: (rating: number, body?: string) => Promise<void>
+  onReview: (rating: number, body?: string, imageUploadId?: Id<'reviewMediaUploads'>) => Promise<void>
   onReport: () => Promise<void>
   onEditRequest?: (request: EditableBookingRequest) => void
 }) {
@@ -900,31 +901,6 @@ function EvidenceDecision({ bookingId, label }: { bookingId: Id<'bookings'>; lab
         </button>
       </div>
     </div>
-  )
-}
-
-function ReviewForm({ onReview }: { onReview: (rating: number, body?: string) => Promise<void> }) {
-  return (
-    <form
-      className="flex items-center gap-2 flex-wrap"
-      onSubmit={async (event) => {
-        event.preventDefault()
-        const form = event.currentTarget
-        const data = new FormData(form)
-        await onReview(Number(data.get('rating')), String(data.get('body') || '') || undefined)
-        form.reset()
-      }}
-    >
-      <select name="rating" className="field max-w-24" defaultValue="5" aria-label="Review rating">
-        <option value="5">5★</option>
-        <option value="4">4★</option>
-        <option value="3">3★</option>
-        <option value="2">2★</option>
-        <option value="1">1★</option>
-      </select>
-      <input name="body" className="field min-w-[220px]" placeholder="Review note" />
-      <button className="btn btn-social-quiet btn-sm">Leave review</button>
-    </form>
   )
 }
 

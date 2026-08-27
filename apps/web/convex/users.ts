@@ -1,6 +1,11 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { activityCategories, normalizeUsername, usernameValidationError } from '@lets-be-friends/shared'
+import {
+  maximumOnboardingActivityCategories,
+  normalizeUsername,
+  usernameValidationError,
+  validateActivityCategories,
+} from '@lets-be-friends/shared'
 import { getViewer, requireViewer, writeAudit } from './lib'
 import { hasCurrentIdentityApproval, identityTestBypassAllowed } from './identityVerification'
 import { syncUserCompanionLocation } from './companionLocations'
@@ -249,13 +254,11 @@ export const updateProfile = mutation({
     if (displayName.length > 80) throw new Error('Name is too long')
     const firstName = normalizeOptional(args.firstName, 40)
     const lastName = normalizeOptional(args.lastName, 40)
-    const onboardingCategories = args.onboardingCategories
-      ? [...new Set(args.onboardingCategories.map((category) => category.trim()).filter(Boolean))]
-      : undefined
-    if (onboardingCategories && onboardingCategories.length > 6) throw new Error('Choose up to 6 categories')
-    if (onboardingCategories?.some((category) => !(activityCategories as readonly string[]).includes(category))) {
-      throw new Error('Choose categories from the available list')
-    }
+    const categoryResult = args.onboardingCategories === undefined
+      ? undefined
+      : validateActivityCategories(args.onboardingCategories, maximumOnboardingActivityCategories)
+    if (categoryResult && !categoryResult.ok) throw new Error(categoryResult.message)
+    const onboardingCategories = categoryResult?.value
 
     const bio = normalizeOptional(args.bio, 500)
     const existing = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique()

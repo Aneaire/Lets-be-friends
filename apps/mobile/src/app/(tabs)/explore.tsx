@@ -16,6 +16,7 @@ import { DiscoveryFilterSheet } from '@/features/discovery/DiscoveryFilterSheet'
 import {
   activeDiscoveryFilterCount,
   defaultDiscoveryFilters,
+  discoveryCategoryOptions,
   filterDiscoveryCompanions,
   includeUnavailableCompanions,
   type DiscoveryFilters,
@@ -43,6 +44,7 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
   const [filters, setFilters] = useState<DiscoveryFilters>(() => includeUnavailableCompanions(defaultDiscoveryFilters))
   const [filterSheet, setFilterSheet] = useState(false)
   const companions = useMemo(() => filterDiscoveryCompanions(sourceCompanions, query, filters), [filters, query, sourceCompanions])
+  const categories = useMemo(() => discoveryCategoryOptions(sourceCompanions), [sourceCompanions])
   const unavailableMatches = useMemo(() => filterDiscoveryCompanions(sourceCompanions, query, includeUnavailableCompanions(filters)), [filters, query, sourceCompanions])
   const liveCount = sourceCompanions.length
   const canIncludeUnavailable = filters.bookableOnly && companions.length === 0 && unavailableMatches.length > 0
@@ -96,7 +98,7 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
           />
         }
       />
-      <DiscoveryFilterSheet visible={filterSheet} filters={filters} onChange={setFilters} onClose={() => setFilterSheet(false)} />
+      <DiscoveryFilterSheet visible={filterSheet} filters={filters} categories={categories} onChange={setFilters} onClose={() => setFilterSheet(false)} />
     </SafeAreaView>
   )
 }

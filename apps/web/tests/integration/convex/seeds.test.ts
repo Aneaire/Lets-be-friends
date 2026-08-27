@@ -21,19 +21,50 @@ describe('Pampanga development seed', () => {
     await expect(t.mutation(internal.seeds.seedPampangaCompanions, {})).resolves.toMatchObject({
       created: 8,
       updated: 0,
+      reviewMembersCreated: 7,
+      bookingsCreated: 112,
+      reviewsCreated: 112,
       total: 8,
     })
     await expect(t.mutation(internal.seeds.seedPampangaCompanions, {})).resolves.toMatchObject({
       created: 0,
       updated: 8,
+      reviewMembersCreated: 0,
+      reviewMembersUpdated: 7,
+      bookingsCreated: 0,
+      reviewsCreated: 0,
+      reviewsUpdated: 112,
       total: 8,
     })
 
     const counts = await t.run(async (ctx) => ({
       users: (await ctx.db.query('users').collect()).length,
       companions: (await ctx.db.query('companionProfiles').collect()).length,
+      bookings: (await ctx.db.query('bookings').collect()).length,
+      reviews: (await ctx.db.query('reviews').collect()).length,
     }))
-    expect(counts).toEqual({ users: 8, companions: 8 })
+    expect(counts).toEqual({ users: 15, companions: 8, bookings: 112, reviews: 112 })
+  })
+
+  it('backs every displayed review total with review records, including all seven for Kai', async () => {
+    const t = createTest()
+    await t.mutation(internal.seeds.seedPampangaCompanions, {})
+
+    const profiles = await t.run(async (ctx) => await ctx.db.query('companionProfiles').collect())
+    for (const profile of profiles) {
+      const reviews = await t.run(async (ctx) => await ctx.db.query('reviews')
+        .withIndex('by_companion_profile', (q) => q.eq('companionProfileId', profile._id))
+        .collect())
+      const average = reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+      expect(reviews).toHaveLength(profile.reviewCount)
+      expect(average.toFixed(1)).toBe(profile.rating.toFixed(1))
+    }
+
+    const kai = profiles.find((profile) => profile.displayName === 'Kai')
+    if (!kai) throw new Error('Kai seed profile not found')
+    const kaiReviews = await t.query(api.reviews.forCompanion, { companionProfileId: kai._id })
+    expect(kaiReviews).toHaveLength(7)
+    expect(new Set(kaiReviews.map((review) => review.reviewerDisplayName)).size).toBe(7)
   })
 
   it('supports Bacolor radius and always-on nearby discovery', async () => {

@@ -23,7 +23,7 @@ async function seedReviewableBooking(t: ReturnType<typeof convexTest>) {
       createdAt: now,
       updatedAt: now,
     })
-    const memberId = await ctx.db.insert('users', user('review-member'))
+    const memberId = await ctx.db.insert('users', { ...user('review-member'), displayName: 'Fallback Member', firstName: 'Angelo', lastName: 'Santiago' })
     const companionUserId = await ctx.db.insert('users', user('review-companion', 'companion'))
     await ctx.db.insert('users', user('review-outsider'))
     const companionProfileId = await ctx.db.insert('companionProfiles', {
@@ -52,7 +52,7 @@ async function seedReviewableBooking(t: ReturnType<typeof convexTest>) {
       createdAt: now,
       updatedAt: now,
     })
-    return { bookingId, companionProfileId }
+    return { bookingId, companionProfileId, memberId }
   })
 }
 
@@ -121,5 +121,52 @@ describe('review submission', () => {
     expect(state.reviews).toHaveLength(1)
     expect(state.audits).toHaveLength(1)
     expect(state.notifications).toHaveLength(1)
+  })
+
+  it('publishes one registered photo and returns the reviewer identity with the image URL', async () => {
+    const t = createTest()
+    const { bookingId, companionProfileId } = await seedReviewableBooking(t)
+    const member = t.withIdentity({ subject: 'review-member' })
+    const grant = await member.mutation(api.reviews.generateImageUploadUrl, {})
+    const storageId = await t.run(async (ctx) => {
+      const id = await ctx.storage.store(new Blob(['photo'], { type: 'image/png' }))
+      await (ctx.db as any).patch(id, { contentType: 'image/png' })
+      return id
+    })
+    await expect(t.withIdentity({ subject: 'review-outsider' }).mutation(api.reviews.registerImageUpload, {
+      uploadId: grant.uploadId,
+      storageId,
+    })).rejects.toThrow('not found')
+    await member.mutation(api.reviews.registerImageUpload, { uploadId: grant.uploadId, storageId })
+    await member.mutation(api.reviews.submit, { bookingId, rating: 5, body: 'A good plan.', imageUploadId: grant.uploadId })
+
+    const reviews = await t.query(api.reviews.forCompanion, { companionProfileId })
+    expect(reviews).toHaveLength(1)
+    expect(reviews[0]).toMatchObject({
+      reviewerDisplayName: 'Angelo Santiago',
+      reviewerId: expect.any(String),
+      rating: 5,
+      imageStorageId: storageId,
+    })
+    expect(reviews[0].imageUrl).toContain('http')
+  })
+
+  it('lets signed-in members like and comment on visible reviews', async () => {
+    const t = createTest()
+    const { bookingId, companionProfileId } = await seedReviewableBooking(t)
+    const reviewId = await t.withIdentity({ subject: 'review-member' }).mutation(api.reviews.submit, { bookingId, rating: 5, body: 'Kind and clear.' })
+    const outsider = t.withIdentity({ subject: 'review-outsider' })
+
+    await expect(outsider.mutation(api.reviews.toggleLike, { reviewId })).resolves.toBe(true)
+    await outsider.mutation(api.reviews.createComment, { reviewId, body: '  Helpful review.  ' })
+    let reviews = await outsider.query(api.reviews.forCompanion, { companionProfileId })
+    expect(reviews[0]).toMatchObject({ liked: true, likeCount: 1, commentCount: 1 })
+    expect(reviews[0].comments[0]).toMatchObject({ body: 'Helpful review.', authorDisplayName: 'review-outsider' })
+
+    await expect(outsider.mutation(api.reviews.toggleLike, { reviewId })).resolves.toBe(false)
+    await expect(outsider.mutation(api.reviews.createComment, { reviewId, body: '   ' })).rejects.toThrow('cannot be empty')
+    reviews = await outsider.query(api.reviews.forCompanion, { companionProfileId })
+    expect(reviews[0].likeCount).toBe(0)
+    expect(await t.run(async (ctx) => ctx.db.query('reviewComments').collect())).toHaveLength(1)
   })
 })

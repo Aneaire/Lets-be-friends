@@ -131,6 +131,30 @@ describe('usernames and onboarding', () => {
     expect(user?.onboardingCompletedAt).toEqual(expect.any(Number))
   })
 
+  it('normalizes custom onboarding categories and rejects filter labels and duplicates', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await insertUser(t, 'category-user', 'Category User')
+    const authenticated = t.withIdentity({ subject: 'category-user' })
+
+    await authenticated.mutation(api.users.updateProfile, {
+      displayName: 'Category User',
+      onboardingCategories: ['  Board   game nights  ', 'Coffee and meals'],
+    })
+    expect(await t.run(async (ctx) => (await ctx.db.get(userId))?.onboardingCategories))
+      .toEqual(['Board game nights', 'Coffee and meals'])
+
+    await expect(authenticated.mutation(api.users.updateProfile, {
+      displayName: 'Category User',
+      onboardingCategories: ['Everything'],
+    })).rejects.toThrow('filter and cannot be saved')
+    await expect(authenticated.mutation(api.users.updateProfile, {
+      displayName: 'Category User',
+      onboardingCategories: ['Board games', ' board games '],
+    })).rejects.toThrow('only once')
+    expect(await t.run(async (ctx) => (await ctx.db.get(userId))?.onboardingCategories))
+      .toEqual(['Board game nights', 'Coffee and meals'])
+  })
+
   it('backfills deterministic collision-safe usernames and is idempotent', async () => {
     const t = convexTest(schema, modules)
     await insertUser(t, 'existing-user', 'Alex Santos', 'alex_santos')

@@ -1,5 +1,5 @@
 import type { DiscoveryCompanionViewModel } from '@/data/companionViewModels'
-import { dedupeFeedItems, defaultDiscoveryFilters, filterDiscoveryCompanions, includeUnavailableCompanions, postMediaValidationError, type DiscoveryFilters } from '@/data/discovery'
+import { dedupeFeedItems, defaultDiscoveryFilters, discoveryCategoryOptions, filterDiscoveryCompanions, includeUnavailableCompanions, postMediaValidationError, type DiscoveryFilters } from '@/data/discovery'
 
 const liveCompanions: DiscoveryCompanionViewModel[] = [
   {
@@ -59,6 +59,16 @@ const byId = (query = '', filters: Partial<DiscoveryFilters> = {}) => filterDisc
 ).map((companion) => companion.id)
 
 describe('Companion discovery', () => {
+  it('includes custom profile categories alongside the default filters', () => {
+    const options = discoveryCategoryOptions([
+      liveCompanions[0],
+      { ...liveCompanions[1], categories: ['Board game nights'] },
+    ])
+    expect(options).toContain('Good company')
+    expect(options).toContain('Board game nights')
+    expect(options).not.toContain('Everything')
+  })
+
   it('searches only fields present in live discovery results', () => {
     expect(byId('study partner')).toEqual(['sam'])
     expect(byId('Makati')).toEqual(['mika'])
@@ -74,6 +84,11 @@ describe('Companion discovery', () => {
     expect(byId('', { category: 'Coffee and meals', strength: 'Good listener' })).toEqual(['mika'])
     expect(byId('', { category: 'Arts and crafts' })).toEqual([])
     expect(byId('', { category: 'Arts and crafts', bookableOnly: false })).toEqual(['ines'])
+    expect(filterDiscoveryCompanions(
+      [{ ...liveCompanions[0], categories: ['Board Game Nights'] }],
+      '',
+      { ...defaultDiscoveryFilters, category: 'board game nights' },
+    ).map((companion) => companion.id)).toEqual(['mika'])
   })
 
   it('turns the zero-result include action into an unavailable-inclusive filter', () => {

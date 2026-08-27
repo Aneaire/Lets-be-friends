@@ -1,4 +1,12 @@
-import { normalizeUsername, usernameBaseFromDisplayName, usernameValidationError } from '@lets-be-friends/shared'
+import {
+  activityCategoryOptions,
+  maximumActivityCategoryLength,
+  maximumOnboardingActivityCategories,
+  normalizeUsername,
+  usernameBaseFromDisplayName,
+  usernameValidationError,
+  validateActivityCategories,
+} from '@lets-be-friends/shared'
 import { useMutation, useQuery } from 'convex/react'
 import * as Location from 'expo-location'
 import { router } from 'expo-router'
@@ -9,6 +17,7 @@ import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
+import { Chip } from '@/design-system/atoms/Chip'
 import { Checkbox } from '@/design-system/atoms/Field'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Screen } from '@/design-system/templates/Screen'
@@ -64,6 +73,9 @@ function ConnectedOnboarding({
   const decision = onboardingDecision(viewer)
   const [usernameInput, setUsernameInput] = useState(() => viewer.username || usernameBaseFromDisplayName(viewer.displayName))
   const [goal, setGoal] = useState<OnboardingGoal>(viewer.onboardingGoal || 'member')
+  const [categories, setCategories] = useState<string[]>(viewer.onboardingCategories ?? [])
+  const [customCategory, setCustomCategory] = useState('')
+  const [categoryError, setCategoryError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -88,6 +100,7 @@ function ConnectedOnboarding({
   const claimUsername = useMutation(mobileApi.users.claimUsername)
   const saveOnboardingLocationAndConsent = useMutation(mobileApi.users.saveOnboardingLocationAndConsent)
   const completeOnboarding = useMutation(mobileApi.users.completeOnboarding)
+  const updateProfile = useMutation(mobileApi.users.updateProfile)
   const usernameReady = Boolean(viewer.username || (!validationError && availability?.available))
   const availabilityColor = usernameReady
     ? theme.colors.self
@@ -129,6 +142,13 @@ function ConnectedOnboarding({
 
   async function finishOnboarding() {
     if (!usernameReady || !location || !locationConsent || !termsAccepted || submitting) return
+    const categoryResult = goal === 'companion'
+      ? validateActivityCategories(categories, maximumOnboardingActivityCategories)
+      : null
+    if (categoryResult && (!categoryResult.ok || categoryResult.value.length === 0)) {
+      setCategoryError(categoryResult.ok ? 'Choose at least one category you would like to offer.' : categoryResult.message)
+      return
+    }
 
     setSubmitting(true)
     setMessage(null)
@@ -140,6 +160,13 @@ function ConnectedOnboarding({
         termsAccepted,
         termsVersion,
       })
+      if (categoryResult?.ok) {
+        await updateProfile({
+          displayName: viewer.displayName,
+          ...(viewer.bio !== undefined ? { bio: viewer.bio } : {}),
+          onboardingCategories: categoryResult.value,
+        })
+      }
       await completeOnboarding({ goal })
       setSubmitted(true)
       setMessage('Your welcome guide is complete. Opening your profile.')
@@ -148,6 +175,20 @@ function ConnectedOnboarding({
     } finally {
       setSubmitting(false)
     }
+  }
+
+  function addCustomCategory() {
+    const result = validateActivityCategories(
+      [...categories, customCategory],
+      maximumOnboardingActivityCategories,
+    )
+    if (!result.ok) {
+      setCategoryError(result.message)
+      return
+    }
+    setCategories(result.value)
+    setCustomCategory('')
+    setCategoryError('')
   }
 
   async function signOutToSwitchAccount() {
@@ -294,6 +335,51 @@ function ConnectedOnboarding({
           onPress={() => setGoal('companion')}
           disabled={submitting || submitted}
         />
+        {goal === 'companion' ? (
+          <View style={styles.categorySection}>
+            <View style={styles.sectionHeader}>
+              <AppText variant="bodyStrong">What would you like to offer?</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>Choose up to 6 categories or add your own.</AppText>
+            </View>
+            <View style={styles.categoryChips}>
+              {activityCategoryOptions(categories).map((category) => (
+                <Chip
+                  key={category}
+                  label={category}
+                  selected={categories.includes(category)}
+                  accent="self"
+                  onPress={() => {
+                    if (!categories.includes(category) && categories.length >= maximumOnboardingActivityCategories) return
+                    setCategoryError('')
+                    setCategories((current) => current.includes(category)
+                      ? current.filter((value) => value !== category)
+                      : [...current, category])
+                  }}
+                />
+              ))}
+            </View>
+            <TextInput
+              accessibilityLabel="Custom onboarding category"
+              value={customCategory}
+              maxLength={maximumActivityCategoryLength}
+              editable={!submitting && !submitted && categories.length < maximumOnboardingActivityCategories}
+              returnKeyType="done"
+              onChangeText={(value) => { setCustomCategory(value); setCategoryError('') }}
+              onSubmitEditing={addCustomCategory}
+              placeholder="For example, museum visits"
+              placeholderTextColor={theme.colors.textMuted}
+              style={[styles.categoryInput, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+            />
+            <ActionButton
+              label="Add category"
+              onPress={addCustomCategory}
+              intent="self"
+              secondary
+              disabled={submitting || submitted || categories.length >= maximumOnboardingActivityCategories}
+            />
+            {categoryError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{categoryError}</AppText> : null}
+          </View>
+        ) : null}
       </View> : null}
 
       <View style={styles.actions}>
@@ -307,7 +393,7 @@ function ConnectedOnboarding({
           label={submitting || submitted ? 'Saving welcome guide' : 'Complete welcome guide'}
           onPress={() => void finishOnboarding()}
           intent="self"
-          disabled={!usernameReady || !location || !locationConsent || !termsAccepted || locating || submitting || submitted}
+          disabled={!usernameReady || !location || !locationConsent || !termsAccepted || (goal === 'companion' && categories.length === 0) || locating || submitting || submitted}
           icon="checkmark-circle-outline"
         />}
         {step > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Go to previous step" disabled={submitting || submitted} onPress={() => setStep((current) => Math.max(0, current - 1))} style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}><AppIcon name="arrow-back" color={theme.colors.selfText} size={18} /><AppText variant="caption" color={theme.colors.selfText}>Back</AppText></Pressable> : null}
@@ -452,6 +538,9 @@ const styles = StyleSheet.create({
   radio: { width: 22, height: 22, borderWidth: 2, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   goalCopy: { flex: 1, gap: 1 },
+  categorySection: { marginTop: 10, gap: 10 },
+  categoryChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  categoryInput: { minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   actions: { marginTop: 24, gap: 3 },
   signOutLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   backLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },

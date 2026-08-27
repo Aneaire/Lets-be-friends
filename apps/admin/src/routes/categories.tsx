@@ -8,9 +8,9 @@ function CategoriesPage() {
     <>
       <header className="admin-page-header">
         <div>
-          <p className="eyebrow">Read-only</p>
+          <p className="eyebrow">Category guide</p>
           <h1 className="text-h1 mt-2">Categories</h1>
-          <p className="lede mt-2">Current booking categories and Strengths are code-backed for this phase.</p>
+          <p className="lede mt-2">These are the suggested activity categories and Strengths. Members can add their own activity categories when setting up a profile.</p>
         </div>
       </header>
 

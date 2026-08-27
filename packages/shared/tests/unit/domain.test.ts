@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   activityCategories,
+  activityCategoriesMatch,
+  activityCategoryOptions,
+  activityCategoryValidationError,
   bookingEligibility,
   bookingStatusAfterReview,
   calculateMemberWalletBookingPrice,
@@ -18,6 +21,7 @@ import {
   isMemberVerificationReason,
   isModerationVisible,
   requiresVerificationForBooking,
+  validateActivityCategories,
   userRoles,
 } from '@lets-be-friends/shared'
 
@@ -26,7 +30,36 @@ describe('shared early access domain constants', () => {
     expect(friendStrengths).toContain('Good listener')
     expect(activityCategories).toContain('Good company')
     expect(new Set(activityCategories).size).toBe(activityCategories.length)
+    expect(activityCategories).toContain('Religious and community activities')
+    expect(activityCategories).not.toContain('Everything')
     expect(bookingStatuses).toContain('verification_required')
+  })
+
+  it('normalizes and validates custom activity categories', () => {
+    expect(validateActivityCategories(['  Board   game nights  ', 'Coffee and meals'])).toEqual({
+      ok: true,
+      value: ['Board game nights', 'Coffee and meals'],
+    })
+    expect(validateActivityCategories(['Board games', ' board games '])).toEqual({
+      ok: false,
+      message: 'Choose each category only once.',
+    })
+    expect(activityCategoryValidationError('   ')).toBe('Enter a category.')
+    expect(activityCategoryValidationError('Everything')).toBe('Everything is a filter and cannot be saved as a category.')
+    expect(activityCategoryValidationError('x'.repeat(61))).toBe('Categories must be 60 characters or fewer.')
+    expect(validateActivityCategories(Array.from({ length: 25 }, (_, index) => `Category ${index}`))).toEqual({
+      ok: false,
+      message: 'Choose up to 24 categories.',
+    })
+  })
+
+  it('adds profile categories to discovery options without replacing defaults', () => {
+    const options = activityCategoryOptions(['  Board   game nights  ', 'everything'], ['board game nights'])
+    expect(options).toContain('Good company')
+    expect(options).toContain('Board game nights')
+    expect(options.filter((value) => value.toLocaleLowerCase() === 'board game nights')).toHaveLength(1)
+    expect(options).not.toContain('Everything')
+    expect(activityCategoriesMatch(' board   GAME nights ', 'Board game nights')).toBe(true)
   })
 
   it('calculates the shared member-wallet subtotal, 15% fee, total, and companion entitlement', () => {

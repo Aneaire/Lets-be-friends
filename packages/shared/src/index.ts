@@ -22,19 +22,115 @@ export const friendStrengths = [
 export const activityCategories = [
   'Good company',
   'Coffee and meals',
-  'Explore the city',
+  'Cleaning and tidying',
+  'Deep cleaning',
+  'Kitchen cleaning',
+  'Bathroom cleaning',
+  'Laundry and ironing',
+  'Cooking and meal preparation',
+  'Grocery shopping',
+  'Shopping and errands',
+  'Home organization',
+  'Decluttering',
+  'Packing and unpacking',
+  'Moving and lifting',
+  'Furniture assembly',
+  'Minor home repairs',
+  'Plumbing help',
+  'Electrical help',
+  'Painting and decorating',
+  'Appliance installation',
+  'Gardening and yard work',
+  'Car and motorcycle washing',
+  'Childcare',
+  'Senior assistance',
+  'Disability support',
+  'Pet care',
+  'Dog walking',
+  'House sitting',
+  'Tech help',
+  'Phone and computer help',
+  'Transportation',
+  'Delivery and pickup',
+  'Appointment companion',
+  'Travel companion',
   'Events and celebrations',
-  'Games and esports',
+  'Party preparation',
   'Study and coworking',
+  'Tutoring and learning',
   'Language exchange',
   'Arts and crafts',
-  'Photo walks',
+  'Photography and photo walks',
   'Fitness and sports',
+  'Games and esports',
   'Nature and outdoors',
+  'Explore the city',
   'Hobbies and skills',
-  'Shopping and errands',
-  'Tech help',
+  'Music and entertainment',
+  'Friendly conversation',
+  'Emotional support',
+  'Community volunteering',
+  'Religious and community activities',
 ] as const
+
+export const allActivityCategoryLabel = 'Everything'
+export const maximumActivityCategoryLength = 60
+export const maximumCompanionActivityCategories = 24
+export const maximumOnboardingActivityCategories = 6
+
+export function normalizeActivityCategory(value: string) {
+  const normalized = value.trim().replace(/\s+/g, ' ')
+  return activityCategories.find((category) => category.toLocaleLowerCase() === normalized.toLocaleLowerCase()) ?? normalized
+}
+
+export function activityCategoryValidationError(value: string) {
+  const normalized = normalizeActivityCategory(value)
+  if (!normalized) return 'Enter a category.'
+  if (normalized.length > maximumActivityCategoryLength) {
+    return `Categories must be ${maximumActivityCategoryLength} characters or fewer.`
+  }
+  if (normalized.toLocaleLowerCase() === allActivityCategoryLabel.toLocaleLowerCase()) {
+    return `${allActivityCategoryLabel} is a filter and cannot be saved as a category.`
+  }
+  if (/\p{Cc}/u.test(normalized)) return 'Category contains unsupported characters.'
+  return null
+}
+
+export function validateActivityCategories(values: readonly string[], maximum: number = maximumCompanionActivityCategories):
+  | { ok: true; value: string[] }
+  | { ok: false; message: string } {
+  if (values.length > maximum) return { ok: false, message: `Choose up to ${maximum} categories.` }
+  const normalized: string[] = []
+  const seen = new Set<string>()
+  for (const value of values) {
+    const error = activityCategoryValidationError(value)
+    if (error) return { ok: false, message: error }
+    const category = normalizeActivityCategory(value)
+    const key = category.toLocaleLowerCase()
+    if (seen.has(key)) return { ok: false, message: 'Choose each category only once.' }
+    seen.add(key)
+    normalized.push(category)
+  }
+  return { ok: true, value: normalized }
+}
+
+export function activityCategoryOptions(...categoryLists: ReadonlyArray<readonly string[] | null | undefined>) {
+  const options: string[] = []
+  const seen = new Set<string>()
+  for (const value of [...activityCategories, ...categoryLists.flatMap((values) => values ?? [])]) {
+    if (activityCategoryValidationError(value)) continue
+    const normalized = normalizeActivityCategory(value)
+    const key = normalized.toLocaleLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    options.push(normalized)
+  }
+  return options
+}
+
+export function activityCategoriesMatch(left: string, right: string) {
+  return normalizeActivityCategory(left).toLocaleLowerCase() === normalizeActivityCategory(right).toLocaleLowerCase()
+}
 
 export const bookingStatuses = [
   'draft',
@@ -69,7 +165,8 @@ export const brandAccentColors = {
 } as const
 
 export type FriendStrength = (typeof friendStrengths)[number]
-export type ActivityCategory = (typeof activityCategories)[number]
+export type DefaultActivityCategory = (typeof activityCategories)[number]
+export type ActivityCategory = string
 export type BookingStatus = (typeof bookingStatuses)[number]
 export type VerificationStatus = (typeof verificationStatuses)[number]
 export type VerificationRequestReason = (typeof identityCheckReasons)[number]

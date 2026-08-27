@@ -1,8 +1,14 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { bookingStatusAfterReview, canReviewBooking, isModerationVisible } from '@lets-be-friends/shared'
+import type { Doc } from './_generated/dataModel'
 import { requireViewer, writeAudit } from './lib'
 import { createNotification } from './notifications'
+import { requireNotBlocked } from './safety'
+
+const MAX_REVIEW_IMAGE_SIZE = 10 * 1024 * 1024
+const MAX_REVIEW_UPLOADS_PER_DAY = 5
+const REVIEW_UPLOAD_WINDOW_MS = 24 * 60 * 60 * 1_000
 
 export const forCompanion = query({
   args: { companionProfileId: v.id('companionProfiles') },
@@ -11,12 +17,82 @@ export const forCompanion = query({
     const reviews = await ctx.db.query('reviews').withIndex('by_companion_profile', (q) => q.eq('companionProfileId', args.companionProfileId)).order('desc').take(20)
     return await Promise.all(reviews.filter(isModerationVisible).map(async (review) => {
       const reviewer = await ctx.db.get(review.reviewerId)
+      const [reactions, comments, saved, imageUrl, reviewerProfileImageUrl] = await Promise.all([
+        ctx.db.query('reviewReactions').withIndex('by_review', (q) => q.eq('reviewId', review._id)).collect(),
+        ctx.db.query('reviewComments').withIndex('by_review', (q) => q.eq('reviewId', review._id)).collect(),
+        viewer ? ctx.db.query('savedReviews').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('reviewId', review._id)).first() : null,
+        review.imageStorageId ? ctx.storage.getUrl(review.imageStorageId) : null,
+        reviewer ? profileImageUrl(ctx, reviewer) : undefined,
+      ])
+      const visibleComments = comments.filter(isModerationVisible)
       return {
         ...review,
-        reviewerDisplayName: reviewer?.displayName ?? 'Member',
-        saved: viewer ? Boolean(await ctx.db.query('savedReviews').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('reviewId', review._id)).first()) : false,
+        imageUrl,
+        reviewerDisplayName: reviewer ? fullName(reviewer) : 'Member',
+        reviewerProfileImageUrl,
+        likeCount: reactions.length,
+        liked: viewer ? reactions.some((reaction) => reaction.userId === viewer._id) : false,
+        commentCount: visibleComments.length,
+        comments: await Promise.all(visibleComments.map(async (comment) => {
+          const author = await ctx.db.get(comment.authorId)
+          return {
+            ...comment,
+            authorDisplayName: author ? fullName(author) : 'Member',
+            authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
+          }
+        })),
+        saved: Boolean(saved),
       }
     }))
+  },
+})
+
+export const generateImageUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await requireViewer(ctx)
+    const now = Date.now()
+    const recentUploads = await ctx.db.query('reviewMediaUploads')
+      .withIndex('by_user_created_at', (q) => q.eq('userId', viewer._id).gte('createdAt', now - REVIEW_UPLOAD_WINDOW_MS))
+      .collect()
+    if (recentUploads.length >= MAX_REVIEW_UPLOADS_PER_DAY) throw new Error('Daily review photo limit reached')
+    const uploadId = await ctx.db.insert('reviewMediaUploads', { userId: viewer._id, createdAt: now })
+    return { uploadId, uploadUrl: await ctx.storage.generateUploadUrl() }
+  },
+})
+
+export const registerImageUpload = mutation({
+  args: { uploadId: v.id('reviewMediaUploads'), storageId: v.id('_storage') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const upload = await ctx.db.get(args.uploadId)
+    if (!upload || upload.userId !== viewer._id) throw new Error('Review photo upload not found')
+    if (upload.storageId || upload.registeredAt || upload.reviewId || upload.discardedAt) throw new Error('Review photo upload has already been used')
+    const claimed = await ctx.db.query('reviewMediaUploads').withIndex('by_storage_id', (q) => q.eq('storageId', args.storageId)).first()
+    if (claimed) throw new Error('Review photo has already been claimed')
+    const metadata = await ctx.db.system.get('_storage', args.storageId)
+    if (!metadata) throw new Error('Review photo was not found')
+    if (metadata._creationTime < upload.createdAt) throw new Error('Review photo predates this upload')
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(metadata.contentType ?? '')) throw new Error('Review photos must be JPEG, PNG, or WebP')
+    if (metadata.size > MAX_REVIEW_IMAGE_SIZE) throw new Error('Review photos must be 10 MB or smaller')
+    const now = Date.now()
+    await ctx.db.patch(upload._id, { storageId: args.storageId, contentType: metadata.contentType, size: metadata.size, registeredAt: now })
+    return { uploadId: upload._id, storageId: args.storageId }
+  },
+})
+
+export const discardImageUpload = mutation({
+  args: { uploadId: v.id('reviewMediaUploads'), storageId: v.optional(v.id('_storage')) },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const upload = await ctx.db.get(args.uploadId)
+    if (!upload || upload.userId !== viewer._id) throw new Error('Review photo upload not found')
+    if (upload.reviewId) throw new Error('A published review photo cannot be discarded')
+    if (upload.discardedAt) return
+    const storageId = upload.storageId ?? args.storageId
+    if (upload.storageId && args.storageId && upload.storageId !== args.storageId) throw new Error('Storage object does not match this review photo')
+    if (storageId) await ctx.storage.delete(storageId)
+    await ctx.db.patch(upload._id, { discardedAt: Date.now() })
   },
 })
 
@@ -38,8 +114,49 @@ export const toggleSave = mutation({
   },
 })
 
+export const toggleLike = mutation({
+  args: { reviewId: v.id('reviews') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const review = await ctx.db.get(args.reviewId)
+    if (!review || !isModerationVisible(review)) throw new Error('Review not found')
+    await requireNotBlocked(ctx, viewer._id, review.reviewerId)
+    const existing = await ctx.db.query('reviewReactions').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('reviewId', args.reviewId)).first()
+    if (existing) {
+      await ctx.db.delete(existing._id)
+      return false
+    }
+    await ctx.db.insert('reviewReactions', { userId: viewer._id, reviewId: args.reviewId, reaction: 'like', createdAt: Date.now() })
+    return true
+  },
+})
+
+export const createComment = mutation({
+  args: { reviewId: v.id('reviews'), body: v.string() },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const review = await ctx.db.get(args.reviewId)
+    if (!review || !isModerationVisible(review)) throw new Error('Review not found')
+    await requireNotBlocked(ctx, viewer._id, review.reviewerId)
+    const body = args.body.trim()
+    if (!body) throw new Error('Comment cannot be empty')
+    if (body.length > 500) throw new Error('Comment is too long')
+    const now = Date.now()
+    const commentId = await ctx.db.insert('reviewComments', {
+      reviewId: args.reviewId,
+      authorId: viewer._id,
+      body,
+      hidden: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+    await writeAudit(ctx, { actorUserId: viewer._id, action: 'review.comment.created', targetType: 'review', targetId: String(args.reviewId) })
+    return commentId
+  },
+})
+
 export const submit = mutation({
-  args: { bookingId: v.id('bookings'), rating: v.number(), body: v.optional(v.string()) },
+  args: { bookingId: v.id('bookings'), rating: v.number(), body: v.optional(v.string()), imageUploadId: v.optional(v.id('reviewMediaUploads')) },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     if (args.rating < 1 || args.rating > 5) throw new Error('Rating must be between 1 and 5')
@@ -56,8 +173,14 @@ export const submit = mutation({
     const otherParticipantId = isMember ? companion.userId : booking.memberId
     const otherReview = await ctx.db.query('reviews').withIndex('by_booking_reviewer', (q) => q.eq('bookingId', args.bookingId).eq('reviewerId', otherParticipantId)).first()
     const body = args.body?.trim() || undefined
+    if (body && body.length > 1000) throw new Error('Review is too long')
+    const upload = args.imageUploadId ? await ctx.db.get(args.imageUploadId) : null
+    if (args.imageUploadId && (!upload || upload.userId !== viewer._id || !upload.storageId || !upload.registeredAt || upload.reviewId || upload.discardedAt)) {
+      throw new Error('Review photo upload is not ready')
+    }
     const now = Date.now()
-    const reviewId = await ctx.db.insert('reviews', { bookingId: args.bookingId, reviewerId: viewer._id, revieweeId: otherParticipantId, companionProfileId: isMember ? booking.companionProfileId : undefined, rating: args.rating, body, createdAt: now })
+    const reviewId = await ctx.db.insert('reviews', { bookingId: args.bookingId, reviewerId: viewer._id, revieweeId: otherParticipantId, companionProfileId: isMember ? booking.companionProfileId : undefined, rating: args.rating, body, imageStorageId: upload?.storageId, createdAt: now })
+    if (upload) await ctx.db.patch(upload._id, { reviewId })
     if (isMember) {
       const nextCount = companion.reviewCount + 1
       const nextRating = (companion.rating * companion.reviewCount + args.rating) / nextCount
@@ -77,3 +200,12 @@ export const submit = mutation({
     return reviewId
   },
 })
+
+function fullName(user: Pick<Doc<'users'>, 'displayName' | 'firstName' | 'lastName'>) {
+  return [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.displayName
+}
+
+async function profileImageUrl(ctx: any, user: Pick<Doc<'users'>, 'profileImageStorageId' | 'profileImageUrl'>) {
+  if (!user.profileImageStorageId) return user.profileImageUrl
+  return await ctx.storage.getUrl(user.profileImageStorageId) ?? user.profileImageUrl
+}

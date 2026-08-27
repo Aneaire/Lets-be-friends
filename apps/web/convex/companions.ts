@@ -3,6 +3,8 @@ import {
   MIN_COMPANION_HOURLY_RATE_CENTAVOS,
   bookingEligibility,
   canBookCompanion,
+  maximumCompanionActivityCategories,
+  validateActivityCategories,
   validateCompanionHourlyRateCentavos,
 } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
@@ -235,6 +237,8 @@ export const submitApplication = mutation({
     const viewer = await requireViewer(ctx)
     const now = Date.now()
     validateCompanionHourlyRateCentavos(args.hourlyRateCentavos)
+    const categoryResult = validateActivityCategories(args.categories, maximumCompanionActivityCategories)
+    if (!categoryResult.ok) throw new Error(categoryResult.message)
     const existing = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
     const sourceLatitude = viewer.approximateLatitude ?? existing?.approximateLatitude
     const sourceLongitude = viewer.approximateLongitude ?? existing?.approximateLongitude
@@ -247,6 +251,7 @@ export const submitApplication = mutation({
     }
     const patch = {
       ...args,
+      categories: categoryResult.value,
       displayName: viewer.displayName,
       approximateArea: undefined,
       approximateLatitude: roundCoordinate(sourceLatitude),

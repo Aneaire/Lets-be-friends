@@ -5,6 +5,7 @@ import { ArrowLeft, Heart } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
+import { ProfileContentPanel } from '../features/profile/ProfileContentPanel'
 
 export const Route = createFileRoute('/member-profile')({
   validateSearch: (search: Record<string, unknown>): { userId?: string } => (
@@ -13,10 +14,13 @@ export const Route = createFileRoute('/member-profile')({
   component: MemberProfilePage,
 })
 
+type MemberPost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUser>>>[number]
+
 function MemberProfilePage() {
   const { userId } = Route.useSearch()
   const { isSignedIn } = useAuth()
   const profile = useQuery(api.users.publicProfile, userId ? { userId: userId as Id<'users'> } : 'skip')
+  const posts = useQuery(api.social.byUser, profile?._id ? { userId: profile._id } : 'skip') as MemberPost[] | undefined
   const toggleFollow = useMutation(api.social.toggleFollow)
 
   if (!userId) return <UnavailableProfile detail="Choose someone from Explore first." />
@@ -39,7 +43,7 @@ function MemberProfilePage() {
   )
 
   return (
-    <main className="marketing-page member-profile-page">
+    <main className="profile-page member-profile-page">
       <Link to="/discover" className="member-profile-back"><ArrowLeft size={15} aria-hidden="true" />Explore people</Link>
       <section className="panel member-profile-card">
         <div className="member-profile-photo" aria-hidden={profile.profileImageUrl ? undefined : true}>
@@ -68,6 +72,16 @@ function MemberProfilePage() {
           )}
         </div>
       </section>
+      <ProfileContentPanel
+        className="mt-6"
+        ownerName={profile.displayName}
+        posts={posts}
+        reviews={null}
+        postsDescription={`Posts visible from ${profile.displayName}'s member profile.`}
+        emptyPostsDescription="This member has not shared a post yet."
+        unavailableReviewsTitle="Reviews are not available for this member profile."
+        unavailableReviewsDescription="Reviews appear when a member has an approved Companion profile."
+      />
     </main>
   )
 }

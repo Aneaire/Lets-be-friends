@@ -3,7 +3,14 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
-import { activityCategories, normalizeUsername, usernameValidationError } from '@lets-be-friends/shared'
+import {
+  activityCategoryOptions,
+  maximumActivityCategoryLength,
+  maximumOnboardingActivityCategories,
+  normalizeUsername,
+  usernameValidationError,
+  validateActivityCategories,
+} from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
 import { geolocationErrorMessage, roundCoordinates, type Coordinates } from '../lib/geo'
@@ -46,6 +53,8 @@ function OnboardingPage() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [customCategory, setCustomCategory] = useState('')
+  const [categoryError, setCategoryError] = useState('')
   const [bio, setBio] = useState('')
   const [approxLocation, setApproxLocation] = useState<Coordinates | null>(null)
   const [pendingDeviceLocation, setPendingDeviceLocation] = useState<Coordinates | null>(null)
@@ -180,6 +189,20 @@ function OnboardingPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const addCustomCategory = () => {
+    const result = validateActivityCategories(
+      [...selectedCategories, customCategory],
+      maximumOnboardingActivityCategories,
+    )
+    if (!result.ok) {
+      setCategoryError(result.message)
+      return
+    }
+    setSelectedCategories(result.value)
+    setCustomCategory('')
+    setCategoryError('')
   }
 
   const verification = memberVerificationPresentation(
@@ -448,14 +471,14 @@ function OnboardingPage() {
                   <legend className="label">What would you like to offer? <span className="label-aux">choose up to 6</span></legend>
                   <p className="field-row-help">Choose the everyday help and activities you feel comfortable offering. You can refine these before submitting your Companion profile.</p>
                   <div className="onboarding-category-grid mt-3">
-                    {activityCategories.map((category) => {
+                    {activityCategoryOptions(selectedCategories).map((category) => {
                       const selected = selectedCategories.includes(category)
                       return (
                         <label key={category} data-selected={selected}>
                           <input
                             type="checkbox"
                             checked={selected}
-                            disabled={!selected && selectedCategories.length >= 6}
+                            disabled={!selected && selectedCategories.length >= maximumOnboardingActivityCategories}
                             onChange={() => setSelectedCategories((current) => selected
                               ? current.filter((value) => value !== category)
                               : [...current, category])}
@@ -465,6 +488,36 @@ function OnboardingPage() {
                       )
                     })}
                   </div>
+                  <div className="category-custom-entry mt-3">
+                    <label className="field-row">
+                      <span className="label">Add your own category</span>
+                      <input
+                        className="field"
+                        value={customCategory}
+                        maxLength={maximumActivityCategoryLength}
+                        disabled={selectedCategories.length >= maximumOnboardingActivityCategories}
+                        onChange={(event) => {
+                          setCustomCategory(event.currentTarget.value)
+                          setCategoryError('')
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter') return
+                          event.preventDefault()
+                          addCustomCategory()
+                        }}
+                        placeholder="For example, museum visits"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="btn btn-self btn-sm"
+                      disabled={selectedCategories.length >= maximumOnboardingActivityCategories}
+                      onClick={addCustomCategory}
+                    >
+                      Add category
+                    </button>
+                  </div>
+                  {categoryError && <p className="field-row-help category-custom-error" role="alert">{categoryError}</p>}
                 </fieldset>
               )}
             </div>

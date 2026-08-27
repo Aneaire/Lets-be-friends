@@ -177,7 +177,7 @@ describe('nearby companion discovery privacy', () => {
       intro: 'A safe and friendly companion application with enough detail to review.',
       city: 'Cebu City',
       strengths: ['Good listener'],
-      categories: ['Coffee or meal companion'],
+      categories: ['  Board   game nights  ', 'Coffee and meals'],
       boundaries: ['Public places only'],
       mode: 'both',
       hourlyRateCentavos: 50_000,
@@ -187,9 +187,22 @@ describe('nearby companion discovery privacy', () => {
     expect(companion).toMatchObject({
       approximateLatitude: 10.32,
       approximateLongitude: 123.89,
+      categories: ['Board game nights', 'Coffee and meals'],
       status: 'pending_review',
     })
     expect(companion?.approximateArea).toBeUndefined()
+
+    await expect(t.withIdentity({ subject: 'applicant' }).mutation(api.companions.submitApplication, {
+      intro: 'A safe and friendly companion application with enough detail to review.',
+      city: 'Cebu City',
+      strengths: ['Good listener'],
+      categories: ['Everything'],
+      boundaries: ['Public places only'],
+      mode: 'both',
+      hourlyRateCentavos: 50_000,
+    })).rejects.toThrow('filter and cannot be saved')
+    expect((await t.run(async (ctx) => ctx.db.query('companionProfiles').first()))?.categories)
+      .toEqual(['Board game nights', 'Coffee and meals'])
   })
 
   it('rejects a companion application without onboarding coordinates', async () => {

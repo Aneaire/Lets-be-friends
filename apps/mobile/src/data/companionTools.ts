@@ -1,8 +1,9 @@
 import {
   MAX_COMPANION_HOURLY_RATE_CENTAVOS,
   MIN_COMPANION_HOURLY_RATE_CENTAVOS,
-  activityCategories,
   friendStrengths,
+  maximumCompanionActivityCategories,
+  validateActivityCategories,
   type CompanionApplicationStatus,
 } from '@lets-be-friends/shared'
 
@@ -82,7 +83,8 @@ export function validateCompanionApplication(form: CompanionApplicationForm): { 
   if (form.strengths.length === 0) return { ok: false, message: 'Choose at least one Strength.' }
   if (form.strengths.some((value) => !(friendStrengths as readonly string[]).includes(value))) return { ok: false, message: 'Review the selected Strengths.' }
   if (form.categories.length === 0) return { ok: false, message: 'Choose at least one activity.' }
-  if (form.categories.some((value) => !(activityCategories as readonly string[]).includes(value))) return { ok: false, message: 'Review the selected activities.' }
+  const categories = validateActivityCategories(form.categories, maximumCompanionActivityCategories)
+  if (!categories.ok) return categories
   if (boundaries.length === 0) return { ok: false, message: 'Add at least one clear boundary.' }
 
   return {
@@ -93,7 +95,7 @@ export function validateCompanionApplication(form: CompanionApplicationForm): { 
       mode: form.mode,
       hourlyRateCentavos,
       strengths: [...new Set(form.strengths)],
-      categories: [...new Set(form.categories)],
+      categories: categories.value,
       boundaries,
       applicationNote: form.applicationNote.trim() || undefined,
     },

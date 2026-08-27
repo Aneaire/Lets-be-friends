@@ -3,7 +3,7 @@ import { useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useMemo, useState } from 'react'
 import { ArrowLeft, LocateFixed, MapPin, RotateCcw } from 'lucide-react'
-import { activityCategories, friendStrengths } from '@lets-be-friends/shared'
+import { activityCategoriesMatch, activityCategoryOptions, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { EmptyState } from '../design-system/molecules/FeedbackState'
 import { SearchField } from '../design-system/molecules/SearchField'
@@ -60,12 +60,16 @@ function NearbySearchPage() {
     location ? { ...location, radiusKm } : 'skip',
   )
   const companions = (companionsQuery ?? []) as NearbyCompanion[]
+  const categories = useMemo(
+    () => activityCategoryOptions(...companions.map((companion) => companion.categories)),
+    [companions],
+  )
 
   const filtered = useMemo(() => {
     const searchTerm = query.trim().toLowerCase()
     return companions.filter((companion) => {
       if (mode !== 'all' && companion.mode !== mode && !(mode === 'online' && companion.mode === 'both')) return false
-      if (category && !(companion.categories ?? []).includes(category)) return false
+      if (category && !(companion.categories ?? []).some((value) => activityCategoriesMatch(value, category))) return false
       if (strength && !companion.strengths.includes(strength)) return false
       if (bookableOnly && !companion.bookable) return false
       if (!searchTerm) return true
@@ -198,7 +202,7 @@ function NearbySearchPage() {
             <span>Things to do</span>
             <select aria-label="Things to do" value={category} onChange={(event) => setCategory(event.currentTarget.value)}>
               <option value="">Everything</option>
-              {activityCategories.map((value) => <option key={value} value={value}>{value}</option>)}
+              {categories.map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
           </label>
 

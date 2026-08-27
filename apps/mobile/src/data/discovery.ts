@@ -1,4 +1,4 @@
-import { activityCategories, friendStrengths, type ActivityCategory, type FriendStrength } from '@lets-be-friends/shared'
+import { activityCategories, activityCategoriesMatch, activityCategoryOptions, friendStrengths, type ActivityCategory, type FriendStrength } from '@lets-be-friends/shared'
 
 import type { DiscoveryCompanionViewModel, SessionMode } from './companionViewModels'
 
@@ -48,6 +48,10 @@ export const discoveryModes: ReadonlyArray<{ id: DiscoveryFilters['mode']; label
 export const discoveryCategories = activityCategories
 export const discoveryStrengths = friendStrengths
 
+export function discoveryCategoryOptions(companions: ReadonlyArray<Pick<DiscoveryCompanionViewModel, 'categories'>>) {
+  return activityCategoryOptions(...companions.map((companion) => companion.categories))
+}
+
 export const featuredCategories: ActivityCategory[] = [
   'Good company',
   'Coffee and meals',
@@ -65,7 +69,7 @@ export function filterDiscoveryCompanions(
   return companions.filter((companion) => {
     if (filters.bookableOnly && !companion.bookable) return false
     if (filters.mode !== 'all' && !companion.sessionModes.includes(filters.mode)) return false
-    if (filters.category && !companion.categories.includes(filters.category)) return false
+    if (filters.category && !companion.categories.some((category) => activityCategoriesMatch(category, filters.category!))) return false
     if (filters.strength && !companion.strengths.includes(filters.strength)) return false
     if (!normalizedQuery) return true
 

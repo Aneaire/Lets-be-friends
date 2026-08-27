@@ -1,4 +1,5 @@
 import * as Location from 'expo-location'
+import { allActivityCategoryLabel } from '@lets-be-friends/shared'
 import { useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
 import { useMemo, useState } from 'react'
@@ -16,7 +17,7 @@ import { ProductMap } from '@/design-system/organisms/ProductMap'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { mapApprovedCompanion, type ApprovedCompanionRecord } from '@/data/companionViewModels'
-import { defaultDiscoveryFilters, discoveryCategories, discoveryModes, discoveryStrengths, filterDiscoveryCompanions, type DiscoveryFilters } from '@/data/discovery'
+import { defaultDiscoveryFilters, discoveryCategoryOptions, discoveryModes, discoveryStrengths, filterDiscoveryCompanions, type DiscoveryFilters } from '@/data/discovery'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 const radii = [5, 10, 25, 50, 100] as const
@@ -34,10 +35,15 @@ export default function NearbyScreen() {
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<DiscoveryFilters>(defaultDiscoveryFilters)
   const result = useQuery(mobileApi.companions.listApproved, backend.status === 'configured' && origin ? { ...origin, radiusKm } : 'skip')
-  const companions = useMemo(() => {
-    const source = (result ?? []).map((record: ApprovedCompanionRecord) => mapApprovedCompanion(record))
-    return filterDiscoveryCompanions(source, query, filters)
-  }, [filters, query, result])
+  const sourceCompanions = useMemo(
+    () => (result ?? []).map((record: ApprovedCompanionRecord) => mapApprovedCompanion(record)),
+    [result],
+  )
+  const companions = useMemo(
+    () => filterDiscoveryCompanions(sourceCompanions, query, filters),
+    [filters, query, sourceCompanions],
+  )
+  const categories = useMemo(() => discoveryCategoryOptions(sourceCompanions), [sourceCompanions])
 
   async function locate() {
     setLocating(true)
@@ -111,7 +117,7 @@ export default function NearbyScreen() {
             <View style={styles.radii}>{radii.map((radius) => <Chip key={radius} label={`${radius} km`} selected={radiusKm === radius} onPress={() => setRadiusKm(radius)} />)}</View>
             <SearchField label="Search nearby Companions" value={query} onChange={setQuery} placeholder="Search names, Strengths, or interests" />
             <View style={styles.radii}>{discoveryModes.map((item) => <Chip key={item.id} label={item.label} selected={filters.mode === item.id} onPress={() => setFilters((current) => ({ ...current, mode: item.id }))} />)}<Chip label="Bookable" selected={filters.bookableOnly} onPress={() => setFilters((current) => ({ ...current, bookableOnly: !current.bookableOnly }))} /></View>
-            <FlatList horizontal data={discoveryCategories} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} renderItem={({ item }) => <Chip label={item} selected={filters.category === item} onPress={() => setFilters((current) => ({ ...current, category: current.category === item ? undefined : item }))} />} />
+            <FlatList horizontal data={[allActivityCategoryLabel, ...categories]} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} renderItem={({ item }) => <Chip label={item} selected={item === allActivityCategoryLabel ? !filters.category : filters.category === item} onPress={() => setFilters((current) => ({ ...current, category: item === allActivityCategoryLabel || current.category === item ? undefined : item }))} />} />
             <FlatList horizontal data={discoveryStrengths} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} renderItem={({ item }) => <Chip label={item} selected={filters.strength === item} onPress={() => setFilters((current) => ({ ...current, strength: current.strength === item ? undefined : item }))} />} />
             <ActionButton label="Refresh current location" onPress={() => void locate()} secondary disabled={locating} />
             <AppText variant="bodyStrong">{result === undefined ? 'Loading nearby results' : `${companions.length} nearby ${companions.length === 1 ? 'Companion' : 'Companions'}`}</AppText>

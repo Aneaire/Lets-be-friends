@@ -1,4 +1,5 @@
 import { FlatList, StyleSheet, View } from 'react-native'
+import { allActivityCategoryLabel } from '@lets-be-friends/shared'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Chip } from '@/design-system/atoms/Chip'
@@ -9,6 +10,7 @@ import { density } from '@/theme/tokens'
 
 type DiscoveryFilterSheetContentProps = {
   filters: DiscoveryFilters
+  categories?: readonly string[]
   onChange: (filters: DiscoveryFilters) => void
   onClose: () => void
 }
@@ -19,7 +21,7 @@ export type DiscoveryFilterSheetProps = DiscoveryFilterSheetContentProps & {
 
 export type DiscoveryFilterSheetPresentationProps = DiscoveryFilterSheetContentProps
 
-function FilterBody({ filters, onChange }: Pick<DiscoveryFilterSheetContentProps, 'filters' | 'onChange'>) {
+function FilterBody({ filters, categories = discoveryCategories, onChange }: Pick<DiscoveryFilterSheetContentProps, 'filters' | 'categories' | 'onChange'>) {
   return (
     <View style={styles.body}>
       <AppText variant="bodyStrong">Session format</AppText>
@@ -31,11 +33,20 @@ function FilterBody({ filters, onChange }: Pick<DiscoveryFilterSheetContentProps
       <AppText variant="bodyStrong">Everyday help and activities</AppText>
       <FlatList
         horizontal
-        data={discoveryCategories}
+        data={[allActivityCategoryLabel, ...categories]}
         keyExtractor={(item) => item}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.horizontalChips}
-        renderItem={({ item }) => <Chip label={item} selected={filters.category === item} onPress={() => onChange({ ...filters, category: filters.category === item ? undefined : item })} />}
+        renderItem={({ item }) => (
+          <Chip
+            label={item}
+            selected={item === allActivityCategoryLabel ? !filters.category : filters.category === item}
+            onPress={() => onChange({
+              ...filters,
+              category: item === allActivityCategoryLabel || filters.category === item ? undefined : item,
+            })}
+          />
+        )}
       />
       <AppText variant="bodyStrong">Strength</AppText>
       <FlatList
@@ -59,19 +70,19 @@ function FilterActions({ onChange, onClose }: Pick<DiscoveryFilterSheetContentPr
   )
 }
 
-export function DiscoveryFilterSheetPresentation({ filters, onChange, onClose }: DiscoveryFilterSheetPresentationProps) {
+export function DiscoveryFilterSheetPresentation({ filters, categories, onChange, onClose }: DiscoveryFilterSheetPresentationProps) {
   return (
     <BottomSheetPresentation
       title="Discovery filters"
       closeLabel="Close filters"
       onClose={onClose}
       footer={<FilterActions onChange={onChange} onClose={onClose} />}>
-      <FilterBody filters={filters} onChange={onChange} />
+      <FilterBody filters={filters} categories={categories} onChange={onChange} />
     </BottomSheetPresentation>
   )
 }
 
-export function DiscoveryFilterSheet({ visible, filters, onChange, onClose }: DiscoveryFilterSheetProps) {
+export function DiscoveryFilterSheet({ visible, filters, categories, onChange, onClose }: DiscoveryFilterSheetProps) {
   return (
     <BottomSheet
       visible={visible}
@@ -79,7 +90,7 @@ export function DiscoveryFilterSheet({ visible, filters, onChange, onClose }: Di
       closeLabel="Close filters"
       onClose={onClose}
       footer={<FilterActions onChange={onChange} onClose={onClose} />}>
-      <FilterBody filters={filters} onChange={onChange} />
+      <FilterBody filters={filters} categories={categories} onChange={onChange} />
     </BottomSheet>
   )
 }
