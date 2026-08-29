@@ -2,11 +2,11 @@ import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider, usePathname } fr
 import { StatusBar } from 'expo-status-bar'
 import { useEffect } from 'react'
 import { useColorScheme } from 'react-native'
-import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { canAccessMemberRoutes } from '@/auth/routeAccess'
 import { MobileBackendProvider } from '@/backend/MobileBackendProvider'
+import { SafeAreaRoot } from '@/design-system/templates/SafeAreaRoot'
 import { useMobileMember } from '@/member/MobileMember'
 import { onboardingDecision } from '@/member/onboarding'
 import { AppThemeProvider } from '@/theme/ThemeProvider'
@@ -20,7 +20,7 @@ export default function RootLayout() {
   const dark = scheme === 'dark'
 
   return (
-    <SafeAreaProvider>
+    <SafeAreaRoot>
       <MobileBackendProvider>
         <AppThemeProvider>
           <ThemeProvider value={dark ? DarkTheme : DefaultTheme}>
@@ -31,7 +31,7 @@ export default function RootLayout() {
           </ThemeProvider>
         </AppThemeProvider>
       </MobileBackendProvider>
-    </SafeAreaProvider>
+    </SafeAreaRoot>
   )
 }
 
