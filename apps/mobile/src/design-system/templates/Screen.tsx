@@ -9,13 +9,17 @@ import {
   type ScrollViewProps,
   type ViewStyle,
 } from 'react-native'
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useSafeAreaInsets, type EdgeInsets } from 'react-native-safe-area-context'
 
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
 
 export function keyboardAvoidingBehavior(platform: PlatformOSType): KeyboardAvoidingViewProps['behavior'] {
   return platform === 'ios' ? 'padding' : undefined
+}
+
+export function screenSafeAreaPadding(insets: EdgeInsets): ViewStyle {
+  return { paddingTop: insets.top, paddingRight: insets.right, paddingLeft: insets.left }
 }
 
 export function Screen({ children, scroll = true, contentStyle, footer, ...props }: PropsWithChildren<ScrollViewProps & { scroll?: boolean; contentStyle?: ViewStyle; footer?: ReactNode }>) {
@@ -25,7 +29,7 @@ export function Screen({ children, scroll = true, contentStyle, footer, ...props
   const responsiveStyle = width >= 768 ? styles.tabletContent : undefined
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
+    <View style={[styles.safe, screenSafeAreaPadding(insets), { backgroundColor: theme.colors.background }]}>
       {scroll ? (
         <ScrollView
           {...props}
@@ -38,7 +42,7 @@ export function Screen({ children, scroll = true, contentStyle, footer, ...props
         <View style={[styles.content, styles.fill, responsiveStyle, contentStyle]}>{children}</View>
       )}
       {footer ? <View style={[styles.footer, { paddingBottom: Math.max(12, insets.bottom + 8), backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>{footer}</View> : null}
-    </SafeAreaView>
+    </View>
   )
 }
 

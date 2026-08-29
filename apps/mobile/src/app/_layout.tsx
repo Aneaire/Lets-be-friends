@@ -20,18 +20,18 @@ export default function RootLayout() {
   const dark = scheme === 'dark'
 
   return (
-    <SafeAreaRoot>
-      <MobileBackendProvider>
-        <AppThemeProvider>
+    <AppThemeProvider>
+      <SafeAreaRoot>
+        <MobileBackendProvider>
           <ThemeProvider value={dark ? DarkTheme : DefaultTheme}>
             <StatusBar style={dark ? 'light' : 'dark'} />
             <ConnectivityBanner />
             <AuthenticatedNavigator reduceMotion={reduceMotion} />
             <AppToastHost />
           </ThemeProvider>
-        </AppThemeProvider>
-      </MobileBackendProvider>
-    </SafeAreaRoot>
+        </MobileBackendProvider>
+      </SafeAreaRoot>
+    </AppThemeProvider>
   )
 }
 
