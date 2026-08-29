@@ -10,6 +10,7 @@ import { ProfileEditContent } from '@/member/ProfileEditContent'
 import { canSaveProfileEdit, profileEditFieldCopy } from '@/member/profileEditFields'
 import { useMobileMember } from '@/member/MobileMember'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -21,7 +22,7 @@ export default function ProfileEditScreen() {
   if (member.status === 'signed_out') return <EditState title="Sign in to edit your profile" action="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <EditState title="Profile editing needs account services" detail="Connect your account to edit your member profile." />
   if (member.status === 'unavailable' || member.status === 'error') return <EditState title="Profile editing is unavailable" detail={member.message} />
-  if (member.status !== 'ready') return <EditState title="Loading your profile" loading />
+  if (member.status !== 'ready') return <PageSkeleton variant="profileForm" />
 
   return <ReadyProfileEdit viewer={member.viewer} />
 }

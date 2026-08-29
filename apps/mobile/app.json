@@ -14,6 +14,7 @@
     "android": {
       "package": "com.letsbefriends.mobile",
       "googleServicesFile": "./google-services.json",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/official-adaptive-foreground.png",

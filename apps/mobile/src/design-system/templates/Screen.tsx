@@ -1,9 +1,22 @@
 import type { PropsWithChildren, ReactNode } from 'react'
-import { ScrollView, StyleSheet, View, useWindowDimensions, type ScrollViewProps, type ViewStyle } from 'react-native'
+import {
+  ScrollView,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+  type KeyboardAvoidingViewProps,
+  type PlatformOSType,
+  type ScrollViewProps,
+  type ViewStyle,
+} from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
+
+export function keyboardAvoidingBehavior(platform: PlatformOSType): KeyboardAvoidingViewProps['behavior'] {
+  return platform === 'ios' ? 'padding' : undefined
+}
 
 export function Screen({ children, scroll = true, contentStyle, footer, ...props }: PropsWithChildren<ScrollViewProps & { scroll?: boolean; contentStyle?: ViewStyle; footer?: ReactNode }>) {
   const theme = useAppTheme()

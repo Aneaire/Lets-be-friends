@@ -21,6 +21,7 @@ import { Chip } from '@/design-system/atoms/Chip'
 import { Checkbox } from '@/design-system/atoms/Field'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
 import { onboardingDecision } from '@/member/onboarding'
@@ -50,7 +51,7 @@ export default function OnboardingScreen() {
   }
   if (auth.status === 'setup_error') return <OnboardingState title="Account services unavailable" detail="Live member onboarding is unavailable in this build." />
   if (auth.status === 'loading' || member.status === 'loading' || member.status === 'syncing') {
-    return <OnboardingState title="Preparing your account" detail="Securely connecting your member profile." loading />
+    return <PageSkeleton variant="onboarding" />
   }
   if (member.status === 'unavailable' || member.status === 'error') {
     return <OnboardingState title="Member setup is unavailable" detail={member.message} />

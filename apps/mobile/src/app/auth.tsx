@@ -21,6 +21,7 @@ import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { hideAppToast, showAppToast, type AppToastTone } from '@/design-system/molecules/AppToast'
 import { Brand } from '@/design-system/atoms/Brand'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -33,7 +34,7 @@ export default function AuthScreen() {
   const auth = useMobileAuth()
   const theme = useAppTheme()
 
-  if (auth.status === 'loading') return <AuthState title="Preparing sign in" detail="Loading secure account access." loading />
+  if (auth.status === 'loading') return <PageSkeleton variant="auth" />
   if (auth.status === 'signed_in') {
     return (
       <AuthState

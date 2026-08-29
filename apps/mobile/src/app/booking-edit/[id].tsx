@@ -9,6 +9,7 @@ import { mobileApi, type BookingId, type CompanionProfileId } from '@/backend/cl
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
 import { bookingPriceEstimate } from '@/data/bookingPricing'
@@ -36,7 +37,7 @@ export default function EditBookingRequestScreen() {
   if (member.status === 'signed_out') return <EditGate title="Sign in to edit this request" action="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <EditGate title="Booking requests need account services" action="Return home" onPress={() => router.replace('/')} />
   if (member.status === 'unavailable' || member.status === 'error') return <EditGate title="This booking request is unavailable" detail="Your member account could not be connected safely." />
-  if (member.status !== 'ready' || bookings === undefined) return <EditGate title="Loading booking request" />
+  if (member.status !== 'ready' || bookings === undefined) return <PageSkeleton variant="bookingForm" />
   if (!booking) return <EditGate title="Booking request not found" detail="This booking is not available in your member history." action="View all bookings" onPress={() => router.replace('/bookings')} />
 
   const actions = bookingActionVisibility({
@@ -46,7 +47,7 @@ export default function EditBookingRequestScreen() {
     companionCompletedAt: booking.companionCompletedAt,
   })
   if (!actions.canEditRequest) return <EditGate title="This request can no longer be edited" detail="Only your pending request can be edited before the Companion decides." action="Return to booking" onPress={() => returnToBooking(bookingId)} />
-  if (companionResult === undefined) return <EditGate title="Loading current Companion options" />
+  if (companionResult === undefined) return <PageSkeleton variant="bookingForm" />
   if (companionResult === null) return <EditGate title="This request cannot be edited" detail="The current public Companion profile is unavailable. No changes were made." action="Return to booking" onPress={() => returnToBooking(bookingId)} />
 
   return <EditRequestForm key={String(booking.updatedAt)} booking={booking} companionRecord={companionResult as ApprovedCompanionRecord} />

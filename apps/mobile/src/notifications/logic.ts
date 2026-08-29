@@ -22,6 +22,54 @@ export type PushPreference = {
   pendingDisable: boolean
 }
 
+export type PushRegistrationCandidate = {
+  installationId: string
+  expoPushToken: string
+  projectId: string
+  platform: 'ios' | 'android'
+}
+
+export function createPushRegistrationCoordinator() {
+  const active = new Map<string, Promise<boolean>>()
+  const acknowledged = new Map<string, string>()
+
+  return {
+    register(
+      accountId: string,
+      load: () => Promise<PushRegistrationCandidate | null>,
+      persist: (candidate: PushRegistrationCandidate) => Promise<void>,
+    ) {
+      const current = active.get(accountId)
+      if (current) return current
+
+      const attempt = (async () => {
+        const candidate = await load()
+        if (!candidate) return false
+        const signature = JSON.stringify([
+          candidate.installationId,
+          candidate.expoPushToken,
+          candidate.projectId,
+          candidate.platform,
+        ])
+        if (acknowledged.get(accountId) === signature) return true
+        await persist(candidate)
+        acknowledged.set(accountId, signature)
+        return true
+      })()
+
+      active.set(accountId, attempt)
+      const clear = () => {
+        if (active.get(accountId) === attempt) active.delete(accountId)
+      }
+      void attempt.then(clear, clear)
+      return attempt
+    },
+    reset(accountId: string) {
+      acknowledged.delete(accountId)
+    },
+  }
+}
+
 export type PushUiState =
   | { status: 'unavailable'; message: string }
   | { status: 'loading'; message: string }

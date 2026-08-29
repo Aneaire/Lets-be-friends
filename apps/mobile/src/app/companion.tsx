@@ -18,6 +18,7 @@ import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Screen, Section } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import {
   companionApplicationStatusCopy,
@@ -37,7 +38,7 @@ export default function CompanionScreen() {
   if (member.status === 'signed_out') return <CompanionState title="Sign in to manage Companion tools" action="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <CompanionState title="Companion tools need account services" action="Return to Profile" onPress={() => router.replace('/profile')} />
   if (member.status === 'unavailable' || member.status === 'error') return <CompanionState title="Companion tools are unavailable" detail="Your member account could not be connected safely." />
-  if (member.status !== 'ready') return <CompanionState title="Loading Companion tools" />
+  if (member.status !== 'ready') return <PageSkeleton variant="companionTools" />
   return <ReadyCompanionScreen />
 }
 
@@ -71,7 +72,7 @@ function ReadyCompanionScreen() {
     setForm(update)
   }
 
-  if (application === undefined) return <CompanionState title="Loading your Companion profile" />
+  if (application === undefined) return <PageSkeleton variant="companionTools" />
 
   const status = application ? companionApplicationStatusCopy[application.status as CompanionApplicationStatus] : null
   const verificationUrl = buildMobileWebHandoffUrl(resolveMobileWebAppConfiguration(), { intent: 'companion_application', mobileReturn: 'companion' })

@@ -6,7 +6,7 @@ import type { ProductMapProps } from './ProductMap'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-export function ProductMap({ center, radiusKm, points = [], onSelectPoint }: ProductMapProps) {
+export function ProductMap({ center, radiusKm, points = [], onSelectPoint, expanded = false }: ProductMapProps) {
   const theme = useAppTheme()
   const mapCenter = center
     ? [center.longitude, center.latitude] as [number, number]
@@ -14,7 +14,7 @@ export function ProductMap({ center, radiusKm, points = [], onSelectPoint }: Pro
   const radius = center && radiusKm ? circleFeature(center, radiusKm) : null
 
   return (
-    <View style={styles.frame} accessibilityLabel="Nearby Companion map">
+    <View style={[styles.frame, expanded && styles.expandedFrame]} accessibilityLabel="Nearby Companion map">
       <Map mapStyle={productMapStyleUrl} style={styles.map} attribution logo={false}>
         <Camera center={mapCenter} zoom={center ? productMapZoomForRadius(radiusKm) : productMapInitialView.zoom} duration={350} easing="ease" />
         {radius ? (
@@ -64,6 +64,7 @@ function circleFeature(center: { latitude: number; longitude: number }, radiusKm
 
 const styles = StyleSheet.create({
   frame: { height: 320, borderRadius: 18, overflow: 'hidden' },
+  expandedFrame: { height: 420 },
   map: { flex: 1 },
   originMarker: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#1093ED', alignItems: 'center', justifyContent: 'center' },
   originDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#1093ED' },

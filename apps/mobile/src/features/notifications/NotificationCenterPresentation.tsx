@@ -11,6 +11,7 @@ import {
 import { StateView } from '@/design-system/molecules/StateView'
 import { InlineNotice } from '@/design-system/molecules/FeedbackState'
 import { Screen } from '@/design-system/templates/Screen'
+import { NotificationListSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
@@ -111,13 +112,7 @@ export function NotificationCenterPresentation({
       {error ? <InlineNotice title="Notification update failed" tone="danger">{error}</InlineNotice> : null}
 
       {loadingFirstPage ? (
-        <StateView
-          embedded
-          loading
-          title="Loading notifications"
-          detail="Booking, social, account, and safety updates will appear here."
-          intent="self"
-        />
+        <NotificationListSkeleton />
       ) : notifications.length === 0 ? (
         <StateView
           embedded

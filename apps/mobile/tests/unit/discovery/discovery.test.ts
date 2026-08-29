@@ -1,5 +1,5 @@
 import type { DiscoveryCompanionViewModel } from '@/data/companionViewModels'
-import { dedupeFeedItems, defaultDiscoveryFilters, discoveryCategoryOptions, filterDiscoveryCompanions, includeUnavailableCompanions, postMediaValidationError, type DiscoveryFilters } from '@/data/discovery'
+import { dedupeFeedItems, defaultDiscoveryFilters, discoveryCategoryOptions, filterDiscoveryCompanions, includeUnavailableCompanions, nearbySearchOptionsLabel, postMediaValidationError, type DiscoveryFilters } from '@/data/discovery'
 
 const liveCompanions: DiscoveryCompanionViewModel[] = [
   {
@@ -95,6 +95,17 @@ describe('Companion discovery', () => {
     const artsFilters: DiscoveryFilters = { ...defaultDiscoveryFilters, category: 'Arts and crafts' }
     expect(filterDiscoveryCompanions(liveCompanions, '', artsFilters)).toEqual([])
     expect(filterDiscoveryCompanions(liveCompanions, '', includeUnavailableCompanions(artsFilters)).map((companion) => companion.id)).toEqual(['ines'])
+  })
+
+  it('describes the hidden nearby options on the circular map control', () => {
+    expect(nearbySearchOptionsLabel(25, '', defaultDiscoveryFilters)).toBe(
+      'Open nearby search options. 25 km radius. 1 active option.',
+    )
+    expect(nearbySearchOptionsLabel(50, 'coffee', {
+      ...defaultDiscoveryFilters,
+      mode: 'in_person',
+      strength: 'Good listener',
+    })).toBe('Open nearby search options. 50 km radius. 4 active options.')
   })
 
   it('deduplicates reactive feed pages and validates media before upload grants', () => {

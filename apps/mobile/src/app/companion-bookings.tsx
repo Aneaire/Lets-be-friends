@@ -9,6 +9,7 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { StateView } from '@/design-system/molecules/StateView'
 import { BookingCard } from '@/design-system/organisms/BookingCard'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -19,7 +20,7 @@ export default function CompanionBookingsScreen() {
   if (member.status === 'signed_out') return <CompanionBookingsState title="Sign in to view incoming bookings" action="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <CompanionBookingsState title="Incoming bookings need account services" action="Return to Profile" onPress={() => router.replace('/profile')} />
   if (member.status === 'unavailable' || member.status === 'error') return <CompanionBookingsState title="Incoming bookings are unavailable" detail="Your member account could not be connected safely." />
-  if (member.status !== 'ready') return <CompanionBookingsState title="Loading incoming bookings" loading />
+  if (member.status !== 'ready') return <PageSkeleton variant="bookings" />
   return <ReadyCompanionBookingsScreen />
 }
 
@@ -27,7 +28,7 @@ function ReadyCompanionBookingsScreen() {
   const theme = useAppTheme()
   const application = useQuery(mobileApi.companions.myApplication, {})
   const bookings = useQuery(mobileApi.bookings.forCompanion, {})
-  if (application === undefined || bookings === undefined) return <CompanionBookingsState title="Loading incoming bookings" loading />
+  if (application === undefined || bookings === undefined) return <PageSkeleton variant="bookings" />
   if (!application) return <CompanionBookingsState title="Create a Companion profile first" detail="Incoming booking requests appear after you have a Companion profile." action="Open Companion tools" onPress={() => router.replace('/companion')} />
 
   const active = bookings.filter((booking) => ['request_sent', 'accepted', 'verification_required', 'pending_admin_review'].includes(booking.status))

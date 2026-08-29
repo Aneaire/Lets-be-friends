@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { conversationPreview, formatMessageTimestamp } from '@/data/messageViewModels'
@@ -21,7 +22,7 @@ export default function MessagesScreen() {
   if (member.status === 'unconfigured') return <MessagesState title="Messages need account services" detail="Connect your account to load private conversations." />
   if (member.status === 'signed_out') return <MessagesState title="Sign in to view messages" detail="Your private member conversations will appear here." action="Sign in" onPress={() => router.push('/auth')} />
   if (member.status === 'unavailable' || member.status === 'error') return <MessagesState title="Messages are unavailable" detail={member.message} />
-  if (member.status !== 'ready' || conversations === undefined) return <MessagesState title="Loading conversations" detail="Connecting to your private messages." loading />
+  if (member.status !== 'ready' || conversations === undefined) return <PageSkeleton variant="messages" />
   return <ConversationInbox conversations={conversations} />
 }
 

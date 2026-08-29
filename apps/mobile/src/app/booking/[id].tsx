@@ -14,6 +14,7 @@ import { BookingMessagesButton } from '@/features/booking/BookingMessagesButton'
 import { PlanThread } from '@/features/booking/PlanThread'
 import { BookingSafetyActions } from '@/features/booking/BookingSafetyActions'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
 import {
@@ -32,7 +33,7 @@ export default function BookingDetailScreen() {
   if (member.status === 'signed_out') return <DetailState title="Sign in to view this booking" action="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <DetailState title="Booking details need account services" action="Return home" onPress={() => router.replace('/')} />
   if (member.status === 'unavailable' || member.status === 'error') return <DetailState title="Booking details are unavailable" detail="Your member account could not be connected safely." />
-  if (member.status !== 'ready') return <DetailState title="Loading booking details" />
+  if (member.status !== 'ready') return <PageSkeleton variant="bookingDetail" />
   return <ReadyBookingDetailScreen />
 }
 
@@ -41,7 +42,7 @@ function ReadyBookingDetailScreen() {
   const bookingId = typeof params.id === 'string' ? params.id : ''
   const bookings = useQuery(mobileApi.bookings.mine, {})
 
-  if (bookings === undefined) return <DetailState title="Loading booking details" />
+  if (bookings === undefined) return <PageSkeleton variant="bookingDetail" />
   const booking = bookings.find((item: Booking) => String(item._id) === bookingId)
   if (!booking) return <DetailState title="Booking not found" detail="This booking is not available in your member history." action="View all bookings" onPress={() => router.replace('/bookings')} />
 

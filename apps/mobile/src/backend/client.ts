@@ -74,6 +74,7 @@ export const mobileApi = {
     editPost: generatedApi.social.editPost,
     deletePost: generatedApi.social.deletePost,
     createComment: generatedApi.social.createComment,
+    editComment: generatedApi.social.editComment,
     toggleSavePost: generatedApi.social.toggleSavePost,
     toggleLike: generatedApi.social.toggleLike,
     toggleFollow: generatedApi.social.toggleFollow,

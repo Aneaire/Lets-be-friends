@@ -13,6 +13,8 @@ import { AttachmentMetaRow } from '@/design-system/molecules/AttachmentMetaRow'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { ReportAction } from '@/features/safety/ReportAction'
 import { AppText } from '@/design-system/atoms/Typography'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
+import { keyboardAvoidingBehavior } from '@/design-system/templates/Screen'
 import { CompactComposer } from '@/features/messaging/CompactComposer'
 import { BookingMessageShell, ConversationThreadHeader } from '@/features/messaging/ConversationThreadPresentation'
 import { MessageBubble } from '@/features/messaging/MessageBubble'
@@ -34,7 +36,7 @@ export default function ConversationThreadScreen() {
   if (member.status === 'signed_out') return <ThreadState title="Sign in to view this conversation" action="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <ThreadState title="Conversations need account services" action="Return to Messages" onPress={() => router.replace('/messages')} />
   if (member.status === 'unavailable' || member.status === 'error') return <ThreadState title="This conversation is unavailable" />
-  if (member.status !== 'ready') return <ThreadState title="Loading messages" />
+  if (member.status !== 'ready') return <PageSkeleton variant="conversation" />
   return <ReadyConversationThreadScreen viewerId={String(member.viewer._id)} />
 }
 
@@ -96,7 +98,7 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
   }
 
   if (!canRead) return <ThreadState title="This conversation is unavailable" action="Return to Messages" onPress={() => router.replace('/messages')} />
-  if (conversation === undefined || messagePage.status === 'LoadingFirstPage') return <ThreadState title="Loading messages" />
+  if (conversation === undefined || messagePage.status === 'LoadingFirstPage') return <PageSkeleton variant="conversation" />
 
   return (
     <ThreadView
@@ -138,7 +140,7 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
-      <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={styles.safe} behavior={keyboardAvoidingBehavior(Platform.OS)}>
         <ConversationThreadHeader
           name={conversation.otherDisplayName}
           imageUrl={conversation.otherProfileImageUrl}

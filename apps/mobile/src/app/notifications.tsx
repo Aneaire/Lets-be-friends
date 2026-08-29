@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native'
 import { mobileApi } from '@/backend/client'
 import { StateView } from '@/design-system/molecules/StateView'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { mobileNotificationRoute, notificationAge, notificationGroup, type MobileNotificationDestination } from '@/data/notifications'
 import { NotificationCenterPresentation } from '@/features/notifications/NotificationCenterPresentation'
 import { useMobileMember } from '@/member/MobileMember'
@@ -14,7 +15,7 @@ export default function NotificationsScreen() {
   if (member.status === 'signed_out') return <NotificationState title="Sign in to view notifications" action="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <NotificationState title="Notifications need account services" detail="Connect your account to load personal notification activity." />
   if (member.status === 'unavailable' || member.status === 'error') return <NotificationState title="Notifications are unavailable" detail={member.message} />
-  if (member.status !== 'ready') return <NotificationState title="Loading notifications" loading />
+  if (member.status !== 'ready') return <PageSkeleton variant="notifications" />
   return <ReadyNotifications />
 }
 

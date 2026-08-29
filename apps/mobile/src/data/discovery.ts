@@ -88,3 +88,9 @@ export function filterDiscoveryCompanions(
 export function activeDiscoveryFilterCount(filters: DiscoveryFilters) {
   return Number(filters.mode !== 'all') + Number(Boolean(filters.category)) + Number(Boolean(filters.strength)) + Number(filters.bookableOnly)
 }
+
+export function nearbySearchOptionsLabel(radiusKm: number, query: string, filters: DiscoveryFilters) {
+  const activeOptionCount = activeDiscoveryFilterCount(filters) + Number(Boolean(query.trim()))
+  const activeOptions = activeOptionCount === 1 ? '1 active option' : `${activeOptionCount} active options`
+  return `Open nearby search options. ${radiusKm} km radius. ${activeOptions}.`
+}

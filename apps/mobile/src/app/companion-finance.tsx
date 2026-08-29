@@ -6,6 +6,7 @@ import { StyleSheet } from 'react-native'
 import { mobileApi } from '@/backend/client'
 import { StateView } from '@/design-system/molecules/StateView'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import {
   CompanionFinancePresentation,
   type CompanionFinanceLedgerItem,
@@ -21,14 +22,14 @@ export default function CompanionFinanceScreen() {
   if (member.status === 'signed_out') return <FinanceState title="Sign in to view Companion finance" action="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <FinanceState title="Companion finance needs account services" detail="Connect your account to load earnings and obligations." />
   if (member.status === 'unavailable' || member.status === 'error') return <FinanceState title="Companion finance is unavailable" detail={member.message} />
-  if (member.status !== 'ready') return <FinanceState title="Loading Companion finance" loading />
+  if (member.status !== 'ready') return <PageSkeleton variant="finance" />
   return <ReadyCompanionFinance />
 }
 
 function ReadyCompanionFinance() {
   const dashboard = useQuery(mobileApi.finance.dashboard, {})
 
-  if (dashboard === undefined) return <FinanceState title="Loading Companion finance" detail="Retrieving your verified earnings activity." loading />
+  if (dashboard === undefined) return <PageSkeleton variant="finance" />
   if (dashboard === null) return <FinanceState title="No Companion finance profile" detail="Create a Companion profile before finance balances and obligations are available." action="Open Companion tools" onPress={() => router.replace('/companion')} />
 
   return (

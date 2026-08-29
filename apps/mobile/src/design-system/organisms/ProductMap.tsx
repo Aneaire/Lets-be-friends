@@ -15,12 +15,13 @@ export type ProductMapProps = {
   radiusKm?: number
   points?: ProductMapPoint[]
   onSelectPoint?: (id: string) => void
+  expanded?: boolean
 }
 
-export function ProductMap(_props: ProductMapProps) {
+export function ProductMap({ expanded = false }: ProductMapProps) {
   const theme = useAppTheme()
   return (
-    <View style={[styles.fallback, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}>
+    <View style={[styles.fallback, expanded && styles.expanded, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}>
       <AppText variant="bodyStrong">Map preview is available in the iOS and Android app.</AppText>
     </View>
   )
@@ -28,4 +29,5 @@ export function ProductMap(_props: ProductMapProps) {
 
 const styles = StyleSheet.create({
   fallback: { height: 300, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  expanded: { height: 420 },
 })

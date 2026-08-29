@@ -7,8 +7,10 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { mobileApi } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { Chip } from '@/design-system/atoms/Chip'
+import { IconButton } from '@/design-system/atoms/IconButton'
 import { CompanionCard } from '@/design-system/organisms/CompanionCard'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { SearchField } from '@/design-system/molecules/SearchField'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -34,7 +36,7 @@ export default function ExploreScreen() {
 
 function ConnectedExploreScreen() {
   const result = useQuery(mobileApi.companions.listExploreDirectory, {})
-  if (result === undefined) return <ExploreState title="Loading members" detail="Connecting to the member directory." loading />
+  if (result === undefined) return <PageSkeleton variant="explore" />
   return <DiscoveryList sourceCompanions={(result as ApprovedCompanionRecord[]).map(mapApprovedCompanion)} />
 }
 
@@ -71,9 +73,13 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
                 <AppText variant="title">Explore people</AppText>
                 <AppText color={theme.colors.textMuted}>Meet members and find Companions by Strength, category, and session format.</AppText>
               </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Open nearby discovery" onPress={() => router.push('/nearby' as never)} style={styles.nearbyButton}>
-                <AppText variant="label" color={theme.colors.socialText}>NEARBY</AppText>
-              </Pressable>
+              <IconButton
+                label="Open nearby discovery"
+                icon="map-outline"
+                tone="social"
+                onPress={() => router.push('/nearby' as never)}
+                style={{ ...styles.nearbyButton, borderColor: theme.colors.socialText }}
+              />
             </View>
             <SearchField label="Search people" value={query} onChange={setQuery} placeholder="Search names, Strengths, or interests" />
             <View style={styles.quickFilters}>
@@ -118,7 +124,7 @@ const styles = StyleSheet.create({
   header: { paddingTop: 14, gap: 12, marginBottom: 14 },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   titleCopy: { flex: 1, gap: 4 },
-  nearbyButton: { minWidth: 64, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  nearbyButton: { width: 48, height: 48, borderWidth: 1, borderRadius: 24 },
   quickFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   resultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   clearButton: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },

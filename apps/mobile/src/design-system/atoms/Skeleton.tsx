@@ -33,7 +33,7 @@ export function PostComposerSkeleton() {
 export function FeedSkeleton() {
   const theme = useAppTheme()
   return (
-    <View accessibilityLabel="Loading community update" style={[styles.card, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
+    <View accessibilityLabel="Loading community update" style={[styles.card, { backgroundColor: theme.colors.surface }]}>
       <View style={styles.row}>
         <Skeleton width={44} height={44} radius={22} />
         <View style={styles.copy}>
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   composer: { minHeight: 54, marginTop: 4, padding: 6, borderWidth: 1, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 6 },
   composerPrompt: { minHeight: 40, flex: 1, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, justifyContent: 'center' },
   composerMedia: { width: 44, height: 44, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  card: { gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  card: { gap: 8, paddingHorizontal: 12, paddingVertical: 12, borderRadius: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   copy: { flex: 1, gap: 8 },
   body: { gap: 6 },

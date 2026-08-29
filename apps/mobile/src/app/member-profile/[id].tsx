@@ -15,6 +15,7 @@ import { Chip } from '@/design-system/atoms/Chip'
 import { MemberSafetyActions } from '@/features/safety/MemberSafetyActions'
 import { ReportAction } from '@/features/safety/ReportAction'
 import { Screen, Section } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
@@ -46,7 +47,7 @@ function ConnectedMemberProfile({ id }: { id: string }) {
   const [message, setMessage] = useState('')
   useAppToastMessage(message)
 
-  if (profile === undefined) return <ProfileState title="Loading public profile" detail="Checking the member directory." loading />
+  if (profile === undefined) return <PageSkeleton variant="publicProfile" />
   if (profile === null) return <ProfileState title="Profile unavailable" detail="This member profile is no longer available." action="Return to Explore" onPress={() => router.replace('/explore')} />
 
   const userProfile = profile

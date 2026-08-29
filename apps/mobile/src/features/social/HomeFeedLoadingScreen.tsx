@@ -53,5 +53,5 @@ const styles = StyleSheet.create({
   topBar: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   titleCopy: { flex: 1, minWidth: 0, gap: 1 },
   feedFilter: { marginVertical: 10 },
-  feed: { gap: 8 },
+  feed: { gap: 12 },
 })

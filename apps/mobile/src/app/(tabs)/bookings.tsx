@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { mobileApi } from '@/backend/client'
 import { BookingCard } from '@/design-system/organisms/BookingCard'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -26,7 +27,7 @@ export default function BookingHistoryScreen() {
   if (member.status === 'signed_out') return <BookingState title="Sign in to see your bookings" action="Sign in" onPress={() => router.push('/auth')} />
   if (member.status === 'unconfigured') return <BookingState title="Bookings need account services" detail="Connect your account to view booking activity." />
   if (member.status === 'unavailable' || member.status === 'error') return <BookingState title="Bookings are unavailable" detail={member.message} />
-  if (member.status !== 'ready' || bookings === undefined) return <BookingState title="Loading your bookings" loading />
+  if (member.status !== 'ready' || bookings === undefined) return <PageSkeleton variant="bookings" />
 
   return <BookingsList bookings={bookings} />
 }

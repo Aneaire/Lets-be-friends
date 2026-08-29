@@ -16,6 +16,7 @@ import { BookingMessagesButton } from '@/features/booking/BookingMessagesButton'
 import { PlanThread } from '@/features/booking/PlanThread'
 import { BookingSafetyActions } from '@/features/booking/BookingSafetyActions'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
 import { bookingStatusPresentation, formatBookingSchedule, formatDuration } from '@/data/bookingViewModels'
@@ -29,7 +30,7 @@ export default function CompanionBookingDetailScreen() {
   if (member.status === 'signed_out') return <CompanionDetailState title="Sign in to view this Companion booking" action="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <CompanionDetailState title="Booking details need account services" action="Return to Profile" onPress={() => router.replace('/profile')} />
   if (member.status === 'unavailable' || member.status === 'error') return <CompanionDetailState title="This Companion booking is unavailable" detail="Your member account could not be connected safely." />
-  if (member.status !== 'ready') return <CompanionDetailState title="Loading Companion booking details" />
+  if (member.status !== 'ready') return <PageSkeleton variant="bookingDetail" />
   return <ReadyCompanionBookingDetail viewerId={String(member.viewer._id)} />
 }
 
@@ -43,7 +44,7 @@ function ReadyCompanionBookingDetail({ viewerId }: { viewerId: string }) {
   useAppToastMessage(message)
   const busyRef = useRef(false)
 
-  if (bookings === undefined) return <CompanionDetailState title="Loading Companion booking details" />
+  if (bookings === undefined) return <PageSkeleton variant="bookingDetail" />
   const booking = bookings.find((item: CompanionBooking) => String(item._id) === id)
   if (!booking) return <CompanionDetailState title="Companion booking not found" detail="This booking is not available for your Companion profile." action="View incoming bookings" onPress={() => router.replace('/companion-bookings')} />
 

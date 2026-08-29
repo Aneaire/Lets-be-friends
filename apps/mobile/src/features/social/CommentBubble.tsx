@@ -25,7 +25,7 @@ export function CommentBubble({
 
   return (
     <View style={[styles.comment, { borderBottomColor: theme.colors.border }]}>
-      <Avatar uri={imageUrl ?? undefined} name={author} size={32} />
+      <Avatar uri={imageUrl ?? undefined} name={author} size={28} />
       <View style={styles.copy}>
         <View style={styles.header}>
           {authorAction ?? <AppText variant="bodyStrong" numberOfLines={1}>{author}</AppText>}
@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: density.cardGap,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   copy: {
@@ -53,9 +53,8 @@ const styles = StyleSheet.create({
     gap: density.textPairGap,
   },
   header: {
-    minHeight: 22,
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     gap: 4,
   },
   action: {

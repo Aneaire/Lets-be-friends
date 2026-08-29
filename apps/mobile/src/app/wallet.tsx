@@ -8,6 +8,7 @@ import { StyleSheet } from 'react-native'
 import { mobileApi, type PaymongoTopUpId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import {
   formatQrExpiry,
@@ -32,13 +33,13 @@ export default function WalletScreen() {
   if (member.status === 'signed_out') return <WalletState title="Sign in to view your booking wallet" action="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <WalletState title="Booking wallet needs account services" action="Return to Profile" onPress={() => router.replace('/profile')} />
   if (member.status === 'unavailable' || member.status === 'error') return <WalletState title="Booking wallet is unavailable" detail="Your member account could not be connected safely." />
-  if (member.status !== 'ready') return <WalletState title="Loading booking wallet" />
+  if (member.status !== 'ready') return <PageSkeleton variant="wallet" />
   return <ReadyWalletScreen />
 }
 
 function ReadyWalletScreen() {
   const wallet = useQuery(mobileApi.finance.memberDashboard, {})
-  if (wallet === undefined) return <WalletState title="Loading booking wallet" />
+  if (wallet === undefined) return <PageSkeleton variant="wallet" />
   if (wallet === null) return <WalletState title="Booking wallet is unavailable" detail="Your wallet could not be connected safely." />
   return <WalletView wallet={wallet} />
 }

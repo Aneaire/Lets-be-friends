@@ -1,6 +1,7 @@
 import {
   ANDROID_NOTIFICATION_CHANNEL_ID,
   androidNotificationChannelSettings,
+  createPushRegistrationCoordinator,
   foregroundPermissionAction,
   installationBoundary,
   parsePushPayload,
@@ -141,6 +142,57 @@ describe('push notification pure logic', () => {
     expect(shouldSilentlyRefresh({ optedIn: true, permissionGranted: true, accountMatches: true, memberReady: true, backendAvailable: true })).toBe(true)
     expect(shouldSilentlyRefresh({ optedIn: false, permissionGranted: true, accountMatches: true, memberReady: true, backendAvailable: true })).toBe(false)
     expect(shouldSilentlyRefresh({ optedIn: true, permissionGranted: true, accountMatches: false, memberReady: true, backendAvailable: true })).toBe(false)
+  })
+
+  it('coalesces token callbacks and registers each device token once per account', async () => {
+    const coordinator = createPushRegistrationCoordinator()
+    const firstCandidate = {
+      installationId: 'installation-1',
+      expoPushToken: 'token-1',
+      projectId: 'project-1',
+      platform: 'android' as const,
+    }
+    let releaseLoad: ((candidate: typeof firstCandidate) => void) | undefined
+    const load = jest.fn(() => new Promise<typeof firstCandidate>((resolve) => { releaseLoad = resolve }))
+    const persist = jest.fn().mockResolvedValue(undefined)
+
+    const first = coordinator.register('account-1', load, persist)
+    const concurrent = coordinator.register('account-1', load, persist)
+    releaseLoad?.(firstCandidate)
+
+    await expect(Promise.all([first, concurrent])).resolves.toEqual([true, true])
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(persist).toHaveBeenCalledTimes(1)
+
+    await expect(coordinator.register('account-1', async () => firstCandidate, persist)).resolves.toBe(true)
+    expect(persist).toHaveBeenCalledTimes(1)
+
+    await expect(coordinator.register('account-1', async () => ({ ...firstCandidate, expoPushToken: 'token-2' }), persist)).resolves.toBe(true)
+    expect(persist).toHaveBeenCalledTimes(2)
+
+    await expect(coordinator.register('account-2', async () => firstCandidate, persist)).resolves.toBe(true)
+    expect(persist).toHaveBeenCalledTimes(3)
+
+    coordinator.reset('account-1')
+    await expect(coordinator.register('account-1', async () => ({ ...firstCandidate, expoPushToken: 'token-2' }), persist)).resolves.toBe(true)
+    expect(persist).toHaveBeenCalledTimes(4)
+  })
+
+  it('retries an unacknowledged device registration', async () => {
+    const coordinator = createPushRegistrationCoordinator()
+    const candidate = {
+      installationId: 'installation-1',
+      expoPushToken: 'token-1',
+      projectId: 'project-1',
+      platform: 'ios' as const,
+    }
+    const persist = jest.fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(undefined)
+
+    await expect(coordinator.register('account-1', async () => candidate, persist)).rejects.toThrow('offline')
+    await expect(coordinator.register('account-1', async () => candidate, persist)).resolves.toBe(true)
+    expect(persist).toHaveBeenCalledTimes(2)
   })
 
   it('disables on foreground permission loss and re-registers when permission returns', () => {

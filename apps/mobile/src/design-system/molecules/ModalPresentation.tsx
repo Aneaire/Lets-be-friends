@@ -1,5 +1,5 @@
 import { useContext, useId, type ReactNode } from 'react'
-import { Modal, Pressable, ScrollView, StyleSheet, View, type AccessibilityRole, type ModalProps } from 'react-native'
+import { Modal, Pressable, ScrollView, StyleSheet, View, type ModalProps } from 'react-native'
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
 
 import { IconButton } from '@/design-system/atoms/IconButton'
@@ -9,8 +9,6 @@ import { density } from '@/theme/tokens'
 import { useReducedMotion } from '@/utils/accessibility'
 
 export type ModalPlacement = 'center' | 'bottom'
-
-const dialogRole = 'dialog' as AccessibilityRole
 
 export type ModalPresentationProps = {
   title: string
@@ -78,7 +76,7 @@ export function ModalPresentation({
         style={StyleSheet.absoluteFill}
       />
       <View
-        accessibilityRole={dialogRole}
+        accessible
         accessibilityLabelledBy={titleId}
         accessibilityState={{ busy }}
         accessibilityViewIsModal

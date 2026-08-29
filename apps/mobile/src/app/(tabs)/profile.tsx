@@ -13,6 +13,7 @@ import { SignedInProfileContent } from '@/member/ProfileContent'
 import { useMobileMember } from '@/member/MobileMember'
 import { buildSignedInProfileViewModel } from '@/member/profileViewModel'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 
@@ -22,10 +23,10 @@ export default function ProfileScreen() {
 
   if (auth.status === 'unconfigured') return <ProfileState title="Account services unavailable" detail="This build cannot connect to your member profile." />
   if (auth.status === 'setup_error') return <ProfileState title="Account services unavailable" detail="Account access is unavailable in this build." />
-  if (auth.status === 'loading') return <ProfileState title="Loading your account" detail="Preparing secure account access." loading />
+  if (auth.status === 'loading') return <PageSkeleton variant="profile" />
   if (auth.status === 'signed_out') return <SignedOutProfile />
   if (auth.status === 'needs_task') return <SignedInUnavailableProfile message="Complete the required account security step before continuing." signOut={auth.signOut} />
-  if (member.status === 'loading' || member.status === 'syncing') return <ProfileState title="Preparing your member profile" detail="Securely connecting your account to member data." loading />
+  if (member.status === 'loading' || member.status === 'syncing') return <PageSkeleton variant="profile" />
   if (member.status === 'unavailable' || member.status === 'error') return <SignedInUnavailableProfile message={member.message} signOut={auth.signOut} />
   if (member.status !== 'ready') return <ProfileState title="Member profile unavailable" detail="Sign in again to reconnect your member profile." />
 

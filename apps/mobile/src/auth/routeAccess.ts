@@ -9,3 +9,8 @@ export function mobileRouteAccess(status: MobileAuthState['status']): MobileRout
 export function canAccessMemberRoutes(status: MobileAuthState['status']) {
   return mobileRouteAccess(status) === 'member'
 }
+
+export function authCallbackDestination(status: MobileAuthState['status']) {
+  if (status === 'loading') return null
+  return status === 'signed_in' ? '/' : '/auth'
+}

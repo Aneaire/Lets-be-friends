@@ -17,6 +17,7 @@ import { ReportAction } from '@/features/safety/ReportAction'
 import { MemberSafetyActions } from '@/features/safety/MemberSafetyActions'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { Screen, Section } from '@/design-system/templates/Screen'
+import { PageSkeleton, ProfileContentSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { PostCard } from '@/features/social/PostCard'
@@ -46,7 +47,7 @@ function ConnectedCompanionProfile({ id }: { id: string }) {
   const record = directory?.find((item: ApprovedCompanionRecord) => String(item._id) === id)
   const result = useQuery(mobileApi.companions.getPublic, record ? { companionProfileId: id as CompanionProfileId } : 'skip')
 
-  if (directory === undefined || (record && result === undefined)) return <ProfileState title="Loading public profile" detail="Checking the approved Companion directory." loading />
+  if (directory === undefined || (record && result === undefined)) return <PageSkeleton variant="publicProfile" />
   if (!record || result === null) return <ProfileState title="Companion not found" detail="This approved profile is no longer available." action="Return to Explore" onPress={() => router.replace('/explore')} />
   return <CompanionDetail companion={mapPublicCompanion(result as ApprovedCompanionRecord)} />
 }
@@ -169,7 +170,7 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
               <AppText variant="caption" color={theme.colors.textMuted}>{contentHeader.description}</AppText>
             </View>
           </View>
-          {posts === undefined ? <AppText color={theme.colors.textMuted}>Loading posts.</AppText> : posts.length ? <View style={styles.cardList}>{posts.map((post) => <View key={post._id} style={[styles.postCard, { borderColor: theme.colors.border }]}><ProfilePost post={post} companionName={companion.name} imageUrl={companion.imageUrl} /></View>)}</View> : <AppText color={theme.colors.textMuted}>No public posts yet.</AppText>}
+          {posts === undefined ? <ProfileContentSkeleton /> : posts.length ? <View style={styles.cardList}>{posts.map((post) => <View key={post._id} style={[styles.postCard, { borderColor: theme.colors.border }]}><ProfilePost post={post} companionName={companion.name} imageUrl={companion.imageUrl} /></View>)}</View> : <AppText color={theme.colors.textMuted}>No public posts yet.</AppText>}
         </View>
       ) : (
         <View style={styles.tabPanel}>
@@ -180,7 +181,7 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
             </View>
             {contentHeader.ratingSummary ? <AppText variant="bodyStrong" color={theme.colors.socialText} style={styles.ratingSummary}>{contentHeader.ratingSummary}</AppText> : null}
           </View>
-          {reviews === undefined ? <AppText color={theme.colors.textMuted}>Loading reviews.</AppText> : reviews.length ? <ReviewList reviews={reviews} signedIn={signedIn} /> : <AppText color={theme.colors.textMuted}>No public reviews yet.</AppText>}
+          {reviews === undefined ? <ProfileContentSkeleton /> : reviews.length ? <ReviewList reviews={reviews} signedIn={signedIn} /> : <AppText color={theme.colors.textMuted}>No public reviews yet.</AppText>}
         </View>
       )}
 

@@ -7,7 +7,7 @@ import { mobileApi } from '@/backend/client'
 import { mobileNotificationRoute, type MobileNotificationDestination } from '@/data/notifications'
 import { useMobileMember } from '@/member/MobileMember'
 
-import { foregroundPermissionAction, parsePushPayload, resolvePushTap, resolvePushUiState, responseEventKey, revokePushRegistration, shouldApplyBadge, shouldRequestPermission, shouldRevokeOnSignOut, shouldSilentlyRefresh, type PushPreference, type PushUiState } from './logic'
+import { createPushRegistrationCoordinator, foregroundPermissionAction, parsePushPayload, resolvePushTap, resolvePushUiState, responseEventKey, revokePushRegistration, shouldApplyBadge, shouldRequestPermission, shouldRevokeOnSignOut, shouldSilentlyRefresh, type PushPreference, type PushUiState } from './logic'
 import { nativePushAdapter } from './nativeAdapter'
 import { readPushPreference, writePushPreference } from './preferences'
 
@@ -53,6 +53,7 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
   const launchRetryAccount = useRef<string | null>(null)
   const handledResponses = useRef(new Set<string>())
   const pendingResponse = useRef<{ data: unknown; responseIdentifier?: string } | null>(null)
+  const registrationCoordinator = useMemo(createPushRegistrationCoordinator, [])
 
   const bootstrapAccount = useCallback(async (targetAccountId: string) => {
     const generation = ++bootstrapGeneration.current
@@ -128,22 +129,30 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
 
   const registerCurrentDevice = useCallback(async () => {
     if (!accountId || !ready || !nativePushAdapter.available || serverState?.available !== true || preference.pendingDisable) return false
-    const registration = await nativePushAdapter.getRegistration()
-    if (!registration) return false
-    const currentId = await currentInstallationId()
-    await registerDevice({ installationId: currentId, ...registration })
-    const next = { optedIn: true, pendingDisable: false }
-    await writePushPreference(accountId, next)
-    setPreference(next)
-    setPermission('granted')
-    return true
-  }, [accountId, currentInstallationId, preference.pendingDisable, ready, registerDevice, serverState?.available])
+    return registrationCoordinator.register(
+      accountId,
+      async () => {
+        const registration = await nativePushAdapter.getRegistration()
+        if (!registration) return null
+        const currentId = await currentInstallationId()
+        return { installationId: currentId, ...registration }
+      },
+      async (candidate) => {
+        await registerDevice(candidate)
+        const next = { optedIn: true, pendingDisable: false }
+        await writePushPreference(accountId, next)
+        setPreference(next)
+        setPermission('granted')
+      },
+    )
+  }, [accountId, currentInstallationId, preference.pendingDisable, ready, registerDevice, registrationCoordinator, serverState?.available])
 
   const revoke = useCallback(async (nextOptedIn: boolean) => {
     if (!accountId) {
       await nativePushAdapter.unregister().catch(() => {})
       return false
     }
+    registrationCoordinator.reset(accountId)
     const result = await revokePushRegistration({
       preference: { optedIn: nextOptedIn, pendingDisable: true },
       persist: async (next) => {
@@ -159,7 +168,7 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
     })
     setPreference(result.preference)
     return result.acknowledged
-  }, [accountId, currentInstallationId, disableDevice, ready])
+  }, [accountId, currentInstallationId, disableDevice, ready, registrationCoordinator])
 
   const disable = useCallback(async () => {
     setBusy(true)

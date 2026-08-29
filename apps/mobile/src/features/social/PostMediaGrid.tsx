@@ -11,6 +11,8 @@ import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
+import { postImagePressLabel, type PostImagePressContext } from './postImagePresentation'
+
 export type DisplayPostMediaItem = {
   storageId: string
   kind: string
@@ -27,6 +29,8 @@ type DisplayPostMediaGridProps = {
   mode?: 'display'
   media: DisplayPostMediaItem[]
   onOpenVideo: (url: string) => void
+  onOpenImage?: (item: DisplayPostMediaItem & { url: string }, index: number, total: number) => void
+  imagePressContext?: PostImagePressContext
   style?: StyleProp<ViewStyle>
 }
 
@@ -45,7 +49,7 @@ export function PostMediaGrid(props: PostMediaGridProps) {
     : <DisplayMediaGrid {...props} />
 }
 
-function DisplayMediaGrid({ media, onOpenVideo, style }: DisplayPostMediaGridProps) {
+function DisplayMediaGrid({ media, onOpenVideo, onOpenImage, imagePressContext = 'feed', style }: DisplayPostMediaGridProps) {
   const theme = useAppTheme()
   const availableMedia = media.filter((item): item is DisplayPostMediaItem & { url: string } => Boolean(item.url))
 
@@ -65,13 +69,30 @@ function DisplayMediaGrid({ media, onOpenVideo, style }: DisplayPostMediaGridPro
           ]}
         >
           {item.kind === 'image' ? (
-            <Image
-              source={{ uri: item.url }}
-              resizeMode="cover"
-              accessibilityRole="image"
-              accessibilityLabel={`Post image ${index + 1} of ${availableMedia.length}`}
-              style={styles.image}
-            />
+            onOpenImage ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={postImagePressLabel(imagePressContext, index, availableMedia.length)}
+                onPress={() => onOpenImage(item, index, availableMedia.length)}
+                style={({ pressed }) => pressed && styles.pressed}
+              >
+                <Image
+                  source={{ uri: item.url }}
+                  resizeMode="cover"
+                  accessibilityRole="image"
+                  accessibilityLabel={`Post image ${index + 1} of ${availableMedia.length}`}
+                  style={styles.image}
+                />
+              </Pressable>
+            ) : (
+              <Image
+                source={{ uri: item.url }}
+                resizeMode="cover"
+                accessibilityRole="image"
+                accessibilityLabel={`Post image ${index + 1} of ${availableMedia.length}`}
+                style={styles.image}
+              />
+            )
           ) : (
             <Pressable
               accessibilityRole="link"

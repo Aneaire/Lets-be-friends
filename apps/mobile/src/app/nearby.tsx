@@ -1,5 +1,4 @@
 import * as Location from 'expo-location'
-import { allActivityCategoryLabel } from '@lets-be-friends/shared'
 import { useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
 import { useMemo, useState } from 'react'
@@ -9,24 +8,23 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { mobileApi } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { IconButton } from '@/design-system/atoms/IconButton'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { SearchField } from '@/design-system/molecules/SearchField'
-import { Chip } from '@/design-system/atoms/Chip'
 import { CompanionCard } from '@/design-system/organisms/CompanionCard'
 import { ProductMap } from '@/design-system/organisms/ProductMap'
+import { ListRowsSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { mapApprovedCompanion, type ApprovedCompanionRecord } from '@/data/companionViewModels'
-import { defaultDiscoveryFilters, discoveryCategoryOptions, discoveryModes, discoveryStrengths, filterDiscoveryCompanions, type DiscoveryFilters } from '@/data/discovery'
+import { defaultDiscoveryFilters, discoveryCategoryOptions, filterDiscoveryCompanions, nearbySearchOptionsLabel, type DiscoveryFilters } from '@/data/discovery'
+import { NearbySearchOptionsSheet, type NearbyRadius } from '@/features/discovery/NearbySearchOptionsSheet'
 import { useAppTheme } from '@/theme/ThemeProvider'
-
-const radii = [5, 10, 25, 50, 100] as const
-type Radius = typeof radii[number]
 
 export default function NearbyScreen() {
   const backend = useMobileBackendConfiguration()
   const theme = useAppTheme()
-  const [radiusKm, setRadiusKm] = useState<Radius>(25)
+  const [radiusKm, setRadiusKm] = useState<NearbyRadius>(25)
   const [origin, setOrigin] = useState<{ latitude: number; longitude: number } | null>(null)
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
@@ -34,6 +32,7 @@ export default function NearbyScreen() {
   const [travelArea, setTravelArea] = useState('')
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<DiscoveryFilters>(defaultDiscoveryFilters)
+  const [optionsVisible, setOptionsVisible] = useState(false)
   const result = useQuery(mobileApi.companions.listApproved, backend.status === 'configured' && origin ? { ...origin, radiusKm } : 'skip')
   const sourceCompanions = useMemo(
     () => (result ?? []).map((record: ApprovedCompanionRecord) => mapApprovedCompanion(record)),
@@ -111,20 +110,40 @@ export default function NearbyScreen() {
           ItemSeparatorComponent={() => <View style={styles.gap} />}
           contentContainerStyle={styles.list}
           ListHeaderComponent={<View style={styles.listHeader}>
-            <ProductMap center={origin} radiusKm={radiusKm} points={mapPoints} onSelectPoint={openCompanion} />
-            <AppText variant="bodyStrong">Around {originLabel}</AppText>
+            <ProductMap center={origin} radiusKm={radiusKm} points={mapPoints} onSelectPoint={openCompanion} expanded />
+            <View style={styles.mapSummary}>
+              <View style={styles.mapSummaryCopy}>
+                <AppText variant="bodyStrong">Around {originLabel}</AppText>
+                <AppText variant="caption" color={theme.colors.textMuted}>Within {radiusKm} km. Approximate areas only.</AppText>
+              </View>
+              <IconButton
+                label={nearbySearchOptionsLabel(radiusKm, query, filters)}
+                icon="options-outline"
+                tone="social"
+                onPress={() => setOptionsVisible(true)}
+                style={{ ...styles.optionsButton, borderColor: theme.colors.socialText }}
+              />
+            </View>
             <AppText color={theme.colors.textMuted}>The map and results use rounded search and Companion areas. Exact addresses are never shown.</AppText>
-            <View style={styles.radii}>{radii.map((radius) => <Chip key={radius} label={`${radius} km`} selected={radiusKm === radius} onPress={() => setRadiusKm(radius)} />)}</View>
-            <SearchField label="Search nearby Companions" value={query} onChange={setQuery} placeholder="Search names, Strengths, or interests" />
-            <View style={styles.radii}>{discoveryModes.map((item) => <Chip key={item.id} label={item.label} selected={filters.mode === item.id} onPress={() => setFilters((current) => ({ ...current, mode: item.id }))} />)}<Chip label="Bookable" selected={filters.bookableOnly} onPress={() => setFilters((current) => ({ ...current, bookableOnly: !current.bookableOnly }))} /></View>
-            <FlatList horizontal data={[allActivityCategoryLabel, ...categories]} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} renderItem={({ item }) => <Chip label={item} selected={item === allActivityCategoryLabel ? !filters.category : filters.category === item} onPress={() => setFilters((current) => ({ ...current, category: item === allActivityCategoryLabel || current.category === item ? undefined : item }))} />} />
-            <FlatList horizontal data={discoveryStrengths} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} renderItem={({ item }) => <Chip label={item} selected={filters.strength === item} onPress={() => setFilters((current) => ({ ...current, strength: current.strength === item ? undefined : item }))} />} />
-            <ActionButton label="Refresh current location" onPress={() => void locate()} secondary disabled={locating} />
             <AppText variant="bodyStrong">{result === undefined ? 'Loading nearby results' : `${companions.length} nearby ${companions.length === 1 ? 'Companion' : 'Companions'}`}</AppText>
           </View>}
-          ListEmptyComponent={result === undefined ? null : <StateView embedded title="No live Companions in this radius" detail="Try a larger radius or return to Explore for online sessions." />}
+          ListEmptyComponent={result === undefined ? <ListRowsSkeleton count={3} /> : <StateView embedded title="No live Companions in this radius" detail="Try a larger radius or return to Explore for online sessions." />}
         />
       )}
+      <NearbySearchOptionsSheet
+        visible={optionsVisible}
+        radiusKm={radiusKm}
+        query={query}
+        filters={filters}
+        categories={categories}
+        locating={locating}
+        resultCount={result === undefined ? null : companions.length}
+        onRadiusChange={setRadiusKm}
+        onQueryChange={setQuery}
+        onFiltersChange={setFilters}
+        onRefreshLocation={() => void locate()}
+        onClose={() => setOptionsVisible(false)}
+      />
     </SafeAreaView>
   )
 }
@@ -151,9 +170,10 @@ const styles = StyleSheet.create({
   prompt: { flexGrow: 1, justifyContent: 'center', padding: 14, gap: 16 },
   list: { paddingHorizontal: 16, paddingBottom: 40 },
   listHeader: { gap: 12, paddingVertical: 14 },
-  radii: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  mapSummary: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  mapSummaryCopy: { flex: 1, minWidth: 0, gap: 2 },
+  optionsButton: { width: 48, height: 48, borderWidth: 1, borderRadius: 24 },
   orRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   orLine: { height: 1, flex: 1 },
-  horizontal: { gap: 8, paddingRight: 16 },
   gap: { height: 8 },
 })

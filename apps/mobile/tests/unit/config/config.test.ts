@@ -8,7 +8,7 @@ import {
 const appConfig = jest.requireActual('../../../app.json') as {
   expo: {
     icon: string
-    android: { adaptiveIcon: { foregroundImage: string; monochromeImage: string }; predictiveBackGestureEnabled: boolean }
+    android: { adaptiveIcon: { foregroundImage: string; monochromeImage: string }; predictiveBackGestureEnabled: boolean; softwareKeyboardLayoutMode: string }
     web: { favicon: string }
     plugins: Array<string | [string, { icon?: string; defaultChannel?: string }]>
   }
@@ -30,6 +30,10 @@ describe('mobile official brand assets', () => {
 
   it('uses the supported Android back path', () => {
     expect(appConfig.expo.android.predictiveBackGestureEnabled).toBe(false)
+  })
+
+  it('resizes Android screens so focused composers stay above the keyboard', () => {
+    expect(appConfig.expo.android.softwareKeyboardLayoutMode).toBe('resize')
   })
 
   it('increments preview builds so Android installs the current launcher assets', () => {

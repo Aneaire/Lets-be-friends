@@ -10,6 +10,7 @@ import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Screen } from '@/design-system/templates/Screen'
+import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { bookingPriceEstimate } from '@/data/bookingPricing'
 import { parseManilaBookingInput } from '@/data/bookingViewModels'
@@ -32,10 +33,10 @@ export default function NewBookingScreen() {
   if (member.status === 'signed_out') return <BookingGate title="Sign in to request a booking" actionLabel="Sign in" onPress={() => router.replace('/auth')} />
   if (member.status === 'unconfigured') return <BookingGate title="Bookings need account services" actionLabel="Return to Explore" onPress={() => router.replace('/explore')} />
   if (member.status === 'unavailable' || member.status === 'error') return <BookingGate title="Bookings are unavailable" detail="Your member account could not be connected safely." />
-  if (member.status !== 'ready') return <BookingGate title="Preparing your member account" />
-  if (companionResult === undefined) return <BookingGate title="Loading booking options" />
+  if (member.status !== 'ready') return <PageSkeleton variant="bookingForm" />
+  if (companionResult === undefined) return <PageSkeleton variant="bookingForm" />
   if (companionResult === null) return <BookingGate title="This Companion is unavailable" actionLabel="Return to Explore" onPress={() => router.replace('/explore')} />
-  if (finance === undefined) return <BookingGate title="Checking booking availability" />
+  if (finance === undefined) return <PageSkeleton variant="bookingForm" />
   if (finance === null) return <BookingGate title="Bookings are unavailable" detail="Your booking balance could not be connected safely." />
   if (!finance.enabled) return <BookingGate title="Bookings are unavailable" detail="Member booking services are not accepting requests right now." actionLabel="Return to profile" onPress={() => goBackOr('/explore')} />
 

@@ -242,7 +242,12 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
     >
       <View style={styles.postBody}>
         {post.body ? <MentionBody body={post.body} mentions={post.mentions} /> : null}
-        <PostMediaGrid media={post.media} onOpenVideo={(url) => void openVideo(url)} />
+        <PostMediaGrid
+          media={post.media}
+          imagePressContext="feed"
+          onOpenImage={() => router.push(postCommentsRoute(post._id as PostId))}
+          onOpenVideo={(url) => void openVideo(url)}
+        />
         {!post.ownPost && signedIn ? <ReportAction targetType="post" targetId={String(post._id)} label="Report post" open={reportOpen} onOpenChange={setReportOpen} showTrigger={false} onReported={() => onAction('report')} /> : null}
         <ActionSheet
           visible={optionsOpen}
