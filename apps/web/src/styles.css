@@ -13651,3 +13651,63 @@ button.companion-preview-avatar {
     margin-top: 0.25rem;
   }
 }
+
+/* Public Companion profile hierarchy */
+.companion-profile-name {
+  font-size: clamp(1.5rem, 1.35rem + 0.35vw, 1.75rem);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+.companion-profile-bio {
+  margin-top: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+.companion-profile-intro {
+  margin-top: 1rem;
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.45;
+  letter-spacing: 0;
+}
+
+.companion-profile-rate {
+  gap: 0.15rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-social);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.companion-profile-rate .companion-profile-rate-label {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.companion-profile-rate strong {
+  color: var(--accent-social);
+  font-size: 1.45rem;
+  line-height: 1.15;
+}
+
+@media (max-width: 767px) {
+  .companion-profile-name {
+    font-size: 1.45rem;
+  }
+
+  .companion-profile-bio {
+    font-size: 0.84rem;
+  }
+
+  .companion-profile-intro {
+    font-size: 0.9rem;
+  }
+}

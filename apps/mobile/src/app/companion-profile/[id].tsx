@@ -22,7 +22,7 @@ import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { PostCard } from '@/features/social/PostCard'
 import { PostMediaGrid } from '@/features/social/PostMediaGrid'
-import { companionContentTabHeader, companionContentTabs, defaultCompanionContentTab, type CompanionContentTab } from '@/features/companion/companionProfilePresentation'
+import { companionContentTabHeader, companionContentTabs, companionProfileTypography, companionRatePresentation, defaultCompanionContentTab, type CompanionContentTab } from '@/features/companion/companionProfilePresentation'
 import { mapPublicCompanion, resolveCompanionBookingAction, type ApprovedCompanionRecord, type CompanionDetailViewModel } from '@/data/companionViewModels'
 import { formatMessageTimestamp } from '@/data/messageViewModels'
 import { useMobileMember } from '@/member/MobileMember'
@@ -124,15 +124,15 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
       <View style={styles.identity}>
         <Avatar uri={companion.imageUrl} name={companion.name} size={88} />
         <View style={styles.identityCopy}>
-          <View style={styles.nameRow}><AppText variant="title">{companion.name}</AppText>{companion.verified ? <View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.textMuted }]} /> : null}</View>
+          <View style={styles.nameRow}><AppText style={styles.profileName}>{companion.name}</AppText>{companion.verified ? <View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.textMuted }]} /> : null}</View>
           <AppText color={theme.colors.textMuted}>{companion.location}</AppText>
           {companion.distanceLabel ? <AppText variant="caption" color={theme.colors.textMuted}>{companion.distanceLabel} approximate</AppText> : null}
           <View style={styles.identityMeta}><AppText variant="caption">{companion.reviewCount ? `★ ${companion.rating?.toFixed(1)} from ${companion.reviewCount}` : 'New Companion'}</AppText><AppText variant="caption">{modeLabels.join(' + ')}</AppText></View>
           <AppText variant="caption" color={theme.colors.textMuted}>{companion.verified ? 'Identity verified · Companion profile approved' : 'Companion profile in review'}</AppText>
         </View>
       </View>
-      <AppText variant="heading">{companion.intro}</AppText>
-      {companion.bio ? <AppText color={theme.colors.textMuted}>{companion.bio}</AppText> : null}
+      <AppText style={styles.profileIntro}>{companion.intro}</AppText>
+      {companion.bio ? <AppText color={theme.colors.textMuted} style={styles.profileBio}>{companion.bio}</AppText> : null}
 
       <View style={styles.actionsRow}>
         <ActionButton label={saved ? 'Saved' : 'Save'} onPress={() => void saveProfile()} disabled={!signedIn || busy !== null} secondary style={styles.flexAction} />
@@ -147,8 +147,8 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
           <Detail label="Everyday help and activities" value={companion.categories.join(', ')} />
           <Detail label="Session format" value={modeLabels.join(' and ')} />
           {companion.boundaries.length ? <Detail label="Boundaries" value={companion.boundaries.join(', ')} /> : null}
-          {companion.rateLabel ? <Detail label="Rate" value={companion.rateLabel} /> : null}
         </View>
+        {companion.rateLabel ? <RateHighlight value={companion.rateLabel} /> : null}
       </Section>
 
       <Section>
@@ -267,6 +267,33 @@ function Detail({ label, value }: { label: string; value: string }) {
   return <View style={styles.detailRow}><AppText variant="caption" color={theme.colors.textMuted}>{label}</AppText><AppText variant="bodyStrong" style={styles.detailValue}>{value}</AppText></View>
 }
 
+function RateHighlight({ value }: { value: string }) {
+  const theme = useAppTheme()
+  const rate = companionRatePresentation(value)
+
+  return (
+    <View
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={`Rate ${value}`}
+      style={[
+        styles.rateCard,
+        {
+          backgroundColor: theme.colors.surfaceRaised,
+          borderColor: theme.colors.border,
+          borderLeftColor: theme.colors.social,
+        },
+      ]}
+    >
+      <AppText variant="caption" color={theme.colors.textMuted} style={styles.rateLabel}>Hourly rate</AppText>
+      <View style={styles.rateLine}>
+        <AppText color={theme.colors.socialText} style={styles.rateAmount}>{rate.amount}</AppText>
+        {rate.cadence ? <AppText variant="caption" color={theme.colors.textMuted}>{rate.cadence}</AppText> : null}
+      </View>
+    </View>
+  )
+}
+
 function ProfileState({ title, detail, action, onPress, loading = false }: { title: string; detail?: string; action?: string; onPress?: () => void; loading?: boolean }) {
   return <Screen scroll={false} contentStyle={styles.state}><StateView eyebrow="COMPANION" title={title} detail={detail} actionLabel={action} onAction={onPress} loading={loading} /></Screen>
 }
@@ -286,6 +313,9 @@ const styles = StyleSheet.create({
   identity: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18 },
   identityCopy: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  profileName: companionProfileTypography.name,
+  profileIntro: companionProfileTypography.intro,
+  profileBio: companionProfileTypography.bio,
   verified: { width: 9, height: 9, borderRadius: 5 },
   identityMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 3 },
   actionsRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
@@ -295,6 +325,10 @@ const styles = StyleSheet.create({
   details: { gap: 12, marginTop: 14 },
   detailRow: { gap: 3 },
   detailValue: { flex: 1 },
+  rateCard: { gap: 2, marginTop: 14, paddingHorizontal: 12, paddingVertical: 10, borderWidth: StyleSheet.hairlineWidth, borderLeftWidth: 3, borderRadius: 12 },
+  rateLabel: { fontWeight: '700' },
+  rateLine: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  rateAmount: companionProfileTypography.rate,
   sectionTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   contentTabs: { marginTop: 2 },
   tabPanel: { marginTop: 6, gap: 10 },

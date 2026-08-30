@@ -1,5 +1,20 @@
 export type CompanionContentTab = 'posts' | 'reviews'
 
+export const companionProfileTypography = {
+  name: { fontSize: 24, lineHeight: 29, fontWeight: '800' as const, letterSpacing: -0.3 },
+  intro: { fontSize: 18, lineHeight: 24, fontWeight: '700' as const },
+  bio: { fontSize: 15, lineHeight: 21, fontWeight: '400' as const },
+  rate: { fontSize: 22, lineHeight: 27, fontWeight: '800' as const },
+} as const
+
+export function companionRatePresentation(rateLabel: string) {
+  const [amount, cadence] = rateLabel.split(/\s*\/\s*/, 2)
+  return {
+    amount: amount.trim(),
+    cadence: cadence ? `per ${cadence.trim()}` : '',
+  }
+}
+
 export const companionContentTabs: ReadonlyArray<{ value: CompanionContentTab; label: string }> = [
   { value: 'posts', label: 'Posts' },
   { value: 'reviews', label: 'Reviews' },

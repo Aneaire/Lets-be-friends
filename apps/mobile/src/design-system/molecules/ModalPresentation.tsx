@@ -1,5 +1,17 @@
-import { useContext, useId, type ReactNode } from 'react'
-import { Modal, Pressable, ScrollView, StyleSheet, View, type ModalProps } from 'react-native'
+import { useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import {
+  Animated,
+  Easing,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+  type ModalProps,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native'
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
 
 import { IconButton } from '@/design-system/atoms/IconButton'
@@ -31,6 +43,29 @@ type ModalHostProps = ModalPresentationProps & {
   animationType: NonNullable<ModalProps['animationType']>
 }
 
+type AnimatedViewStyle = Animated.WithAnimatedValue<ViewStyle>
+
+type ModalPresentationAnimationProps = {
+  backdropStyle?: StyleProp<AnimatedViewStyle>
+  surfaceStyle?: StyleProp<AnimatedViewStyle>
+  interactionEnabled?: boolean
+}
+
+export function modalAnimationPlan(
+  animationType: NonNullable<ModalProps['animationType']>,
+  reduceMotion: boolean,
+) {
+  if (reduceMotion || animationType === 'none') {
+    return { native: 'none', backdrop: 'none', surface: 'none' } as const
+  }
+
+  return {
+    native: 'none',
+    backdrop: 'fade',
+    surface: animationType,
+  } as const
+}
+
 export function ModalPresentation({
   title,
   description,
@@ -41,7 +76,10 @@ export function ModalPresentation({
   busy = false,
   scrollable = true,
   placement,
-}: ModalPresentationProps) {
+  backdropStyle,
+  surfaceStyle,
+  interactionEnabled = true,
+}: ModalPresentationProps & ModalPresentationAnimationProps) {
   const theme = useAppTheme()
   const insets = useContext(SafeAreaInsetsContext)
   const titleId = useId()
@@ -61,21 +99,24 @@ export function ModalPresentation({
         styles.scrim,
         isBottomSheet ? styles.bottomPlacement : styles.centerPlacement,
         {
-          backgroundColor: theme.colors.scrim,
           paddingTop: Math.max(density.sheetPadding, (insets?.top ?? 0) + density.cardGap),
           paddingBottom: isBottomSheet ? 0 : Math.max(density.sheetPadding, (insets?.bottom ?? 0) + density.cardGap),
           paddingLeft: isBottomSheet ? 0 : Math.max(density.screenGutter, (insets?.left ?? 0) + density.cardGap),
           paddingRight: isBottomSheet ? 0 : Math.max(density.screenGutter, (insets?.right ?? 0) + density.cardGap),
         },
       ]}>
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.backdrop, { backgroundColor: theme.colors.scrim }, backdropStyle]}
+      />
       <Pressable
         accessible={false}
         importantForAccessibility="no"
-        disabled={busy}
+        disabled={busy || !interactionEnabled}
         onPress={onClose}
         style={StyleSheet.absoluteFill}
       />
-      <View
+      <Animated.View
         accessible
         accessibilityLabelledBy={titleId}
         accessibilityState={{ busy }}
@@ -89,6 +130,7 @@ export function ModalPresentation({
           styles.surface,
           isBottomSheet ? styles.bottomSheet : styles.dialog,
           { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border },
+          surfaceStyle,
         ]}>
         {isBottomSheet ? <View style={[styles.handle, { backgroundColor: theme.colors.borderStrong }]} /> : null}
         <View
@@ -138,7 +180,7 @@ export function ModalPresentation({
             {footer}
           </View>
         ) : null}
-      </View>
+      </Animated.View>
     </View>
   )
 }
@@ -151,23 +193,109 @@ export function ModalHost({
   ...presentationProps
 }: ModalHostProps) {
   const reduceMotion = useReducedMotion()
+  const { height: viewportHeight } = useWindowDimensions()
+  const [rendered, setRendered] = useState(visible)
+  const backdropProgress = useRef(new Animated.Value(visible ? 1 : 0)).current
+  const surfaceProgress = useRef(new Animated.Value(visible ? 1 : 0)).current
+  const motion = modalAnimationPlan(animationType, reduceMotion)
+
+  useEffect(() => {
+    if (visible) {
+      setRendered(true)
+
+      if (motion.backdrop === 'none' && motion.surface === 'none') {
+        backdropProgress.setValue(1)
+        surfaceProgress.setValue(1)
+        return
+      }
+
+      backdropProgress.setValue(0)
+      surfaceProgress.setValue(0)
+      const animation = Animated.parallel([
+        Animated.timing(backdropProgress, {
+          toValue: 1,
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(surfaceProgress, {
+          toValue: 1,
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ])
+      animation.start()
+      return () => animation.stop()
+    }
+
+    if (motion.backdrop === 'none' && motion.surface === 'none') {
+      backdropProgress.setValue(0)
+      surfaceProgress.setValue(0)
+      setRendered(false)
+      return
+    }
+
+    const animation = Animated.parallel([
+      Animated.timing(backdropProgress, {
+        toValue: 0,
+        duration: 150,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(surfaceProgress, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ])
+    animation.start(({ finished }) => {
+      if (finished) setRendered(false)
+    })
+    return () => animation.stop()
+  }, [animationType, backdropProgress, motion.backdrop, motion.surface, reduceMotion, surfaceProgress, visible])
+
+  const backdropStyle = motion.backdrop === 'fade'
+    ? { opacity: backdropProgress }
+    : undefined
+  const surfaceStyle = motion.surface === 'slide'
+    ? {
+        transform: [{
+          translateY: surfaceProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [viewportHeight, 0],
+          }),
+        }],
+      }
+    : motion.surface === 'fade'
+      ? { opacity: surfaceProgress }
+      : undefined
 
   return (
     <Modal
-      visible={visible}
+      visible={visible || rendered}
       transparent
-      animationType={reduceMotion ? 'none' : animationType}
+      animationType={motion.native}
       presentationStyle="overFullScreen"
       statusBarTranslucent
       navigationBarTranslucent
       onRequestClose={() => { if (!busy) onClose() }}>
-      <ModalPresentation {...presentationProps} busy={busy} onClose={onClose} />
+      <ModalPresentation
+        {...presentationProps}
+        busy={busy}
+        onClose={onClose}
+        backdropStyle={backdropStyle}
+        surfaceStyle={surfaceStyle}
+        interactionEnabled={visible}
+      />
     </Modal>
   )
 }
 
 const styles = StyleSheet.create({
   scrim: { flex: 1 },
+  backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   centerPlacement: { alignItems: 'center', justifyContent: 'center' },
   bottomPlacement: { justifyContent: 'flex-end' },
   surface: { width: '100%', maxHeight: '100%', borderWidth: 1, overflow: 'hidden' },

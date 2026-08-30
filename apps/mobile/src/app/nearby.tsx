@@ -19,6 +19,7 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { mapApprovedCompanion, type ApprovedCompanionRecord } from '@/data/companionViewModels'
 import { defaultDiscoveryFilters, discoveryCategoryOptions, filterDiscoveryCompanions, nearbySearchOptionsLabel, type DiscoveryFilters } from '@/data/discovery'
 import { NearbySearchOptionsSheet, type NearbyRadius } from '@/features/discovery/NearbySearchOptionsSheet'
+import { readCurrentCoordinates } from '@/features/discovery/nearbyLocation'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 export default function NearbyScreen() {
@@ -53,8 +54,10 @@ export default function NearbyScreen() {
         setLocationError('Foreground location permission is needed to search nearby. You can continue using regular Explore without it.')
         return
       }
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-      setOrigin(roundOrigin(position.coords))
+      const coordinates = await readCurrentCoordinates(() => (
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      ))
+      setOrigin(roundOrigin(coordinates))
       setOriginLabel('Current area')
     } catch {
       setLocationError('Your current location could not be read. Try again outdoors or continue with regular Explore.')

@@ -73,7 +73,7 @@ function CompanionProfilePage() {
               <ProfilePhoto imageUrl={companion.profileImageUrl} name={companion.displayName} size="lg" />
               <div className="min-w-0">
                 <p className="text-meta">Companion</p>
-                <h1 className="text-h1">{companion.displayName}</h1>
+                <h1 className="text-h1 companion-profile-name">{companion.displayName}</h1>
                 <div className="worklist-row-meta mt-1">
                   <span>{companion.city}</span>
                   <span className="dot" aria-hidden="true" />
@@ -83,8 +83,8 @@ function CompanionProfilePage() {
                 </div>
               </div>
             </div>
-            {companion.bio && <p className="companion-profile-bio">{companion.bio}</p>}
             <p className="companion-profile-intro">{companion.intro}</p>
+            {companion.bio && <p className="companion-profile-bio">{companion.bio}</p>}
           </div>
 
           <aside className="companion-profile-decision" aria-label={`Plan with ${companion.displayName}`}>
@@ -92,6 +92,7 @@ function CompanionProfilePage() {
             <p className="companion-profile-trust">Identity checked and Companion profile reviewed.</p>
             {companion.hourlyRateCentavos !== undefined ? (
               <p className="companion-profile-rate">
+                <span className="companion-profile-rate-label">Hourly rate</span>
                 <strong className="tabular">{formatPhp(companion.hourlyRateCentavos)}</strong>
                 <span>per hour. Your final booking total includes the service fee.</span>
               </p>

@@ -81,6 +81,7 @@ export function ActionSheet({ visible, title, description, items, busy = false, 
   return (
     <BottomSheet
       visible={visible}
+      animationType="slide"
       title={title}
       description={description}
       closeLabel="Close options"
