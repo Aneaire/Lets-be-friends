@@ -5,8 +5,8 @@ describe('mobile keyboard avoidance', () => {
     expect(keyboardAvoidingBehavior('ios')).toBe('padding')
   })
 
-  it('lets Android window resize handle the keyboard without a second height adjustment', () => {
-    expect(keyboardAvoidingBehavior('android')).toBeUndefined()
+  it('adds keyboard padding on Android when edge-to-edge prevents the window from resizing', () => {
+    expect(keyboardAvoidingBehavior('android')).toBe('padding')
   })
 
   it('does not alter web layout when the mobile app runs in a browser', () => {

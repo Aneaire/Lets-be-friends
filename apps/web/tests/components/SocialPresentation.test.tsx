@@ -62,6 +62,7 @@ describe('social timeline presentation', () => {
     const article = screen.getByRole('article')
     const image = article.querySelector('.ds-post-avatar img')
     expect(image).toBeTruthy()
+    expect(image?.parentElement?.classList.contains('ds-post-avatar-image')).toBe(true)
     fireEvent.error(image!)
 
     expect(article.querySelector('.ds-post-avatar')?.textContent).toBe('GS')
@@ -77,6 +78,7 @@ describe('social timeline presentation', () => {
         edited
         className="custom-comment"
         data-comment-id="comment-456"
+        avatarAction={<a href="/member-profile" aria-label="View Alex Rivera's profile"><span>Alex portrait</span></a>}
         actions={<button type="button" aria-label="Comment options">Options</button>}
       >
         I am available on Saturday morning.
@@ -87,10 +89,15 @@ describe('social timeline presentation', () => {
     const header = article.querySelector('header')
     const time = screen.getByText('9:28 PM')
     const identity = header?.querySelector('.ds-comment-identity')
+    const avatar = article.querySelector('.ds-comment-avatar-action')
+    const body = article.querySelector('.ds-comment-body')
 
     expect(article.classList.contains('ds-comment-bubble')).toBe(true)
     expect(article.classList.contains('custom-comment')).toBe(true)
     expect(article.getAttribute('data-comment-id')).toBe('comment-456')
+    expect(avatar).toBeTruthy()
+    expect(article.querySelector('.ds-comment-avatar-action')?.contains(screen.getByRole('link', { name: "View Alex Rivera's profile" }))).toBe(true)
+    expect(header?.nextElementSibling).toBe(body)
     expect(identity?.firstElementChild?.textContent).toBe('Alex Rivera')
     expect(identity?.lastElementChild?.textContent).toBe('9:28 PM·Edited')
     expect(time.tagName).toBe('TIME')
@@ -98,5 +105,27 @@ describe('social timeline presentation', () => {
     expect(screen.getByText('Edited')).toBeTruthy()
     expect(screen.getByText('I am available on Saturday morning.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Comment options' })).toBeTruthy()
+  })
+
+  it('exposes reply thread position and context without changing the comment body', () => {
+    render(
+      <CommentBubble
+        author="Maya Santos"
+        timestamp="Now"
+        threadPosition="reply"
+        isLastReply
+        replyContext={<span>Replying to <a href="/member-profile">@alex</a></span>}
+      >
+        Thanks for sharing.
+      </CommentBubble>,
+    )
+
+    const article = screen.getByRole('article')
+    expect(article.getAttribute('data-thread-position')).toBe('reply')
+    expect(article.getAttribute('data-last-reply')).toBe('true')
+    expect(article.classList.contains('ds-comment-bubble--reply')).toBe(true)
+    expect(article.querySelector('.ds-comment-avatar-slot')).toBeTruthy()
+    expect(article.querySelector('.ds-comment-reply-context')?.textContent).toBe('Replying to @alex')
+    expect(article.querySelector('.ds-comment-body')?.textContent).toBe('Thanks for sharing.')
   })
 })

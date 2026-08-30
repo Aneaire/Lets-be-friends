@@ -37,6 +37,13 @@ export function activeMentionQuery(text: string, caret: number): string | null {
   return token
 }
 
+export function withoutLeadingReplyMention(body: string, replyToUsername?: string | null): string {
+  const username = replyToUsername?.trim().replace(/^@+/, '')
+  if (!username) return body
+  const escapedUsername = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return body.replace(new RegExp(`^@${escapedUsername}(?:\\s+|$)`, 'i'), '')
+}
+
 export function splitBodyIntoSegments(body: string, mentions: StoredMention[]): MentionRenderSegment[] {
   const byUsername = new Map<string, string>()
   for (const mention of mentions) byUsername.set(mention.username.toLowerCase(), mention.userId)

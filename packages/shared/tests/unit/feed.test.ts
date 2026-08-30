@@ -3,6 +3,7 @@ import {
   boundedRatio,
   engagementScore,
   freshnessScore,
+  arrangeCommentThreads,
   rerankFeedCandidates,
   scoreFeedCandidate,
   type FeedRankingCandidate,
@@ -44,5 +45,40 @@ describe('feed ranking', () => {
     expect(first.slice(0, 8).filter((candidate) => candidate.source === 'exploration')).toHaveLength(2)
     expect(first.every((candidate, index) => index === 0 || candidate.authorId !== first[index - 1].authorId)).toBe(true)
     expect(first[0].seen).not.toBe(true)
+  })
+})
+
+describe('comment thread arrangement', () => {
+  it('keeps parents above chronological replies while ordering conversations newest first', () => {
+    const entries = arrangeCommentThreads([
+      { _id: 'reply-new', parentCommentId: 'parent-old', createdAt: 40 },
+      { _id: 'standalone-new', createdAt: 50 },
+      { _id: 'parent-old', createdAt: 10 },
+      { _id: 'reply-old', parentCommentId: 'parent-old', createdAt: 20 },
+      { _id: 'nested', parentCommentId: 'reply-old', createdAt: 30 },
+    ])
+
+    expect(entries.map(({ comment }) => comment._id)).toEqual([
+      'standalone-new',
+      'parent-old',
+      'reply-old',
+      'nested',
+      'reply-new',
+    ])
+    expect(entries.map(({ position, isLastReply }) => ({ position, isLastReply }))).toEqual([
+      { position: 'standalone', isLastReply: false },
+      { position: 'root', isLastReply: false },
+      { position: 'reply', isLastReply: false },
+      { position: 'reply', isLastReply: false },
+      { position: 'reply', isLastReply: true },
+    ])
+  })
+
+  it('renders an unloaded parent reply as a standalone conversation', () => {
+    expect(arrangeCommentThreads([
+      { _id: 'orphan', parentCommentId: 'not-loaded', createdAt: 20 },
+    ])).toEqual([
+      { comment: { _id: 'orphan', parentCommentId: 'not-loaded', createdAt: 20 }, position: 'standalone', isLastReply: false },
+    ])
   })
 })

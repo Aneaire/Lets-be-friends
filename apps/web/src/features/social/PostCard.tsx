@@ -11,7 +11,7 @@ export const PostCard = forwardRef<HTMLElement, HTMLAttributes<HTMLElement> & {
   authorAction?: ReactNode
   actions?: ReactNode
 }>(function PostCard({ author, imageUrl, timestamp, dateTime, meta, avatarAction, authorAction, actions, children, className = '', ...props }, ref) {
-  const avatar = <Avatar name={author} src={imageUrl} size="large" decorative />
+  const avatar = <Avatar name={author} src={imageUrl} size="large" className="ds-post-avatar-image" decorative />
 
   return (
     <article ref={ref} className={`ds-post-card ${className}`.trim()} {...props}>

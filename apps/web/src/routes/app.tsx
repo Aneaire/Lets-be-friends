@@ -12,6 +12,7 @@ import { WorkspaceShell } from '../design-system/templates/AppShell'
 import { BookingRequestEditor, type EditableBookingRequest } from '../features/booking/BookingRequestEditor'
 import { BookingRequestFields } from '../features/booking/BookingRequestFields'
 import { BookingActionsMenu } from '../features/booking/BookingActionsMenu'
+import { BookingsView, type BookingsViewMode } from '../features/booking/BookingsView'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { prepareEvidenceImage } from '../lib/chatAttachments'
@@ -89,6 +90,7 @@ function AppPage() {
   const [identityDetailsOpen, setIdentityDetailsOpen] = useState(false)
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
   const [walletDialogOpen, setWalletDialogOpen] = useState(false)
+  const [bookingsView, setBookingsView] = useState<BookingsViewMode>('calendar')
   const bookingTriggerRef = useRef<HTMLButtonElement>(null)
   const bookingOpenerRef = useRef<HTMLElement | null>(null)
   const walletTriggerRef = useRef<HTMLButtonElement>(null)
@@ -176,6 +178,32 @@ function AppPage() {
 
   const heldBooking = (bookings ?? []).find((booking) => booking.status === 'verification_required')
 
+  const renderBookingRow = (booking: Booking) => (
+    <BookingRow
+      key={booking._id}
+      booking={booking}
+      onCancel={async () => {
+        await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by member.' })
+        setNotice('Booking cancelled.')
+      }}
+      onComplete={async () => {
+        const result = await completeBooking({ bookingId: booking._id })
+        setNotice(result.awaitingOtherConfirmation
+          ? 'Completion confirmed. Waiting for the Companion to confirm separately.'
+          : 'Both people confirmed completion. The review window is open.')
+      }}
+      onReview={async (rating, body, imageUploadId) => {
+        await submitReview({ bookingId: booking._id, rating, body, imageUploadId })
+        setNotice('Review submitted.')
+      }}
+      onReport={async () => {
+        await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs safety review' })
+        setNotice('Report sent to the review queue.')
+      }}
+      onEditRequest={(bookingRequest) => setEditingBooking(bookingRequest)}
+    />
+  )
+
   return (
     <WorkspaceShell
       variant="bookings"
@@ -223,11 +251,11 @@ function AppPage() {
       )}
       mobileNavigation={
         <>
-          <a href="#bookings" className="workspace-mobile-nav-link is-active">
+          <a href="#bookings" className="workspace-mobile-nav-link is-active" onClick={() => setBookingsView('cards')}>
             <span>Open</span>
             <span className="tabular">{openBookings}</span>
           </a>
-          <a href="#archive" className="workspace-mobile-nav-link">
+          <a href="#archive" className="workspace-mobile-nav-link" onClick={() => setBookingsView('cards')}>
             <span>Past</span>
             <span className="tabular">{completedBookings}</span>
           </a>
@@ -237,11 +265,11 @@ function AppPage() {
         <>
           <div className="rail-section">
             <div className="rail-section-title">Your bookings</div>
-            <a href="#bookings" className="rail-link is-active" aria-current="location">
+            <a href="#bookings" className="rail-link is-active" aria-current="location" onClick={() => setBookingsView('cards')}>
               <span>Open</span>
               <span className="rail-link-count tabular">{openBookings}</span>
             </a>
-            <a href="#archive" className="rail-link">
+            <a href="#archive" className="rail-link" onClick={() => setBookingsView('cards')}>
               <span>Past</span>
               <span className="rail-link-count tabular">{completedBookings}</span>
             </a>
@@ -327,7 +355,7 @@ function AppPage() {
 
       <section id="bookings">
         <header className="flex items-baseline justify-between gap-3 mb-3">
-          <h2 className="text-h2">Open bookings</h2>
+          <h2 className="text-h2">Bookings</h2>
           <div className="flex items-center gap-2">
             <span className="text-meta tabular">{openBookings} active</span>
             <button
@@ -383,89 +411,53 @@ function AppPage() {
             ) : null}
           </div>
         )}
-        {(bookings ?? []).filter((booking) =>
-          ['request_sent', 'accepted', 'verification_required'].includes(booking.status),
-        ).length > 0 && (
-          <div className="panel mt-2">
-            <div className="worklist">
-              {(bookings ?? [])
-                .filter((booking) =>
-                  ['request_sent', 'accepted', 'verification_required'].includes(booking.status),
-                )
-                .map((booking) => (
-                  <BookingRow
-                    key={booking._id}
-                    booking={booking}
-                    
-                    onCancel={async () => {
-                      await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by member.' })
-                      setNotice('Booking cancelled.')
-                    }}
-                    onComplete={async () => {
-                      const result = await completeBooking({ bookingId: booking._id })
-                      setNotice(result.awaitingOtherConfirmation
-                        ? 'Completion confirmed. Waiting for the Companion to confirm separately.'
-                        : 'Both people confirmed completion. The review window is open.')
-                    }}
-                    onReview={async (rating, body, imageUploadId) => {
-                      await submitReview({ bookingId: booking._id, rating, body, imageUploadId })
-                      setNotice('Review submitted.')
-                    }}
-                    onReport={async () => {
-                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs safety review' })
-                      setNotice('Report sent to the review queue.')
-                    }}
-                    onEditRequest={(bookingRequest) => setEditingBooking(bookingRequest)}
-                  />
-                ))}
-            </div>
-          </div>
+        {(bookings ?? []).length > 0 && (
+          <BookingsView
+            bookings={bookings ?? []}
+            bookingId={bookingId}
+            view={bookingsView}
+            onViewChange={setBookingsView}
+            renderBooking={renderBookingRow}
+            cards={(
+              <>
+                <section aria-labelledby="open-bookings-title">
+                  <header className="flex items-baseline justify-between gap-3 mb-3">
+                    <h2 id="open-bookings-title" className="text-h2">Open bookings</h2>
+                    <span className="text-meta tabular">{openBookings} active</span>
+                  </header>
+                  {openBookings > 0 ? (
+                    <div className="panel">
+                      <div className="worklist">
+                        {(bookings ?? [])
+                          .filter((booking) => ['request_sent', 'accepted', 'verification_required'].includes(booking.status))
+                          .map(renderBookingRow)}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="empty-state">No open bookings.</div>
+                  )}
+                </section>
+
+                {completedBookings > 0 && (
+                  <section id="archive" className="mt-10">
+                    <header className="flex items-baseline justify-between gap-3 mb-3">
+                      <h2 className="text-h2">Past bookings</h2>
+                      <span className="text-meta tabular">{completedBookings}</span>
+                    </header>
+                    <div className="panel">
+                      <div className="worklist">
+                        {(bookings ?? [])
+                          .filter((booking) => ['completed', 'review_window', 'closed', 'declined', 'cancelled'].includes(booking.status))
+                          .map(renderBookingRow)}
+                      </div>
+                    </div>
+                  </section>
+                )}
+              </>
+            )}
+          />
         )}
       </section>
-
-      {(bookings ?? []).filter((booking) =>
-        ['completed', 'review_window', 'closed', 'declined', 'cancelled'].includes(booking.status),
-      ).length > 0 && (
-        <section id="archive" className="mt-10">
-          <header className="flex items-baseline justify-between gap-3 mb-3">
-            <h2 className="text-h2">Past bookings</h2>
-            <span className="text-meta tabular">{completedBookings}</span>
-          </header>
-          <div className="panel">
-            <div className="worklist">
-              {(bookings ?? [])
-                .filter((booking) =>
-                  ['completed', 'review_window', 'closed', 'declined', 'cancelled'].includes(booking.status),
-                )
-                .map((booking) => (
-                  <BookingRow
-                    key={booking._id}
-                    booking={booking}
-                    
-                    onCancel={async () => {
-                      await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by member.' })
-                      setNotice('Booking cancelled.')
-                    }}
-                    onComplete={async () => {
-                      const result = await completeBooking({ bookingId: booking._id })
-                      setNotice(result.awaitingOtherConfirmation
-                        ? 'Completion confirmed. Waiting for the Companion to confirm separately.'
-                        : 'Both people confirmed completion. The review window is open.')
-                    }}
-                    onReview={async (rating, body, imageUploadId) => {
-                      await submitReview({ bookingId: booking._id, rating, body, imageUploadId })
-                      setNotice('Review submitted.')
-                    }}
-                    onReport={async () => {
-                      await report({ targetType: 'booking', targetId: booking._id, reason: 'Needs safety review' })
-                      setNotice('Report sent to the review queue.')
-                    }}
-                  />
-                ))}
-            </div>
-          </div>
-        </section>
-      )}
 
       {canBook && bookingDialogOpen && (
         <BookingDialog

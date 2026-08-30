@@ -45,6 +45,7 @@ function SocialPost({ owner }: { owner: boolean }) {
   return (
     <PostCard
       author="Gelo Santiago"
+      username="gelo_santiago"
       timestamp="Aug 14, 9:22 PM"
       headerAction={(
         <IconButton
@@ -81,6 +82,7 @@ function PostOptionsComposition() {
     <View style={styles.composition}>
       <PostCard
         author="Alexandria Montgomery-Santos"
+        username="alexandria_ms"
         timestamp="Yesterday at 11:48 PM"
         headerAction={<IconButton label="Post options" icon="ellipsis-horizontal" onPress={() => setOpen(true)} />}>
         <AppText>Sharing a longer update to verify the post header and options remain usable at the narrowest supported width.</AppText>
@@ -102,10 +104,11 @@ function LinkedIdentityPost() {
   return (
     <PostCard
       author={author}
+      username="maria_santos"
       timestamp="Yesterday at 11:48 PM"
       avatarAction={(
         <Pressable accessibilityRole="button" accessibilityLabel={`View ${author}'s profile`} style={styles.profileAction}>
-          <Avatar name={author} size={38} />
+          <Avatar name={author} size={42} />
         </Pressable>
       )}
       authorAction={(

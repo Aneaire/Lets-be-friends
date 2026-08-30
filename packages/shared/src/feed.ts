@@ -51,6 +51,83 @@ export type RankedFeedCandidate<T extends FeedRankingCandidate = FeedRankingCand
   score: number
 }
 
+export type CommentThreadPosition = 'standalone' | 'root' | 'reply'
+
+export type CommentThreadEntry<T> = {
+  comment: T
+  position: CommentThreadPosition
+  isLastReply: boolean
+}
+
+type ThreadableComment = {
+  _id: string
+  parentCommentId?: string | null
+  createdAt: number
+}
+
+/**
+ * Keeps each conversation together while retaining a reverse-chronological
+ * order between conversations and a chronological reading order within them.
+ * Nested replies share one visual level because their explicit reply context
+ * identifies the exact comment they answer.
+ */
+export function arrangeCommentThreads<T extends ThreadableComment>(comments: readonly T[]): CommentThreadEntry<T>[] {
+  const byId = new Map(comments.map((comment) => [String(comment._id), comment]))
+  const children = new Map<string, T[]>()
+  const roots: T[] = []
+
+  for (const comment of comments) {
+    const commentId = String(comment._id)
+    const parentId = comment.parentCommentId ? String(comment.parentCommentId) : ''
+    if (!parentId || parentId === commentId || !byId.has(parentId)) {
+      roots.push(comment)
+      continue
+    }
+    const siblings = children.get(parentId) ?? []
+    siblings.push(comment)
+    children.set(parentId, siblings)
+  }
+
+  const newestFirst = (left: T, right: T) => right.createdAt - left.createdAt || String(left._id).localeCompare(String(right._id))
+  const oldestFirst = (left: T, right: T) => left.createdAt - right.createdAt || String(left._id).localeCompare(String(right._id))
+  roots.sort(newestFirst)
+  for (const siblings of children.values()) siblings.sort(oldestFirst)
+
+  const arranged: CommentThreadEntry<T>[] = []
+  const visited = new Set<string>()
+
+  function appendConversation(root: T) {
+    const rootId = String(root._id)
+    if (visited.has(rootId)) return
+    visited.add(rootId)
+
+    const replies: T[] = []
+    function appendReplies(parentId: string) {
+      for (const reply of children.get(parentId) ?? []) {
+        const replyId = String(reply._id)
+        if (visited.has(replyId)) continue
+        visited.add(replyId)
+        replies.push(reply)
+        appendReplies(replyId)
+      }
+    }
+    appendReplies(rootId)
+    replies.sort(oldestFirst)
+
+    arranged.push({ comment: root, position: replies.length > 0 ? 'root' : 'standalone', isLastReply: false })
+    replies.forEach((comment, index) => {
+      arranged.push({ comment, position: 'reply', isLastReply: index === replies.length - 1 })
+    })
+  }
+
+  roots.forEach(appendConversation)
+
+  // Malformed cycles have no natural root. Promote one item so every visible
+  // comment still renders exactly once and the UI remains usable.
+  comments.filter((comment) => !visited.has(String(comment._id))).sort(newestFirst).forEach(appendConversation)
+  return arranged
+}
+
 export const feedScoreWeights = {
   relationship: 0.3,
   category: 0.25,

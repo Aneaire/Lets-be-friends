@@ -13,12 +13,13 @@ function createTest() {
   return t
 }
 
-async function insertUser(t: ReturnType<typeof convexTest>, subject: string, options: { suspended?: boolean; approvedIdentity?: boolean } = {}) {
+async function insertUser(t: ReturnType<typeof convexTest>, subject: string, options: { suspended?: boolean; approvedIdentity?: boolean; username?: string } = {}) {
   return await t.run(async (ctx) => {
     const now = Date.now()
     return await ctx.db.insert('users', {
       clerkUserId: subject,
       displayName: subject,
+      username: options.username,
       role: 'member',
       verificationStatus: options.approvedIdentity ? 'approved' : 'not_started',
       verificationSource: options.approvedIdentity ? 'persona' : undefined,
@@ -223,7 +224,7 @@ describe('social feed behavior', () => {
   it('returns a safe requested post outside the ranked page and rejects unavailable targets', async () => {
     const t = createTest()
     const viewerId = await insertUser(t, 'viewer')
-    const safeAuthor = await insertUser(t, 'safe-author')
+    const safeAuthor = await insertUser(t, 'safe-author', { username: 'safe_author' })
     const suspendedAuthor = await insertUser(t, 'suspended-author', { suspended: true })
     const safePostId = await insertPost(t, safeAuthor, 'requested safe post', { createdAt: 1 })
     const hiddenPostId = await insertPost(t, safeAuthor, 'hidden', { hidden: true })
@@ -231,7 +232,13 @@ describe('social feed behavior', () => {
     for (let index = 0; index < 25; index += 1) await insertPost(t, safeAuthor, `newer ${index}`, { createdAt: 100 + index })
 
     const viewer = t.withIdentity({ subject: 'viewer' })
-    expect(await viewer.query(api.social.requestedPost, { postId: String(safePostId) })).toMatchObject({ _id: safePostId, body: 'requested safe post', ownPost: false })
+    expect(await viewer.query(api.social.requestedPost, { postId: String(safePostId) })).toMatchObject({
+      _id: safePostId,
+      body: 'requested safe post',
+      authorUsername: 'safe_author',
+      createdAt: 1,
+      ownPost: false,
+    })
     expect(await viewer.query(api.social.requestedPost, { postId: String(hiddenPostId) })).toBeNull()
     expect(await viewer.query(api.social.requestedPost, { postId: String(suspendedPostId) })).toBeNull()
     expect(await viewer.query(api.social.requestedPost, { postId: 'not-an-id' })).toBeNull()
@@ -494,5 +501,77 @@ describe('comment editing', () => {
     await expect(
       owner.mutation(api.social.editComment, { commentId, body: 'Still hidden' }),
     ).rejects.toThrow('Only the author can edit this comment')
+  })
+})
+
+describe('comment replies and likes', () => {
+  it('stores the reply target and returns per-viewer like state', async () => {
+    const t = createTest()
+    const postAuthorId = await insertUser(t, 'reply-parent', { username: 'reply_parent' })
+    await insertUser(t, 'reply-author', { username: 'reply_author' })
+    await insertUser(t, 'comment-liker', { username: 'comment_liker' })
+    const postId = await insertPost(t, postAuthorId, 'A post with a thread')
+    const parentCommentId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('postComments', {
+        postId,
+        authorId: postAuthorId,
+        body: 'Original comment',
+        reportable: true,
+        hidden: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    const replyAuthor = t.withIdentity({ subject: 'reply-author' })
+    const replyId = await replyAuthor.mutation(api.social.createComment, {
+      postId,
+      parentCommentId,
+      body: '@reply_parent Thanks for this',
+    })
+
+    const liker = t.withIdentity({ subject: 'comment-liker' })
+    expect(await liker.mutation(api.social.toggleCommentLike, { commentId: replyId })).toBe(true)
+    const comments = await liker.query(api.social.commentsForPost, { postId })
+    expect(comments.find((comment) => comment._id === replyId)).toMatchObject({
+      parentCommentId,
+      replyToAuthorDisplayName: 'reply-parent',
+      replyToAuthorId: postAuthorId,
+      replyToAuthorUsername: 'reply_parent',
+      authorUsername: 'reply_author',
+      likeCount: 1,
+      liked: true,
+    })
+    const page = await liker.query(api.social.commentPage, { postId, paginationOpts: { cursor: null, numItems: 10 } })
+    expect(page.page.find((comment) => comment._id === replyId)).toMatchObject({ parentCommentId, likeCount: 1, liked: true })
+
+    expect(await liker.mutation(api.social.toggleCommentLike, { commentId: replyId })).toBe(false)
+    const updated = await liker.query(api.social.commentsForPost, { postId })
+    expect(updated.find((comment) => comment._id === replyId)).toMatchObject({ likeCount: 0, liked: false })
+    expect(await t.run(async (ctx) => ctx.db.query('commentReactions').collect())).toHaveLength(0)
+  })
+
+  it('rejects reply targets from another post and likes on hidden comments without partial writes', async () => {
+    const t = createTest()
+    const ownerId = await insertUser(t, 'thread-owner')
+    await insertUser(t, 'thread-member')
+    const postId = await insertPost(t, ownerId, 'Visible post')
+    const otherPostId = await insertPost(t, ownerId, 'Other post')
+    const { otherCommentId, hiddenCommentId } = await t.run(async (ctx) => {
+      const now = Date.now()
+      const otherCommentId = await ctx.db.insert('postComments', { postId: otherPostId, authorId: ownerId, body: 'Other thread', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      const hiddenCommentId = await ctx.db.insert('postComments', { postId, authorId: ownerId, body: 'Hidden', reportable: true, hidden: true, createdAt: now + 1, updatedAt: now + 1 })
+      return { otherCommentId, hiddenCommentId }
+    })
+    const member = t.withIdentity({ subject: 'thread-member' })
+
+    await expect(member.mutation(api.social.createComment, {
+      postId,
+      parentCommentId: otherCommentId,
+      body: 'Wrong thread',
+    })).rejects.toThrow('Reply target not found')
+    await expect(member.mutation(api.social.toggleCommentLike, { commentId: hiddenCommentId })).rejects.toThrow('Comment not found')
+    expect(await t.run(async (ctx) => ctx.db.query('commentReactions').collect())).toHaveLength(0)
   })
 })

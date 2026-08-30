@@ -1,8 +1,8 @@
-import { activeMentionQuery, splitBodyIntoSegments, type FeedInstrumentationAction, type StoredMention } from '@lets-be-friends/shared'
+import { activeMentionQuery, arrangeCommentThreads, splitBodyIntoSegments, withoutLeadingReplyMention, type CommentThreadPosition, type FeedInstrumentationAction, type StoredMention } from '@lets-be-friends/shared'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
-import { ImagePlus, Send } from 'lucide-react'
+import { Heart, ImagePlus, MessageCircle, Send } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { api } from '../../../convex/_generated/api'
@@ -40,6 +40,7 @@ export function SocialPage({ postId }: { postId?: string }) {
   const deletePost = useMutation(api.social.deletePost)
   const createComment = useMutation(api.social.createComment)
   const editComment = useMutation(api.social.editComment)
+  const toggleCommentLike = useMutation(api.social.toggleCommentLike)
   const generatePostMediaUploadUrl = useMutation(api.social.generatePostMediaUploadUrl)
   const registerPostMediaUpload = useMutation(api.social.registerPostMediaUpload)
   const discardPostMediaUpload = useMutation(api.social.discardPostMediaUpload)
@@ -300,10 +301,10 @@ export function SocialPage({ postId }: { postId?: string }) {
                   post={post}
                   focusComments={postId === String(post._id)}
                   viewerReady={Boolean(viewer)}
-                  onComment={async (body) => {
-                    await createComment({ postId: post._id, body })
+                  onComment={async (body, parentCommentId) => {
+                    await createComment({ postId: post._id, body, parentCommentId })
                     recordAction(item, 'comment')
-                    setNotice('Comment added.')
+                    setNotice(parentCommentId ? 'Reply added.' : 'Comment added.')
                   }}
                   onEdit={async (body) => {
                     await editPost({ postId: post._id, body })
@@ -330,6 +331,9 @@ export function SocialPage({ postId }: { postId?: string }) {
                   onEditComment={async (commentId, body) => {
                     await editComment({ commentId, body })
                     setNotice('Comment updated.')
+                  }}
+                  onLikeComment={async (commentId) => {
+                    await toggleCommentLike({ commentId })
                   }}
                   onReportComment={async (commentId) => {
                     await report({ targetType: 'comment', targetId: commentId, reason: 'Comment needs safety review' })
@@ -435,18 +439,20 @@ function PostRow({
   onSave,
   onReport,
   onEditComment,
+  onLikeComment,
   onReportComment,
 }: {
   post: FeedPost
   focusComments: boolean
   viewerReady: boolean
-  onComment: (body: string) => Promise<void>
+  onComment: (body: string, parentCommentId?: Id<'postComments'>) => Promise<void>
   onEdit: (body: string) => Promise<void>
   onDelete: () => Promise<void>
   onLike: () => Promise<void>
   onSave: () => Promise<void>
   onReport: () => Promise<void>
   onEditComment: (commentId: Id<'postComments'>, body: string) => Promise<void>
+  onLikeComment: (commentId: Id<'postComments'>) => Promise<void>
   onReportComment: (commentId: Id<'postComments'>) => Promise<void>
 }) {
   const [commentsOpen, setCommentsOpen] = useState(false)
@@ -458,6 +464,7 @@ function PostRow({
   const [actionPending, setActionPending] = useState('')
   const [actionError, setActionError] = useState('')
   const comments = useQuery(api.social.commentsForPost, commentsOpen ? { postId: post._id } : 'skip') as PostComment[] | undefined
+  const threadedComments = useMemo(() => comments ? arrangeCommentThreads(comments) : undefined, [comments])
   const rowRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
@@ -649,11 +656,15 @@ function PostRow({
               <p className="text-meta">No comments yet.</p>
             ) : (
               <div className="social-comment-list">
-                {comments.map((comment) => (
+                {threadedComments?.map(({ comment, position, isLastReply }) => (
                   <CommentRow
                     key={comment._id}
                     comment={comment}
+                    threadPosition={position}
+                    isLastReply={isLastReply}
                     viewerReady={viewerReady}
+                    onReply={(body) => onComment(body, comment._id)}
+                    onLike={() => onLikeComment(comment._id)}
                     onEdit={(body) => onEditComment(comment._id, body)}
                     onReport={() => onReportComment(comment._id)}
                   />
@@ -669,17 +680,27 @@ function PostRow({
 function CommentRow({
   comment,
   viewerReady,
+  onReply,
+  onLike,
   onEdit,
   onReport,
+  threadPosition,
+  isLastReply,
 }: {
   comment: PostComment
+  threadPosition: CommentThreadPosition
+  isLastReply: boolean
   viewerReady: boolean
+  onReply: (body: string) => Promise<void>
+  onLike: () => Promise<void>
   onEdit: (body: string) => Promise<void>
   onReport: () => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [editBody, setEditBody] = useState(comment.body)
-  const [actionPending, setActionPending] = useState<'edit' | 'report' | ''>('')
+  const [replying, setReplying] = useState(false)
+  const [replyBody, setReplyBody] = useState('')
+  const [actionPending, setActionPending] = useState<'edit' | 'like' | 'reply' | 'report' | ''>('')
   const [actionError, setActionError] = useState('')
 
   function beginEditing() {
@@ -700,13 +721,45 @@ function CommentRow({
     }
   }
 
+  function beginReplying() {
+    setReplyBody('')
+    setActionError('')
+    setReplying(true)
+  }
+
+  const avatarAction = comment.ownComment ? (
+    <Link to="/profile" className="social-comment-avatar-link" aria-label="View your profile">
+      <Avatar name={comment.authorDisplayName} src={comment.authorProfileImageUrl} size="small" className="ds-comment-avatar" decorative />
+    </Link>
+  ) : (
+    <Link
+      to="/member-profile"
+      search={{ userId: comment.authorId }}
+      className="social-comment-avatar-link"
+      aria-label={`View ${comment.authorDisplayName}'s profile`}
+    >
+      <Avatar name={comment.authorDisplayName} src={comment.authorProfileImageUrl} size="small" className="ds-comment-avatar" decorative />
+    </Link>
+  )
+
   return (
     <CommentBubble
       author={comment.authorDisplayName}
       imageUrl={comment.authorProfileImageUrl}
+      avatarAction={avatarAction}
       timestamp={formatTime(comment.createdAt)}
       dateTime={new Date(comment.createdAt).toISOString()}
       edited={comment.updatedAt > comment.createdAt}
+      threadPosition={threadPosition}
+      isLastReply={isLastReply}
+      replyContext={comment.parentCommentId && comment.replyToAuthorId ? (
+        <span>
+          Replying to{' '}
+          <Link to="/member-profile" search={{ userId: comment.replyToAuthorId }}>
+            {comment.replyToAuthorUsername ? `@${comment.replyToAuthorUsername}` : comment.replyToAuthorDisplayName ?? 'Member'}
+          </Link>
+        </span>
+      ) : undefined}
       actions={viewerReady ? (
         <CommentActionsMenu
           ownedByViewer={comment.ownComment}
@@ -763,7 +816,77 @@ function CommentRow({
           </div>
         </form>
       ) : (
-        <MentionText body={comment.body} mentions={comment.mentions} />
+        <MentionText body={withoutLeadingReplyMention(comment.body, comment.replyToAuthorUsername)} mentions={comment.mentions} />
+      )}
+      {!editing && (
+        <div className="social-comment-interactions" aria-label={`Interactions for ${comment.authorDisplayName}'s comment`}>
+          {viewerReady && (
+            <button
+              type="button"
+              className="social-comment-interaction"
+              onClick={beginReplying}
+              disabled={Boolean(actionPending)}
+              aria-expanded={replying}
+            >
+              <MessageCircle size={13} aria-hidden="true" />
+              Reply
+            </button>
+          )}
+          <button
+            type="button"
+            className="social-comment-interaction"
+            data-active={comment.liked}
+            aria-pressed={comment.liked}
+            aria-label={`${comment.liked ? 'Unlike' : 'Like'} ${comment.authorDisplayName}'s comment`}
+            disabled={!viewerReady || Boolean(actionPending)}
+            onClick={() => {
+              setActionPending('like')
+              setActionError('')
+              void onLike()
+                .catch((error) => setActionError(error instanceof Error ? error.message : 'Like could not be updated.'))
+                .finally(() => setActionPending(''))
+            }}
+          >
+            <Heart size={13} fill={comment.liked ? 'currentColor' : 'none'} aria-hidden="true" />
+            <span>{comment.likeCount > 0 ? comment.likeCount : 'Like'}</span>
+          </button>
+        </div>
+      )}
+      {replying && (
+        <form
+          className="social-comment-reply-form"
+          onSubmit={async (event) => {
+            event.preventDefault()
+            const body = replyBody.trim()
+            if (!body) return
+            setActionPending('reply')
+            setActionError('')
+            try {
+              await onReply(body)
+              setReplying(false)
+              setReplyBody('')
+            } catch (error) {
+              setActionError(error instanceof Error ? error.message : 'Reply could not be added.')
+            } finally {
+              setActionPending('')
+            }
+          }}
+        >
+          <MentionField
+            value={replyBody}
+            onChange={setReplyBody}
+            name={`reply-${comment._id}`}
+            className="field"
+            maxLength={500}
+            placeholder="Write a reply"
+            ariaLabel={`Reply to ${comment.authorDisplayName}`}
+            autoFocus
+          />
+          <div className="social-comment-edit-actions">
+            <button type="button" className="btn btn-ghost btn-sm" disabled={actionPending === 'reply'} onClick={() => setReplying(false)}>Cancel</button>
+            <button className="btn btn-social btn-sm" disabled={actionPending === 'reply' || !replyBody.trim()}>{actionPending === 'reply' ? 'Replying...' : 'Reply'}</button>
+          </div>
+        </form>
       )}
       {actionError && <p className="social-comment-error" role="alert">{actionError}</p>}
     </CommentBubble>

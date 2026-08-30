@@ -186,6 +186,7 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
   return (
     <PostCard
       author={post.authorDisplayName}
+      username={post.authorUsername}
       imageUrl={post.authorProfileImageUrl}
       timestamp={formatMessageTimestamp(post.createdAt)}
       avatarAction={(
@@ -196,7 +197,7 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
           hitSlop={3}
           style={({ pressed }) => pressed && styles.pressed}
         >
-          <Avatar uri={post.authorProfileImageUrl} name={post.authorDisplayName} size={38} />
+          <Avatar uri={post.authorProfileImageUrl} name={post.authorDisplayName} size={42} />
         </Pressable>
       )}
       authorAction={(
@@ -271,6 +272,6 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
 
 const styles = StyleSheet.create({
   postBody: { minWidth: 0, gap: 4 },
-  authorLink: { maxWidth: '48%', flexShrink: 1 },
+  authorLink: { maxWidth: '72%', flexShrink: 1 },
   pressed: { opacity: 0.68 },
 })

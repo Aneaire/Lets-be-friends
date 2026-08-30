@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activeMentionQuery, collectMentionUsernames, splitBodyIntoSegments } from '@lets-be-friends/shared'
+import { activeMentionQuery, collectMentionUsernames, splitBodyIntoSegments, withoutLeadingReplyMention } from '@lets-be-friends/shared'
 
 describe('mention helpers', () => {
   it('collects unique lowercase usernames without treating email addresses as tags', () => {
@@ -26,5 +26,11 @@ describe('mention helpers', () => {
       { type: 'mention', username: 'jay', userId: 'u2' },
       { type: 'text', text: '!' },
     ])
+  })
+
+  it('removes only a matching legacy reply mention from the start of a body', () => {
+    expect(withoutLeadingReplyMention('@Maya_Friend Thanks for this', 'maya_friend')).toBe('Thanks for this')
+    expect(withoutLeadingReplyMention('@maya_friendship Thanks', 'maya_friend')).toBe('@maya_friendship Thanks')
+    expect(withoutLeadingReplyMention('Hello @maya_friend', 'maya_friend')).toBe('Hello @maya_friend')
   })
 })

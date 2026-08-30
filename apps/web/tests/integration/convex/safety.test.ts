@@ -100,21 +100,23 @@ describe('member safety preferences', () => {
     expect(allComments.map((comment) => comment.body)).toEqual(['visible'])
     expect(page.page.map((comment) => comment.body)).toEqual(['visible'])
 
-    const [blockedPostId, mutedPostId] = await t.run(async (ctx) => {
+    const { blockedPostId, mutedPostId, blockedPostCommentId } = await t.run(async (ctx) => {
       const now = Date.now()
       const blockedPostId = await ctx.db.insert('posts', { authorId: blockedAuthorId, body: 'blocked post', reportable: true, hidden: false, createdAt: now, updatedAt: now })
       const mutedPostId = await ctx.db.insert('posts', { authorId: mutedAuthorId, body: 'muted post', reportable: true, hidden: false, createdAt: now + 1, updatedAt: now + 1 })
-      await Promise.all([
+      const [blockedPostCommentId] = await Promise.all([
         ctx.db.insert('postComments', { postId: blockedPostId, authorId: visibleAuthorId, body: 'reply to blocked post', reportable: true, hidden: false, createdAt: now + 2, updatedAt: now + 2 }),
         ctx.db.insert('postComments', { postId: mutedPostId, authorId: visibleAuthorId, body: 'reply to muted post', reportable: true, hidden: false, createdAt: now + 3, updatedAt: now + 3 }),
       ])
-      return [blockedPostId, mutedPostId]
+      return { blockedPostId, mutedPostId, blockedPostCommentId }
     })
     for (const hiddenPostId of [blockedPostId, mutedPostId]) {
       expect(await viewer.query(api.social.commentsForPost, { postId: hiddenPostId })).toEqual([])
       expect(await viewer.query(api.social.commentPage, { postId: hiddenPostId, paginationOpts: { cursor: null, numItems: 10 } }))
         .toMatchObject({ page: [], isDone: true })
     }
+    await expect(viewer.mutation(api.social.toggleCommentLike, { commentId: blockedPostCommentId })).rejects.toThrow('blocked')
+    expect(await t.run(async (ctx) => ctx.db.query('commentReactions').collect())).toEqual([])
     const safeFeed = await viewer.query(api.social.feedPage, { filter: 'for_you', paginationOpts: { cursor: null, numItems: 10 } })
     expect(safeFeed.page.filter((item: any) => item.kind === 'post').map((item: any) => item.post.body)).toEqual(['Conversation'])
   })

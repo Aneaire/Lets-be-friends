@@ -274,13 +274,7 @@ export const commentsForPost = query({
       .sort((a, b) => a.createdAt - b.createdAt)
       .map(async (comment) => {
         if (viewer && viewer._id !== comment.authorId && await isHiddenByPreference(ctx, viewer._id, comment.authorId)) return null
-        const author = await ctx.db.get(comment.authorId)
-        return {
-          ...comment,
-          authorDisplayName: author?.displayName ?? 'Member',
-          authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
-          ownComment: viewer?._id === comment.authorId,
-        }
+        return await enrichComment(ctx, comment, viewer)
       }))
     return visibleComments.flatMap((comment) => comment ? [comment] : [])
   },
@@ -298,13 +292,7 @@ export const commentPage = query({
       ...result,
       page: (await Promise.all(result.page.filter(isModerationVisible).map(async (comment) => {
         if (viewer && viewer._id !== comment.authorId && await isHiddenByPreference(ctx, viewer._id, comment.authorId)) return null
-        const author = await ctx.db.get(comment.authorId)
-        return {
-          ...comment,
-          authorDisplayName: author?.displayName ?? 'Member',
-          authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
-          ownComment: viewer?._id === comment.authorId,
-        }
+        return await enrichComment(ctx, comment, viewer)
       }))).flatMap((comment) => comment ? [comment] : []),
     }
   },
@@ -459,12 +447,19 @@ export const deletePost = mutation({
 })
 
 export const createComment = mutation({
-  args: { postId: v.id('posts'), body: v.string() },
+  args: { postId: v.id('posts'), body: v.string(), parentCommentId: v.optional(v.id('postComments')) },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || post.hidden) throw new Error('Post not found')
     await requireNotBlocked(ctx, viewer._id, post.authorId)
+    const parentComment = args.parentCommentId ? await ctx.db.get(args.parentCommentId) : null
+    if (args.parentCommentId && (!parentComment || parentComment.hidden || parentComment.postId !== args.postId)) {
+      throw new Error('Reply target not found')
+    }
+    if (parentComment && parentComment.authorId !== viewer._id) {
+      await requireNotBlocked(ctx, viewer._id, parentComment.authorId)
+    }
     const body = args.body.trim()
     if (body.length < 1) throw new Error('Comment cannot be empty')
     if (body.length > 500) throw new Error('Comment is too long')
@@ -473,6 +468,7 @@ export const createComment = mutation({
     const commentId = await ctx.db.insert('postComments', {
       postId: args.postId,
       authorId: viewer._id,
+      parentCommentId: parentComment?._id,
       body,
       mentions: mentions.length > 0 ? mentions : undefined,
       reportable: true,
@@ -537,6 +533,31 @@ export const editComment = mutation({
       targetType: 'comment',
       targetId: String(args.commentId),
     })
+  },
+})
+
+export const toggleCommentLike = mutation({
+  args: { commentId: v.id('postComments') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const comment = await ctx.db.get(args.commentId)
+    if (!comment || comment.hidden) throw new Error('Comment not found')
+    const post = await ctx.db.get(comment.postId)
+    if (!post || post.hidden || post.deletedAt) throw new Error('Comment not found')
+    if (post.authorId !== viewer._id) await requireNotBlocked(ctx, viewer._id, post.authorId)
+    if (comment.authorId !== viewer._id) await requireNotBlocked(ctx, viewer._id, comment.authorId)
+    const existing = await ctx.db.query('commentReactions').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('commentId', args.commentId)).first()
+    if (existing) {
+      await ctx.db.delete(existing._id)
+      return false
+    }
+    await ctx.db.insert('commentReactions', {
+      userId: viewer._id,
+      commentId: args.commentId,
+      reaction: 'like',
+      createdAt: Date.now(),
+    })
+    return true
   },
 })
 
@@ -976,6 +997,7 @@ async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | n
     likeCount: reactions.length,
     liked: viewer ? reactions.some((reaction: Doc<'postReactions'>) => reaction.userId === viewer._id) : false,
     authorDisplayName: author?.displayName ?? 'Member',
+    authorUsername: author?.username,
     authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
     authorCompanionProfileId: authorCompanionProfile?.status === 'approved' && author && !author.suspended && hasCurrentIdentityApproval(author)
       ? authorCompanionProfile._id
@@ -983,6 +1005,29 @@ async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | n
     saved: Boolean(saved),
     followingAuthor: Boolean(following),
     ownPost: viewer?._id === post.authorId,
+  }
+}
+
+async function enrichComment(ctx: any, comment: Doc<'postComments'>, viewer: Doc<'users'> | null) {
+  const [author, reactions, parentComment] = await Promise.all([
+    ctx.db.get(comment.authorId),
+    ctx.db.query('commentReactions').withIndex('by_comment', (q: any) => q.eq('commentId', comment._id)).collect(),
+    comment.parentCommentId ? ctx.db.get(comment.parentCommentId) : null,
+  ])
+  const replyToAuthor = parentComment && isModerationVisible(parentComment)
+    ? await ctx.db.get(parentComment.authorId)
+    : null
+  return {
+    ...comment,
+    authorDisplayName: author?.displayName ?? 'Member',
+    authorUsername: author?.username,
+    authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
+    ownComment: viewer?._id === comment.authorId,
+    likeCount: reactions.length,
+    liked: viewer ? reactions.some((reaction: Doc<'commentReactions'>) => reaction.userId === viewer._id) : false,
+    replyToAuthorDisplayName: replyToAuthor?.displayName,
+    replyToAuthorId: replyToAuthor?._id,
+    replyToAuthorUsername: replyToAuthor?.username,
   }
 }
 

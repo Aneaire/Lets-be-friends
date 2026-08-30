@@ -1,15 +1,16 @@
-import { activeMentionQuery } from '@lets-be-friends/shared'
+import { activeMentionQuery, arrangeCommentThreads, withoutLeadingReplyMention, type CommentThreadPosition } from '@lets-be-friends/shared'
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { BlurTargetView } from 'expo-blur'
 import * as Linking from 'expo-linking'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { mobileApi, type CommentId, type PostId } from '@/backend/client'
 import { formatMessageTimestamp } from '@/data/messageViewModels'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { IconButton } from '@/design-system/atoms/IconButton'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -24,9 +25,9 @@ import { PostImageViewer, type PostViewerImage } from '@/features/social/PostIma
 import { PostMediaGrid } from '@/features/social/PostMediaGrid'
 import { openMemberProfile } from '@/features/social/socialNavigation'
 import { useAppTheme } from '@/theme/ThemeProvider'
-import { density } from '@/theme/tokens'
 
 type RequestedPost = NonNullable<FunctionReturnType<typeof mobileApi.social.requestedPost>>
+type PostComment = NonNullable<FunctionReturnType<typeof mobileApi.social.commentsForPost>>[number]
 
 export default function PostCommentsScreen() {
   const params = useLocalSearchParams<{ id?: string }>()
@@ -45,6 +46,7 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
   const { results: comments, status, loadMore } = usePaginatedQuery(mobileApi.social.commentPage, { postId }, { initialNumItems: 20 })
   const createComment = useMutation(mobileApi.social.createComment)
   const editComment = useMutation(mobileApi.social.editComment)
+  const toggleCommentLike = useMutation(mobileApi.social.toggleCommentLike)
   const blurTarget = useRef<View>(null)
   const [viewerImage, setViewerImage] = useState<PostViewerImage | null>(null)
   const [body, setBody] = useState('')
@@ -53,6 +55,7 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
   const mentionSuggestions = useQuery(mobileApi.social.mentionLookup, mentionToken ? { query: mentionToken } : 'skip')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const threadedComments = useMemo(() => arrangeCommentThreads(comments), [comments])
 
   async function openVideo(url: string) {
     setError('')
@@ -145,8 +148,8 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
               style={styles.commentScroll}
               contentContainerStyle={styles.commentList}
               keyboardShouldPersistTaps="handled"
-              data={comments}
-              keyExtractor={(comment) => String(comment._id)}
+              data={threadedComments}
+              keyExtractor={({ comment }) => String(comment._id)}
               onEndReached={() => { if (status === 'CanLoadMore') loadMore(20) }}
               onEndReachedThreshold={0.4}
               ListHeaderComponent={(
@@ -168,31 +171,15 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
               ListEmptyComponent={status === 'LoadingFirstPage' ? (
                 <ListRowsSkeleton count={4} />
               ) : <AppText color={theme.colors.textMuted}>No comments yet.</AppText>}
-              renderItem={({ item: comment }) => (
-                <CommentBubble
-                  author={comment.authorDisplayName}
-                  timestamp={formatMessageTimestamp(comment.createdAt)}
-                  authorAction={(
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`View ${comment.authorDisplayName}'s profile`}
-                      onPress={() => router.push({ pathname: '/member-profile/[id]', params: { id: String(comment.authorId) } })}
-                      style={({ pressed }) => [styles.commentAuthor, pressed && styles.pressed]}
-                    >
-                      <AppText variant="bodyStrong" numberOfLines={1}>{comment.authorDisplayName}</AppText>
-                    </Pressable>
-                  )}
-                  action={(
-                    <CommentActionsMenu
-                      ownComment={comment.ownComment}
-                      commentId={String(comment._id)}
-                      body={comment.body}
-                      onEdit={(nextBody) => editComment({ commentId: comment._id as CommentId, body: nextBody })}
-                    />
-                  )}
-                >
-                  <MentionBody body={comment.body} mentions={comment.mentions} />
-                </CommentBubble>
+              renderItem={({ item: { comment, position, isLastReply } }) => (
+                <CommentThreadRow
+                  comment={comment}
+                  threadPosition={position}
+                  isLastReply={isLastReply}
+                  onReply={(nextBody) => createComment({ postId, parentCommentId: comment._id as CommentId, body: nextBody })}
+                  onLike={() => toggleCommentLike({ commentId: comment._id as CommentId })}
+                  onEdit={(nextBody) => editComment({ commentId: comment._id as CommentId, body: nextBody })}
+                />
               )}
               ListFooterComponent={status === 'LoadingMore' ? <AppText variant="caption" color={theme.colors.textMuted}>Loading more comments.</AppText> : null}
             />
@@ -201,6 +188,149 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
       </KeyboardAvoidingView>
       <PostImageViewer image={viewerImage} blurTarget={blurTarget} onClose={() => setViewerImage(null)} />
     </View>
+  )
+}
+
+function CommentThreadRow({ comment, threadPosition, isLastReply, onReply, onLike, onEdit }: {
+  comment: PostComment
+  threadPosition: CommentThreadPosition
+  isLastReply: boolean
+  onReply: (body: string) => Promise<unknown>
+  onLike: () => Promise<unknown>
+  onEdit: (body: string) => Promise<unknown>
+}) {
+  const theme = useAppTheme()
+  const [replying, setReplying] = useState(false)
+  const [replyBody, setReplyBody] = useState('')
+  const [pending, setPending] = useState<'like' | 'reply' | ''>('')
+  const [error, setError] = useState('')
+  const openProfile = () => router.push({ pathname: '/member-profile/[id]', params: { id: String(comment.authorId) } })
+  const profileLabel = `View ${comment.authorDisplayName}'s profile`
+
+  function startReply() {
+    setReplyBody('')
+    setError('')
+    setReplying(true)
+  }
+
+  async function submitReply() {
+    const trimmed = replyBody.trim()
+    if (!trimmed || trimmed.length > 500 || pending) return
+    setPending('reply')
+    setError('')
+    try {
+      await onReply(trimmed)
+      setReplyBody('')
+      setReplying(false)
+    } catch {
+      setError('Your reply could not be posted.')
+    } finally {
+      setPending('')
+    }
+  }
+
+  async function toggleLike() {
+    if (pending) return
+    setPending('like')
+    setError('')
+    try {
+      await onLike()
+    } catch {
+      setError('The like could not be updated.')
+    } finally {
+      setPending('')
+    }
+  }
+
+  return (
+    <CommentBubble
+      author={comment.authorDisplayName}
+      imageUrl={comment.authorProfileImageUrl}
+      timestamp={formatMessageTimestamp(comment.createdAt)}
+      threadPosition={threadPosition}
+      isLastReply={isLastReply}
+      replyContext={comment.parentCommentId && comment.replyToAuthorId ? (
+        <AppText variant="caption" color={theme.colors.textMuted}>
+          Replying to{' '}
+          <AppText
+            accessibilityRole="link"
+            onPress={() => openMemberProfile(String(comment.replyToAuthorId))}
+            variant="caption"
+            color={theme.colors.socialText}
+          >
+            {comment.replyToAuthorUsername ? `@${comment.replyToAuthorUsername}` : comment.replyToAuthorDisplayName ?? 'Member'}
+          </AppText>
+        </AppText>
+      ) : undefined}
+      avatarAction={(
+        <Pressable accessibilityRole="button" accessibilityLabel={profileLabel} onPress={openProfile} hitSlop={10} style={({ pressed }) => pressed && styles.pressed}>
+          <Avatar uri={comment.authorProfileImageUrl} name={comment.authorDisplayName} size={36} />
+        </Pressable>
+      )}
+      authorAction={(
+        <Pressable accessibilityRole="button" accessibilityLabel={profileLabel} onPress={openProfile} hitSlop={10} style={({ pressed }) => [styles.commentAuthor, pressed && styles.pressed]}>
+          <AppText variant="bodyStrong" numberOfLines={1}>{comment.authorDisplayName}</AppText>
+        </Pressable>
+      )}
+      action={(
+        <CommentActionsMenu
+          ownComment={comment.ownComment}
+          commentId={String(comment._id)}
+          body={comment.body}
+          onEdit={onEdit}
+        />
+      )}
+    >
+      <MentionBody body={withoutLeadingReplyMention(comment.body, comment.replyToAuthorUsername)} mentions={comment.mentions} />
+      <View style={styles.commentInteractions} accessibilityLabel={`Interactions for ${comment.authorDisplayName}'s comment`}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Reply to ${comment.authorDisplayName}`}
+          accessibilityState={{ disabled: Boolean(pending), expanded: replying }}
+          disabled={Boolean(pending)}
+          onPress={startReply}
+          hitSlop={8}
+          style={({ pressed }) => [styles.commentInteraction, pressed && styles.pressed]}
+        >
+          <AppIcon name="chatbubble-outline" size={14} color={theme.colors.textMuted} />
+          <AppText variant="caption" color={theme.colors.textMuted}>Reply</AppText>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${comment.liked ? 'Unlike' : 'Like'} ${comment.authorDisplayName}'s comment`}
+          accessibilityState={{ disabled: Boolean(pending), selected: comment.liked }}
+          disabled={Boolean(pending)}
+          onPress={() => void toggleLike()}
+          hitSlop={8}
+          style={({ pressed }) => [styles.commentInteraction, pressed && styles.pressed]}
+        >
+          <AppIcon name={comment.liked ? 'heart' : 'heart-outline'} size={14} color={comment.liked ? theme.colors.socialText : theme.colors.textMuted} />
+          <AppText variant="caption" color={comment.liked ? theme.colors.socialText : theme.colors.textMuted}>{comment.likeCount > 0 ? String(comment.likeCount) : 'Like'}</AppText>
+        </Pressable>
+      </View>
+      {replying ? (
+        <View style={styles.replyComposer}>
+          <TextInput
+            accessibilityLabel={`Reply to ${comment.authorDisplayName}`}
+            autoFocus
+            value={replyBody}
+            onChangeText={(value) => { setReplyBody(value); setError('') }}
+            placeholder="Write a reply"
+            placeholderTextColor={theme.colors.textMuted}
+            maxLength={501}
+            multiline
+            style={[styles.replyInput, theme.typography.body, { color: theme.colors.text, borderColor: replyBody.length > 500 ? theme.colors.danger : theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}
+          />
+          <View style={styles.replyActions}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Cancel reply" disabled={pending === 'reply'} onPress={() => setReplying(false)} hitSlop={8}>
+              <AppText variant="caption" color={theme.colors.textMuted}>Cancel</AppText>
+            </Pressable>
+            <ActionButton label={pending === 'reply' ? 'Replying' : 'Reply'} onPress={() => void submitReply()} disabled={pending === 'reply' || !replyBody.trim() || replyBody.length > 500} intent="social" compact />
+          </View>
+        </View>
+      ) : null}
+      {error ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{error}</AppText> : null}
+    </CommentBubble>
   )
 }
 
@@ -222,7 +352,7 @@ function CommentsPost({ post, onOpenImage, onOpenVideo }: {
       timestamp={formatMessageTimestamp(post.createdAt)}
       avatarAction={(
         <Pressable accessibilityRole="button" accessibilityLabel={profileLabel} onPress={openAuthorProfile} style={({ pressed }) => pressed && styles.pressed}>
-          <Avatar uri={post.authorProfileImageUrl} name={post.authorDisplayName} size={38} />
+          <Avatar uri={post.authorProfileImageUrl} name={post.authorDisplayName} size={42} />
         </Pressable>
       )}
       authorAction={(
@@ -260,11 +390,16 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 12 },
   headerCopy: { flex: 1, minWidth: 0, gap: 2 },
   commentScroll: { flex: 1 },
-  commentList: { gap: 8, paddingBottom: 20 },
+  commentList: { gap: 0, paddingBottom: 20 },
   threadHeader: { gap: 12, paddingBottom: 2 },
   postBody: { minWidth: 0, gap: 4 },
   postAuthor: { maxWidth: '62%', flexShrink: 1 },
-  commentAuthor: { maxWidth: '45%', flexShrink: 1, minHeight: density.compactControlHeight, justifyContent: 'center', marginVertical: -11 },
+  commentAuthor: { maxWidth: '45%', flexShrink: 1 },
+  commentInteractions: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 },
+  commentInteraction: { minWidth: 32, minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, justifyContent: 'center' },
+  replyComposer: { gap: 6, paddingTop: 2, paddingBottom: 4 },
+  replyInput: { minHeight: 54, maxHeight: 96, borderWidth: 1, borderRadius: 10, padding: 10, textAlignVertical: 'top' },
+  replyActions: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 14 },
   commentComposer: { gap: 8 },
   commentInput: { minHeight: 64, maxHeight: 112, borderWidth: 1, borderRadius: 12, padding: 12, textAlignVertical: 'top' },
   mentionMenu: { borderWidth: 1, borderRadius: 12, padding: 6, gap: 2, maxHeight: 160 },

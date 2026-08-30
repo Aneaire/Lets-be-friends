@@ -689,13 +689,20 @@ export default defineSchema({
   postComments: defineTable({
     postId: v.id('posts'),
     authorId: v.id('users'),
+    parentCommentId: v.optional(v.id('postComments')),
     body: v.string(),
     mentions: v.optional(v.array(mentionEntry)),
     reportable: v.boolean(),
     hidden: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_post', ['postId']).index('by_author', ['authorId']),
+  }).index('by_post', ['postId']).index('by_author', ['authorId']).index('by_parent', ['parentCommentId']),
+  commentReactions: defineTable({
+    userId: v.id('users'),
+    commentId: v.id('postComments'),
+    reaction: v.literal('like'),
+    createdAt: v.number(),
+  }).index('by_user', ['userId']).index('by_comment', ['commentId']).index('by_pair', ['userId', 'commentId']),
   follows: defineTable({
     followerId: v.id('users'),
     followingId: v.id('users'),

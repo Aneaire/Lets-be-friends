@@ -15,7 +15,7 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
 
 export function keyboardAvoidingBehavior(platform: PlatformOSType): KeyboardAvoidingViewProps['behavior'] {
-  return platform === 'ios' ? 'padding' : undefined
+  return platform === 'web' ? undefined : 'padding'
 }
 
 export function screenSafeAreaPadding(insets: EdgeInsets): ViewStyle {
