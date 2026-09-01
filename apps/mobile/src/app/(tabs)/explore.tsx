@@ -87,7 +87,7 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
               <Chip label={`Filters ${activeDiscoveryFilterCount(filters)}`} selected={Boolean(filters.category || filters.strength || filters.mode !== 'all')} onPress={() => setFilterSheet(true)} />
             </View>
             <View style={styles.resultRow}>
-              <AppText variant="bodyStrong">{companions.length} {companions.length === 1 ? 'Companion' : 'Companions'}</AppText>
+              <AppText variant="bodyStrong">{companions.length} {companions.length === 1 ? 'person' : 'people'}</AppText>
               {query || activeDiscoveryFilterCount(filters) > 1 || !filters.bookableOnly ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Clear discovery filters" onPress={clearFilters} style={styles.clearButton}><AppText variant="caption" color={theme.colors.socialText}>Clear</AppText></Pressable>
               ) : null}
@@ -128,5 +128,5 @@ const styles = StyleSheet.create({
   quickFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   resultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   clearButton: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
-  gap: { height: 8 },
+  gap: { height: 6 },
 })

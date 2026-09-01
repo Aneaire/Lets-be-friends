@@ -15,6 +15,7 @@ const companion: DiscoveryCompanion = {
   strengths: ['Good listener', 'Patient'],
   verified: true,
   following: false,
+  hourlyRateCentavos: 50_000,
 }
 
 const meta = {

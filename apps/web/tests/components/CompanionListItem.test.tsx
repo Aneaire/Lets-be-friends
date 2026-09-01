@@ -23,6 +23,7 @@ const companion: DiscoveryCompanion = {
   intro: 'Coffee walks and easy conversation.',
   strengths: ['Good listener', 'Patient', 'Organized'],
   verified: true,
+  hourlyRateCentavos: 50_000,
 }
 
 describe('CompanionListItem', () => {
@@ -34,7 +35,8 @@ describe('CompanionListItem', () => {
     expect(screen.getByText('Identity checked')).toBeTruthy()
     expect(screen.getByText('Angeles City')).toBeTruthy()
     expect(screen.getByText('Online and in-person')).toBeTruthy()
-    expect(screen.getAllByText('Good listener')).toHaveLength(1)
+    expect(screen.getAllByText(/₱500\.00/)).toHaveLength(2)
+    expect(screen.queryByText('Good listener')).toBeNull()
     expect(screen.queryByText('Organized')).toBeNull()
     expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull()
   })
@@ -48,10 +50,20 @@ describe('CompanionListItem', () => {
   })
 
   it('links members to their member profile without unverified status copy', () => {
-    render(<CompanionListItem companion={{ ...companion, kind: 'member', verified: false }} signedIn onFollow={vi.fn()} profileLinkProps={{ href: '/member-profile?userId=user-1' }} />)
+    render(<CompanionListItem companion={{ ...companion, kind: 'member', verified: false, intro: "A member of the Let's Be Friends community." }} signedIn onFollow={vi.fn()} profileLinkProps={{ href: '/member-profile?userId=user-1' }} />)
 
     expect(screen.getByRole('link', { name: 'Angelo Santiago' }).getAttribute('href'))
       .toBe('/member-profile?userId=user-1')
+    expect(screen.getByText('Member')).toBeTruthy()
+    expect(screen.queryByText("A member of the Let's Be Friends community.")).toBeNull()
+    expect(screen.queryByText(/₱500\.00/)).toBeNull()
+    expect(screen.queryByText('Good listener')).toBeNull()
     expect(screen.queryByText('Not identity checked')).toBeNull()
+  })
+
+  it('keeps a real member bio as one useful reason to open the profile', () => {
+    render(<CompanionListItem companion={{ ...companion, kind: 'member', intro: 'Loves island life and good food.' }} signedIn onFollow={vi.fn()} />)
+
+    expect(screen.getByText('Loves island life and good food.')).toBeTruthy()
   })
 })

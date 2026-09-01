@@ -9,6 +9,10 @@ export const MIN_BOOKING_DURATION_MINUTES = 15
 export const MAX_BOOKING_DURATION_MINUTES = 12 * 60
 export const MIN_TOP_UP_CENTAVOS = 10_000
 export const MAX_TOP_UP_CENTAVOS = 10_000_000
+export const MIN_COMPANION_WITHDRAWAL_CENTAVOS = 10_000
+export const MAX_COMPANION_WITHDRAWAL_CENTAVOS = 5_000_000
+export const COMPANION_PAYOUT_METHOD_HOLD_MS = 24 * 60 * 60 * 1_000
+export const PAYMONGO_TRANSFER_FEE_CENTAVOS = 1_000
 
 export function validateCompanionHourlyRateCentavos(value: number) {
   if (!Number.isSafeInteger(value)) throw new Error('Hourly rate must be a whole number of centavos')
@@ -32,6 +36,14 @@ export function validateTopUpCentavos(value: number) {
   if (!Number.isSafeInteger(value)) throw new Error('Top-up amount must be a whole number of centavos')
   if (value < MIN_TOP_UP_CENTAVOS || value > MAX_TOP_UP_CENTAVOS) {
     throw new Error('Top-up amount must be between ₱100 and ₱100,000')
+  }
+  return value
+}
+
+export function validateCompanionWithdrawalCentavos(value: number) {
+  if (!Number.isSafeInteger(value)) throw new Error('Withdrawal amount must be a whole number of centavos')
+  if (value < MIN_COMPANION_WITHDRAWAL_CENTAVOS || value > MAX_COMPANION_WITHDRAWAL_CENTAVOS) {
+    throw new Error('Withdrawal amount must be between ₱100 and ₱50,000')
   }
   return value
 }

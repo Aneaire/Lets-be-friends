@@ -76,6 +76,18 @@ const walletTransactionKind = v.union(
   v.literal('booking_settle'),
   v.literal('booking_admin_release'),
   v.literal('booking_admin_refund'),
+  v.literal('payout_reserve'),
+  v.literal('payout_complete'),
+  v.literal('payout_release'),
+)
+const payoutMethodStatus = v.union(v.literal('active'), v.literal('replaced'))
+const withdrawalStatus = v.union(
+  v.literal('queued'),
+  v.literal('submitting'),
+  v.literal('pending'),
+  v.literal('succeeded'),
+  v.literal('failed'),
+  v.literal('needs_review'),
 )
 const bookingSettlementState = v.union(
   v.literal('unreserved'),
@@ -406,6 +418,7 @@ export default defineSchema({
     idempotencyKey: v.string(),
     bookingId: v.optional(v.id('bookings')),
     topUpId: v.optional(v.id('paymongoTopUps')),
+    withdrawalId: v.optional(v.id('withdrawals')),
     actorUserId: v.optional(v.id('users')),
     amountCentavos: v.number(),
     currency: v.literal('PHP'),
@@ -414,7 +427,8 @@ export default defineSchema({
   })
     .index('by_idempotency_key', ['idempotencyKey'])
     .index('by_booking', ['bookingId'])
-    .index('by_top_up', ['topUpId']),
+    .index('by_top_up', ['topUpId'])
+    .index('by_withdrawal', ['withdrawalId']),
   walletEntries: defineTable({
     transactionId: v.id('walletTransactions'),
     accountId: v.id('walletAccounts'),
@@ -425,6 +439,68 @@ export default defineSchema({
   })
     .index('by_transaction', ['transactionId'])
     .index('by_account_created_at', ['accountId', 'createdAt']),
+  payoutMethods: defineTable({
+    companionUserId: v.id('users'),
+    provider: v.literal('instapay'),
+    institutionBic: v.string(),
+    institutionName: v.string(),
+    accountName: v.string(),
+    accountNumberCiphertext: v.string(),
+    accountNumberIv: v.string(),
+    accountNumberLast4: v.string(),
+    status: payoutMethodStatus,
+    mode: paymongoMode,
+    availableAt: v.number(),
+    replacedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_companion_status', ['companionUserId', 'status'])
+    .index('by_companion_created_at', ['companionUserId', 'createdAt']),
+  withdrawals: defineTable({
+    companionUserId: v.id('users'),
+    payoutMethodId: v.id('payoutMethods'),
+    amountCentavos: v.number(),
+    providerFeeCentavos: v.number(),
+    currency: v.literal('PHP'),
+    status: withdrawalStatus,
+    mode: paymongoMode,
+    destinationInstitutionName: v.string(),
+    destinationAccountName: v.string(),
+    destinationAccountLast4: v.string(),
+    referenceNumber: v.string(),
+    idempotencyKey: v.string(),
+    providerBatchTransferId: v.optional(v.string()),
+    providerTransferId: v.optional(v.string()),
+    providerReferenceNumber: v.optional(v.string()),
+    providerStatus: v.optional(v.string()),
+    failureCode: v.optional(v.string()),
+    attemptCount: v.number(),
+    nextAttemptAt: v.optional(v.number()),
+    submittedAt: v.optional(v.number()),
+    succeededAt: v.optional(v.number()),
+    failedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_companion_created_at', ['companionUserId', 'createdAt'])
+    .index('by_companion_status', ['companionUserId', 'status'])
+    .index('by_provider_transfer_id', ['providerTransferId'])
+    .index('by_status_updated_at', ['status', 'updatedAt'])
+    .index('by_status_next_attempt_at', ['status', 'nextAttemptAt']),
+  withdrawalWebhookEvents: defineTable({
+    eventId: v.string(),
+    rawBodyHash: v.string(),
+    eventType: v.string(),
+    mode: paymongoMode,
+    providerTransferId: v.string(),
+    status: v.union(v.literal('received'), v.literal('processed'), v.literal('rejected')),
+    outcome: v.optional(v.string()),
+    receivedAt: v.number(),
+    processedAt: v.optional(v.number()),
+  })
+    .index('by_event_id', ['eventId'])
+    .index('by_provider_transfer_id', ['providerTransferId']),
   paymongoTopUps: defineTable({
     companionUserId: v.optional(v.id('users')),
     beneficiaryUserId: v.optional(v.id('users')),

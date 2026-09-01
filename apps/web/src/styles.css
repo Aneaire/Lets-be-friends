@@ -3824,26 +3824,6 @@ button:disabled {
   -webkit-line-clamp: 2;
 }
 
-.discover-host-strengths {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.discover-host-strengths li {
-  padding: 0.15rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-muted);
-  background: color-mix(in oklch, var(--text) 2%, var(--surface));
-  font-size: 0.625rem;
-  font-weight: 550;
-  line-height: 1.35;
-}
-
 .discover-host-side {
   display: flex;
   min-width: 0;
@@ -4090,14 +4070,14 @@ button:disabled {
 }
 
 .discover-results-panel .worklist {
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .discover-results .discover-host-row {
   min-height: 0;
-  grid-template-columns: 2.75rem minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  padding: 0.75rem 0.875rem 0.75rem 1rem;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
   border: 1px solid var(--rule);
   border-radius: 12px;
   overflow: hidden;
@@ -4114,13 +4094,13 @@ button:disabled {
 }
 
 .discover-results .discover-host-avatar-link .avatar-lg {
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 999px;
 }
 
 .discover-results .discover-host-main {
-  gap: 0.3rem;
+  gap: 0.2rem;
 }
 
 .discover-results .discover-host-name-row {
@@ -4129,6 +4109,7 @@ button:disabled {
 
 .discover-results .discover-host-name-row h2 {
   min-width: 0;
+  font-size: 0.9375rem;
 }
 
 .discover-results .discover-host-name-link::after {
@@ -4153,18 +4134,14 @@ button:disabled {
 }
 
 .discover-results .discover-host-context {
-  margin-top: 0.1rem;
+  margin-top: 0;
 }
 
 .discover-results .discover-host-intro {
   max-width: 58ch;
-  font-size: 0.8125rem;
-  line-height: 1.4;
+  font-size: 0.78125rem;
+  line-height: 1.35;
   -webkit-line-clamp: 1;
-}
-
-.discover-results .discover-host-strengths {
-  gap: 0.25rem;
 }
 
 .discover-results .discover-host-side {
@@ -4181,6 +4158,19 @@ button:disabled {
   align-items: flex-end;
   justify-content: center;
   gap: 0.25rem;
+}
+
+.discover-host-rate {
+  color: var(--accent-social);
+  font-size: 0.75rem;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.discover-host-rate small {
+  color: var(--text-soft);
+  font-size: 0.625rem;
+  font-weight: 550;
 }
 
 .discover-results .discover-host-distance {
@@ -4243,11 +4233,12 @@ button:disabled {
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.55rem;
   }
 
   .discover-results .discover-host-intro {
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
   }
 
   .discover-host-distance[data-compact="true"] {

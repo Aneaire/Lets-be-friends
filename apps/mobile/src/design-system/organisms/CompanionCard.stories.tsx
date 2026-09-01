@@ -4,6 +4,7 @@ import { vi } from 'vitest'
 import { router } from 'expo-router'
 
 import type { DiscoveryCompanionViewModel } from '@/data/companionViewModels'
+import { defaultMemberDiscoveryIntro } from '@lets-be-friends/shared'
 import { CompanionCard } from './CompanionCard'
 
 const verifiedCompanion: DiscoveryCompanionViewModel = {
@@ -50,6 +51,7 @@ const member: DiscoveryCompanionViewModel = {
   strengths: [],
   categories: [],
   sessionModes: ['online'],
+  intro: defaultMemberDiscoveryIntro,
   bookable: true,
 }
 

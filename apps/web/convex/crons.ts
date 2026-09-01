@@ -18,6 +18,13 @@ crons.interval(
 )
 
 crons.interval(
+  'reconcile Companion withdrawals',
+  { minutes: 10 },
+  internal.withdrawals.reconcile,
+  {},
+)
+
+crons.interval(
   'reconcile due member-wallet settlements',
   { minutes: 15 },
   internal.finance.reconcileSettlements,

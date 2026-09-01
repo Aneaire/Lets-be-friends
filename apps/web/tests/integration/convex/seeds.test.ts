@@ -46,6 +46,105 @@ describe('Pampanga development seed', () => {
     expect(counts).toEqual({ users: 15, companions: 8, bookings: 112, reviews: 112 })
   })
 
+  it('populates a presentation account without replacing its identity', async () => {
+    const t = createTest()
+    const now = Date.now()
+    const clerkUserId = 'user_presentation_niko'
+    const accountId = await t.run(async (ctx) => await ctx.db.insert('users', {
+      clerkUserId,
+      username: 'niko2493',
+      displayName: 'Niko Santiago.zoobook',
+      bio: 'Niko\'s original profile bio.',
+      onboardingCategories: ['Friendly conversation'],
+      role: 'member',
+      verificationStatus: 'approved',
+      suspended: false,
+      createdAt: now,
+      updatedAt: now,
+    }))
+    await t.mutation(internal.seeds.seedPampangaCompanions, {})
+
+    await expect(t.mutation(internal.seeds.seedPresentationAccount, { clerkUserId })).resolves.toMatchObject({
+      accountId,
+      conversationsCreated: 3,
+      messagesCreated: 12,
+      bookingsCreated: 4,
+      notificationsCreated: 6,
+    })
+
+    const firstSnapshot = await t.run(async (ctx) => {
+      const account = await ctx.db.get(accountId)
+      const conversations = (await ctx.db.query('directConversations').collect())
+        .filter((conversation) => conversation.participantOneId === accountId || conversation.participantTwoId === accountId)
+      const conversationIds = new Set(conversations.map((conversation) => conversation._id))
+      const messages = (await ctx.db.query('directMessages').collect())
+        .filter((message) => conversationIds.has(message.conversationId))
+      const bookings = await ctx.db.query('bookings').withIndex('by_member', (q) => q.eq('memberId', accountId)).collect()
+      const notifications = await ctx.db.query('notifications').withIndex('by_recipient_created_at', (q) => q.eq('recipientUserId', accountId)).collect()
+      const posts = await ctx.db.query('posts').withIndex('by_author', (q) => q.eq('authorId', accountId)).collect()
+      const reviews = (await ctx.db.query('reviews').collect())
+        .filter((review) => review.reviewerId === accountId || review.revieweeId === accountId)
+      const wallet = await ctx.db.query('walletAccounts').withIndex('by_deterministic_key', (q) => q.eq('deterministicKey', `member:${accountId}:booking`)).unique()
+      const topUps = (await ctx.db.query('paymongoTopUps').collect())
+        .filter((topUp) => topUp.beneficiaryUserId === accountId)
+      return {
+        account,
+        conversations: conversations.length,
+        messages: messages.map((message) => message.body),
+        bookingStatuses: bookings.map((booking) => booking.status).sort(),
+        notifications: notifications.length,
+        posts: posts.length,
+        reviews: reviews.length,
+        wallet,
+        topUps: topUps.length,
+      }
+    })
+
+    expect(firstSnapshot.account).toMatchObject({
+      username: 'niko2493',
+      displayName: 'Niko Santiago.zoobook',
+      bio: 'Niko\'s original profile bio.',
+      onboardingCategories: ['Friendly conversation'],
+      role: 'member',
+    })
+    expect(firstSnapshot.conversations).toBe(3)
+    expect(firstSnapshot.messages).toHaveLength(12)
+    expect(firstSnapshot.messages).toContain('Hi Niko, I saw that you are interested in coffee and local experiences. I know a calm public café in Bacolor.')
+    expect(firstSnapshot.messages).toContain('Niko sent a booking request for a relaxed coffee conversation.')
+    expect(firstSnapshot.bookingStatuses).toEqual(['accepted', 'cancelled', 'request_sent', 'review_window'])
+    expect(firstSnapshot.notifications).toBe(6)
+    expect(firstSnapshot.posts).toBe(2)
+    expect(firstSnapshot.reviews).toBe(2)
+    expect(firstSnapshot.wallet).toMatchObject({
+      accountType: 'member_booking',
+      availableCentavos: 2_450_000,
+      reservedCentavos: 130_000,
+    })
+    expect(firstSnapshot.topUps).toBe(2)
+
+    await expect(t.mutation(internal.seeds.seedPresentationAccount, { clerkUserId })).resolves.toMatchObject({
+      postsCreated: 0,
+      relationshipsCreated: 0,
+      conversationsCreated: 0,
+      messagesCreated: 0,
+      bookingsCreated: 0,
+      notificationsCreated: 0,
+    })
+
+    const repeatedCounts = await t.run(async (ctx) => {
+      const conversations = (await ctx.db.query('directConversations').collect())
+        .filter((conversation) => conversation.participantOneId === accountId || conversation.participantTwoId === accountId)
+      const conversationIds = new Set(conversations.map((conversation) => conversation._id))
+      return {
+        conversations: conversations.length,
+        messages: (await ctx.db.query('directMessages').collect()).filter((message) => conversationIds.has(message.conversationId)).length,
+        bookings: (await ctx.db.query('bookings').withIndex('by_member', (q) => q.eq('memberId', accountId)).collect()).length,
+        notifications: (await ctx.db.query('notifications').withIndex('by_recipient_created_at', (q) => q.eq('recipientUserId', accountId)).collect()).length,
+      }
+    })
+    expect(repeatedCounts).toEqual({ conversations: 3, messages: 12, bookings: 4, notifications: 6 })
+  })
+
   it('backs every displayed review total with review records, including all seven for Kai', async () => {
     const t = createTest()
     await t.mutation(internal.seeds.seedPampangaCompanions, {})

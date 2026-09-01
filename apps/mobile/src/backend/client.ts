@@ -41,6 +41,12 @@ export const mobileApi = {
     dashboard: generatedApi.finance.dashboard,
     memberDashboard: generatedApi.finance.memberDashboard,
   },
+  withdrawals: {
+    dashboard: generatedApi.withdrawals.dashboard,
+    listReceivingInstitutions: generatedApi.withdrawals.listReceivingInstitutions,
+    savePayoutMethod: generatedApi.withdrawals.savePayoutMethod,
+    request: generatedApi.withdrawals.request,
+  },
   paymongo: {
     createMemberTopUp: generatedApi.paymongo.createMemberTopUp,
     refreshMemberTopUp: generatedApi.paymongo.refreshMemberTopUp,
@@ -119,3 +125,4 @@ export type ReviewId = Id<'reviews'>
 export type StorageId = Id<'_storage'>
 export type UserId = Id<'users'>
 export type PaymongoTopUpId = Id<'paymongoTopUps'>
+export type WithdrawalId = Id<'withdrawals'>

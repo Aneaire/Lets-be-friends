@@ -769,7 +769,14 @@ export async function retrievePaymongoIntent(intentId: string, config: ReturnTyp
   return normalizeCanonicalIntent(response)
 }
 
-async function paymongoRequest(
+export class PaymongoRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = 'PaymongoRequestError'
+  }
+}
+
+export async function paymongoRequest(
   path: string,
   input: {
     method: 'GET' | 'POST'
@@ -797,7 +804,10 @@ async function paymongoRequest(
     if (!response.ok) {
       const errors = asArray(asRecord(payload)?.errors)
       const first = asRecord(errors[0])
-      throw new Error(stringValue(first?.detail) ?? stringValue(first?.title) ?? `PayMongo request failed with ${response.status}`)
+      throw new PaymongoRequestError(
+        stringValue(first?.detail) ?? stringValue(first?.title) ?? `PayMongo request failed with ${response.status}`,
+        response.status,
+      )
     }
     return payload
   } finally {

@@ -33,6 +33,7 @@ import type * as seeds from "../seeds.js";
 import type * as seeds_philippinesCatalog from "../seeds/philippinesCatalog.js";
 import type * as social from "../social.js";
 import type * as users from "../users.js";
+import type * as withdrawals from "../withdrawals.js";
 
 import type {
   ApiFromModules,
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   "seeds/philippinesCatalog": typeof seeds_philippinesCatalog;
   social: typeof social;
   users: typeof users;
+  withdrawals: typeof withdrawals;
 }>;
 
 /**

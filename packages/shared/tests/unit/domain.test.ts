@@ -16,6 +16,8 @@ import {
   canCompleteBooking,
   canReadBookingMessages,
   canReviewBooking,
+  defaultMemberDiscoveryIntro,
+  discoveryResultIntro,
   friendStrengths,
   isAdminRole,
   isMemberVerificationReason,
@@ -33,6 +35,12 @@ describe('shared early access domain constants', () => {
     expect(activityCategories).toContain('Religious and community activities')
     expect(activityCategories).not.toContain('Everything')
     expect(bookingStatuses).toContain('verification_required')
+  })
+
+  it('keeps real profile context in discovery and removes the generic member filler', () => {
+    expect(discoveryResultIntro('member', defaultMemberDiscoveryIntro)).toBeUndefined()
+    expect(discoveryResultIntro('member', '  Loves island life and good food.  ')).toBe('Loves island life and good food.')
+    expect(discoveryResultIntro('companion', '  Calm coffee walks.  ')).toBe('Calm coffee walks.')
   })
 
   it('normalizes and validates custom activity categories', () => {

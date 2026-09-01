@@ -10,6 +10,10 @@ import {
   sha256Hex,
   verifyPaymongoSignature,
 } from './paymongo'
+import {
+  parsePaymongoTransferWebhookEvent,
+  retrievePaymongoTransfer,
+} from './withdrawals'
 
 const http = httpRouter()
 const DEFAULT_SIGNATURE_TOLERANCE_SECONDS = 300
@@ -38,9 +42,46 @@ http.route({
       return new Response('Unauthorized', { status: 401 })
     }
 
+    let payload: unknown
+    try {
+      payload = JSON.parse(rawBody.text)
+    } catch {
+      return new Response('Invalid PayMongo event', { status: 400 })
+    }
+
+    let transferEvent: ReturnType<typeof parsePaymongoTransferWebhookEvent> | null = null
+    try {
+      transferEvent = parsePaymongoTransferWebhookEvent(payload)
+    } catch {
+      transferEvent = null
+    }
+    if (transferEvent) {
+      if (transferEvent.mode !== config.mode) return new Response('PayMongo mode mismatch', { status: 400 })
+      const reservation = await ctx.runMutation(internal.withdrawals.reserveWebhookEvent, {
+        ...transferEvent,
+        rawBodyHash: await sha256Hex(rawBody.bytes),
+      })
+      if (reservation.outcome === 'conflict') return new Response('Event ID conflict', { status: 409 })
+      if (reservation.outcome === 'duplicate') return new Response('OK', { status: 200 })
+      try {
+        const transfer = await retrievePaymongoTransfer(transferEvent.providerTransferId, config)
+        await ctx.runMutation(internal.withdrawals.applyWebhookEvent, {
+          eventRecordId: reservation.eventRecordId,
+          transfer,
+        })
+        return new Response('OK', { status: 200 })
+      } catch (error) {
+        await ctx.runMutation(internal.withdrawals.rejectWebhookEvent, {
+          eventRecordId: reservation.eventRecordId,
+          outcome: error instanceof Error ? error.message.slice(0, 160) : 'provider_confirmation_failed',
+        })
+        return new Response('PayMongo confirmation unavailable', { status: 503 })
+      }
+    }
+
     let parsed: ReturnType<typeof parsePaymongoWebhookEvent>
     try {
-      parsed = parsePaymongoWebhookEvent(JSON.parse(rawBody.text))
+      parsed = parsePaymongoWebhookEvent(payload)
     } catch {
       return new Response('Invalid PayMongo event', { status: 400 })
     }

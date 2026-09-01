@@ -1,5 +1,6 @@
 export * from './feed'
 export * from './finance'
+export * from './discovery'
 export * from './mentions'
 export * from './map'
 export * from './username'

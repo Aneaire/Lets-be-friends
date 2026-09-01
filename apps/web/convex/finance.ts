@@ -74,8 +74,11 @@ export const dashboard = query({
       canAcceptBookings: pastDueCentavos === 0,
       pendingEarningsCentavos: earningsAccount?.pendingCentavos ?? 0,
       availableEarningsCentavos: earningsAccount?.availableCentavos ?? 0,
-      payoutsAvailable: false,
-      payoutNotice: 'Payouts await provider activation. Available earnings remain an internal balance.',
+      inTransferEarningsCentavos: earningsAccount?.reservedCentavos ?? 0,
+      payoutsAvailable: process.env.COMPANION_WITHDRAWALS_ENABLED?.trim().toLowerCase() === 'true',
+      payoutNotice: process.env.COMPANION_WITHDRAWALS_ENABLED?.trim().toLowerCase() === 'true'
+        ? 'Withdraw available earnings to your verified payout account. The platform covers the transfer fee.'
+        : 'Withdrawals are temporarily unavailable. Available earnings remain safely recorded.',
       obligations: obligationRows.filter((row) => row.remainingCentavos > 0).sort((a, b) => a.dueAt - b.dueAt).slice(0, 20),
       ledger: ledger.slice(0, 20),
       topUps: topUps.filter((topUp) => topUp.purpose !== 'member_booking_balance'),
@@ -549,19 +552,21 @@ async function refundPendingLegs(
   ]
 }
 
-async function applyWalletTransaction(
+export async function applyWalletTransaction(
   ctx: { db: any },
   input: {
     kind: WalletTransactionKind
     idempotencyKey: string
     bookingId?: Id<'bookings'>
     topUpId?: Id<'paymongoTopUps'>
+    withdrawalId?: Id<'withdrawals'>
     actorUserId?: Id<'users'>
     amountCentavos: number
     note?: string
     now: number
     legs: WalletLeg[]
     allowExternalCredit?: boolean
+    allowExternalDebit?: boolean
   },
 ) {
   const existing = await ctx.db.query('walletTransactions')
@@ -587,7 +592,12 @@ async function applyWalletTransaction(
     })
   }
   if (!Number.isSafeInteger(debits) || !Number.isSafeInteger(credits)) throw new Error('Wallet transaction total is outside supported bounds')
-  if (input.allowExternalCredit ? debits !== 0 || credits !== input.amountCentavos : debits !== credits || debits !== input.amountCentavos) {
+  const externallyBalanced = input.allowExternalCredit
+    ? debits === 0 && credits === input.amountCentavos
+    : input.allowExternalDebit
+      ? credits === 0 && debits === input.amountCentavos
+      : debits === credits && debits === input.amountCentavos
+  if (!externallyBalanced) {
     throw new Error('Wallet transaction entries are not balanced')
   }
 
@@ -606,6 +616,7 @@ async function applyWalletTransaction(
     idempotencyKey: input.idempotencyKey,
     bookingId: input.bookingId,
     topUpId: input.topUpId,
+    withdrawalId: input.withdrawalId,
     actorUserId: input.actorUserId,
     amountCentavos: input.amountCentavos,
     currency: BOOKING_CURRENCY,
@@ -626,7 +637,7 @@ async function applyWalletTransaction(
   return true
 }
 
-async function getOrCreateWalletAccount(
+export async function getOrCreateWalletAccount(
   ctx: { db: any },
   input: { deterministicKey: string; accountType: WalletAccountType; ownerUserId?: Id<'users'>; now: number },
 ) {
@@ -651,7 +662,7 @@ async function getOrCreateWalletAccount(
   return await ctx.db.get(accountId) as Doc<'walletAccounts'>
 }
 
-async function findWalletAccount(ctx: { db: any }, deterministicKey: string) {
+export async function findWalletAccount(ctx: { db: any }, deterministicKey: string) {
   return await ctx.db.query('walletAccounts')
     .withIndex('by_deterministic_key', (q: any) => q.eq('deterministicKey', deterministicKey))
     .unique() as Doc<'walletAccounts'> | null
@@ -677,7 +688,7 @@ function memberBookingAccountKey(userId: Id<'users'>) {
   return `member:${userId}:booking`
 }
 
-function companionEarningsAccountKey(userId: Id<'users'>) {
+export function companionEarningsAccountKey(userId: Id<'users'>) {
   return `companion:${userId}:earnings`
 }
 

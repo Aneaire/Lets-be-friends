@@ -1,4 +1,5 @@
 import { SignInButton } from '@clerk/react'
+import { discoveryResultIntro, formatPhp } from '@lets-be-friends/shared'
 import { BadgeCheck, Heart, Star } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 import { Avatar } from '../atoms/Avatar'
@@ -26,6 +27,7 @@ export type DiscoveryCompanion = {
   bio?: string
   kind?: 'member' | 'companion'
   verified?: boolean
+  hourlyRateCentavos?: number
 }
 
 export function CompanionListItem({ companion, signedIn, onFollow, profileLink: ProfileLink = 'a', profileLinkProps = { href: '#' } }: {
@@ -37,6 +39,7 @@ export function CompanionListItem({ companion, signedIn, onFollow, profileLink: 
 }) {
   const hasDistance = typeof companion.distanceKm === 'number'
   const hasCompanionProfile = companion.kind !== 'member'
+  const intro = discoveryResultIntro(companion.kind, companion.intro)
   const profileLink = (children: ReactNode, className: string, label?: string) => (
     <ProfileLink {...profileLinkProps} className={className} aria-label={label}>
       {children}
@@ -44,7 +47,7 @@ export function CompanionListItem({ companion, signedIn, onFollow, profileLink: 
   )
 
   return (
-    <div className="discover-host-row" data-nearby={hasDistance} role="listitem">
+    <div className="discover-host-row" data-nearby={hasDistance} data-kind={hasCompanionProfile ? 'companion' : 'member'} role="listitem">
       {profileLink(
         <Avatar name={companion.displayName} src={companion.profileImageUrl} size="large" decorative />,
         'discover-host-avatar-link',
@@ -64,27 +67,24 @@ export function CompanionListItem({ companion, signedIn, onFollow, profileLink: 
               </span>
             )}
           </div>
-          {hasCompanionProfile && (
-            <div className="discover-host-context">
-              <span>{companion.city}</span>
-              <span aria-hidden="true">·</span>
-              <span>{formatMode(companion.mode)}</span>
-            </div>
-          )}
+          <div className="discover-host-context">
+            {hasCompanionProfile ? (
+              <>
+                <span>{companion.city}</span>
+                <span aria-hidden="true">·</span>
+                <span>{formatMode(companion.mode)}</span>
+              </>
+            ) : <span>Member</span>}
+          </div>
         </header>
 
-        <p className="discover-host-intro">{companion.intro}</p>
-
-        {companion.strengths.length > 0 && (
-          <ul className="discover-host-strengths" aria-label={`${companion.displayName}'s Strengths`}>
-            {companion.strengths.slice(0, 2).map((strength) => <li key={strength}>{strength}</li>)}
-          </ul>
-        )}
+        {intro && <p className="discover-host-intro">{intro}</p>}
 
         {hasCompanionProfile && (
           <div className="discover-host-mobile-facts">
             {hasDistance && <DistanceStamp distanceKm={companion.distanceKm!} compact />}
-            <RatingSummary rating={companion.rating} reviewCount={companion.reviewCount ?? 0} />
+            <RatingSummary rating={companion.rating} reviewCount={companion.reviewCount ?? 0} compact />
+            {companion.hourlyRateCentavos && <RateSummary hourlyRateCentavos={companion.hourlyRateCentavos} />}
           </div>
         )}
       </div>
@@ -94,6 +94,7 @@ export function CompanionListItem({ companion, signedIn, onFollow, profileLink: 
           <div className="discover-host-desktop-facts">
             {hasDistance && <DistanceStamp distanceKm={companion.distanceKm!} />}
             <RatingSummary rating={companion.rating} reviewCount={companion.reviewCount ?? 0} />
+            {companion.hourlyRateCentavos && <RateSummary hourlyRateCentavos={companion.hourlyRateCentavos} />}
           </div>
         )}
         <FollowIconButton companion={companion} signedIn={signedIn} onFollow={onFollow} />
@@ -134,15 +135,19 @@ function DistanceStamp({ distanceKm, compact = false }: { distanceKm: number; co
   )
 }
 
-function RatingSummary({ rating, reviewCount }: { rating: number; reviewCount: number }) {
+function RatingSummary({ rating, reviewCount, compact = false }: { rating: number; reviewCount: number; compact?: boolean }) {
   return (
     <div className="discover-host-rating">
       <Star size={14} fill="currentColor" aria-hidden="true" />
       <strong className="tabular" aria-label={`${rating.toFixed(1)} out of 5 stars`}>{rating.toFixed(1)}</strong>
       <span>·</span>
-      <span className="tabular">{reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}</span>
+      <span className="tabular">{compact ? `(${reviewCount})` : `${reviewCount} ${reviewCount === 1 ? 'review' : 'reviews'}`}</span>
     </div>
   )
+}
+
+function RateSummary({ hourlyRateCentavos }: { hourlyRateCentavos: number }) {
+  return <strong className="discover-host-rate tabular">{formatPhp(hourlyRateCentavos)} <small>/ hour</small></strong>
 }
 
 function formatMode(mode: DiscoveryCompanion['mode']) {

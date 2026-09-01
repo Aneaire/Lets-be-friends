@@ -403,15 +403,9 @@ export const seedPresentationAccount = internalMutation({
       .unique()
     if (!target) throw new Error('The requested account does not exist in Convex')
     const account = target
-
-    await ctx.db.patch(account._id, {
-      displayName: 'Angelo Santiago',
-      firstName: 'Angelo',
-      lastName: 'Santiago',
-      bio: 'Product builder, coffee enthusiast, and curious local explorer. I enjoy thoughtful conversations, creative walks, and meeting people through safe shared experiences.',
-      onboardingCategories: ['Coffee and meals', 'Explore the city', 'Study and coworking', 'Photo walks', 'Tech help'],
-      updatedAt: now,
-    })
+    const accountFirstName = account.firstName?.trim()
+      || account.displayName.trim().split(/\s+/)[0]
+      || 'Member'
 
     const seededUsers: Array<Doc<'users'>> = []
     const seededProfiles: Array<Doc<'companionProfiles'>> = []
@@ -592,7 +586,7 @@ export const seedPresentationAccount = internalMutation({
 
     const conversationIds = []
     conversationIds.push(await ensureConversation(seededUsers[0], [
-      { senderId: seededUsers[0]._id, body: 'Hi Angelo, I saw that you are interested in coffee and local experiences. I know a calm public café in Bacolor.', ageMinutes: 190 },
+      { senderId: seededUsers[0]._id, body: `Hi ${accountFirstName}, I saw that you are interested in coffee and local experiences. I know a calm public café in Bacolor.`, ageMinutes: 190 },
       { senderId: account._id, body: 'That sounds perfect. I prefer somewhere quiet enough for conversation.', ageMinutes: 176 },
       { senderId: seededUsers[0]._id, body: 'Absolutely. I can share the location details once the booking is confirmed.', ageMinutes: 165 },
     ]))
@@ -705,7 +699,7 @@ export const seedPresentationAccount = internalMutation({
 
     await ensureConversation(seededUsers[0], [{
       senderId: account._id,
-      body: 'Angelo sent a booking request for a relaxed coffee conversation.',
+      body: `${accountFirstName} sent a booking request for a relaxed coffee conversation.`,
       ageMinutes: 140,
       bookingId: bookingIds[0],
     }])
@@ -747,7 +741,7 @@ export const seedPresentationAccount = internalMutation({
         reviewerId: seededUsers[2]._id,
         revieweeId: account._id,
         rating: 5,
-        body: 'Angelo communicated clearly, arrived prepared, and made the creative session enjoyable.',
+        body: `${accountFirstName} communicated clearly, arrived prepared, and made the creative session enjoyable.`,
         hidden: false,
         createdAt: now - 4 * dayMs + 10 * 60 * 1_000,
         updatedAt: now - 4 * dayMs + 10 * 60 * 1_000,
