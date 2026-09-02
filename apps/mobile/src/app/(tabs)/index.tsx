@@ -211,7 +211,7 @@ function ConnectedHome() {
   }
 
   const accountName = signedIn ? member.viewer.displayName : auth.status === 'signed_in' ? auth.displayName : undefined
-  const accountImage = signedIn ? member.viewer.profileImageUrl : auth.status === 'signed_in' ? auth.imageUrl : undefined
+  const accountImage = signedIn ? member.viewer.profileImageUrl : undefined
 
   const visibleFeedItems = useMemo(() => {
     if (!canQuery) return []

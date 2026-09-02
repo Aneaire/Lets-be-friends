@@ -21,7 +21,7 @@ vi.mock('@tanstack/react-router', () => ({
   useRouterState: vi.fn(),
 }))
 
-import { HeaderSearch, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
+import { AccountAvatar, HeaderSearch, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
 
 afterEach(cleanup)
 
@@ -46,6 +46,21 @@ const directory: HeaderSearchPerson[] = [
     strengths: ['Good listener'],
   },
 ]
+
+describe('account avatar', () => {
+  it('shows the default initials avatar when the member has no app profile photo', () => {
+    const { container } = render(<AccountAvatar initials="AR" />)
+
+    expect(container.querySelector('.account-avatar span')?.textContent).toBe('AR')
+    expect(container.querySelector('.account-avatar img')).toBeNull()
+  })
+
+  it('shows a photo uploaded to the member profile', () => {
+    const { container } = render(<AccountAvatar initials="AR" imageUrl="/member-photo.jpg" />)
+
+    expect(container.querySelector('.account-avatar img')?.getAttribute('src')).toBe('/member-photo.jpg')
+  })
+})
 
 describe('header search', () => {
   it('finds members and links to their member profile', () => {

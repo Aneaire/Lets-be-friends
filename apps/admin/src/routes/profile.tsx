@@ -2,6 +2,7 @@ import { useUser } from '@clerk/react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from 'convex/react'
 import { api } from '../../../web/convex/_generated/api'
+import { AdminProfileAvatar } from '../components/AdminProfileAvatar'
 
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
 
@@ -10,7 +11,7 @@ function ProfilePage() {
   const viewer = useQuery(api.users.viewer)
   const email = user?.primaryEmailAddress?.emailAddress ?? 'No primary email'
   const clerkName = user?.fullName ?? user?.username ?? 'No Clerk name'
-  const imageUrl = viewer?.profileImageUrl ?? user?.imageUrl
+  const imageUrl = viewer?.profileImageUrl
 
   return (
     <>
@@ -25,9 +26,7 @@ function ProfilePage() {
       <section className="admin-profile-layout">
         <div className="panel">
           <div className="panel-body admin-profile-card">
-            <span className="admin-profile-avatar" aria-hidden="true">
-              {imageUrl ? <img src={imageUrl} alt="" /> : <span>{initials(viewer?.displayName ?? clerkName)}</span>}
-            </span>
+            <AdminProfileAvatar imageUrl={imageUrl} name={viewer?.displayName ?? clerkName} />
             <div className="min-w-0">
               <h2 className="text-h2">{viewer?.displayName ?? clerkName}</h2>
               <p className="text-meta mt-1">{email}</p>
@@ -81,15 +80,6 @@ function Detail({ label, value, code = false }: { label: string; value?: string;
       <dd className={code ? 'admin-code' : undefined}>{value ?? 'Loading...'}</dd>
     </div>
   )
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('') || 'A'
 }
 
 function formatDate(value: Date) {

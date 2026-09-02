@@ -30,10 +30,7 @@ export default function ProfileScreen() {
   if (member.status === 'unavailable' || member.status === 'error') return <SignedInUnavailableProfile message={member.message} signOut={auth.signOut} />
   if (member.status !== 'ready') return <ProfileState title="Member profile unavailable" detail="Sign in again to reconnect your member profile." />
 
-  const profile = buildSignedInProfileViewModel(
-    { ...member.viewer, profileImageUrl: member.viewer.profileImageUrl || auth.imageUrl },
-    member.verification,
-  )
+  const profile = buildSignedInProfileViewModel(member.viewer, member.verification)
   return <SignedInProfile profile={profile} bio={member.viewer.bio} role={member.viewer.role} signOut={auth.signOut} />
 }
 

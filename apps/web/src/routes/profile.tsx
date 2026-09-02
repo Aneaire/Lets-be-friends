@@ -56,7 +56,7 @@ function ProfilePage() {
 
   const fallbackName = user?.fullName ?? user?.username ?? 'New friend'
   const displayName = viewer?.displayName ?? fallbackName
-  const profileImageUrl = viewer?.profileImageUrl ?? user?.imageUrl ?? ''
+  const profileImageUrl = viewer?.profileImageUrl ?? ''
   const bio = viewer?.bio ?? ''
   const companionStatus = application?.status ?? 'not started'
   const verification = memberVerificationPresentation(

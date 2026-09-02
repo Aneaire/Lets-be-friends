@@ -47,6 +47,12 @@ describe('account handoff safety', () => {
 })
 
 describe('signed-in profile copy', () => {
+  it('uses the default avatar until the member uploads a profile photo', () => {
+    expect(buildSignedInProfileViewModel(viewer, null).imageUrl).toBeUndefined()
+    expect(buildSignedInProfileViewModel({ ...viewer, profileImageUrl: '/member-photo.jpg' }, null).imageUrl)
+      .toBe('/member-photo.jpg')
+  })
+
   it('does not claim verification without active eligibility', () => {
     const result = buildSignedInProfileViewModel(viewer, null)
     expect(result.verificationApproved).toBe(false)

@@ -432,7 +432,7 @@ function AccountNavigation({
   const application = useQuery(api.companions.myApplication)
   const displayName = viewer?.displayName ?? user?.fullName ?? user?.username ?? 'Account'
   const email = user?.primaryEmailAddress?.emailAddress
-  const imageUrl = viewer?.profileImageUrl ?? user?.imageUrl
+  const imageUrl = viewer?.profileImageUrl
   const initials = getInitials(displayName)
   const publicProfileSearch = application?.status === 'approved' ? { companionProfileId: application._id } : undefined
 
@@ -512,7 +512,7 @@ function AccountNavigation({
   )
 }
 
-function AccountAvatar({
+export function AccountAvatar({
   imageUrl,
   initials,
   size = 'default',
