@@ -2,13 +2,14 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useMemo, useState } from 'react'
-import { ArrowLeft, LocateFixed, MapPin, RotateCcw } from 'lucide-react'
+import { ArrowLeft, MapPin, RotateCcw } from 'lucide-react'
 import { activityCategoriesMatch, activityCategoryOptions, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { EmptyState } from '../design-system/molecules/FeedbackState'
 import { SearchField } from '../design-system/molecules/SearchField'
 import { CompanionListItem, type DiscoveryCompanion } from '../design-system/organisms/CompanionListItem'
 import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
+import { NearbyOriginActions, type NearbyOriginMode } from '../features/discovery/NearbyOriginActions'
 import {
   geolocationErrorMessage,
   nearbyRadiusOptions,
@@ -46,7 +47,7 @@ function NearbySearchPage() {
   const { isSignedIn } = useAuth()
   const toggleFollow = useMutation(api.social.toggleFollow)
   const [location, setLocation] = useState<Coordinates | null>(null)
-  const [originMode, setOriginMode] = useState<'device' | 'custom' | null>(null)
+  const [originMode, setOriginMode] = useState<NearbyOriginMode>(null)
   const [radiusKm, setRadiusKm] = useState<NearbyRadiusKm>(25)
   const [mode, setMode] = useState<ModeFilter>('all')
   const [category, setCategory] = useState('')
@@ -151,16 +152,11 @@ function NearbySearchPage() {
             <h1>Search nearby</h1>
             <p role="status" aria-live="polite">{locationStatus}</p>
           </div>
-          <div className="nearby-search-origin-actions">
-            <button type="button" className="btn btn-social btn-sm" onClick={useCurrentLocation}>
-              <LocateFixed size={15} aria-hidden="true" />
-              Use my location
-            </button>
-            <button type="button" className="btn btn-neutral btn-sm" onClick={beginTravelPin}>
-              <MapPin size={15} aria-hidden="true" />
-              Place a pin
-            </button>
-          </div>
+          <NearbyOriginActions
+            originMode={originMode}
+            onUseCurrentLocation={useCurrentLocation}
+            onBeginTravelPin={beginTravelPin}
+          />
         </div>
 
         <div className="nearby-search-filterbar" role="region" aria-label="Nearby search filters">

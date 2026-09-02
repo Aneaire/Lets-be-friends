@@ -54,7 +54,7 @@ export function ApproximateLocationMap({
   }
 
   return (
-    <figure className="approx-location-figure" aria-labelledby={titleId} data-tone={tone}>
+    <figure className="approx-location-figure" aria-labelledby={titleId} data-tone={tone} data-pinnable={canPlacePin}>
       <div className="approx-location-map-frame">
         <ClientOnly fallback={<MapPlaceholder />}>
           <Suspense fallback={<MapPlaceholder />}>
