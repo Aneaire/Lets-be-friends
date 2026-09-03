@@ -7402,6 +7402,105 @@ textarea.field {
   font-size: 0.8125rem;
 }
 
+.avatar-cropper {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-sunk);
+}
+
+.avatar-cropper-heading {
+  display: flex;
+  width: 100%;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.avatar-cropper-heading > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.avatar-cropper-heading strong {
+  color: var(--text);
+  font-size: 0.9375rem;
+}
+
+.avatar-cropper-heading span {
+  color: var(--text-soft);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.avatar-cropper-reset {
+  flex: 0 0 auto;
+}
+
+.avatar-cropper-frame {
+  position: relative;
+  width: 15rem;
+  height: 15rem;
+  overflow: hidden;
+  border-radius: 999px;
+  outline: 0;
+  background: var(--media-stage);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.avatar-cropper-frame:active {
+  cursor: grabbing;
+}
+
+.avatar-cropper-frame:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.avatar-cropper-frame img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  max-width: none;
+  pointer-events: none;
+}
+
+.avatar-cropper-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid color-mix(in oklch, var(--surface) 88%, transparent);
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--text) 28%, transparent);
+  pointer-events: none;
+}
+
+.avatar-cropper-zoom {
+  display: grid;
+  grid-template-columns: auto minmax(8rem, 1fr) 2.5rem;
+  width: min(100%, 24rem);
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.avatar-cropper-zoom input {
+  width: 100%;
+  accent-color: var(--accent-self);
+}
+
+.avatar-cropper-zoom output {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 .profile-dialog-footer {
   border-top: 1px solid var(--rule);
   background: var(--surface-sunk);
@@ -8406,6 +8505,16 @@ textarea.field {
 .social-media-grid[data-count="1"] .social-media-item {
   aspect-ratio: 16 / 10;
   max-height: min(34rem, 68vh);
+}
+
+.social-media-grid[data-count="1"] .social-media-item[data-layout="portrait"] {
+  width: 100%;
+  aspect-ratio: var(--social-media-aspect);
+  max-height: 42rem;
+}
+
+.social-media-grid[data-count="1"] .social-media-item[data-layout="portrait"] img {
+  object-fit: contain;
 }
 
 .social-media-preview img,

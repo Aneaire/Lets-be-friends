@@ -26,6 +26,7 @@ export function Dialog({
   size = 'medium',
   className = '',
   bodyClassName = '',
+  dismissOnBodyPointerDown = false,
 }: {
   open: boolean
   onClose: () => void
@@ -39,6 +40,7 @@ export function Dialog({
   size?: 'small' | 'medium' | 'large'
   className?: string
   bodyClassName?: string
+  dismissOnBodyPointerDown?: boolean
 }) {
   const titleId = useId()
   const descriptionId = useId()
@@ -118,7 +120,16 @@ export function Dialog({
           </div>
           <IconButton label={closeLabel} onClick={onClose} disabled={busy}><X size={19} aria-hidden="true" /></IconButton>
         </header>
-        {children ? <div className={`ds-dialog-body ${bodyClassName}`.trim()}>{children}</div> : null}
+        {children ? (
+          <div
+            className={`ds-dialog-body ${bodyClassName}`.trim()}
+            onPointerDown={(event) => {
+              if (dismissOnBodyPointerDown && event.target === event.currentTarget && !busy) onClose()
+            }}
+          >
+            {children}
+          </div>
+        ) : null}
         {footer ? <footer className="ds-dialog-footer">{footer}</footer> : null}
       </div>
     </div>,

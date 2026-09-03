@@ -51,6 +51,40 @@ describe('PostMediaGrid', () => {
     expect(reorderedItems[1]).toBe(originalItems[0])
   })
 
+  it('marks a single portrait image with its natural aspect ratio', () => {
+    const { container } = render(
+      <PostMediaGrid media={[{ storageId: 'portrait-1', kind: 'image', url: '/portrait.webp' }]} />,
+    )
+    const image = container.querySelector('img')
+
+    Object.defineProperties(image, {
+      naturalWidth: { configurable: true, value: 720 },
+      naturalHeight: { configurable: true, value: 1000 },
+    })
+    fireEvent.load(image!)
+
+    const item = container.querySelector<HTMLElement>('.social-media-item')
+    expect(item?.dataset.layout).toBe('portrait')
+    expect(item?.style.getPropertyValue('--social-media-aspect')).toBe('0.72')
+  })
+
+  it('keeps a single landscape image on the default layout', () => {
+    const { container } = render(
+      <PostMediaGrid media={[{ storageId: 'landscape-1', kind: 'image', url: '/landscape.webp' }]} />,
+    )
+    const image = container.querySelector('img')
+
+    Object.defineProperties(image, {
+      naturalWidth: { configurable: true, value: 1600 },
+      naturalHeight: { configurable: true, value: 1000 },
+    })
+    fireEvent.load(image!)
+
+    const item = container.querySelector<HTMLElement>('.social-media-item')
+    expect(item?.dataset.layout).toBeUndefined()
+    expect(item?.style.getPropertyValue('--social-media-aspect')).toBe('')
+  })
+
   it('renders removable previews and reports the selected index', () => {
     const onRemove = vi.fn()
     const { container } = render(

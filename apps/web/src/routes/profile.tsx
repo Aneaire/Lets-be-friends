@@ -8,6 +8,8 @@ import { identityEntitlementStatus, memberVerificationPresentation } from '../li
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { ProfileContentPanel } from '../features/profile/ProfileContentPanel'
+import { AvatarCropper } from '../features/profile/AvatarCropper'
+import { createCroppedAvatarFile, defaultAvatarCrop, type AvatarCrop } from '../features/profile/avatarCrop'
 
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
 
@@ -32,9 +34,16 @@ function ProfilePage() {
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selectedProfileImage, setSelectedProfileImage] = useState<File | null>(null)
+  const [avatarCrop, setAvatarCrop] = useState<AvatarCrop>(defaultAvatarCrop)
   const closeEdit = () => {
     setEditOpen(false)
     setSelectedProfileImage(null)
+    setAvatarCrop(defaultAvatarCrop)
+  }
+
+  const selectProfileImage = (file: File | null) => {
+    setSelectedProfileImage(file)
+    setAvatarCrop(defaultAvatarCrop)
   }
 
   if (!isSignedIn) {
@@ -203,8 +212,11 @@ function ProfilePage() {
                 setError('')
                 try {
                   const form = new FormData(event.currentTarget)
+                  const croppedProfileImage = selectedProfileImage
+                    ? await createCroppedAvatarFile(selectedProfileImage, avatarCrop)
+                    : null
                   const profileImageStorageId = await uploadProfileImage(
-                    selectedProfileImage ?? form.get('profileImage'),
+                    croppedProfileImage ?? form.get('profileImage'),
                     generateProfileImageUploadUrl,
                   )
                   await updateProfile({
@@ -243,7 +255,7 @@ function ProfilePage() {
                   onDrop={(event) => {
                     event.preventDefault()
                     delete event.currentTarget.dataset.dragging
-                    setSelectedProfileImage(event.dataTransfer.files.item(0))
+                    selectProfileImage(event.dataTransfer.files.item(0))
                   }}
                 >
                   <span className="profile-upload-card-icon" aria-hidden="true">+</span>
@@ -256,9 +268,12 @@ function ProfilePage() {
                     type="file"
                     accept="image/*"
                     className="profile-upload-input"
-                    onChange={(event) => setSelectedProfileImage(event.currentTarget.files?.item(0) ?? null)}
+                    onChange={(event) => selectProfileImage(event.currentTarget.files?.item(0) ?? null)}
                   />
                 </label>
+                {selectedProfileImage && selectedProfileImage.type.startsWith('image/') ? (
+                  <AvatarCropper file={selectedProfileImage} crop={avatarCrop} onChange={setAvatarCrop} />
+                ) : null}
                 <label className="field-row">
                   <span className="label">Name</span>
                   <input name="displayName" required defaultValue={displayName} className="field" />

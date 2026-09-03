@@ -75,6 +75,7 @@ export function ImageViewerDialog({
       size="large"
       className="direct-image-viewer"
       bodyClassName="direct-image-viewer-stage"
+      dismissOnBodyPointerDown
     >
       <img src={src} alt={alt} />
     </Dialog>

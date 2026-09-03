@@ -53,4 +53,20 @@ describe('OpenableImage', () => {
     fireEvent.keyDown(trigger, { key: ' ' })
     expect(screen.getByRole('dialog', { name: 'Post image' })).toBeTruthy()
   })
+
+  it('closes from the empty image stage but stays open when the image is pressed', () => {
+    stubImmediateAnimationFrame()
+    render(<OpenableImage src="https://example.test/photo.jpg" alt="Post image" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open image: Post image' }))
+    const dialog = screen.getByRole('dialog', { name: 'Post image' })
+    const stage = dialog.querySelector<HTMLElement>('.direct-image-viewer-stage')!
+    const image = stage.querySelector('img')!
+
+    fireEvent.pointerDown(image)
+    expect(screen.getByRole('dialog', { name: 'Post image' })).toBeTruthy()
+
+    fireEvent.pointerDown(stage)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
 })

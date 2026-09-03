@@ -1,3 +1,10 @@
+import {
+  useState,
+  type CSSProperties,
+  type Dispatch,
+  type SetStateAction,
+  type SyntheticEvent,
+} from 'react'
 import { X } from 'lucide-react'
 import { OpenableImage } from '../../design-system/molecules/OpenableImage'
 
@@ -29,7 +36,12 @@ type PreviewPostMediaGridProps = {
 
 export type PostMediaGridProps = DisplayPostMediaGridProps | PreviewPostMediaGridProps
 
+type PortraitAspectStyle = CSSProperties & {
+  '--social-media-aspect'?: number
+}
+
 export function PostMediaGrid(props: PostMediaGridProps) {
+  const [portraitAspects, setPortraitAspects] = useState<Record<string, number>>({})
   const preview = props.mode === 'preview'
   const gridClassName = [preview ? 'social-media-preview-grid' : 'social-media-grid', props.className]
     .filter(Boolean)
@@ -55,8 +67,19 @@ export function PostMediaGrid(props: PostMediaGridProps) {
               </button>
             </div>
           ))
-        : props.media.map((item, index) => (
-            <div key={item.storageId} className="social-media-item">
+        : props.media.map((item, index) => {
+          const portraitAspect = portraitAspects[item.storageId]
+          const portraitStyle: PortraitAspectStyle | undefined = portraitAspect
+            ? { '--social-media-aspect': portraitAspect }
+            : undefined
+
+          return (
+            <div
+              key={item.storageId}
+              className="social-media-item"
+              data-layout={portraitAspect ? 'portrait' : undefined}
+              style={portraitStyle}
+            >
               {item.url && item.kind === 'image' && (
                 <OpenableImage
                   src={item.url}
@@ -64,11 +87,25 @@ export function PostMediaGrid(props: PostMediaGridProps) {
                   openLabel={`Open post image ${index + 1}`}
                   viewerTitle={`Post image ${index + 1}`}
                   loading="lazy"
+                  onLoad={(event) => rememberPortraitAspect(event, item.storageId, setPortraitAspects)}
                 />
               )}
               {item.url && item.kind === 'video' && <video src={item.url} controls playsInline preload="metadata" />}
             </div>
-          ))}
+          )
+        })}
     </div>
   )
+}
+
+function rememberPortraitAspect(
+  event: SyntheticEvent<HTMLImageElement>,
+  storageId: string,
+  setPortraitAspects: Dispatch<SetStateAction<Record<string, number>>>,
+) {
+  const { naturalHeight, naturalWidth } = event.currentTarget
+  if (naturalWidth <= 0 || naturalHeight <= 0 || naturalWidth >= naturalHeight) return
+
+  const aspect = naturalWidth / naturalHeight
+  setPortraitAspects((current) => current[storageId] === aspect ? current : { ...current, [storageId]: aspect })
 }
