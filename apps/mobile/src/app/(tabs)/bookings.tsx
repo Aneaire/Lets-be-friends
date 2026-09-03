@@ -14,6 +14,8 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { EmptyState } from '@/design-system/molecules/FeedbackState'
+import { BookingsCalendarView } from '@/features/booking/BookingsCalendarView'
+import type { BookingsViewMode } from '@/data/bookingCalendar'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -34,6 +36,7 @@ export default function BookingHistoryScreen() {
 
 function BookingsList({ bookings }: { bookings: Booking[] }) {
   const theme = useAppTheme()
+  const [view, setView] = useState<BookingsViewMode>('calendar')
   const [filter, setFilter] = useState<Filter>('active')
   const grouped = useMemo(() => ({
     requests: bookings.filter((booking) => ['draft', 'verification_required', 'pending_admin_review', 'request_sent'].includes(booking.status)),
@@ -41,6 +44,21 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
     past: bookings.filter((booking) => ['declined', 'cancelled', 'completed', 'review_window', 'closed'].includes(booking.status)),
   }), [bookings])
   const visible = grouped[filter]
+  const renderBooking = (booking: Booking) => (
+    <BookingCard
+      booking={{
+        id: booking._id,
+        participantName: booking.companionDisplayName,
+        category: booking.category,
+        mode: booking.mode,
+        requestedAt: booking.requestedAt,
+        durationMinutes: booking.durationMinutes,
+        status: booking.status,
+        memberTotalCentavos: booking.memberTotalCentavos,
+      }}
+      onPress={() => router.push({ pathname: '/booking/[id]', params: { id: String(booking._id) } })}
+    />
+  )
 
   return (
     <Screen contentStyle={styles.content}>
@@ -49,39 +67,43 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
         <AppText color={theme.colors.textMuted}>Scan requests, upcoming plans, and history.</AppText>
       </View>
       <SegmentedControl
-        label="Booking status"
-        value={filter}
-        onChange={setFilter}
+        label="Booking view"
+        value={view}
+        onChange={setView}
         tone="social"
         style={styles.filters}
         options={[
-          { value: 'active', label: `Upcoming ${grouped.active.length}` },
-          { value: 'requests', label: `Requests ${grouped.requests.length}` },
-          { value: 'past', label: `Past ${grouped.past.length}` },
+          { value: 'calendar', label: 'Calendar' },
+          { value: 'cards', label: 'Cards' },
         ]}
       />
-      {visible.length ? <View style={styles.list}>{visible.map((booking) => (
-        <BookingCard
-          key={booking._id}
-          booking={{
-            id: booking._id,
-            participantName: booking.companionDisplayName,
-            category: booking.category,
-            mode: booking.mode,
-            requestedAt: booking.requestedAt,
-            durationMinutes: booking.durationMinutes,
-            status: booking.status,
-            memberTotalCentavos: booking.memberTotalCentavos,
-          }}
-          onPress={() => router.push({ pathname: '/booking/[id]', params: { id: String(booking._id) } })}
-        />
-      ))}</View> : (
-        <EmptyState
-          icon={<AppIcon name="calendar-outline" color={theme.colors.textMuted} size={26} />}
-          title={filter === 'active' ? 'No upcoming sessions' : filter === 'requests' ? 'No open requests' : 'No past bookings'}
-          description={filter === 'past' ? 'Completed and closed bookings will appear here.' : 'Explore approved Companions when you are ready to make a plan.'}
-          action={filter === 'past' ? undefined : <ActionButton label="Explore Companions" onPress={() => router.push('/explore')} secondary />}
-        />
+      {view === 'calendar' ? (
+        <BookingsCalendarView bookings={bookings} renderBooking={renderBooking} />
+      ) : (
+        <>
+          <SegmentedControl
+            label="Booking status"
+            value={filter}
+            onChange={setFilter}
+            tone="social"
+            style={styles.filters}
+            options={[
+              { value: 'active', label: `Upcoming ${grouped.active.length}` },
+              { value: 'requests', label: `Requests ${grouped.requests.length}` },
+              { value: 'past', label: `Past ${grouped.past.length}` },
+            ]}
+          />
+          {visible.length ? <View style={styles.list}>{visible.map((booking) => (
+            <View key={booking._id}>{renderBooking(booking)}</View>
+          ))}</View> : (
+            <EmptyState
+              icon={<AppIcon name="calendar-outline" color={theme.colors.textMuted} size={26} />}
+              title={filter === 'active' ? 'No upcoming sessions' : filter === 'requests' ? 'No open requests' : 'No past bookings'}
+              description={filter === 'past' ? 'Completed and closed bookings will appear here.' : 'Explore approved Companions when you are ready to make a plan.'}
+              action={filter === 'past' ? undefined : <ActionButton label="Explore Companions" onPress={() => router.push('/explore')} secondary />}
+            />
+          )}
+        </>
       )}
       <Pressable accessibilityRole="button" accessibilityLabel="Open Companion incoming bookings" onPress={() => router.push('/companion-bookings')} style={styles.companionLink}>
         <AppText variant="label" color={theme.colors.social}>COMPANION INCOMING BOOKINGS</AppText>

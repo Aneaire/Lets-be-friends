@@ -2,7 +2,8 @@ import type { FunctionReturnType } from 'convex/server'
 import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import * as Linking from 'expo-linking'
-import { useState } from 'react'
+import { BlurTargetView } from 'expo-blur'
+import { useEffect, useRef, useState } from 'react'
 import { Image, Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type CompanionProfileId, type ReviewId, type UserId } from '@/backend/client'
@@ -12,6 +13,7 @@ import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { Avatar } from '@/design-system/atoms/Avatar'
+import { TextField } from '@/design-system/atoms/Field'
 import { Chip } from '@/design-system/atoms/Chip'
 import { ReportAction } from '@/features/safety/ReportAction'
 import { MemberSafetyActions } from '@/features/safety/MemberSafetyActions'
@@ -21,8 +23,10 @@ import { PageSkeleton, ProfileContentSkeleton } from '@/design-system/templates/
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { PostCard } from '@/features/social/PostCard'
+import { PostImageViewer, type PostViewerImage } from '@/features/social/PostImageViewer'
 import { PostMediaGrid } from '@/features/social/PostMediaGrid'
 import { companionContentTabHeader, companionContentTabs, companionProfileTypography, companionRatePresentation, defaultCompanionContentTab, type CompanionContentTab } from '@/features/companion/companionProfilePresentation'
+import { validateReviewComment } from '@/data/bookingActions'
 import { mapPublicCompanion, resolveCompanionBookingAction, type ApprovedCompanionRecord, type CompanionDetailViewModel } from '@/data/companionViewModels'
 import { formatMessageTimestamp } from '@/data/messageViewModels'
 import { useMobileMember } from '@/member/MobileMember'
@@ -66,6 +70,8 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
   const [contentTab, setContentTab] = useState<CompanionContentTab>(defaultCompanionContentTab())
   const [busy, setBusy] = useState<'message' | 'save' | 'follow' | null>(null)
   const [message, setMessage] = useState('')
+  const blurTarget = useRef<View>(null)
+  const [viewerImage, setViewerImage] = useState<PostViewerImage | null>(null)
   useAppToastMessage(message)
   const contentHeader = companionContentTabHeader(contentTab, { rating: companion.rating, reviewCount: companion.reviewCount })
   const modeLabels = companion.sessionModes.map((mode) => mode === 'online' ? 'Online' : 'In person')
@@ -119,7 +125,9 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
   }
 
   return (
-    <Screen contentStyle={styles.content} footer={!ownProfile ? <View style={styles.stickyActions}><ActionButton label={busy === 'message' ? 'Opening' : 'Message'} onPress={() => void messageCompanion()} disabled={!signedIn || !companion.userId || busy !== null} intent="social" secondary icon="chatbubble-outline" style={styles.flexAction} /><ActionButton label={bookingAction.kind === 'book' ? 'Plan an experience' : bookingAction.label} onPress={bookingPress} disabled={bookingAction.kind === 'own_profile' || bookingAction.kind === 'unavailable'} intent="social" icon="calendar-outline" style={styles.flexAction} /></View> : undefined}>
+    <View style={styles.route}>
+      <BlurTargetView ref={blurTarget} importantForAccessibility={viewerImage ? 'no-hide-descendants' : 'auto'} style={styles.blurTarget}>
+        <Screen contentStyle={styles.content} footer={!ownProfile ? <View style={styles.stickyActions}><ActionButton label={busy === 'message' ? 'Opening' : 'Message'} onPress={() => void messageCompanion()} disabled={!signedIn || !companion.userId || busy !== null} intent="social" secondary icon="chatbubble-outline" style={styles.flexAction} /><ActionButton label={bookingAction.kind === 'book' ? 'Plan an experience' : bookingAction.label} onPress={bookingPress} disabled={bookingAction.kind === 'own_profile' || bookingAction.kind === 'unavailable'} intent="social" icon="calendar-outline" style={styles.flexAction} /></View> : undefined}>
       <AppHeader title="Companion profile" back onBack={goBackOrExplore} />
       <View style={styles.identity}>
         <Avatar uri={companion.imageUrl} name={companion.name} size={88} />
@@ -162,7 +170,7 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
         />
       </Section>
 
-      {contentTab === 'posts' ? (
+          {contentTab === 'posts' ? (
         <View style={styles.tabPanel}>
           <View style={styles.panelHeader}>
             <View style={styles.panelHeaderCopy}>
@@ -181,7 +189,7 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
             </View>
             {contentHeader.ratingSummary ? <AppText variant="bodyStrong" color={theme.colors.socialText} style={styles.ratingSummary}>{contentHeader.ratingSummary}</AppText> : null}
           </View>
-          {reviews === undefined ? <ProfileContentSkeleton /> : reviews.length ? <ReviewList reviews={reviews} signedIn={signedIn} /> : <AppText color={theme.colors.textMuted}>No public reviews yet.</AppText>}
+          {reviews === undefined ? <ProfileContentSkeleton /> : reviews.length ? <ReviewList reviews={reviews} signedIn={signedIn} onOpenImage={setViewerImage} /> : <AppText color={theme.colors.textMuted}>No public reviews yet.</AppText>}
         </View>
       )}
 
@@ -190,32 +198,161 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
         {signedIn ? <ReportAction targetType="profile" targetId={companion.id} label="Report this profile" /> : null}
         {signedIn && !ownProfile && companion.userId ? <MemberSafetyActions userId={companion.userId} displayName={companion.name} /> : null}
       </Section>
-    </Screen>
+        </Screen>
+      </BlurTargetView>
+      <PostImageViewer image={viewerImage} blurTarget={blurTarget} onClose={() => setViewerImage(null)} />
+    </View>
   )
 }
 
-function ReviewList({ reviews, signedIn }: { reviews: Review[]; signedIn: boolean }) {
+function ReviewList({ reviews, signedIn, onOpenImage }: { reviews: Review[]; signedIn: boolean; onOpenImage: (image: PostViewerImage) => void }) {
   const toggleSave = useMutation(mobileApi.reviews.toggleSave)
-  const [savedIds, setSavedIds] = useState(() => new Set(reviews.filter((review) => review.saved).map((review) => String(review._id))))
+  const toggleLike = useMutation(mobileApi.reviews.toggleLike)
+  const createComment = useMutation(mobileApi.reviews.createComment)
+  const [savedOverrides, setSavedOverrides] = useState<Record<string, boolean>>({})
+  const [likeOverrides, setLikeOverrides] = useState<Record<string, { liked: boolean; likeCount: number }>>({})
+  const [openComments, setOpenComments] = useState<Set<string>>(() => new Set())
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
+  const [commentBusy, setCommentBusy] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  useAppToastMessage(error)
 
-  async function toggle(review: Review) {
+  useEffect(() => {
+    setSavedOverrides((current) => {
+      let changed = false
+      const next = { ...current }
+      for (const review of reviews) {
+        const key = String(review._id)
+        if (key in next && next[key] === review.saved) {
+          delete next[key]
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [reviews])
+
+  useEffect(() => {
+    setLikeOverrides((current) => {
+      let changed = false
+      const next = { ...current }
+      for (const review of reviews) {
+        const key = String(review._id)
+        const local = next[key]
+        if (local && local.liked === review.liked) {
+          delete next[key]
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [reviews])
+
+  function savedFor(review: Review) {
+    return savedOverrides[String(review._id)] ?? review.saved
+  }
+
+  function likeFor(review: Review) {
+    return likeOverrides[String(review._id)] ?? { liked: review.liked, likeCount: review.likeCount }
+  }
+
+  async function toggleSaveReview(review: Review) {
+    const key = String(review._id)
+    setSavedOverrides((current) => ({ ...current, [key]: !(current[key] ?? review.saved) }))
     try {
-      const saved = await toggleSave({ reviewId: review._id as ReviewId })
-      setSavedIds((current) => {
-        const next = new Set(current)
-        if (saved) next.add(String(review._id))
-        else next.delete(String(review._id))
+      await toggleSave({ reviewId: review._id as ReviewId })
+    } catch {
+      setSavedOverrides((current) => {
+        const next = { ...current }
+        delete next[key]
         return next
       })
-    } catch {
-      return
     }
   }
 
-  return <View style={styles.cardList}>{reviews.map((review) => <ReviewCard key={review._id} review={review} signedIn={signedIn} saved={savedIds.has(String(review._id))} onToggleSave={() => void toggle(review)} />)}</View>
+  async function toggleLikeReview(review: Review) {
+    const key = String(review._id)
+    setLikeOverrides((current) => {
+      const previous = current[key] ?? { liked: review.liked, likeCount: review.likeCount }
+      return {
+        ...current,
+        [key]: { liked: !previous.liked, likeCount: Math.max(0, previous.likeCount + (!previous.liked ? 1 : -1)) },
+      }
+    })
+    try {
+      await toggleLike({ reviewId: review._id as ReviewId })
+    } catch {
+      setLikeOverrides((current) => {
+        const next = { ...current }
+        delete next[key]
+        return next
+      })
+      setError('Review like could not be updated.')
+    }
+  }
+
+  async function submitComment(review: Review) {
+    const key = String(review._id)
+    const validation = validateReviewComment(commentDrafts[key] ?? '')
+    if (!validation.ok) {
+      setError(validation.message)
+      return
+    }
+    setCommentBusy(key)
+    setError('')
+    try {
+      await createComment({ reviewId: review._id as ReviewId, body: validation.body })
+      setCommentDrafts((current) => ({ ...current, [key]: '' }))
+    } catch {
+      setError('Review comment could not be posted.')
+    } finally {
+      setCommentBusy(null)
+    }
+  }
+
+  return <View style={styles.cardList}>{reviews.map((review) => {
+    const key = String(review._id)
+    return <ReviewCard
+      key={review._id}
+      review={review}
+      signedIn={signedIn}
+      saved={savedFor(review)}
+      liked={likeFor(review).liked}
+      likeCount={likeFor(review).likeCount}
+      commentsOpen={openComments.has(key)}
+      commentBusy={commentBusy === key}
+      commentDraft={commentDrafts[key] ?? ''}
+      onToggleSave={() => void toggleSaveReview(review)}
+      onToggleLike={() => void toggleLikeReview(review)}
+      onToggleComments={() => setOpenComments((current) => {
+        const next = new Set(current)
+        if (next.has(key)) next.delete(key)
+        else next.add(key)
+        return next
+      })}
+      onChangeCommentDraft={(value) => { setCommentDrafts((current) => ({ ...current, [key]: value })); setError('') }}
+      onSubmitComment={() => void submitComment(review)}
+      onOpenImage={() => review.imageUrl ? onOpenImage({ url: review.imageUrl, index: 0, total: 1 }) : undefined}
+    />
+  })}</View>
 }
 
-function ReviewCard({ review, signedIn, saved, onToggleSave }: { review: Review; signedIn: boolean; saved: boolean; onToggleSave: () => void }) {
+function ReviewCard({ review, signedIn, saved, liked, likeCount, commentsOpen, commentBusy, commentDraft, onToggleSave, onToggleLike, onToggleComments, onChangeCommentDraft, onSubmitComment, onOpenImage }: {
+  review: Review
+  signedIn: boolean
+  saved: boolean
+  liked: boolean
+  likeCount: number
+  commentsOpen: boolean
+  commentBusy: boolean
+  commentDraft: string
+  onToggleSave: () => void
+  onToggleLike: () => void
+  onToggleComments: () => void
+  onChangeCommentDraft: (value: string) => void
+  onSubmitComment: () => void
+  onOpenImage: () => void
+}) {
   const theme = useAppTheme()
 
   return <View style={[styles.reviewCard, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}>
@@ -228,9 +365,84 @@ function ReviewCard({ review, signedIn, saved, onToggleSave }: { review: Review;
     </View>
     <ReviewStars rating={review.rating} />
     {review.body ? <AppText>{review.body}</AppText> : null}
-    {review.imageUrl ? <Image source={{ uri: review.imageUrl }} resizeMode="cover" accessibilityRole="image" accessibilityLabel={`Photo shared with ${review.reviewerDisplayName}'s review`} style={[styles.reviewImage, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} /> : null}
-    {signedIn ? <View style={styles.reviewActions}><Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Unsave review' : 'Save review'} onPress={onToggleSave} style={styles.textAction}><AppText variant="caption" color={theme.colors.socialText}>{saved ? 'Saved' : 'Save'}</AppText></Pressable><ReportAction targetType="review" targetId={String(review._id)} label="Report review" compact /></View> : null}
+    {review.imageUrl ? <ReviewImage url={review.imageUrl} reviewerName={review.reviewerDisplayName} onOpen={onOpenImage} /> : null}
+    <View style={styles.reviewActions} accessibilityLabel={`Actions for ${review.reviewerDisplayName}'s review`}>
+      {signedIn ? (
+        <>
+          <Pressable accessibilityRole="button" accessibilityLabel={liked ? `Unlike ${review.reviewerDisplayName}'s review` : `Like ${review.reviewerDisplayName}'s review`} accessibilityState={{ selected: liked, disabled: commentBusy }} disabled={commentBusy} onPress={onToggleLike} style={styles.textAction}>
+            <AppIcon name={liked ? 'heart' : 'heart-outline'} size={16} color={liked ? theme.colors.socialText : theme.colors.textMuted} />
+            <AppText variant="caption" color={liked ? theme.colors.socialText : theme.colors.textMuted}>{likeCount > 0 ? String(likeCount) : 'Like'}</AppText>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Comment on ${review.reviewerDisplayName}'s review`} accessibilityState={{ expanded: commentsOpen, disabled: commentBusy }} disabled={commentBusy} onPress={onToggleComments} style={styles.textAction}>
+            <AppIcon name="chatbubble-outline" size={16} color={theme.colors.textMuted} />
+            <AppText variant="caption" color={theme.colors.textMuted}>{review.commentCount > 0 ? String(review.commentCount) : 'Comment'}</AppText>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Unsave review' : 'Save review'} onPress={onToggleSave} style={styles.textAction}>
+            <AppText variant="caption" color={theme.colors.socialText}>{saved ? 'Saved' : 'Save'}</AppText>
+          </Pressable>
+          <View style={styles.reviewReport}><ReportAction targetType="review" targetId={String(review._id)} label="Report review" compact /></View>
+        </>
+      ) : (
+        <AppText variant="caption" color={theme.colors.textMuted}>Sign in to like or comment on this review.</AppText>
+      )}
+    </View>
+    {commentsOpen ? (
+      <View style={styles.reviewComments}>
+        {review.comments?.map((comment) => (
+          <View key={comment._id} style={styles.reviewComment}>
+            <Avatar uri={comment.authorProfileImageUrl ?? undefined} name={comment.authorDisplayName} size={24} />
+            <View style={styles.reviewCommentCopy}>
+              <AppText variant="bodyStrong" numberOfLines={1}>{comment.authorDisplayName}</AppText>
+              <AppText variant="body">{comment.body}</AppText>
+            </View>
+          </View>
+        ))}
+        {signedIn ? (
+          <View style={styles.reviewCommentForm}>
+            <TextField
+              accessibilityLabel={`Comment on ${review.reviewerDisplayName}'s review`}
+              value={commentDraft}
+              onChangeText={onChangeCommentDraft}
+              placeholder="Write a respectful comment"
+              multiline
+              maxLength={501}
+              editable={!commentBusy}
+              style={styles.reviewCommentInput}
+            />
+            <TextCount count={commentDraft.length} limit={500} />
+            <ActionButton label={commentBusy ? 'Posting' : 'Post comment'} onPress={onSubmitComment} intent="social" compact disabled={commentBusy || !commentDraft.trim() || commentDraft.length > 500} />
+          </View>
+        ) : null}
+      </View>
+    ) : null}
   </View>
+}
+
+function TextCount({ count, limit }: { count: number; limit: number }) {
+  const theme = useAppTheme()
+  return <AppText variant="caption" color={count > limit ? theme.colors.danger : theme.colors.textMuted} style={styles.textCount}>{count}/{limit}</AppText>
+}
+
+function ReviewImage({ url, reviewerName, onOpen }: { url: string; reviewerName: string; onOpen: () => void }) {
+  const theme = useAppTheme()
+  const DEFAULT_ASPECT = 4 / 3
+  const [aspect, setAspect] = useState(DEFAULT_ASPECT)
+  const label = `Photo shared with ${reviewerName}'s review`
+
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${label}`} onPress={onOpen} style={({ pressed }) => [styles.reviewImageWrap, pressed && styles.pressed]}>
+      <Image
+        source={{ uri: url }}
+        resizeMode="cover"
+        accessibilityLabel={label}
+        onLoad={(event) => {
+          const { width, height } = event.nativeEvent.source
+          if (width > 0 && height > 0) setAspect(width / height)
+        }}
+        style={[styles.reviewImage, { aspectRatio: aspect, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+      />
+    </Pressable>
+  )
 }
 
 function ReviewStars({ rating }: { rating: number }) {
@@ -342,8 +554,19 @@ const styles = StyleSheet.create({
   reviewIdentity: { flex: 1, minWidth: 0, gap: 1 },
   starsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   stars: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-  reviewImage: { width: '100%', aspectRatio: 4 / 3, borderWidth: StyleSheet.hairlineWidth, borderRadius: 8 },
-  reviewActions: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 2 },
-  textAction: { minHeight: 44, justifyContent: 'center' },
+  reviewImageWrap: { width: '100%', overflow: 'hidden', borderRadius: 8 },
+  reviewImage: { width: '100%', borderWidth: StyleSheet.hairlineWidth, borderRadius: 8 },
+  reviewActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginTop: 2, minHeight: 34 },
+  textAction: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 5, justifyContent: 'center' },
+  reviewReport: { flexDirection: 'row', alignItems: 'center', minHeight: 34 },
+  reviewComments: { gap: density.cardGap, paddingTop: 2 },
+  reviewComment: { flexDirection: 'row', alignItems: 'flex-start', gap: density.cardGap },
+  reviewCommentCopy: { flex: 1, minWidth: 0, gap: 1 },
+  reviewCommentForm: { gap: density.textStackGap },
+  reviewCommentInput: { minHeight: 64, maxHeight: 100 },
+  textCount: { alignSelf: 'flex-end' },
+  route: { flex: 1 },
+  blurTarget: { flex: 1 },
+  pressed: { opacity: 0.72 },
   bottomSection: { gap: 10 },
 })

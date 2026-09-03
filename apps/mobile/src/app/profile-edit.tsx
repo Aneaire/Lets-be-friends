@@ -8,6 +8,9 @@ import { mobileApi, type StorageId } from '@/backend/client'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { ProfileEditContent } from '@/member/ProfileEditContent'
 import { canSaveProfileEdit, profileEditFieldCopy } from '@/member/profileEditFields'
+import { cropProfileImage } from '@/member/cropProfileImage'
+import { defaultAvatarCrop, normalizeAvatarCrop, type AvatarCrop } from '@/member/avatarCrop'
+import { preparePostMedia, uploadPostMedia, type PreparedPostMedia } from '@/features/social/postMediaUpload'
 import { useMobileMember } from '@/member/MobileMember'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
@@ -34,6 +37,7 @@ function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMob
   const [displayName, setDisplayName] = useState(viewer.displayName)
   const [bio, setBio] = useState(viewer.bio ?? '')
   const [imageAsset, setImageAsset] = useState<ImagePicker.ImagePickerAsset | null>(null)
+  const [avatarCrop, setAvatarCrop] = useState<AvatarCrop>(defaultAvatarCrop)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   useAppToastMessage(message)
@@ -54,7 +58,7 @@ function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMob
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
+        allowsEditing: Platform.OS !== 'web',
         aspect: [1, 1],
         quality: 0.9,
       })
@@ -65,9 +69,18 @@ function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMob
         return
       }
       setImageAsset(asset)
+      setAvatarCrop(defaultAvatarCrop)
     } catch {
       setMessage('The image library could not be opened. Please try again.')
     }
+  }
+
+  async function prepareProfileImage(asset: ImagePicker.ImagePickerAsset): Promise<PreparedPostMedia> {
+    if (Platform.OS === 'web') {
+      const cropped = await cropProfileImage(asset.uri, normalizeAvatarCrop(avatarCrop))
+      return { uri: asset.uri, mimeType: cropped.mimeType, fileSize: cropped.blob.size, body: cropped.blob }
+    }
+    return preparePostMedia({ uri: asset.uri, mimeType: asset.mimeType || 'image/jpeg' })
   }
 
   async function save() {
@@ -79,19 +92,9 @@ function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMob
       let profileImageStorageId: StorageId | undefined
       if (imageAsset) {
         const uploadUrl = await generateUploadUrl({})
-        const response = await fetch(imageAsset.uri)
-        if (!response.ok) throw new Error('Image could not be read')
-        const blob = await response.blob()
-        if (blob.size > MAX_PROFILE_IMAGE_BYTES) throw new Error('Image is too large')
-        const upload = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': imageAsset.mimeType || blob.type || 'image/jpeg' },
-          body: blob,
-        })
-        if (!upload.ok) throw new Error('Image upload failed')
-        const result = await upload.json() as { storageId?: StorageId }
-        if (!result.storageId) throw new Error('Image upload was incomplete')
-        profileImageStorageId = result.storageId
+        const prepared = await prepareProfileImage(imageAsset)
+        if (prepared.fileSize > MAX_PROFILE_IMAGE_BYTES) throw new Error('Image is too large')
+        profileImageStorageId = await uploadPostMedia(uploadUrl, prepared) as StorageId
       }
 
       await updateProfile({
@@ -120,6 +123,7 @@ function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMob
         busy={busy}
         canSave={canSave}
         imagePicked={Boolean(imageAsset)}
+        crop={avatarCrop}
         nameHint={nameHint}
         nameError={nameError}
         bioHint={bioHint}
@@ -127,6 +131,7 @@ function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMob
         onChangeName={(value) => { setDisplayName(value); setMessage('') }}
         onChangeBio={(value) => { setBio(value); setMessage('') }}
         onChoosePhoto={() => void chooseImage()}
+        onCropChange={setAvatarCrop}
         onSave={() => void save()}
         onCancel={goBackOrProfile}
       />

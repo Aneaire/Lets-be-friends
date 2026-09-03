@@ -1,14 +1,18 @@
+import * as ImagePicker from 'expo-image-picker'
 import type { BookingStatus } from '@lets-be-friends/shared'
 import { useMutation } from 'convex/react'
 import { useRef, useState } from 'react'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Image, Platform, Pressable, StyleSheet, View } from 'react-native'
 
-import { mobileApi, type BookingId } from '@/backend/client'
+import { mobileApi, type BookingId, type ReviewMediaUploadId, type StorageId } from '@/backend/client'
 import {
   canSubmitBookingReview,
+  reviewPhotoSelectionError,
+  reviewPhotoValidationError,
   validateReportReason,
   validateReviewInput,
 } from '@/data/bookingActions'
+import { preparePostMedia, uploadPostMedia } from '@/features/social/postMediaUpload'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -16,6 +20,7 @@ import { TextField } from '@/design-system/atoms/Field'
 import { AppText } from '@/design-system/atoms/Typography'
 import { Dialog } from '@/design-system/molecules/Dialog'
 import { FormField } from '@/design-system/molecules/FormField'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { density } from '@/theme/tokens'
 
 export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
@@ -26,15 +31,21 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
   const theme = useAppTheme()
   const createReport = useMutation(mobileApi.reports.create)
   const submitReview = useMutation(mobileApi.reviews.submit)
+  const generateUploadUrl = useMutation(mobileApi.reviews.generateImageUploadUrl)
+  const registerUpload = useMutation(mobileApi.reviews.registerImageUpload)
+  const discardUpload = useMutation(mobileApi.reviews.discardImageUpload)
   const [form, setForm] = useState<'report' | 'review' | null>(null)
   const [reason, setReason] = useState('')
   const [rating, setRating] = useState<number | null>(null)
   const [reviewBody, setReviewBody] = useState('')
+  const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null)
+  const [photoError, setPhotoError] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [reportSubmitted, setReportSubmitted] = useState(false)
   const [reviewSubmitted, setReviewSubmitted] = useState(false)
   const busyRef = useRef(false)
+  useAppToastMessage(message)
   const canReview = canSubmitBookingReview(status, viewerHasReviewed || reviewSubmitted)
 
   function open(nextForm: 'report' | 'review') {
@@ -46,6 +57,37 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
   function close() {
     if (busyRef.current) return
     setForm(null)
+  }
+
+  async function chooseReviewPhoto() {
+    if (busyRef.current) return
+    setPhotoError('')
+    setMessage('')
+    try {
+      if (Platform.OS !== 'web') {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(false)
+        if (!permission.granted) {
+          setPhotoError('Photo access is needed only to choose a review photo from your library.')
+          return
+        }
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.9,
+      })
+      const asset = result.canceled ? undefined : result.assets[0]
+      if (!asset) return
+      const validationError = reviewPhotoSelectionError(asset)
+      if (validationError) {
+        setPhotoError(validationError)
+        return
+      }
+      setPhotoAsset(asset)
+    } catch {
+      setPhotoError('The image library could not be opened. Please try again.')
+    }
   }
 
   async function report() {
@@ -79,17 +121,40 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
       setMessage(validation.message)
       return
     }
+    const photoValidation = photoAsset ? reviewPhotoSelectionError(photoAsset) : null
+    if (photoValidation) {
+      setPhotoError(photoValidation)
+      return
+    }
     busyRef.current = true
     setBusy(true)
     setMessage('')
+    setPhotoError('')
+    let imageUploadId: ReviewMediaUploadId | undefined
+    let storageId: StorageId | undefined
+    let published = false
     try {
-      await submitReview({ bookingId, rating: validation.rating, body: validation.body })
+      if (photoAsset) {
+        const grant = await generateUploadUrl({})
+        imageUploadId = grant.uploadId as ReviewMediaUploadId
+        const prepared = await preparePostMedia({ uri: photoAsset.uri, mimeType: photoAsset.mimeType || 'image/jpeg' })
+        const preparedError = reviewPhotoValidationError({ mimeType: prepared.mimeType, fileSize: prepared.fileSize })
+        if (preparedError) throw new Error(preparedError)
+        storageId = await uploadPostMedia(grant.uploadUrl, prepared) as StorageId
+        await registerUpload({ uploadId: imageUploadId, storageId })
+      }
+      await submitReview({ bookingId, rating: validation.rating, body: validation.body, ...(imageUploadId ? { imageUploadId } : {}) })
+      published = true
       setReviewSubmitted(true)
       setForm(null)
+      setReviewBody('')
+      setRating(null)
+      setPhotoAsset(null)
       setMessage('Review submitted. Thank you for sharing your experience.')
     } catch {
       setMessage('This review could not be submitted. Refresh the booking and try again.')
     } finally {
+      if (imageUploadId && !published) await discardUpload({ uploadId: imageUploadId, storageId }).catch(() => undefined)
       busyRef.current = false
       setBusy(false)
     }
@@ -113,7 +178,7 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
         title={form === 'report' ? 'Report this booking' : 'Review this booking'}
         description={form === 'report'
           ? 'Describe what happened. This goes to the safety review team and may place a hold on booking funds.'
-          : 'Choose a rating from 1 to 5. Written feedback is optional.'}
+          : 'Choose a rating from 1 to 5. A written note and an optional photo can be shared.'}
         busy={busy}
         footer={(
           <View style={styles.actions}>
@@ -169,18 +234,49 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
               <FormField
                 label="Review"
                 optional
-                error={reviewBody.length > 2_000 ? 'Reviews can be up to 2,000 characters.' : undefined}
-                hint={`${reviewBody.length}/2,000 characters`}>
+                error={reviewBody.length > 1_000 ? 'Reviews can be up to 1,000 characters.' : undefined}
+                hint={`${reviewBody.length}/1,000 characters`}>
                 <TextField
                   value={reviewBody}
                   onChangeText={(value) => { setReviewBody(value); setMessage('') }}
                   placeholder="Share optional feedback"
                   multiline
-                  maxLength={2_001}
+                  maxLength={1_001}
                   editable={!busy}
                   style={styles.multiline}
                 />
               </FormField>
+              <View style={styles.photoSection}>
+                <ActionButton
+                  label={photoAsset ? 'Change photo' : 'Add photo'}
+                  icon="image-outline"
+                  intent="social"
+                  secondary
+                  compact
+                  disabled={busy}
+                  onPress={() => void chooseReviewPhoto()}
+                />
+                {photoAsset ? (
+                  <View style={styles.photoPreviewWrap}>
+                    <Image
+                      source={{ uri: photoAsset.uri }}
+                      resizeMode="cover"
+                      accessibilityLabel="Selected review photo"
+                      style={[styles.photoPreview, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove review photo"
+                      disabled={busy}
+                      onPress={() => { setPhotoAsset(null); setPhotoError('') }}
+                      style={({ pressed }) => [styles.photoRemove, { backgroundColor: theme.colors.inverse }, pressed && styles.pressed]}
+                    >
+                      <AppText variant="label" color={theme.colors.inverseText}>×</AppText>
+                    </Pressable>
+                  </View>
+                ) : null}
+                {photoError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{photoError}</AppText> : null}
+              </View>
             </>
           )}
           {message && form ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{message}</AppText> : null}
@@ -196,6 +292,10 @@ const styles = StyleSheet.create({
   form: { gap: density.cardGap },
   actions: { gap: density.cardGap },
   multiline: { minHeight: 120 },
+  photoSection: { gap: density.cardGap },
+  photoPreviewWrap: { position: 'relative', width: 108, },
+  photoPreview: { width: 108, height: 81, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10 },
+  photoRemove: { position: 'absolute', top: 4, right: 4, width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   ratings: { flexDirection: 'row', flexWrap: 'wrap', gap: density.cardGap },
   rating: {
     minWidth: 54,

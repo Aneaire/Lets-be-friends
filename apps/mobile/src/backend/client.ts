@@ -64,6 +64,11 @@ export const mobileApi = {
     forCompanion: generatedApi.reviews.forCompanion,
     toggleSave: generatedApi.reviews.toggleSave,
     submit: generatedApi.reviews.submit,
+    toggleLike: generatedApi.reviews.toggleLike,
+    createComment: generatedApi.reviews.createComment,
+    generateImageUploadUrl: generatedApi.reviews.generateImageUploadUrl,
+    registerImageUpload: generatedApi.reviews.registerImageUpload,
+    discardImageUpload: generatedApi.reviews.discardImageUpload,
   },
   social: {
     feed: generatedApi.social.feed,
@@ -122,6 +127,7 @@ export type PostId = Id<'posts'>
 export type PostMediaUploadId = Id<'postMediaUploads'>
 export type CommentId = Id<'postComments'>
 export type ReviewId = Id<'reviews'>
+export type ReviewMediaUploadId = Id<'reviewMediaUploads'>
 export type StorageId = Id<'_storage'>
 export type UserId = Id<'users'>
 export type PaymongoTopUpId = Id<'paymongoTopUps'>

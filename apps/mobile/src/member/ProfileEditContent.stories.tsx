@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import { ProfileEditContent } from './ProfileEditContent'
 import { canSaveProfileEdit, profileEditFieldCopy } from './profileEditFields'
+import { defaultAvatarCrop } from './avatarCrop'
 
 type ProfileEditStoryArgs = {
   initialName: string
@@ -28,6 +29,7 @@ function ProfileEditStory({ initialName, initialBio, busy = false, onSave, onCan
       busy={busy}
       canSave={canSave}
       imagePicked={false}
+      crop={defaultAvatarCrop}
       nameHint={nameHint}
       nameError={nameError}
       bioHint={bioHint}
@@ -35,6 +37,7 @@ function ProfileEditStory({ initialName, initialBio, busy = false, onSave, onCan
       onChangeName={setDisplayName}
       onChangeBio={setBio}
       onChoosePhoto={fn()}
+      onCropChange={fn()}
       onSave={onSave}
       onCancel={onCancel}
     />

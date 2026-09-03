@@ -20,6 +20,7 @@ import { mapApprovedCompanion, type ApprovedCompanionRecord } from '@/data/compa
 import { defaultDiscoveryFilters, discoveryCategoryOptions, filterDiscoveryCompanions, nearbySearchOptionsLabel, type DiscoveryFilters } from '@/data/discovery'
 import { NearbySearchOptionsSheet, type NearbyRadius } from '@/features/discovery/NearbySearchOptionsSheet'
 import { readCurrentCoordinates } from '@/features/discovery/nearbyLocation'
+import { normalizeMapCoordinates, roundOriginCoordinates } from '@/features/discovery/nearbyOrigin'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 export default function NearbyScreen() {
@@ -27,6 +28,7 @@ export default function NearbyScreen() {
   const theme = useAppTheme()
   const [radiusKm, setRadiusKm] = useState<NearbyRadius>(25)
   const [origin, setOrigin] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [pinMode, setPinMode] = useState(false)
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [originLabel, setOriginLabel] = useState('Current area')
@@ -79,6 +81,15 @@ export default function NearbyScreen() {
     } catch { setLocationError('That travel area could not be searched. Please try again.') } finally { setLocating(false) }
   }
 
+  function handlePickLocation(coords: { latitude: number; longitude: number }) {
+    const picked = normalizeMapCoordinates(coords)
+    if (!picked) return
+    setOrigin(roundOriginCoordinates(picked))
+    setOriginLabel('Placed pin')
+    setLocationError('')
+    setPinMode(false)
+  }
+
   if (backend.status !== 'configured') {
     return <NearbyShell><StateView title="Nearby discovery is unavailable" detail="This build cannot connect to nearby discovery." /></NearbyShell>
   }
@@ -95,15 +106,29 @@ export default function NearbyScreen() {
       <View style={styles.headerWrap}><AppHeader title="Nearby Companions" subtitle="Approximate results only" back onBack={() => goBack()} /></View>
       {!origin ? (
         <ScrollView contentContainerStyle={styles.prompt} showsVerticalScrollIndicator={false}>
-          <ProductMap />
-          <AppText variant="title">Find Companions near you</AppText>
-          <AppText color={theme.colors.textMuted}>Your foreground location is sent only for this radius search. Results use approximate Companion locations and distances, not precise meeting locations.</AppText>
-          {locationError ? <AppText accessibilityRole="alert" color={theme.colors.danger}>{locationError}</AppText> : null}
-          <ActionButton label={locating ? 'Finding your location' : 'Use current location'} onPress={() => void locate()} disabled={locating} />
-          <View style={styles.orRow}><View style={[styles.orLine, { backgroundColor: theme.colors.border }]} /><AppText variant="caption" color={theme.colors.textMuted}>OR SEARCH A TRAVEL AREA</AppText><View style={[styles.orLine, { backgroundColor: theme.colors.border }]} /></View>
-          <SearchField label="Travel area" value={travelArea} onChange={setTravelArea} placeholder="City, neighborhood, or landmark" autoCapitalize="words" onSubmitEditing={() => void locateTravelArea()} />
-          <ActionButton label={locating ? 'Searching area' : 'Search travel area'} onPress={() => void locateTravelArea()} secondary disabled={locating || travelArea.trim().length < 2} />
-          <ActionButton label="Return to Explore" onPress={() => router.replace('/explore')} secondary />
+          {pinMode ? (
+            <>
+              <View style={styles.pinMap}>
+                <ProductMap onPickLocation={(coords) => handlePickLocation(coords)} pinMode radiusKm={radiusKm} />
+              </View>
+              <AppText variant="title">Place a search pin</AppText>
+              <AppText color={theme.colors.textMuted}>Tap the map to set the center of your nearby search. The map uses approximate areas, not precise meeting locations.</AppText>
+              <ActionButton label="Cancel pin placement" onPress={() => { setPinMode(false); setLocationError('') }} secondary />
+            </>
+          ) : (
+            <>
+              <ProductMap />
+              <AppText variant="title">Find Companions near you</AppText>
+              <AppText color={theme.colors.textMuted}>Your foreground location is sent only for this radius search. Results use approximate Companion locations and distances, not precise meeting locations.</AppText>
+              {locationError ? <AppText accessibilityRole="alert" color={theme.colors.danger}>{locationError}</AppText> : null}
+              <ActionButton label={locating ? 'Finding your location' : 'Use current location'} onPress={() => void locate()} disabled={locating} />
+              <View style={styles.orRow}><View style={[styles.orLine, { backgroundColor: theme.colors.border }]} /><AppText variant="caption" color={theme.colors.textMuted}>OR SEARCH A TRAVEL AREA</AppText><View style={[styles.orLine, { backgroundColor: theme.colors.border }]} /></View>
+              <SearchField label="Travel area" value={travelArea} onChange={setTravelArea} placeholder="City, neighborhood, or landmark" autoCapitalize="words" onSubmitEditing={() => void locateTravelArea()} />
+              <ActionButton label={locating ? 'Searching area' : 'Search travel area'} onPress={() => void locateTravelArea()} secondary disabled={locating || travelArea.trim().length < 2} />
+              <ActionButton label="Place a pin on the map" onPress={() => { setPinMode(true); setLocationError('') }} secondary />
+              <ActionButton label="Return to Explore" onPress={() => router.replace('/explore')} secondary />
+            </>
+          )}
         </ScrollView>
       ) : (
         <FlatList
@@ -171,6 +196,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   headerWrap: { paddingHorizontal: 16 },
   prompt: { flexGrow: 1, justifyContent: 'center', padding: 14, gap: 16 },
+  pinMap: { height: 380, borderRadius: 18, overflow: 'hidden' },
   list: { paddingHorizontal: 16, paddingBottom: 40 },
   listHeader: { gap: 12, paddingVertical: 14 },
   mapSummary: { flexDirection: 'row', alignItems: 'center', gap: 12 },

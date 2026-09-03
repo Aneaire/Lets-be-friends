@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native'
+import { Platform, StyleSheet, View } from 'react-native'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Avatar } from '@/design-system/atoms/Avatar'
@@ -8,6 +8,8 @@ import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { FormField } from '@/design-system/molecules/FormField'
 import { Screen } from '@/design-system/templates/Screen'
 import { useAppTheme } from '@/theme/ThemeProvider'
+import { AvatarCropper } from './AvatarCropper'
+import type { AvatarCrop } from './avatarCrop'
 import { PROFILE_BIO_MAX, PROFILE_NAME_MAX } from './profileEditFields'
 
 export function ProfileEditContent({
@@ -18,6 +20,7 @@ export function ProfileEditContent({
   busy,
   canSave,
   imagePicked,
+  crop,
   nameHint,
   nameError,
   bioHint,
@@ -25,6 +28,7 @@ export function ProfileEditContent({
   onChangeName,
   onChangeBio,
   onChoosePhoto,
+  onCropChange,
   onSave,
   onCancel,
 }: {
@@ -35,6 +39,7 @@ export function ProfileEditContent({
   busy: boolean
   canSave: boolean
   imagePicked: boolean
+  crop: AvatarCrop
   nameHint: string
   nameError?: string
   bioHint: string
@@ -42,6 +47,7 @@ export function ProfileEditContent({
   onChangeName: (text: string) => void
   onChangeBio: (text: string) => void
   onChoosePhoto: () => void
+  onCropChange: (crop: AvatarCrop) => void
   onSave: () => void
   onCancel: () => void
 }) {
@@ -59,6 +65,10 @@ export function ProfileEditContent({
           <ActionButton label={imagePicked ? 'Choose another photo' : 'Choose photo'} onPress={onChoosePhoto} intent="self" secondary disabled={busy} style={styles.compactButton} />
         </View>
       </View>
+
+      {Platform.OS === 'web' && imagePicked && avatarUri ? (
+        <AvatarCropper uri={avatarUri} crop={crop} onChange={onCropChange} />
+      ) : null}
 
       <FormField label="Display name" hint={nameHint} error={nameError}>
         <TextField accessibilityLabel="Display name" value={displayName} onChangeText={onChangeName} maxLength={PROFILE_NAME_MAX + 1} autoCapitalize="words" />

@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import {
   Image,
   Pressable,
   StyleSheet,
   View,
+  type ImageLoadEventData,
+  type NativeSyntheticEvent,
   type StyleProp,
   type ViewStyle,
 } from 'react-native'
@@ -11,7 +14,7 @@ import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-import { postImagePressLabel, type PostImagePressContext } from './postImagePresentation'
+import { postImagePressLabel, postMediaAspectRatio, type PostImagePressContext } from './postImagePresentation'
 
 export type DisplayPostMediaItem = {
   storageId: string
@@ -51,15 +54,27 @@ export function PostMediaGrid(props: PostMediaGridProps) {
 
 function DisplayMediaGrid({ media, onOpenVideo, onOpenImage, imagePressContext = 'feed', style }: DisplayPostMediaGridProps) {
   const theme = useAppTheme()
+  const [aspects, setAspects] = useState<Record<string, number>>({})
   const availableMedia = media.filter((item): item is DisplayPostMediaItem & { url: string } => Boolean(item.url))
 
   if (availableMedia.length === 0) return null
 
   const compact = availableMedia.length > 1
+  const rememberAspect = (event: NativeSyntheticEvent<ImageLoadEventData>, storageId: string) => {
+    const { width, height } = event.nativeEvent.source
+    if (width <= 0 || height <= 0) return
+    const ratio = width / height
+    setAspects((current) => current[storageId] === ratio ? current : { ...current, [storageId]: ratio })
+  }
 
   return (
     <View style={[styles.grid, style]}>
-      {availableMedia.map((item, index) => (
+      {availableMedia.map((item, index) => {
+        const imageAspect = compact
+          ? postMediaAspectRatio(0, 0, false)
+          : aspects[item.storageId] ?? postMediaAspectRatio(0, 0, true)
+
+        return (
         <View
           key={`${item.storageId}-${index}`}
           style={[
@@ -74,23 +89,25 @@ function DisplayMediaGrid({ media, onOpenVideo, onOpenImage, imagePressContext =
                 accessibilityRole="button"
                 accessibilityLabel={postImagePressLabel(imagePressContext, index, availableMedia.length)}
                 onPress={() => onOpenImage(item, index, availableMedia.length)}
-                style={({ pressed }) => pressed && styles.pressed}
+                style={({ pressed }) => [styles.imagePressable, pressed && styles.pressed]}
               >
                 <Image
                   source={{ uri: item.url }}
                   resizeMode="cover"
+                  onLoad={(event) => rememberAspect(event, item.storageId)}
                   accessibilityRole="image"
                   accessibilityLabel={`Post image ${index + 1} of ${availableMedia.length}`}
-                  style={styles.image}
+                  style={[styles.image, { aspectRatio: imageAspect }]}
                 />
               </Pressable>
             ) : (
               <Image
                 source={{ uri: item.url }}
                 resizeMode="cover"
+                onLoad={(event) => rememberAspect(event, item.storageId)}
                 accessibilityRole="image"
                 accessibilityLabel={`Post image ${index + 1} of ${availableMedia.length}`}
-                style={styles.image}
+                style={[styles.image, { aspectRatio: imageAspect }]}
               />
             )
           ) : (
@@ -106,7 +123,7 @@ function DisplayMediaGrid({ media, onOpenVideo, onOpenImage, imagePressContext =
             </Pressable>
           )}
         </View>
-      ))}
+      )})}
     </View>
   )
 }
@@ -179,6 +196,9 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     aspectRatio: 4 / 3,
+  },
+  imagePressable: {
+    width: '100%',
   },
   video: {
     minHeight: 92,

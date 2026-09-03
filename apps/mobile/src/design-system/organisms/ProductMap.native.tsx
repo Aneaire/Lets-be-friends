@@ -3,10 +3,11 @@ import { productMapInitialView, productMapStyleUrl, productMapZoomForRadius } fr
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import type { ProductMapProps } from './ProductMap'
+import { normalizeMapCoordinates } from '@/features/discovery/nearbyOrigin'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-export function ProductMap({ center, radiusKm, points = [], onSelectPoint, expanded = false }: ProductMapProps) {
+export function ProductMap({ center, radiusKm, points = [], onSelectPoint, onPickLocation, pinMode = false, expanded = false }: ProductMapProps) {
   const theme = useAppTheme()
   const mapCenter = center
     ? [center.longitude, center.latitude] as [number, number]
@@ -15,8 +16,17 @@ export function ProductMap({ center, radiusKm, points = [], onSelectPoint, expan
 
   return (
     <View style={[styles.frame, expanded && styles.expandedFrame]} accessibilityLabel="Nearby Companion map">
-      <Map mapStyle={productMapStyleUrl} style={styles.map} attribution logo={false}>
-        <Camera center={mapCenter} zoom={center ? productMapZoomForRadius(radiusKm) : productMapInitialView.zoom} duration={350} easing="ease" />
+      <Map
+        mapStyle={productMapStyleUrl}
+        style={styles.map}
+        attribution
+        logo={false}
+        onPress={pinMode ? (event) => {
+          const origin = normalizeMapCoordinates(event.nativeEvent.lngLat)
+          if (origin) onPickLocation?.(origin)
+        } : undefined}
+      >
+        <Camera center={mapCenter} zoom={pinMode ? 8 : center ? productMapZoomForRadius(radiusKm) : productMapInitialView.zoom} duration={350} easing="ease" />
         {radius ? (
           <GeoJSONSource id="search-radius" data={radius}>
             <Layer id="search-radius-fill" type="fill" paint={{ 'fill-color': '#C1519C', 'fill-opacity': 0.12 }} />
