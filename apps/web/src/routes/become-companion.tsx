@@ -105,6 +105,8 @@ function CompanionAuthPanel() {
   const [city, setCity] = useState('')
   const [hourlyRatePesos, setHourlyRatePesos] = useState('500')
   const [intro, setIntro] = useState('')
+  const [bio, setBio] = useState('')
+  const [earningMotivation, setEarningMotivation] = useState('')
   const [boundaries, setBoundaries] = useState('Public places only\nNo dating or romantic expectations')
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -114,6 +116,7 @@ function CompanionAuthPanel() {
 
   useEffect(() => {
     if (!application) {
+      if (viewer?.bio) setBio(viewer.bio)
       if (viewer?.onboardingCategories?.length) setSelectedCategories(viewer.onboardingCategories)
       return
     }
@@ -121,10 +124,12 @@ function CompanionAuthPanel() {
     setCity(application.city)
     setHourlyRatePesos(String((application.hourlyRateCentavos ?? 50_000) / 100))
     setIntro(application.intro)
+    setBio(application.bio ?? viewer?.bio ?? '')
+    setEarningMotivation(application.earningMotivation ?? '')
     setBoundaries(application.boundaries?.join('\n') ?? 'Public places only\nNo dating or romantic expectations')
     setSelectedStrengths(application.strengths.length > 0 ? application.strengths : ['Good listener'])
     setSelectedCategories(application.categories)
-  }, [application?._id, application?.updatedAt, viewer?.onboardingCategories])
+  }, [application?._id, application?.updatedAt, viewer?.onboardingCategories, viewer?.bio])
 
   if (!isSignedIn) {
     return (
@@ -200,6 +205,8 @@ function CompanionAuthPanel() {
               mode,
               hourlyRateCentavos: Math.round(Number(hourlyRatePesos) * 100),
               applicationNote: String(form.get('applicationNote') || '') || undefined,
+              bio: bio.trim() || undefined,
+              earningMotivation: earningMotivation.trim(),
             })
             setSaved(true)
           } catch (submitError) {
@@ -302,6 +309,21 @@ function CompanionAuthPanel() {
               <span id="companion-intro-count" className="field-row-help tabular">{intro.length}/500</span>
             </span>
           </label>
+          <label className="field-row">
+            <span className="label">Tell me about yourself <span className="label-aux">optional, up to 500 characters</span></span>
+            <textarea
+              maxLength={500}
+              value={bio}
+              onChange={(event) => setBio(event.currentTarget.value)}
+              className="field min-h-24"
+              placeholder="Something personal about your hobbies, family, or work."
+              aria-describedby="companion-bio-help companion-bio-count"
+            />
+            <span className="companion-field-help-row">
+              <span id="companion-bio-help" className="field-row-help">This updates your member profile bio and appears on your public profile.</span>
+              <span id="companion-bio-count" className="field-row-help tabular">{bio.length}/500</span>
+            </span>
+          </label>
         </NumberedSection>
 
         <NumberedSection
@@ -361,6 +383,18 @@ function CompanionAuthPanel() {
               value={boundaries}
               onChange={(event) => setBoundaries(event.currentTarget.value)}
               className="field min-h-24"
+            />
+          </label>
+          <label className="field-row">
+            <span className="label">Why do you want to earn with Let’s Be Friends? <span className="label-aux">private, at least 20 characters</span></span>
+            <textarea
+              required
+              minLength={20}
+              maxLength={1000}
+              value={earningMotivation}
+              onChange={(event) => setEarningMotivation(event.currentTarget.value)}
+              className="field min-h-24"
+              placeholder="Share why you want to earn as a Companion. Only the review team reads this."
             />
           </label>
           <label className="field-row">

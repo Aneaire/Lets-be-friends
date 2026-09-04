@@ -15,16 +15,16 @@ import {
   User,
   UserRound,
   UserRoundCog,
+  Wallet,
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { api } from '../../../convex/_generated/api'
 import { findCompanions } from '../../lib/discoverySearch'
-import { activePrimaryNavigation, primaryNavigation } from '../../lib/navigation'
+import { activePrimaryNavigation, headerNavigation, primaryNavigation, sidebarNavigation } from '../../lib/navigation'
 import { formatNotificationTime, webDestination, type NotificationDestination } from '../../lib/notifications'
 import { BrandLogo } from '../atoms/BrandLogo'
-import { ThemeToggle } from '../atoms/ThemeToggle'
 import { NotificationItemContent } from '../molecules/NotificationItemContent'
 
 const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -125,8 +125,12 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
           )}
 
           <div className="app-header-actions">
-            {!onboarding && <NotificationNavigation />}
-            <ThemeToggle />
+            {!onboarding && (
+              <>
+                <HeaderPrimaryActions activeItem={activeItem} />
+                <NotificationNavigation />
+              </>
+            )}
             <AccountNavigation
               open={accountOpen}
               onOpen={openAccount}
@@ -280,6 +284,30 @@ function HeaderSearchIdentity({ person }: { person: HeaderSearchPerson }) {
   )
 }
 
+export function HeaderPrimaryActions({ activeItem }: { activeItem: ReturnType<typeof activePrimaryNavigation> }) {
+  const conversations = useQuery(api.conversations.list, {})
+  const messagesUnread = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0
+  return (
+    <nav className="header-primary-actions" aria-label="Messages and bookings">
+      {headerNavigation.map((item) => (
+        <Link
+          key={item.id}
+          to={item.to}
+          className="header-primary-action"
+          data-kind={item.id}
+          aria-label={item.id === 'messages' && messagesUnread > 0 ? `${item.label}, ${messagesUnread} unread` : item.label}
+          aria-current={activeItem === item.id ? 'page' : undefined}
+        >
+          <NavigationIcon id={item.id} />
+          {item.id === 'messages' && messagesUnread > 0 && (
+            <span className="notification-badge tabular" aria-hidden="true">{messagesUnread > 99 ? '99+' : messagesUnread}</span>
+          )}
+        </Link>
+      ))}
+    </nav>
+  )
+}
+
 function NotificationNavigation() {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -343,23 +371,19 @@ function NotificationNavigation() {
 }
 
 function DesktopPrimaryNavigation({ activeItem }: { activeItem: ReturnType<typeof activePrimaryNavigation> }) {
-  const conversations = useQuery(api.conversations.list, {})
-  const messagesUnread = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0
   return (
     <aside className="desktop-primary-rail">
       <nav className="primary-nav" aria-label="Primary navigation">
-        {primaryNavigation.map((item) => (
+        {sidebarNavigation.map((item) => (
           <Link
             key={item.id}
             to={item.to}
-            search={item.to === '/app' ? {} : undefined}
             className="primary-nav-link"
             data-kind={item.id}
             aria-current={activeItem === item.id ? 'page' : undefined}
           >
             <NavigationIcon id={item.id} />
             <span>{item.label}</span>
-            {item.id === 'messages' && messagesUnread > 0 && <span className="primary-nav-badge tabular" aria-label={`${messagesUnread} unread messages`}>{messagesUnread > 99 ? '99+' : messagesUnread}</span>}
           </Link>
         ))}
       </nav>
@@ -379,22 +403,18 @@ function MobilePrimaryNavigation({
   accountActive: boolean
   onOpenAccount: (opener: HTMLButtonElement) => void
 }) {
-  const conversations = useQuery(api.conversations.list, {})
-  const messagesUnread = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0
   return (
     <nav className="mobile-primary-nav" aria-label="Mobile primary navigation">
-      {primaryNavigation.map((item) => (
+      {sidebarNavigation.map((item) => (
         <Link
           key={item.id}
           to={item.to}
-          search={item.to === '/app' ? {} : undefined}
           className="mobile-primary-nav-item"
           data-kind={item.id}
           aria-current={activeItem === item.id ? 'page' : undefined}
         >
           <NavigationIcon id={item.id} />
           <span>{item.label}</span>
-          {item.id === 'messages' && messagesUnread > 0 && <span className="mobile-nav-badge tabular" aria-label={`${messagesUnread} unread messages`}>{messagesUnread > 99 ? '99+' : messagesUnread}</span>}
         </Link>
       ))}
       <button
@@ -493,6 +513,7 @@ function AccountNavigation({
                 <AccountLink to="/become-companion" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Companion profile</AccountLink>
               )}
               <AccountLink to="/companion" icon={<UserRoundCog size={17} />} onSelect={() => onClose(false)}>Companion tools</AccountLink>
+              <AccountLink to="/wallet" icon={<Wallet size={17} />} onSelect={() => onClose(false)}>Wallet</AccountLink>
               <AccountLink to="/settings" icon={<Settings size={17} />} onSelect={() => onClose(false)}>Settings</AccountLink>
             </div>
 
@@ -539,7 +560,7 @@ function AccountLink({
   children,
   onSelect,
 }: {
-  to: '/profile' | '/companion-profile' | '/become-companion' | '/companion' | '/settings' | '/safety'
+  to: '/profile' | '/companion-profile' | '/become-companion' | '/companion' | '/wallet' | '/settings' | '/safety'
   search?: Record<string, string>
   icon: React.ReactNode
   children: React.ReactNode

@@ -9,6 +9,11 @@ import {
 
 export type CompanionMode = 'online' | 'in_person' | 'both'
 
+export const COMPANION_BIO_MAX_LENGTH = 500
+export const COMPANION_BIO_PLACEHOLDER = 'Something personal about your hobbies, family, or work.'
+export const EARNING_MOTIVATION_MIN_LENGTH = 20
+export const EARNING_MOTIVATION_MAX_LENGTH = 1000
+
 export type CompanionApplicationForm = {
   intro: string
   city: string
@@ -18,6 +23,8 @@ export type CompanionApplicationForm = {
   categories: string[]
   boundaries: string
   applicationNote: string
+  bio: string
+  earningMotivation: string
 }
 
 export type SavedCompanionApplication = {
@@ -29,6 +36,8 @@ export type SavedCompanionApplication = {
   categories: string[]
   boundaries: string[]
   applicationNote?: string
+  earningMotivation?: string
+  bio?: string
 }
 
 export const companionApplicationStatusCopy: Record<CompanionApplicationStatus, { label: string; detail: string }> = {
@@ -51,6 +60,8 @@ export function initialCompanionApplicationForm(application?: SavedCompanionAppl
       ? application.boundaries.join('\n')
       : 'Public places only\nNo dating or romantic expectations',
     applicationNote: application?.applicationNote ?? '',
+    bio: application?.bio ?? '',
+    earningMotivation: application?.earningMotivation ?? '',
   }
 }
 
@@ -63,6 +74,8 @@ export type ValidCompanionApplication = {
   categories: string[]
   boundaries: string[]
   applicationNote?: string
+  bio?: string
+  earningMotivation: string
 }
 
 export function validateCompanionApplication(form: CompanionApplicationForm): { ok: true; value: ValidCompanionApplication } | { ok: false; message: string } {
@@ -71,8 +84,13 @@ export function validateCompanionApplication(form: CompanionApplicationForm): { 
   const hourlyRatePesos = Number(form.hourlyRatePesos.trim())
   const hourlyRateCentavos = Math.round(hourlyRatePesos * 100)
   const boundaries = form.boundaries.split('\n').map((item) => item.trim()).filter(Boolean)
+  const bio = form.bio.trim() || undefined
+  const earningMotivation = form.earningMotivation.trim()
 
   if (intro.length < 40 || intro.length > 500) return { ok: false, message: 'Describe the experience in 40 to 500 characters.' }
+  if (bio !== undefined && bio.length > COMPANION_BIO_MAX_LENGTH) return { ok: false, message: `Tell me about yourself must be ${COMPANION_BIO_MAX_LENGTH} characters or fewer.` }
+  if (earningMotivation.length < EARNING_MOTIVATION_MIN_LENGTH) return { ok: false, message: 'Tell the review team why you want to earn with Let\u2019s Be Friends (at least 20 characters).' }
+  if (earningMotivation.length > EARNING_MOTIVATION_MAX_LENGTH) return { ok: false, message: `Earning motivation must be ${EARNING_MOTIVATION_MAX_LENGTH} characters or fewer.` }
   if (form.mode !== 'online' && !city) return { ok: false, message: 'Add a city for an in-person session.' }
   if (
     !Number.isFinite(hourlyRatePesos)
@@ -98,6 +116,8 @@ export function validateCompanionApplication(form: CompanionApplicationForm): { 
       categories: categories.value,
       boundaries,
       applicationNote: form.applicationNote.trim() || undefined,
+      bio,
+      earningMotivation,
     },
   }
 }

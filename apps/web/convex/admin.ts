@@ -92,6 +92,7 @@ export const companionApplications = query({
       return {
         ...companion,
         applicantDisplayName: user?.displayName ?? companion.displayName,
+        applicantBio: user?.bio,
         applicantVerificationStatus: user?.verificationStatus ?? 'not_started',
         applicantIdentityEligible: user ? hasCurrentIdentityApproval(user) : false,
         applicantSuspended: user?.suspended ?? false,

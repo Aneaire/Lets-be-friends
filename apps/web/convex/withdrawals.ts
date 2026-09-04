@@ -210,7 +210,7 @@ export const request = mutation({
       createdAt: now,
       updatedAt: now,
     })
-    const referenceNumber = `lbf-${String(withdrawalId)}`
+    const referenceNumber = buildWithdrawalReferenceNumber(String(withdrawalId))
     const idempotencyKey = `withdrawal:${String(withdrawalId)}:submit`
     await ctx.db.patch(withdrawalId, { referenceNumber, idempotencyKey })
     await applyWalletTransaction(ctx, {
@@ -344,6 +344,15 @@ export const submit = internalAction({
         encryptionContext(String(prepared.companionUserId), prepared.institutionBic, prepared.accountName),
       )
       const sourceAccount = normalizeWalletSourceAccount(await paymongoRequest('/v2/wallets', { method: 'GET', config }))
+      const requiredCentavos = prepared.amountCentavos + PAYMONGO_TRANSFER_FEE_CENTAVOS
+      if (sourceAccount.availableCentavos !== undefined && sourceAccount.availableCentavos < requiredCentavos) {
+        await ctx.runMutation(internal.withdrawals.failSubmission, {
+          withdrawalId: prepared._id,
+          failureCode: 'insufficient_wallet_balance',
+        })
+        return { outcome: 'failed' as const }
+      }
+      const callbackUrl = paymongoTransferCallbackUrl()
       const response = await paymongoRequest('/v2/batch_transfers', {
         method: 'POST',
         config,
@@ -356,12 +365,13 @@ export const submit = internalAction({
             purpose: 'Companion earnings withdrawal',
             description: 'Lets Be Friends Companion earnings withdrawal',
             reference_number: prepared.referenceNumber,
-            source_account: sourceAccount,
+            source_account: { number: sourceAccount.number, name: sourceAccount.name, bic: sourceAccount.bic },
             destination_account: {
               number: accountNumber,
               name: prepared.accountName,
               bic: prepared.institutionBic,
             },
+            ...(callbackUrl ? { callback_url: callbackUrl } : {}),
             metadata: { withdrawal_id: String(prepared._id), companion_user_id: String(prepared.companionUserId) },
           }],
         },
@@ -546,7 +556,9 @@ async function applyProviderTransferInTransaction(
   if (withdrawal.mode !== args.mode) throw new Error('PayMongo mode mismatch')
   if (args.transfer.amountCentavos !== withdrawal.amountCentavos) throw new Error('PayMongo withdrawal amount mismatch')
   if (args.transfer.currency !== withdrawal.currency) throw new Error('PayMongo withdrawal currency mismatch')
-  if (args.transfer.referenceNumber !== withdrawal.referenceNumber) throw new Error('PayMongo withdrawal reference mismatch')
+  if (normalizePaymongoReferenceNumber(args.transfer.referenceNumber) !== normalizePaymongoReferenceNumber(withdrawal.referenceNumber)) {
+    throw new Error('PayMongo withdrawal reference mismatch')
+  }
   if (withdrawal.providerTransferId && withdrawal.providerTransferId !== args.transfer.id) throw new Error('PayMongo transfer ID mismatch')
   const now = args.now ?? Date.now()
   const providerPatch = {
@@ -717,18 +729,45 @@ export function normalizeReceivingInstitutions(response: unknown) {
 
 export function normalizeWalletSourceAccount(response: unknown) {
   const root = asRecord(response)
-  const wallets = asArray(root?.data)
+  const rawData = root?.data
+  const wallets = Array.isArray(rawData) ? rawData : rawData ? [rawData] : []
   for (const walletValue of wallets) {
     const wallet = asRecord(walletValue)
     const value = asRecord(wallet?.attributes) ?? wallet
     const source = asRecord(value?.source_account)
+    const account = asRecord(value?.account)
     const number = stringValue(source?.number)
+      ?? stringValue(account?.account_number)
+      ?? stringValue(account?.number)
     const name = stringValue(source?.name)
-    const bic = stringValue(source?.bic)
+      ?? stringValue(account?.account_name)
+      ?? stringValue(account?.name)
+    const bic = stringValue(source?.bic) ?? stringValue(account?.bic) ?? 'PAEYPHM2XXX'
+    const balance = asRecord(value?.balance)
+    const availableCentavos = numberValue(balance?.available)
     const status = stringValue(value?.status)
-    if (number && name && bic && (!status || ['activated', 'active'].includes(status))) return { number, name, bic }
+    if (number && name && bic && (!status || ['activated', 'active'].includes(status))) {
+      return { number, name, bic, availableCentavos }
+    }
   }
   throw new Error('No activated PayMongo Wallet source account is available')
+}
+
+export function buildWithdrawalReferenceNumber(withdrawalId: string) {
+  const sanitized = withdrawalId.replace(/[^a-zA-Z0-9]/g, '')
+  if (!sanitized) throw new Error('Withdrawal reference requires an identifier')
+  return `lbf ${sanitized}`.slice(0, 60)
+}
+
+export function normalizePaymongoReferenceNumber(value: string) {
+  return value.normalize('NFKD').replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+export function paymongoTransferCallbackUrl() {
+  const raw = process.env.PAYMONGO_TRANSFER_CALLBACK_URL?.trim()
+  if (!raw) return undefined
+  if (!raw.startsWith('https://')) throw new Error('PAYMONGO_TRANSFER_CALLBACK_URL must use HTTPS')
+  return raw
 }
 
 function configuredPaymongoMode(): 'test' | 'live' | null {

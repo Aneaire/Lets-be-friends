@@ -22,9 +22,9 @@ These choices follow patterns documented by [Airbnb](https://www.airbnb.com/help
 Enabling the PayMongo Wallet is required, but it is not the entire application rollout:
 
 1. Confirm the Wallet is activated for the intended test or live mode.
-2. Keep enough Wallet balance for the withdrawal amount plus the provider fee.
+2. Keep enough Wallet balance for the withdrawal amount plus the provider fee. The app refuses to submit when the provider reports less available balance than amount plus fee, and releases the reserved earnings with `insufficient_wallet_balance`. Monitor available versus pending balance on the Wallet Dashboard plus the 10-minute reconciliation cron.
 3. Configure matching PayMongo secret and public keys, mode, and webhook secret in the Convex deployment.
-4. Register the existing `https://<convex-site>/paymongo/webhook` endpoint for `transfer.outward.successful` and `transfer.outward.failed` events.
+4. Register the existing `https://<convex-site>/paymongo/webhook` endpoint for `transfer.outward.successful` and `transfer.outward.failed` events. For API transfers, also set `PAYMONGO_TRANSFER_CALLBACK_URL` to that same public HTTPS URL so PayMongo posts per-transfer status updates in addition to the Dashboard webhook subscription.
 5. Generate a 32-byte payout encryption key with `openssl rand -base64 32` and store it as `PAYOUT_ACCOUNT_ENCRYPTION_KEY` in Convex. Keep this key stable.
 6. Set `COMPANION_WITHDRAWALS_ENABLED=true` only after an end-to-end test-mode transfer and webhook reconciliation pass.
 7. Repeat the provider check with live keys and a low-value internal test before opening the feature to Companions.
@@ -32,6 +32,8 @@ Enabling the PayMongo Wallet is required, but it is not the entire application r
 Required Convex variables are documented in `.env.example`. Never put the PayMongo secret key, webhook secret, or payout encryption key in a public `VITE_` or `EXPO_PUBLIC_` variable.
 
 PayMongo's current money-movement documentation covers the Wallet, receiving institutions, batch transfer request, status reconciliation, limits, and fees: [Move money with API](https://docs.paymongo.com/docs/money-movement-moving-money-with-api) and [Disbursements](https://docs.paymongo.com/docs/money-movement-disbursements).
+
+PayMongo normalizes `reference_number` to alphanumeric characters and spaces, so withdrawal references use the `lbf <withdrawalId>` shape with no hyphens. Reconciliation compares the normalized provider and internal values before any ledger change.
 
 ## Operational states
 

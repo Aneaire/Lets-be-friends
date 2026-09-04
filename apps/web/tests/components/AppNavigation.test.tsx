@@ -28,7 +28,7 @@ vi.mock('convex/react', () => ({
   useMutation: () => vi.fn(),
 }))
 
-import { AccountAvatar, HeaderSearch, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
+import { AccountAvatar, HeaderPrimaryActions, HeaderSearch, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
 
 afterEach(cleanup)
 
@@ -66,6 +66,24 @@ describe('account avatar', () => {
     const { container } = render(<AccountAvatar imageUrl="/member-photo.jpg" />)
 
     expect(container.querySelector('.account-avatar img')?.getAttribute('src')).toBe('/member-photo.jpg')
+  })
+})
+
+describe('header primary actions', () => {
+  it('links Messages and Bookings from the signed-in header', () => {
+    render(<HeaderPrimaryActions activeItem={null} />)
+
+    const nav = screen.getByRole('navigation', { name: /messages and bookings/i })
+    expect(nav.querySelectorAll('a.header-primary-action')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: 'Messages' }).getAttribute('href')).toBe('/messages')
+    expect(screen.getByRole('link', { name: 'Bookings' }).getAttribute('href')).toBe('/app')
+  })
+
+  it('marks the active header destination for Messages', () => {
+    render(<HeaderPrimaryActions activeItem="messages" />)
+
+    expect(screen.getByRole('link', { name: 'Messages' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByRole('link', { name: 'Bookings' }).getAttribute('aria-current')).toBeNull()
   })
 })
 

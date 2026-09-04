@@ -18,7 +18,7 @@ function CompanionApplicationsPage() {
     <AdminWorklistPagePresentation
       eyebrow="Safety review"
       title="Companion profile reviews"
-      description="Review Strengths, activities, boundaries, and profile notes. Identity is decided separately in the identity review queue."
+      description="Review bio, earning motivation, Strengths, activities, boundaries, and profile notes. Identity is decided separately in the identity review queue."
       filterControls={(
         <label className="field-row">
           <span className="label">Status</span>
@@ -76,6 +76,8 @@ function CompanionApplicationsPage() {
             <p className="text-meta">Approval remains disabled until this member completes identity verification and the identity reviewer explicitly approves it.</p>
           )}
           <p className="text-body muted max-w-[76ch]">{companion.intro}</p>
+          {companion.applicantBio && <p className="text-body max-w-[76ch]">About the member: {companion.applicantBio}</p>}
+          {companion.earningMotivation && <p className="text-body max-w-[76ch]">Why they want to earn: {companion.earningMotivation}</p>}
           <div className="worklist-row-meta">
             <span>Strengths: {companion.strengths.join(', ') || 'none'}</span>
           </div>

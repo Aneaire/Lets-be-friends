@@ -284,6 +284,8 @@ describe('nearby companion discovery privacy', () => {
       boundaries: ['Public places only'],
       mode: 'both',
       hourlyRateCentavos: 50_000,
+      bio: 'A personal bio about hobbies, family, and work.',
+      earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
     })
 
     const companion = await t.run(async (ctx) => ctx.db.query('companionProfiles').first())
@@ -303,6 +305,7 @@ describe('nearby companion discovery privacy', () => {
       boundaries: ['Public places only'],
       mode: 'both',
       hourlyRateCentavos: 50_000,
+      earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
     })).rejects.toThrow('filter and cannot be saved')
     expect((await t.run(async (ctx) => ctx.db.query('companionProfiles').first()))?.categories)
       .toEqual(['Board game nights', 'Coffee and meals'])
@@ -331,6 +334,7 @@ describe('nearby companion discovery privacy', () => {
       boundaries: ['Public places only'],
       mode: 'both',
       hourlyRateCentavos: 50_000,
+      earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
     })).rejects.toThrow('Complete onboarding with an approximate location')
   })
 
@@ -349,6 +353,7 @@ describe('nearby companion discovery privacy', () => {
       boundaries: ['Public places only'],
       mode: 'both',
       hourlyRateCentavos: 50_000,
+      earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
     })).rejects.toThrow('current location consent and Terms and Conditions')
   })
 
@@ -382,5 +387,129 @@ describe('nearby companion discovery privacy', () => {
     expect(await t.query(api.companions.listApproved, { latitude: 10.31, longitude: 123.89, radiusKm: 5 })).toEqual([])
     const [moved] = await t.query(api.companions.listApproved, { latitude: 11.32, longitude: 124.89, radiusKm: 5 })
     expect(moved).toMatchObject({ displayName: 'moving-companion', latitude: 11.32, longitude: 124.89 })
+  })
+})
+
+describe('companion application bio and earning motivation', () => {
+  const validApplication = {
+    intro: 'A safe and friendly companion application with enough detail to review.',
+    city: 'Cebu City',
+    strengths: ['Good listener'],
+    categories: ['Coffee or meal companion'],
+    boundaries: ['Public places only'],
+    mode: 'both' as const,
+    hourlyRateCentavos: 50_000,
+    earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
+  }
+
+  async function insertApplicant(t: ReturnType<typeof convexTest>, subject = 'bio-applicant', bio?: string) {
+    const now = Date.now()
+    await t.run(async (ctx) => {
+      await ctx.db.insert('users', {
+        clerkUserId: subject,
+        username: subject,
+        displayName: 'Bio Applicant',
+        bio,
+        approximateLatitude: 10.31,
+        approximateLongitude: 123.89,
+        approximateLocationConsentedAt: now,
+        termsAcceptedAt: now,
+        termsVersion: '2026-08-13',
+        role: 'member',
+        verificationStatus: 'not_started',
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+  }
+
+  it('saves the bio to the canonical member record and the motivation to the application', async () => {
+    const t = createTest()
+    await insertApplicant(t, 'bio-applicant', 'Existing member bio.')
+    await t.withIdentity({ subject: 'bio-applicant' }).mutation(api.companions.submitApplication, {
+      ...validApplication,
+      bio: 'Something personal about hobbies, family, and work.',
+    })
+
+    const user = await t.run(async (ctx) => ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', 'bio-applicant')).unique())
+    expect(user?.bio).toBe('Something personal about hobbies, family, and work.')
+    const companion = await t.run(async (ctx) => ctx.db.query('companionProfiles').first())
+    expect(companion).toMatchObject({ earningMotivation: validApplication.earningMotivation })
+    expect(companion).not.toHaveProperty('bio')
+
+    const mine: any = await t.withIdentity({ subject: 'bio-applicant' }).query(api.companions.myApplication, {})
+    expect(mine).toMatchObject({ bio: 'Something personal about hobbies, family, and work.', earningMotivation: validApplication.earningMotivation })
+  })
+
+  it('requires a meaningful earning motivation and limits bio length', async () => {
+    const t = createTest()
+    await insertApplicant(t, 'motivation-applicant')
+
+    await expect(t.withIdentity({ subject: 'motivation-applicant' }).mutation(api.companions.submitApplication, {
+      ...validApplication,
+      earningMotivation: undefined,
+    })).rejects.toThrow('why you want to earn')
+
+    await expect(t.withIdentity({ subject: 'motivation-applicant' }).mutation(api.companions.submitApplication, {
+      ...validApplication,
+      earningMotivation: 'Too short',
+    })).rejects.toThrow('at least 20 characters')
+
+    await expect(t.withIdentity({ subject: 'motivation-applicant' }).mutation(api.companions.submitApplication, {
+      ...validApplication,
+      bio: 'x'.repeat(501),
+    })).rejects.toThrow('500 characters or fewer')
+
+    await expect(t.withIdentity({ subject: 'motivation-applicant' }).mutation(api.companions.submitApplication, {
+      ...validApplication,
+      earningMotivation: 'x'.repeat(1001),
+    })).rejects.toThrow('1000 characters or fewer')
+
+    expect(await t.run(async (ctx) => ctx.db.query('companionProfiles').collect())).toEqual([])
+  })
+
+  it('keeps legacy applications without motivation readable and private from public queries', async () => {
+    const t = createTest()
+    const { companionProfileId } = await insertApprovedCompanion(t, 'legacy-private', { latitude: 10.31, longitude: 123.89 })
+    await t.mutation(internal.migrations.backfillCompanionLocationIndex, {})
+
+    const publicCompanion: any = await t.query(api.companions.getPublic, { companionProfileId })
+    expect(publicCompanion).not.toHaveProperty('earningMotivation')
+    expect(publicCompanion).not.toHaveProperty('approximateLatitude')
+
+    const [listed]: any[] = await t.query(api.companions.listApproved, { latitude: 10.31, longitude: 123.89, radiusKm: 10 })
+    expect(listed).not.toHaveProperty('earningMotivation')
+
+    const stored = await t.run(async (ctx) => ctx.db.get(companionProfileId))
+    expect(stored).not.toHaveProperty('earningMotivation')
+  })
+
+  it('exposes bio and motivation to admin reviewers', async () => {
+    const t = createTest()
+    const now = Date.now()
+    await t.run(async (ctx) => {
+      await ctx.db.insert('users', {
+        clerkUserId: 'review-admin',
+        displayName: 'Review Admin',
+        role: 'admin',
+        verificationStatus: 'not_started',
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+    await insertApplicant(t, 'admin-visible-applicant', 'Member bio for admin review.')
+    await t.withIdentity({ subject: 'admin-visible-applicant' }).mutation(api.companions.submitApplication, {
+      ...validApplication,
+      bio: 'Member bio for admin review.',
+    })
+
+    const rows: any[] = await t.withIdentity({ subject: 'review-admin' }).query(api.admin.companionApplications, { status: 'pending_review' })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      applicantBio: 'Member bio for admin review.',
+      earningMotivation: validApplication.earningMotivation,
+    })
   })
 })

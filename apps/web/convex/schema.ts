@@ -318,6 +318,9 @@ export default defineSchema({
     hourlyRateCentavos: v.optional(v.number()),
     status: companionStatus,
     applicationNote: v.optional(v.string()),
+    // Private application response for the review team. Optional so legacy
+    // applications remain readable; new submissions require it via validation.
+    earningMotivation: v.optional(v.string()),
     reviewerUserId: v.optional(v.id('users')),
     reviewerNote: v.optional(v.string()),
     rating: v.number(),

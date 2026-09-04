@@ -240,6 +240,7 @@ describe('Pampanga development seed', () => {
       boundaries: ['Public places only'],
       mode: 'both',
       hourlyRateCentavos: 50_000,
+      earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
     })
     expect((await t.query(api.companions.listApproved, nearbyArgs)).map((companion: { displayName: string }) => companion.displayName)).not.toContain('Alyssa')
     expect(await t.mutation(internal.migrations.backfillCompanionLocationIndex, {})).toMatchObject({ removed: 0 })

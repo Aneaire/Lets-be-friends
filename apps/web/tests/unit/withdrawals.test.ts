@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildWithdrawalReferenceNumber,
   decryptPayoutAccountNumber,
   encryptPayoutAccountNumber,
   normalizeBatchTransfer,
+  normalizePaymongoReferenceNumber,
   normalizeReceivingInstitutions,
   normalizeTransfer,
   normalizeWalletSourceAccount,
   parsePaymongoTransferWebhookEvent,
+  paymongoTransferCallbackUrl,
 } from '../../convex/withdrawals'
 
 describe('PayMongo withdrawal contracts', () => {
@@ -44,7 +47,44 @@ describe('PayMongo withdrawal contracts', () => {
     ])
     expect(normalizeWalletSourceAccount({
       data: [{ id: 'wallet-1', status: 'activated', source_account: { number: '0000000001', name: 'Lets Be Friends', bic: 'PAEYPHM2XXX' } }],
-    })).toEqual({ number: '0000000001', name: 'Lets Be Friends', bic: 'PAEYPHM2XXX' })
+    })).toMatchObject({ number: '0000000001', name: 'Lets Be Friends', bic: 'PAEYPHM2XXX' })
+  })
+
+  it('builds withdrawal references PayMongo returns unchanged', () => {
+    const reference = buildWithdrawalReferenceNumber('j97abc123Xyz')
+    expect(reference).toMatch(/^[A-Za-z0-9 ]+$/)
+    expect(reference).not.toContain('-')
+    expect(normalizePaymongoReferenceNumber(reference)).toBe(reference.toLowerCase())
+    expect(normalizePaymongoReferenceNumber('lbf-j97abc123Xyz')).toBe(normalizePaymongoReferenceNumber(reference))
+  })
+
+  it('reads Wallet retrieve shapes and available balance for pre-submission checks', () => {
+    expect(normalizeWalletSourceAccount({
+      data: {
+        id: 'wallet-1',
+        status: 'activated',
+        balance: { available: 200_000, pending: 10_000 },
+        account: { account_number: '0000000001', account_name: 'Lets Be Friends' },
+      },
+    })).toMatchObject({ number: '0000000001', name: 'Lets Be Friends', bic: 'PAEYPHM2XXX', availableCentavos: 200_000 })
+    expect(normalizeWalletSourceAccount({
+      data: [{ id: 'wallet-1', status: 'activated', source_account: { number: '0000000001', name: 'Lets Be Friends', bic: 'PAEYPHM2XXX' } }],
+    })).toMatchObject({ number: '0000000001', bic: 'PAEYPHM2XXX' })
+  })
+
+  it('only accepts HTTPS transfer callback URLs and leaves them unset by default', () => {
+    const previous = process.env.PAYMONGO_TRANSFER_CALLBACK_URL
+    try {
+      delete process.env.PAYMONGO_TRANSFER_CALLBACK_URL
+      expect(paymongoTransferCallbackUrl()).toBeUndefined()
+      process.env.PAYMONGO_TRANSFER_CALLBACK_URL = 'https://example.convex.site/paymongo/webhook'
+      expect(paymongoTransferCallbackUrl()).toBe('https://example.convex.site/paymongo/webhook')
+      process.env.PAYMONGO_TRANSFER_CALLBACK_URL = 'http://example.convex.site/paymongo/webhook'
+      expect(() => paymongoTransferCallbackUrl()).toThrow('HTTPS')
+    } finally {
+      if (previous === undefined) delete process.env.PAYMONGO_TRANSFER_CALLBACK_URL
+      else process.env.PAYMONGO_TRANSFER_CALLBACK_URL = previous
+    }
   })
 
   it('normalizes batch creation and canonical retrieval without trusting destination data', () => {

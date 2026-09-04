@@ -21,6 +21,7 @@ import { Screen, Section } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import {
+  COMPANION_BIO_PLACEHOLDER,
   companionApplicationStatusCopy,
   initialCompanionApplicationForm,
   type CompanionApplicationForm,
@@ -193,6 +194,7 @@ function ReadyCompanionScreen() {
           <AppText variant="caption" color={theme.colors.textMuted}>Describe the everyday help, activity, or company members can expect.</AppText>
           <ModePicker value={form.mode} onChange={(mode) => editForm((current) => ({ ...current, mode }))} disabled={busy !== null} />
           <FormField label="How can you help or spend the time?" value={form.intro} onChange={(intro) => editForm((current) => ({ ...current, intro }))} theme={theme} multiline maxLength={500} hint={`${form.intro.length}/500 characters, minimum 40`} />
+          <FormField label="Tell me about yourself" value={form.bio} onChange={(bio) => editForm((current) => ({ ...current, bio }))} theme={theme} multiline maxLength={500} placeholder={COMPANION_BIO_PLACEHOLDER} hint="Your member profile bio. Shown on your public profile." />
           <FormField label={form.mode === 'online' ? 'Timezone or broad region, optional' : 'City'} value={form.city} onChange={(city) => editForm((current) => ({ ...current, city }))} theme={theme} />
         </> : null}
         {setupStep === 1 ? <>
@@ -208,6 +210,7 @@ function ReadyCompanionScreen() {
         {setupStep === 2 ? <>
           <AppText variant="caption" color={theme.colors.textMuted}>Clear boundaries help both people plan a comfortable experience.</AppText>
           <FormField label="Boundaries, one per line" value={form.boundaries} onChange={(boundaries) => editForm((current) => ({ ...current, boundaries }))} theme={theme} multiline />
+          <FormField label="Why do you want to earn with Let’s Be Friends?" value={form.earningMotivation} onChange={(earningMotivation) => editForm((current) => ({ ...current, earningMotivation }))} theme={theme} multiline maxLength={1000} hint="Private for the review team. At least 20 characters." />
           <FormField label="Note for the reviewer, optional" value={form.applicationNote} onChange={(applicationNote) => editForm((current) => ({ ...current, applicationNote }))} theme={theme} multiline />
         </> : null}
         {setupStep === 3 ? <>
@@ -310,7 +313,7 @@ function CustomCategoryInput({ selected, onChange, disabled }: {
   )
 }
 
-function FormField({ label, value, onChange, theme, multiline = false, maxLength, hint, keyboardType }: {
+function FormField({ label, value, onChange, theme, multiline = false, maxLength, hint, keyboardType, placeholder }: {
   label: string
   value: string
   onChange: (value: string) => void
@@ -319,6 +322,7 @@ function FormField({ label, value, onChange, theme, multiline = false, maxLength
   maxLength?: number
   hint?: string
   keyboardType?: 'default' | 'decimal-pad'
+  placeholder?: string
 }) {
   return (
     <View style={styles.fieldGroup}>
@@ -330,6 +334,8 @@ function FormField({ label, value, onChange, theme, multiline = false, maxLength
         multiline={multiline}
         maxLength={maxLength}
         keyboardType={keyboardType}
+        placeholder={placeholder}
+        placeholderTextColor={theme.colors.textMuted}
         textAlignVertical={multiline ? 'top' : 'center'}
         style={[styles.input, multiline && styles.multiline, theme.typography.body, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
       />

@@ -290,6 +290,10 @@ export const myApplication = query({
   },
 })
 
+const BIO_MAX_LENGTH = 500
+const EARNING_MOTIVATION_MIN_LENGTH = 20
+const EARNING_MOTIVATION_MAX_LENGTH = 1000
+
 export const submitApplication = mutation({
   args: {
     intro: v.string(),
@@ -300,6 +304,8 @@ export const submitApplication = mutation({
     mode: v.union(v.literal('online'), v.literal('in_person'), v.literal('both')),
     hourlyRateCentavos: v.number(),
     applicationNote: v.optional(v.string()),
+    bio: v.optional(v.string()),
+    earningMotivation: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
@@ -307,6 +313,17 @@ export const submitApplication = mutation({
     validateCompanionHourlyRateCentavos(args.hourlyRateCentavos)
     const categoryResult = validateActivityCategories(args.categories, maximumCompanionActivityCategories)
     if (!categoryResult.ok) throw new Error(categoryResult.message)
+    const bio = args.bio?.trim() ? args.bio.trim() : undefined
+    if (bio !== undefined && bio.length > BIO_MAX_LENGTH) {
+      throw new Error(`Tell me about yourself must be ${BIO_MAX_LENGTH} characters or fewer`)
+    }
+    const earningMotivation = args.earningMotivation?.trim() ? args.earningMotivation.trim() : undefined
+    if (!earningMotivation || earningMotivation.length < EARNING_MOTIVATION_MIN_LENGTH) {
+      throw new Error('Tell the review team why you want to earn with Let\u2019s Be Friends (at least 20 characters)')
+    }
+    if (earningMotivation.length > EARNING_MOTIVATION_MAX_LENGTH) {
+      throw new Error(`Earning motivation must be ${EARNING_MOTIVATION_MAX_LENGTH} characters or fewer`)
+    }
     const existing = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
     const sourceLatitude = viewer.approximateLatitude ?? existing?.approximateLatitude
     const sourceLongitude = viewer.approximateLongitude ?? existing?.approximateLongitude
@@ -317,8 +334,10 @@ export const submitApplication = mutation({
     if (!viewer.approximateLocationConsentedAt || !viewer.termsAcceptedAt || viewer.termsVersion !== '2026-08-13') {
       throw new Error('Accept the current location consent and Terms and Conditions before applying as a Companion')
     }
+    const { bio: _bio, ...applicationArgs } = args
     const patch = {
-      ...args,
+      ...applicationArgs,
+      earningMotivation,
       categories: categoryResult.value,
       displayName: viewer.displayName,
       approximateArea: undefined,
@@ -328,6 +347,9 @@ export const submitApplication = mutation({
       rating: existing?.rating ?? 0,
       reviewCount: existing?.reviewCount ?? 0,
       updatedAt: now,
+    }
+    if (args.bio !== undefined && bio !== viewer.bio) {
+      await ctx.db.patch(viewer._id, { bio, updatedAt: now })
     }
     const companionProfileId = existing
       ? (await ctx.db.patch(existing._id, patch), existing._id)
@@ -396,6 +418,7 @@ function publicCompanionProfile(companion: Doc<'companionProfiles'>) {
     approximateLatitude: _approximateLatitude,
     approximateLongitude: _approximateLongitude,
     nearbyDiscoveryEnabled: _nearbyDiscoveryEnabled,
+    earningMotivation: _earningMotivation,
     ...publicCompanion
   } = companion
   return publicCompanion

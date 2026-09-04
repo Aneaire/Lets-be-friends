@@ -7,6 +7,16 @@ export const primaryNavigation = [
 
 export type PrimaryNavigationId = (typeof primaryNavigation)[number]['id']
 
+// Sidebar keeps discovery destinations. Messages and Bookings live in the
+// signed-in header so the rail stays focused on Home and Explore.
+export const sidebarNavigation = primaryNavigation.filter(
+  (item) => item.id === 'home' || item.id === 'discover',
+)
+
+export const headerNavigation = primaryNavigation.filter(
+  (item) => item.id === 'messages' || item.id === 'bookings',
+)
+
 export function activePrimaryNavigation(pathname: string): PrimaryNavigationId | null {
   if (pathname === '/' || pathname === '/social') return 'home'
   if (pathname === '/discover' || pathname === '/nearby' || pathname === '/companion-profile') return 'discover'
@@ -25,6 +35,7 @@ export function isWorkspacePath(pathname: string) {
     || pathname.startsWith('/messages/')
     || pathname === '/companion'
     || pathname.startsWith('/companion/')
+    || pathname === '/wallet'
     || pathname === '/nearby'
     || pathname === '/notifications'
 }

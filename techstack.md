@@ -373,7 +373,7 @@ PayMongo safety requirements:
 - Test/live mode, canonical intent ID, amount, PHP currency, QR Ph method, top-up purpose, and beneficiary are revalidated before credit.
 - Provider event IDs plus raw-body hashes prevent duplicate or conflicting settlement.
 - `payment.paid`, `payment.failed`, and `qrph.expired` update retained attempts; scheduled reconciliation repairs missed webhooks.
-- Companion available earnings are internal only. Payouts and withdrawals await provider activation; there is no live payout mutation or UI.
+- Companion withdrawals submit PayMongo InstaPay batch transfers behind `COMPANION_WITHDRAWALS_ENABLED`, with encrypted payout methods, 24-hour holds, reserve-then-submit ledger moves, idempotency keys, per-transfer callback URL when configured, and canonical transfer reconciliation for `transfer.outward.successful` and `transfer.outward.failed`.
 
 ## UI Stack
 
