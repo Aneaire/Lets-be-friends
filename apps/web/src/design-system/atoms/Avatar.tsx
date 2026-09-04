@@ -1,8 +1,5 @@
 import { useEffect, useState, type HTMLAttributes } from 'react'
-
-export function getInitials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || '?'
-}
+import { User } from 'lucide-react'
 
 export function Avatar({
   name,
@@ -29,7 +26,7 @@ export function Avatar({
       aria-hidden={decorative || undefined}
       {...props}
     >
-      {src && !failed ? <img src={src} alt="" onError={() => setFailed(true)} /> : getInitials(name)}
+      {src && !failed ? <img src={src} alt="" onError={() => setFailed(true)} /> : <User aria-hidden="true" />}
     </span>
   )
 }

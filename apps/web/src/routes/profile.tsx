@@ -1,4 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
+import { User } from 'lucide-react'
 import { SignInButton, useAuth, useUser } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
@@ -29,6 +30,7 @@ function ProfilePage() {
   const generateProfileImageUploadUrl = useMutation(api.users.generateProfileImageUploadUrl)
   const toggleLikeReview = useMutation(api.reviews.toggleLike)
   const createReviewComment = useMutation(api.reviews.createComment)
+  const deleteReviewComment = useMutation(api.reviews.deleteComment)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [editOpen, setEditOpen] = useState(false)
@@ -66,7 +68,9 @@ function ProfilePage() {
   const fallbackName = user?.fullName ?? user?.username ?? 'New friend'
   const displayName = viewer?.displayName ?? fallbackName
   const profileImageUrl = viewer?.profileImageUrl ?? ''
+  const username = viewer?.username ?? ''
   const bio = viewer?.bio ?? ''
+  const interests = viewer?.onboardingCategories ?? []
   const companionStatus = application?.status ?? 'not started'
   const verification = memberVerificationPresentation(
     identityEntitlementStatus(viewer?.verificationStatus ?? 'not_started', viewer?.identityEligible ?? false),
@@ -93,8 +97,8 @@ function ProfilePage() {
         <div className="profile-hero-body">
           <ProfilePhoto imageUrl={profileImageUrl} name={displayName} size="xl" />
           <div className="profile-hero-copy">
-            <p className="text-meta">Personal setup and trust</p>
             <h1 className="text-h1">{displayName}</h1>
+            {username && <p className="text-meta mt-1">@{username}</p>}
             <p className="text-body muted mt-1">{bio || 'No bio added yet.'}</p>
           </div>
           <div className="profile-hero-actions">
@@ -110,7 +114,7 @@ function ProfilePage() {
       </section>
 
       <div className="profile-public-grid">
-        <section className="panel">
+        <section className="panel profile-about-card">
           <div className="panel-header">
             <div>
               <h2 className="text-h2">About</h2>
@@ -120,13 +124,19 @@ function ProfilePage() {
           <div className="panel-body">
             <dl className="profile-facts">
               <div>
-                <dt>Name</dt>
-                <dd>{displayName}</dd>
-              </div>
-              <div>
                 <dt>Bio</dt>
-                <dd>{bio || 'No bio added yet.'}</dd>
+                <dd className="profile-about-bio">{bio || 'No bio added yet.'}</dd>
               </div>
+              {interests.length > 0 && (
+                <div>
+                  <dt>Interested in</dt>
+                  <dd>
+                    <ul className="profile-about-interests">
+                      {interests.map((category) => <li key={category}>{category}</li>)}
+                    </ul>
+                  </dd>
+                </div>
+              )}
             </dl>
           </div>
         </section>
@@ -186,8 +196,6 @@ function ProfilePage() {
         reviews={application ? reviews : null}
         rating={application?.rating}
         reviewCount={application?.reviewCount}
-        postsDescription="Posts visible from your member profile."
-        postsAction={<Link to="/" className="btn btn-neutral btn-sm">Open Home</Link>}
         emptyPostsDescription="Share a post from Home when you are ready."
         unavailableReviewsTitle="Reviews appear after you become a Companion."
         unavailableReviewsDescription="Members can leave a review after a completed plan."
@@ -195,6 +203,7 @@ function ProfilePage() {
         emptyReviewsDescription="Reviews will appear here after members complete plans with you."
         onLikeReview={(review) => toggleLikeReview({ reviewId: review._id as Id<'reviews'> })}
         onCommentReview={(review, body) => createReviewComment({ reviewId: review._id as Id<'reviews'>, body })}
+        onDeleteReviewComment={(review, commentId) => deleteReviewComment({ commentId: commentId as Id<'reviewComments'> })}
       />
 
       {editOpen && (
@@ -326,7 +335,7 @@ function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: strin
   const className = size === 'xl' ? 'profile-photo profile-photo-xl' : size === 'lg' ? 'profile-photo profile-photo-lg' : 'profile-photo'
   return (
     <span className={className} aria-hidden={imageUrl ? undefined : true}>
-      {imageUrl ? <OpenableImage src={imageUrl} alt={`${name} profile photo`} /> : <span>{initials(name)}</span>}
+      {imageUrl ? <OpenableImage src={imageUrl} alt={`${name} profile photo`} /> : <User aria-hidden="true" />}
     </span>
   )
 }
@@ -342,13 +351,4 @@ function companionStatusTone(status: string): 'self' | 'success' | 'warning' | '
   if (status === 'rejected' || status === 'suspended') return 'danger'
   if (status === 'pending_review') return 'warning'
   return 'self'
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
 }

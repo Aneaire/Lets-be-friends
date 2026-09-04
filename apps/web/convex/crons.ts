@@ -73,4 +73,18 @@ crons.daily(
   {},
 )
 
+crons.daily(
+  'purge expired rate-limit rows',
+  { hourUTC: 5, minuteUTC: 0 },
+  internal.rateLimit.purgeExpiredRateLimits,
+  { limit: 500 },
+)
+
+crons.daily(
+  'purge old feed events',
+  { hourUTC: 5, minuteUTC: 30 },
+  internal.social.purgeOldFeedEvents,
+  { limit: 200 },
+)
+
 export default crons

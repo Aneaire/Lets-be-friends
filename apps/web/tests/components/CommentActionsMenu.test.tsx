@@ -50,6 +50,35 @@ describe('CommentActionsMenu', () => {
     expect(onReport).not.toHaveBeenCalled()
   })
 
+  it('offers deletion only for the comment owner', () => {
+    const onDelete = vi.fn()
+    const { unmount } = render(
+      <CommentActionsMenu
+        ownedByViewer
+        onEdit={vi.fn()}
+        onDelete={onDelete}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Comment options' }))
+    const remove = screen.getByRole('menuitem', { name: 'Delete comment' })
+    expect(remove.getAttribute('data-tone')).toBe('danger')
+    fireEvent.click(remove)
+    expect(onDelete).toHaveBeenCalledOnce()
+    unmount()
+
+    render(
+      <CommentActionsMenu
+        ownedByViewer={false}
+        onDelete={vi.fn()}
+        onReport={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Comment options' }))
+    expect(screen.queryByRole('menuitem', { name: 'Delete comment' })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'Report comment' })).toBeTruthy()
+  })
+
   it('renders no empty menu and disables an available menu', () => {
     const { rerender } = render(
       <CommentActionsMenu ownedByViewer />,

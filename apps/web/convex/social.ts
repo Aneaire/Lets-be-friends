@@ -17,10 +17,13 @@ import {
 import { paginationOptsValidator } from 'convex/server'
 import { v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
+import { internal } from './_generated/api'
 import { internalMutation, mutation, query } from './_generated/server'
+import { adjustCounter } from './counters'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { getViewer, requireViewer, writeAudit } from './lib'
 import { createNotification } from './notifications'
+import { consumeRateLimit } from './rateLimit'
 import { isHiddenByPreference, requireNotBlocked } from './safety'
 
 const MAX_MEDIA_UPLOADS_PER_DAY = 5
@@ -30,6 +33,19 @@ const MAX_VIDEO_SIZE = 50 * 1024 * 1024
 const FOR_YOU_PAGE_SIZE = 20
 const MAX_INSTRUMENTATION_BATCH = 20
 const FEED_ALGORITHM_VERSION = 'feed_v1'
+const MAX_COMMENTS_DEPRECATED = 100
+// Following feed cap. Only the most recently followed MAX_FOLLOWED_AUTHORS
+// authors are considered (newest follows first, deterministically), so a member
+// who follows more authors sees only their latest follows. The DB filter builds
+// one `or` term per followed author, so this also bounds the filter size.
+const MAX_FOLLOWED_AUTHORS = 50
+// A storage object is referenced by a post when a live (non-discarded) media
+// upload row claims it and is attached to a post. Rows are essentially unique
+// per storage id, so this small cap is generous.
+const MAX_STORAGE_REFERENCE_CHECK = 10
+// Retention for feed instrumented events. Dedupe only guarantees a single
+// export for events still inside this window.
+const FEED_EVENT_RETENTION_MS = 90 * 24 * 60 * 60 * 1_000
 
 const feedItemType = v.union(v.literal('post'), v.literal('companion'), v.literal('guidance'))
 const feedSource = v.union(
@@ -102,28 +118,31 @@ async function feedPageResult(ctx: any, args: {
       }
     }
 
+    if (filter === 'following' && viewer) {
+      return followingFeed(ctx, viewer, args.paginationOpts)
+    }
+
     const result = await ctx.db.query('posts')
       .withIndex('by_created_at')
       .order('desc')
       .paginate(args.paginationOpts)
 
-    if (filter === 'following' && viewer) {
-      const follows = await ctx.db.query('follows').withIndex('by_follower', (q: any) => q.eq('followerId', viewer._id)).collect()
-      const followedIds = new Set(follows.map((follow: Doc<'follows'>) => String(follow.followingId)))
-      const followedPosts = result.page.filter((post: Doc<'posts'>) => followedIds.has(String(post.authorId)))
-      return {
-        ...result,
-        page: await postOnlyFeed(ctx, followedPosts, viewer, 'followed', 'From someone you follow'),
-      }
-    }
-
-    const rankedPosts = await rankPostCandidates(ctx, result.page, viewer, args.paginationOpts.numItems)
+    // Per-query caches so the same author and companion profile rows are not
+    // re-read by visibility, ranking, and enrichment for the same page.
+    const authorCache = new Map<string, Doc<'users'> | null>()
+    const companionProfileCache = new Map<string, Doc<'companionProfiles'> | null>()
+    const interests = await viewerInterests(ctx, viewer)
+    const rankedPosts = await rankPostCandidates(ctx, result.page, viewer, args.paginationOpts.numItems, undefined, {
+      authorCache,
+      companionProfileCache,
+      interests,
+    })
     let postItems = await Promise.all(rankedPosts.map(async (candidate) => ({
       kind: 'post' as const,
       itemKey: `post:${candidate.post._id}`,
       source: candidate.source,
       reason: candidate.reason,
-      post: await enrichPost(ctx, candidate.post, viewer),
+      post: await enrichPost(ctx, candidate.post, viewer, { authorCache, companionProfileCache }),
     })))
     if (viewer && args.paginationOpts.cursor === null) {
       const newestOwnPost = result.page.find((post: Doc<'posts'>) => (
@@ -137,14 +156,16 @@ async function feedPageResult(ctx: any, args: {
           itemKey: ownItemKey,
           source: 'recent' as const,
           reason: 'Your newest post',
-          post: await enrichPost(ctx, newestOwnPost, viewer),
+          post: await enrichPost(ctx, newestOwnPost, viewer, { authorCache, companionProfileCache }),
         }
         postItems = [ownItem, ...postItems.filter((item) => item.itemKey !== ownItemKey)]
-          .slice(0, args.paginationOpts.numItems)
+        // The pinned post is moved, never trimmed: slicing back to the page
+        // size here would drop the last ranked item even though the opaque
+        // cursor already advanced past this page's rows, losing it forever.
       }
     }
     if (args.paginationOpts.cursor !== null || postItems.length >= 8) return { ...result, page: postItems }
-    const companionItems = await approvedCompanionFallback(ctx, viewer, 3)
+    const companionItems = await approvedCompanionFallback(ctx, viewer, 3, interests)
     return {
       ...result,
       page: [
@@ -162,6 +183,46 @@ async function feedPageResult(ctx: any, args: {
         },
       ],
     }
+}
+
+/**
+ * Following feed.
+ *
+ * Followed author ids are loaded once, capped by MAX_FOLLOWED_AUTHORS, and the
+ * global posts index is scanned newest-first with a single bounded paginated
+ * query that filters to those authors via a valid Convex expression. The opaque
+ * Convex cursor is returned unchanged, so the scan resumes across pages instead
+ * of re-reading candidates, and an unrelated author posting a burst of new
+ * posts can never crowd out followed authors. Per-call reads stay bounded by
+ * the page size; Convex bounds the underlying index scan on sparse filters and
+ * returns a continuable cursor.
+ */
+async function followingFeed(
+  ctx: any,
+  viewer: Doc<'users'>,
+  paginationOpts: { cursor: string | null; numItems: number },
+) {
+  const follows = await ctx.db.query('follows')
+    .withIndex('by_follower', (q: any) => q.eq('followerId', viewer._id))
+    .order('desc')
+    .take(MAX_FOLLOWED_AUTHORS)
+  const followedIds = [...new Set(follows.map((follow: Doc<'follows'>) => String(follow.followingId)))]
+  if (followedIds.length === 0) return { page: [], isDone: true, continueCursor: null }
+
+  const result = await ctx.db.query('posts')
+    .withIndex('by_created_at')
+    .order('desc')
+    .filter((q: any) => q.or(...followedIds.map((authorId) => q.eq(q.field('authorId'), authorId))))
+    .paginate(paginationOpts)
+  const safePosts = await safeVisiblePosts(ctx, result.page, viewer)
+  const page = await Promise.all(safePosts.map(async (post) => ({
+    kind: 'post' as const,
+    itemKey: `post:${post._id}`,
+    source: 'followed' as const,
+    reason: 'From someone you follow',
+    post: await enrichPost(ctx, post, viewer),
+  })))
+  return { ...result, page }
 }
 
 export const recordFeedImpressions = mutation({
@@ -264,11 +325,14 @@ export const requestedPost = query({
 export const commentsForPost = query({
   args: { postId: v.id('posts') },
   handler: async (ctx, args) => {
+    // DEPRECATED: no production web/mobile consumer fetches here. It is kept
+    // only as a bounded compatibility read for an existing mobile type and a
+    // few tests. Use commentPage for paginated reads.
     const viewer = await getViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || !isModerationVisible(post)) return []
     if (viewer && viewer._id !== post.authorId && await isHiddenByPreference(ctx, viewer._id, post.authorId)) return []
-    const comments = await ctx.db.query('postComments').withIndex('by_post', (q) => q.eq('postId', args.postId)).collect()
+    const comments = await ctx.db.query('postComments').withIndex('by_post', (q) => q.eq('postId', args.postId)).order('desc').take(MAX_COMMENTS_DEPRECATED)
     const visibleComments = await Promise.all(comments
       .filter(isModerationVisible)
       .sort((a, b) => a.createdAt - b.createdAt)
@@ -385,6 +449,7 @@ export const createPost = mutation({
       size: upload!.size!,
     }))
     const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_POST, 'post')
+    await consumeRateLimit(ctx, viewer._id, 'create_post')
     const postId = await ctx.db.insert('posts', {
       authorId: viewer._id,
       body,
@@ -393,6 +458,9 @@ export const createPost = mutation({
       experienceBookingId: args.experienceBookingId,
       reportable: true,
       hidden: false,
+      likeCount: 0,
+      commentCount: 0,
+      savedCount: 0,
       createdAt: now,
       updatedAt: now,
     })
@@ -464,6 +532,7 @@ export const createComment = mutation({
     if (body.length < 1) throw new Error('Comment cannot be empty')
     if (body.length > 500) throw new Error('Comment is too long')
     const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_COMMENT, 'comment')
+    await consumeRateLimit(ctx, viewer._id, 'create_comment')
     const now = Date.now()
     const commentId = await ctx.db.insert('postComments', {
       postId: args.postId,
@@ -473,9 +542,11 @@ export const createComment = mutation({
       mentions: mentions.length > 0 ? mentions : undefined,
       reportable: true,
       hidden: false,
+      likeCount: 0,
       createdAt: now,
       updatedAt: now,
     })
+    await ctx.db.patch(post._id, { commentCount: adjustCounter(post.commentCount, 1) })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'post.comment.created', targetType: 'post', targetId: String(args.postId) })
     await createNotification(ctx, {
       recipientUserId: post.authorId,
@@ -536,6 +607,26 @@ export const editComment = mutation({
   },
 })
 
+export const deleteComment = mutation({
+  args: { commentId: v.id('postComments') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const comment = await ctx.db.get(args.commentId)
+    if (!comment || comment.authorId !== viewer._id) throw new Error('Only the author can delete this comment')
+    if (comment.hidden) return
+    const post = await ctx.db.get(comment.postId)
+    if (!post || post.hidden || post.deletedAt) throw new Error('Post not found')
+    await ctx.db.patch(args.commentId, { hidden: true, updatedAt: Date.now() })
+    await ctx.db.patch(post._id, { commentCount: adjustCounter(post.commentCount, -1) })
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'post.comment.deleted',
+      targetType: 'comment',
+      targetId: String(args.commentId),
+    })
+  },
+})
+
 export const toggleCommentLike = mutation({
   args: { commentId: v.id('postComments') },
   handler: async (ctx, args) => {
@@ -546,9 +637,11 @@ export const toggleCommentLike = mutation({
     if (!post || post.hidden || post.deletedAt) throw new Error('Comment not found')
     if (post.authorId !== viewer._id) await requireNotBlocked(ctx, viewer._id, post.authorId)
     if (comment.authorId !== viewer._id) await requireNotBlocked(ctx, viewer._id, comment.authorId)
+    await consumeRateLimit(ctx, viewer._id, 'toggle_reaction')
     const existing = await ctx.db.query('commentReactions').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('commentId', args.commentId)).first()
     if (existing) {
       await ctx.db.delete(existing._id)
+      await ctx.db.patch(comment._id, { likeCount: adjustCounter(comment.likeCount, -1) })
       return false
     }
     await ctx.db.insert('commentReactions', {
@@ -557,6 +650,7 @@ export const toggleCommentLike = mutation({
       reaction: 'like',
       createdAt: Date.now(),
     })
+    await ctx.db.patch(comment._id, { likeCount: adjustCounter(comment.likeCount, 1) })
     return true
   },
 })
@@ -634,6 +728,25 @@ export const purgeOrphanedMedia = internalMutation({
   },
 })
 
+export const purgeOldFeedEvents = internalMutation({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 200), 1), 1_000)
+    const cutoff = Date.now() - FEED_EVENT_RETENTION_MS
+    const events = await ctx.db.query('feedEvents')
+      .withIndex('by_created_at', (q) => q.lt('createdAt', cutoff))
+      .take(limit)
+    for (const event of events) await ctx.db.delete(event._id)
+    const fullBatch = events.length === limit
+    // Reschedule while a full batch was still expired, so a large backlog drains
+    // in bounded chunks instead of leaving rows behind.
+    if (fullBatch) {
+      await ctx.scheduler.runAfter(0, internal.social.purgeOldFeedEvents, { limit })
+    }
+    return { deleted: events.length, fullBatch }
+  },
+})
+
 export const toggleSavePost = mutation({
   args: { postId: v.id('posts') },
   handler: async (ctx, args) => {
@@ -644,10 +757,12 @@ export const toggleSavePost = mutation({
     const existing = await ctx.db.query('savedPosts').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', args.postId)).first()
     if (existing) {
       await ctx.db.delete(existing._id)
+      await ctx.db.patch(post._id, { savedCount: adjustCounter(post.savedCount, -1) })
       await writeAudit(ctx, { actorUserId: viewer._id, action: 'post.unsaved', targetType: 'post', targetId: String(args.postId) })
       return false
     }
     await ctx.db.insert('savedPosts', { userId: viewer._id, postId: args.postId, createdAt: Date.now() })
+    await ctx.db.patch(post._id, { savedCount: adjustCounter(post.savedCount, 1) })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'post.saved', targetType: 'post', targetId: String(args.postId) })
     return true
   },
@@ -660,12 +775,15 @@ export const toggleLike = mutation({
     const post = await ctx.db.get(args.postId)
     if (!post || post.hidden) throw new Error('Post not found')
     await requireNotBlocked(ctx, viewer._id, post.authorId)
+    await consumeRateLimit(ctx, viewer._id, 'toggle_reaction')
     const existing = await ctx.db.query('postReactions').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', args.postId)).first()
     if (existing) {
       await ctx.db.delete(existing._id)
+      await ctx.db.patch(post._id, { likeCount: adjustCounter(post.likeCount, -1) })
       return false
     }
     const reactionId = await ctx.db.insert('postReactions', { userId: viewer._id, postId: args.postId, reaction: 'like', createdAt: Date.now() })
+    await ctx.db.patch(post._id, { likeCount: adjustCounter(post.likeCount, 1) })
     await createNotification(ctx, {
       recipientUserId: post.authorId,
       actorUserId: viewer._id,
@@ -722,10 +840,10 @@ async function postOnlyFeed(
   })))
 }
 
-async function safeVisiblePosts(ctx: any, posts: Doc<'posts'>[], viewer?: Doc<'users'> | null) {
+async function safeVisiblePosts(ctx: any, posts: Doc<'posts'>[], viewer?: Doc<'users'> | null, authorCache?: Map<string, Doc<'users'> | null>) {
   const checked = await Promise.all(posts.map(async (post) => {
     if (!isModerationVisible(post) || post.deletedAt) return null
-    const author = await ctx.db.get(post.authorId)
+    const author = await cachedAuthor(ctx, post.authorId, authorCache)
     if (!author || author.suspended) return null
     if (viewer && viewer._id !== post.authorId && await isHiddenByPreference(ctx, viewer._id, post.authorId)) return null
     return post
@@ -739,23 +857,25 @@ async function rankPostCandidates(
   viewer: Doc<'users'> | null,
   pageSize: number,
   knownFollows?: Doc<'follows'>[],
+  caches?: {
+    authorCache?: Map<string, Doc<'users'> | null>
+    companionProfileCache?: Map<string, Doc<'companionProfiles'> | null>
+    interests?: Awaited<ReturnType<typeof viewerInterests>>
+  },
 ) {
   const now = Date.now()
   const follows = knownFollows ?? (viewer
     ? await ctx.db.query('follows').withIndex('by_follower', (q: any) => q.eq('followerId', viewer._id)).order('desc').take(30)
     : [])
-  const safePosts = await safeVisiblePosts(ctx, candidatePosts, viewer)
+  const safePosts = await safeVisiblePosts(ctx, candidatePosts, viewer, caches?.authorCache)
   const followedAuthorIds = new Set(follows.map((follow: Doc<'follows'>) => String(follow.followingId)))
-  const interests = await viewerInterests(ctx, viewer)
-  const companionProfileCache = new Map<string, Doc<'companionProfiles'> | null>()
+  const interests = caches?.interests ?? await viewerInterests(ctx, viewer)
+  const companionProfileCache = caches?.companionProfileCache ?? new Map<string, Doc<'companionProfiles'> | null>()
 
   const candidates = (await Promise.all(safePosts.map(async (post): Promise<PostRankingCandidate | null> => {
-    const author = await ctx.db.get(post.authorId)
+    const author = await cachedAuthor(ctx, post.authorId, caches?.authorCache)
     if (!author || author.suspended) return null
-    const [comments, reactions, saves, experienceBooking, authorCompanion] = await Promise.all([
-      ctx.db.query('postComments').withIndex('by_post', (q: any) => q.eq('postId', post._id)).take(50),
-      ctx.db.query('postReactions').withIndex('by_post', (q: any) => q.eq('postId', post._id)).take(100),
-      ctx.db.query('savedPosts').withIndex('by_post', (q: any) => q.eq('postId', post._id)).take(50),
+    const [experienceBooking, authorCompanion] = await Promise.all([
       post.experienceBookingId ? ctx.db.get(post.experienceBookingId) : null,
       companionProfileForUser(ctx, post.authorId, companionProfileCache),
     ])
@@ -768,10 +888,12 @@ async function rankPostCandidates(
     const topicMatch = bestTopicMatch(topics, interests.categoryWeights, interests.maximumCategoryWeight)
     const category = topicMatch.topic ?? topics[0]
     const categorySignal = topicMatch.score
+    // Reads the exact counters instead of collecting engagement rows. Counters
+    // are zero-defaulted during rollout, so pre-backfill rows rank at zero.
     const engagement = engagementScore(
-      comments.filter(isModerationVisible).length,
-      reactions.length,
-      saves.length,
+      post.commentCount ?? 0,
+      post.likeCount ?? 0,
+      post.savedCount ?? 0,
     )
     const followed = followedAuthorIds.has(String(post.authorId))
     const relationship = followed
@@ -870,6 +992,14 @@ async function viewerInterests(ctx: any, viewer: Doc<'users'> | null) {
   }
 }
 
+async function cachedAuthor(ctx: any, userId: Id<'users'>, cache?: Map<string, Doc<'users'> | null>) {
+  const key = String(userId)
+  if (cache?.has(key)) return cache.get(key) ?? null
+  const author = await ctx.db.get(userId)
+  cache?.set(key, author)
+  return author
+}
+
 async function companionProfileForUser(ctx: any, userId: Id<'users'>, cache: Map<string, Doc<'companionProfiles'> | null>) {
   const key = String(userId)
   if (cache.has(key)) return cache.get(key) ?? null
@@ -916,8 +1046,8 @@ function reasonForSource(source: FeedCandidateSource, category?: string) {
   return 'Fresh from the community'
 }
 
-async function approvedCompanionFallback(ctx: any, viewer: Doc<'users'> | null, limit: number) {
-  const interests = await viewerInterests(ctx, viewer)
+async function approvedCompanionFallback(ctx: any, viewer: Doc<'users'> | null, limit: number, knownInterests?: Awaited<ReturnType<typeof viewerInterests>>) {
+  const interests = knownInterests ?? await viewerInterests(ctx, viewer)
   const companions = await ctx.db.query('companionProfiles').withIndex('by_status', (q: any) => q.eq('status', 'approved')).take(20)
   const safeCompanions = (await Promise.all(companions.map(async (companion: Doc<'companionProfiles'>) => {
     const user = await ctx.db.get(companion.userId)
@@ -981,37 +1111,40 @@ function instrumentationKey(
   return `${userId}|${sessionId}|${surface}|${eventType}|${itemKey}|${action}`
 }
 
-async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | null) {
-  const [author, authorCompanionProfile, comments, reactions, saved, following] = await Promise.all([
-    ctx.db.get(post.authorId),
-    ctx.db.query('companionProfiles').withIndex('by_user', (q: any) => q.eq('userId', post.authorId)).first(),
-    ctx.db.query('postComments').withIndex('by_post', (q: any) => q.eq('postId', post._id)).collect(),
-    ctx.db.query('postReactions').withIndex('by_post', (q: any) => q.eq('postId', post._id)).collect(),
+async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | null, caches?: {
+  authorCache?: Map<string, Doc<'users'> | null>
+  companionProfileCache?: Map<string, Doc<'companionProfiles'> | null>
+}) {
+  const [author, authorCompanionProfile, likedReaction, savedRow, followingRow] = await Promise.all([
+    cachedAuthor(ctx, post.authorId, caches?.authorCache),
+    companionProfileForUser(ctx, post.authorId, caches?.companionProfileCache ?? new Map<string, Doc<'companionProfiles'> | null>()),
+    viewer ? ctx.db.query('postReactions').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('postId', post._id)).first() : null,
     viewer ? ctx.db.query('savedPosts').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('postId', post._id)).first() : null,
     viewer ? ctx.db.query('follows').withIndex('by_pair', (q: any) => q.eq('followerId', viewer._id).eq('followingId', post.authorId)).first() : null,
   ])
   return {
     ...post,
     media: await mediaWithUrls(ctx, post.media),
-    commentCount: comments.filter(isModerationVisible).length,
-    likeCount: reactions.length,
-    liked: viewer ? reactions.some((reaction: Doc<'postReactions'>) => reaction.userId === viewer._id) : false,
+    commentCount: post.commentCount ?? 0,
+    likeCount: post.likeCount ?? 0,
+    savedCount: post.savedCount ?? 0,
+    liked: Boolean(likedReaction),
     authorDisplayName: author?.displayName ?? 'Member',
     authorUsername: author?.username,
     authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
     authorCompanionProfileId: authorCompanionProfile?.status === 'approved' && author && !author.suspended && hasCurrentIdentityApproval(author)
       ? authorCompanionProfile._id
       : undefined,
-    saved: Boolean(saved),
-    followingAuthor: Boolean(following),
+    saved: Boolean(savedRow),
+    followingAuthor: Boolean(followingRow),
     ownPost: viewer?._id === post.authorId,
   }
 }
 
 async function enrichComment(ctx: any, comment: Doc<'postComments'>, viewer: Doc<'users'> | null) {
-  const [author, reactions, parentComment] = await Promise.all([
+  const [author, likedReaction, parentComment] = await Promise.all([
     ctx.db.get(comment.authorId),
-    ctx.db.query('commentReactions').withIndex('by_comment', (q: any) => q.eq('commentId', comment._id)).collect(),
+    viewer ? ctx.db.query('commentReactions').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('commentId', comment._id)).first() : null,
     comment.parentCommentId ? ctx.db.get(comment.parentCommentId) : null,
   ])
   const replyToAuthor = parentComment && isModerationVisible(parentComment)
@@ -1023,8 +1156,8 @@ async function enrichComment(ctx: any, comment: Doc<'postComments'>, viewer: Doc
     authorUsername: author?.username,
     authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
     ownComment: viewer?._id === comment.authorId,
-    likeCount: reactions.length,
-    liked: viewer ? reactions.some((reaction: Doc<'commentReactions'>) => reaction.userId === viewer._id) : false,
+    likeCount: comment.likeCount ?? 0,
+    liked: Boolean(likedReaction),
     replyToAuthorDisplayName: replyToAuthor?.displayName,
     replyToAuthorId: replyToAuthor?._id,
     replyToAuthorUsername: replyToAuthor?.username,
@@ -1087,8 +1220,13 @@ async function requireStorageCreatedForGrant(ctx: any, storageId: Id<'_storage'>
 }
 
 async function isStorageReferencedByPost(ctx: any, storageId: Id<'_storage'>) {
-  const posts = await ctx.db.query('posts').collect()
-  return posts.some((post: Doc<'posts'>) => post.media?.some((item) => item.storageId === storageId))
+  // Uses the by_storage_id index instead of scanning every post. Rows are
+  // essentially unique per storage id, so a bounded take plus an in-memory some
+  // keeps this cheap and avoids an invalid Query.filter document predicate.
+  const rows = await ctx.db.query('postMediaUploads')
+    .withIndex('by_storage_id', (q: any) => q.eq('storageId', storageId))
+    .take(MAX_STORAGE_REFERENCE_CHECK)
+  return rows.some((upload: Doc<'postMediaUploads'>) => upload.postId !== undefined && upload.discardedAt === undefined)
 }
 
 async function validatedMediaStorage(ctx: any, storageId: Id<'_storage'>): Promise<{ kind: 'image' | 'video'; contentType: string; size: number }> {

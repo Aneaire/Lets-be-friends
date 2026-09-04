@@ -200,6 +200,33 @@ describe('social feed behavior', () => {
     expect(posts.filter((item) => item.itemKey === `post:${newestOwnPostId}`)).toHaveLength(1)
   })
 
+  it('pins the newest own post without dropping a ranked item across cursors', async () => {
+    const t = createTest()
+    const viewerId = await insertUser(t, 'pin-viewer')
+    const now = Date.now()
+    const newestOwnPostId = await insertPost(t, viewerId, 'newest own post', { createdAt: now })
+    const otherIds: string[] = []
+    for (let index = 0; index < 24; index += 1) {
+      const authorId = await insertUser(t, `pin-author-${index}`)
+      otherIds.push(String(await insertPost(t, authorId, `post ${index}`, { createdAt: now - index - 1 })))
+    }
+    const viewer = t.withIdentity({ subject: 'pin-viewer' })
+
+    const first = await viewer.query(api.social.feedPage, { filter: 'for_you', paginationOpts: { cursor: null, numItems: 20 } }) as any
+    const firstKeys = first.page.filter((item: any) => item.kind === 'post').map((item: any) => item.itemKey)
+    expect(firstKeys[0]).toBe(`post:${newestOwnPostId}`)
+    expect(new Set(firstKeys).size).toBe(firstKeys.length)
+
+    const second = await viewer.query(api.social.feedPage, { filter: 'for_you', paginationOpts: { cursor: first.continueCursor, numItems: 20 } }) as any
+    const secondKeys = second.page.filter((item: any) => item.kind === 'post').map((item: any) => item.itemKey)
+    const seen = new Set([...firstKeys, ...secondKeys])
+    // Every visible post row appears exactly once: pinning moves the own post
+    // instead of consuming a cursor row and omitting a ranked item.
+    expect(seen.size).toBe(firstKeys.length + secondKeys.length)
+    expect(seen).toContain(`post:${newestOwnPostId}`)
+    for (const postId of otherIds) expect(seen).toContain(`post:${postId}`)
+  })
+
   it('keeps Following chronological and Following/Saved free of fallback items', async () => {
     const t = createTest()
     const viewerId = await insertUser(t, 'viewer')
@@ -573,5 +600,426 @@ describe('comment replies and likes', () => {
     })).rejects.toThrow('Reply target not found')
     await expect(member.mutation(api.social.toggleCommentLike, { commentId: hiddenCommentId })).rejects.toThrow('Comment not found')
     expect(await t.run(async (ctx) => ctx.db.query('commentReactions').collect())).toHaveLength(0)
+  })
+})
+
+describe('following feed bounded behavior', () => {
+  it('keeps followed posts visible despite unrelated newer posts', async () => {
+    const t = createTest()
+    const viewerId = await insertUser(t, 'following-viewer')
+    const followedId = await insertUser(t, 'followed-author')
+    const unrelatedId = await insertUser(t, 'unrelated-author')
+    await t.run(async (ctx) => ctx.db.insert('follows', { followerId: viewerId, followingId: followedId, createdAt: Date.now() }))
+
+    await insertPost(t, followedId, 'followed old', { createdAt: 100 })
+    await insertPost(t, followedId, 'followed new', { createdAt: 200 })
+    for (let index = 0; index < 40; index += 1) {
+      await insertPost(t, unrelatedId, `unrelated ${index}`, { createdAt: 300 + index })
+    }
+
+    const items = await t.withIdentity({ subject: 'following-viewer' }).query(api.social.feed, { filter: 'following' }) as any[]
+    expect(items.map((item) => item.post.body)).toEqual(['followed new', 'followed old'])
+    expect(items.every((item) => item.kind === 'post')).toBe(true)
+  })
+})
+
+describe('engagement counters and rate limits', () => {
+  it('maintains exact post and comment counters through reactions, likes, saves, and comments', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'counter-author')
+    await insertUser(t, 'counter-viewer')
+    const postId = await insertPost(t, authorId, 'Counted post')
+    const other = t.withIdentity({ subject: 'counter-viewer' })
+
+    const commentId = await other.mutation(api.social.createComment, { postId, body: 'First comment' })
+    await other.mutation(api.social.toggleLike, { postId })
+    await other.mutation(api.social.toggleSavePost, { postId })
+    await other.mutation(api.social.toggleCommentLike, { commentId })
+
+    let post = await t.run(async (ctx) => ctx.db.get(postId))
+    expect(post).toMatchObject({ likeCount: 1, commentCount: 1, savedCount: 1 })
+    let comment = await t.run(async (ctx) => ctx.db.get(commentId))
+    expect(comment?.likeCount).toBe(1)
+
+    await other.mutation(api.social.toggleLike, { postId })
+    await other.mutation(api.social.toggleSavePost, { postId })
+    await other.mutation(api.social.toggleCommentLike, { commentId })
+    post = await t.run(async (ctx) => ctx.db.get(postId))
+    expect(post).toMatchObject({ likeCount: 0, commentCount: 1, savedCount: 0 })
+    comment = await t.run(async (ctx) => ctx.db.get(commentId))
+    expect(comment?.likeCount).toBe(0)
+    expect(await t.run(async (ctx) => ctx.db.query('postReactions').collect())).toHaveLength(0)
+  })
+
+  it('surfaces counters through the enriched post read shape', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'enrich-counter-author')
+    await insertUser(t, 'enrich-counter-viewer')
+    const postId = await insertPost(t, authorId, 'Enriched post')
+    const other = t.withIdentity({ subject: 'enrich-counter-viewer' })
+    await other.mutation(api.social.toggleLike, { postId })
+    await other.mutation(api.social.toggleSavePost, { postId })
+    await other.mutation(api.social.createComment, { postId, body: 'One comment' })
+
+    const enriched = await other.query(api.social.requestedPost, { postId: String(postId) })
+    expect(enriched).toMatchObject({ likeCount: 1, savedCount: 1, commentCount: 1, liked: true, saved: true })
+  })
+
+  it('rejects an 11th post in the hour without a post, audit, or notification', async () => {
+    const t = createTest()
+    await insertUser(t, 'post-ratelimit')
+    const author = t.withIdentity({ subject: 'post-ratelimit' })
+    for (let index = 0; index < 10; index += 1) {
+      await author.mutation(api.social.createPost, { body: `Post ${index}` })
+    }
+    const before = await t.run(async (ctx) => ({
+      posts: (await ctx.db.query('posts').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+      notifications: (await ctx.db.query('notifications').collect()).length,
+    }))
+    await expect(author.mutation(api.social.createPost, { body: 'Over limit' })).rejects.toThrow('hourly limit')
+    const after = await t.run(async (ctx) => ({
+      posts: (await ctx.db.query('posts').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+      notifications: (await ctx.db.query('notifications').collect()).length,
+    }))
+    expect(before).toMatchObject({ posts: 10, notifications: 0 })
+    expect(after).toEqual(before)
+  })
+
+  it('rejects the 31st comment in the window without partial writes', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'comment-ratelimit-author')
+    await insertUser(t, 'comment-ratelimit-commenter')
+    const postId = await insertPost(t, authorId, 'Comment target')
+    const commenter = t.withIdentity({ subject: 'comment-ratelimit-commenter' })
+    for (let index = 0; index < 30; index += 1) {
+      await commenter.mutation(api.social.createComment, { postId, body: `Comment ${index}` })
+    }
+    const before = await t.run(async (ctx) => ({
+      comments: (await ctx.db.query('postComments').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+      count: (await ctx.db.get(postId))?.commentCount,
+    }))
+    await expect(commenter.mutation(api.social.createComment, { postId, body: 'Over limit' })).rejects.toThrow('commenting too quickly')
+    const after = await t.run(async (ctx) => ({
+      comments: (await ctx.db.query('postComments').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+      count: (await ctx.db.get(postId))?.commentCount,
+    }))
+    expect(before).toMatchObject({ comments: 30, count: 30 })
+    expect(after).toEqual(before)
+  })
+
+  it('rejects the reaction toggle past 120 per minute while preserving prior state', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'toggle-ratelimit-author')
+    await insertUser(t, 'toggle-ratelimit-viewer')
+    const postId = await insertPost(t, authorId, 'Like target')
+    const viewer = t.withIdentity({ subject: 'toggle-ratelimit-viewer' })
+    for (let index = 0; index < 120; index += 1) {
+      await viewer.mutation(api.social.toggleLike, { postId })
+    }
+    const before = await t.run(async (ctx) => ({
+      likeCount: (await ctx.db.get(postId))?.likeCount,
+      reactions: (await ctx.db.query('postReactions').collect()).length,
+    }))
+    await expect(viewer.mutation(api.social.toggleLike, { postId })).rejects.toThrow('Slow down')
+    const after = await t.run(async (ctx) => ({
+      likeCount: (await ctx.db.get(postId))?.likeCount,
+      reactions: (await ctx.db.query('postReactions').collect()).length,
+    }))
+    expect(before).toEqual({ likeCount: 0, reactions: 0 })
+    expect(after).toEqual(before)
+  })
+
+  it('permits the same member separate counts for comment and reaction families', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'family-separation-author')
+    await insertUser(t, 'family-separation-viewer')
+    const postId = await insertPost(t, authorId, 'Family target')
+    const viewer = t.withIdentity({ subject: 'family-separation-viewer' })
+    // 120 toggles exhaust the reaction family but must not touch the comment family.
+    for (let index = 0; index < 120; index += 1) {
+      await viewer.mutation(api.social.toggleLike, { postId })
+    }
+    await viewer.mutation(api.social.createComment, { postId, body: 'Comments still allowed' })
+    expect((await t.run(async (ctx) => ctx.db.query('postComments').collect())).length).toBe(1)
+  })
+})
+
+describe('feed event purge', () => {
+  it('removes expired feed events in bounded batches and keeps retained events', async () => {
+    const t = createTest()
+    const now = Date.now()
+    const old = now - 100 * 24 * 60 * 60 * 1_000
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 2; index += 1) {
+        const userId = await ctx.db.insert('users', { clerkUserId: `feed-purge-${index}`, displayName: `Feed ${index}`, role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now, updatedAt: now })
+        await ctx.db.insert('feedEvents', { userId, sessionId: `session-${index}`, itemKey: `post:${index}`, itemType: 'post', source: 'recent', surface: 'for_you', algorithmVersion: 'feed_v1', eventType: 'impression', dedupeKey: `dedupe-${index}`, createdAt: old })
+      }
+      const recentUserId = await ctx.db.insert('users', { clerkUserId: 'feed-purge-recent', displayName: 'Recent', role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now, updatedAt: now })
+      await ctx.db.insert('feedEvents', { userId: recentUserId, sessionId: 'session-recent', itemKey: 'post:recent', itemType: 'post', source: 'recent', surface: 'for_you', algorithmVersion: 'feed_v1', eventType: 'impression', dedupeKey: 'dedupe-recent', createdAt: now })
+    })
+    const first = await t.mutation(internal.social.purgeOldFeedEvents, { limit: 1 })
+    expect(first).toMatchObject({ deleted: 1, fullBatch: true })
+    const second = await t.mutation(internal.social.purgeOldFeedEvents, { limit: 10 })
+    expect(second).toMatchObject({ deleted: 1, fullBatch: false })
+    const remaining = await t.run(async (ctx) => ctx.db.query('feedEvents').collect())
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0].dedupeKey).toBe('dedupe-recent')
+  }, 20_000)
+})
+
+describe('following feed cursor continuation', () => {
+  it('continues the Following filter across pages without duplicating posts', async () => {
+    const t = createTest()
+    const viewerId = await insertUser(t, 'scan-viewer')
+    const followedId = await insertUser(t, 'scan-followed')
+    const unrelatedId = await insertUser(t, 'scan-unrelated')
+    await t.run(async (ctx) => ctx.db.insert('follows', { followerId: viewerId, followingId: followedId, createdAt: Date.now() }))
+    for (let index = 0; index < 60; index += 1) await insertPost(t, unrelatedId, `unrelated ${index}`, { createdAt: 10_000 + index })
+    for (let index = 0; index < 45; index += 1) await insertPost(t, followedId, `followed ${index}`, { createdAt: 100 + index })
+
+    const viewer = t.withIdentity({ subject: 'scan-viewer' })
+    const itemKeys = new Set<string>()
+    let cursor: string | null = null
+    let done = false
+    let pages = 0
+    for (let pageNumber = 0; pageNumber < 40 && !done; pageNumber += 1) {
+      const result: any = await viewer.query(api.social.feedPage, { filter: 'following', paginationOpts: { cursor, numItems: 20 } })
+      result.page.forEach((item: any) => {
+        expect(itemKeys.has(item.itemKey)).toBe(false)
+        itemKeys.add(item.itemKey)
+      })
+      cursor = result.continueCursor
+      done = result.isDone
+      pages += 1
+    }
+    expect(done).toBe(true)
+    expect(itemKeys.size).toBe(45)
+    expect(pages).toBeGreaterThan(1)
+  }, 20_000)
+})
+
+describe('post comment pagination', () => {
+  it('paginates more than 20 comments across cursors with unique rows and completion', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'comment-page-author')
+    const postId = await insertPost(t, authorId, 'Post for comment pagination')
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      for (let index = 0; index < 25; index += 1) {
+        await ctx.db.insert('postComments', { postId, authorId, body: `comment ${index}`, reportable: true, hidden: false, createdAt: now + index, updatedAt: now + index })
+      }
+    })
+    const ids = new Set<string>()
+    let cursor: string | null = null
+    let done = false
+    for (let pageNumber = 0; pageNumber < 10 && !done; pageNumber += 1) {
+      const result: any = await t.query(api.social.commentPage, { postId, paginationOpts: { cursor, numItems: 10 } })
+      result.page.forEach((comment: any) => {
+        expect(ids.has(String(comment._id))).toBe(false)
+        ids.add(String(comment._id))
+      })
+      cursor = result.continueCursor
+      done = result.isDone
+    }
+    expect(done).toBe(true)
+    expect(ids.size).toBe(25)
+  }, 20_000)
+})
+
+describe('post media attachment guard', () => {
+  it('prevents a storage object already attached to a post from being claimed again', async () => {
+    const t = createTest()
+    await insertUser(t, 'media-owner')
+    const owner = t.withIdentity({ subject: 'media-owner' })
+    const grant1 = await owner.mutation(api.social.generatePostMediaUploadUrl, {})
+    const storageId = await t.run(async (ctx) => {
+      const id = await ctx.storage.store(new Blob(['media'], { type: 'image/png' }))
+      await (ctx.db as any).patch(id, { contentType: 'image/png' })
+      return id
+    })
+    await owner.mutation(api.social.registerPostMediaUpload, { uploadId: grant1.uploadId, storageId })
+    const postId = await owner.mutation(api.social.createPost, { body: 'Attached post', mediaUploadIds: [grant1.uploadId] })
+    const grant2 = await owner.mutation(api.social.generatePostMediaUploadUrl, {})
+    await expect(owner.mutation(api.social.registerPostMediaUpload, { uploadId: grant2.uploadId, storageId })).rejects.toThrow()
+    expect((await t.run(async (ctx) => ctx.db.get(grant2.uploadId)))?.storageId).toBeUndefined()
+    expect((await t.run(async (ctx) => ctx.db.get(grant2.uploadId)))?.registeredAt).toBeUndefined()
+    void postId
+  })
+})
+
+describe('fresh counter initialization', () => {
+  it('initializes fresh counters to zero on created posts and comments', async () => {
+    const t = createTest()
+    await insertUser(t, 'init-author')
+    await insertUser(t, 'init-viewer')
+    const postId = await t.withIdentity({ subject: 'init-author' }).mutation(api.social.createPost, { body: 'Fresh post' })
+    const commentId = await t.withIdentity({ subject: 'init-viewer' }).mutation(api.social.createComment, { postId, body: 'Fresh comment' })
+    const post = await t.run(async (ctx) => ctx.db.get(postId))
+    expect(post).toMatchObject({ likeCount: 0, commentCount: 1, savedCount: 0 })
+    const comment = await t.run(async (ctx) => ctx.db.get(commentId))
+    expect(comment?.likeCount).toBe(0)
+  })
+})
+
+describe('rate-limit cleanup', () => {
+  it('reschedules itself when it clears a full batch of expired rate-limit rows', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'purge-rate-limit-user')
+    const now = Date.now()
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 3; index += 1) {
+        await ctx.db.insert('rateLimits', {
+          userId,
+          actionFamily: 'create_post',
+          bucketStart: now - 3 * 60 * 60 * 1_000,
+          count: 1,
+          expiresAt: now - 1_000,
+          createdAt: now - 3 * 60 * 60 * 1_000,
+          updatedAt: now - 3 * 60 * 60 * 1_000,
+        })
+      }
+    })
+    const first = await t.mutation(internal.rateLimit.purgeExpiredRateLimits, { limit: 2 })
+    expect(first).toMatchObject({ deleted: 2, fullBatch: true })
+    const second = await t.mutation(internal.rateLimit.purgeExpiredRateLimits, { limit: 10 })
+    expect(second).toMatchObject({ deleted: 1, fullBatch: false })
+    expect(await t.run(async (ctx) => ctx.db.query('rateLimits').collect())).toHaveLength(0)
+  }, 20_000)
+})
+
+describe('bounded compatibility comment read', () => {
+  it('returns the newest bounded set of comments in chronological order', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'comments-newest-author')
+    const postId = await insertPost(t, authorId, 'Post for newest comments')
+    const now = Date.now()
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 105; index += 1) {
+        await ctx.db.insert('postComments', {
+          postId,
+          authorId,
+          body: `comment ${index}`,
+          reportable: true,
+          hidden: false,
+          createdAt: now + index,
+          updatedAt: now + index,
+        })
+      }
+    })
+    const comments = await t.query(api.social.commentsForPost, { postId }) as any[]
+    expect(comments).toHaveLength(100)
+    const bodies = comments.map((comment) => comment.body)
+    // Oldest five are dropped; newest 100 are shown chronologically.
+    expect(bodies[0]).toBe('comment 5')
+    expect(bodies.at(-1)).toBe('comment 104')
+    const indices = bodies.map((body: string) => Number(body.replace('comment ', '')))
+    expect(indices).toEqual(Array.from({ length: 100 }, (_, index) => index + 5))
+  }, 20_000)
+})
+
+describe('comment deletion', () => {
+  it('lets the author soft delete a comment, decrement the post count, and audit the removal', async () => {
+    const t = createTest()
+    const ownerId = await insertUser(t, 'delete-owner')
+    await insertUser(t, 'delete-replier')
+    const postId = await insertPost(t, ownerId, 'Base post')
+    const owner = t.withIdentity({ subject: 'delete-owner' })
+    const commentId = await owner.mutation(api.social.createComment, { postId, body: 'Removable comment' })
+    const replyId = await t.withIdentity({ subject: 'delete-replier' }).mutation(api.social.createComment, {
+      postId,
+      body: 'A reply to the removable comment',
+      parentCommentId: commentId,
+    })
+    expect((await t.run(async (ctx) => ctx.db.get(postId)))?.commentCount).toBe(2)
+
+    await owner.mutation(api.social.deleteComment, { commentId })
+
+    const state = await t.run(async (ctx) => ({
+      comment: await ctx.db.get(commentId),
+      post: await ctx.db.get(postId),
+      audits: await ctx.db.query('auditLogs').collect(),
+    }))
+    expect(state.comment?.hidden).toBe(true)
+    expect(state.post?.commentCount).toBe(1)
+    expect(state.audits.filter((audit) => audit.action === 'post.comment.deleted')).toHaveLength(1)
+
+    const page = await owner.query(api.social.commentPage, { postId, paginationOpts: { cursor: null, numItems: 10 } })
+    expect(page.page.map((comment) => comment._id)).not.toContain(commentId)
+    expect(page.page.map((comment) => comment._id)).toContain(replyId)
+  })
+
+  it('rejects deletion from anyone except the comment owner without writes', async () => {
+    const t = createTest()
+    const ownerId = await insertUser(t, 'delete-guard-owner')
+    await insertUser(t, 'delete-guard-other')
+    const postId = await insertPost(t, ownerId, 'Base post')
+    const commentId = await t.withIdentity({ subject: 'delete-guard-owner' }).mutation(api.social.createComment, {
+      postId,
+      body: 'Owner comment',
+    })
+
+    const before = await t.run(async (ctx) => ({
+      comment: await ctx.db.get(commentId),
+      post: await ctx.db.get(postId),
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+    }))
+    await expect(
+      t.withIdentity({ subject: 'delete-guard-other' }).mutation(api.social.deleteComment, { commentId }),
+    ).rejects.toThrow('Only the author can delete this comment')
+    const after = await t.run(async (ctx) => ({
+      comment: await ctx.db.get(commentId),
+      post: await ctx.db.get(postId),
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+    }))
+    expect(after).toEqual(before)
+    expect(after.comment?.hidden).toBe(false)
+  })
+
+  it('rejects deletion when the parent post is unavailable or the viewer is suspended', async () => {
+    const t = createTest()
+    const ownerId = await insertUser(t, 'delete-post-owner')
+    await insertUser(t, 'delete-post-suspended', { suspended: true })
+    const postId = await insertPost(t, ownerId, 'Base post')
+    const commentId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('postComments', { postId, authorId: ownerId, body: 'Owner comment', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+    })
+
+    await t.run(async (ctx) => ctx.db.patch(postId, { hidden: true }))
+    await expect(
+      t.withIdentity({ subject: 'delete-post-owner' }).mutation(api.social.deleteComment, { commentId }),
+    ).rejects.toThrow('Post not found')
+    expect((await t.run(async (ctx) => ctx.db.get(commentId)))?.hidden).toBe(false)
+
+    await t.run(async (ctx) => ctx.db.patch(postId, { hidden: false }))
+    await expect(
+      t.withIdentity({ subject: 'delete-post-suspended' }).mutation(api.social.deleteComment, { commentId }),
+    ).rejects.toThrow()
+    expect((await t.run(async (ctx) => ctx.db.get(commentId)))?.hidden).toBe(false)
+  })
+})
+
+describe('following feed recents', () => {
+  it('prefers the most recently followed authors when capping the feed', async () => {
+    const t = createTest()
+    const viewerId = await insertUser(t, 'recent-follow-viewer')
+    const authorIds: any[] = []
+    for (let index = 0; index < 52; index += 1) authorIds.push(await insertUser(t, `recent-follow-${index}`))
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      for (let index = 0; index < 52; index += 1) {
+        await ctx.db.insert('follows', { followerId: viewerId, followingId: authorIds[index], createdAt: now + index })
+        await ctx.db.insert('posts', { authorId: authorIds[index], body: `post ${index}`, reportable: true, hidden: false, createdAt: now + index, updatedAt: now + index })
+      }
+    })
+    const items = await t.withIdentity({ subject: 'recent-follow-viewer' }).query(api.social.feed, { filter: 'following' }) as any[]
+    const bodies = items.map((item) => item.post.body)
+    expect(bodies).toContain('post 51')
+    expect(bodies).not.toContain('post 0')
+    expect(bodies).not.toContain('post 1')
   })
 })

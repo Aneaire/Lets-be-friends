@@ -30,10 +30,12 @@ describe('atomic design-system components', () => {
     expect(screen.getByText('Sending')).toBeTruthy()
   })
 
-  it('falls back to initials when an avatar image fails', () => {
+  it('falls back to a generic silhouette when an avatar image fails', () => {
     render(<Avatar name="Alex Rivera" src="/missing.jpg" />)
     fireEvent.error(screen.getByRole('img').querySelector('img')!)
-    expect(screen.getByRole('img', { name: 'Alex Rivera has no profile photo' }).textContent).toBe('AR')
+    const fallback = screen.getByRole('img', { name: 'Alex Rivera has no profile photo' })
+    expect(fallback.querySelector('svg')).toBeTruthy()
+    expect(fallback.querySelector('img')).toBeNull()
   })
 
   it('associates help and error copy with its field', () => {

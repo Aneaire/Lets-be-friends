@@ -168,6 +168,7 @@ export default defineSchema({
   })
     .index('by_clerk_user_id', ['clerkUserId'])
     .index('by_username', ['username'])
+    .index('by_display_name', ['displayName'])
     .index('by_role', ['role'])
     .index('by_identity_expires_at', ['identityExpiresAt'])
     .searchIndex('search_display_name', { searchField: 'displayName' }),
@@ -712,6 +713,9 @@ export default defineSchema({
     hidden: v.optional(v.boolean()),
     moderatorUserId: v.optional(v.id('users')),
     moderatorNote: v.optional(v.string()),
+    // Exact engagement counters. Relationship rows remain canonical.
+    likeCount: v.optional(v.number()),
+    commentCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
   }).index('by_booking', ['bookingId']).index('by_booking_reviewer', ['bookingId', 'reviewerId']).index('by_companion_profile', ['companionProfileId']).index('by_reviewee', ['revieweeId']),
@@ -748,6 +752,11 @@ export default defineSchema({
     reportable: v.boolean(),
     hidden: v.boolean(),
     deletedAt: v.optional(v.number()),
+    // Exact engagement counters. Relationship rows remain canonical; these are
+    // maintained transactionally by the counter-writing mutations.
+    likeCount: v.optional(v.number()),
+    commentCount: v.optional(v.number()),
+    savedCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_author', ['authorId']).index('by_author_hidden_created_at', ['authorId', 'hidden', 'createdAt']).index('by_created_at', ['createdAt']),
@@ -770,6 +779,7 @@ export default defineSchema({
     mentions: v.optional(v.array(mentionEntry)),
     reportable: v.boolean(),
     hidden: v.boolean(),
+    likeCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_post', ['postId']).index('by_author', ['authorId']).index('by_parent', ['parentCommentId']),
@@ -827,7 +837,22 @@ export default defineSchema({
     position: v.optional(v.number()),
     dedupeKey: v.string(),
     createdAt: v.number(),
-  }).index('by_dedupe_key', ['dedupeKey']).index('by_user_session', ['userId', 'sessionId']),
+  }).index('by_dedupe_key', ['dedupeKey']).index('by_user_session', ['userId', 'sessionId']).index('by_created_at', ['createdAt']),
+  rateLimits: defineTable({
+    userId: v.id('users'),
+    actionFamily: v.union(v.literal('create_post'), v.literal('create_comment'), v.literal('toggle_reaction')),
+    bucketStart: v.number(),
+    count: v.number(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_key', ['userId', 'actionFamily']).index('by_expires_at', ['expiresAt']),
+  migrationCheckpoints: defineTable({
+    key: v.string(),
+    completedSteps: v.array(v.string()),
+    cursor: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index('by_key', ['key']),
   reports: defineTable({
     reporterId: v.id('users'),
     targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user')),

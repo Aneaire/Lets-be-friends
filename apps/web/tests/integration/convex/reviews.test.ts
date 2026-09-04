@@ -170,3 +170,143 @@ describe('review submission', () => {
     expect(await t.run(async (ctx) => ctx.db.query('reviewComments').collect())).toHaveLength(1)
   })
 })
+
+describe('review engagement counters and rate limits', () => {
+  it('maintains exact review like and comment counters through reactions and comments', async () => {
+    const t = createTest()
+    const { bookingId, companionProfileId } = await seedReviewableBooking(t)
+    const reviewId = await t.withIdentity({ subject: 'review-member' }).mutation(api.reviews.submit, { bookingId, rating: 5, body: 'Good' })
+    const fresh = await t.run(async (ctx) => ctx.db.get(reviewId))
+    expect(fresh).toMatchObject({ likeCount: 0, commentCount: 0 })
+    const outsider = t.withIdentity({ subject: 'review-outsider' })
+    await outsider.mutation(api.reviews.toggleLike, { reviewId })
+    await outsider.mutation(api.reviews.createComment, { reviewId, body: 'Nice review' })
+    let review = await t.run(async (ctx) => ctx.db.get(reviewId))
+    expect(review).toMatchObject({ likeCount: 1, commentCount: 1 })
+    await outsider.mutation(api.reviews.toggleLike, { reviewId })
+    review = await t.run(async (ctx) => ctx.db.get(reviewId))
+    expect(review?.likeCount).toBe(0)
+    const enriched = await outsider.query(api.reviews.forCompanion, { companionProfileId })
+    expect(enriched[0]).toMatchObject({ likeCount: 0, commentCount: 1, liked: false })
+  })
+
+  it('rejects review comments past the shared 30 per minute window without partial writes', async () => {
+    const t = createTest()
+    const { bookingId } = await seedReviewableBooking(t)
+    const reviewId = await t.withIdentity({ subject: 'review-member' }).mutation(api.reviews.submit, { bookingId, rating: 5 })
+    const outsider = t.withIdentity({ subject: 'review-outsider' })
+    for (let index = 0; index < 30; index += 1) {
+      await outsider.mutation(api.reviews.createComment, { reviewId, body: `Comment ${index}` })
+    }
+    const before = await t.run(async (ctx) => ({
+      comments: (await ctx.db.query('reviewComments').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+      count: (await ctx.db.get(reviewId))?.commentCount,
+    }))
+    await expect(outsider.mutation(api.reviews.createComment, { reviewId, body: 'Over limit' })).rejects.toThrow('commenting too quickly')
+    const after = await t.run(async (ctx) => ({
+      comments: (await ctx.db.query('reviewComments').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+      count: (await ctx.db.get(reviewId))?.commentCount,
+    }))
+    expect(before).toMatchObject({ comments: 30, count: 30 })
+    expect(after).toEqual(before)
+  })
+
+  it('shows the newest bounded set of review comments chronologically while keeping the exact count', async () => {    const t = createTest()
+    const { bookingId, companionProfileId, memberId } = await seedReviewableBooking(t)
+    const reviewId = await t.withIdentity({ subject: 'review-member' }).mutation(api.reviews.submit, { bookingId, rating: 5, body: 'Kind and clear.' })
+    const now = Date.now()
+    // Insert comments with controlled timestamps so the 21st/newest versus
+    // oldest distinction is deterministic. (Mutation-based creation stays under
+    // the shared 30/min comment rate limit, but insertions make the ordering
+    // unambiguous under the test clock.)
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 21; index += 1) {
+        await ctx.db.insert('reviewComments', {
+          reviewId,
+          authorId: memberId,
+          body: `comment ${index}`,
+          hidden: false,
+          createdAt: now + index,
+          updatedAt: now + index,
+        })
+      }
+      await ctx.db.patch(reviewId, { commentCount: 21 })
+    })
+    const reviews = await t.query(api.reviews.forCompanion, { companionProfileId })
+    expect(reviews[0].commentCount).toBe(21)
+    expect(reviews[0].comments).toHaveLength(20)
+    const bodies = reviews[0].comments.map((comment: any) => comment.body)
+    // The oldest comment is omitted and the newest is present.
+    expect(bodies[0]).toBe('comment 1')
+    expect(bodies.at(-1)).toBe('comment 20')
+    // The bounded set is chronological (ascending), exactly comments 1..20.
+    const indices = bodies.map((body: string) => Number(body.replace('comment ', '')))
+    expect(indices).toEqual(Array.from({ length: 20 }, (_, index) => index + 1))
+  })
+})
+
+describe('review comment deletion', () => {
+  it('lets the author soft delete a comment, decrement the review count, and audit the removal', async () => {
+    const t = createTest()
+    const { bookingId, companionProfileId } = await seedReviewableBooking(t)
+    const reviewId = await t.withIdentity({ subject: 'review-member' }).mutation(api.reviews.submit, { bookingId, rating: 5, body: 'Kind and clear.' })
+    const outsider = t.withIdentity({ subject: 'review-outsider' })
+    const commentId = await outsider.mutation(api.reviews.createComment, { reviewId, body: 'Helpful review.' })
+    expect((await t.run(async (ctx) => ctx.db.get(reviewId)))?.commentCount).toBe(1)
+
+    let reviews = await outsider.query(api.reviews.forCompanion, { companionProfileId })
+    expect(reviews[0].comments[0]).toMatchObject({ _id: commentId, ownComment: true })
+
+    await outsider.mutation(api.reviews.deleteComment, { commentId })
+
+    const state = await t.run(async (ctx) => ({
+      comment: await ctx.db.get(commentId),
+      review: await ctx.db.get(reviewId),
+      audits: await ctx.db.query('auditLogs').collect(),
+    }))
+    expect(state.comment?.hidden).toBe(true)
+    expect(state.review?.commentCount).toBe(0)
+    expect(state.audits.filter((audit) => audit.action === 'review.comment.deleted')).toHaveLength(1)
+
+    reviews = await outsider.query(api.reviews.forCompanion, { companionProfileId })
+    expect(reviews[0]).toMatchObject({ commentCount: 0 })
+    expect(reviews[0].comments).toHaveLength(0)
+  })
+
+  it('rejects deletion from anyone except the comment owner without writes', async () => {
+    const t = createTest()
+    const { bookingId } = await seedReviewableBooking(t)
+    const reviewId = await t.withIdentity({ subject: 'review-member' }).mutation(api.reviews.submit, { bookingId, rating: 5 })
+    const commentId = await t.withIdentity({ subject: 'review-outsider' }).mutation(api.reviews.createComment, { reviewId, body: 'Owner comment' })
+
+    const before = await t.run(async (ctx) => ({
+      comment: await ctx.db.get(commentId),
+      review: await ctx.db.get(reviewId),
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+    }))
+    await expect(
+      t.withIdentity({ subject: 'review-member' }).mutation(api.reviews.deleteComment, { commentId }),
+    ).rejects.toThrow('Only the author can delete this comment')
+    const after = await t.run(async (ctx) => ({
+      comment: await ctx.db.get(commentId),
+      review: await ctx.db.get(reviewId),
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+    }))
+    expect(after).toEqual(before)
+  })
+
+  it('rejects deletion when the review is no longer visible', async () => {
+    const t = createTest()
+    const { bookingId } = await seedReviewableBooking(t)
+    const reviewId = await t.withIdentity({ subject: 'review-member' }).mutation(api.reviews.submit, { bookingId, rating: 5 })
+    const commentId = await t.withIdentity({ subject: 'review-outsider' }).mutation(api.reviews.createComment, { reviewId, body: 'Owner comment' })
+
+    await t.run(async (ctx) => ctx.db.patch(reviewId, { hidden: true }))
+    await expect(
+      t.withIdentity({ subject: 'review-outsider' }).mutation(api.reviews.deleteComment, { commentId }),
+    ).rejects.toThrow('Review not found')
+    expect((await t.run(async (ctx) => ctx.db.get(commentId)))?.hidden).toBe(false)
+  })
+})

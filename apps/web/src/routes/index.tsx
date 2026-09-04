@@ -2,6 +2,7 @@ import { Link, Navigate, createFileRoute } from '@tanstack/react-router'
 import { useAuth } from '@clerk/react'
 import { useQuery } from 'convex/react'
 import { activityCategories } from '@lets-be-friends/shared'
+import { User } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
 
@@ -499,7 +500,7 @@ function FeaturedCompanionRow({ companion }: { companion: HomeCompanion }) {
     <article className="invitation-companion-card">
       <div className="worklist-row-head invitation-companion-card-head">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="avatar" aria-hidden="true">{initials(companion.displayName)}</span>
+          <span className="avatar" aria-hidden="true"><User aria-hidden="true" /></span>
           <div className="min-w-0">
             <p className="text-meta">Up for something together</p>
             <h3 className="text-h2 truncate">{companion.displayName}</h3>
@@ -548,13 +549,4 @@ function formatMode(mode: HomeCompanion['mode']) {
   if (mode === 'both') return 'Online and in-person'
   if (mode === 'in_person') return 'In-person'
   return 'Online'
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
 }

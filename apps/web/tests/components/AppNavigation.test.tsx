@@ -21,6 +21,13 @@ vi.mock('@tanstack/react-router', () => ({
   useRouterState: vi.fn(),
 }))
 
+// Header search queries the bounded server directory; the fallback directory
+// prop keeps these interaction tests deterministic without a Convex provider.
+vi.mock('convex/react', () => ({
+  useQuery: () => undefined,
+  useMutation: () => vi.fn(),
+}))
+
 import { AccountAvatar, HeaderSearch, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
 
 afterEach(cleanup)
@@ -48,15 +55,15 @@ const directory: HeaderSearchPerson[] = [
 ]
 
 describe('account avatar', () => {
-  it('shows the default initials avatar when the member has no app profile photo', () => {
-    const { container } = render(<AccountAvatar initials="AR" />)
+  it('shows a generic silhouette when the member has no app profile photo', () => {
+    const { container } = render(<AccountAvatar />)
 
-    expect(container.querySelector('.account-avatar span')?.textContent).toBe('AR')
+    expect(container.querySelector('.account-avatar svg')).toBeTruthy()
     expect(container.querySelector('.account-avatar img')).toBeNull()
   })
 
   it('shows a photo uploaded to the member profile', () => {
-    const { container } = render(<AccountAvatar initials="AR" imageUrl="/member-photo.jpg" />)
+    const { container } = render(<AccountAvatar imageUrl="/member-photo.jpg" />)
 
     expect(container.querySelector('.account-avatar img')?.getAttribute('src')).toBe('/member-photo.jpg')
   })

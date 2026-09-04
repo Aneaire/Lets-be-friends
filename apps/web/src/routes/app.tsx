@@ -2,7 +2,7 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { Search, User, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type React from 'react'
 import { activityCategories, calculateMemberWalletBookingPrice, canCancelBooking, canCompleteBooking, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
@@ -748,7 +748,7 @@ function BookingRow({
       <div className="worklist-row-head">
         <div className="flex items-center gap-3 min-w-0">
           <span className="avatar" aria-hidden="true">
-            {'companionDisplayName' in booking ? initials(booking.companionDisplayName as string) : '?'}
+            {'companionDisplayName' in booking ? <User aria-hidden="true" /> : '?'}
           </span>
           <div className="min-w-0">
             <h3 className="text-h3">{'companionDisplayName' in booking ? booking.companionDisplayName : 'Companion'}</h3>
@@ -1225,7 +1225,7 @@ function BookingDialog({
                             <span className="booking-companion-search-avatar" aria-hidden="true">
                               {companion.profileImageUrl
                                 ? <img src={companion.profileImageUrl} alt="" />
-                                : initials(companion.displayName)}
+                                : <User aria-hidden="true" />}
                             </span>
                             <span>
                               <strong>{companion.displayName}</strong>
@@ -1291,13 +1291,4 @@ function formatRequestedAt(timestamp: number) {
     hour: 'numeric',
     minute: '2-digit',
   })
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
 }

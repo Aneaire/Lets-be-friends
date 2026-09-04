@@ -84,7 +84,7 @@ describe('nearby companion discovery privacy', () => {
       })
     })
 
-    const directory = await t.query(api.companions.listExploreDirectory, {})
+    const directory: any = await t.query(api.companions.listExploreDirectory, {})
     expect(directory).toEqual([
       expect.objectContaining({
         displayName: 'Unverified Member',
@@ -95,6 +95,109 @@ describe('nearby companion discovery privacy', () => {
     ])
     expect(directory[0]).not.toHaveProperty('approximateLatitude')
     expect(directory[0]).not.toHaveProperty('approximateLongitude')
+  })
+
+  it('paginates the Explore directory in bounded pages without private location fields', async () => {
+    const t = createTest()
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      for (let index = 0; index < 55; index += 1) {
+        await ctx.db.insert('users', {
+          clerkUserId: `explore-member-${index}`,
+          displayName: `Explore Member ${index}`,
+          role: 'member',
+          verificationStatus: 'not_started',
+          suspended: false,
+          createdAt: now + index,
+          updatedAt: now + index,
+        })
+      }
+    })
+
+    const first: any = await t.query(api.companions.listExploreDirectoryPage, {
+      paginationOpts: { cursor: null, numItems: 50 },
+    })
+    expect(first.page).toHaveLength(50)
+    expect(first.isDone).toBe(false)
+    for (const person of first.page) {
+      expect(person).not.toHaveProperty('approximateLatitude')
+      expect(person).not.toHaveProperty('approximateLongitude')
+      expect(person).not.toHaveProperty('approximateArea')
+    }
+    const second: any = await t.query(api.companions.listExploreDirectoryPage, {
+      paginationOpts: { cursor: first.continueCursor, numItems: 50 },
+    })
+    expect(second.page).toHaveLength(5)
+    expect(second.isDone).toBe(true)
+
+    await expect(t.query(api.companions.listExploreDirectoryPage, {
+      paginationOpts: { cursor: null, numItems: 51 },
+    })).rejects.toThrow('Explore pages can include 1 to 50 people')
+  })
+
+  it('keeps accumulated Explore pages in stable global alphabetical order', async () => {
+    const t = createTest()
+    const names = ['Zed', 'Amy', 'Mara', 'Ben', 'Kai', 'Luz', 'Ivy', 'Noel', 'Omar', 'Pia']
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      for (const [index, displayName] of names.entries()) {
+        await ctx.db.insert('users', {
+          clerkUserId: `order-member-${index}`,
+          displayName,
+          role: 'member',
+          verificationStatus: 'not_started',
+          suspended: false,
+          createdAt: now + index,
+          updatedAt: now + index,
+        })
+      }
+    })
+
+    const accumulated: string[] = []
+    let cursor: string | null = null
+    let done = false
+    while (!done) {
+      const result: any = await t.query(api.companions.listExploreDirectoryPage, {
+        paginationOpts: { cursor, numItems: 3 },
+      })
+      accumulated.push(...result.page.map((person: any) => person.displayName))
+      cursor = result.continueCursor
+      done = result.isDone
+    }
+    expect(accumulated).toEqual([...names].sort((left, right) => left.localeCompare(right)))
+  })
+
+  it('searches the directory with a bounded server-side query', async () => {
+    const t = createTest()
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert('users', {
+        clerkUserId: 'search-maya',
+        username: 'maya_makati',
+        displayName: 'Maya Santos',
+        role: 'member',
+        verificationStatus: 'not_started',
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert('users', {
+        clerkUserId: 'search-unrelated',
+        username: 'unrelated_friend',
+        displayName: 'Unrelated Friend',
+        role: 'member',
+        verificationStatus: 'not_started',
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    const matches: any[] = await t.query(api.companions.searchDirectory, { search: '@maya', limit: 6 })
+    expect(matches.map((person) => person.displayName)).toEqual(['Maya Santos'])
+    expect(matches[0]).not.toHaveProperty('approximateLatitude')
+    expect(await t.query(api.companions.searchDirectory, { search: '   ', limit: 6 })).toEqual([])
+    expect(await t.query(api.companions.searchDirectory, { search: 'zzz-no-match', limit: 6 })).toEqual([])
   })
 
   it('ignores legacy visibility flags and indexes every eligible approved companion', async () => {

@@ -2,13 +2,16 @@ import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { bookingStatusAfterReview, canReviewBooking, isModerationVisible } from '@lets-be-friends/shared'
 import type { Doc } from './_generated/dataModel'
+import { adjustCounter } from './counters'
 import { requireViewer, writeAudit } from './lib'
 import { createNotification } from './notifications'
+import { consumeRateLimit } from './rateLimit'
 import { requireNotBlocked } from './safety'
 
 const MAX_REVIEW_IMAGE_SIZE = 10 * 1024 * 1024
 const MAX_REVIEW_UPLOADS_PER_DAY = 5
 const REVIEW_UPLOAD_WINDOW_MS = 24 * 60 * 60 * 1_000
+const MAX_REVIEW_COMMENTS = 20
 
 export const forCompanion = query({
   args: { companionProfileId: v.id('companionProfiles') },
@@ -17,31 +20,34 @@ export const forCompanion = query({
     const reviews = await ctx.db.query('reviews').withIndex('by_companion_profile', (q) => q.eq('companionProfileId', args.companionProfileId)).order('desc').take(20)
     return await Promise.all(reviews.filter(isModerationVisible).map(async (review) => {
       const reviewer = await ctx.db.get(review.reviewerId)
-      const [reactions, comments, saved, imageUrl, reviewerProfileImageUrl] = await Promise.all([
-        ctx.db.query('reviewReactions').withIndex('by_review', (q) => q.eq('reviewId', review._id)).collect(),
-        ctx.db.query('reviewComments').withIndex('by_review', (q) => q.eq('reviewId', review._id)).collect(),
+      const [likedReaction, savedRow, comments, imageUrl, reviewerProfileImageUrl] = await Promise.all([
+        viewer ? ctx.db.query('reviewReactions').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('reviewId', review._id)).first() : null,
         viewer ? ctx.db.query('savedReviews').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('reviewId', review._id)).first() : null,
+        ctx.db.query('reviewComments').withIndex('by_review', (q) => q.eq('reviewId', review._id)).order('desc').take(MAX_REVIEW_COMMENTS),
         review.imageStorageId ? ctx.storage.getUrl(review.imageStorageId) : null,
         reviewer ? profileImageUrl(ctx, reviewer) : undefined,
       ])
-      const visibleComments = comments.filter(isModerationVisible)
+      // Take the newest 20, then render that bounded set chronologically so a
+      // freshly submitted comment is never hidden behind older ones.
+      const visibleComments = comments.filter(isModerationVisible).sort((a, b) => a.createdAt - b.createdAt)
       return {
         ...review,
         imageUrl,
         reviewerDisplayName: reviewer ? fullName(reviewer) : 'Member',
         reviewerProfileImageUrl,
-        likeCount: reactions.length,
-        liked: viewer ? reactions.some((reaction) => reaction.userId === viewer._id) : false,
-        commentCount: visibleComments.length,
+        likeCount: review.likeCount ?? 0,
+        liked: Boolean(likedReaction),
+        commentCount: review.commentCount ?? 0,
         comments: await Promise.all(visibleComments.map(async (comment) => {
           const author = await ctx.db.get(comment.authorId)
           return {
             ...comment,
             authorDisplayName: author ? fullName(author) : 'Member',
             authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
+            ownComment: viewer?._id === comment.authorId,
           }
         })),
-        saved: Boolean(saved),
+        saved: Boolean(savedRow),
       }
     }))
   },
@@ -121,12 +127,15 @@ export const toggleLike = mutation({
     const review = await ctx.db.get(args.reviewId)
     if (!review || !isModerationVisible(review)) throw new Error('Review not found')
     await requireNotBlocked(ctx, viewer._id, review.reviewerId)
+    await consumeRateLimit(ctx, viewer._id, 'toggle_reaction')
     const existing = await ctx.db.query('reviewReactions').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('reviewId', args.reviewId)).first()
     if (existing) {
       await ctx.db.delete(existing._id)
+      await ctx.db.patch(review._id, { likeCount: adjustCounter(review.likeCount, -1) })
       return false
     }
     await ctx.db.insert('reviewReactions', { userId: viewer._id, reviewId: args.reviewId, reaction: 'like', createdAt: Date.now() })
+    await ctx.db.patch(review._id, { likeCount: adjustCounter(review.likeCount, 1) })
     return true
   },
 })
@@ -141,6 +150,7 @@ export const createComment = mutation({
     const body = args.body.trim()
     if (!body) throw new Error('Comment cannot be empty')
     if (body.length > 500) throw new Error('Comment is too long')
+    await consumeRateLimit(ctx, viewer._id, 'create_comment')
     const now = Date.now()
     const commentId = await ctx.db.insert('reviewComments', {
       reviewId: args.reviewId,
@@ -150,8 +160,24 @@ export const createComment = mutation({
       createdAt: now,
       updatedAt: now,
     })
+    await ctx.db.patch(review._id, { commentCount: adjustCounter(review.commentCount, 1) })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'review.comment.created', targetType: 'review', targetId: String(args.reviewId) })
     return commentId
+  },
+})
+
+export const deleteComment = mutation({
+  args: { commentId: v.id('reviewComments') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const comment = await ctx.db.get(args.commentId)
+    if (!comment || comment.authorId !== viewer._id) throw new Error('Only the author can delete this comment')
+    if (comment.hidden) return
+    const review = await ctx.db.get(comment.reviewId)
+    if (!review || !isModerationVisible(review)) throw new Error('Review not found')
+    await ctx.db.patch(args.commentId, { hidden: true, updatedAt: Date.now() })
+    await ctx.db.patch(review._id, { commentCount: adjustCounter(review.commentCount, -1) })
+    await writeAudit(ctx, { actorUserId: viewer._id, action: 'review.comment.deleted', targetType: 'comment', targetId: String(args.commentId) })
   },
 })
 
@@ -179,7 +205,7 @@ export const submit = mutation({
       throw new Error('Review photo upload is not ready')
     }
     const now = Date.now()
-    const reviewId = await ctx.db.insert('reviews', { bookingId: args.bookingId, reviewerId: viewer._id, revieweeId: otherParticipantId, companionProfileId: isMember ? booking.companionProfileId : undefined, rating: args.rating, body, imageStorageId: upload?.storageId, createdAt: now })
+    const reviewId = await ctx.db.insert('reviews', { bookingId: args.bookingId, reviewerId: viewer._id, revieweeId: otherParticipantId, companionProfileId: isMember ? booking.companionProfileId : undefined, rating: args.rating, body, imageStorageId: upload?.storageId, likeCount: 0, commentCount: 0, createdAt: now })
     if (upload) await ctx.db.patch(upload._id, { reviewId })
     if (isMember) {
       const nextCount = companion.reviewCount + 1

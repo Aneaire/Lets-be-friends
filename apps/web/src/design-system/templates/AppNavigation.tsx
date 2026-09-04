@@ -12,6 +12,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  User,
   UserRound,
   UserRoundCog,
   X,
@@ -49,7 +50,6 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
   const accountRootRef = useRef<HTMLDivElement>(null)
   const accountPanelRef = useRef<HTMLElement>(null)
   const accountOpenerRef = useRef<HTMLButtonElement | null>(null)
-  const searchDirectory = useQuery(api.companions.listExploreDirectory, {}) as HeaderSearchPerson[] | undefined
 
   const closeAccount = useCallback((restoreFocus = true) => {
     setAccountOpen(false)
@@ -120,7 +120,7 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
           ) : (
             <div className="app-header-context">
               <strong>{primaryNavigation.find((item) => item.id === activeItem)?.label ?? 'Account'}</strong>
-              <HeaderSearch directory={searchDirectory} />
+              <HeaderSearch />
             </div>
           )}
 
@@ -153,12 +153,19 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
   )
 }
 
-export function HeaderSearch({ directory }: { directory: HeaderSearchPerson[] | undefined }) {
+export function HeaderSearch({ directory }: { directory?: HeaderSearchPerson[] | undefined }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRootRef = useRef<HTMLDivElement>(null)
-  const searchResults = searchQuery.trim()
-    ? findCompanions(directory ?? [], searchQuery).slice(0, 6)
+  const trimmedQuery = searchQuery.trim()
+  // Server-side bounded search keeps header search off the directory scan.
+  // The optional directory prop remains as an offline fallback (and for tests).
+  const serverResults = useQuery(
+    api.companions.searchDirectory,
+    trimmedQuery ? { search: trimmedQuery, limit: 6 } : 'skip',
+  ) as HeaderSearchPerson[] | undefined
+  const searchResults = trimmedQuery
+    ? (serverResults ?? (directory ? findCompanions(directory, trimmedQuery).slice(0, 6) : []))
     : []
 
   useEffect(() => {
@@ -192,8 +199,8 @@ export function HeaderSearch({ directory }: { directory: HeaderSearchPerson[] | 
         <input
           type="search"
           value={searchQuery}
-          placeholder="Search username, people, Strengths, or activities"
-          aria-label="Search username, people, Strengths, or activities"
+          placeholder="Search username or name"
+          aria-label="Search username or name"
           aria-expanded={searchOpen}
           aria-controls="header-search-results"
           autoComplete="off"
@@ -217,12 +224,12 @@ export function HeaderSearch({ directory }: { directory: HeaderSearchPerson[] | 
 
       {searchOpen && (
         <div id="header-search-results" className="app-header-search-panel">
-          {!searchQuery.trim() ? (
-            <p className="app-header-search-guidance">Search members and Companions by username, name, Strength, activity, or city.</p>
-          ) : directory === undefined ? (
+          {!trimmedQuery ? (
+            <p className="app-header-search-guidance">Search members and Companions by username or name.</p>
+          ) : serverResults === undefined && directory === undefined ? (
             <p className="app-header-search-guidance" role="status">Searching...</p>
           ) : searchResults.length === 0 ? (
-            <p className="app-header-search-guidance" role="status">No people match "{searchQuery.trim()}".</p>
+            <p className="app-header-search-guidance" role="status">No people match "{trimmedQuery}".</p>
           ) : (
             <>
               <p className="app-header-search-summary" role="status">
@@ -264,7 +271,7 @@ export function HeaderSearch({ directory }: { directory: HeaderSearchPerson[] | 
 function HeaderSearchIdentity({ person }: { person: HeaderSearchPerson }) {
   return (
     <>
-      <AccountAvatar imageUrl={person.profileImageUrl} initials={getInitials(person.displayName)} />
+      <AccountAvatar imageUrl={person.profileImageUrl} />
       <span>
         <strong>{person.displayName}</strong>
         <small>{[person.username ? `@${person.username}` : undefined, person.city, person.strengths?.[0] ?? person.categories?.[0]].filter(Boolean).join(' · ')}</small>
@@ -433,7 +440,6 @@ function AccountNavigation({
   const displayName = viewer?.displayName ?? user?.fullName ?? user?.username ?? 'Account'
   const email = user?.primaryEmailAddress?.emailAddress
   const imageUrl = viewer?.profileImageUrl
-  const initials = getInitials(displayName)
   const publicProfileSearch = application?.status === 'approved' ? { companionProfileId: application._id } : undefined
 
   return (
@@ -446,7 +452,7 @@ function AccountNavigation({
         aria-controls="account-navigation-panel"
         onClick={(event) => open ? onClose() : onOpen(event.currentTarget)}
       >
-        <AccountAvatar imageUrl={imageUrl} initials={initials} />
+        <AccountAvatar imageUrl={imageUrl} />
       </button>
 
       {open && (
@@ -470,7 +476,7 @@ function AccountNavigation({
               </button>
             </div>
             <div className="account-menu-identity">
-              <AccountAvatar imageUrl={imageUrl} initials={initials} size="lg" />
+              <AccountAvatar imageUrl={imageUrl} size="lg" />
               <span className="min-w-0">
                 <span className="account-menu-name">{displayName}</span>
                 {email && <span className="account-menu-email">{email}</span>}
@@ -514,16 +520,14 @@ function AccountNavigation({
 
 export function AccountAvatar({
   imageUrl,
-  initials,
   size = 'default',
 }: {
   imageUrl?: string
-  initials: string
   size?: 'default' | 'lg'
 }) {
   return (
     <span className={size === 'lg' ? 'account-avatar account-avatar-lg' : 'account-avatar'} aria-hidden="true">
-      {imageUrl ? <img src={imageUrl} alt="" /> : <span>{initials}</span>}
+      {imageUrl ? <img src={imageUrl} alt="" /> : <User aria-hidden="true" />}
     </span>
   )
 }
@@ -555,13 +559,4 @@ function isAccountPath(pathname: string) {
     || pathname === '/become-companion'
     || pathname === '/onboarding'
     || pathname === '/safety'
-}
-
-function getInitials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('') || 'A'
 }

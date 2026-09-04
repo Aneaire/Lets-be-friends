@@ -1,4 +1,4 @@
-import { Flag, Pencil } from 'lucide-react'
+import { Flag, Pencil, Trash2 } from 'lucide-react'
 import {
   ActionMenu,
   type ActionMenuItem,
@@ -8,6 +8,7 @@ type CommentActionsMenuProps = {
   ownedByViewer: boolean
   disabled?: boolean
   onEdit?: () => void
+  onDelete?: () => void
   onReport?: () => void
 }
 
@@ -15,17 +16,28 @@ export function CommentActionsMenu({
   ownedByViewer,
   disabled = false,
   onEdit,
+  onDelete,
   onReport,
 }: CommentActionsMenuProps) {
   const items: ActionMenuItem[] = []
 
-  if (ownedByViewer && onEdit) {
-    items.push({
-      label: 'Edit comment',
-      icon: <Pencil size={16} aria-hidden="true" />,
-      tone: 'self',
-      onSelect: onEdit,
-    })
+  if (ownedByViewer) {
+    if (onEdit) {
+      items.push({
+        label: 'Edit comment',
+        icon: <Pencil size={16} aria-hidden="true" />,
+        tone: 'self',
+        onSelect: onEdit,
+      })
+    }
+    if (onDelete) {
+      items.push({
+        label: 'Delete comment',
+        icon: <Trash2 size={16} aria-hidden="true" />,
+        tone: 'danger',
+        onSelect: onDelete,
+      })
+    }
   } else if (!ownedByViewer && onReport) {
     items.push({
       label: 'Report comment',

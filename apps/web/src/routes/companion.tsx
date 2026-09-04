@@ -2,6 +2,7 @@ import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { useEffect, useState } from 'react'
+import { User } from 'lucide-react'
 import type React from 'react'
 import { canCancelBooking, canCompleteBooking, canReviewBooking, formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -746,7 +747,7 @@ function CompanionBookingRow({
     <article id={`companion-booking-${booking._id}`} className="worklist-row">
       <div className="worklist-row-head">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="avatar" aria-hidden="true">{initials(booking.memberDisplayName)}</span>
+          <span className="avatar" aria-hidden="true"><User aria-hidden="true" /></span>
           <div className="min-w-0">
             <h3 className="text-h3">{booking.memberDisplayName}</h3>
             <div className="worklist-row-meta">
@@ -886,13 +887,4 @@ function formatRequestedAt(timestamp: number) {
     hour: 'numeric',
     minute: '2-digit',
   })
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
 }

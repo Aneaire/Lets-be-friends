@@ -1,8 +1,9 @@
 import { activeMentionQuery, arrangeCommentThreads, splitBodyIntoSegments, withoutLeadingReplyMention, type CommentThreadPosition, type FeedInstrumentationAction, type StoredMention } from '@lets-be-friends/shared'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
-import { useMutation, useQuery } from 'convex/react'
-import { Heart, ImagePlus, MessageCircle, Send } from 'lucide-react'
+import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
+import type { FunctionReturnType } from 'convex/server'
+import { Heart, ImagePlus, MessageCircle, Send, User } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { api } from '../../../convex/_generated/api'
@@ -16,12 +17,22 @@ import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
 import { PostMediaGrid } from './PostMediaGrid'
 
-type FeedItem = NonNullable<ReturnType<typeof useQuery<typeof api.social.feed>>>[number]
+type FeedItem = NonNullable<FunctionReturnType<typeof api.social.feedPage>>['page'][number]
 type FeedPostItem = Extract<FeedItem, { kind: 'post' }>
 type FeedPost = FeedPostItem['post']
-type PostComment = NonNullable<ReturnType<typeof useQuery<typeof api.social.commentsForPost>>>[number]
+type PostComment = NonNullable<FunctionReturnType<typeof api.social.commentPage>>['page'][number]
 type FeedFilter = 'for_you' | 'following' | 'saved'
-type SelectedMedia = {
+
+/**
+ * Feed impression positions must stay within the 0 to 99 contract window no
+ * matter how many paginated rows are loaded. Positions stay page-relative by
+ * wrapping the loaded index, so item 100 maps back to 0 instead of failing
+ * validation and silently dropping the impression.
+ */
+export function toFeedImpressionPosition(loadedIndex: number) {
+  if (!Number.isFinite(loadedIndex) || loadedIndex < 0) return 0
+  return Math.floor(loadedIndex) % 100
+}type SelectedMedia = {
   file: File
   kind: 'image' | 'video'
   previewUrl: string
@@ -32,7 +43,12 @@ export function SocialPage({ postId }: { postId?: string }) {
   const navigate = useNavigate()
   const viewer = useQuery(api.users.viewer)
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('for_you')
-  const feedItems = useQuery(api.social.feed, { filter: viewer ? feedFilter : 'for_you' }) as FeedItem[] | undefined
+  const {
+    results: feedResults,
+    status: feedStatus,
+    loadMore: loadMoreFeed,
+  } = usePaginatedQuery(api.social.feedPage, { filter: viewer ? feedFilter : 'for_you' }, { initialNumItems: 20 })
+  const feedItems = feedResults as FeedItem[] | undefined
   const requestedPost = useQuery(api.social.requestedPost, postId ? { postId } : 'skip') as FeedPost | null | undefined
   const mediaUsage = useQuery(api.social.mediaUploadUsage)
   const createPost = useMutation(api.social.createPost)
@@ -40,6 +56,7 @@ export function SocialPage({ postId }: { postId?: string }) {
   const deletePost = useMutation(api.social.deletePost)
   const createComment = useMutation(api.social.createComment)
   const editComment = useMutation(api.social.editComment)
+  const deleteComment = useMutation(api.social.deleteComment)
   const toggleCommentLike = useMutation(api.social.toggleCommentLike)
   const generatePostMediaUploadUrl = useMutation(api.social.generatePostMediaUploadUrl)
   const registerPostMediaUpload = useMutation(api.social.registerPostMediaUpload)
@@ -59,7 +76,6 @@ export function SocialPage({ postId }: { postId?: string }) {
   const [selectedMedia, setSelectedMedia] = useState<SelectedMedia[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const selectedMediaRef = useRef<SelectedMedia[]>([])
-  const fallbackName = viewer?.displayName ?? 'New friend'
   const mediaLimit = mediaUsage?.limit ?? 5
   const remainingUploads = mediaUsage?.remaining ?? mediaLimit
   const displayedFeedItems = useMemo(() => feedItems && requestedPost && !feedItems.some((item) => item.kind === 'post' && String(item.post._id) === String(requestedPost._id))
@@ -86,7 +102,7 @@ export function SocialPage({ postId }: { postId?: string }) {
           itemKey: item.itemKey,
           itemType: item.kind,
           source: item.source,
-          position,
+          position: toFeedImpressionPosition(position),
         })),
       }).catch(() => undefined)
     }
@@ -221,7 +237,7 @@ export function SocialPage({ postId }: { postId?: string }) {
               }
             }}
           >
-            <span className="avatar avatar-lg" aria-hidden="true">{initials(fallbackName)}</span>
+            <span className="avatar avatar-lg" aria-hidden="true"><User aria-hidden="true" /></span>
             <div className="social-composer-body">
               <div className="social-composer-intents">
                 <strong>Share an update</strong>
@@ -278,8 +294,8 @@ export function SocialPage({ postId }: { postId?: string }) {
           </div>
         )}
 
-        {displayedFeedItems === undefined && <SocialTimelineSkeleton />}
-        {displayedFeedItems && displayedFeedItems.length === 0 && feedFilter !== 'for_you' && (
+        {feedStatus === 'LoadingFirstPage' && <SocialTimelineSkeleton />}
+        {displayedFeedItems && displayedFeedItems.length === 0 && feedStatus !== 'LoadingFirstPage' && feedFilter !== 'for_you' && (
           <div className="empty-state social-feed-empty">
             <p className="empty-state-title">No {feedFilter} posts yet.</p>
             <p className="text-meta">Posts in your {feedFilter} feed will appear here.</p>
@@ -332,6 +348,10 @@ export function SocialPage({ postId }: { postId?: string }) {
                     await editComment({ commentId, body })
                     setNotice('Comment updated.')
                   }}
+                  onDeleteComment={async (commentId) => {
+                    await deleteComment({ commentId })
+                    setNotice('Comment deleted.')
+                  }}
                   onLikeComment={async (commentId) => {
                     await toggleCommentLike({ commentId })
                   }}
@@ -344,6 +364,16 @@ export function SocialPage({ postId }: { postId?: string }) {
               )
             })}
           </div>
+        )}
+        {feedStatus === 'CanLoadMore' && (
+          <div className="social-feed-load-more">
+            <button type="button" className="btn btn-neutral btn-sm" onClick={() => loadMoreFeed(20)}>
+              Load more posts
+            </button>
+          </div>
+        )}
+        {feedStatus === 'LoadingMore' && (
+          <p className="text-meta tabular mt-3" role="status">Loading more posts...</p>
         )}
       </section>
     </main>
@@ -428,7 +458,7 @@ function SocialTimelineSkeleton() {
   )
 }
 
-function PostRow({
+export function PostRow({
   post,
   focusComments,
   viewerReady,
@@ -439,6 +469,7 @@ function PostRow({
   onSave,
   onReport,
   onEditComment,
+  onDeleteComment,
   onLikeComment,
   onReportComment,
 }: {
@@ -452,6 +483,7 @@ function PostRow({
   onSave: () => Promise<void>
   onReport: () => Promise<void>
   onEditComment: (commentId: Id<'postComments'>, body: string) => Promise<void>
+  onDeleteComment: (commentId: Id<'postComments'>) => Promise<void>
   onLikeComment: (commentId: Id<'postComments'>) => Promise<void>
   onReportComment: (commentId: Id<'postComments'>) => Promise<void>
 }) {
@@ -463,8 +495,12 @@ function PostRow({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [actionPending, setActionPending] = useState('')
   const [actionError, setActionError] = useState('')
-  const comments = useQuery(api.social.commentsForPost, commentsOpen ? { postId: post._id } : 'skip') as PostComment[] | undefined
-  const threadedComments = useMemo(() => comments ? arrangeCommentThreads(comments) : undefined, [comments])
+  const { results: comments, status: commentsStatus, loadMore: loadMoreComments } = usePaginatedQuery(
+    api.social.commentPage,
+    commentsOpen ? { postId: post._id } : 'skip',
+    { initialNumItems: 20 },
+  )
+  const threadedComments = useMemo(() => comments ? arrangeCommentThreads(comments) : [], [comments])
   const rowRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
@@ -650,26 +686,38 @@ function PostRow({
               </form>
             )}
             {commentError && <p className="text-meta social-comment-error">{commentError}</p>}
-            {comments === undefined ? (
+            {commentsStatus === 'LoadingFirstPage' ? (
               <p className="text-meta">Loading comments...</p>
             ) : comments.length === 0 ? (
               <p className="text-meta">No comments yet.</p>
             ) : (
-              <div className="social-comment-list">
-                {threadedComments?.map(({ comment, position, isLastReply }) => (
-                  <CommentRow
-                    key={comment._id}
-                    comment={comment}
-                    threadPosition={position}
-                    isLastReply={isLastReply}
-                    viewerReady={viewerReady}
-                    onReply={(body) => onComment(body, comment._id)}
-                    onLike={() => onLikeComment(comment._id)}
-                    onEdit={(body) => onEditComment(comment._id, body)}
-                    onReport={() => onReportComment(comment._id)}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="social-comment-list">
+                  {threadedComments?.map(({ comment, position, isLastReply }) => (
+                    <CommentRow
+                      key={comment._id}
+                      comment={comment}
+                      threadPosition={position}
+                      isLastReply={isLastReply}
+                      viewerReady={viewerReady}
+                      onReply={(body) => onComment(body, comment._id)}
+                      onLike={() => onLikeComment(comment._id)}
+                      onEdit={(body) => onEditComment(comment._id, body)}
+                      onDelete={() => onDeleteComment(comment._id)}
+                      onReport={() => onReportComment(comment._id)}
+                    />
+                  ))}
+                </div>
+                {commentsStatus === 'CanLoadMore' && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm social-comment-load-more"
+                    onClick={() => loadMoreComments(20)}
+                  >
+                    Load more comments
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
@@ -677,12 +725,13 @@ function PostRow({
   )
 }
 
-function CommentRow({
+export function CommentRow({
   comment,
   viewerReady,
   onReply,
   onLike,
   onEdit,
+  onDelete,
   onReport,
   threadPosition,
   isLastReply,
@@ -694,13 +743,15 @@ function CommentRow({
   onReply: (body: string) => Promise<void>
   onLike: () => Promise<void>
   onEdit: (body: string) => Promise<void>
+  onDelete: () => Promise<void>
   onReport: () => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [editBody, setEditBody] = useState(comment.body)
   const [replying, setReplying] = useState(false)
   const [replyBody, setReplyBody] = useState('')
-  const [actionPending, setActionPending] = useState<'edit' | 'like' | 'reply' | 'report' | ''>('')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [actionPending, setActionPending] = useState<'delete' | 'edit' | 'like' | 'reply' | 'report' | ''>('')
   const [actionError, setActionError] = useState('')
 
   function beginEditing() {
@@ -765,10 +816,27 @@ function CommentRow({
           ownedByViewer={comment.ownComment}
           disabled={editing || Boolean(actionPending)}
           onEdit={comment.ownComment ? beginEditing : undefined}
+          onDelete={comment.ownComment ? () => setDeleteConfirmOpen(true) : undefined}
           onReport={!comment.ownComment ? () => void reportComment() : undefined}
         />
       ) : undefined}
     >
+      <ConfirmationDialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => {
+          setActionPending('delete')
+          setActionError('')
+          void onDelete()
+            .then(() => setDeleteConfirmOpen(false))
+            .catch((error) => setActionError(error instanceof Error ? error.message : 'Comment could not be deleted.'))
+            .finally(() => setActionPending(''))
+        }}
+        title="Delete this comment?"
+        description="Replies to this comment stay visible. This action cannot be undone."
+        confirmLabel="Delete comment"
+        busy={actionPending === 'delete'}
+      />
       {editing ? (
         <form
           className="social-comment-edit-form"
@@ -1002,7 +1070,7 @@ function MentionField({
               className="social-mention-option"
               onClick={() => insertMention(suggestion.username)}
             >
-              <span className="avatar" aria-hidden="true">{initials(suggestion.displayName)}</span>
+              <span className="avatar" aria-hidden="true"><User aria-hidden="true" /></span>
               <span className="social-mention-option-copy">
                 <strong>{suggestion.displayName}</strong>
                 <small>@{suggestion.username}</small>
@@ -1068,16 +1136,7 @@ function formatTime(timestamp: number) {
   return new Date(timestamp).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
-    hour: 'numeric',
+     hour: 'numeric',
     minute: '2-digit',
   })
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
 }

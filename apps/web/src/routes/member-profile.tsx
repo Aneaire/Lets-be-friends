@@ -1,7 +1,7 @@
 import { SignInButton, useAuth } from '@clerk/react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
-import { ArrowLeft, Heart } from 'lucide-react'
+import { ArrowLeft, Heart, User } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
@@ -49,7 +49,7 @@ function MemberProfilePage() {
         <div className="member-profile-photo" aria-hidden={profile.profileImageUrl ? undefined : true}>
           {profile.profileImageUrl
             ? <OpenableImage src={profile.profileImageUrl} alt={`${profile.displayName} profile photo`} />
-            : <span>{initials(profile.displayName)}</span>}
+            : <User aria-hidden="true" />}
         </div>
         <div className="member-profile-copy">
           <div className="member-profile-heading">
@@ -77,7 +77,6 @@ function MemberProfilePage() {
         ownerName={profile.displayName}
         posts={posts}
         reviews={null}
-        postsDescription={`Posts visible from ${profile.displayName}'s member profile.`}
         emptyPostsDescription="This member has not shared a post yet."
         unavailableReviewsTitle="Reviews are not available for this member profile."
         unavailableReviewsDescription="Reviews appear when a member has an approved Companion profile."
@@ -88,8 +87,4 @@ function MemberProfilePage() {
 
 function UnavailableProfile({ detail }: { detail: string }) {
   return <main className="marketing-page"><h1 className="text-h1">Profile unavailable</h1><p className="lede mt-2">{detail}</p><Link to="/discover" className="btn btn-neutral btn-sm mt-5">Back to Explore</Link></main>
-}
-
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('')
 }

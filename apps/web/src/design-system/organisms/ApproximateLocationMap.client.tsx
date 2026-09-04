@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Star } from 'lucide-react'
+import { Star, User } from 'lucide-react'
 import { productMapInitialView, productMapStyleUrl, productMapZoomForRadius } from '@lets-be-friends/shared'
 import { clampCoordinates, type Coordinates } from '../../lib/geo'
 import { Map, MapMarker, MapRadius, useMap } from '../primitives/map.client'
@@ -168,7 +168,7 @@ function PersonPin({ person, onSelect }: { person: MapPerson; onSelect?: (key: s
         {person.imageUrl ? (
           <img src={person.imageUrl} alt="" loading="lazy" />
         ) : (
-          <span className="approx-location-map-person-fallback">{personInitials(person.name)}</span>
+          <span className="approx-location-map-person-fallback" aria-hidden="true"><User aria-hidden="true" /></span>
         )}
       </button>
       {open && anchor && createPortal(
@@ -186,7 +186,7 @@ function PersonPopover({ person }: { person: MapPerson }) {
     <div className="map-person-popover">
       <div className="map-person-popover-head">
         <span className="profile-photo">
-          {person.imageUrl ? <img src={person.imageUrl} alt="" /> : <span>{personInitials(person.name)}</span>}
+          {person.imageUrl ? <img src={person.imageUrl} alt="" /> : <User aria-hidden="true" />}
         </span>
         <span className="map-person-popover-name">
           <strong>{person.name}</strong>
@@ -218,13 +218,4 @@ function trustLabel(state?: MapPerson['status']) {
   if (state === 'verified') return 'Identity checked'
   if (state === 'awaiting') return 'Review in progress'
   return 'Review in progress'
-}
-
-function personInitials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
 }

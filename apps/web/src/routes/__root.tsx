@@ -1,4 +1,4 @@
-import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
+import { HeadContent, Link, Outlet, Scripts, createRootRoute, useRouter } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { Header, Footer } from '../design-system/templates/AppShell'
@@ -26,6 +26,8 @@ export const Route = createRootRoute({
   }),
   shellComponent: RootDocument,
   component: Outlet,
+  notFoundComponent: RootNotFound,
+  errorComponent: RootError,
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
@@ -55,6 +57,36 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <Scripts />
       </body>
     </html>
+  )
+}
+
+function RootNotFound() {
+  return (
+    <main className="marketing-page">
+      <p className="eyebrow">Let&apos;s Be Friends</p>
+      <h1 className="text-h1 mt-2">We could not find that page.</h1>
+      <p className="lede mt-2">The page may have moved, or you may have followed an old link. Members and Companions can still reach Home, Explore, and bookings from here.</p>
+      <div className="mt-5 flex gap-2">
+        <Link to="/" className="btn btn-social btn-sm">Go to Home</Link>
+        <Link to="/discover" className="btn btn-neutral btn-sm">Explore people</Link>
+      </div>
+    </main>
+  )
+}
+
+function RootError({ reset }: { error: Error; reset: () => void }) {
+  const router = useRouter()
+  return (
+    <main className="marketing-page">
+      <p className="eyebrow">Let&apos;s Be Friends</p>
+      <h1 className="text-h1 mt-2">Something did not load.</h1>
+      <p className="lede mt-2">Please try again. If this keeps happening, reload the page or return Home and continue from there.</p>
+      <div className="mt-5 flex gap-2">
+        <button type="button" className="btn btn-self btn-sm" onClick={() => reset()}>Try again</button>
+        <button type="button" className="btn btn-neutral btn-sm" onClick={() => router.invalidate()}>Reload content</button>
+        <Link to="/" className="btn btn-neutral btn-sm">Go to Home</Link>
+      </div>
+    </main>
   )
 }
 

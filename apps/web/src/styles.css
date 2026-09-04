@@ -5538,6 +5538,11 @@ textarea.field {
   font-weight: 700;
 }
 
+.approx-location-map-person-fallback svg {
+  width: 55%;
+  height: 55%;
+}
+
 .map-person-popover-anchor {
   position: fixed;
   z-index: 60;
@@ -6930,17 +6935,16 @@ textarea.field {
 }
 
 .profile-content-panel {
-  overflow: hidden;
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  background: var(--surface);
+  background: transparent;
+  border: 0;
 }
 
 .profile-content-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 0.4rem;
-  border-bottom: 1px solid var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
   background: var(--surface-sunk);
 }
 
@@ -6965,14 +6969,58 @@ textarea.field {
   box-shadow: 0 1px 3px color-mix(in oklch, var(--text) 10%, transparent);
 }
 
-.profile-tab-panel-header {
+.profile-content-panel .profile-post-list,
+.profile-content-panel .profile-review-list {
+  gap: 0.75rem;
+  padding: 0;
+  margin-top: 0.75rem;
+}
+
+.profile-content-panel .profile-post-list > * + *,
+.profile-content-panel .profile-review-list > * + * {
+  border-top: 0;
+}
+
+.profile-content-panel .profile-post-card,
+.profile-content-panel .profile-review-list .profile-review-card {
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.profile-content-panel .profile-review-list .profile-review-card {
+  gap: 0.85rem;
+}
+
+.profile-content-panel .profile-content-empty {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.profile-rating-row {
   display: flex;
-  min-height: 5rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--rule);
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
+.profile-content-panel .profile-post-card:hover {
+  background: var(--surface);
+}
+
+.profile-content-panel .profile-post-card .profile-post-body {
+  margin: 0.125rem 0 0;
+}
+
+.profile-content-panel .profile-post-card .profile-post-media {
+  margin-top: 0.75rem;
+}
+
+.profile-content-panel .profile-post-card .profile-post-body + .profile-post-media {
+  margin-top: 0;
 }
 
 .profile-rating-summary {
@@ -6980,7 +7028,7 @@ textarea.field {
   grid-template-columns: auto auto;
   align-items: baseline;
   gap: 0 0.25rem;
-  color: var(--accent-social);
+  color: var(--warning);
   text-align: right;
 }
 
@@ -7042,7 +7090,7 @@ textarea.field {
   width: fit-content;
   align-items: center;
   gap: 0.18rem;
-  color: var(--accent-social);
+  color: var(--warning);
 }
 
 .profile-review-stars > strong {
@@ -7063,7 +7111,7 @@ textarea.field {
   inset: 0 auto 0 0;
   display: block;
   overflow: hidden;
-  color: var(--accent-social);
+  color: var(--warning);
 }
 
 .profile-review-star > span svg {
@@ -7157,6 +7205,29 @@ textarea.field {
   gap: 0.55rem;
 }
 
+.profile-review-comment-delete {
+  margin-top: 0.35rem;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.social-feed-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.discover-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.gate-state-recovery {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
 .review-form {
   display: flex;
   align-items: center;
@@ -7208,16 +7279,6 @@ textarea.field {
 }
 
 @media (max-width: 640px) {
-  .profile-tab-panel-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .profile-tab-panel-header .btn {
-    width: 100%;
-    justify-content: center;
-  }
-
   .profile-rating-summary {
     text-align: left;
   }
@@ -7303,6 +7364,47 @@ textarea.field {
   margin: 0;
   color: var(--text-muted);
   font-size: 0.9375rem;
+}
+
+.profile-about-card {
+  border-color: var(--border);
+}
+
+.profile-about-card .profile-facts {
+  gap: 0.75rem;
+}
+
+.profile-about-card .profile-facts div {
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.profile-about-card .profile-facts dt {
+  padding-top: 0.15rem;
+}
+
+.profile-about-card .profile-about-bio {
+  max-width: 52ch;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.profile-about-card .profile-about-interests {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.15rem 0 0;
+  list-style: none;
+}
+
+.profile-about-card .profile-about-interests li {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
 }
 
 .profile-dialog-backdrop {
@@ -7520,6 +7622,15 @@ textarea.field {
     grid-template-columns: 1fr;
     gap: 0.25rem;
   }
+
+  .profile-about-card .profile-facts div {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  .profile-about-card .profile-facts dt {
+    padding-top: 0;
+  }
 }
 
 /* ──────────────────────────────────────────────────────────────
@@ -7618,6 +7729,21 @@ textarea.field {
   height: 100%;
 }
 
+.avatar svg,
+.profile-photo svg,
+.member-profile-photo svg,
+.account-avatar svg {
+  width: 55%;
+  height: 55%;
+}
+
+.booking-companion-search-avatar svg {
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--text-muted);
+  vertical-align: middle;
+}
+
 .profile-photo-lg {
   width: 3rem;
   height: 3rem;
@@ -7625,12 +7751,12 @@ textarea.field {
 }
 
 .profile-photo-xl {
-  width: 6rem;
-  height: 6rem;
-  border-radius: 12px;
+  width: 11rem;
+  height: 11rem;
+  border-radius: 16px;
   border: 3px solid var(--surface);
   box-shadow: 0 0 0 1px var(--rule);
-  font-size: 1.5rem;
+  font-size: 2.5rem;
 }
 
 .profile-detail-grid {
@@ -8692,6 +8818,11 @@ textarea.field {
 .social-comment-list {
   display: grid;
   gap: 0;
+}
+
+.social-comment-load-more {
+  justify-self: center;
+  margin-top: 0.5rem;
 }
 
 .social-comment-edit-form {
@@ -11885,6 +12016,50 @@ textarea.field {
     padding: 1rem;
   }
 
+  .web-app-shell .profile-content-panel {
+    background: transparent;
+    border: 0;
+  }
+
+  .web-app-shell .profile-content-panel .profile-post-list,
+  .web-app-shell .profile-content-panel .profile-review-list {
+    gap: 0.75rem;
+    padding: 0;
+    margin-top: 0.75rem;
+  }
+
+  .web-app-shell .profile-content-panel .profile-post-card,
+  .web-app-shell .profile-content-panel .profile-review-list .profile-review-card {
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .web-app-shell .profile-content-panel .profile-review-list .profile-review-card {
+    gap: 0.85rem;
+  }
+
+  .web-app-shell .profile-content-panel .profile-content-empty {
+    margin-top: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+
+  .web-app-shell .profile-content-panel .profile-post-card .profile-post-body {
+    margin: 0.125rem 0 0;
+  }
+
+  .web-app-shell .profile-content-panel .profile-post-card .profile-post-media {
+    margin-top: 0.75rem;
+  }
+
+  .web-app-shell .profile-content-panel .profile-post-card .profile-post-body + .profile-post-media {
+    margin-top: 0;
+  }
+
   .booking-plan-context,
   .companion-profile-planline,
   .social-reserve-planline {
@@ -12210,11 +12385,6 @@ textarea.field {
     line-height: 1.6;
   }
 
-  .companion-profile-planline {
-    display: grid;
-    gap: 0.45rem;
-  }
-
   .companion-profile-trust {
     color: var(--text-muted);
     font-size: 0.78rem;
@@ -12283,15 +12453,16 @@ textarea.field {
   .profile-hero-body {
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 1rem;
-    padding: 1rem 1.25rem;
+    gap: 1.5rem;
+    padding: 1.5rem;
   }
 
   .profile-hero-body .profile-photo-xl {
-    width: 4.5rem;
-    height: 4.5rem;
+    width: 10rem;
+    height: 10rem;
     margin: 0;
     border-radius: 999px;
+    font-size: 2.25rem;
   }
 
   .profile-hero-copy {
@@ -12557,6 +12728,31 @@ textarea.field {
 
     .profile-hero-body {
       align-items: flex-start;
+      justify-items: center;
+    }
+
+    .profile-hero-body .profile-photo-xl {
+      justify-self: center;
+      width: 7rem;
+      height: 7rem;
+      margin-inline: auto;
+      font-size: 1.75rem;
+    }
+
+    .profile-hero-copy {
+      display: grid;
+      width: 100%;
+      justify-items: center;
+    }
+
+    .profile-hero-copy h1,
+    .profile-hero-copy .text-meta {
+      text-align: center;
+    }
+
+    .profile-hero-copy .text-body {
+      width: 100%;
+      text-align: left;
     }
 
     .profile-hero-actions,
@@ -13772,17 +13968,21 @@ button.companion-preview-avatar {
   color: var(--text-muted);
   font-size: 0.875rem;
   font-weight: 400;
-  line-height: 1.55;
+  line-height: 1.65;
 }
 
 .companion-profile-intro {
-  margin-top: 1rem;
+  margin-top: 0.75rem;
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 0.9375rem;
   font-weight: 650;
   line-height: 1.45;
   letter-spacing: 0;
+}
+
+.companion-profile-rating-star {
+  color: var(--warning);
 }
 
 .companion-profile-rate {

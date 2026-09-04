@@ -7,6 +7,7 @@ import {
   validateActivityCategories,
   validateCompanionHourlyRateCentavos,
 } from '@lets-be-friends/shared'
+import { paginationOptsValidator } from 'convex/server'
 import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
@@ -16,29 +17,100 @@ import { findNearbyCompanionLocations, syncCompanionLocation } from './companion
 import { isHiddenByPreference, requireNotBlocked } from './safety'
 
 const nearbyRadiusOptions = [5, 10, 25, 50, 100] as const
+const MAX_EXPLORE_PAGE_SIZE = 50
 
 export const listExploreDirectory = query({
+  // Mobile-compatible array shape. Bounded to one page so directory reads
+  // never scan every user. Web Explore uses listExploreDirectoryPage and web
+  // header search uses searchDirectory.
   args: {},
   handler: async (ctx) => {
     const viewer = await getViewer(ctx)
-    const users = await ctx.db.query('users').collect()
+    const users = await ctx.db.query('users').take(MAX_EXPLORE_PAGE_SIZE)
+    const visibleUsers = []
+    for (const user of users) {
+      const entry = await buildDirectoryEntry(ctx, viewer, user)
+      if (entry) visibleUsers.push(entry)
+    }
+    return visibleUsers.sort((a, b) => a.displayName.localeCompare(b.displayName))
+  },
+})
+
+export const listExploreDirectoryPage = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    if (!Number.isSafeInteger(args.paginationOpts.numItems) || args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > MAX_EXPLORE_PAGE_SIZE) {
+      throw new Error(`Explore pages can include 1 to ${MAX_EXPLORE_PAGE_SIZE} people`)
+    }
+    const viewer = await getViewer(ctx)
+    // Ordered by the display-name index so accumulated pages keep a stable
+    // global alphabetical order. No in-memory resorting here: resorting a
+    // single page would break the global order across cursors.
+    const result = await ctx.db.query('users')
+      .withIndex('by_display_name')
+      .order('asc')
+      .paginate(args.paginationOpts)
     const visibleUsers = []
 
-    for (const user of users) {
-      if (user.suspended) continue
-      if (viewer && viewer._id !== user._id && await isHiddenByPreference(ctx, viewer._id, user._id)) continue
+    for (const user of result.page) {
+      const entry = await buildDirectoryEntry(ctx, viewer, user)
+      if (entry) visibleUsers.push(entry)
+    }
+
+    return {
+      ...result,
+      page: visibleUsers,
+    }
+  },
+})
+
+const MAX_HEADER_SEARCH_RESULTS = 6
+const MAX_HEADER_SEARCH_TERM = 24
+
+export const searchDirectory = query({
+  args: { search: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? MAX_HEADER_SEARCH_RESULTS), 1), MAX_HEADER_SEARCH_RESULTS)
+    const term = args.search.trim().toLowerCase().replace(/^@+/, '')
+    if (!term || term.length > MAX_HEADER_SEARCH_TERM) return []
+    const viewer = await getViewer(ctx)
+    const [usernameMatches, displayNameMatches] = await Promise.all([
+      ctx.db.query('users')
+        .withIndex('by_username', (q) => q.gte('username', term).lt('username', `${term}\uffff`))
+        .take(limit * 2),
+      ctx.db.query('users')
+        .withSearchIndex('search_display_name', (q) => q.search('displayName', term))
+        .take(limit * 2),
+    ])
+    const seen = new Set<string>()
+    const visibleUsers = []
+    for (const user of [...usernameMatches, ...displayNameMatches]) {
+      const key = String(user._id)
+      if (seen.has(key)) continue
+      seen.add(key)
+      const entry = await buildDirectoryEntry(ctx, viewer, user)
+      if (entry) visibleUsers.push(entry)
+      if (visibleUsers.length >= limit) break
+    }
+    return visibleUsers.sort((a, b) => a.displayName.localeCompare(b.displayName))
+  },
+})
+
+async function buildDirectoryEntry(ctx: any, viewer: Doc<'users'> | null, user: Doc<'users'>) {
+      if (user.suspended) return null
+      if (viewer && viewer._id !== user._id && await isHiddenByPreference(ctx, viewer._id, user._id)) return null
 
       const companion = await ctx.db
         .query('companionProfiles')
-        .withIndex('by_user', (q) => q.eq('userId', user._id))
+        .withIndex('by_user', (q: any) => q.eq('userId', user._id))
         .first()
       const isLiveCompanion = companion?.status === 'approved' && hasCurrentIdentityApproval(user)
       const [profileImage, followedUser] = await Promise.all([
         profileImageUrl(ctx, user),
-        viewer ? ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', user._id)).first() : null,
+        viewer ? ctx.db.query('follows').withIndex('by_pair', (q: any) => q.eq('followerId', viewer._id).eq('followingId', user._id)).first() : null,
       ])
 
-      visibleUsers.push(isLiveCompanion ? {
+      return isLiveCompanion ? {
         ...publicCompanionProfile(companion),
         _id: companion._id,
         userId: user._id,
@@ -77,12 +149,8 @@ export const listExploreDirectory = query({
         viewerCanBook: false,
         viewerBookingEligibility: viewer?._id === user._id ? 'own_profile' as const : undefined,
         following: Boolean(followedUser),
-      })
-    }
-
-    return visibleUsers.sort((a, b) => a.displayName.localeCompare(b.displayName))
-  },
-})
+      }
+}
 
 export const listApproved = query({
   args: {

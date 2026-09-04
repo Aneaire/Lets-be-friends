@@ -6,6 +6,8 @@ import type React from 'react'
 import { api } from '../../../convex/_generated/api'
 import { onboardingGateDecision } from '../../lib/onboarding'
 
+export const ONBOARDING_RECOVERY_DELAY_MS = 15_000
+
 export function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { isLoaded: clerkLoaded, isSignedIn, userId } = useAuth()
   const { signOut } = useClerk()
@@ -16,8 +18,10 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
   const ensureViewer = useMutation(api.users.ensureViewer)
   const viewer = useQuery(api.users.viewer, isSignedIn && convexAuthenticated ? {} : 'skip')
   const attemptedIdentity = useRef<string | null>(null)
+  const provisionFlight = useRef<Promise<void> | null>(null)
   const [provisioning, setProvisioning] = useState(false)
   const [provisionError, setProvisionError] = useState('')
+  const [recoveryReady, setRecoveryReady] = useState(false)
 
   const decision = onboardingGateDecision({
     clerkLoaded,
@@ -31,18 +35,37 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
 
   const provision = useCallback(async () => {
     if (!userId) return
+    // Single-flight: an automatic attempt plus a manual retry (or a
+    // double-clicked retry) must never start concurrent ensureViewer calls.
+    // Late joiners await the in-flight attempt instead of starting a new one.
+    if (provisionFlight.current) {
+      try {
+        await provisionFlight.current
+      } catch {
+        // The owning attempt already surfaced the error.
+      }
+      return
+    }
     attemptedIdentity.current = userId
     setProvisioning(true)
     setProvisionError('')
+    const flight = (async () => {
+      try {
+        await ensureViewer({
+          displayName: user?.fullName ?? user?.username ?? 'New friend',
+          expectedClerkUserId: userId,
+        })
+      } catch (error) {
+        setProvisionError(error instanceof Error ? error.message : 'Account setup failed. Please try again.')
+      } finally {
+        setProvisioning(false)
+      }
+    })()
+    provisionFlight.current = flight
     try {
-      await ensureViewer({
-        displayName: user?.fullName ?? user?.username ?? 'New friend',
-        expectedClerkUserId: userId,
-      })
-    } catch (error) {
-      setProvisionError(error instanceof Error ? error.message : 'Account setup failed. Please try again.')
+      await flight
     } finally {
-      setProvisioning(false)
+      if (provisionFlight.current === flight) provisionFlight.current = null
     }
   }, [ensureViewer, user, userId])
 
@@ -57,6 +80,14 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (decision === 'redirect_onboarding') void navigate({ to: '/onboarding', replace: true })
   }, [decision, navigate])
+
+  useEffect(() => {
+    setRecoveryReady(false)
+    if (decision !== 'loading' && decision !== 'provision') return
+    if (decision === 'provision' && provisionError && !provisioning) return
+    const timer = window.setTimeout(() => setRecoveryReady(true), ONBOARDING_RECOVERY_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [decision, userId, clerkLoaded, convexLoading, provisionError, provisioning])
 
   if (decision === 'allow') return children
 
@@ -107,8 +138,21 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
       <div className="gate-state-inner">
         <p className="eyebrow">Let&apos;s Be Friends</p>
         <p className="text-body muted mt-3">
-          {decision === 'redirect_onboarding' ? 'Opening your welcome guide…' : 'Preparing your account…'}
+          {decision === 'redirect_onboarding' ? 'Opening your welcome guide...' : 'Preparing your account...'}
         </p>
+        {recoveryReady && decision !== 'redirect_onboarding' && (
+          <div className="gate-state-recovery mt-5">
+            <p className="text-body muted">This is taking longer than expected. You can retry setup or reload this page. You stay signed in.</p>
+            <div className="gate-state-actions mt-3">
+              <button type="button" className="btn btn-self" onClick={() => void provision()}>
+                Retry account setup
+              </button>
+              <button type="button" className="btn btn-neutral" onClick={() => window.location.reload()}>
+                Reload
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   )

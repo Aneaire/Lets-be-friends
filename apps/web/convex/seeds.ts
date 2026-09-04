@@ -3,6 +3,7 @@ import { v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { internalAction, internalMutation, internalQuery } from './_generated/server'
+import { adjustCounter } from './counters'
 import { syncCompanionLocation } from './companionLocations'
 import {
   approvedPhilippinesCompanions,
@@ -483,6 +484,12 @@ export const seedPresentationAccount = internalMutation({
       return await ctx.db.insert('follows', { followerId, followingId, createdAt })
     }
 
+    async function bumpPostCounter(ctx: any, postId: any, field: 'likeCount' | 'savedCount' | 'commentCount') {
+      const post = await ctx.db.get(postId)
+      if (!post) return
+      await ctx.db.patch(postId, { [field]: adjustCounter(post[field], 1) })
+    }
+
     for (const user of seededUsers.slice(0, 5)) await ensureFollow(account._id, user._id, now - 3 * dayMs)
     for (const user of seededUsers.slice(0, 3)) await ensureFollow(user._id, account._id, now - 2 * dayMs)
 
@@ -498,6 +505,7 @@ export const seedPresentationAccount = internalMutation({
       const existing = await ctx.db.query('postReactions').withIndex('by_pair', (q) => q.eq('userId', userId).eq('postId', postId)).unique()
       if (existing) return
       await ctx.db.insert('postReactions', { userId, postId, reaction: 'like', createdAt })
+      await bumpPostCounter(ctx, postId, 'likeCount')
       relationshipsCreated += 1
     }
     for (const postId of companionPostIds.slice(0, 6)) await ensureReaction(account._id, postId, now - 30 * 60 * 1_000)
@@ -508,6 +516,7 @@ export const seedPresentationAccount = internalMutation({
       const existing = await ctx.db.query('savedPosts').withIndex('by_pair', (q) => q.eq('userId', account._id).eq('postId', postId)).unique()
       if (!existing) {
         await ctx.db.insert('savedPosts', { userId: account._id, postId, createdAt: now - 10 * 60 * 1_000 })
+        await bumpPostCounter(ctx, postId, 'savedCount')
         relationshipsCreated += 1
       }
     }
@@ -532,6 +541,7 @@ export const seedPresentationAccount = internalMutation({
           createdAt: now - (15 - index * 2) * 60 * 1_000,
           updatedAt: now - (15 - index * 2) * 60 * 1_000,
         })
+        await bumpPostCounter(ctx, postId, 'commentCount')
       }
     }
 

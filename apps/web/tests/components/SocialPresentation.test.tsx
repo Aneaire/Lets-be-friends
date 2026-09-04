@@ -65,7 +65,8 @@ describe('social timeline presentation', () => {
     expect(image?.parentElement?.classList.contains('ds-post-avatar-image')).toBe(true)
     fireEvent.error(image!)
 
-    expect(article.querySelector('.ds-post-avatar')?.textContent).toBe('GS')
+    expect(article.querySelector('.ds-post-avatar svg')).toBeTruthy()
+    expect(article.querySelector('.ds-post-avatar img')).toBeNull()
     expect(article.querySelector('.ds-post-identity strong')?.textContent).toBe('Gelo Santiago')
   })
 

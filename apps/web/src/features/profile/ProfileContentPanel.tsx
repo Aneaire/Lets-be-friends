@@ -28,8 +28,10 @@ export type ProfileContentReview = {
     _id: string
     body: string
     createdAt: number
+    authorId?: string
     authorDisplayName: string
     authorProfileImageUrl?: string | null
+    ownComment?: boolean
   }[]
   saved?: boolean
 }
@@ -42,10 +44,7 @@ export function ProfileContentPanel({
   reviews,
   rating,
   reviewCount,
-  postsDescription,
-  postsAction,
   emptyPostsDescription = 'This member has not shared a post yet.',
-  reviewsDescription = 'Ratings from members after completed plans.',
   unavailableReviewsTitle = 'Reviews are not available for this profile.',
   unavailableReviewsDescription = 'Reviews appear when a member has an approved Companion profile.',
   unavailableReviewsAction,
@@ -53,6 +52,7 @@ export function ProfileContentPanel({
   reviewAction,
   onLikeReview,
   onCommentReview,
+  onDeleteReviewComment,
   className,
 }: {
   ownerName: string
@@ -60,10 +60,7 @@ export function ProfileContentPanel({
   reviews: readonly ProfileContentReview[] | undefined | null
   rating?: number
   reviewCount?: number
-  postsDescription: string
-  postsAction?: ReactNode
   emptyPostsDescription?: string
-  reviewsDescription?: string
   unavailableReviewsTitle?: string
   unavailableReviewsDescription?: string
   unavailableReviewsAction?: ReactNode
@@ -71,12 +68,16 @@ export function ProfileContentPanel({
   reviewAction?: (review: ProfileContentReview) => ReactNode
   onLikeReview?: (review: ProfileContentReview) => Promise<unknown>
   onCommentReview?: (review: ProfileContentReview, body: string) => Promise<unknown>
+  onDeleteReviewComment?: (review: ProfileContentReview, commentId: string) => Promise<unknown>
   className?: string
 }) {
   const [selectedTab, setSelectedTab] = useState<ContentTab>('posts')
   const [openComments, setOpenComments] = useState<Set<string>>(() => new Set())
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
   const [commentBusy, setCommentBusy] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ reviewId: string; commentId: string } | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const tabId = useId()
   const postsTabRef = useRef<HTMLButtonElement>(null)
   const reviewsTabRef = useRef<HTMLButtonElement>(null)
@@ -113,31 +114,24 @@ export function ProfileContentPanel({
 
       {selectedTab === 'posts' ? (
         <div id={`${tabId}-posts-panel`} role="tabpanel" aria-labelledby={`${tabId}-posts-tab`}>
-          <div className="profile-tab-panel-header">
-            <div>
-              <h2 className="text-h2">Posts</h2>
-              <p className="text-meta mt-1">{postsDescription}</p>
-            </div>
-            {postsAction}
-          </div>
-          {posts === undefined && <div className="empty-state m-5">Loading posts...</div>}
+          {posts === undefined && <div className="empty-state profile-content-empty">Loading posts...</div>}
           {posts?.length === 0 && (
-            <div className="empty-state m-5">
+            <div className="empty-state profile-content-empty">
               <p className="empty-state-title">No posts yet.</p>
               <p className="text-meta">{emptyPostsDescription}</p>
             </div>
           )}
           {posts && posts.length > 0 && (
-            <div className="worklist">
+            <div className="worklist profile-post-list">
               {posts.map((post) => (
-                <article key={post._id} className="worklist-row">
+                <article key={post._id} className="worklist-row profile-post-card">
                   <div className="worklist-row-head">
                     <div className="min-w-0">
                       <h3 className="text-h3">{ownerName}</h3>
                       <div className="worklist-row-meta tabular">{formatTime(post.createdAt)}</div>
                     </div>
                   </div>
-                  {post.body && <p className="text-body muted whitespace-pre-wrap">{post.body}</p>}
+                  {post.body && <p className="text-body muted whitespace-pre-wrap profile-post-body">{post.body}</p>}
                   {post.media.length > 0 && <PostMediaGrid media={post.media} className="profile-post-media" />}
                 </article>
               ))}
@@ -146,35 +140,31 @@ export function ProfileContentPanel({
         </div>
       ) : (
         <div id={`${tabId}-reviews-panel`} role="tabpanel" aria-labelledby={`${tabId}-reviews-tab`}>
-          <div className="profile-tab-panel-header">
-            <div>
-              <h2 className="text-h2">Reviews</h2>
-              <p className="text-meta mt-1">{reviewsDescription}</p>
-            </div>
-            {typeof rating === 'number' && reviewCount ? (
+          {typeof rating === 'number' && reviewCount ? (
+            <div className="profile-rating-row">
               <div className="profile-rating-summary" aria-label={`${rating.toFixed(1)} out of 5 from ${reviewCount} reviews`}>
                 <strong>{rating.toFixed(1)}</strong>
                 <span>★</span>
                 <small>{reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}</small>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
           {reviews === null && (
-            <div className="empty-state m-5">
+            <div className="empty-state profile-content-empty">
               <p className="empty-state-title">{unavailableReviewsTitle}</p>
               <p className="text-meta">{unavailableReviewsDescription}</p>
               {unavailableReviewsAction}
             </div>
           )}
-          {reviews === undefined && <div className="empty-state m-5">Loading reviews...</div>}
+          {reviews === undefined && <div className="empty-state profile-content-empty">Loading reviews...</div>}
           {reviews?.length === 0 && (
-            <div className="empty-state m-5">
+            <div className="empty-state profile-content-empty">
               <p className="empty-state-title">No reviews yet.</p>
               <p className="text-meta">{emptyReviewsDescription}</p>
             </div>
           )}
           {reviews && reviews.length > 0 && (
-            <div className="worklist">
+            <div className="worklist profile-review-list">
               {reviews.map((review) => (
                 <article key={review._id} className="worklist-row profile-review-card">
                   <div className="profile-review-author-row">
@@ -238,9 +228,26 @@ export function ProfileContentPanel({
                           <div>
                             <strong>{comment.authorDisplayName}</strong>
                             <p>{comment.body}</p>
+                            {comment.ownComment && onDeleteReviewComment && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm profile-review-comment-delete"
+                                disabled={deleteBusy && deleteTarget?.commentId === comment._id}
+                                onClick={() => {
+                                  setDeleteError('')
+                                  setDeleteTarget({ reviewId: review._id, commentId: comment._id })
+                                }}
+                                aria-label={`Delete your comment on ${review.reviewerDisplayName}'s review`}
+                              >
+                                {deleteBusy && deleteTarget?.commentId === comment._id ? 'Deleting...' : 'Delete'}
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}
+                      {deleteError && deleteTarget?.reviewId === review._id && (
+                        <p className="text-meta social-comment-error" role="alert">{deleteError}</p>
+                      )}
                       {onCommentReview && (
                         <form
                           className="profile-review-comment-form"
@@ -272,6 +279,51 @@ export function ProfileContentPanel({
                   )}
                 </article>
               ))}
+            </div>
+          )}
+          {deleteTarget && (
+            <div
+              className="profile-dialog-backdrop"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget && !deleteBusy) setDeleteTarget(null)
+              }}
+            >
+              <section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-review-comment-title">
+                <div className="profile-dialog-header">
+                  <div>
+                    <h2 id="delete-review-comment-title" className="text-h2">Delete this comment?</h2>
+                    <p className="text-meta mt-1">This action cannot be undone.</p>
+                  </div>
+                </div>
+                <div className="profile-dialog-footer">
+                  <button type="button" className="btn btn-neutral btn-sm" disabled={deleteBusy} onClick={() => setDeleteTarget(null)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    disabled={deleteBusy}
+                    onClick={() => {
+                      const target = deleteTarget
+                      const targetReview = reviews && reviews.length > 0
+                        ? (reviews as readonly ProfileContentReview[]).find((item) => item._id === target.reviewId)
+                        : undefined
+                      if (!targetReview || !onDeleteReviewComment) {
+                        setDeleteTarget(null)
+                        return
+                      }
+                      setDeleteBusy(true)
+                      setDeleteError('')
+                      void onDeleteReviewComment(targetReview, target.commentId)
+                        .then(() => setDeleteTarget(null))
+                        .catch((error) => setDeleteError(error instanceof Error ? error.message : 'Comment could not be deleted.'))
+                        .finally(() => setDeleteBusy(false))
+                    }}
+                  >
+                    {deleteBusy ? 'Deleting...' : 'Delete comment'}
+                  </button>
+                </div>
+              </section>
             </div>
           )}
         </div>

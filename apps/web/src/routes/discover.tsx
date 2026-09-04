@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useAuth } from '@clerk/react'
-import { useMutation, useQuery } from 'convex/react'
+import { useMutation, usePaginatedQuery } from 'convex/react'
 import { useEffect, useMemo, useState } from 'react'
 import { LayoutGrid, MapPin, SlidersHorizontal, X } from 'lucide-react'
 import { activityCategoriesMatch, activityCategoryOptions, friendStrengths } from '@lets-be-friends/shared'
@@ -17,7 +17,12 @@ type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 
 function DiscoverPage() {
   const { isSignedIn } = useAuth()
-  const companions = (useQuery(api.companions.listExploreDirectory, {}) ?? []) as DiscoveryCompanion[]
+  const {
+    results: directoryResults,
+    status: directoryStatus,
+    loadMore: loadMoreDirectory,
+  } = usePaginatedQuery(api.companions.listExploreDirectoryPage, {}, { initialNumItems: 50 })
+  const companions = (directoryResults ?? []) as DiscoveryCompanion[]
   const toggleFollow = useMutation(api.social.toggleFollow)
   const [mode, setMode] = useState<ModeFilter>('all')
   const [category, setCategory] = useState<string | null>(null)
@@ -82,7 +87,9 @@ function DiscoverPage() {
           <p className="text-meta mt-1">Meet members and find Companions by activity, Strength, city, or name.</p>
         </div>
         <p className="text-meta tabular">
-          {filtered.length} {filtered.length === 1 ? 'person' : 'people'}
+          {directoryStatus === 'LoadingFirstPage'
+            ? 'Loading people...'
+            : `${filtered.length} of ${companions.length} loaded ${filtered.length === 1 ? 'person' : 'people'} match these filters`}
           {filtered.length > 0 && <span className="soft"> · {availableCount} available to book</span>}
         </p>
       </header>
@@ -163,10 +170,19 @@ function DiscoverPage() {
       </section>
 
       <section aria-label="Results" className="discover-results mt-5">
-        {filtered.length === 0 ? (
+        {directoryStatus === 'LoadingFirstPage' ? (
+          <div className="empty-state">
+            <p className="empty-state-title">Loading people...</p>
+          </div>
+        ) : filtered.length === 0 && directoryStatus !== 'CanLoadMore' ? (
           <div className="empty-state">
             <p className="empty-state-title">No matches with these filters.</p>
             <p className="text-meta">Try another activity or clear the filters to see everyone.</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">
+            <p className="empty-state-title">No matches in the people loaded so far.</p>
+            <p className="text-meta">Load more people or clear the filters to see everyone loaded.</p>
           </div>
         ) : (
           <div className="panel discover-results-panel">
@@ -188,6 +204,16 @@ function DiscoverPage() {
               ))}
             </div>
           </div>
+        )}
+        {directoryStatus === 'CanLoadMore' && (
+          <div className="discover-load-more">
+            <button type="button" className="btn btn-neutral btn-sm" onClick={() => loadMoreDirectory(50)}>
+              Load more people
+            </button>
+          </div>
+        )}
+        {directoryStatus === 'LoadingMore' && (
+          <p className="text-meta tabular mt-3" role="status">Loading more people...</p>
         )}
       </section>
 

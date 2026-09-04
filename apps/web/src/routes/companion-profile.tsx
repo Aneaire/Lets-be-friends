@@ -3,6 +3,7 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { api } from '../../convex/_generated/api'
+import { User } from 'lucide-react'
 import { formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
@@ -31,6 +32,7 @@ function CompanionProfilePage() {
   const toggleSaveReview = useMutation(api.reviews.toggleSave)
   const toggleLikeReview = useMutation(api.reviews.toggleLike)
   const createReviewComment = useMutation(api.reviews.createComment)
+  const deleteReviewComment = useMutation(api.reviews.deleteComment)
   const report = useMutation(api.reports.create)
   const startConversation = useMutation(api.conversations.start)
   const [notice, setNotice] = useState('')
@@ -72,14 +74,17 @@ function CompanionProfilePage() {
             <div className="companion-profile-identity">
               <ProfilePhoto imageUrl={companion.profileImageUrl} name={companion.displayName} size="lg" />
               <div className="min-w-0">
-                <p className="text-meta">Companion</p>
                 <h1 className="text-h1 companion-profile-name">{companion.displayName}</h1>
+                {companion.username && <p className="text-meta mt-1">@{companion.username}</p>}
                 <div className="worklist-row-meta mt-1">
                   <span>{companion.city}</span>
                   <span className="dot" aria-hidden="true" />
                   <span>{formatMode(companion.mode)}</span>
                   <span className="dot" aria-hidden="true" />
-                  <span>{companion.rating.toFixed(1)} from {companion.reviewCount} reviews</span>
+                  <span>
+                    <span className="companion-profile-rating-star" aria-hidden="true">★</span>{' '}
+                    {companion.rating.toFixed(1)} · {companion.reviewCount} {companion.reviewCount === 1 ? 'review' : 'reviews'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -88,7 +93,6 @@ function CompanionProfilePage() {
           </div>
 
           <aside className="companion-profile-decision" aria-label={`Plan with ${companion.displayName}`}>
-            <div className="companion-profile-planline"><span>Help · Trust · Connection</span></div>
             <p className="companion-profile-trust">Identity checked and Companion profile reviewed.</p>
             {companion.hourlyRateCentavos !== undefined ? (
               <p className="companion-profile-rate">
@@ -202,11 +206,11 @@ function CompanionProfilePage() {
         reviews={reviews}
         rating={companion.rating}
         reviewCount={companion.reviewCount}
-        postsDescription={`Posts visible from ${companion.displayName}'s member profile.`}
         emptyPostsDescription="This member has not shared a post yet."
         emptyReviewsDescription="Reviews will appear here after members complete plans together."
         onLikeReview={isSignedIn ? (review) => toggleLikeReview({ reviewId: review._id as Id<'reviews'> }) : undefined}
         onCommentReview={isSignedIn ? (review, body) => createReviewComment({ reviewId: review._id as Id<'reviews'>, body }) : undefined}
+        onDeleteReviewComment={isSignedIn ? (review, commentId) => deleteReviewComment({ commentId: commentId as Id<'reviewComments'> }) : undefined}
         reviewAction={(review) => isSignedIn ? (
           <button
             type="button"
@@ -266,7 +270,7 @@ function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: strin
   const className = size === 'lg' ? 'profile-photo profile-photo-lg' : 'profile-photo'
   return (
     <span className={className} aria-hidden={imageUrl ? undefined : true}>
-      {imageUrl ? <OpenableImage src={imageUrl} alt={`${name} profile photo`} /> : <span>{initials(name)}</span>}
+      {imageUrl ? <OpenableImage src={imageUrl} alt={`${name} profile photo`} /> : <User aria-hidden="true" />}
     </span>
   )
 }
@@ -275,13 +279,4 @@ function formatMode(mode: string) {
   if (mode === 'both') return 'Online and in-person'
   if (mode === 'in_person') return 'In-person'
   return 'Online'
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
 }
