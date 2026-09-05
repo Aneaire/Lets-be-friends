@@ -2,6 +2,7 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { useClerk, useUser } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import {
+  BadgeCheck,
   Bell,
   CalendarCheck,
   CheckCheck,
@@ -22,6 +23,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { api } from '../../../convex/_generated/api'
 import { findCompanions } from '../../lib/discoverySearch'
+import { identityEntitlementStatus, memberVerificationPresentation } from '../../lib/memberVerification'
+import { companionSetupState, verificationNudge } from '../../lib/verificationNudge'
 import { activePrimaryNavigation, headerNavigation, primaryNavigation, sidebarNavigation } from '../../lib/navigation'
 import { formatNotificationTime, webDestination, type NotificationDestination } from '../../lib/notifications'
 import { BrandLogo } from '../atoms/BrandLogo'
@@ -370,7 +373,7 @@ function NotificationNavigation() {
   </div>
 }
 
-function DesktopPrimaryNavigation({ activeItem }: { activeItem: ReturnType<typeof activePrimaryNavigation> }) {
+export function DesktopPrimaryNavigation({ activeItem }: { activeItem: ReturnType<typeof activePrimaryNavigation> }) {
   return (
     <aside className="desktop-primary-rail">
       <nav className="primary-nav" aria-label="Primary navigation">
@@ -392,7 +395,7 @@ function DesktopPrimaryNavigation({ activeItem }: { activeItem: ReturnType<typeo
   )
 }
 
-function MobilePrimaryNavigation({
+export function MobilePrimaryNavigation({
   activeItem,
   accountOpen,
   accountActive,
@@ -403,9 +406,11 @@ function MobilePrimaryNavigation({
   accountActive: boolean
   onOpenAccount: (opener: HTMLButtonElement) => void
 }) {
+  const conversations = useQuery(api.conversations.list, {})
+  const messagesUnread = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0
   return (
     <nav className="mobile-primary-nav" aria-label="Mobile primary navigation">
-      {sidebarNavigation.map((item) => (
+      {primaryNavigation.map((item) => (
         <Link
           key={item.id}
           to={item.to}
@@ -415,6 +420,7 @@ function MobilePrimaryNavigation({
         >
           <NavigationIcon id={item.id} />
           <span>{item.label}</span>
+          {item.id === 'messages' && messagesUnread > 0 && <span className="mobile-nav-badge tabular" aria-label={`${messagesUnread} unread messages`}>{messagesUnread > 99 ? '99+' : messagesUnread}</span>}
         </Link>
       ))}
       <button
@@ -457,10 +463,21 @@ function AccountNavigation({
   const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.companions.myApplication)
+  const latestVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const displayName = viewer?.displayName ?? user?.fullName ?? user?.username ?? 'Account'
   const email = user?.primaryEmailAddress?.emailAddress
   const imageUrl = viewer?.profileImageUrl
   const publicProfileSearch = application?.status === 'approved' ? { companionProfileId: application._id } : undefined
+  const verification = viewer
+    ? memberVerificationPresentation(
+      identityEntitlementStatus(viewer.verificationStatus, viewer.identityEligible),
+      latestVerification,
+      viewer.identityTestBypassActive,
+    )
+    : null
+  const nudge = viewer === undefined || application === undefined
+    ? { highlight: false, label: 'Verified' }
+    : verificationNudge(verification, companionSetupState(application?.status))
 
   return (
     <div className="account-navigation" ref={rootRef}>
@@ -504,6 +521,14 @@ function AccountNavigation({
             </div>
 
             <div className="account-menu-group">
+              <AccountLink
+                to="/get-verified"
+                icon={<BadgeCheck size={17} />}
+                onSelect={() => onClose(false)}
+                nudge={nudge.highlight
+                  ? <span className="status-pill" data-tone="warning" style={{ marginLeft: 'auto' }}>{nudge.label}</span>
+                  : undefined}
+              >Get verified</AccountLink>
               <AccountLink to="/profile" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Edit profile</AccountLink>
               {publicProfileSearch ? (
                 <AccountLink to="/companion-profile" search={publicProfileSearch} icon={<UserRound size={17} />} onSelect={() => onClose(false)}>
@@ -559,17 +584,20 @@ function AccountLink({
   icon,
   children,
   onSelect,
+  nudge,
 }: {
-  to: '/profile' | '/companion-profile' | '/become-companion' | '/companion' | '/wallet' | '/settings' | '/safety'
+  to: '/profile' | '/companion-profile' | '/become-companion' | '/companion' | '/wallet' | '/get-verified' | '/settings' | '/safety'
   search?: Record<string, string>
   icon: React.ReactNode
   children: React.ReactNode
   onSelect: () => void
+  nudge?: React.ReactNode
 }) {
   return (
     <Link to={to} search={search} className="account-menu-item" onClick={onSelect}>
       {icon}
       <span>{children}</span>
+      {nudge}
     </Link>
   )
 }

@@ -67,3 +67,16 @@ export function onboardingDestination(goal: OnboardingGoal) {
 export function goalForSkip(goal?: OnboardingGoal): OnboardingGoal {
   return goal ?? 'member'
 }
+
+export function deviceLocationErrorMessage(code: number) {
+  if (code === 1) {
+    return 'Location permission is blocked. Allow location in your browser site settings, reload, then try again.'
+  }
+  if (code === 2) {
+    return 'Your browser could not determine your location. Try again or use another browser.'
+  }
+  if (code === 3) {
+    return 'Finding your location timed out. Try again.'
+  }
+  return 'Device location could not be read. Try again.'
+}

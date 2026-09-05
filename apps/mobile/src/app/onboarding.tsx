@@ -1,6 +1,8 @@
 import {
   activityCategoryOptions,
+  friendStrengths,
   maximumActivityCategoryLength,
+  maximumCompanionActivityCategories,
   maximumOnboardingActivityCategories,
   normalizeUsername,
   usernameBaseFromDisplayName,
@@ -25,6 +27,26 @@ import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
 import { onboardingDecision } from '@/member/onboarding'
+import {
+  COMPANION_BIO_PLACEHOLDER,
+  validateCompanionApplication,
+  type CompanionApplicationForm,
+  type CompanionMode,
+} from '@/data/companionTools'
+import {
+  clampOnboardingStep,
+  defaultOnboardingCompanionForm,
+  hasSubmittedCompanionApplication,
+  mergeOnboardingCategoriesIntoForm,
+  onboardingCompanionHeroCopy,
+  onboardingCompanionHeroTitle,
+  onboardingCompanionIdentityFollowupCopy,
+  onboardingCompanionReviewNotice,
+  onboardingCompanionSkipCopy,
+  onboardingCompanionStatusPresentation,
+  onboardingMaxStep,
+  onboardingTotalSteps,
+} from '@/features/companion/onboardingCompanionApplication'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 type OnboardingGoal = 'member' | 'companion'
@@ -92,6 +114,23 @@ function ConnectedOnboarding({
   const [message, setMessage] = useState<string | null>(null)
   useAppToastMessage(message)
   const [step, setStep] = useState(0)
+  const totalSteps = onboardingTotalSteps(goal)
+  const maxStep = onboardingMaxStep(goal)
+  const existingApplication = useQuery(mobileApi.companions.myApplication, {})
+  const submitApplication = useMutation(mobileApi.companions.submitApplication)
+  const [applicationForm, setApplicationForm] = useState<CompanionApplicationForm>(() => (
+    defaultOnboardingCompanionForm({ bio: viewer.bio, categories: viewer.onboardingCategories })
+  ))
+  const [applicationBusy, setApplicationBusy] = useState(false)
+  const [applicationError, setApplicationError] = useState<string | null>(null)
+  const [applicationSubmitted, setApplicationSubmitted] = useState(false)
+  const [customApplicationCategory, setCustomApplicationCategory] = useState('')
+  const [customApplicationCategoryError, setCustomApplicationCategoryError] = useState('')
+  const hasApplication = hasSubmittedCompanionApplication(existingApplication, applicationSubmitted)
+  const applicationLoading = existingApplication === undefined && !applicationSubmitted
+  const applicationStatus = hasApplication
+    ? onboardingCompanionStatusPresentation(existingApplication, applicationSubmitted)
+    : null
   const normalizedUsername = normalizeUsername(usernameInput)
   const validationError = viewer.username ? null : usernameValidationError(normalizedUsername)
   const availability = useQuery(
@@ -119,6 +158,10 @@ function ConnectedOnboarding({
   useEffect(() => {
     if (decision === 'complete') router.replace('/profile')
   }, [decision])
+
+  useEffect(() => {
+    setStep((current) => clampOnboardingStep(current, goal))
+  }, [goal])
 
   async function requestApproximateLocation() {
     if (locating || submitting || submitted) return
@@ -178,6 +221,50 @@ function ConnectedOnboarding({
     }
   }
 
+  function editApplicationForm(update: (current: CompanionApplicationForm) => CompanionApplicationForm) {
+    setApplicationError(null)
+    setApplicationForm(update)
+  }
+
+  function goToApplicationStep() {
+    setApplicationForm((current) => mergeOnboardingCategoriesIntoForm(current, categories))
+    setStep(4)
+  }
+
+  async function submitOnboardingApplication() {
+    if (applicationBusy || submitting || submitted || hasApplication) return
+    const validated = validateCompanionApplication(applicationForm)
+    if (!validated.ok) {
+      setApplicationError(validated.message)
+      return
+    }
+    setApplicationBusy(true)
+    setApplicationError(null)
+    try {
+      await submitApplication(validated.value)
+      setApplicationSubmitted(true)
+      setMessage('Companion profile sent for review. Complete the welcome guide to continue.')
+    } catch {
+      setApplicationError('Your Companion profile could not be saved. Review the details and try again.')
+    } finally {
+      setApplicationBusy(false)
+    }
+  }
+
+  function addApplicationCustomCategory() {
+    const result = validateActivityCategories(
+      [...applicationForm.categories, customApplicationCategory],
+      maximumCompanionActivityCategories,
+    )
+    if (!result.ok) {
+      setCustomApplicationCategoryError(result.message)
+      return
+    }
+    editApplicationForm((current) => ({ ...current, categories: result.value }))
+    setCustomApplicationCategory('')
+    setCustomApplicationCategoryError('')
+  }
+
   function addCustomCategory() {
     const result = validateActivityCategories(
       [...categories, customCategory],
@@ -211,14 +298,14 @@ function ConnectedOnboarding({
       <View style={styles.header}>
         <View style={styles.stepRow}>
           <AppText variant="label" color={theme.colors.selfText}>WELCOME GUIDE</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>Step {step + 1} of 4</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>Step {step + 1} of {totalSteps}</AppText>
         </View>
-        <View accessibilityLabel={`Step ${step + 1} of 4`} style={styles.progressTrack}>
-          <View style={[styles.progressValue, { width: `${(step + 1) * 25}%`, backgroundColor: theme.colors.self }]} />
+        <View accessibilityLabel={`Step ${step + 1} of ${totalSteps}`} style={styles.progressTrack}>
+          <View style={[styles.progressValue, { width: `${((step + 1) / totalSteps) * 100}%`, backgroundColor: theme.colors.self }]} />
         </View>
-        <AppText variant="display" style={styles.heroTitle}>{['Choose your name.', 'Set your area.', 'Review your privacy.', 'Choose your path.'][step]}</AppText>
+        <AppText variant="display" style={styles.heroTitle}>{['Choose your name.', 'Set your area.', 'Review your privacy.', 'Choose your path.', onboardingCompanionHeroTitle][step]}</AppText>
         <AppText color={theme.colors.textMuted} style={styles.heroCopy}>
-          {['Pick the permanent username people will recognize.', 'We use only a rounded area for nearby discovery.', 'Know what is stored before you agree.', 'Find help or share your everyday Strengths.'][step]}
+          {['Pick the permanent username people will recognize.', 'We use only a rounded area for nearby discovery.', 'Know what is stored before you agree.', 'Find help or share your everyday Strengths.', onboardingCompanionHeroCopy][step]}
         </AppText>
       </View>
 
@@ -383,18 +470,238 @@ function ConnectedOnboarding({
         ) : null}
       </View> : null}
 
+      {step === 4 && goal === 'companion' ? <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <AppText variant="heading">Submit your Companion profile</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>
+            Applying starts review, and it does not guarantee approval.
+          </AppText>
+        </View>
+        {applicationLoading ? (
+          <View style={styles.applicationLoading}>
+            <ActivityIndicator accessibilityLabel="Checking your Companion application" color={theme.colors.self} />
+            <AppText variant="caption" color={theme.colors.textMuted}>Checking your Companion application.</AppText>
+          </View>
+        ) : applicationStatus ? (
+          <View style={[styles.statusCard, { backgroundColor: theme.colors.selfSoft, borderColor: theme.colors.self }]}>
+            <AppText variant="heading">{applicationStatus.label}</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted}>{applicationStatus.detail}</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted}>{applicationStatus.guidance}</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted}>{onboardingCompanionIdentityFollowupCopy}</AppText>
+          </View>
+        ) : (
+          <View style={styles.applicationForm}>
+            <View style={styles.sectionHeader}>
+              <AppText variant="bodyStrong">Session format</AppText>
+            </View>
+            <View style={styles.chips}>
+              {([
+                ['both', 'Online and in-person'],
+                ['online', 'Online only'],
+                ['in_person', 'In-person only'],
+              ] as const).map(([mode, label]) => (
+                <Chip
+                  key={mode}
+                  label={label}
+                  selected={applicationForm.mode === mode}
+                  accent="self"
+                  onPress={() => editApplicationForm((current) => ({ ...current, mode: mode as CompanionMode }))}
+                />
+              ))}
+            </View>
+            <View style={styles.fieldGroup}>
+              <AppText variant="bodyStrong">How can you help or spend the time?</AppText>
+              <TextInput
+                accessibilityLabel="How can you help or spend the time"
+                value={applicationForm.intro}
+                onChangeText={(intro) => editApplicationForm((current) => ({ ...current, intro }))}
+                multiline
+                maxLength={500}
+                editable={!applicationBusy && !submitting && !submitted}
+                placeholder="For example, I can join a shopping trip, explain everyday technology, or offer unhurried conversation."
+                placeholderTextColor={theme.colors.textMuted}
+                style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+              />
+              <AppText variant="caption" color={theme.colors.textMuted}>{applicationForm.intro.length}/500 characters, minimum 40.</AppText>
+            </View>
+            <View style={styles.fieldGroup}>
+              <AppText variant="bodyStrong">Tell members about yourself</AppText>
+              <TextInput
+                accessibilityLabel="Tell members about yourself"
+                value={applicationForm.bio}
+                onChangeText={(bio) => editApplicationForm((current) => ({ ...current, bio }))}
+                multiline
+                maxLength={500}
+                editable={!applicationBusy && !submitting && !submitted}
+                placeholder={COMPANION_BIO_PLACEHOLDER}
+                placeholderTextColor={theme.colors.textMuted}
+                style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+              />
+              <AppText variant="caption" color={theme.colors.textMuted}>Optional, up to 500 characters. Shown on your public profile.</AppText>
+            </View>
+            <View style={styles.fieldGroup}>
+              <AppText variant="bodyStrong">Strengths</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>Choose at least one.</AppText>
+              <View style={styles.chips}>
+                {friendStrengths.map((strength) => (
+                  <Chip
+                    key={strength}
+                    label={strength}
+                    selected={applicationForm.strengths.includes(strength)}
+                    accent="self"
+                    onPress={() => editApplicationForm((current) => ({
+                      ...current,
+                      strengths: current.strengths.includes(strength)
+                        ? current.strengths.filter((item) => item !== strength)
+                        : [...current.strengths, strength],
+                    }))}
+                  />
+                ))}
+              </View>
+            </View>
+            <View style={styles.fieldGroup}>
+              <AppText variant="bodyStrong">Everyday help and activities</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>Choose at least one.</AppText>
+              <View style={styles.chips}>
+                {activityCategoryOptions(applicationForm.categories).map((category) => (
+                  <Chip
+                    key={category}
+                    label={category}
+                    selected={applicationForm.categories.includes(category)}
+                    accent="self"
+                    onPress={() => {
+                      if (!applicationForm.categories.includes(category) && applicationForm.categories.length >= maximumCompanionActivityCategories) return
+                      editApplicationForm((current) => ({
+                        ...current,
+                        categories: current.categories.includes(category)
+                          ? current.categories.filter((value) => value !== category)
+                          : [...current.categories, category],
+                      }))
+                    }}
+                  />
+                ))}
+              </View>
+              <TextInput
+                accessibilityLabel="Custom Companion application category"
+                value={customApplicationCategory}
+                maxLength={maximumActivityCategoryLength}
+                editable={!applicationBusy && !submitting && !submitted && applicationForm.categories.length < maximumCompanionActivityCategories}
+                returnKeyType="done"
+                onChangeText={(value) => { setCustomApplicationCategory(value); setCustomApplicationCategoryError('') }}
+                onSubmitEditing={addApplicationCustomCategory}
+                placeholder="For example, museum visits"
+                placeholderTextColor={theme.colors.textMuted}
+                style={[styles.input, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+              />
+              <ActionButton
+                label="Add category"
+                onPress={addApplicationCustomCategory}
+                intent="self"
+                secondary
+                disabled={applicationBusy || submitting || submitted || applicationForm.categories.length >= maximumCompanionActivityCategories}
+              />
+              {customApplicationCategoryError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{customApplicationCategoryError}</AppText> : null}
+            </View>
+            <View style={styles.fieldGroup}>
+              <AppText variant="bodyStrong">{applicationForm.mode === 'online' ? 'Timezone or broad region, optional' : 'City'}</AppText>
+              <TextInput
+                accessibilityLabel={applicationForm.mode === 'online' ? 'Timezone or broad region' : 'City'}
+                value={applicationForm.city}
+                onChangeText={(city) => editApplicationForm((current) => ({ ...current, city }))}
+                editable={!applicationBusy && !submitting && !submitted}
+                placeholder={applicationForm.mode === 'online' ? 'For example, Philippines, GMT+8' : 'For example, Cebu City'}
+                placeholderTextColor={theme.colors.textMuted}
+                style={[styles.input, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+              />
+            </View>
+            <View style={styles.fieldGroup}>
+              <AppText variant="bodyStrong">Boundaries, one per line</AppText>
+              <TextInput
+                accessibilityLabel="Boundaries, one per line"
+                value={applicationForm.boundaries}
+                onChangeText={(boundaries) => editApplicationForm((current) => ({ ...current, boundaries }))}
+                multiline
+                editable={!applicationBusy && !submitting && !submitted}
+                placeholder="Public places only"
+                placeholderTextColor={theme.colors.textMuted}
+                style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+              />
+              <AppText variant="caption" color={theme.colors.textMuted}>Clear boundaries help both people plan a comfortable experience.</AppText>
+            </View>
+            <View style={styles.fieldGroup}>
+              <AppText variant="bodyStrong">Why do you want to earn with this community?</AppText>
+              <TextInput
+                accessibilityLabel="Why do you want to earn with this community"
+                value={applicationForm.earningMotivation}
+                onChangeText={(earningMotivation) => editApplicationForm((current) => ({ ...current, earningMotivation }))}
+                multiline
+                maxLength={1000}
+                editable={!applicationBusy && !submitting && !submitted}
+                placeholder="Share why you want to earn as a Companion. Only the review team reads this."
+                placeholderTextColor={theme.colors.textMuted}
+                style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+              />
+              <AppText variant="caption" color={theme.colors.textMuted}>Private for the review team. At least 20 characters.</AppText>
+            </View>
+            <View style={styles.fieldGroup}>
+              <AppText variant="bodyStrong">Note for the reviewer, optional</AppText>
+              <TextInput
+                accessibilityLabel="Note for the reviewer, optional"
+                value={applicationForm.applicationNote}
+                onChangeText={(applicationNote) => editApplicationForm((current) => ({ ...current, applicationNote }))}
+                multiline
+                editable={!applicationBusy && !submitting && !submitted}
+                placeholder="Anything the review team should know."
+                placeholderTextColor={theme.colors.textMuted}
+                style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+              />
+            </View>
+            <View style={styles.fieldGroup}>
+              <AppText variant="bodyStrong">Listed hourly rate in PHP</AppText>
+              <TextInput
+                accessibilityLabel="Listed hourly rate in PHP"
+                value={applicationForm.hourlyRatePesos}
+                onChangeText={(hourlyRatePesos) => editApplicationForm((current) => ({ ...current, hourlyRatePesos }))}
+                keyboardType="decimal-pad"
+                editable={!applicationBusy && !submitting && !submitted}
+                placeholder="500"
+                placeholderTextColor={theme.colors.textMuted}
+                style={[styles.input, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+              />
+              <AppText variant="caption" color={theme.colors.textMuted}>From PHP 100 to PHP 10,000 per hour.</AppText>
+            </View>
+            {applicationError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{applicationError}</AppText> : null}
+            <AppText variant="caption" color={theme.colors.textMuted}>{onboardingCompanionReviewNotice}</AppText>
+            <ActionButton
+              label={applicationBusy ? 'Sending for review' : 'Send profile for review'}
+              onPress={() => void submitOnboardingApplication()}
+              intent="self"
+              icon="send-outline"
+              disabled={applicationBusy || submitting || submitted}
+            />
+            <AppText variant="caption" color={theme.colors.textMuted}>{onboardingCompanionSkipCopy}</AppText>
+          </View>
+        )}
+      </View> : null}
+
       <View style={styles.actions}>
         {step < 3 ? <ActionButton
           label="Continue"
-          onPress={() => setStep((current) => Math.min(current + 1, 3))}
+          onPress={() => setStep((current) => Math.min(current + 1, maxStep))}
           intent="self"
           icon="arrow-forward"
           disabled={(step === 0 && !usernameReady) || (step === 1 && (!location || !locationConsent || locating)) || (step === 2 && !termsAccepted)}
+        /> : step === 3 && goal === 'companion' ? <ActionButton
+          label="Continue"
+          onPress={goToApplicationStep}
+          intent="self"
+          icon="arrow-forward"
+          disabled={!usernameReady || !location || !locationConsent || !termsAccepted || categories.length === 0 || locating || submitting || submitted}
         /> : <ActionButton
           label={submitting || submitted ? 'Saving welcome guide' : 'Complete welcome guide'}
           onPress={() => void finishOnboarding()}
           intent="self"
-          disabled={!usernameReady || !location || !locationConsent || !termsAccepted || (goal === 'companion' && categories.length === 0) || locating || submitting || submitted}
+          disabled={!usernameReady || !location || !locationConsent || !termsAccepted || (goal === 'companion' && categories.length === 0) || locating || submitting || submitted || applicationBusy}
           icon="checkmark-circle-outline"
         />}
         {step > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Go to previous step" disabled={submitting || submitted} onPress={() => setStep((current) => Math.max(0, current - 1))} style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}><AppIcon name="arrow-back" color={theme.colors.selfText} size={18} /><AppText variant="caption" color={theme.colors.selfText}>Back</AppText></Pressable> : null}
@@ -542,6 +849,13 @@ const styles = StyleSheet.create({
   categorySection: { marginTop: 10, gap: 10 },
   categoryChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   categoryInput: { minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  statusCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
+  applicationForm: { gap: 14 },
+  applicationLoading: { gap: 10, alignItems: 'center', paddingVertical: 12 },
+  fieldGroup: { gap: 8 },
+  input: { minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  multiline: { minHeight: 110, textAlignVertical: 'top' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   actions: { marginTop: 24, gap: 3 },
   signOutLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   backLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },

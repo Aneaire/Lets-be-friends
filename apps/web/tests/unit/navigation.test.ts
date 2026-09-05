@@ -54,6 +54,7 @@ describe('application navigation', () => {
     expect(isWorkspacePath('/messages')).toBe(true)
     expect(isWorkspacePath('/companion')).toBe(true)
     expect(isWorkspacePath('/wallet')).toBe(true)
+    expect(isWorkspacePath('/get-verified')).toBe(true)
     expect(isWorkspacePath('/nearby')).toBe(true)
     expect(isWorkspacePath('/discover')).toBe(false)
   })

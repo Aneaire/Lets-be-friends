@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { goalForSkip, onboardingDestination, onboardingGateDecision } from '../../src/lib/onboarding'
+import { deviceLocationErrorMessage, goalForSkip, onboardingDestination, onboardingGateDecision } from '../../src/lib/onboarding'
 
 const ready = {
   clerkLoaded: true,
@@ -86,5 +86,20 @@ describe('onboarding destinations', () => {
   it('defaults skip to member while preserving a companion choice', () => {
     expect(goalForSkip()).toBe('member')
     expect(goalForSkip('companion')).toBe('companion')
+  })
+})
+
+describe('onboarding device location errors', () => {
+  it('explains each failure without offering a manual pin fallback', () => {
+    expect(deviceLocationErrorMessage(1)).toContain('browser site settings')
+    expect(deviceLocationErrorMessage(2)).toContain('could not determine your location')
+    expect(deviceLocationErrorMessage(3)).toContain('timed out')
+    expect(deviceLocationErrorMessage(99)).toContain('could not be read')
+  })
+
+  it('never directs users to place a pin', () => {
+    for (const code of [1, 2, 3, 99]) {
+      expect(deviceLocationErrorMessage(code)).not.toMatch(/pin/i)
+    }
   })
 })

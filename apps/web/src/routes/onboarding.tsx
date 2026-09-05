@@ -13,9 +13,11 @@ import {
 } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
-import { geolocationErrorMessage, roundCoordinates, type Coordinates } from '../lib/geo'
-import { goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
+import { roundCoordinates, type Coordinates } from '../lib/geo'
+import { deviceLocationErrorMessage, goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
+import { OnboardingCompanionApplicationStep } from '../features/companion-application/OnboardingCompanionApplicationStep'
+import { companionApplicationSkipDestination } from '../features/companion-application/onboardingCompanionApplication'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 
 export const Route = createFileRoute('/onboarding')({ component: OnboardingPage })
@@ -46,6 +48,8 @@ function OnboardingPage() {
   const saveOnboardingLocationAndConsent = useMutation(api.users.saveOnboardingLocationAndConsent)
   const completeOnboarding = useMutation(api.users.completeOnboarding)
   const identityFlow = useIdentityVerification('member')
+  const companionIdentityFlow = useIdentityVerification('companion_application')
+  const companionApplication = useQuery(api.companions.myApplication, isSignedIn && viewer ? {} : 'skip')
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [username, setUsername] = useState('')
@@ -107,7 +111,7 @@ function OnboardingPage() {
   const saveUsernameAndContinue = async () => {
     if (submitting) return
     if (!approxLocation) {
-      setError('Choose an approximate location before continuing.')
+      setError('Use your device location before continuing.')
       return
     }
     if (!locationConsent || !termsAccepted) {
@@ -240,6 +244,37 @@ function OnboardingPage() {
           ? 'Start a new identity check'
           : 'Verify identity'
 
+  const hasCompanionApplication = Boolean(companionApplication)
+
+  const finishCompanionWithIdentityReview = async () => {
+    if (submitting || companionIdentityFlow.busy || !hasCompanionApplication) return
+    setSubmitting(true)
+    setError('')
+    try {
+      await completeOnboarding({ goal: 'companion' })
+      if (verification.state === 'approved' || verification.action === 'none') {
+        await navigate({ to: onboardingDestination('companion') })
+        return
+      }
+      const result = await companionIdentityFlow.begin()
+      if (result?.mode !== 'launch') await navigate({ to: onboardingDestination('companion') })
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Identity verification could not be started.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const companionIdentityActionLabel = verification.state === 'approved'
+    ? 'Open Companion profile'
+    : verification.action === 'none'
+      ? 'View verification status'
+      : verification.action === 'continue'
+        ? 'Continue identity check'
+        : verification.action === 'retry'
+          ? 'Start a new identity check'
+          : 'Verify identity'
+
   return (
     <main className="onboarding-page">
       <header className="onboarding-intro">
@@ -334,13 +369,13 @@ function OnboardingPage() {
                 <p className="label">Required approximate location</p>
                 <p className="text-meta mt-1">Your rounded location is used continuously for discovery. If you become an approved Companion, your profile is always shown on the nearby map at this approximate location, including for online sessions. Ordinary member profiles are never placed on the map.</p>
               </div>
-              <div className="flex gap-2 flex-wrap mt-3">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   type="button"
                   className="btn btn-self btn-sm"
                   onClick={() => {
                     if (!navigator.geolocation) {
-                      setLocationStatus('Location is not available in this browser. Place a pin on the map instead.')
+                      setLocationStatus('Location is not available in this browser. Try another browser or device.')
                       return
                     }
                     setLocationStatus('Asking for your device location...')
@@ -349,7 +384,7 @@ function OnboardingPage() {
                         setPendingDeviceLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude })
                         setLocationStatus('Device locations can be exact. Review the warning before applying the rounded result.')
                       },
-                      (locationError) => setLocationStatus(geolocationErrorMessage(locationError.code)),
+                      (locationError) => setLocationStatus(deviceLocationErrorMessage(locationError.code)),
                       { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
                     )
                   }}
@@ -361,29 +396,23 @@ function OnboardingPage() {
                 <div className="notice notice-warning mt-3" role="alert">
                   <span className="notice-icon">!</span>
                   <span>
-                    <strong>Your device location may be exact.</strong> Only the two-decimal rounded result will be saved. Move the pin away from a home or private meeting point if needed.
+                    <strong>Your device location may be exact.</strong> Only the two-decimal rounded result will be saved.
                     <span className="flex gap-2 flex-wrap mt-2">
                       <button type="button" className="btn btn-self btn-sm" onClick={() => {
                         setApproxLocation(roundCoordinates(pendingDeviceLocation))
                         setPendingDeviceLocation(null)
-                        setLocationStatus('Rounded device location applied. You can move the pin to a safer broad area.')
+                        setLocationStatus('Rounded device location applied.')
                       }}>Apply rounded location</button>
                       <button type="button" className="btn btn-neutral btn-sm" onClick={() => setPendingDeviceLocation(null)}>Do not apply</button>
                     </span>
                   </span>
                 </div>
               )}
-              <div className="mt-4">
+              <div>
                 <ApproximateLocationMap
                   location={approxLocation}
-                  pinnable
-                  onChange={(location) => {
-                    setApproxLocation(roundCoordinates(location))
-                    setLocationStatus('Approximate pin selected. Only coordinates rounded to two decimals will be saved.')
-                    setError('')
-                  }}
-                  title={approxLocation ? 'Your approximate discovery area' : 'Place a privacy-safe pin'}
-                  description="Click the map or use the controls. Do not choose your home or an exact meeting point."
+                  title={approxLocation ? 'Your approximate discovery area' : 'Your location preview'}
+                  description="Use your device location above. Only coordinates rounded to two decimals are saved."
                 />
               </div>
               {locationStatus && <p className="text-meta mt-2" role="status" aria-live="polite">{locationStatus}</p>}
@@ -539,28 +568,65 @@ function OnboardingPage() {
           </div>
         )}
 
-        {step === 5 && (
+        {step === 5 && selectedGoal === 'member' && (
           <div className="onboarding-complete">
             <span className="onboarding-complete-mark" aria-hidden="true"><Check size={22} strokeWidth={2.25} /></span>
             <div>
               <p className="eyebrow">Step 5</p>
               <h2 className="text-h1 mt-2">You&apos;re ready for the next step.</h2>
               <p className="lede mt-3">
-                {selectedGoal === 'companion'
-                  ? 'Continue to your Companion profile. Applying starts review; it does not guarantee approval.'
-                  : verification.state === 'approved'
-                    ? 'Your identity check and safety review are approved. Continue to Bookings when you are ready.'
-                    : verification.action === 'none'
-                      ? `${verification.guidance} Continue to Bookings to follow its status, or skip for now and explore.`
-                      : 'Complete a private government ID check and current selfie capture now. Every submission is reviewed by the safety team before booking unlocks.'}
+                {verification.state === 'approved'
+                  ? 'Your identity check and safety review are approved. Continue to Bookings when you are ready.'
+                  : verification.action === 'none'
+                    ? `${verification.guidance} Continue to Bookings to follow its status, or skip for now and explore.`
+                    : 'Complete a private government ID check and current selfie capture now. Every submission is reviewed by the safety team before booking unlocks.'}
               </p>
               {viewer.onboardingCompletedAt && <p className="onboarding-complete-note mt-4">Your welcome guide is already complete. Finishing again keeps your account setup intact.</p>}
             </div>
           </div>
         )}
 
+        {step === 5 && selectedGoal === 'companion' && (
+          <div className="onboarding-complete">
+            <span className="onboarding-complete-mark" aria-hidden="true"><Check size={22} strokeWidth={2.25} /></span>
+            <div>
+              <p className="eyebrow">Step 5</p>
+              <h2 className="text-h1 mt-2">Submit your Companion application.</h2>
+              <p className="lede mt-3">
+                Complete and submit your Companion profile below. Applying starts review, and it does not guarantee approval. After submitting, continue to identity verification.
+              </p>
+              {viewer.onboardingCompletedAt && <p className="onboarding-complete-note mt-4">Your welcome guide is already complete. Finishing again keeps your account setup intact.</p>}
+              <OnboardingCompanionApplicationStep
+                application={companionApplication === undefined
+                  ? undefined
+                  : companionApplication === null
+                    ? null
+                    : { status: companionApplication.status, updatedAt: companionApplication.updatedAt }}
+                viewerBio={viewer.bio}
+                viewerCategories={viewer.onboardingCategories}
+                onSubmitted={() => setError('')}
+              />
+              {hasCompanionApplication && (
+                <div className="onboarding-identity-after-application mt-6">
+                  <h3 className="text-h3">Next: identity verification</h3>
+                  <p className="text-body muted mt-2">
+                    {verification.state === 'approved'
+                      ? 'Your identity check is approved. Continue to your Companion profile when you are ready.'
+                      : 'Complete a private government ID check and current selfie capture now. Every submission is reviewed by the safety team.'}
+                  </p>
+                </div>
+              )}
+              {!hasCompanionApplication && companionApplication !== undefined && (
+                <p className="text-meta mt-4">
+                  Prefer to apply later? Use Skip for now to finish setup. You can submit your application from {companionApplicationSkipDestination()} at any time.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         {identityFlow.message && <div className="notice notice-success mt-6" role="status"><span className="notice-icon">✓</span><span>{identityFlow.message}</span></div>}
-        {(error || identityFlow.error) && <div className="notice notice-danger mt-6"><span className="notice-icon">!</span><span>{identityFlow.error || error}</span></div>}
+        {(error || identityFlow.error || companionIdentityFlow.error) && <div className="notice notice-danger mt-6"><span className="notice-icon">!</span><span>{companionIdentityFlow.error || identityFlow.error || error}</span></div>}
 
         <footer className="onboarding-actions">
           {step > 1
@@ -575,8 +641,14 @@ function OnboardingPage() {
             {step === 3 && <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void saveProfileAndContinue()}>{submitting ? 'Saving…' : 'Save and continue'}</button>}
             {step === 4 && <button type="button" className="btn btn-self" onClick={() => setStep(5)}>Continue</button>}
             {step === 5 && selectedGoal === 'companion' && (
-              <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void finish(selectedGoal)}>
-                {submitting ? 'Saving…' : 'Create Companion profile'}
+              <button
+                type="button"
+                className="btn btn-self"
+                disabled={submitting || companionIdentityFlow.busy || !hasCompanionApplication}
+                title={hasCompanionApplication ? undefined : 'Submit your Companion application above before continuing.'}
+                onClick={() => void finishCompanionWithIdentityReview()}
+              >
+                {submitting || companionIdentityFlow.busy ? 'Opening identity check...' : companionIdentityActionLabel}
               </button>
             )}
             {step === 5 && selectedGoal === 'member' && (

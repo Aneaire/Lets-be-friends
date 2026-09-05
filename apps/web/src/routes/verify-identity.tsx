@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { IdentityVerificationPage, type IdentityIntent, type IdentityReturnTo } from '../features/identity/IdentityVerificationFlow'
 
-const returnPaths = new Set<IdentityReturnTo>(['/app', '/profile', '/onboarding', '/become-companion'])
+const returnPaths = new Set<IdentityReturnTo>(['/app', '/profile', '/onboarding', '/become-companion', '/get-verified'])
 type MobileReturnTo = 'profile' | 'companion'
 
 export const Route = createFileRoute('/verify-identity')({

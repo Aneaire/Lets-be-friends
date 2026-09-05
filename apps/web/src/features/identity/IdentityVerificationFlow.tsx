@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 
 export type IdentityIntent = 'member' | 'companion_application'
-export type IdentityReturnTo = '/app' | '/profile' | '/onboarding' | '/become-companion'
+export type IdentityReturnTo = '/app' | '/profile' | '/onboarding' | '/become-companion' | '/get-verified'
 export type IdentityMobileReturnTo = 'profile' | 'companion'
 type DocumentType = 'passport' | 'drivers_license' | 'national_id' | 'residence_permit' | 'other_government_id'
 type CameraTarget = 'id_front' | 'id_back' | 'selfie'
@@ -546,8 +546,8 @@ function IdentityProcessing() {
 }
 
 function stepState(step: number, active: number): 'complete' | 'active' | 'upcoming' { return step < active ? 'complete' : step === active ? 'active' : 'upcoming' }
-function identityReturnPath(pathname: string, intent: IdentityIntent): IdentityReturnTo { if (pathname === '/profile' || pathname === '/onboarding' || pathname === '/become-companion') return pathname; return intent === 'companion_application' ? '/become-companion' : '/app' }
-function navigateToReturn(navigate: ReturnType<typeof useNavigate>, returnTo: IdentityReturnTo) { if (returnTo === '/profile') return navigate({ to: '/profile' }); if (returnTo === '/onboarding') return navigate({ to: '/onboarding' }); if (returnTo === '/become-companion') return navigate({ to: '/become-companion' }); return navigate({ to: '/app', search: {} }) }
+function identityReturnPath(pathname: string, intent: IdentityIntent): IdentityReturnTo { if (pathname === '/profile' || pathname === '/onboarding' || pathname === '/become-companion' || pathname === '/get-verified') return pathname; return intent === 'companion_application' ? '/become-companion' : '/app' }
+function navigateToReturn(navigate: ReturnType<typeof useNavigate>, returnTo: IdentityReturnTo) { if (returnTo === '/profile') return navigate({ to: '/profile' }); if (returnTo === '/onboarding') return navigate({ to: '/onboarding' }); if (returnTo === '/become-companion') return navigate({ to: '/become-companion' }); if (returnTo === '/get-verified') return navigate({ to: '/get-verified' }); return navigate({ to: '/app', search: {} }) }
 async function uploadFile(uploadImage: any, identityRecordId: any, kind: 'id_front' | 'id_back', file: File) { await uploadImage({ identityRecordId, kind, bytes: await file.arrayBuffer(), contentType: file.type }) }
 function emptyToUndefined(value?: string) { const normalized = value?.trim(); return normalized ? normalized : undefined }
 function formatFileSize(bytes: number) { return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB` }

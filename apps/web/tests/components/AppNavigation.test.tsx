@@ -28,7 +28,7 @@ vi.mock('convex/react', () => ({
   useMutation: () => vi.fn(),
 }))
 
-import { AccountAvatar, HeaderPrimaryActions, HeaderSearch, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
+import { AccountAvatar, DesktopPrimaryNavigation, HeaderPrimaryActions, HeaderSearch, MobilePrimaryNavigation, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
 
 afterEach(cleanup)
 
@@ -84,6 +84,31 @@ describe('header primary actions', () => {
 
     expect(screen.getByRole('link', { name: 'Messages' }).getAttribute('aria-current')).toBe('page')
     expect(screen.getByRole('link', { name: 'Bookings' }).getAttribute('aria-current')).toBeNull()
+  })
+})
+
+describe('primary navigation surfaces', () => {
+  it('keeps the desktop rail focused on Home and Explore', () => {
+    render(<DesktopPrimaryNavigation activeItem="home" />)
+
+    const nav = screen.getByRole('navigation', { name: /primary navigation/i })
+    expect(nav.querySelectorAll('a.primary-nav-link')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Explore' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Messages' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Bookings' })).toBeNull()
+  })
+
+  it('keeps Messages and Bookings in the mobile bottom tabs', () => {
+    render(<MobilePrimaryNavigation activeItem="messages" accountOpen={false} accountActive={false} onOpenAccount={() => {}} />)
+
+    const nav = screen.getByRole('navigation', { name: /mobile primary navigation/i })
+    expect(nav.querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(4)
+    expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Explore' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Messages' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByRole('link', { name: 'Bookings' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Account' })).toBeTruthy()
   })
 })
 

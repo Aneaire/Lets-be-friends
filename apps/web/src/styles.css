@@ -8092,20 +8092,35 @@ textarea.field {
   display: grid;
   max-width: 34rem;
   gap: 0.55rem;
-  padding: clamp(1rem, 3vw, 1.5rem);
-  border: 1px solid var(--rule);
-  border-radius: 0.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.onboarding-username-card .onboarding-username-field {
   background: var(--surface-sunk);
 }
 
 .onboarding-location-card {
   display: grid;
-  max-width: 48rem;
+  max-width: none;
   gap: 0.75rem;
-  padding: clamp(1rem, 3vw, 1.5rem);
-  border: 1px solid var(--rule);
-  border-radius: 0.75rem;
-  background: var(--surface-sunk);
+  margin-top: 1.25rem;
+  padding: 1.25rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  border-radius: 0;
+  background: transparent;
+}
+
+.onboarding-location-card .approx-location-map-frame {
+  height: clamp(20rem, 34vw, 26rem);
+  min-height: 20rem;
+}
+
+.onboarding-location-card .approx-location-figure {
+  margin-top: 0.25rem;
 }
 
 .onboarding-consent-list {
@@ -8378,8 +8393,22 @@ textarea.field {
 
 @media (max-width: 720px) {
   .onboarding-page {
-    width: min(100% - 1.5rem, 68rem);
+    width: min(100% - 1rem, 68rem);
     padding-block: 2rem 3rem;
+  }
+
+  .onboarding-stage {
+    padding: 1.25rem 0.75rem;
+  }
+
+  .onboarding-location-card {
+    margin-top: 1rem;
+    padding-top: 1rem;
+  }
+
+  .onboarding-location-card .approx-location-map-frame {
+    height: clamp(20rem, 85vw, 28rem);
+    min-height: 20rem;
   }
 
   .onboarding-progress {
@@ -8439,9 +8468,12 @@ textarea.field {
     padding-inline: 0.75rem;
   }
 
-  .gate-state-inner,
-  .onboarding-stage {
+  .gate-state-inner {
     padding: 1.25rem;
+  }
+
+  .onboarding-stage {
+    padding: 1rem 0.625rem;
   }
 
   .gate-state-actions,
@@ -12599,6 +12631,10 @@ textarea.field {
     }
 
     .desktop-primary-rail {
+      display: none;
+    }
+
+    .header-primary-actions {
       display: none;
     }
 
