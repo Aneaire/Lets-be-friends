@@ -1,6 +1,6 @@
 export type OnboardingGoal = 'member' | 'companion'
 
-const currentTermsVersion = '2026-08-13'
+export const currentTermsVersion = '2026-08-13'
 
 export type OnboardingGateDecision =
   | 'loading'

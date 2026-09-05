@@ -55,9 +55,9 @@ describe('shared early access domain constants', () => {
     expect(activityCategoryValidationError('   ')).toBe('Enter a category.')
     expect(activityCategoryValidationError('Everything')).toBe('Everything is a filter and cannot be saved as a category.')
     expect(activityCategoryValidationError('x'.repeat(61))).toBe('Categories must be 60 characters or fewer.')
-    expect(validateActivityCategories(Array.from({ length: 25 }, (_, index) => `Category ${index}`))).toEqual({
+    expect(validateActivityCategories(Array.from({ length: 11 }, (_, index) => `Category ${index}`))).toEqual({
       ok: false,
-      message: 'Choose up to 24 categories.',
+      message: 'Choose up to 10 categories.',
     })
   })
 

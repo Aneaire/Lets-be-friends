@@ -5,25 +5,30 @@ import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import {
   activityCategories,
-  activityCategoryOptions,
-  friendStrengths,
-  maximumActivityCategoryLength,
   maximumCompanionActivityCategories,
-  validateActivityCategories,
 } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
+import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
+import { ActivityCategoryPicker } from '../features/companion-application/ActivityCategoryPicker'
+import {
+  clearCompanionApplicationDraft,
+  companionLocationReady,
+  readCompanionApplicationDraft,
+  restoreCompanionEditorStep,
+  writeCompanionApplicationDraft,
+} from '../features/companion-application/companionApplicationDraft'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { identityEntitlementStatus, memberVerificationPresentation, type MemberVerificationPresentation } from '../lib/memberVerification'
+import { geolocationErrorMessage, roundCoordinates, type Coordinates } from '../lib/geo'
+import { currentTermsVersion } from '../lib/onboarding'
 
 export const Route = createFileRoute('/become-companion')({ component: BecomeCompanionPage })
 
 const companionEditorSteps = [
   { id: 1, label: 'What you offer' },
-  { id: 2, label: 'Strengths' },
-  { id: 3, label: 'Activities' },
-  { id: 4, label: 'Location' },
-  { id: 5, label: 'Boundaries and review' },
+  { id: 2, label: 'Activities' },
+  { id: 3, label: 'Location' },
 ] as const
 
 function BecomeCompanionPage() {
@@ -36,7 +41,7 @@ function BecomeCompanionPage() {
           <div>
             <p className="eyebrow">Companion profile</p>
             <h1 className="text-display">Share what you can offer. Earn on your terms.</h1>
-            <p className="text-body muted">Five focused steps. Your existing details stay in place until you save and send changes for review.</p>
+            <p className="text-body muted">Three focused steps. Your existing details stay in place until you save and send changes for review.</p>
           </div>
           <a href="#companion-profile-editor" className="btn btn-self">Open profile editor</a>
         </header>
@@ -44,7 +49,7 @@ function BecomeCompanionPage() {
         <>
           <header className="companion-hero">
             <div className="companion-hero-copy">
-              <h1 className="text-display mt-4">Your everyday Strengths can help someone and help you earn.</h1>
+              <h1 className="text-display mt-4">What you enjoy doing can help someone and help you earn.</h1>
             </div>
             <div className="companion-hero-visual">
               <figure className="marketing-photo companion-hero-photo">
@@ -57,14 +62,14 @@ function BecomeCompanionPage() {
               </figure>
               <div className="companion-definition">
                 <span className="companion-definition-label">What is a Companion?</span>
-                <p>A verified member who offers everyday help, platonic conversation, or shared activities online or in person. Every Companion chooses their availability, rate, and boundaries.</p>
+                <p>A verified member who offers everyday help, platonic conversation, or shared activities online or in person. Every Companion chooses their availability and rate.</p>
               </div>
             </div>
           </header>
 
           <section className="companion-benefit-grid" aria-label="What you control">
-            <article><span>01</span><h2>Use Strengths you already have</h2><p>Choose the everyday help and activities that feel natural to you.</p></article>
-            <article><span>02</span><h2>Set the boundaries</h2><p>Decide online or in-person, your rate, and what you do not offer.</p></article>
+            <article><span>01</span><h2>Offer what you already enjoy</h2><p>Choose the everyday help and activities that feel natural to you.</p></article>
+            <article><span>02</span><h2>Choose how you meet</h2><p>Decide between online and in-person sessions, then set your rate.</p></article>
             <article><span>03</span><h2>Get reviewed before going live</h2><p>Identity and profile review happen before members can find you or send a booking request.</p></article>
           </section>
           <section className="companion-ideas" aria-labelledby="companion-ideas-title">
@@ -89,15 +94,15 @@ function BecomeCompanionPage() {
 }
 
 function CompanionAuthPanel() {
-  const { isSignedIn } = useAuth()
+  const { isSignedIn, userId } = useAuth()
   const formRef = useRef<HTMLFormElement>(null)
+  const hydratedDraftKeyRef = useRef<string | null>(null)
   const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.companions.myApplication)
   const latestIdentityVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const submit = useMutation(api.companions.submitApplication)
-  const setIdentityTestBypass = useMutation(api.users.setIdentityTestBypass)
+  const saveLocation = useMutation(api.users.saveOnboardingLocationAndConsent)
   const identityFlow = useIdentityVerification('companion_application')
-  const [selectedStrengths, setSelectedStrengths] = useState<string[]>(['Good listener'])
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [currentStep, setCurrentStep] = useState(1)
   const [stepError, setStepError] = useState('')
@@ -107,29 +112,69 @@ function CompanionAuthPanel() {
   const [intro, setIntro] = useState('')
   const [bio, setBio] = useState('')
   const [earningMotivation, setEarningMotivation] = useState('')
-  const [boundaries, setBoundaries] = useState('Public places only\nNo dating or romantic expectations')
+  const [approximateLocation, setApproximateLocation] = useState<Coordinates | null>(null)
+  const [locationConfirmed, setLocationConfirmed] = useState(false)
+  const [locationConsent, setLocationConsent] = useState(false)
+  const [locationStatus, setLocationStatus] = useState('')
+  const [savingLocation, setSavingLocation] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [testBypassSaving, setTestBypassSaving] = useState(false)
-  const [testBypassError, setTestBypassError] = useState('')
 
   useEffect(() => {
-    if (!application) {
+    if (!userId || viewer === undefined || application === undefined) return
+    if (hydratedDraftKeyRef.current === userId) return
+
+    if (application) {
+      setMode(application.mode)
+      setCity(application.city)
+      setHourlyRatePesos(String((application.hourlyRateCentavos ?? 50_000) / 100))
+      setIntro(application.intro)
+      setBio(application.bio ?? viewer?.bio ?? '')
+      setEarningMotivation(application.earningMotivation ?? '')
+      setSelectedCategories(application.categories)
+    } else {
       if (viewer?.bio) setBio(viewer.bio)
       if (viewer?.onboardingCategories?.length) setSelectedCategories(viewer.onboardingCategories)
-      return
     }
-    setMode(application.mode)
-    setCity(application.city)
-    setHourlyRatePesos(String((application.hourlyRateCentavos ?? 50_000) / 100))
-    setIntro(application.intro)
-    setBio(application.bio ?? viewer?.bio ?? '')
-    setEarningMotivation(application.earningMotivation ?? '')
-    setBoundaries(application.boundaries?.join('\n') ?? 'Public places only\nNo dating or romantic expectations')
-    setSelectedStrengths(application.strengths.length > 0 ? application.strengths : ['Good listener'])
-    setSelectedCategories(application.categories)
-  }, [application?._id, application?.updatedAt, viewer?.onboardingCategories, viewer?.bio])
+    if (typeof viewer?.approximateLatitude === 'number' && typeof viewer?.approximateLongitude === 'number') {
+      setApproximateLocation({ latitude: viewer.approximateLatitude, longitude: viewer.approximateLongitude })
+    }
+
+    const draft = readCompanionApplicationDraft(window.localStorage, userId)
+    if (draft) {
+      setCurrentStep(restoreCompanionEditorStep(draft.currentStep, draft.editorStepCount, companionEditorSteps.length))
+      setMode(draft.mode)
+      setCity(draft.city)
+      setHourlyRatePesos(draft.hourlyRatePesos)
+      setIntro(draft.intro)
+      setBio(draft.bio)
+      setEarningMotivation(draft.earningMotivation)
+      setSelectedCategories(draft.selectedCategories)
+      setApproximateLocation(draft.approximateLocation ?? null)
+      setLocationConfirmed(draft.locationConfirmed ?? false)
+      setLocationConsent(draft.locationConsent ?? false)
+    }
+    hydratedDraftKeyRef.current = userId
+  }, [application, userId, viewer])
+
+  useEffect(() => {
+    if (!userId || hydratedDraftKeyRef.current !== userId || saved) return
+    writeCompanionApplicationDraft(window.localStorage, userId, {
+      currentStep,
+      editorStepCount: companionEditorSteps.length,
+      mode,
+      city,
+      hourlyRatePesos,
+      intro,
+      bio,
+      earningMotivation,
+      selectedCategories,
+      approximateLocation,
+      locationConfirmed,
+      locationConsent,
+    })
+  }, [approximateLocation, bio, city, currentStep, earningMotivation, hourlyRatePesos, intro, locationConfirmed, locationConsent, mode, saved, selectedCategories, userId])
 
   if (!isSignedIn) {
     return (
@@ -152,7 +197,6 @@ function CompanionAuthPanel() {
   const verification = memberVerificationPresentation(
     identityEntitlementStatus(viewer?.verificationStatus ?? 'not_started', viewer?.identityEligible ?? false),
     latestIdentityVerification,
-    viewer?.identityTestBypassActive ?? false,
   )
 
   const changeStep = (nextStep: number) => {
@@ -171,16 +215,38 @@ function CompanionAuthPanel() {
       invalidField.focus()
       return false
     }
-    if (currentStep === 2 && selectedStrengths.length === 0) {
-      setStepError('Choose at least one Strength before continuing.')
+    if (currentStep === 2 && selectedCategories.length === 0) {
+      setStepError('Choose at least one activity before continuing.')
       return false
     }
-    if (currentStep === 3 && selectedCategories.length === 0) {
-      setStepError('Choose at least one activity before continuing.')
+    if (currentStep === 3 && !companionLocationReady(approximateLocation, locationConfirmed, locationConsent)) {
+      setStepError('Use your current location and confirm the location consent before continuing.')
       return false
     }
     setStepError('')
     return true
+  }
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus('Location is not available in this browser. Use a browser or device with location access.')
+      return
+    }
+    setLocationConfirmed(false)
+    setLocationStatus('Waiting for location permission...')
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setApproximateLocation(roundCoordinates({ latitude: position.coords.latitude, longitude: position.coords.longitude }))
+        setLocationConfirmed(true)
+        setLocationStatus('Current location found. Review the approximate point and confirm the consent below.')
+        setStepError('')
+      },
+      (locationError) => {
+        setLocationConfirmed(false)
+        setLocationStatus(geolocationErrorMessage(locationError.code).replace(' You can also place a pin on the map.', ''))
+      },
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 0 },
+    )
   }
 
   return (
@@ -190,29 +256,38 @@ function CompanionAuthPanel() {
         className="companion-editor-form"
         onSubmit={async (event) => {
           event.preventDefault()
-          if (currentStep !== companionEditorSteps.length || !validateCurrentStep()) return
+          if (currentStep !== companionEditorSteps.length || !validateCurrentStep() || !approximateLocation) return
           setSaving(true)
+          setSavingLocation(true)
           setSaved(false)
           setError('')
           try {
-            const form = new FormData(event.currentTarget)
+            await saveLocation({
+              latitude: approximateLocation.latitude,
+              longitude: approximateLocation.longitude,
+              locationConsent: true,
+              termsAccepted: Boolean(viewer?.termsAcceptedAt && viewer.termsVersion === currentTermsVersion),
+              termsVersion: currentTermsVersion,
+            })
             await submit({
               intro: intro.trim(),
               city: city.trim(),
-              strengths: selectedStrengths,
+              strengths: [],
               categories: selectedCategories,
-              boundaries: boundaries.split('\n').map((item) => item.trim()).filter(Boolean),
+              boundaries: [],
               mode,
               hourlyRateCentavos: Math.round(Number(hourlyRatePesos) * 100),
-              applicationNote: String(form.get('applicationNote') || '') || undefined,
+              applicationNote: undefined,
               bio: bio.trim() || undefined,
               earningMotivation: earningMotivation.trim(),
             })
+            if (userId) clearCompanionApplicationDraft(window.localStorage, userId)
             setSaved(true)
           } catch (submitError) {
             setError(submitError instanceof Error ? submitError.message : 'Your Companion profile could not be saved.')
           } finally {
             setSaving(false)
+            setSavingLocation(false)
           }
         }}
       >
@@ -293,7 +368,7 @@ function CompanionAuthPanel() {
             <span className="field-row-help">You receive {formatPhpFromPesos(hourlyRatePesos)} for each completed hour. The member's final booking total includes the service fee.</span>
           </label>
           <label className="field-row">
-            <span className="label">How can you help or spend the time? <span className="label-aux">40 to 500 characters</span></span>
+            <span className="label">How would you like to spend time with members? <span className="label-aux">40 to 500 characters</span></span>
             <textarea
               required
               minLength={40}
@@ -324,38 +399,39 @@ function CompanionAuthPanel() {
               <span id="companion-bio-count" className="field-row-help tabular">{bio.length}/500</span>
             </span>
           </label>
+          <label className="field-row">
+            <span className="label">Why do you want to earn with Let&apos;s Be Friends? <span className="label-aux">private, at least 20 characters</span></span>
+            <textarea
+              required
+              minLength={20}
+              maxLength={1000}
+              value={earningMotivation}
+              onChange={(event) => setEarningMotivation(event.currentTarget.value)}
+              className="field min-h-24"
+              placeholder="Share why you want to earn as a Companion. Only the review team reads this."
+            />
+          </label>
         </NumberedSection>
 
         <NumberedSection
           n={2}
           active={currentStep === 2}
-          title="Strengths you bring"
-          rationale="Choose the qualities and everyday skills you genuinely want to share with another member."
-        >
-          <ChipGroup label="Strengths" values={friendStrengths} selected={selectedStrengths} setSelected={setSelectedStrengths} />
-        </NumberedSection>
-
-        <NumberedSection
-          n={3}
-          active={currentStep === 3}
           title="Everyday help and activities"
           rationale="Choose what you feel comfortable offering. Every category is reviewed before it appears on your profile."
         >
-          <ChipGroup
-            label="Activities"
+          <ActivityCategoryPicker
             values={activityCategories}
             selected={selectedCategories}
             setSelected={setSelectedCategories}
-            allowCustom
             maximum={maximumCompanionActivityCategories}
           />
         </NumberedSection>
 
         <NumberedSection
-          n={4}
-          active={currentStep === 4}
+          n={3}
+          active={currentStep === 3}
           title="Where you are available"
-          rationale="Share a city, timezone, or broad region for context. Your approved Companion profile uses the rounded approximate location saved during onboarding for always-on nearby discovery."
+          rationale="Confirm your current location for nearby discovery. The map shows the rounded approximate point that will be saved."
         >
           <label className="field-row">
             <span className="label">{mode === 'online' ? 'Timezone or broad region' : 'City'} <span className="label-aux">{mode === 'online' ? 'optional' : 'required'}</span></span>
@@ -368,67 +444,26 @@ function CompanionAuthPanel() {
             />
           </label>
 
-          <div className="notice text-meta"><span className="notice-icon">i</span><span>Location is not edited here. Approved Companions are always shown in nearby discovery using the two-decimal approximate location saved during onboarding, including online-only profiles.</span></div>
-        </NumberedSection>
-
-        <NumberedSection
-          n={5}
-          active={currentStep === 5}
-          title="Boundaries and review"
-          rationale="Tell members what keeps the experience comfortable, then review the profile before sending it."
-        >
-          <label className="field-row">
-            <span className="label">Boundaries <span className="label-aux">one per line</span></span>
-            <textarea
-              value={boundaries}
-              onChange={(event) => setBoundaries(event.currentTarget.value)}
-              className="field min-h-24"
+          <div className="companion-location-capture">
+            <div className="companion-location-action">
+              <div>
+                <strong>Current location required</strong>
+                <span>Your browser will ask for permission. We immediately round the result to two decimal places before saving it.</span>
+              </div>
+              <button type="button" className="btn btn-self" onClick={useCurrentLocation}>
+                {locationConfirmed ? 'Refresh my location' : 'Use my current location'}
+              </button>
+            </div>
+            <ApproximateLocationMap
+              location={approximateLocation}
+              title={locationConfirmed ? 'Your approximate discovery location' : 'Location preview'}
+              description={locationConfirmed ? 'This rounded point is what members will see for nearby discovery.' : 'Use your current location to place your approximate point on the map.'}
             />
-          </label>
-          <label className="field-row">
-            <span className="label">Why do you want to earn with Let’s Be Friends? <span className="label-aux">private, at least 20 characters</span></span>
-            <textarea
-              required
-              minLength={20}
-              maxLength={1000}
-              value={earningMotivation}
-              onChange={(event) => setEarningMotivation(event.currentTarget.value)}
-              className="field min-h-24"
-              placeholder="Share why you want to earn as a Companion. Only the review team reads this."
-            />
-          </label>
-          <label className="field-row">
-            <span className="label">Reviewer note <span className="label-aux">internal only</span></span>
-            <textarea
-              name="applicationNote"
-              defaultValue={application?.applicationNote}
-              className="field min-h-20"
-              placeholder="Anything trust and safety should know."
-            />
-          </label>
-          <div className="companion-review-summary">
-            <div><span>Format</span><strong>{formatModeLabel(mode)}</strong></div>
-            <div><span>You receive</span><strong>{formatPhpFromPesos(hourlyRatePesos)} per hour</strong></div>
-            <div><span>Strengths</span><strong>{selectedStrengths.length}</strong></div>
-            <div><span>Activities</span><strong>{selectedCategories.length}</strong></div>
-          </div>
-          <div className="companion-mobile-preview">
-            <CompanionProfilePreview
-              displayName={application?.displayName ?? viewer?.displayName}
-              profileImageUrl={application?.profileImageUrl}
-              mode={mode}
-              city={city}
-              intro={intro}
-              hourlyRatePesos={hourlyRatePesos}
-              strengths={selectedStrengths}
-              categories={selectedCategories}
-            />
-          </div>
-          <div className="notice notice-warning text-meta">
-            <span className="notice-icon">i</span>
-            <span>{status
-              ? 'Saving sends the profile back to review. It may not appear in Explore again until the updated version is approved.'
-              : 'Sending starts profile review. Identity approval and profile approval are separate steps.'}</span>
+            {locationStatus && <p className="text-meta" role="status" aria-live="polite">{locationStatus}</p>}
+            <label className="identity-consent-row">
+              <input type="checkbox" checked={locationConsent} disabled={!locationConfirmed} onChange={(event) => setLocationConsent(event.currentTarget.checked)} />
+              <span><strong>Confirm approximate location use</strong><small>I consent to storing and using this rounded location for nearby discovery. My exact address is not saved.</small></span>
+            </label>
           </div>
         </NumberedSection>
 
@@ -443,12 +478,13 @@ function CompanionAuthPanel() {
               onClick={() => {
                 if (validateCurrentStep()) changeStep(currentStep + 1)
               }}
+              disabled={savingLocation}
             >
-              Save and continue
+              {savingLocation ? 'Saving location...' : 'Save and continue'}
             </button>
           ) : (
-            <button type="submit" className="btn btn-self" disabled={saving}>
-              {saving ? 'Sending…' : status ? 'Save and send for review' : 'Send profile for review'}
+            <button type="submit" className="btn btn-self" disabled={saving || !companionLocationReady(approximateLocation, locationConfirmed, locationConsent)}>
+              {saving ? 'Sending...' : status ? 'Save and send for review' : 'Send profile for review'}
             </button>
           )}
         </div>
@@ -462,7 +498,6 @@ function CompanionAuthPanel() {
           city={city}
           intro={intro}
           hourlyRatePesos={hourlyRatePesos}
-          strengths={selectedStrengths}
           categories={selectedCategories}
         />
         <ReviewStatusPanel
@@ -471,22 +506,6 @@ function CompanionAuthPanel() {
           canStartIdentity={Boolean(application)}
           identityBusy={identityFlow.busy}
           onStartIdentity={() => void identityFlow.begin()}
-          testBypassAvailable={viewer?.identityTestBypassAvailable ?? false}
-          testBypassActive={viewer?.identityTestBypassActive ?? false}
-          testBypassSaving={testBypassSaving}
-          testBypassError={testBypassError}
-          onTestBypassChange={async (enabled) => {
-            if (testBypassSaving) return
-            setTestBypassSaving(true)
-            setTestBypassError('')
-            try {
-              await setIdentityTestBypass({ enabled })
-            } catch (bypassError) {
-              setTestBypassError(bypassError instanceof Error ? bypassError.message : 'Test bypass could not be updated.')
-            } finally {
-              setTestBypassSaving(false)
-            }
-          }}
         />
       </div>
     </div>
@@ -499,22 +518,12 @@ function ReviewStatusPanel({
   canStartIdentity,
   identityBusy,
   onStartIdentity,
-  testBypassAvailable,
-  testBypassActive,
-  testBypassSaving,
-  testBypassError,
-  onTestBypassChange,
 }: {
   status?: string
   verification: MemberVerificationPresentation
   canStartIdentity: boolean
   identityBusy: boolean
   onStartIdentity: () => void
-  testBypassAvailable: boolean
-  testBypassActive: boolean
-  testBypassSaving: boolean
-  testBypassError: string
-  onTestBypassChange: (enabled: boolean) => void
 }) {
   const identityApproved = verification.state === 'approved'
   const statusGuidance = status === 'approved' && identityApproved
@@ -528,7 +537,7 @@ function ReviewStatusPanel({
           : 'Complete the five steps and send your profile to begin review.'
   const steps = [
     { id: 'submit', label: 'Application submitted', done: !!status },
-    { id: 'identity', label: testBypassActive ? 'Identity check bypassed for testing' : 'Identity and safety review', done: identityApproved, active: !!status && !identityApproved },
+    { id: 'identity', label: 'Identity and safety review', done: identityApproved, active: !!status && !identityApproved },
     { id: 'review', label: 'Companion profile review', done: status === 'approved' || status === 'rejected', active: status === 'pending_review' && identityApproved },
     { id: 'live', label: 'Visible in discovery', done: status === 'approved' && identityApproved },
   ]
@@ -551,28 +560,6 @@ function ReviewStatusPanel({
             </li>
           ))}
         </ol>
-        {testBypassAvailable && (
-          <div className="identity-test-bypass">
-            <span>
-              <strong>Testing only</strong>
-              <small>Skip identity verification for this account. This does not create a real approval.</small>
-            </span>
-            <button
-              type="button"
-              role="switch"
-              aria-label="Bypass identity verification for testing"
-              aria-checked={testBypassActive}
-              className="account-menu-switch"
-              data-checked={testBypassActive}
-              disabled={testBypassSaving}
-              onClick={() => onTestBypassChange(!testBypassActive)}
-            >
-              <span aria-hidden="true" />
-              <strong>{testBypassSaving ? 'Saving' : testBypassActive ? 'On' : 'Off'}</strong>
-            </button>
-            {testBypassError && <p className="text-meta" role="alert">{testBypassError}</p>}
-          </div>
-        )}
         {canStartIdentity && verification.action !== 'none' && (
           <button type="button" className="btn btn-self btn-sm" disabled={identityBusy} onClick={onStartIdentity}>
             {identityBusy
@@ -632,7 +619,6 @@ function CompanionProfilePreview({
   city,
   intro,
   hourlyRatePesos,
-  strengths,
   categories,
 }: {
   displayName?: string | null
@@ -641,7 +627,6 @@ function CompanionProfilePreview({
   city: string
   intro: string
   hourlyRatePesos: string
-  strengths: string[]
   categories: string[]
 }) {
   const name = displayName?.trim() || 'Your profile'
@@ -671,10 +656,9 @@ function CompanionProfilePreview({
         </div>
       </div>
       <p className="companion-preview-intro">{intro.trim() || 'Your invitation will appear here as you write it.'}</p>
-      {(strengths.length > 0 || categories.length > 0) && (
+      {categories.length > 0 && (
         <div className="companion-preview-chips" aria-label="Selected profile details">
-          {strengths.slice(0, 2).map((value) => <span key={`strength-${value}`}>{value}</span>)}
-          {categories.slice(0, 2).map((value) => <span key={`category-${value}`}>{value}</span>)}
+          {categories.slice(0, 4).map((value) => <span key={`category-${value}`}>{value}</span>)}
         </div>
       )}
       <div className="companion-preview-rate">
@@ -709,101 +693,5 @@ function NumberedSection({
         {children}
       </div>
     </section>
-  )
-}
-
-function ChipGroup({
-  label,
-  values,
-  selected,
-  setSelected,
-  allowCustom = false,
-  maximum,
-}: {
-  label: string
-  values: readonly string[]
-  selected: string[]
-  setSelected: (next: string[]) => void
-  allowCustom?: boolean
-  maximum?: number
-}) {
-  const [customValue, setCustomValue] = useState('')
-  const [customError, setCustomError] = useState('')
-  const displayedValues = allowCustom ? activityCategoryOptions(selected) : values
-
-  const addCustomValue = () => {
-    const result = validateActivityCategories([...selected, customValue], maximum)
-    if (!result.ok) {
-      setCustomError(result.message)
-      return
-    }
-    setSelected(result.value)
-    setCustomValue('')
-    setCustomError('')
-  }
-
-  return (
-    <fieldset className="companion-chip-group">
-      <legend className="sr-only">{label}</legend>
-      <div className="companion-chip-heading">
-        <span>{label}</span>
-        <span className="text-meta tabular">{selected.length} selected</span>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {displayedValues.map((value) => {
-          const isSelected = selected.includes(value)
-          return (
-            <button
-              type="button"
-              key={value}
-              data-selected={isSelected}
-              aria-pressed={isSelected}
-              disabled={!isSelected && maximum !== undefined && selected.length >= maximum}
-              onClick={() => {
-                setCustomError('')
-                setSelected(isSelected ? selected.filter((item) => item !== value) : [...selected, value])
-              }}
-              className="chip"
-            >
-              {value}
-            </button>
-          )
-        })}
-      </div>
-      {allowCustom && (
-        <>
-          <div className="category-custom-entry mt-3">
-            <label className="field-row">
-              <span className="label">Add your own category</span>
-              <input
-                className="field"
-                value={customValue}
-                maxLength={maximumActivityCategoryLength}
-                disabled={maximum !== undefined && selected.length >= maximum}
-                onChange={(event) => {
-                  setCustomValue(event.currentTarget.value)
-                  setCustomError('')
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter') return
-                  event.preventDefault()
-                  addCustomValue()
-                }}
-                placeholder="For example, museum visits"
-              />
-            </label>
-            <button
-              type="button"
-              className="btn btn-self btn-sm"
-              disabled={maximum !== undefined && selected.length >= maximum}
-              onClick={addCustomValue}
-            >
-              Add category
-            </button>
-          </div>
-          {customError && <p className="field-row-help category-custom-error" role="alert">{customError}</p>}
-        </>
-      )}
-    </fieldset>
   )
 }

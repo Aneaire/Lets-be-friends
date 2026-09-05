@@ -3,7 +3,6 @@ import { useState } from 'react'
 import {
   activityCategories,
   activityCategoryOptions,
-  friendStrengths,
   maximumActivityCategoryLength,
   maximumCompanionActivityCategories,
   validateActivityCategories,
@@ -68,14 +67,6 @@ export function OnboardingCompanionApplicationStep({
 
   const setMode = (mode: OnboardingApplicationMode) =>
     setValues((current) => ({ ...current, mode }))
-
-  const toggleStrength = (strength: string) =>
-    setValues((current) => ({
-      ...current,
-      strengths: current.strengths.includes(strength)
-        ? current.strengths.filter((item) => item !== strength)
-        : [...current.strengths, strength],
-    }))
 
   const toggleCategory = (category: string) =>
     setValues((current) => ({
@@ -153,7 +144,7 @@ export function OnboardingCompanionApplicationStep({
       </label>
 
       <label className="field-row">
-        <span className="label">How can you help or spend the time? <span className="label-aux">40 to 500 characters</span></span>
+        <span className="label">How would you like to spend time with members? <span className="label-aux">40 to 500 characters</span></span>
         <textarea
           required
           minLength={onboardingApplicationDefaults.introMinLength}
@@ -176,27 +167,6 @@ export function OnboardingCompanionApplicationStep({
           placeholder="Something personal about your hobbies, family, or work."
         />
       </label>
-
-      <fieldset className="companion-chip-group">
-        <legend className="label">Strengths <span className="label-aux">choose at least one</span></legend>
-        <div className="flex flex-wrap gap-2">
-          {friendStrengths.map((strength) => {
-            const selected = values.strengths.includes(strength)
-            return (
-              <button
-                key={strength}
-                type="button"
-                className="chip"
-                data-selected={selected}
-                aria-pressed={selected}
-                onClick={() => toggleStrength(strength)}
-              >
-                {strength}
-              </button>
-            )
-          })}
-        </div>
-      </fieldset>
 
       <fieldset className="companion-chip-group">
         <legend className="label">Everyday help and activities <span className="label-aux">choose at least one</span></legend>
@@ -259,15 +229,6 @@ export function OnboardingCompanionApplicationStep({
           value={values.city}
           onChange={(event) => setValues((current) => ({ ...current, city: event.currentTarget.value }))}
           placeholder={values.mode === 'online' ? 'For example, Philippines, GMT+8' : 'For example, Bacolor'}
-        />
-      </label>
-
-      <label className="field-row">
-        <span className="label">Boundaries <span className="label-aux">one per line</span></span>
-        <textarea
-          className="field min-h-24"
-          value={values.boundariesText}
-          onChange={(event) => setValues((current) => ({ ...current, boundariesText: event.currentTarget.value }))}
         />
       </label>
 

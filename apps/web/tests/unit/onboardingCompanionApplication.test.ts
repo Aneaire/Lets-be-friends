@@ -6,7 +6,6 @@ import {
   hasSubmittedApplication,
   onboardingApplicationStatusGuidance,
   onboardingApplicationStatusLabel,
-  parseBoundaries,
   validateOnboardingApplication,
   type OnboardingApplicationValues,
 } from '../../src/features/companion-application/onboardingCompanionApplication'
@@ -15,9 +14,7 @@ import { onboardingDestination } from '../../src/lib/onboarding'
 const validValues: OnboardingApplicationValues = {
   intro: 'I can join a shopping trip, explain everyday technology, and share unhurried conversation.',
   city: 'Bacolor',
-  strengths: ['Good listener'],
   categories: ['Good company'],
-  boundariesText: 'Public places only\nNo dating or romantic expectations',
   mode: 'both',
   hourlyRatePesos: '500',
   bio: 'I enjoy photography walks and quiet cafe sessions.',
@@ -29,7 +26,6 @@ describe('onboarding Companion application defaults', () => {
     const defaults = defaultOnboardingApplicationValues('Hello there', ['Good company'])
     expect(defaults.bio).toBe('Hello there')
     expect(defaults.categories).toEqual(['Good company'])
-    expect(defaults.strengths).toEqual(['Good listener'])
     expect(defaults.mode).toBe('both')
   })
 
@@ -54,10 +50,8 @@ describe('onboarding Companion application validation', () => {
     expect(validateOnboardingApplication({ ...validValues, city: '', mode: 'online' })).toEqual({ ok: true })
   })
 
-  it('requires at least one Strength, activity, and boundary', () => {
-    expect(validateOnboardingApplication({ ...validValues, strengths: [] }).ok).toBe(false)
+  it('requires at least one activity', () => {
     expect(validateOnboardingApplication({ ...validValues, categories: [] }).ok).toBe(false)
-    expect(validateOnboardingApplication({ ...validValues, boundariesText: '   ' }).ok).toBe(false)
   })
 
   it('requires an hourly rate inside the supported range', () => {
@@ -74,7 +68,7 @@ describe('onboarding Companion application validation', () => {
     const messages = [
       validateOnboardingApplication({ ...validValues, intro: 'x' }),
       validateOnboardingApplication({ ...validValues, city: '' }),
-      validateOnboardingApplication({ ...validValues, strengths: [] }),
+      validateOnboardingApplication({ ...validValues, categories: [] }),
       validateOnboardingApplication({ ...validValues, hourlyRatePesos: '1' }),
       validateOnboardingApplication({ ...validValues, earningMotivation: 'x' }),
     ]
@@ -85,16 +79,17 @@ describe('onboarding Companion application validation', () => {
 })
 
 describe('onboarding Companion application payload', () => {
-  it('trims fields, splits boundaries, and converts pesos to centavos', () => {
+  it('trims fields and converts pesos to centavos', () => {
     const payload = buildOnboardingApplicationPayload({
       ...validValues,
       intro: `  ${validValues.intro}  `,
       hourlyRatePesos: '750.50',
     })
     expect(payload.intro).toBe(validValues.intro)
-    expect(payload.boundaries).toEqual(['Public places only', 'No dating or romantic expectations'])
+    expect(payload.boundaries).toEqual([])
     expect(payload.hourlyRateCentavos).toBe(75050)
     expect(payload.bio).toBe(validValues.bio)
+    expect(payload.strengths).toEqual([])
   })
 
   it('omits an empty personal note', () => {
@@ -103,15 +98,9 @@ describe('onboarding Companion application payload', () => {
   })
 
   it('throws the validation message for invalid input', () => {
-    expect(() => buildOnboardingApplicationPayload({ ...validValues, strengths: [] })).toThrow()
+    expect(() => buildOnboardingApplicationPayload({ ...validValues, categories: [] })).toThrow()
   })
 
-  it('parses boundaries one per line while ignoring blanks', () => {
-    expect(parseBoundaries('  Public places only \n\nNo dating  \n')).toEqual([
-      'Public places only',
-      'No dating',
-    ])
-  })
 })
 
 describe('onboarding Companion application status', () => {

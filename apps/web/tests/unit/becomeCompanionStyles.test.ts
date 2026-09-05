@@ -25,7 +25,9 @@ describe('Become Companion layout styles', () => {
 
   it('keeps inactive editor steps hidden and provides a mobile layout', () => {
     expect(styles).toMatch(/\.companion-editor-step\[hidden\]\s*\{\s*display:\s*none;/s)
+    expect(styles).toMatch(/\.companion-editor-step \.label\s*\{[\s\S]*font-size:\s*0\.9375rem;[\s\S]*font-weight:\s*680;/s)
+    expect(styles).toMatch(/\.companion-editor-step \.label-aux\s*\{[\s\S]*font-size:\s*0\.8125rem;/s)
     expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-mode-options\s*\{\s*grid-template-columns:\s*1fr;/s)
-    expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-mobile-preview\s*\{\s*display:\s*block;/s)
+    expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-editor-aside\s*\{\s*display:\s*block;/s)
   })
 })

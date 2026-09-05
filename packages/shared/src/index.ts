@@ -76,7 +76,7 @@ export const activityCategories = [
 
 export const allActivityCategoryLabel = 'Everything'
 export const maximumActivityCategoryLength = 60
-export const maximumCompanionActivityCategories = 24
+export const maximumCompanionActivityCategories = 10
 export const maximumOnboardingActivityCategories = 6
 
 export function normalizeActivityCategory(value: string) {

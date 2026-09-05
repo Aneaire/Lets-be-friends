@@ -46,10 +46,12 @@ describe('get verified page', () => {
     render(<GetVerifiedPage />)
 
     expect(screen.getByRole('heading', { name: 'Get verified' })).toBeTruthy()
+    expect(screen.getByLabelText('0 of 2 verification steps complete')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Identity check' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Companion profile' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Earn with the skills you already use' })).toBeTruthy()
-    expect(screen.getByText('Loading your identity status…')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Earn with your everyday Strengths' })).toBeTruthy()
+    expect(screen.getByText('Loading identity status...')).toBeTruthy()
+    expect(screen.getByText('Loading Companion profile...')).toBeTruthy()
   })
 
   it('asks signed-out visitors to sign in first', () => {

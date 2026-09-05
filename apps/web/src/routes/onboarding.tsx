@@ -14,7 +14,7 @@ import {
 import { api } from '../../convex/_generated/api'
 import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
 import { roundCoordinates, type Coordinates } from '../lib/geo'
-import { deviceLocationErrorMessage, goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
+import { currentTermsVersion, deviceLocationErrorMessage, goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { OnboardingCompanionApplicationStep } from '../features/companion-application/OnboardingCompanionApplicationStep'
 import { companionApplicationSkipDestination } from '../features/companion-application/onboardingCompanionApplication'
@@ -22,7 +22,7 @@ import { identityEntitlementStatus, memberVerificationPresentation } from '../li
 
 export const Route = createFileRoute('/onboarding')({ component: OnboardingPage })
 
-const termsVersion = '2026-08-13'
+const termsVersion = currentTermsVersion
 
 const memberJourney = [
   ['Complete identity verification', 'Securely submit a government ID and take a current camera selfie.'],
@@ -212,7 +212,6 @@ function OnboardingPage() {
   const verification = memberVerificationPresentation(
     identityEntitlementStatus(viewer.verificationStatus, viewer.identityEligible),
     latestIdentityVerification,
-    viewer.identityTestBypassActive,
   )
 
   const finishWithIdentityReview = async () => {

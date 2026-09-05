@@ -1,12 +1,17 @@
 import { useAuth, useClerk, useUser } from '@clerk/react'
-import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { useRouterState } from '@tanstack/react-router'
 import { useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { api } from '../../../convex/_generated/api'
+import { BrandLogo } from '../../design-system/atoms/BrandLogo'
 import { onboardingGateDecision } from '../../lib/onboarding'
 
 export const ONBOARDING_RECOVERY_DELAY_MS = 15_000
+
+export function replaceWithOnboarding(location: Pick<Location, 'replace'> = window.location) {
+  location.replace('/onboarding')
+}
 
 export function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { isLoaded: clerkLoaded, isSignedIn, userId } = useAuth()
@@ -14,7 +19,6 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { user } = useUser()
   const { isLoading: convexLoading, isAuthenticated: convexAuthenticated } = useConvexAuth()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const navigate = useNavigate()
   const ensureViewer = useMutation(api.users.ensureViewer)
   const viewer = useQuery(api.users.viewer, isSignedIn && convexAuthenticated ? {} : 'skip')
   const attemptedIdentity = useRef<string | null>(null)
@@ -78,8 +82,8 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
   }, [decision, provision, userId])
 
   useEffect(() => {
-    if (decision === 'redirect_onboarding') void navigate({ to: '/onboarding', replace: true })
-  }, [decision, navigate])
+    if (decision === 'redirect_onboarding') replaceWithOnboarding()
+  }, [decision])
 
   useEffect(() => {
     setRecoveryReady(false)
@@ -135,11 +139,18 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
 
   return (
     <main className="gate-state" aria-live="polite" aria-busy="true">
-      <div className="gate-state-inner">
-        <p className="eyebrow">Let&apos;s Be Friends</p>
-        <p className="text-body muted mt-3">
-          {decision === 'redirect_onboarding' ? 'Opening your welcome guide...' : 'Preparing your account...'}
-        </p>
+      <div className="gate-state-inner gate-state-loading">
+        <div className="gate-state-logo-stage" aria-hidden="true">
+          <BrandLogo className="gate-state-logo" />
+          <span className="gate-state-logo-ring" />
+        </div>
+        <div>
+          <p className="eyebrow">Let&apos;s Be Friends</p>
+          <h1 className="text-h2 mt-2">Getting things ready</h1>
+          <div className="gate-state-loading-status mt-3" role="status" aria-live="polite" aria-atomic="true">
+            <span>{decision === 'redirect_onboarding' ? 'Opening your welcome guide...' : 'Preparing your account...'}</span>
+          </div>
+        </div>
         {recoveryReady && decision !== 'redirect_onboarding' && (
           <div className="gate-state-recovery mt-5">
             <p className="text-body muted">This is taking longer than expected. You can retry setup or reload this page. You stay signed in.</p>

@@ -11,9 +11,7 @@ export type OnboardingApplicationMode = 'online' | 'in_person' | 'both'
 export interface OnboardingApplicationValues {
   intro: string
   city: string
-  strengths: string[]
   categories: string[]
-  boundariesText: string
   mode: OnboardingApplicationMode
   hourlyRatePesos: string
   bio: string
@@ -40,9 +38,7 @@ export const onboardingApplicationDefaults = {
   earningMotivationMaxLength: 1000,
   rateMinPesos: 100,
   rateMaxPesos: 10000,
-  defaultBoundaries: 'Public places only\nNo dating or romantic expectations',
   defaultRatePesos: '500',
-  defaultStrengths: ['Good listener'],
 } as const
 
 export function defaultOnboardingApplicationValues(
@@ -52,21 +48,12 @@ export function defaultOnboardingApplicationValues(
   return {
     intro: '',
     city: '',
-    strengths: [...onboardingApplicationDefaults.defaultStrengths],
     categories: [...(viewerCategories ?? [])],
-    boundariesText: onboardingApplicationDefaults.defaultBoundaries,
     mode: 'both',
     hourlyRatePesos: onboardingApplicationDefaults.defaultRatePesos,
     bio: viewerBio ?? '',
     earningMotivation: '',
   }
-}
-
-export function parseBoundaries(boundariesText: string): string[] {
-  return boundariesText
-    .split('\n')
-    .map((item) => item.trim())
-    .filter(Boolean)
 }
 
 export function validateOnboardingApplication(
@@ -82,17 +69,11 @@ export function validateOnboardingApplication(
   if (values.mode !== 'online' && !values.city.trim()) {
     return { ok: false, message: 'Add the city where you can meet in person.' }
   }
-  if (values.strengths.length === 0) {
-    return { ok: false, message: 'Choose at least one Strength before submitting.' }
-  }
   if (values.categories.length === 0) {
     return { ok: false, message: 'Choose at least one activity before submitting.' }
   }
   const categoryResult = validateActivityCategories(values.categories, maximumCompanionActivityCategories)
   if (!categoryResult.ok) return { ok: false, message: categoryResult.message }
-  if (parseBoundaries(values.boundariesText).length === 0) {
-    return { ok: false, message: 'Add at least one boundary, one per line.' }
-  }
   const rate = Number(values.hourlyRatePesos)
   if (
     !Number.isFinite(rate)
@@ -135,9 +116,9 @@ export function buildOnboardingApplicationPayload(
   return {
     intro: values.intro.trim(),
     city: values.city.trim(),
-    strengths: [...values.strengths],
+    strengths: [],
     categories: categoryResult.value,
-    boundaries: parseBoundaries(values.boundariesText),
+    boundaries: [],
     mode: values.mode,
     hourlyRateCentavos: Math.round(Number(values.hourlyRatePesos) * 100),
     ...(bio ? { bio } : {}),

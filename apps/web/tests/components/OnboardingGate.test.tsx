@@ -14,7 +14,6 @@ const gateState = vi.hoisted(() => {
       pending.splice(0).forEach((resolve) => resolve(undefined))
     },
     signOut: vi.fn(),
-    navigate: vi.fn(),
   }
 })
 
@@ -31,11 +30,14 @@ vi.mock('convex/react', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => gateState.navigate,
   useRouterState: () => '/discover',
 }))
 
-import { ONBOARDING_RECOVERY_DELAY_MS, OnboardingGate } from '../../src/features/onboarding/OnboardingGate'
+import {
+  ONBOARDING_RECOVERY_DELAY_MS,
+  OnboardingGate,
+  replaceWithOnboarding,
+} from '../../src/features/onboarding/OnboardingGate'
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -48,17 +50,29 @@ afterEach(() => {
 })
 
 describe('OnboardingGate account recovery', () => {
+  it('loads onboarding directly when the gate redirects an incomplete member', () => {
+    const replace = vi.fn()
+
+    replaceWithOnboarding({ replace })
+
+    expect(replace).toHaveBeenCalledWith('/onboarding')
+  })
+
   it('uses a deterministic 15 second wait before offering recovery', () => {
     expect(ONBOARDING_RECOVERY_DELAY_MS).toBe(15_000)
   })
 
   it('shows retry and reload without signing out after a long provisioning wait', async () => {
-    render(
+    const { container } = render(
       <OnboardingGate>
         <p>Member content</p>
       </OnboardingGate>,
     )
 
+    expect(container.querySelector('img[src="/logo.svg"]')).toBeTruthy()
+    expect(container.querySelector('.gate-state-loading-status .ds-spinner')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Getting things ready' })).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toContain('Preparing your account...')
     expect(screen.getByText('Preparing your account...')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Retry account setup' })).toBeNull()
 

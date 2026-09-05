@@ -4,6 +4,12 @@ import { useAction, useMutation, useQuery } from 'convex/react'
 import { ArrowLeft, Camera, Check, ClipboardCheck, FileText, LockKeyhole, RefreshCw, ShieldCheck, Upload } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
+import {
+  clearIdentityVerificationDraft,
+  identityVerificationDraftKey,
+  readIdentityVerificationDraft,
+  writeIdentityVerificationDraft,
+} from './identityVerificationDraft'
 
 export type IdentityIntent = 'member' | 'companion_application'
 export type IdentityReturnTo = '/app' | '/profile' | '/onboarding' | '/become-companion' | '/get-verified'
@@ -42,7 +48,7 @@ export function useIdentityVerification(intent: IdentityIntent = 'member') {
 }
 
 export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { intent: IdentityIntent; returnTo: IdentityReturnTo; mobileReturn?: IdentityMobileReturnTo }) {
-  const { isSignedIn } = useAuth()
+  const { isSignedIn, userId } = useAuth()
   const navigate = useNavigate()
   const current = useQuery(api.identityRecords.current, isSignedIn ? {} : 'skip')
   const start = useMutation(api.identityRecords.start)
@@ -53,6 +59,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
   const submit = useMutation(api.identityRecords.submit)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const hydratedDraftKeyRef = useRef<string | null>(null)
   const [selectedIdType, setSelectedIdType] = useState<DocumentType>('drivers_license')
   const [front, setFront] = useState<File | null>(null)
   const [back, setBack] = useState<File | null>(null)
@@ -78,24 +85,43 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
   }, [stopCamera])
 
   useEffect(() => {
+    if (!userId || current === undefined) return
+    const recordId = current?._id
+    const draftKey = identityVerificationDraftKey(userId, recordId)
+    if (hydratedDraftKeyRef.current === draftKey) return
     const values = current?.confirmed ?? current?.extraction
-    if (values) setFields({
+    const serverFields: ExtractedFields = values ? {
       fullLegalName: values.fullLegalName,
       dateOfBirth: values.dateOfBirth,
       idType: values.idType,
       idNumberLast4: values.idNumberLast4,
       expirationDate: values.expirationDate,
       nationality: values.nationality,
-    })
-    if (current?.selectedIdType) setSelectedIdType(current.selectedIdType)
+    } : {}
+    const draft = readIdentityVerificationDraft(window.sessionStorage, userId, recordId)
+    setFields(draft?.fields ?? serverFields)
+    setSelectedIdType(draft?.selectedIdType ?? current?.selectedIdType ?? 'drivers_license')
+    setDetailStep(draft?.detailStep ?? null)
     setSelfieSaved(current?.imageKinds.includes('selfie') ?? false)
-  }, [current])
+    hydratedDraftKeyRef.current = draftKey
+  }, [current, userId])
 
   useEffect(() => {
-    setDetailStep(null)
+    if (!userId || current === undefined) return
+    const recordId = current?._id
+    if (current?.stage === 'ready_for_review' || current?.stage === 'approved') {
+      clearIdentityVerificationDraft(window.sessionStorage, userId, recordId)
+      return
+    }
+    if (hydratedDraftKeyRef.current !== identityVerificationDraftKey(userId, recordId)) return
+    writeIdentityVerificationDraft(window.sessionStorage, userId, recordId, { selectedIdType, detailStep, fields })
+  }, [current, detailStep, fields, selectedIdType, userId])
+
+  useEffect(() => {
+    if (!userId) return
     setSelfieBlob(null)
     closeCamera()
-  }, [closeCamera, current?._id])
+  }, [closeCamera, current?._id, userId])
 
   useEffect(() => () => stopCamera(), [stopCamera])
 
@@ -227,6 +253,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
     setLocalError('')
     try {
       await submit({ identityRecordId: current._id, reviewConsent })
+      if (userId) clearIdentityVerificationDraft(window.sessionStorage, userId, current._id)
       closeCamera()
     } catch (error) {
       fail(error)
@@ -241,6 +268,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
     try {
       const started = await start({ reason: 'reverification', selectedIdType })
       if (started.mode === 'started' || started.mode === 'continue') {
+        if (userId) clearIdentityVerificationDraft(window.sessionStorage, userId, current?._id)
         setFront(null)
         setBack(null)
         setFields({})
