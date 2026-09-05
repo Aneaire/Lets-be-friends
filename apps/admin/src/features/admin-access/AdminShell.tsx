@@ -9,7 +9,7 @@ import { AdminShellPresentation } from '../../design-system/templates/AdminShell
 import type { AdminRole } from '../../lib/adminAccess'
 import { getAdminGateState } from '../../lib/adminAccess'
 
-const userAppUrl = import.meta.env.VITE_USER_APP_URL ?? 'http://localhost:3005'
+const userAppUrl = import.meta.env.VITE_USER_APP_URL ?? 'http://localhost:3000'
 
 export function AdminGate({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth()
