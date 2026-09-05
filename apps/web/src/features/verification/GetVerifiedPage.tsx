@@ -4,7 +4,7 @@ import { useQuery } from 'convex/react'
 import { ArrowRight, BadgeDollarSign, Check, ShieldCheck, UserRound } from 'lucide-react'
 import { api } from '../../../convex/_generated/api'
 import { BrandLogo } from '../../design-system/atoms/BrandLogo'
-import { identityEntitlementStatus, memberVerificationPresentation } from '../../lib/memberVerification'
+import { identityEntitlementStatus, memberVerificationPresentation, canOpenCompanionProfile } from '../../lib/memberVerification'
 import { companionSetupState } from '../../lib/verificationNudge'
 
 export function GetVerifiedPage() {
@@ -36,6 +36,7 @@ export function GetVerifiedPage() {
   const identityDone = verification?.state === 'approved'
   const companionDone = companion === 'approved'
   const completedSteps = Number(identityDone) + Number(companionDone)
+  const companionUnlocked = viewer ? canOpenCompanionProfile(viewer.identityEligible ?? false, latestVerification ?? null) : false
 
   return (
     <main className="verification-page">
@@ -125,14 +126,36 @@ export function GetVerifiedPage() {
                             : 'Not started'}
                 </span>
               </div>
-              <p className="text-body muted">Share the Strengths, session formats, availability, and boundaries you offer.</p>
+              <p className="text-body muted">Share your activities, session format, availability, and profile details.</p>
               {application === undefined && (
                 <div className="verification-status-loading" role="status">
                   <span className="ds-spinner" aria-hidden="true" />
                   <span>Loading Companion profile...</span>
                 </div>
               )}
-              {application !== undefined && !companionDone && (
+              {application !== undefined && !companionDone && !companionUnlocked && companion === 'pending_review' && (
+                <>
+                  <p className="verification-guidance verification-lock-note">
+                    Your Companion profile is saved. Its review cannot proceed until your identity is submitted for safety review.
+                  </p>
+                  <button type="button" className="btn btn-self mt-4" disabled aria-disabled="true" title="Submit your identity check first">
+                    Continue application
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </button>
+                </>
+              )}
+              {application !== undefined && !companionDone && !companionUnlocked && companion !== 'pending_review' && (
+                <>
+                  <p className="verification-guidance verification-lock-note">
+                    Submit your identity check for safety review first. Your Companion profile unlocks after your identity is submitted for review.
+                  </p>
+                  <button type="button" className="btn btn-self mt-4" disabled aria-disabled="true" title="Submit your identity check first">
+                    {companion === 'none' || companion === 'draft' ? 'Create Companion profile' : 'Continue application'}
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </button>
+                </>
+              )}
+              {application !== undefined && !companionDone && companionUnlocked && (
                 <>
                   <p className="verification-guidance">
                     {companion === 'pending_review'
@@ -161,7 +184,19 @@ export function GetVerifiedPage() {
           </p>
           <div className="verification-outcome-rule" />
           <p className="text-meta">Withdraw available earnings to a verified bank or e-wallet account through PayMongo InstaPay.</p>
-          {!companionDone && (
+          {!companionDone && !companionUnlocked && (
+            <>
+              <p className="text-meta verification-lock-note">
+                {companion === 'pending_review'
+                  ? 'Your Companion profile is saved. Its review cannot proceed until your identity is submitted for safety review.'
+                  : 'Submit your identity check for safety review first. Your Companion profile unlocks after your identity is submitted for review.'}
+              </p>
+              <button type="button" className="btn btn-social mt-5" disabled aria-disabled="true" title="Submit your identity check first">
+                Start your Companion profile <ArrowRight size={16} aria-hidden="true" />
+              </button>
+            </>
+          )}
+          {!companionDone && companionUnlocked && (
             <Link to="/become-companion" className="btn btn-social mt-5">
               Start your Companion profile <ArrowRight size={16} aria-hidden="true" />
             </Link>

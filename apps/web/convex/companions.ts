@@ -12,7 +12,7 @@ import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
-import { hasCurrentIdentityApproval, isIdentityVerificationReason } from './identityVerification'
+import { hasCurrentIdentityApproval, isIdentityReadyForAdminReview, isIdentityVerificationReason } from './identityVerification'
 import { findNearbyCompanionLocations, syncCompanionLocation } from './companionLocations'
 import { isHiddenByPreference, requireNotBlocked } from './safety'
 
@@ -323,6 +323,23 @@ export const submitApplication = mutation({
     }
     if (earningMotivation.length > EARNING_MOTIVATION_MAX_LENGTH) {
       throw new Error(`Earning motivation must be ${EARNING_MOTIVATION_MAX_LENGTH} characters or fewer`)
+    }
+    // Identity-before-Companion gate. A profile may be submitted or resubmitted
+    // only with a current approved identity or a current attempt that is ready
+    // for admin review. This check runs before any writes so a rejected
+    // submission leaves no Companion profile or audit entry.
+    if (!hasCurrentIdentityApproval(viewer)) {
+      const identityRequests = await ctx.db.query('verificationRequests').withIndex('by_user', (q) => q.eq('userId', viewer._id)).collect()
+      const currentIdentity = identityRequests
+        .filter((request) => isIdentityVerificationReason(request.reason))
+        .sort((a, b) => {
+          if (a.isCurrent === true && b.isCurrent !== true) return -1
+          if (b.isCurrent === true && a.isCurrent !== true) return 1
+          return b.updatedAt - a.updatedAt
+        })[0]
+      if (!currentIdentity || !isIdentityReadyForAdminReview(currentIdentity)) {
+        throw new Error('Submit your identity check for safety review first. You can send a Companion profile after your identity is submitted for review.')
+      }
     }
     const existing = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
     const sourceLatitude = viewer.approximateLatitude ?? existing?.approximateLatitude

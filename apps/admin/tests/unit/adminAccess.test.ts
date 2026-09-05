@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getAdminGateState, getAdminNavSections } from '../../src/lib/adminAccess'
+import { getAdminGateState, getAdminNavContext, getAdminNavSections } from '../../src/lib/adminAccess'
 
 describe('admin access helpers', () => {
   it('shows full-admin navigation only to admins', () => {
@@ -28,5 +28,13 @@ describe('admin access helpers', () => {
     expect(getAdminGateState({ authLoaded: true, isSignedIn: true, viewer: { role: 'admin', suspended: true } })).toBe('denied')
     expect(getAdminGateState({ authLoaded: true, isSignedIn: true, viewer: { role: 'reviewer' } })).toBe('allowed')
     expect(getAdminGateState({ authLoaded: true, isSignedIn: true, viewer: { role: 'admin' } })).toBe('allowed')
+  })
+
+  it('resolves the current page and section for workspace orientation', () => {
+    expect(getAdminNavContext('admin', '/reports')).toMatchObject({
+      section: 'Review',
+      item: { label: 'Reports' },
+    })
+    expect(getAdminNavContext('reviewer', '/settings')).toBeUndefined()
   })
 })

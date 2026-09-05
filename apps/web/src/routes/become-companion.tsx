@@ -1,6 +1,7 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
+import { ShieldCheck } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import {
@@ -19,7 +20,7 @@ import {
   writeCompanionApplicationDraft,
 } from '../features/companion-application/companionApplicationDraft'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
-import { identityEntitlementStatus, memberVerificationPresentation, type MemberVerificationPresentation } from '../lib/memberVerification'
+import { identityEntitlementStatus, memberVerificationPresentation, canOpenCompanionProfile, type MemberVerificationPresentation } from '../lib/memberVerification'
 import { geolocationErrorMessage, roundCoordinates, type Coordinates } from '../lib/geo'
 import { currentTermsVersion } from '../lib/onboarding'
 
@@ -33,10 +34,19 @@ const companionEditorSteps = [
 
 function BecomeCompanionPage() {
   const { isSignedIn } = useAuth()
+  const [submitted, setSubmitted] = useState(false)
+  const viewer = useQuery(api.users.viewer, isSignedIn ? {} : 'skip')
+  const latestIdentityVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
+  // Gate the signed-in intro on the same identity eligibility as the editor.
+  // While eligibility is loading the gate stays locked so the editor anchor
+  // never points at a locked editor.
+  const companionUnlocked = viewer
+    ? canOpenCompanionProfile(viewer.identityEligible ?? false, latestIdentityVerification ?? null)
+    : false
 
   return (
     <main className="marketing-page-wide companion-page" data-editor={isSignedIn ? 'true' : 'false'}>
-      {isSignedIn ? (
+      {isSignedIn && !submitted && companionUnlocked ? (
         <header className="companion-editor-intro">
           <div>
             <p className="eyebrow">Companion profile</p>
@@ -45,7 +55,7 @@ function BecomeCompanionPage() {
           </div>
           <a href="#companion-profile-editor" className="btn btn-self">Open profile editor</a>
         </header>
-      ) : (
+      ) : !isSignedIn ? (
         <>
           <header className="companion-hero">
             <div className="companion-hero-copy">
@@ -87,13 +97,13 @@ function BecomeCompanionPage() {
             </div>
           </section>
         </>
-      )}
-      <CompanionAuthPanel />
+      ) : null}
+      <CompanionAuthPanel onSubmitted={() => setSubmitted(true)} />
     </main>
   )
 }
 
-function CompanionAuthPanel() {
+function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
   const { isSignedIn, userId } = useAuth()
   const formRef = useRef<HTMLFormElement>(null)
   const hydratedDraftKeyRef = useRef<string | null>(null)
@@ -199,6 +209,59 @@ function CompanionAuthPanel() {
     latestIdentityVerification,
   )
 
+  if (saved) {
+    return (
+      <section className="companion-submission-card" aria-labelledby="companion-submission-title">
+        <div className="companion-submission-mark" aria-hidden="true">✓</div>
+        <p className="eyebrow">Application received</p>
+        <h2 id="companion-submission-title" className="text-h1">Thank you for applying to be a Companion</h2>
+        <p className="text-body muted">
+          Your Companion profile has been sent to our review team. Your identity is already approved or under safety review, so both reviews are now in progress before your profile can appear in discovery.
+        </p>
+        <div className="companion-submission-next">
+          <strong>Identity and Companion reviews in progress</strong>
+          <span>Your application will be reviewed. Track both steps from your verification status.</span>
+        </div>
+        <div className="companion-submission-actions">
+          <Link to="/get-verified" className="btn btn-self btn-lg">View verification status</Link>
+          <Link to="/" className="btn btn-neutral btn-lg">Go to home</Link>
+        </div>
+      </section>
+    )
+  }
+
+  const companionUnlocked = canOpenCompanionProfile(viewer?.identityEligible ?? false, latestIdentityVerification ?? null)
+
+  if (!companionUnlocked) {
+    const needsIdentityAction = verification.action !== 'none'
+    return (
+      <section className="companion-locked-card" aria-labelledby="companion-locked-title">
+        <div className="companion-submission-mark" aria-hidden="true"><ShieldCheck size={28} aria-hidden="true" /></div>
+        <p className="eyebrow">Identity check required</p>
+        <h2 id="companion-locked-title" className="text-h1">Complete your identity check first</h2>
+        <p className="text-body muted">
+          Submit your government ID and selfie for safety review before creating a Companion profile. Identity is step 1 and your Companion profile is step 2.
+        </p>
+        <p className="text-meta companion-locked-guidance">{verification.guidance}</p>
+        <p className="text-meta companion-locked-draft-note">Any Companion details you already typed on this device stay saved as a local draft.</p>
+        <div className="companion-locked-actions">
+          {needsIdentityAction ? (
+            <Link
+              to="/verify-identity"
+              search={{ intent: 'companion_application', returnTo: '/become-companion' }}
+              className="btn btn-self btn-lg"
+            >
+              Verify identity
+            </Link>
+          ) : (
+            <Link to="/get-verified" className="btn btn-self btn-lg">Check identity status</Link>
+          )}
+          <Link to="/" className="btn btn-neutral btn-lg">Go to home</Link>
+        </div>
+      </section>
+    )
+  }
+
   const changeStep = (nextStep: number) => {
     setCurrentStep(Math.max(1, Math.min(companionEditorSteps.length, nextStep)))
     setStepError('')
@@ -283,6 +346,7 @@ function CompanionAuthPanel() {
             })
             if (userId) clearCompanionApplicationDraft(window.localStorage, userId)
             setSaved(true)
+            onSubmitted()
           } catch (submitError) {
             setError(submitError instanceof Error ? submitError.message : 'Your Companion profile could not be saved.')
           } finally {
@@ -313,14 +377,6 @@ function CompanionAuthPanel() {
           <progress max={companionEditorSteps.length} value={currentStep} aria-label={`Step ${currentStep} of ${companionEditorSteps.length}`} />
         </div>
 
-        {saved && (
-          <div className="notice notice-success" role="status">
-            <span className="notice-icon">✓</span>
-            <span>
-              Profile sent for review. Identity and the Companion profile are reviewed separately.
-            </span>
-          </div>
-        )}
         {identityFlow.message && (
           <div className="notice notice-success" role="status" aria-live="polite">
             <span className="notice-icon">✓</span>
@@ -385,7 +441,7 @@ function CompanionAuthPanel() {
             </span>
           </label>
           <label className="field-row">
-            <span className="label">Tell me about yourself <span className="label-aux">optional, up to 500 characters</span></span>
+            <span className="label">Tell me about yourself (Bio) <span className="label-aux">optional, up to 500 characters</span></span>
             <textarea
               maxLength={500}
               value={bio}

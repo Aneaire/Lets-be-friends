@@ -8,13 +8,14 @@ import {
   Settings,
   ShieldAlert,
   ShieldCheck,
+  SquareArrowOutUpRight,
   UserCog,
   UsersRound,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import type { AdminNavItem, AdminRole } from '../../lib/adminAccess'
-import { getAdminNavSections } from '../../lib/adminAccess'
+import { getAdminNavContext, getAdminNavSections } from '../../lib/adminAccess'
 import { ThemeToggle } from '../atoms/ThemeToggle'
 
 const iconByRoute: Record<string, ReactNode> = {
@@ -70,6 +71,7 @@ export function AdminShellPresentation({
   renderNavLink = DefaultNavLink,
 }: AdminShellPresentationProps) {
   const navSections = getAdminNavSections(viewerRole)
+  const navContext = getAdminNavContext(viewerRole, pathname)
 
   return (
     <div className="admin-shell">
@@ -80,6 +82,11 @@ export function AdminShellPresentation({
             <span className="admin-brand-title">Let's Be Friends</span>
             <span className="admin-brand-subtitle">Admin</span>
           </span>
+        </div>
+
+        <div className="admin-sidebar-intro">
+          <span className="admin-sidebar-kicker">Operations desk</span>
+          <p>Review member trust and safety work.</p>
         </div>
 
         <nav className="admin-nav">
@@ -115,20 +122,40 @@ export function AdminShellPresentation({
 
       <div className="admin-main">
         <header className="admin-topbar">
-          <div>
-            <p className="text-tiny">Signed in as</p>
-            <p className="admin-user-name">{displayName}</p>
+          <div className="admin-topbar-context">
+            <p className="admin-topbar-section">{navContext?.section ?? 'Admin'}</p>
+            <p className="admin-topbar-title">{navContext?.item.label ?? 'Workspace'}</p>
           </div>
-          <span className="status-pill" data-tone={viewerRole === 'admin' ? 'success' : undefined}>{viewerRole}</span>
-          <ThemeToggle />
-          <a className="btn btn-ghost btn-sm" href={userAppHref}>User app</a>
-          <button type="button" className="btn btn-neutral btn-sm" onClick={() => { void onSignOut() }}>
-            <LogOut size={15} aria-hidden="true" />
-            Sign out
-          </button>
+          <div className="admin-topbar-actions">
+            <a className="btn btn-ghost btn-sm admin-user-app-link" href={userAppHref} aria-label="Open user app">
+              <span>User app</span>
+              <SquareArrowOutUpRight size={14} aria-hidden="true" />
+            </a>
+            <ThemeToggle />
+            <div className="admin-account-summary">
+              <span className="admin-account-avatar" aria-hidden="true">{getInitials(displayName)}</span>
+              <span className="admin-account-copy">
+                <span className="admin-user-name">{displayName}</span>
+                <span className="admin-account-role">{viewerRole}</span>
+              </span>
+            </div>
+            <button type="button" className="btn btn-neutral btn-sm admin-signout" aria-label="Sign out" onClick={() => { void onSignOut() }}>
+              <LogOut size={15} aria-hidden="true" />
+              <span>Sign out</span>
+            </button>
+          </div>
         </header>
         <main className="admin-content">{children}</main>
       </div>
     </div>
   )
+}
+
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || 'A'
 }

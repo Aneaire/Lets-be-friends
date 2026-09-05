@@ -9415,7 +9415,7 @@ textarea.field {
   width: min(20rem, calc(100vw - 2rem));
   max-height: min(42rem, calc(100dvh - var(--app-header-height) - 1.5rem));
   overflow-y: auto;
-  box-shadow: 0 18px 50px color-mix(in oklch, var(--text) 13%, transparent);
+  box-shadow: var(--shadow-popover-subtle);
 }
 
 .mobile-primary-nav {
@@ -9857,7 +9857,7 @@ textarea.field {
     border-top: 1px solid var(--border);
     border-radius: 18px 18px 0 0;
     padding: 0.65rem 0.65rem max(0.65rem, env(safe-area-inset-bottom));
-    box-shadow: 0 -20px 60px color-mix(in oklch, var(--text) 18%, transparent);
+    box-shadow: 0 -0.25rem 0.75rem color-mix(in oklch, var(--text) 12%, transparent);
   }
 
   .account-menu-heading {
@@ -13719,6 +13719,118 @@ textarea.field {
   gap: 1.5rem;
 }
 
+.companion-submission-card {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 46rem);
+  margin-inline: auto;
+  padding: clamp(2rem, 6vw, 4rem);
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--accent-self);
+  border-radius: 18px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.companion-submission-mark {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: 1.25rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent-self-soft);
+  color: var(--accent-self);
+  font-size: 1.5rem;
+  font-weight: 750;
+}
+
+.companion-submission-card .text-h1 {
+  max-width: 18ch;
+  margin-top: 0.55rem;
+}
+
+.companion-submission-card > .text-body {
+  max-width: 38rem;
+  margin-top: 0.8rem;
+}
+
+.companion-submission-next {
+  display: grid;
+  gap: 0.3rem;
+  width: min(100%, 36rem);
+  margin-top: 1.75rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid color-mix(in oklch, var(--accent-self) 35%, var(--border));
+  border-radius: 12px;
+  background: var(--accent-self-soft);
+  text-align: left;
+}
+
+.companion-submission-next strong {
+  color: var(--text);
+  font-size: 0.9375rem;
+}
+
+.companion-submission-next span {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.companion-submission-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.companion-locked-card {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 46rem);
+  margin-inline: auto;
+  padding: clamp(2rem, 6vw, 4rem);
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--accent-self);
+  border-radius: 18px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.companion-locked-card .text-h1 {
+  max-width: 20ch;
+  margin-top: 0.55rem;
+}
+
+.companion-locked-card > .text-body {
+  max-width: 38rem;
+  margin-top: 0.8rem;
+}
+
+.companion-locked-guidance,
+.companion-locked-draft-note {
+  max-width: 38rem;
+  margin-top: 0.8rem;
+}
+
+.companion-locked-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.verification-lock-note {
+  border-left-color: var(--border-strong);
+}
+
+.verification-step .btn[disabled],
+.verification-outcome .btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .companion-editor-form {
   min-width: 0;
   overflow: hidden;
@@ -14287,6 +14399,48 @@ button.companion-preview-avatar {
   .companion-editor-form {
     border-inline: 0;
     border-radius: 0;
+  }
+
+  .companion-submission-card {
+    padding: 1.5rem 1.25rem 2rem;
+    border-inline: 0;
+    border-radius: 0;
+  }
+
+  .companion-submission-mark {
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .companion-submission-card > .text-body {
+    margin-top: 0.6rem;
+  }
+
+  .companion-submission-next {
+    margin-top: 1.1rem;
+  }
+
+  .companion-submission-actions {
+    width: 100%;
+    flex-direction: column;
+    margin-top: 0.9rem;
+  }
+
+  .companion-locked-card {
+    padding: 1.5rem 1.25rem 2rem;
+    border-inline: 0;
+    border-radius: 0;
+  }
+
+  .companion-locked-card > .text-body {
+    margin-top: 0.6rem;
+  }
+
+  .companion-locked-actions {
+    width: 100%;
+    flex-direction: column;
+    margin-top: 0.9rem;
   }
 
   .companion-editor-header {

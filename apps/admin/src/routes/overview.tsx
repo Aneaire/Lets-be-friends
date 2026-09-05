@@ -1,5 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { ArrowRight, ClipboardCheck, Flag, ShieldCheck, UsersRound } from 'lucide-react'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { useQuery } from 'convex/react'
+import type { ReactNode } from 'react'
 import { api } from '../../../web/convex/_generated/api'
 
 export const Route = createFileRoute('/overview')({ component: OverviewPage })
@@ -10,25 +12,37 @@ function OverviewPage() {
 
   return (
     <>
-      <header className="admin-page-header">
+      <header className="admin-page-header admin-overview-header">
         <div>
           <p className="eyebrow">Trust operations</p>
-          <h1 className="text-h1 mt-2">Overview</h1>
-          <p className="lede mt-2">Open safety review work, moderation posture, and recent audit activity.</p>
+          <h1 className="text-h1 mt-2">Your work starts here.</h1>
+          <p className="lede mt-2">Review open queues, then check the latest admin activity.</p>
         </div>
       </header>
 
-      <section className="admin-stat-grid" aria-label="Admin posture">
-        <Stat label="Companion profile reviews" value={counts?.companionApplicationsPending} />
-        <Stat label="Identity reviews" value={counts?.memberVerificationsPending} />
-        <Stat label="Open reports" value={counts?.reportsOpen} />
-        <Stat label="Suspended users" value={counts?.usersSuspended} />
+      <section className="admin-queue-section" aria-labelledby="open-work-heading">
+        <div className="admin-section-heading">
+          <div>
+            <p className="eyebrow">Priority queues</p>
+            <h2 className="text-h2" id="open-work-heading">Open work</h2>
+          </div>
+          <p className="text-meta">Select a queue to start reviewing.</p>
+        </div>
+        <div className="admin-stat-grid">
+          <QueueCard icon={<ClipboardCheck size={18} />} label="Companion profiles" value={counts?.companionApplicationsPending} to="/companion-applications" />
+          <QueueCard icon={<ShieldCheck size={18} />} label="Identity checks" value={counts?.memberVerificationsPending} to="/booking-verification" />
+          <QueueCard icon={<Flag size={18} />} label="Safety reports" value={counts?.reportsOpen} to="/reports" />
+          {overview?.viewerRole === 'admin' ? <QueueCard icon={<UsersRound size={18} />} label="Suspended users" value={counts?.usersSuspended} to="/users" /> : null}
+        </div>
       </section>
 
-      <section>
-        <header className="mb-3">
-          <h2 className="text-h2">Recent audit</h2>
-          <p className="text-meta mt-1">Latest actions across safety review and moderation.</p>
+      <section className="admin-activity-section" aria-labelledby="recent-activity-heading">
+        <header className="admin-section-heading">
+          <div>
+            <p className="eyebrow">Accountability</p>
+            <h2 className="text-h2" id="recent-activity-heading">Recent activity</h2>
+          </div>
+          {overview?.viewerRole === 'admin' ? <Link className="btn btn-ghost btn-sm" to="/audit-logs">View audit log <ArrowRight size={14} aria-hidden="true" /></Link> : null}
         </header>
         {overview === undefined ? (
           <div className="admin-empty">Loading audit activity...</div>
@@ -67,12 +81,16 @@ function OverviewPage() {
   )
 }
 
-function Stat({ label, value }: { label: string; value: number | undefined }) {
+function QueueCard({ icon, label, value, to }: { icon: ReactNode; label: string; value: number | undefined; to: '/companion-applications' | '/booking-verification' | '/reports' | '/users' }) {
   return (
-    <div className="admin-stat">
-      <div className="admin-stat-label">{label}</div>
-      <div className="admin-stat-value">{value ?? '...'}</div>
-    </div>
+    <Link className="admin-stat admin-queue-card" to={to}>
+      <span className="admin-stat-icon" aria-hidden="true">{icon}</span>
+      <span className="admin-stat-copy">
+        <span className="admin-stat-value">{value ?? '...'}</span>
+        <span className="admin-stat-label">{label}</span>
+      </span>
+      <ArrowRight className="admin-stat-arrow" size={16} aria-hidden="true" />
+    </Link>
   )
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { identityEntitlementStatus, memberVerificationPresentation } from '../../src/lib/memberVerification'
+import { canOpenCompanionProfile, identityEntitlementStatus, memberVerificationPresentation } from '../../src/lib/memberVerification'
 
 describe('member verification presentation', () => {
   it('prompts a member to start Persona before any attempt exists', () => {
@@ -102,5 +102,94 @@ describe('member verification presentation', () => {
   it('downgrades legacy or expired approved strings without a current entitlement', () => {
     expect(identityEntitlementStatus('approved', false)).toBe('not_started')
     expect(identityEntitlementStatus('approved', true)).toBe('approved')
+  })
+})
+
+describe('companion profile gate', () => {
+  it('opens for a current approved identity', () => {
+    expect(canOpenCompanionProfile(true, null)).toBe(true)
+    expect(canOpenCompanionProfile(true, {
+      adminStatus: 'not_ready',
+      verificationSource: 'in_app',
+      identityStage: 'draft',
+      isCurrent: true,
+      reason: 'member',
+    })).toBe(true)
+  })
+
+  it('opens for a current identity submitted for safety review', () => {
+    expect(canOpenCompanionProfile(false, {
+      adminStatus: 'pending',
+      verificationSource: 'in_app',
+      identityStage: 'ready_for_review',
+      isCurrent: true,
+      reason: 'member',
+    })).toBe(true)
+  })
+
+  it('keeps a genuinely ready provider-declined attempt eligible', () => {
+    expect(canOpenCompanionProfile(false, {
+      adminStatus: 'pending',
+      verificationSource: 'in_app',
+      identityStage: 'ready_for_review',
+      isCurrent: true,
+      reason: 'companion_application',
+    })).toBe(true)
+  })
+
+  it('locks incomplete, processing, expired, and rejected attempts', () => {
+    expect(canOpenCompanionProfile(false, null)).toBe(false)
+    expect(canOpenCompanionProfile(false, {
+      adminStatus: 'not_ready',
+      verificationSource: 'in_app',
+      identityStage: 'draft',
+      isCurrent: true,
+      reason: 'member',
+    })).toBe(false)
+    expect(canOpenCompanionProfile(false, {
+      adminStatus: 'not_ready',
+      verificationSource: 'in_app',
+      identityStage: 'confirmation_required',
+      isCurrent: true,
+      reason: 'member',
+    })).toBe(false)
+    expect(canOpenCompanionProfile(false, {
+      adminStatus: 'not_ready',
+      verificationSource: 'in_app',
+      identityStage: 'failed',
+      isCurrent: true,
+      reason: 'member',
+    })).toBe(false)
+    expect(canOpenCompanionProfile(false, {
+      adminStatus: 'rejected',
+      verificationSource: 'in_app',
+      identityStage: 'rejected',
+      isCurrent: true,
+      reason: 'member',
+    })).toBe(false)
+  })
+
+  it('locks dormant provider attempts, booking reasons, and non-current rows', () => {
+    expect(canOpenCompanionProfile(false, {
+      adminStatus: 'pending',
+      verificationSource: 'persona',
+      identityStage: 'ready_for_review',
+      isCurrent: true,
+      reason: 'member',
+    })).toBe(false)
+    expect(canOpenCompanionProfile(false, {
+      adminStatus: 'pending',
+      verificationSource: 'in_app',
+      identityStage: 'ready_for_review',
+      isCurrent: true,
+      reason: 'booking',
+    })).toBe(false)
+    expect(canOpenCompanionProfile(false, {
+      adminStatus: 'pending',
+      verificationSource: 'in_app',
+      identityStage: 'ready_for_review',
+      isCurrent: false,
+      reason: 'member',
+    })).toBe(false)
   })
 })

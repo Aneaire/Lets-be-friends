@@ -70,6 +70,15 @@ export function getAdminNavSections(role: AdminRole): AdminNavSection[] {
     .filter((section) => section.items.length > 0)
 }
 
+export function getAdminNavContext(role: AdminRole, pathname: string) {
+  for (const section of getAdminNavSections(role)) {
+    const item = section.items.find((candidate) => candidate.to === pathname)
+    if (item) return { section: section.title, item }
+  }
+
+  return undefined
+}
+
 export type AdminGateState = 'loading' | 'signed_out' | 'sync_profile' | 'denied' | 'allowed'
 
 export function getAdminGateState(input: {

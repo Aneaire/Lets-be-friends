@@ -1,4 +1,6 @@
+import { ArrowRight, ClipboardCheck, Flag, ShieldCheck } from 'lucide-react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import type { ReactNode } from 'react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 
 import { AdminShellPresentation } from './AdminShellPresentation'
@@ -12,20 +14,35 @@ const counts = {
 function OverviewContent() {
   return (
     <>
-      <header className="admin-page-header">
+      <header className="admin-page-header admin-overview-header">
         <div>
-          <p className="eyebrow">Operations</p>
-          <h1 className="text-h1">Review overview</h1>
-          <p className="lede">Prioritize identity, safety, and moderation work.</p>
+          <p className="eyebrow">Trust operations</p>
+          <h1 className="text-h1 mt-2">Your work starts here.</h1>
+          <p className="lede mt-2">Review open queues, then check the latest admin activity.</p>
         </div>
-        <button type="button" className="btn btn-neutral">Refresh records</button>
       </header>
-      <section className="admin-stat-grid" aria-label="Open work">
-        <article className="admin-stat"><span className="admin-stat-label">Companion profiles</span><strong className="admin-stat-value tabular">8</strong></article>
-        <article className="admin-stat"><span className="admin-stat-label">Identity checks</span><strong className="admin-stat-value tabular">3</strong></article>
-        <article className="admin-stat"><span className="admin-stat-label">Safety reports</span><strong className="admin-stat-value tabular">5</strong></article>
+      <section className="admin-queue-section" aria-labelledby="story-open-work">
+        <div className="admin-section-heading">
+          <div><p className="eyebrow">Priority queues</p><h2 className="text-h2" id="story-open-work">Open work</h2></div>
+          <p className="text-meta">Select a queue to start reviewing.</p>
+        </div>
+        <div className="admin-stat-grid">
+          <StoryQueueCard icon={<ClipboardCheck size={18} />} label="Companion profiles" value={8} />
+          <StoryQueueCard icon={<ShieldCheck size={18} />} label="Identity checks" value={3} />
+          <StoryQueueCard icon={<Flag size={18} />} label="Safety reports" value={5} />
+        </div>
       </section>
     </>
+  )
+}
+
+function StoryQueueCard({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
+  return (
+    <a className="admin-stat admin-queue-card" href="#queue">
+      <span className="admin-stat-icon" aria-hidden="true">{icon}</span>
+      <span className="admin-stat-copy"><strong className="admin-stat-value tabular">{value}</strong><span className="admin-stat-label">{label}</span></span>
+      <ArrowRight className="admin-stat-arrow" size={16} aria-hidden="true" />
+    </a>
   )
 }
 

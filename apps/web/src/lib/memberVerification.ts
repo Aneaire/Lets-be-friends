@@ -19,6 +19,30 @@ export type MemberVerificationPresentation = {
   action: 'start' | 'continue' | 'retry' | 'none'
 }
 
+export type CompanionGateVerification = {
+  adminStatus?: AdminVerificationStatus | null
+  verificationSource?: 'persona' | 'in_app' | 'legacy_manual' | null
+  identityStage?: 'draft' | 'extracting' | 'confirmation_required' | 'ready_for_review' | 'failed' | 'approved' | 'rejected' | 'purged' | null
+  isCurrent?: boolean | null
+  reason?: string | null
+} | null | undefined
+
+// A Companion profile may be opened, submitted, or resubmitted only when the
+// member has a current approved identity or the current identity attempt is
+// ready for admin review. This mirrors isIdentityReadyForAdminReview in
+// apps/web/convex/identityVerification.ts: only adminStatus pending with a
+// current in_app attempt in ready_for_review counts. Incomplete, processing,
+// expired, rejected, and dormant Persona attempts stay locked.
+export function canOpenCompanionProfile(identityEligible: boolean, latest?: CompanionGateVerification) {
+  if (identityEligible) return true
+  if (!latest) return false
+  if (latest.adminStatus !== 'pending') return false
+  if (latest.isCurrent !== true) return false
+  if (latest.reason === 'booking') return false
+  if (latest.verificationSource === 'in_app') return latest.identityStage === 'ready_for_review'
+  return false
+}
+
 export function identityEntitlementStatus(status: MemberVerificationStatus, identityEligible: boolean) {
   if (identityEligible) return 'approved' as const
   return status === 'approved' ? 'not_started' as const : status
