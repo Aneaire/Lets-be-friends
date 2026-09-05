@@ -472,7 +472,6 @@ function AccountNavigation({
     ? memberVerificationPresentation(
       identityEntitlementStatus(viewer.verificationStatus, viewer.identityEligible),
       latestVerification,
-      viewer.identityTestBypassActive,
     )
     : null
   const nudge = viewer === undefined || application === undefined

@@ -422,13 +422,10 @@ describe('in-app identity records', () => {
 })
 
 describe('identity approval expiry maintenance', () => {
-  it('sends deduplicated reminders, expires approvals, and excludes test bypass', async () => {
-    const previous = process.env.IDENTITY_TEST_BYPASS_USER_IDS
-    process.env.IDENTITY_TEST_BYPASS_USER_IDS = 'bypass-user'
+  it('sends deduplicated reminders and expires approvals including legacy bypass rows', async () => {
     const t = createTest()
-    try {
-      const now = Date.now()
-      const ids = await t.run(async (ctx) => {
+    const now = Date.now()
+    const ids = await t.run(async (ctx) => {
         const base = { verificationStatus: 'approved' as const, verificationSource: 'in_app' as const, suspended: false, createdAt: now, updatedAt: now }
         const thirty = await ctx.db.insert('users', { clerkUserId: 'expiring-30', displayName: 'Expiring 30', role: 'member', identityVerifiedAt: now, identityExpiresAt: now + 20 * DAY_MS, ...base })
         const seven = await ctx.db.insert('users', { clerkUserId: 'expiring-7', displayName: 'Expiring 7', role: 'member', identityVerifiedAt: now, identityExpiresAt: now + 5 * DAY_MS, ...base })
@@ -436,12 +433,12 @@ describe('identity approval expiry maintenance', () => {
         const bypassId = await ctx.db.insert('users', { clerkUserId: 'bypass-user', displayName: 'Bypass User', role: 'member', identityTestBypass: true, identityVerifiedAt: now - 2 * DAY_MS, identityExpiresAt: now - DAY_MS, ...base })
         const later = await ctx.db.insert('users', { clerkUserId: 'expiring-later', displayName: 'Expiring Later', role: 'member', identityVerifiedAt: now, identityExpiresAt: now + 100 * DAY_MS, ...base })
         return { thirty, seven, expiredId, bypassId, later }
-      })
+    })
 
-      const result = await t.mutation(internal.identityRecords.processIdentityExpiry, { now, limit: 100 })
-      expect(result).toMatchObject({ expiring: 2, expired: 1, skipped: 1 })
+    const result = await t.mutation(internal.identityRecords.processIdentityExpiry, { now, limit: 100 })
+    expect(result).toMatchObject({ expiring: 2, expired: 2, skipped: 0 })
 
-      const rows = await t.run(async (ctx) => ({
+    const rows = await t.run(async (ctx) => ({
         thirtyNotifications: await ctx.db.query('notifications').withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', ids.thirty).eq('dedupeKey', `identity-verification-expiring:${ids.thirty}:${now + 20 * DAY_MS}:30`)).unique(),
         sevenNotifications: await ctx.db.query('notifications').withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', ids.seven).eq('dedupeKey', `identity-verification-expiring:${ids.seven}:${now + 5 * DAY_MS}:7`)).unique(),
         expiredNotifications: await ctx.db.query('notifications').withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', ids.expiredId).eq('dedupeKey', `identity-verification-expired:${ids.expiredId}:${now - DAY_MS}`)).unique(),
@@ -450,30 +447,26 @@ describe('identity approval expiry maintenance', () => {
         bypassUser: await ctx.db.get(ids.bypassId),
         laterUser: await ctx.db.get(ids.later),
         audits: await ctx.db.query('auditLogs').collect(),
-      }))
+    }))
       expect(rows.thirtyNotifications?.kind).toBe('identity_verification_expiring')
       expect(rows.sevenNotifications?.kind).toBe('identity_verification_expiring')
       expect(rows.expiredNotifications?.kind).toBe('identity_verification_expired')
       expect(rows.expiredUser?.verificationStatus).toBe('not_started')
       expect(rows.expiredUser?.identityExpiresAt).toBeUndefined()
-      expect(rows.bypassUser?.verificationStatus).toBe('approved')
+      expect(rows.bypassUser?.verificationStatus).toBe('not_started')
       expect(rows.laterUser?.verificationStatus).toBe('approved')
-      expect(rows.bypassNotifications.filter((row) => row.recipientUserId === ids.bypassId)).toHaveLength(0)
+      expect(rows.bypassNotifications.filter((row) => row.recipientUserId === ids.bypassId && row.kind === 'identity_verification_expired')).toHaveLength(1)
       expect(rows.audits.some((audit) => audit.action === 'identity_verification.expired')).toBe(true)
 
-      const again = await t.mutation(internal.identityRecords.processIdentityExpiry, { now, limit: 100 })
-      expect(again.expired).toBe(0)
-      const deduped = await t.run(async (ctx) => ({
+    const again = await t.mutation(internal.identityRecords.processIdentityExpiry, { now, limit: 100 })
+    expect(again.expired).toBe(0)
+    const deduped = await t.run(async (ctx) => ({
         thirty: await ctx.db.query('notifications').withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', ids.thirty).eq('dedupeKey', `identity-verification-expiring:${ids.thirty}:${now + 20 * DAY_MS}:30`)).unique(),
         seven: await ctx.db.query('notifications').withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', ids.seven).eq('dedupeKey', `identity-verification-expiring:${ids.seven}:${now + 5 * DAY_MS}:7`)).unique(),
         expired: await ctx.db.query('notifications').withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', ids.expiredId).eq('dedupeKey', `identity-verification-expired:${ids.expiredId}:${now - DAY_MS}`)).unique(),
-      }))
-      expect(deduped.thirty?._id).toBe(rows.thirtyNotifications?._id)
-      expect(deduped.seven?._id).toBe(rows.sevenNotifications?._id)
-      expect(deduped.expired?._id).toBe(rows.expiredNotifications?._id)
-    } finally {
-      if (previous === undefined) delete process.env.IDENTITY_TEST_BYPASS_USER_IDS
-      else process.env.IDENTITY_TEST_BYPASS_USER_IDS = previous
-    }
+    }))
+    expect(deduped.thirty?._id).toBe(rows.thirtyNotifications?._id)
+    expect(deduped.seven?._id).toBe(rows.sevenNotifications?._id)
+    expect(deduped.expired?._id).toBe(rows.expiredNotifications?._id)
   })
 })

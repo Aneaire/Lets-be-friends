@@ -10,7 +10,6 @@ const TOTAL = 57_500
 const SUBTOTAL = 50_000
 const FEE = 7_500
 let previousFlag: string | undefined
-let previousTestCreditFlag: string | undefined
 
 function createTest() {
   const t = convexTest(schema, modules)
@@ -20,16 +19,12 @@ function createTest() {
 
 beforeEach(() => {
   previousFlag = process.env.MEMBER_WALLET_V2_ENABLED
-  previousTestCreditFlag = process.env.MEMBER_WALLET_TEST_CREDIT_ENABLED
   process.env.MEMBER_WALLET_V2_ENABLED = 'true'
-  process.env.MEMBER_WALLET_TEST_CREDIT_ENABLED = 'true'
 })
 
 afterEach(() => {
   if (previousFlag === undefined) delete process.env.MEMBER_WALLET_V2_ENABLED
   else process.env.MEMBER_WALLET_V2_ENABLED = previousFlag
-  if (previousTestCreditFlag === undefined) delete process.env.MEMBER_WALLET_TEST_CREDIT_ENABLED
-  else process.env.MEMBER_WALLET_TEST_CREDIT_ENABLED = previousTestCreditFlag
 })
 
 async function seed(t: ReturnType<typeof convexTest>, availableCentavos = TOTAL) {
@@ -121,23 +116,6 @@ async function acceptAndComplete(t: ReturnType<typeof convexTest>, bookingId: an
 }
 
 describe('member-wallet booking ledger', () => {
-  it('adds a test-only credit to the signed-in member wallet when enabled', async () => {
-    const t = createTest()
-    const ids = await seed(t, 0)
-
-    await expect(t.withIdentity({ subject: 'wallet-member' }).mutation(api.finance.addTestCredit, {
-      amountCentavos: 12_345,
-    })).resolves.toMatchObject({ amountCentavos: 12_345, availableCentavos: 12_345 })
-
-    const state = await t.run(async (ctx) => ({
-      account: await ctx.db.get(ids.memberAccountId),
-      transactions: await ctx.db.query('walletTransactions').collect(),
-    }))
-    expect(state.account?.availableCentavos).toBe(12_345)
-    expect(state.transactions).toHaveLength(1)
-    expect(state.transactions[0]).toMatchObject({ kind: 'test_member_credit', amountCentavos: 12_345 })
-  })
-
   it('requires exact available balance, reserves on acceptance, and releases cancellation idempotently', async () => {
     const t = createTest()
     const ids = await seed(t)

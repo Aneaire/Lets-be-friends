@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
-import { useAction, useMutation, useQuery } from 'convex/react'
+import { useAction, useQuery } from 'convex/react'
 import { useCallback } from 'react'
 import { toast } from 'sonner'
 import { formatPhp } from '@lets-be-friends/shared'
@@ -15,7 +15,6 @@ function WalletPage() {
   const viewer = useQuery(api.users.viewer)
   const memberFinance = useQuery(api.finance.memberDashboard, viewer ? {} : 'skip')
   const createMemberTopUp = useAction(api.paymongo.createMemberTopUp)
-  const addTestCredit = useMutation(api.finance.addTestCredit)
   const setNotice = useCallback((message: string) => toast.success(message), [])
 
   if (!isSignedIn) {
@@ -46,10 +45,6 @@ function WalletPage() {
           setNotice(result.qrImageUrl
             ? `QR Ph top-up for ${formatPhp(result.amountCentavos)} is ready to scan.`
             : 'PayMongo is confirming the QR Ph top-up. Your wallet will update only after provider verification.')
-        }}
-        onAddTestCredit={async (amountCentavos) => {
-          const result = await addTestCredit({ amountCentavos })
-          setNotice(`${formatPhp(result.amountCentavos)} test balance added. Available to book: ${formatPhp(result.availableCentavos)}.`)
         }}
       />
 

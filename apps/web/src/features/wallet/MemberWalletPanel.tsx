@@ -6,10 +6,9 @@ import { OpenableImage } from '../../design-system/molecules/OpenableImage'
 
 export type MemberFinance = NonNullable<ReturnType<typeof useQuery<typeof api.finance.memberDashboard>>>
 
-export function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
+export function MemberWalletPanel({ finance, onCreateTopUp }: {
   finance: MemberFinance | null | undefined
   onCreateTopUp: (amountCentavos: number) => Promise<void>
-  onAddTestCredit: (amountCentavos: number) => Promise<void>
 }) {
   const refreshMemberTopUp = useAction(api.paymongo.refreshMemberTopUp)
   const refreshInFlightRef = useRef(false)
@@ -86,28 +85,6 @@ export function MemberWalletPanel({ finance, onCreateTopUp, onAddTestCredit }: {
             <div className="wallet-metric wallet-metric-pending"><p className="text-meta">Reserved for accepted bookings</p><p className="text-h2 tabular mt-1">{formatPhp(finance.reservedCentavos)}</p></div>
           </div>
           <div className="member-wallet-actions-grid">
-            {finance.testCreditEnabled && (
-              <form
-                className="space-y-3"
-                onSubmit={async (event) => {
-                  event.preventDefault()
-                  setBusy(true)
-                  setWalletError('')
-                  try {
-                    const form = new FormData(event.currentTarget)
-                    await onAddTestCredit(Math.round(Number(form.get('testCreditPesos')) * 100))
-                  } catch (submitError) {
-                    setWalletError(submitError instanceof Error ? submitError.message : 'Test balance could not be added.')
-                  } finally {
-                    setBusy(false)
-                  }
-                }}
-              >
-                <div><p className="text-h3">Add test balance</p><p className="text-meta mt-1">For testing only. This adds internal booking credit and does not charge a payment method.</p></div>
-                <label className="field-row"><span className="label">Amount <span className="label-aux">PHP</span></span><input name="testCreditPesos" type="number" min="1" max="100000" step="0.01" defaultValue="1000" required className="field" disabled={busy} /></label>
-                <button className="btn btn-self" disabled={busy}>{busy ? 'Adding test balance…' : 'Add test balance'}</button>
-              </form>
-            )}
             <form
               className="space-y-3"
               onSubmit={async (event) => {

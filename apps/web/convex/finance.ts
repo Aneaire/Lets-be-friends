@@ -23,10 +23,6 @@ export function memberWalletV2Enabled() {
   return process.env.MEMBER_WALLET_V2_ENABLED?.trim().toLowerCase() === 'true'
 }
 
-export function memberWalletTestCreditEnabled() {
-  return process.env.MEMBER_WALLET_TEST_CREDIT_ENABLED?.trim().toLowerCase() === 'true'
-}
-
 export const dashboard = query({
   args: {},
   handler: async (ctx) => {
@@ -100,52 +96,11 @@ export const memberDashboard = query({
     return {
       currency: BOOKING_CURRENCY,
       enabled: memberWalletV2Enabled(),
-      testCreditEnabled: memberWalletTestCreditEnabled(),
       availableCentavos: account?.availableCentavos ?? 0,
       reservedCentavos: account?.reservedCentavos ?? 0,
       pendingCentavos: account?.pendingCentavos ?? 0,
       topUps: topUps.filter((topUp) => topUp.purpose === 'member_booking_balance'),
     }
-  },
-})
-
-export const addTestCredit = mutation({
-  args: { amountCentavos: v.number() },
-  handler: async (ctx, args) => {
-    const viewer = await getViewer(ctx)
-    if (!viewer) throw new Error('Sign in to add test balance')
-    if (viewer.suspended) throw new Error('Account is suspended')
-    if (!memberWalletTestCreditEnabled()) throw new Error('Test wallet credit is not enabled on this server')
-    assertMoney(args.amountCentavos, 'Test credit amount')
-    if (args.amountCentavos < 100 || args.amountCentavos > 10_000_000) {
-      throw new Error('Test credit must be between PHP 1.00 and PHP 100,000.00')
-    }
-
-    const now = Date.now()
-    const account = await getOrCreateWalletAccount(ctx, {
-      deterministicKey: memberBookingAccountKey(viewer._id),
-      accountType: 'member_booking',
-      ownerUserId: viewer._id,
-      now,
-    })
-    await applyWalletTransaction(ctx, {
-      kind: 'test_member_credit',
-      idempotencyKey: `test-credit:${viewer._id}:${now}`,
-      actorUserId: viewer._id,
-      amountCentavos: args.amountCentavos,
-      note: 'Test-only member wallet credit',
-      now,
-      allowExternalCredit: true,
-      legs: [{ accountId: account._id, bucket: 'available', direction: 'credit', amountCentavos: args.amountCentavos }],
-    })
-    await writeAudit(ctx, {
-      actorUserId: viewer._id,
-      action: 'member_wallet.test_credit_added',
-      targetType: 'walletAccount',
-      targetId: String(account._id),
-      after: { amountCentavos: args.amountCentavos, currency: BOOKING_CURRENCY },
-    })
-    return { amountCentavos: args.amountCentavos, availableCentavos: account.availableCentavos + args.amountCentavos }
   },
 })
 

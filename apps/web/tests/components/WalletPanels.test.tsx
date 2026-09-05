@@ -46,14 +46,13 @@ const memberFinance = {
   reservedCentavos: 1_300_00,
   pendingCentavos: 0,
   enabled: true,
-  testCreditEnabled: false,
   topUps: [],
 }
 
 describe('dedicated wallet page panels', () => {
   it('shows the booking balance with the PayMongo QR Ph top-up option', () => {
     render(
-      <MemberWalletPanel finance={memberFinance} onCreateTopUp={async () => {}} onAddTestCredit={async () => {}} />,
+      <MemberWalletPanel finance={memberFinance} onCreateTopUp={async () => {}} />,
     )
 
     expect(screen.getByRole('heading', { name: 'Booking balance' })).toBeTruthy()
@@ -64,7 +63,7 @@ describe('dedicated wallet page panels', () => {
 
   it('shows a loading state while the booking wallet connects', () => {
     render(
-      <MemberWalletPanel finance={undefined} onCreateTopUp={async () => {}} onAddTestCredit={async () => {}} />,
+      <MemberWalletPanel finance={undefined} onCreateTopUp={async () => {}} />,
     )
 
     expect(screen.getByText('Loading booking wallet…')).toBeTruthy()

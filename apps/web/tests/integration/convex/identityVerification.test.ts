@@ -88,22 +88,12 @@ describe('identity verification policy helpers', () => {
     expect(hasCurrentPersonaApproval({ ...valid, identityVerifiedAt: undefined } as any, now)).toBe(false)
   })
 
-  it('allows test bypass only for an explicitly allowlisted account', () => {
-    const previous = process.env.IDENTITY_TEST_BYPASS_USER_IDS
-    process.env.IDENTITY_TEST_BYPASS_USER_IDS = 'allowed-user'
+  it('does not treat a legacy test bypass field as identity approval', () => {
     const user = {
-      clerkUserId: 'allowed-user',
       verificationStatus: 'not_started',
       identityTestBypass: true,
     }
-    try {
-      expect(hasCurrentIdentityApproval(user as any)).toBe(true)
-      expect(hasCurrentIdentityApproval({ ...user, clerkUserId: 'another-user' } as any)).toBe(false)
-      expect(hasCurrentIdentityApproval({ ...user, identityTestBypass: false } as any)).toBe(false)
-    } finally {
-      if (previous === undefined) delete process.env.IDENTITY_TEST_BYPASS_USER_IDS
-      else process.env.IDENTITY_TEST_BYPASS_USER_IDS = previous
-    }
+    expect(hasCurrentIdentityApproval(user as any)).toBe(false)
   })
 })
 

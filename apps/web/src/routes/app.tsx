@@ -91,10 +91,9 @@ function AppPage() {
   const bookingOpenerRef = useRef<HTMLElement | null>(null)
 
   const verification = viewer
-    ? memberVerificationPresentation(
+      ? memberVerificationPresentation(
         identityEntitlementStatus(viewer.verificationStatus, viewer.identityEligible),
         latestMemberVerification,
-        viewer.identityTestBypassActive,
       )
     : { state: 'not_started' as const, label: 'Loading', tone: 'self' as const, guidance: 'Loading identity status…', action: 'none' as const }
   const canBook = verification.state === 'approved'

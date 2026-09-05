@@ -6,8 +6,8 @@ import {
   usernameValidationError,
   validateActivityCategories,
 } from '@lets-be-friends/shared'
-import { getViewer, requireViewer, writeAudit } from './lib'
-import { hasCurrentIdentityApproval, identityTestBypassAllowed } from './identityVerification'
+import { getViewer, requireViewer } from './lib'
+import { hasCurrentIdentityApproval } from './identityVerification'
 import { syncUserCompanionLocation } from './companionLocations'
 import { isHiddenByPreference } from './safety'
 
@@ -29,8 +29,6 @@ export const viewer = query({
       ...user,
       role: user.role === 'owner' ? 'admin' as const : user.role,
       identityEligible: hasCurrentIdentityApproval(user),
-      identityTestBypassAvailable: identityTestBypassAllowed(user),
-      identityTestBypassActive: identityTestBypassAllowed(user) && user.identityTestBypass === true,
       profileImageUrl: await profileImageUrl(ctx, user),
     }
   },
@@ -93,27 +91,6 @@ export const claimUsername = mutation({
 
     await ctx.db.patch(viewer._id, { username, updatedAt: Date.now() })
     return username
-  },
-})
-
-export const setIdentityTestBypass = mutation({
-  args: { enabled: v.boolean() },
-  handler: async (ctx, args) => {
-    const viewer = await requireViewer(ctx)
-    if (!identityTestBypassAllowed(viewer)) throw new Error('Identity test bypass is not available for this account')
-    const before = viewer.identityTestBypass === true
-    if (before === args.enabled) return args.enabled
-    await ctx.db.patch(viewer._id, { identityTestBypass: args.enabled, updatedAt: Date.now() })
-    await writeAudit(ctx, {
-      actorUserId: viewer._id,
-      action: args.enabled ? 'identity.test_bypass_enabled' : 'identity.test_bypass_disabled',
-      targetType: 'user',
-      targetId: String(viewer._id),
-      before: { identityTestBypass: before },
-      after: { identityTestBypass: args.enabled },
-      note: 'Testing only. No provider or admin identity approval was created.',
-    })
-    return args.enabled
   },
 })
 

@@ -2,7 +2,7 @@ import { action, internalMutation, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { v } from 'convex/values'
-import { hasCurrentIdentityApproval, identityTestBypassAllowed, parseIdentityDate, validateIdentityFields } from './identityVerification'
+import { hasCurrentIdentityApproval, parseIdentityDate, validateIdentityFields } from './identityVerification'
 import { requireViewer, writeAudit } from './lib'
 import { syncUserCompanionLocation } from './companionLocations'
 import { createNotification } from './notifications'
@@ -502,10 +502,6 @@ export const processIdentityExpiry = internalMutation({
     let skipped = 0
     for (const user of rows) {
       if (user.verificationStatus !== 'approved' || !user.identityExpiresAt) {
-        skipped += 1
-        continue
-      }
-      if (identityTestBypassAllowed(user) && user.identityTestBypass === true) {
         skipped += 1
         continue
       }

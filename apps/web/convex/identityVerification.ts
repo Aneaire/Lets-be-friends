@@ -193,24 +193,15 @@ export function hasCurrentPersonaApproval(
     && user.identityExpiresAt > now
 }
 
-export function identityTestBypassAllowed(user: Pick<Doc<'users'>, 'clerkUserId'>) {
-  const allowedUserIds = process.env.IDENTITY_TEST_BYPASS_USER_IDS
-    ?.split(',')
-    .map((value) => value.trim())
-    .filter(Boolean) ?? []
-  return allowedUserIds.includes(user.clerkUserId)
-}
-
 export function hasCurrentIdentityApproval(
-  user: Pick<Doc<'users'>, 'clerkUserId' | 'verificationStatus' | 'verificationSource' | 'identityVerifiedAt' | 'identityExpiresAt' | 'identityTestBypass'>,
+  user: Pick<Doc<'users'>, 'verificationStatus' | 'verificationSource' | 'identityVerifiedAt' | 'identityExpiresAt'>,
   now = Date.now(),
 ) {
-  return (user.verificationStatus === 'approved'
-      && (user.verificationSource === 'persona' || user.verificationSource === 'in_app')
-      && typeof user.identityVerifiedAt === 'number'
-      && typeof user.identityExpiresAt === 'number'
-      && user.identityExpiresAt > now)
-    || (identityTestBypassAllowed(user) && user.identityTestBypass === true)
+  return user.verificationStatus === 'approved'
+    && (user.verificationSource === 'persona' || user.verificationSource === 'in_app')
+    && typeof user.identityVerifiedAt === 'number'
+    && typeof user.identityExpiresAt === 'number'
+    && user.identityExpiresAt > now
 }
 
 export function personaEventTransition(eventName: string): {

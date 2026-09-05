@@ -75,7 +75,6 @@ function ProfilePage() {
   const verification = memberVerificationPresentation(
     identityEntitlementStatus(viewer?.verificationStatus ?? 'not_started', viewer?.identityEligible ?? false),
     latestMemberVerification,
-    viewer?.identityTestBypassActive ?? false,
   )
 
   return (
