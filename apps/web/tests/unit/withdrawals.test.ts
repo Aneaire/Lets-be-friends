@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   buildWithdrawalReferenceNumber,
   decryptPayoutAccountNumber,
   encryptPayoutAccountNumber,
+  isDefinitiveWithdrawalSubmissionError,
+  listPaymongoReceivingInstitutions,
   normalizeBatchTransfer,
   normalizePaymongoReferenceNumber,
   normalizeReceivingInstitutions,
@@ -10,7 +12,9 @@ import {
   normalizeWalletSourceAccount,
   parsePaymongoTransferWebhookEvent,
   paymongoTransferCallbackUrl,
+  resolvePaymongoWalletSourceAccount,
 } from '../../convex/withdrawals'
+import { PaymongoRequestError } from '../../convex/paymongo'
 
 describe('PayMongo withdrawal contracts', () => {
   it('encrypts payout account numbers with context-bound authenticated encryption', async () => {
@@ -50,6 +54,29 @@ describe('PayMongo withdrawal contracts', () => {
     })).toMatchObject({ number: '0000000001', name: 'Lets Be Friends', bic: 'PAEYPHM2XXX' })
   })
 
+  it('supports the Wallet receiving-institution shape and falls back when Transfers V2 is unavailable', async () => {
+    expect(normalizeReceivingInstitutions({
+      data: [
+        { id: 'institution-1', attributes: { name: 'BDO Unibank', provider_code: 'BNORPHMM' } },
+      ],
+    })).toEqual([{ name: 'BDO Unibank', bic: 'BNORPHMM' }])
+
+    const config = {
+      secretKey: 'sk_test_example',
+      publicKey: 'pk_test_example',
+      webhookSecret: undefined,
+      mode: 'test' as const,
+      apiBaseUrl: 'https://api.paymongo.com',
+    }
+    const request = vi.fn()
+      .mockRejectedValueOnce(new PaymongoRequestError('failed to get transfers resource: resource not found', 404))
+      .mockResolvedValueOnce({ data: [] })
+
+    await expect(listPaymongoReceivingInstitutions(config, request)).resolves.toEqual({ data: [] })
+    expect(request).toHaveBeenNthCalledWith(1, '/v2/transfers/receiving_institutions?provider=instapay', { method: 'GET', config })
+    expect(request).toHaveBeenNthCalledWith(2, '/v1/wallets/receiving_institutions?provider=instapay', { method: 'GET', config })
+  })
+
   it('builds withdrawal references PayMongo returns unchanged', () => {
     const reference = buildWithdrawalReferenceNumber('j97abc123Xyz')
     expect(reference).toMatch(/^[A-Za-z0-9 ]+$/)
@@ -70,6 +97,56 @@ describe('PayMongo withdrawal contracts', () => {
     expect(normalizeWalletSourceAccount({
       data: [{ id: 'wallet-1', status: 'activated', source_account: { number: '0000000001', name: 'Lets Be Friends', bic: 'PAEYPHM2XXX' } }],
     })).toMatchObject({ number: '0000000001', bic: 'PAEYPHM2XXX' })
+  })
+
+  it('retrieves an activated Wallet detail when the list omits its source account', async () => {
+    const config = {
+      secretKey: 'sk_live_example',
+      publicKey: 'pk_live_example',
+      webhookSecret: undefined,
+      mode: 'live' as const,
+      apiBaseUrl: 'https://api.paymongo.com',
+    }
+    const request = vi.fn()
+      .mockResolvedValueOnce({
+        data: [{ id: 'wallet-live', status: 'activated', type: 'default', is_default: true, livemode: true }],
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'wallet-live',
+          status: 'activated',
+          balance: { available: 200_000 },
+          account: { account_number: '0000000001', account_name: 'Lets Be Friends' },
+        },
+      })
+
+    await expect(resolvePaymongoWalletSourceAccount(config, request)).resolves.toEqual({
+      number: '0000000001',
+      name: 'Lets Be Friends',
+      bic: 'PAEYPHM2XXX',
+      availableCentavos: 200_000,
+    })
+    expect(request).toHaveBeenNthCalledWith(1, '/v2/wallets', { method: 'GET', config })
+    expect(request).toHaveBeenNthCalledWith(2, '/v2/wallets/wallet-live?fields=account&fields=balance', { method: 'GET', config })
+  })
+
+  it('treats a missing activated Wallet source as a definite pre-transfer failure', async () => {
+    const config = {
+      secretKey: 'sk_live_example',
+      publicKey: 'pk_live_example',
+      webhookSecret: undefined,
+      mode: 'live' as const,
+      apiBaseUrl: 'https://api.paymongo.com',
+    }
+    const request = vi.fn().mockResolvedValueOnce({
+      data: [{ id: 'wallet-live', status: 'deactivated', type: 'default', livemode: true }],
+    })
+
+    const error = await resolvePaymongoWalletSourceAccount(config, request).catch((reason: unknown) => reason)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(isDefinitiveWithdrawalSubmissionError(error)).toBe(true)
+    expect(request).toHaveBeenCalledTimes(1)
   })
 
   it('only accepts HTTPS transfer callback URLs and leaves them unset by default', () => {

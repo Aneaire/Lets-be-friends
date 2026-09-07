@@ -99,8 +99,8 @@ export function CompanionFinancePresentation({
   return (
     <Screen contentStyle={styles.content}>
       <AppHeader
-        title="Withdraw earnings"
-        subtitle="Companion earnings"
+        title="Withdraw funds"
+        subtitle="Wallet"
         back
         onBack={onBack}
       />
@@ -117,7 +117,7 @@ export function CompanionFinancePresentation({
       ) : null}
 
       <View style={[styles.balanceCard, { borderColor: theme.colors.border, borderLeftColor: theme.colors.selfText, backgroundColor: theme.colors.surface }]}>
-        <AppText variant="label" color={theme.colors.textMuted}>AVAILABLE TO WITHDRAW</AppText>
+        <AppText variant="label" color={theme.colors.textMuted}>AVAILABLE WALLET BALANCE</AppText>
         <AppText variant="title" style={styles.balanceValue}>{availableEarnings}</AppText>
         <View style={[styles.balanceBreakdown, { borderTopColor: theme.colors.border }]}>
           <BalanceStat label="In transfer" value={inTransferEarnings} />
@@ -130,7 +130,7 @@ export function CompanionFinancePresentation({
         <View style={styles.withdrawalHeading}>
           <View style={styles.withdrawalHeadingCopy}>
             <AppText variant="heading">Make a withdrawal</AppText>
-            <AppText variant="caption" color={theme.colors.textMuted}>Transfer available earnings to your payout account.</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted}>Transfer available wallet funds to your payout account.</AppText>
           </View>
         </View>
 
@@ -191,7 +191,7 @@ export function CompanionFinancePresentation({
           <DisclosureSection
             compact
             title="How withdrawals work"
-            summary="Timing, fees, and account holds">
+            summary="Timing, fees, and transfer status">
             <AppText variant="caption" color={theme.colors.textMuted}>{payoutNotice}</AppText>
           </DisclosureSection>
         ) : null}

@@ -54,7 +54,6 @@ function ReadyCompanionFinance() {
   const [institutionSearch, setInstitutionSearch] = useState('')
   const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null)
   const [accountNumber, setAccountNumber] = useState('')
-  const [accountNumberConfirmation, setAccountNumberConfirmation] = useState('')
   const filteredInstitutions = useMemo(() => {
     const search = institutionSearch.trim().toLocaleLowerCase()
     return (setup?.institutions ?? []).filter((institution) => !search || institution.name.toLocaleLowerCase().includes(search)).slice(0, 50)
@@ -103,12 +102,12 @@ function ReadyCompanionFinance() {
       <BottomSheet
         visible={setupVisible}
         title={payouts.payoutMethod ? 'Replace payout method' : 'Set up payout method'}
-        description="Use a bank or e-wallet account under your verified legal name. Saving starts a 24-hour security hold."
+        description="Use a bank or e-wallet account under your verified legal name."
         busy={busy}
         onClose={closePayoutSetup}
         footer={(
           <View style={styles.sheetActions}>
-            <ActionButton label="Save payout method" intent="self" loading={busy} disabled={!selectedInstitution || !accountNumber || !accountNumberConfirmation} onPress={() => { void saveSetup() }} />
+            <ActionButton label="Save payout method" intent="self" loading={busy} disabled={!selectedInstitution || !accountNumber} onPress={() => { void saveSetup() }} />
             <ActionButton label="Cancel" intent="neutral" secondary disabled={busy} onPress={closePayoutSetup} />
           </View>
         )}>
@@ -145,8 +144,6 @@ function ReadyCompanionFinance() {
               </View>
               <AppText variant="caption" color={theme.colors.textMuted}>Account number</AppText>
               <TextField value={accountNumber} onChangeText={(value) => { setAccountNumber(value); setMessage('') }} keyboardType="number-pad" inputMode="numeric" autoComplete="off" accessibilityLabel="Payout account number" />
-              <AppText variant="caption" color={theme.colors.textMuted}>Confirm account number</AppText>
-              <TextField value={accountNumberConfirmation} onChangeText={(value) => { setAccountNumberConfirmation(value); setMessage('') }} keyboardType="number-pad" inputMode="numeric" autoComplete="off" accessibilityLabel="Confirm payout account number" />
             </>
           )}
         </View>
@@ -179,7 +176,6 @@ function ReadyCompanionFinance() {
       setInstitutionSearch('')
       setSelectedInstitution(null)
       setAccountNumber('')
-      setAccountNumberConfirmation('')
       setSetupVisible(true)
     } catch (error) {
       setMessage(`Error: ${error instanceof Error ? error.message : 'Supported institutions could not be loaded.'}`)
@@ -197,16 +193,12 @@ function ReadyCompanionFinance() {
 
   async function saveSetup() {
     if (!selectedInstitution) return
-    if (accountNumber.replace(/[\s-]/g, '') !== accountNumberConfirmation.replace(/[\s-]/g, '')) {
-      setMessage('Error: Account numbers do not match.')
-      return
-    }
     setBusy(true)
     setMessage('')
     try {
       const result = await savePayoutMethod({ institutionBic: selectedInstitution.bic, accountNumber })
       setSetupVisible(false)
-      setMessage(`${result.institutionName} ending in ${result.accountNumberLast4} was saved. Withdrawals unlock after the 24-hour security hold.`)
+      setMessage(`${result.institutionName} ending in ${result.accountNumberLast4} was saved. You can withdraw to it right away.`)
     } catch (error) {
       setMessage(`Error: ${error instanceof Error ? error.message : 'Payout method could not be saved.'}`)
     } finally {
@@ -241,7 +233,7 @@ function payoutMethodItem(payouts: PayoutDashboard) {
     modeMismatch: payouts.payoutMethod.modeMismatch,
     readyLabel: payouts.payoutMethod.modeMismatch
       ? 'Replace this payout method for the current PayMongo mode.'
-      : `Ready ${formatDateTime(payouts.payoutMethod.availableAt)}. This hold protects account changes.`,
+      : undefined,
   }
 }
 

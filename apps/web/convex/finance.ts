@@ -38,7 +38,7 @@ export const dashboard = query({
       ctx.db.query('platformFeeLedger').withIndex('by_companion_created_at', (q) => q.eq('companionUserId', viewer._id)).order('desc').collect(),
       ctx.db.query('commissionObligations').withIndex('by_companion_due_at', (q) => q.eq('companionUserId', viewer._id)).collect(),
       ctx.db.query('paymongoTopUps').withIndex('by_companion_created_at', (q) => q.eq('companionUserId', viewer._id)).order('desc').take(10),
-      findWalletAccount(ctx, companionEarningsAccountKey(viewer._id)),
+      readUnifiedWalletBalance(ctx, viewer._id),
     ])
 
     const paidByObligation = new Map<string, number>()
@@ -68,13 +68,13 @@ export const dashboard = query({
       dueAt: nextCutoff,
       pastDueCentavos,
       canAcceptBookings: pastDueCentavos === 0,
-      pendingEarningsCentavos: earningsAccount?.pendingCentavos ?? 0,
-      availableEarningsCentavos: earningsAccount?.availableCentavos ?? 0,
-      inTransferEarningsCentavos: earningsAccount?.reservedCentavos ?? 0,
+      pendingEarningsCentavos: earningsAccount.pendingCentavos,
+      availableEarningsCentavos: earningsAccount.availableCentavos,
+      inTransferEarningsCentavos: earningsAccount.reservedCentavos,
       payoutsAvailable: process.env.COMPANION_WITHDRAWALS_ENABLED?.trim().toLowerCase() === 'true',
       payoutNotice: process.env.COMPANION_WITHDRAWALS_ENABLED?.trim().toLowerCase() === 'true'
-        ? 'Withdraw available earnings to your verified payout account. The platform covers the transfer fee.'
-        : 'Withdrawals are temporarily unavailable. Available earnings remain safely recorded.',
+        ? 'Withdraw available wallet funds to your verified payout account. The platform covers the transfer fee.'
+        : 'Withdrawals are temporarily unavailable. Your wallet balance remains recorded.',
       obligations: obligationRows.filter((row) => row.remainingCentavos > 0).sort((a, b) => a.dueAt - b.dueAt).slice(0, 20),
       ledger: ledger.slice(0, 20),
       topUps: topUps.filter((topUp) => topUp.purpose !== 'member_booking_balance'),
@@ -88,7 +88,7 @@ export const memberDashboard = query({
     const viewer = await getViewer(ctx)
     if (!viewer) return null
     if (viewer.suspended) throw new Error('Account is suspended')
-    const account = await findWalletAccount(ctx, memberBookingAccountKey(viewer._id))
+    const account = await readUnifiedWalletBalance(ctx, viewer._id)
     const topUps = await ctx.db.query('paymongoTopUps')
       .withIndex('by_beneficiary_created_at', (q) => q.eq('beneficiaryUserId', viewer._id))
       .order('desc')
@@ -96,9 +96,9 @@ export const memberDashboard = query({
     return {
       currency: BOOKING_CURRENCY,
       enabled: memberWalletV2Enabled(),
-      availableCentavos: account?.availableCentavos ?? 0,
-      reservedCentavos: account?.reservedCentavos ?? 0,
-      pendingCentavos: account?.pendingCentavos ?? 0,
+      availableCentavos: account.availableCentavos,
+      reservedCentavos: account.reservedCentavos,
+      pendingCentavos: account.pendingCentavos,
       topUps: topUps.filter((topUp) => topUp.purpose === 'member_booking_balance'),
     }
   },
@@ -193,8 +193,7 @@ export async function pastDueCommissionCentavos(ctx: { db: any }, companionUserI
 }
 
 export async function availableMemberBookingBalance(ctx: { db: any }, memberId: Id<'users'>) {
-  const account = await findWalletAccount(ctx, memberBookingAccountKey(memberId))
-  return account?.availableCentavos ?? 0
+  return (await readUnifiedWalletBalance(ctx, memberId)).availableCentavos
 }
 
 export async function creditMemberTopUpInTransaction(
@@ -205,12 +204,7 @@ export async function creditMemberTopUpInTransaction(
   if (topUp.purpose !== 'member_booking_balance' || !topUp.beneficiaryUserId) {
     throw new Error('Top-up is not a member booking-balance top-up')
   }
-  const account = await getOrCreateWalletAccount(ctx, {
-    deterministicKey: memberBookingAccountKey(topUp.beneficiaryUserId),
-    accountType: 'member_booking',
-    ownerUserId: topUp.beneficiaryUserId,
-    now: paidAt,
-  })
+  const account = await getOrCreateUserWalletAccount(ctx, topUp.beneficiaryUserId, paidAt)
   const applied = await applyWalletTransaction(ctx, {
     kind: 'paymongo_member_credit',
     idempotencyKey: `topup:${topUp._id}:member-credit`,
@@ -234,12 +228,7 @@ export async function creditMemberTopUpInTransaction(
 
 export async function reserveBookingFunds(ctx: { db: any }, booking: Doc<'bookings'>, now = Date.now()) {
   const amounts = requireV2BookingAmounts(booking)
-  const memberAccount = await getOrCreateWalletAccount(ctx, {
-    deterministicKey: memberBookingAccountKey(booking.memberId),
-    accountType: 'member_booking',
-    ownerUserId: booking.memberId,
-    now,
-  })
+  const memberAccount = await getOrCreateUserWalletAccount(ctx, booking.memberId, now)
   const applied = await applyWalletTransaction(ctx, {
     kind: 'booking_reserve',
     idempotencyKey: `booking:${booking._id}:reserve`,
@@ -258,12 +247,7 @@ export async function reserveBookingFunds(ctx: { db: any }, booking: Doc<'bookin
 export async function releaseBookingFunds(ctx: { db: any }, booking: Doc<'bookings'>, actorUserId: Id<'users'>, now = Date.now()) {
   if (booking.settlementState === 'refunded') throw new Error('Refunded booking funds cannot be released again')
   const amounts = requireV2BookingAmounts(booking)
-  const memberAccount = await getOrCreateWalletAccount(ctx, {
-    deterministicKey: memberBookingAccountKey(booking.memberId),
-    accountType: 'member_booking',
-    ownerUserId: booking.memberId,
-    now,
-  })
+  const memberAccount = await getOrCreateUserWalletAccount(ctx, booking.memberId, now)
   return await applyWalletTransaction(ctx, {
     kind: 'booking_release',
     idempotencyKey: `booking:${booking._id}:release`,
@@ -287,12 +271,8 @@ export async function allocateCompletedBookingFunds(
   if (booking.settlementState === 'refunded') throw new Error('Refunded bookings cannot allocate completion funds')
   const amounts = requireV2BookingAmounts(booking)
   const [memberAccount, companionAccount, platformAccount] = await Promise.all([
-    getOrCreateWalletAccount(ctx, {
-      deterministicKey: memberBookingAccountKey(booking.memberId), accountType: 'member_booking', ownerUserId: booking.memberId, now,
-    }),
-    getOrCreateWalletAccount(ctx, {
-      deterministicKey: companionEarningsAccountKey(companionUserId), accountType: 'companion_earnings', ownerUserId: companionUserId, now,
-    }),
+    getOrCreateUserWalletAccount(ctx, booking.memberId, now),
+    getOrCreateUserWalletAccount(ctx, companionUserId, now),
     getOrCreateWalletAccount(ctx, {
       deterministicKey: PLATFORM_REVENUE_ACCOUNT_KEY, accountType: 'platform_revenue', now,
     }),
@@ -330,9 +310,7 @@ export async function settleBookingFunds(ctx: { db: any }, bookingId: Id<'bookin
   if (!companion) throw new Error('Companion profile not found')
   const amounts = requireV2BookingAmounts(booking)
   const [companionAccount, platformAccount] = await Promise.all([
-    getOrCreateWalletAccount(ctx, {
-      deterministicKey: companionEarningsAccountKey(companion.userId), accountType: 'companion_earnings', ownerUserId: companion.userId, now,
-    }),
+    getOrCreateUserWalletAccount(ctx, companion.userId, now),
     getOrCreateWalletAccount(ctx, { deterministicKey: PLATFORM_REVENUE_ACCOUNT_KEY, accountType: 'platform_revenue', now }),
   ])
   const applied = await applyWalletTransaction(ctx, {
@@ -371,16 +349,12 @@ export async function resolveBlockedBookingFunds(
   if (booking.settlementState !== 'blocked') throw new Error('Booking funds are not blocked by an active report')
   const companion = await ctx.db.get(booking.companionProfileId)
   if (!companion) throw new Error('Companion profile not found')
-  const memberAccount = await getOrCreateWalletAccount(ctx, {
-    deterministicKey: memberBookingAccountKey(booking.memberId), accountType: 'member_booking', ownerUserId: booking.memberId, now,
-  })
+  const memberAccount = await getOrCreateUserWalletAccount(ctx, booking.memberId, now)
 
   if (resolution === 'release_to_companion') {
     if (!booking.jointlyCompletedAt) throw new Error('Funds can be released to the Companion only after mutual completion')
     const [companionAccount, platformAccount] = await Promise.all([
-      getOrCreateWalletAccount(ctx, {
-        deterministicKey: companionEarningsAccountKey(companion.userId), accountType: 'companion_earnings', ownerUserId: companion.userId, now,
-      }),
+      getOrCreateUserWalletAccount(ctx, companion.userId, now),
       getOrCreateWalletAccount(ctx, { deterministicKey: PLATFORM_REVENUE_ACCOUNT_KEY, accountType: 'platform_revenue', now }),
     ])
     const applied = await applyWalletTransaction(ctx, {
@@ -495,9 +469,7 @@ async function refundPendingLegs(
   now: number,
 ): Promise<WalletLeg[]> {
   const [companionAccount, platformAccount] = await Promise.all([
-    getOrCreateWalletAccount(ctx, {
-      deterministicKey: companionEarningsAccountKey(companionUserId), accountType: 'companion_earnings', ownerUserId: companionUserId, now,
-    }),
+    getOrCreateUserWalletAccount(ctx, companionUserId, now),
     getOrCreateWalletAccount(ctx, { deterministicKey: PLATFORM_REVENUE_ACCOUNT_KEY, accountType: 'platform_revenue', now }),
   ])
   return [
@@ -621,6 +593,52 @@ export async function findWalletAccount(ctx: { db: any }, deterministicKey: stri
   return await ctx.db.query('walletAccounts')
     .withIndex('by_deterministic_key', (q: any) => q.eq('deterministicKey', deterministicKey))
     .unique() as Doc<'walletAccounts'> | null
+}
+
+export async function readUnifiedWalletBalance(ctx: { db: any }, userId: Id<'users'>) {
+  const [wallet, legacyEarnings] = await Promise.all([
+    findWalletAccount(ctx, memberBookingAccountKey(userId)),
+    findWalletAccount(ctx, companionEarningsAccountKey(userId)),
+  ])
+  return {
+    availableCentavos: (wallet?.availableCentavos ?? 0) + (legacyEarnings?.availableCentavos ?? 0),
+    reservedCentavos: (wallet?.reservedCentavos ?? 0) + (legacyEarnings?.reservedCentavos ?? 0),
+    pendingCentavos: (wallet?.pendingCentavos ?? 0) + (legacyEarnings?.pendingCentavos ?? 0),
+  }
+}
+
+export async function getOrCreateUserWalletAccount(ctx: { db: any }, userId: Id<'users'>, now = Date.now()) {
+  const wallet = await getOrCreateWalletAccount(ctx, {
+    deterministicKey: memberBookingAccountKey(userId),
+    accountType: 'member_booking',
+    ownerUserId: userId,
+    now,
+  })
+  const legacyEarnings = await findWalletAccount(ctx, companionEarningsAccountKey(userId))
+  if (!legacyEarnings) return wallet
+
+  const balances = [
+    ['available', legacyEarnings.availableCentavos],
+    ['reserved', legacyEarnings.reservedCentavos],
+    ['pending', legacyEarnings.pendingCentavos],
+  ] as const
+  const amountCentavos = balances.reduce((total, [, amount]) => total + amount, 0)
+  if (amountCentavos === 0) return wallet
+
+  const legs: WalletLeg[] = balances.flatMap(([bucket, amount]) => amount > 0 ? [
+    { accountId: legacyEarnings._id, bucket, direction: 'debit' as const, amountCentavos: amount },
+    { accountId: wallet._id, bucket, direction: 'credit' as const, amountCentavos: amount },
+  ] : [])
+  await applyWalletTransaction(ctx, {
+    kind: 'wallet_consolidation',
+    idempotencyKey: `wallet:${String(userId)}:consolidate-companion-earnings`,
+    actorUserId: userId,
+    amountCentavos,
+    note: 'Consolidated booking balance and Companion earnings into one wallet',
+    now,
+    legs,
+  })
+  return await ctx.db.get(wallet._id) as Doc<'walletAccounts'>
 }
 
 function requireV2BookingAmounts(booking: Doc<'bookings'>) {

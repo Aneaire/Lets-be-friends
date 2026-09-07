@@ -1,21 +1,21 @@
 # Companion withdrawals
 
-Companion withdrawals move settled, available earnings to one verified Philippine bank or e-wallet account through PayMongo InstaPay.
+Wallet withdrawals move available funds, including verified top-ups, returned booking funds, and settled Companion earnings, to one verified Philippine bank or e-wallet account through PayMongo InstaPay.
 
 ## Product rules
 
 - Only approved, unsuspended Companions with current identity verification can add a payout method or withdraw.
 - The payout account holder is the verified legal name. The client cannot override it.
-- One payout method is active at a time. Replacing it starts a new 24-hour security hold.
+- One payout method is active at a time. Replacing it takes effect immediately and new methods are ready right away. The saved `availableAt` timestamp is kept for compatibility.
 - Withdrawal amounts are from PHP 100.00 through PHP 50,000.00 per transfer.
 - Only one unresolved withdrawal is allowed per Companion.
 - The Companion receives the exact confirmed amount. The platform absorbs PayMongo's transfer fee.
 - Account numbers are encrypted at rest and only the last four digits are returned to clients.
 - A request atomically moves earnings from available to reserved before PayMongo submission.
-- Successful transfers debit reserved earnings. Definitive failures release the full amount to available earnings.
+- Successful transfers debit reserved wallet funds. Definitive failures return the full amount to the available wallet balance.
 - An uncertain provider response keeps funds reserved. The same PayMongo idempotency key is reused, which prevents a duplicate transfer.
 
-These choices follow patterns documented by [Airbnb](https://www.airbnb.com/help/article/425), [Upwork](https://support.upwork.com/hc/en-us/articles/211060918-How-to-get-paid-on-Upwork), and [Fiverr](https://help.fiverr.com/hc/en-us/articles/360010530058-Withdrawing-your-earnings-managing-payout-methods): separate pending and available balances, verify the payout destination, apply a security hold after sensitive changes, confirm irreversible details, and keep visible status history.
+These choices follow patterns documented by [Airbnb](https://www.airbnb.com/help/article/425), [Upwork](https://support.upwork.com/hc/en-us/articles/211060918-How-to-get-paid-on-Upwork), and [Fiverr](https://help.fiverr.com/hc/en-us/articles/360010530058-Withdrawing-your-earnings-managing-payout-methods): separate pending and available balances, verify the payout destination, confirm irreversible details, and keep visible status history.
 
 ## PayMongo rollout checklist
 

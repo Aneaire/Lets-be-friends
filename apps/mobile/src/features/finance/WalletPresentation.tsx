@@ -61,10 +61,10 @@ export function WalletPresentation({
   return (
     <Screen contentStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
-        <AppText variant="label" color={theme.colors.selfText}>BOOKING WALLET</AppText>
-        <AppText variant="title">Your booking balance</AppText>
+        <AppText variant="label" color={theme.colors.selfText}>WALLET</AppText>
+        <AppText variant="title">Your wallet balance</AppText>
         <AppText color={theme.colors.textMuted}>
-          Use available balance for booking requests. Reserved and pending money is not available for a new request.
+          Use available funds for bookings or withdraw them. Reserved and pending money stays locked.
         </AppText>
       </View>
 

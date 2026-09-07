@@ -16,6 +16,7 @@ export function friendlyPayoutError(error: unknown, fallback: string) {
   if (/account is suspended/i.test(message)) return 'This account is suspended and cannot use withdrawals.'
   if (/withdrawals are not enabled/i.test(message)) return 'Withdrawals are currently disabled by the platform.'
   if (/profile sync required/i.test(message)) return 'Your profile is still syncing. Reload this page and try again.'
+  if (/paymongo|transfers resource|receiving institutions/i.test(message)) return fallback
   return message || fallback
 }
 
@@ -60,12 +61,12 @@ export function CompanionWithdrawalPanel() {
     <section id="withdraw-earnings" className="mb-10" aria-labelledby="withdraw-earnings-title">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h2 id="withdraw-earnings-title" className="text-h2">Withdraw earnings</h2>
-          <p className="text-meta mt-1">Available earnings move to your verified bank or e-wallet account through PayMongo InstaPay.</p>
+          <h2 id="withdraw-earnings-title" className="text-h2">Withdraw funds</h2>
+          <p className="text-meta mt-1">Available wallet funds move to your verified bank or e-wallet account through PayMongo InstaPay.</p>
         </div>
-        {payouts?.payoutMethod && (
-          <span className="status-pill" data-tone={payouts.payoutMethod.ready ? 'success' : 'warning'}>
-            {payouts.payoutMethod.ready ? 'Payout method ready' : 'Security hold'}
+        {payouts?.payoutMethod && !payouts.payoutMethod.modeMismatch && (
+          <span className="status-pill" data-tone="success">
+            Payout method ready
           </span>
         )}
       </div>
@@ -97,8 +98,8 @@ export function CompanionWithdrawalPanel() {
               <div>
                 <p className="text-body"><strong>{payouts.payoutMethod.institutionName}</strong> · •••• {payouts.payoutMethod.accountNumberLast4}</p>
                 <p className="text-meta mt-1">Account holder: {payouts.payoutMethod.accountName}</p>
-                {!payouts.payoutMethod.ready && !payouts.payoutMethod.modeMismatch && (
-                  <p className="text-meta mt-1">Ready {formatManilaDate(payouts.payoutMethod.availableAt)}. This 24-hour hold protects account changes.</p>
+                {!payouts.payoutMethod.modeMismatch && (
+                  <p className="text-meta mt-1">New payout methods are ready right away.</p>
                 )}
                 {payouts.payoutMethod.modeMismatch && <p className="text-meta mt-1 text-[color:var(--danger)]">Replace this payout method for the current PayMongo mode.</p>}
               </div>
@@ -128,11 +129,6 @@ export function CompanionWithdrawalPanel() {
               event.preventDefault()
               const form = new FormData(event.currentTarget)
               const accountNumber = String(form.get('payoutAccountNumber') ?? '')
-              const confirmation = String(form.get('payoutAccountNumberConfirmation') ?? '')
-              if (accountNumber.replace(/[\s-]/g, '') !== confirmation.replace(/[\s-]/g, '')) {
-                setPayoutError('Account numbers do not match.')
-                return
-              }
               setPayoutBusy(true)
               setPayoutError('')
               setPayoutMessage('')
@@ -142,7 +138,7 @@ export function CompanionWithdrawalPanel() {
                   accountNumber,
                 })
                 setSetupOpen(false)
-                setPayoutMessage(`${result.institutionName} ending in ${result.accountNumberLast4} was saved. Withdrawals unlock after the 24-hour security hold.`)
+                setPayoutMessage(`${result.institutionName} ending in ${result.accountNumberLast4} was saved. You can withdraw to it right away.`)
               } catch (submitError) {
                 setPayoutError(friendlyPayoutError(submitError, 'Payout method could not be saved.'))
               } finally {
@@ -150,7 +146,7 @@ export function CompanionWithdrawalPanel() {
               }
             }}
           >
-            <div><p className="text-body"><strong>{payouts.payoutMethod ? 'Replace payout method' : 'Set up payout method'}</strong></p><p className="text-meta mt-1">Changing these details starts a new 24-hour security hold.</p></div>
+            <div><p className="text-body"><strong>{payouts.payoutMethod ? 'Replace payout method' : 'Set up payout method'}</strong></p><p className="text-meta mt-1">Saving replaces the current payout method.</p></div>
             {!setup && <p className="text-meta">Loading PayMongo’s current InstaPay institutions…</p>}
             {setup && (
               <>
@@ -165,16 +161,10 @@ export function CompanionWithdrawalPanel() {
                   <span className="label">Verified account holder</span>
                   <input className="field" value={setup.accountName} readOnly aria-readonly="true" />
                 </label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="field-row">
-                    <span className="label">Account number</span>
-                    <input name="payoutAccountNumber" className="field tabular" inputMode="numeric" autoComplete="off" minLength={8} maxLength={28} required disabled={payoutBusy} />
-                  </label>
-                  <label className="field-row">
-                    <span className="label">Confirm account number</span>
-                    <input name="payoutAccountNumberConfirmation" className="field tabular" inputMode="numeric" autoComplete="off" minLength={8} maxLength={28} required disabled={payoutBusy} />
-                  </label>
-                </div>
+                <label className="field-row">
+                  <span className="label">Account number</span>
+                  <input name="payoutAccountNumber" className="field tabular" inputMode="numeric" autoComplete="off" minLength={8} maxLength={28} required disabled={payoutBusy} />
+                </label>
               </>
             )}
             <div className="flex gap-2 flex-wrap">
@@ -184,7 +174,7 @@ export function CompanionWithdrawalPanel() {
           </form>
         )}
 
-        {payouts?.enabled && payouts.payoutMethod?.ready && !payouts.payoutMethod.modeMismatch && !payouts.activeWithdrawalId && !setupOpen && withdrawalDraft === null && (
+        {payouts?.enabled && payouts.payoutMethod && !payouts.payoutMethod.modeMismatch && !payouts.activeWithdrawalId && !setupOpen && withdrawalDraft === null && (
           <form
             className="flex items-end gap-3 flex-wrap"
             onSubmit={(event) => {

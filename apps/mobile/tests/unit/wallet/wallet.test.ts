@@ -1,6 +1,6 @@
 import { parseWalletAmount, topUpPresentation, walletBalanceRows } from '@/data/wallet'
 
-describe('booking wallet presentation', () => {
+describe('wallet presentation', () => {
   it('parses server-supported PHP top-up amounts exactly to centavos', () => {
     expect(parseWalletAmount('100')).toEqual({ ok: true, amountCentavos: 10_000 })
     expect(parseWalletAmount('1,250.50')).toEqual({ ok: true, amountCentavos: 125_050 })
@@ -14,7 +14,7 @@ describe('booking wallet presentation', () => {
 
   it('labels wallet buckets without treating pending money as available', () => {
     expect(walletBalanceRows({ availableCentavos: 100_00, reservedCentavos: 50_00, pendingCentavos: 25_00 }).map((row) => row.label)).toEqual([
-      'Available to book',
+      'Available balance',
       'Reserved for accepted bookings',
       'Pending provider confirmation',
     ])

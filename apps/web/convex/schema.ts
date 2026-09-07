@@ -79,6 +79,7 @@ const walletTransactionKind = v.union(
   v.literal('payout_reserve'),
   v.literal('payout_complete'),
   v.literal('payout_release'),
+  v.literal('wallet_consolidation'),
 )
 const payoutMethodStatus = v.union(v.literal('active'), v.literal('replaced'))
 const withdrawalStatus = v.union(

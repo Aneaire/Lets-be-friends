@@ -68,8 +68,8 @@ export function MemberWalletPanel({ finance, onCreateTopUp }: {
     <section id="member-wallet" className="mb-10" aria-labelledby="member-wallet-title">
       <header className="flex items-baseline justify-between gap-3 mb-3">
         <div>
-          <h2 id="member-wallet-title" className="text-h2">Booking balance</h2>
-          <p className="text-meta mt-1">Use this balance for booking requests. You will see the complete booking total, including the service fee, before sending.</p>
+          <h2 id="member-wallet-title" className="text-h2">Wallet balance</h2>
+          <p className="text-meta mt-1">Use available funds for bookings or withdraw them to your verified payout account.</p>
         </div>
         {finance && <span className="status-pill" data-tone="success">{formatPhp(finance.availableCentavos)} available</span>}
       </header>
@@ -81,7 +81,7 @@ export function MemberWalletPanel({ finance, onCreateTopUp }: {
             <div className="notice notice-warning text-meta"><span className="notice-icon">!</span><span>New member-wallet bookings are disabled on this server. Existing balances and settlements remain readable.</span></div>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="wallet-metric wallet-metric-available"><p className="text-meta">Available to book</p><p className="text-h2 tabular mt-1">{formatPhp(finance.availableCentavos)}</p></div>
+            <div className="wallet-metric wallet-metric-available"><p className="text-meta">Available balance</p><p className="text-h2 tabular mt-1">{formatPhp(finance.availableCentavos)}</p></div>
             <div className="wallet-metric wallet-metric-pending"><p className="text-meta">Reserved for accepted bookings</p><p className="text-h2 tabular mt-1">{formatPhp(finance.reservedCentavos)}</p></div>
           </div>
           <div className="member-wallet-actions-grid">
@@ -101,7 +101,7 @@ export function MemberWalletPanel({ finance, onCreateTopUp }: {
                 }
               }}
             >
-              <div><p className="text-h3">Add balance with PayMongo QR Ph</p><p className="text-meta mt-1">Only a provider-verified paid intent credits this wallet.</p></div>
+              <div><p className="text-h3">Add money with PayMongo QR Ph</p><p className="text-meta mt-1">Only a provider-verified paid intent credits this wallet.</p></div>
               <label className="field-row"><span className="label">Top-up amount <span className="label-aux">PHP</span></span><input name="topUpPesos" type="number" min="100" max="100000" step="0.01" defaultValue="1000" required className="field" disabled={busy || Boolean(activeTopUp) || !finance.enabled} /></label>
               <button className="btn btn-self" disabled={busy || Boolean(activeTopUp) || !finance.enabled}>{busy ? 'Creating QR…' : activeTopUp ? 'QR attempt still active' : 'Create QR Ph top-up'}</button>
             </form>

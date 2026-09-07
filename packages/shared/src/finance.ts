@@ -11,7 +11,6 @@ export const MIN_TOP_UP_CENTAVOS = 10_000
 export const MAX_TOP_UP_CENTAVOS = 10_000_000
 export const MIN_COMPANION_WITHDRAWAL_CENTAVOS = 10_000
 export const MAX_COMPANION_WITHDRAWAL_CENTAVOS = 5_000_000
-export const COMPANION_PAYOUT_METHOD_HOLD_MS = 24 * 60 * 60 * 1_000
 export const PAYMONGO_TRANSFER_FEE_CENTAVOS = 1_000
 
 export function validateCompanionHourlyRateCentavos(value: number) {

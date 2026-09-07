@@ -1,6 +1,5 @@
 import {
   BOOKING_CURRENCY,
-  COMPANION_PAYOUT_METHOD_HOLD_MS,
   MAX_COMPANION_WITHDRAWAL_CENTAVOS,
   MIN_COMPANION_WITHDRAWAL_CENTAVOS,
   PAYMONGO_TRANSFER_FEE_CENTAVOS,
@@ -10,7 +9,7 @@ import { action, internalAction, internalMutation, internalQuery, mutation, quer
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { v } from 'convex/values'
-import { applyWalletTransaction, companionEarningsAccountKey, findWalletAccount } from './finance'
+import { applyWalletTransaction, getOrCreateUserWalletAccount, readUnifiedWalletBalance } from './finance'
 import { PaymongoRequestError, paymongoConfig, paymongoRequest } from './paymongo'
 import { getViewer, writeAudit } from './lib'
 
@@ -19,6 +18,20 @@ const MAX_SUBMISSION_ATTEMPTS = 3
 const SUBMISSION_RETRY_DELAY_MS = 60_000
 const STALE_SUBMISSION_MS = 5 * 60_000
 const RECONCILIATION_BATCH_SIZE = 50
+
+class PaymongoWalletSourceUnavailableError extends Error {
+  constructor() {
+    super('No activated PayMongo Wallet source account is available')
+    this.name = 'PaymongoWalletSourceUnavailableError'
+  }
+}
+
+export function isDefinitiveWithdrawalSubmissionError(error: unknown) {
+  return error instanceof PaymongoWalletSourceUnavailableError
+    || (error instanceof PaymongoRequestError
+      && error.status >= 400 && error.status < 500
+      && ![408, 409, 429].includes(error.status))
+}
 
 const canonicalTransferValidator = v.object({
   id: v.string(),
@@ -69,7 +82,6 @@ export const dashboard = query({
     const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).unique()
     if (!companion) return null
 
-    const now = Date.now()
     const [method, withdrawals, earningsAccount, legalName] = await Promise.all([
       ctx.db.query('payoutMethods')
         .withIndex('by_companion_status', (q) => q.eq('companionUserId', viewer._id).eq('status', 'active'))
@@ -78,13 +90,13 @@ export const dashboard = query({
         .withIndex('by_companion_created_at', (q) => q.eq('companionUserId', viewer._id))
         .order('desc')
         .take(20),
-      findWalletAccount(ctx, companionEarningsAccountKey(viewer._id)),
+      readUnifiedWalletBalance(ctx, viewer._id),
       verifiedLegalName(ctx, viewer),
     ])
     const activeWithdrawal = withdrawals.find((row) => ACTIVE_WITHDRAWAL_STATUSES.includes(row.status as typeof ACTIVE_WITHDRAWAL_STATUSES[number]))
     const currentMode = configuredPaymongoMode()
     const methodMatchesMode = method?.mode === currentMode
-    const methodReady = Boolean(method && methodMatchesMode && method.availableAt <= now)
+    const methodReady = Boolean(method && methodMatchesMode)
 
     return {
       enabled: companionWithdrawalsEnabled(),
@@ -94,8 +106,8 @@ export const dashboard = query({
       providerFeeCentavos: PAYMONGO_TRANSFER_FEE_CENTAVOS,
       feePaidByPlatform: true,
       verifiedAccountName: legalName,
-      availableEarningsCentavos: earningsAccount?.availableCentavos ?? 0,
-      inTransferEarningsCentavos: earningsAccount?.reservedCentavos ?? 0,
+      availableEarningsCentavos: earningsAccount.availableCentavos,
+      inTransferEarningsCentavos: earningsAccount.reservedCentavos,
       payoutMethod: method ? {
         id: method._id,
         provider: method.provider,
@@ -134,7 +146,7 @@ export const listReceivingInstitutions = action({
     if (!identity) throw new Error('Authentication required')
     const setup = await ctx.runQuery(internal.withdrawals.payoutSetupContext, { clerkUserId: identity.subject })
     const config = paymongoConfig()
-    const response = await paymongoRequest('/v2/transfers/receiving_institutions?provider=instapay', { method: 'GET', config })
+    const response = await listPaymongoReceivingInstitutions(config)
     return { accountName: setup.legalName, institutions: normalizeReceivingInstitutions(response) }
   },
 })
@@ -151,10 +163,7 @@ export const savePayoutMethod = action({
     const accountNumber = normalizeAccountNumber(args.accountNumber)
     const config = paymongoConfig()
     const setup = await ctx.runQuery(internal.withdrawals.payoutSetupContext, { clerkUserId: identity.subject })
-    const institutions = normalizeReceivingInstitutions(await paymongoRequest(
-      '/v2/transfers/receiving_institutions?provider=instapay',
-      { method: 'GET', config },
-    ))
+    const institutions = normalizeReceivingInstitutions(await listPaymongoReceivingInstitutions(config))
     const institution = institutions.find((candidate) => candidate.bic === args.institutionBic.trim())
     if (!institution) throw new Error('Choose a currently supported bank or e-wallet')
     const encrypted = await encryptPayoutAccountNumber(
@@ -187,11 +196,10 @@ export const request = mutation({
       .unique()
     if (!method) throw new Error('Add a payout method before withdrawing')
     if (method.mode !== configuredPaymongoMode()) throw new Error('Replace the payout method for the current payment mode')
-    if (method.availableAt > now) throw new Error('This payout method is still in its 24-hour security hold')
     const active = await firstActiveWithdrawal(ctx, viewer._id)
     if (active) throw new Error('Wait for the current withdrawal to finish before starting another')
-    const account = await findWalletAccount(ctx, companionEarningsAccountKey(viewer._id))
-    if (!account || account.availableCentavos < amountCentavos) throw new Error('Available earnings are lower than this withdrawal amount')
+    const account = await getOrCreateUserWalletAccount(ctx, viewer._id, now)
+    if (account.availableCentavos < amountCentavos) throw new Error('Available wallet balance is lower than this withdrawal amount')
 
     const withdrawalId = await ctx.db.insert('withdrawals', {
       companionUserId: viewer._id,
@@ -277,7 +285,7 @@ export const persistPayoutMethod = internalMutation({
       .withIndex('by_companion_status', (q) => q.eq('companionUserId', viewer._id).eq('status', 'active'))
       .unique()
     if (current) await ctx.db.patch(current._id, { status: 'replaced', replacedAt: now, updatedAt: now })
-    const availableAt = now + COMPANION_PAYOUT_METHOD_HOLD_MS
+    const availableAt = now
     const methodId = await ctx.db.insert('payoutMethods', {
       companionUserId: viewer._id,
       provider: args.provider,
@@ -343,7 +351,7 @@ export const submit = internalAction({
         prepared.accountNumberIv,
         encryptionContext(String(prepared.companionUserId), prepared.institutionBic, prepared.accountName),
       )
-      const sourceAccount = normalizeWalletSourceAccount(await paymongoRequest('/v2/wallets', { method: 'GET', config }))
+      const sourceAccount = await resolvePaymongoWalletSourceAccount(config)
       const requiredCentavos = prepared.amountCentavos + PAYMONGO_TRANSFER_FEE_CENTAVOS
       if (sourceAccount.availableCentavos !== undefined && sourceAccount.availableCentavos < requiredCentavos) {
         await ctx.runMutation(internal.withdrawals.failSubmission, {
@@ -362,8 +370,8 @@ export const submit = internalAction({
             provider: 'instapay',
             amount: prepared.amountCentavos,
             currency: BOOKING_CURRENCY,
-            purpose: 'Companion earnings withdrawal',
-            description: 'Lets Be Friends Companion earnings withdrawal',
+            purpose: 'Wallet withdrawal',
+            description: 'Lets Be Friends wallet withdrawal',
             reference_number: prepared.referenceNumber,
             source_account: { number: sourceAccount.number, name: sourceAccount.name, bic: sourceAccount.bic },
             destination_account: {
@@ -384,13 +392,11 @@ export const submit = internalAction({
       })
       return { outcome: transfer.status as string }
     } catch (error) {
-      const definitive = error instanceof PaymongoRequestError
-        && error.status >= 400 && error.status < 500
-        && ![408, 409, 429].includes(error.status)
+      const definitive = isDefinitiveWithdrawalSubmissionError(error)
       if (definitive) {
         await ctx.runMutation(internal.withdrawals.failSubmission, {
           withdrawalId: prepared._id,
-          failureCode: safeFailureCode(error.message),
+          failureCode: error instanceof Error ? safeFailureCode(error.message) : 'submission_failed',
         })
         return { outcome: 'failed' as const }
       }
@@ -624,8 +630,7 @@ async function firstActiveWithdrawal(ctx: any, companionUserId: Id<'users'>) {
 }
 
 async function completeWithdrawalFunds(ctx: any, withdrawal: Doc<'withdrawals'>, now: number) {
-  const account = await findWalletAccount(ctx, companionEarningsAccountKey(withdrawal.companionUserId))
-  if (!account) throw new Error('Companion earnings account was not found')
+  const account = await getOrCreateUserWalletAccount(ctx, withdrawal.companionUserId, now)
   await applyWalletTransaction(ctx, {
     kind: 'payout_complete',
     idempotencyKey: `withdrawal:${String(withdrawal._id)}:complete`,
@@ -640,8 +645,7 @@ async function completeWithdrawalFunds(ctx: any, withdrawal: Doc<'withdrawals'>,
 }
 
 async function releaseWithdrawalFunds(ctx: any, withdrawal: Doc<'withdrawals'>, now: number) {
-  const account = await findWalletAccount(ctx, companionEarningsAccountKey(withdrawal.companionUserId))
-  if (!account) throw new Error('Companion earnings account was not found')
+  const account = await getOrCreateUserWalletAccount(ctx, withdrawal.companionUserId, now)
   await applyWalletTransaction(ctx, {
     kind: 'payout_release',
     idempotencyKey: `withdrawal:${String(withdrawal._id)}:release`,
@@ -659,6 +663,52 @@ async function releaseWithdrawalFunds(ctx: any, withdrawal: Doc<'withdrawals'>, 
 
 export async function retrievePaymongoTransfer(transferId: string, config: ReturnType<typeof paymongoConfig>) {
   return normalizeTransfer(await paymongoRequest(`/v2/transfers/${encodeURIComponent(transferId)}`, { method: 'GET', config }))
+}
+
+export async function listPaymongoReceivingInstitutions(
+  config: ReturnType<typeof paymongoConfig>,
+  request: typeof paymongoRequest = paymongoRequest,
+) {
+  try {
+    return await request('/v2/transfers/receiving_institutions?provider=instapay', { method: 'GET', config })
+  } catch (error) {
+    if (!(error instanceof PaymongoRequestError) || error.status !== 404) throw error
+    return await request('/v1/wallets/receiving_institutions?provider=instapay', { method: 'GET', config })
+  }
+}
+
+export async function resolvePaymongoWalletSourceAccount(
+  config: ReturnType<typeof paymongoConfig>,
+  request: typeof paymongoRequest = paymongoRequest,
+) {
+  const response = await request('/v2/wallets', { method: 'GET', config })
+  try {
+    return normalizeWalletSourceAccount(response)
+  } catch (error) {
+    if (!(error instanceof PaymongoWalletSourceUnavailableError)) throw error
+  }
+
+  const root = asRecord(response)
+  const rawData = root?.data
+  const wallets = (Array.isArray(rawData) ? rawData : rawData ? [rawData] : [])
+    .map((value) => asRecord(value))
+    .filter((value): value is Record<string, unknown> => Boolean(value))
+    .sort((left, right) => Number(Boolean(right.is_default)) - Number(Boolean(left.is_default)))
+
+  for (const wallet of wallets) {
+    const value = asRecord(wallet.attributes) ?? wallet
+    const status = stringValue(value.status)
+    const walletId = stringValue(wallet.id) ?? stringValue(value.id)
+    if (!walletId || (status && !['activated', 'active'].includes(status))) continue
+    const detail = await request(`/v2/wallets/${encodeURIComponent(walletId)}?fields=account&fields=balance`, { method: 'GET', config })
+    try {
+      return normalizeWalletSourceAccount(detail)
+    } catch (error) {
+      if (!(error instanceof PaymongoWalletSourceUnavailableError)) throw error
+    }
+  }
+
+  throw new PaymongoWalletSourceUnavailableError()
 }
 
 export function normalizeBatchTransfer(response: unknown) {
@@ -719,7 +769,10 @@ export function normalizeReceivingInstitutions(response: unknown) {
     const data = asRecord(item)
     const attributes = asRecord(data?.attributes)
     const value = attributes ?? data
-    const bic = stringValue(value?.bic) ?? stringValue(value?.bank_code) ?? stringValue(value?.code)
+    const bic = stringValue(value?.bic)
+      ?? stringValue(value?.provider_code)
+      ?? stringValue(value?.bank_code)
+      ?? stringValue(value?.code)
     const name = stringValue(value?.name) ?? stringValue(value?.bank_name)
     return bic && name ? [{ bic, name }] : []
   })
@@ -750,7 +803,7 @@ export function normalizeWalletSourceAccount(response: unknown) {
       return { number, name, bic, availableCentavos }
     }
   }
-  throw new Error('No activated PayMongo Wallet source account is available')
+  throw new PaymongoWalletSourceUnavailableError()
 }
 
 export function buildWithdrawalReferenceNumber(withdrawalId: string) {

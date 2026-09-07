@@ -50,13 +50,13 @@ const memberFinance = {
 }
 
 describe('dedicated wallet page panels', () => {
-  it('shows the booking balance with the PayMongo QR Ph top-up option', () => {
+  it('shows the unified wallet balance with the PayMongo QR Ph top-up option', () => {
     render(
       <MemberWalletPanel finance={memberFinance} onCreateTopUp={async () => {}} />,
     )
 
-    expect(screen.getByRole('heading', { name: 'Booking balance' })).toBeTruthy()
-    expect(screen.getByText('Add balance with PayMongo QR Ph')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Wallet balance' })).toBeTruthy()
+    expect(screen.getByText('Add money with PayMongo QR Ph')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Create QR Ph top-up' })).toBeTruthy()
     expect(screen.getByText('No member-wallet top-up attempt yet.')).toBeTruthy()
   })
@@ -69,10 +69,10 @@ describe('dedicated wallet page panels', () => {
     expect(screen.getByText('Loading booking wallet…')).toBeTruthy()
   })
 
-  it('shows the earnings withdrawal section while provider settings load', () => {
+  it('shows the wallet withdrawal section while provider settings load', () => {
     render(<CompanionWithdrawalPanel />)
 
-    expect(screen.getByRole('heading', { name: 'Withdraw earnings' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Withdraw funds' })).toBeTruthy()
     expect(screen.getByText('Loading withdrawal settings…')).toBeTruthy()
   })
 
@@ -98,5 +98,77 @@ describe('dedicated wallet page panels', () => {
     expect(screen.queryByText(/assertEligibleCompanion/)).toBeNull()
     const verifyLink = screen.getByRole('link', { name: 'Verify identity' })
     expect(verifyLink.getAttribute('href')).toContain('/verify-identity')
+  })
+
+  it('replaces PayMongo institution errors with payout setup guidance', async () => {
+    mocks.queryResult = {
+      enabled: true,
+      payoutMethod: null,
+      activeWithdrawalId: null,
+      withdrawals: [],
+      minimumCentavos: 10_000,
+      maximumCentavos: 5_000_000,
+      availableEarningsCentavos: 50_000,
+    }
+    mocks.listAction.mockRejectedValueOnce(
+      new Error('[CONVEX A(withdrawals:listReceivingInstitutions)] Server Error Uncaught PaymongoRequestError: failed to get transfers resource: resource not found at paymongoRequest (../../convex/paymongo.ts:807:27) Called by client'),
+    )
+    render(<CompanionWithdrawalPanel />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set up payout method' }))
+
+    expect(await screen.findByText('Supported institutions could not be loaded.')).toBeTruthy()
+    expect(screen.queryByText(/CONVEX/)).toBeNull()
+    expect(screen.queryByText(/resource not found/i)).toBeNull()
+  })
+
+  it('uses one account number field when setting up a payout method', async () => {
+    mocks.queryResult = {
+      enabled: true,
+      payoutMethod: null,
+      activeWithdrawalId: null,
+      withdrawals: [],
+      minimumCentavos: 10_000,
+      maximumCentavos: 5_000_000,
+      availableEarningsCentavos: 50_000,
+    }
+    mocks.listAction.mockResolvedValueOnce({
+      accountName: 'Maria Santos',
+      institutions: [{ bic: 'GOTYPHM2XXX', name: 'GoTyme Bank Corporation' }],
+    })
+    render(<CompanionWithdrawalPanel />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set up payout method' }))
+
+    expect(await screen.findByRole('textbox', { name: 'Account number' })).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: 'Confirm account number' })).toBeNull()
+  })
+
+  it('treats a future-dated payout method as ready without hold wording', () => {
+    mocks.queryResult = {
+      enabled: true,
+      payoutMethod: {
+        id: 'method-1',
+        provider: 'instapay',
+        institutionBic: 'BNORPHMM',
+        institutionName: 'BDO Unibank',
+        accountName: 'Maria Santos',
+        accountNumberLast4: '4321',
+        availableAt: Date.now() + 86_400_000,
+        ready: false,
+        modeMismatch: false,
+      },
+      activeWithdrawalId: null,
+      withdrawals: [],
+      minimumCentavos: 10_000,
+      maximumCentavos: 5_000_000,
+      availableEarningsCentavos: 50_000,
+    }
+    render(<CompanionWithdrawalPanel />)
+
+    expect(screen.getByText('Payout method ready')).toBeTruthy()
+    expect(screen.queryByText(/Security hold/i)).toBeNull()
+    expect(screen.queryByText(/24-hour/i)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Review withdrawal' })).toBeTruthy()
   })
 })

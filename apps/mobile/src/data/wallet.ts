@@ -25,7 +25,7 @@ export function walletBalanceRows(wallet: {
   pendingCentavos: number
 }) {
   return [
-    { key: 'available', label: 'Available to book', value: formatPhp(wallet.availableCentavos) },
+    { key: 'available', label: 'Available balance', value: formatPhp(wallet.availableCentavos) },
     { key: 'reserved', label: 'Reserved for accepted bookings', value: formatPhp(wallet.reservedCentavos) },
     { key: 'pending', label: 'Pending provider confirmation', value: formatPhp(wallet.pendingCentavos) },
   ] as const

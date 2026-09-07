@@ -35,7 +35,7 @@ function WalletPage() {
       <header className="settings-page-header">
         <p className="text-meta">Your money</p>
         <h1 className="text-h1">Wallet</h1>
-        <p className="text-body muted">Top up your booking balance and withdraw Companion earnings in one place.</p>
+        <p className="text-body muted">Add money, pay for bookings, and withdraw available funds in one place.</p>
       </header>
 
       <MemberWalletPanel

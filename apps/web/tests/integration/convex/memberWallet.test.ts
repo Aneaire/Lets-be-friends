@@ -248,7 +248,7 @@ describe('member-wallet booking ledger', () => {
     expect(state.booking?.settlementEligibleAt! - state.booking?.jointlyCompletedAt!).toBe(86_400_000)
     expect(state.booking?.settlementState).toBe('pending')
     expect(state.transactions.filter((row) => row.kind === 'booking_complete')).toHaveLength(1)
-    expect(state.accounts.find((row) => row.accountType === 'companion_earnings')).toMatchObject({ pendingCentavos: SUBTOTAL, availableCentavos: 0 })
+    expect(state.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)).toMatchObject({ pendingCentavos: SUBTOTAL, availableCentavos: 0 })
     expect(state.accounts.find((row) => row.accountType === 'platform_revenue')).toMatchObject({ pendingCentavos: FEE, availableCentavos: 0 })
 
     await t.mutation(internal.finance.settleBooking, { bookingId: created.bookingId, now: state.booking!.settlementEligibleAt! - 1 })
@@ -261,7 +261,7 @@ describe('member-wallet booking ledger', () => {
     }))
     expect(state.booking?.settlementState).toBe('settled')
     expect(state.transactions.filter((row) => row.kind === 'booking_settle')).toHaveLength(1)
-    expect(state.accounts.find((row) => row.accountType === 'companion_earnings')).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
+    expect(state.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
     expect(state.accounts.find((row) => row.accountType === 'platform_revenue')).toMatchObject({ pendingCentavos: 0, availableCentavos: FEE })
   })
 
@@ -518,7 +518,7 @@ describe('member-wallet booking ledger', () => {
     expect(state.audits).toHaveLength(firstResolution.audits.length)
     expect(state.report?.settlementHoldReleasedAt).toBeTypeOf('number')
     expect(state.accounts.find((row) => row.accountType === 'member_booking')).toMatchObject({ availableCentavos: TOTAL, reservedCentavos: 0 })
-    expect(state.accounts.find((row) => row.accountType === 'companion_earnings')?.pendingCentavos).toBe(0)
+    expect(state.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)?.pendingCentavos ?? 0).toBe(0)
     expect(state.transactions.filter((row) => row.kind === 'booking_admin_refund')).toHaveLength(1)
   })
 
@@ -552,7 +552,7 @@ describe('member-wallet booking ledger', () => {
     expect(state.booking).toMatchObject({ settlementState: 'settled', settlementResolution: 'released' })
     expect(state.booking?.settlementResolvedAt).toBe(firstResolution.booking?.settlementResolvedAt)
     expect(state.audits).toHaveLength(firstResolution.audits.length)
-    expect(state.accounts.find((row) => row.accountType === 'companion_earnings')).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
+    expect(state.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
     expect(state.accounts.find((row) => row.accountType === 'platform_revenue')).toMatchObject({ pendingCentavos: 0, availableCentavos: FEE })
     expect(state.transactions.filter((row) => row.kind === 'booking_admin_release')).toHaveLength(1)
   })

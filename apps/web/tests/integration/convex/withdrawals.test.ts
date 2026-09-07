@@ -30,7 +30,7 @@ afterEach(() => {
   else process.env.PAYMONGO_MODE = previousMode
 })
 
-async function seed(t: ReturnType<typeof convexTest>) {
+async function seed(t: ReturnType<typeof convexTest>, availableCentavos = AVAILABLE) {
   return await t.run(async (ctx) => {
     const now = Date.now()
     const companionUserId = await ctx.db.insert('users', {
@@ -74,11 +74,11 @@ async function seed(t: ReturnType<typeof convexTest>) {
       updatedAt: now,
     })
     const accountId = await ctx.db.insert('walletAccounts', {
-      deterministicKey: `companion:${companionUserId}:earnings`,
-      accountType: 'companion_earnings',
+      deterministicKey: `member:${companionUserId}:booking`,
+      accountType: 'member_booking',
       ownerUserId: companionUserId,
       currency: 'PHP',
-      availableCentavos: AVAILABLE,
+      availableCentavos,
       reservedCentavos: 0,
       pendingCentavos: 0,
       createdAt: now,
@@ -103,15 +103,12 @@ async function addPayoutMethod(t: ReturnType<typeof convexTest>, now: number) {
   })
 }
 
-async function readyPayoutMethod(t: ReturnType<typeof convexTest>, now: number) {
-  return await addPayoutMethod(t, now - 86_400_001)
-}
-
 describe('Companion withdrawals', () => {
-  it('reserves available earnings atomically and exposes only masked payout details', async () => {
+  it('withdraws available unified wallet funds atomically and exposes only masked payout details', async () => {
     const t = createTest()
     const ids = await seed(t)
-    await readyPayoutMethod(t, ids.now)
+    const saved = await addPayoutMethod(t, ids.now)
+    expect(saved.availableAt).toBe(ids.now)
 
     const result = await t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
       amountCentavos: WITHDRAWAL,
@@ -129,27 +126,41 @@ describe('Companion withdrawals', () => {
     expect(state.scheduled).toHaveLength(1)
 
     const dashboard = await t.withIdentity({ subject: 'withdrawal-companion' }).query(api.withdrawals.dashboard, {})
+    const walletDashboard = await t.withIdentity({ subject: 'withdrawal-companion' }).query(api.finance.memberDashboard, {})
     expect(dashboard?.payoutMethod).toMatchObject({ institutionName: 'BDO Unibank', accountNumberLast4: '4321', ready: true })
     expect(dashboard?.activeWithdrawalId).toBe(result.withdrawalId)
+    expect(dashboard).toMatchObject({ availableEarningsCentavos: AVAILABLE - WITHDRAWAL, inTransferEarningsCentavos: WITHDRAWAL })
+    expect(walletDashboard).toMatchObject({ availableCentavos: AVAILABLE - WITHDRAWAL, reservedCentavos: WITHDRAWAL })
     expect(JSON.stringify(dashboard)).not.toContain('encrypted-account-number')
     expect(JSON.stringify(dashboard)).not.toContain('encrypted-iv')
   })
 
-  it('rejects a security-hold or insufficient-balance request without partial financial writes', async () => {
+  it('treats newly saved and future-dated payout methods as ready immediately', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const saved = await addPayoutMethod(t, ids.now)
+    expect(saved.availableAt).toBe(ids.now)
+
+    await t.run(async (ctx) => {
+      const method = await ctx.db.query('payoutMethods').withIndex('by_companion_status', (q) => q.eq('companionUserId', ids.companionUserId).eq('status', 'active')).unique()
+      await ctx.db.patch(method!._id, { availableAt: Date.now() + 86_400_000, updatedAt: Date.now() })
+    })
+
+    const result = await t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
+      amountCentavos: WITHDRAWAL,
+    })
+    expect(result.status).toBe('queued')
+    const dashboard = await t.withIdentity({ subject: 'withdrawal-companion' }).query(api.withdrawals.dashboard, {})
+    expect(dashboard?.payoutMethod).toMatchObject({ ready: true })
+  })
+
+  it('rejects an insufficient-balance request without partial financial writes', async () => {
     const t = createTest()
     const ids = await seed(t)
     await addPayoutMethod(t, ids.now)
     await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
-      amountCentavos: WITHDRAWAL,
-    })).rejects.toThrow('24-hour security hold')
-
-    await t.run(async (ctx) => {
-      const method = await ctx.db.query('payoutMethods').withIndex('by_companion_status', (q) => q.eq('companionUserId', ids.companionUserId).eq('status', 'active')).unique()
-      await ctx.db.patch(method!._id, { availableAt: Date.now() - 1, updatedAt: Date.now() })
-    })
-    await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
       amountCentavos: AVAILABLE + 1,
-    })).rejects.toThrow('Available earnings are lower')
+    })).rejects.toThrow('Available wallet balance is lower')
 
     const state = await t.run(async (ctx) => ({
       account: await ctx.db.get(ids.accountId),
@@ -161,10 +172,115 @@ describe('Companion withdrawals', () => {
     expect(state.transactions).toEqual([])
   })
 
+  it('consolidates legacy Companion earnings with booking funds before withdrawal', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const legacyAmount = 30_000
+    const legacyAccountId = await t.run(async (ctx) => await ctx.db.insert('walletAccounts', {
+      deterministicKey: `companion:${ids.companionUserId}:earnings`,
+      accountType: 'companion_earnings',
+      ownerUserId: ids.companionUserId,
+      currency: 'PHP',
+      availableCentavos: legacyAmount,
+      reservedCentavos: 0,
+      pendingCentavos: 0,
+      createdAt: ids.now,
+      updatedAt: ids.now,
+    }))
+    await addPayoutMethod(t, ids.now)
+
+    const before = await t.withIdentity({ subject: 'withdrawal-companion' }).query(api.withdrawals.dashboard, {})
+    expect(before?.availableEarningsCentavos).toBe(AVAILABLE + legacyAmount)
+    await t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, { amountCentavos: WITHDRAWAL })
+
+    const state = await t.run(async (ctx) => ({
+      wallet: await ctx.db.get(ids.accountId),
+      legacy: await ctx.db.get(legacyAccountId),
+      transactions: await ctx.db.query('walletTransactions').collect(),
+    }))
+    expect(state.wallet).toMatchObject({ availableCentavos: AVAILABLE + legacyAmount - WITHDRAWAL, reservedCentavos: WITHDRAWAL })
+    expect(state.legacy).toMatchObject({ availableCentavos: 0, reservedCentavos: 0, pendingCentavos: 0 })
+    expect(state.transactions.filter((row) => row.kind === 'wallet_consolidation')).toHaveLength(1)
+    expect(state.transactions.filter((row) => row.kind === 'payout_reserve')).toHaveLength(1)
+  })
+
+  it('leaves legacy and unified balances unchanged when a withdrawal exceeds their combined total', async () => {
+    const t = createTest()
+    const ids = await seed(t, 0)
+    const legacyAmount = 30_000
+    const legacyAccountId = await t.run(async (ctx) => await ctx.db.insert('walletAccounts', {
+      deterministicKey: `companion:${ids.companionUserId}:earnings`,
+      accountType: 'companion_earnings',
+      ownerUserId: ids.companionUserId,
+      currency: 'PHP',
+      availableCentavos: legacyAmount,
+      reservedCentavos: 0,
+      pendingCentavos: 0,
+      createdAt: ids.now,
+      updatedAt: ids.now,
+    }))
+    await addPayoutMethod(t, ids.now)
+
+    await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
+      amountCentavos: WITHDRAWAL,
+    })).rejects.toThrow('Available wallet balance is lower')
+    const state = await t.run(async (ctx) => ({
+      wallet: await ctx.db.get(ids.accountId),
+      legacy: await ctx.db.get(legacyAccountId),
+      withdrawals: await ctx.db.query('withdrawals').collect(),
+      transactions: await ctx.db.query('walletTransactions').collect(),
+    }))
+    expect(state.wallet).toMatchObject({ availableCentavos: 0, reservedCentavos: 0, pendingCentavos: 0 })
+    expect(state.legacy).toMatchObject({ availableCentavos: legacyAmount, reservedCentavos: 0, pendingCentavos: 0 })
+    expect(state.withdrawals).toEqual([])
+    expect(state.transactions).toEqual([])
+  })
+
+  it('allows a provider-confirmed QR Ph top-up to be withdrawn from the same wallet', async () => {
+    const t = createTest()
+    const ids = await seed(t, 0)
+    const topUpAmount = 20_000
+    const withdrawalAmount = 15_000
+    const topUpId = await t.run(async (ctx) => await ctx.db.insert('paymongoTopUps', {
+      beneficiaryUserId: ids.companionUserId,
+      purpose: 'member_booking_balance',
+      amountCentavos: topUpAmount,
+      currency: 'PHP',
+      mode: 'test',
+      status: 'processing',
+      providerIntentId: 'pi_withdrawable_topup',
+      createdAt: ids.now,
+      updatedAt: ids.now,
+    }))
+    await t.mutation(internal.paymongo.applyReconciliation, {
+      topUpId,
+      intent: {
+        id: 'pi_withdrawable_topup',
+        amountCentavos: topUpAmount,
+        currency: 'PHP',
+        status: 'succeeded',
+        mode: 'test',
+        methodTypes: ['qrph'],
+      },
+    })
+    await addPayoutMethod(t, ids.now)
+
+    await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
+      amountCentavos: withdrawalAmount,
+    })).resolves.toMatchObject({ status: 'queued', amountCentavos: withdrawalAmount })
+    const state = await t.run(async (ctx) => ({
+      wallet: await ctx.db.get(ids.accountId),
+      transactions: await ctx.db.query('walletTransactions').collect(),
+    }))
+    expect(state.wallet).toMatchObject({ availableCentavos: topUpAmount - withdrawalAmount, reservedCentavos: withdrawalAmount })
+    expect(state.transactions.filter((row) => row.kind === 'paymongo_member_credit')).toHaveLength(1)
+    expect(state.transactions.filter((row) => row.kind === 'payout_reserve')).toHaveLength(1)
+  })
+
   it('completes a provider-confirmed transfer exactly once and keeps a second withdrawal blocked while active', async () => {
     const t = createTest()
     const ids = await seed(t)
-    await readyPayoutMethod(t, ids.now)
+    await addPayoutMethod(t, ids.now)
     const created = await t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, { amountCentavos: WITHDRAWAL })
     await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
       amountCentavos: WITHDRAWAL,
@@ -196,7 +312,7 @@ describe('Companion withdrawals', () => {
   it('releases a definitively failed transfer exactly once and rejects canonical mismatches atomically', async () => {
     const t = createTest()
     const ids = await seed(t)
-    await readyPayoutMethod(t, ids.now)
+    await addPayoutMethod(t, ids.now)
     const created = await t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, { amountCentavos: WITHDRAWAL })
     const withdrawal = await t.run((ctx) => ctx.db.get(created.withdrawalId))
 
@@ -238,7 +354,7 @@ describe('Companion withdrawals', () => {
   it('requires an approved, current, unsuspended Companion identity', async () => {
     const t = createTest()
     const ids = await seed(t)
-    await readyPayoutMethod(t, ids.now)
+    await addPayoutMethod(t, ids.now)
     await t.run((ctx) => ctx.db.patch(ids.companionUserId, { suspended: true, updatedAt: Date.now() }))
     await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
       amountCentavos: WITHDRAWAL,

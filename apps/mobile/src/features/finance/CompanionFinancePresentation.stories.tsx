@@ -46,7 +46,7 @@ const meta = {
     dueDateLabel: 'Aug 29, 2026',
     pastDue: '₱0.00',
     hasPastDue: false,
-    payoutNotice: 'Withdraw available earnings to your verified payout account. The platform covers the transfer fee.',
+    payoutNotice: 'Withdraw available wallet funds to your verified payout account. The platform covers the transfer fee.',
     withdrawalsEnabled: true,
     payoutMethod: {
       institutionName: 'BDO Unibank',
@@ -79,7 +79,7 @@ type Story = StoryObj<typeof meta>
 export const Ready: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('AVAILABLE TO WITHDRAW')).toBeVisible()
+    await expect(canvas.getByText('AVAILABLE WALLET BALANCE')).toBeVisible()
     await expect(canvas.getByText('₱3,420.00')).toBeVisible()
     await expect(canvas.getByText('BDO Unibank · •••• 4321')).toBeVisible()
     await expect(canvas.queryByText(/PayMongo accepted the transfer/)).not.toBeInTheDocument()
@@ -88,7 +88,7 @@ export const Ready: Story = {
     await expect(reviewWithdrawal).toHaveBeenCalledOnce()
 
     await userEvent.click(canvas.getByRole('button', { name: 'Show how withdrawals work' }))
-    await expect(canvas.getByText('Withdraw available earnings to your verified payout account. The platform covers the transfer fee.')).toBeVisible()
+    await expect(canvas.getByText('Withdraw available wallet funds to your verified payout account. The platform covers the transfer fee.')).toBeVisible()
 
     await userEvent.click(canvas.getByRole('button', { name: 'Show withdrawal history' }))
     await expect(canvas.getByText(/PayMongo accepted the transfer/)).toBeVisible()

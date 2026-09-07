@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  COMPANION_PAYOUT_METHOD_HOLD_MS,
   MAX_COMPANION_WITHDRAWAL_CENTAVOS,
   MIN_COMPANION_WITHDRAWAL_CENTAVOS,
   PAYMONGO_TRANSFER_FEE_CENTAVOS,
@@ -8,10 +7,9 @@ import {
 } from '../../src'
 
 describe('Companion withdrawal policy', () => {
-  it('uses the InstaPay range, a 24-hour payout-method hold, and the documented provider fee', () => {
+  it('uses the InstaPay range and the documented provider fee without a payout-method hold', () => {
     expect(MIN_COMPANION_WITHDRAWAL_CENTAVOS).toBe(10_000)
     expect(MAX_COMPANION_WITHDRAWAL_CENTAVOS).toBe(5_000_000)
-    expect(COMPANION_PAYOUT_METHOD_HOLD_MS).toBe(86_400_000)
     expect(PAYMONGO_TRANSFER_FEE_CENTAVOS).toBe(1_000)
   })
 

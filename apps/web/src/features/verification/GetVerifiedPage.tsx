@@ -183,7 +183,7 @@ export function GetVerifiedPage() {
             Approved Companions can accept bookings and earn from completed experiences. You receive the full listed service subtotal.
           </p>
           <div className="verification-outcome-rule" />
-          <p className="text-meta">Withdraw available earnings to a verified bank or e-wallet account through PayMongo InstaPay.</p>
+          <p className="text-meta">Withdraw available wallet funds to a verified bank or e-wallet account through PayMongo InstaPay.</p>
           {!companionDone && !companionUnlocked && (
             <>
               <p className="text-meta verification-lock-note">

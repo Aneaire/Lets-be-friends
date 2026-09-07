@@ -8,7 +8,7 @@ import {
 } from './WalletPresentation'
 
 const balances = [
-  { key: 'available' as const, label: 'Available to book', value: '₱2,450.00' },
+  { key: 'available' as const, label: 'Available balance', value: '₱2,450.00' },
   { key: 'reserved' as const, label: 'Reserved for accepted bookings', value: '₱500.00' },
   { key: 'pending' as const, label: 'Pending provider confirmation', value: '₱0.00' },
 ]

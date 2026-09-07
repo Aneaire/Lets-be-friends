@@ -344,7 +344,7 @@ function FinancePanel({
               </span>
             </div>
             <div className="grid gap-3 sm:grid-cols-3 mt-3">
-              <FinanceMetric label="Available earnings" value={formatPhp(finance.availableEarningsCentavos)} tone="self" />
+              <FinanceMetric label="Available wallet balance" value={formatPhp(finance.availableEarningsCentavos)} tone="self" />
               <FinanceMetric label="In transfer" value={formatPhp(finance.inTransferEarningsCentavos)} tone="self" />
               <FinanceMetric label="Pending earnings" value={formatPhp(finance.pendingEarningsCentavos)} tone="self" />
             </div>
