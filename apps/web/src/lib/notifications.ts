@@ -1,7 +1,8 @@
 export type NotificationDestination =
   | { type: 'booking'; audience: 'member' | 'companion'; bookingId: string }
-  | { type: 'conversation'; conversationId: string }
-  | { type: 'post'; postId: string }
+  | { type: 'conversation'; conversationId: string; messageId?: string }
+  | { type: 'post'; postId: string; commentId?: string }
+  | { type: 'circle'; circleId: string; postId?: string; commentId?: string }
   | { type: 'companion' }
   | { type: 'identity' }
   | { type: 'profile'; userId: string }
@@ -14,11 +15,12 @@ export function webDestination(destination: NotificationDestination) {
       return destination.audience === 'companion'
         ? { to: '/companion' as const, search: { bookingId: destination.bookingId } }
         : { to: '/app' as const, search: { bookingId: destination.bookingId } }
-    case 'conversation': return { to: '/messages' as const, search: { conversationId: destination.conversationId } }
-    case 'post': return { to: '/social' as const, search: { postId: destination.postId } }
+    case 'conversation': return { to: '/messages' as const, search: { conversationId: destination.conversationId, ...(destination.messageId ? { messageId: destination.messageId } : {}) } }
+    case 'post': return { to: '/social' as const, search: { postId: destination.postId, ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
+    case 'circle': return { to: '/circles/$circleId' as const, params: { circleId: destination.circleId }, search: { ...(destination.postId ? { postId: destination.postId } : {}), ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
     case 'companion': return { to: '/companion' as const, search: {} }
     case 'identity': return { to: '/profile' as const, search: {} }
-    case 'profile': return { to: '/social' as const, search: {} }
+    case 'profile': return { to: '/member-profile' as const, search: { userId: destination.userId } }
     case 'safety': return { to: '/safety' as const, search: {} }
     case 'notifications': return { to: '/notifications' as const, search: {} }
   }

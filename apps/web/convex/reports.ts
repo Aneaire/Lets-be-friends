@@ -3,10 +3,12 @@ import { mutation, type MutationCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
+import { requireCirclePreview, requirePostAudienceRead } from './circleAuthorization'
+import { isHiddenByPreference } from './safety'
 
 export const create = mutation({
   args: {
-    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user')),
+    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('circle')),
     targetId: v.string(),
     reason: v.string(),
   },
@@ -17,6 +19,7 @@ export const create = mutation({
     if (reason.length > 2_000) throw new Error('Report reason must be 2000 characters or fewer')
     const now = Date.now()
     let bookingId: Id<'bookings'> | undefined
+    let circleId: Id<'circles'> | undefined
     let settlementHoldAppliedAt: number | undefined
 
     if (args.targetType === 'profile') {
@@ -47,14 +50,29 @@ export const create = mutation({
       if (review.reviewerId === viewer._id) throw new Error('You cannot report your own review')
     } else if (args.targetType === 'post') {
       const post = await safeGet(ctx, 'posts', args.targetId)
-      if (!post || post.hidden || post.deletedAt || !post.reportable) throw new Error('Post not found')
+      if (!post || post.hidden || post.deletedAt || post.circleRemovedAt || !post.reportable) throw new Error('Post not found')
+      if (post.circleId) {
+        await requirePostAudienceRead(ctx, post)
+        if (await isHiddenByPreference(ctx, viewer._id, post.authorId)) throw new Error('Post not found')
+        circleId = post.circleId
+      }
       if (post.authorId === viewer._id) throw new Error('You cannot report your own post')
     } else if (args.targetType === 'comment') {
       const comment = await safeGet(ctx, 'postComments', args.targetId)
-      if (!comment || comment.hidden || !comment.reportable) throw new Error('Comment not found')
+      if (!comment || comment.hidden || comment.circleRemovedAt || !comment.reportable) throw new Error('Comment not found')
       const post = await ctx.db.get(comment.postId)
-      if (!post || post.hidden || post.deletedAt || !post.reportable) throw new Error('Comment not found')
+      if (!post || post.hidden || post.deletedAt || post.circleRemovedAt || !post.reportable) throw new Error('Comment not found')
+      if (post.circleId) {
+        await requirePostAudienceRead(ctx, post)
+        if (await isHiddenByPreference(ctx, viewer._id, post.authorId) || await isHiddenByPreference(ctx, viewer._id, comment.authorId)) throw new Error('Comment not found')
+        circleId = post.circleId
+      }
       if (comment.authorId === viewer._id) throw new Error('You cannot report your own comment')
+    } else if (args.targetType === 'circle') {
+      const circle = await safeGet(ctx, 'circles', args.targetId)
+      if (!circle || circle.state !== 'active') throw new Error('Circle not found')
+      await requireCirclePreview(ctx, circle._id)
+      circleId = circle._id
     } else {
       const user = await safeGet(ctx, 'users', args.targetId)
       if (!user || user.suspended) throw new Error('Member not found')
@@ -77,6 +95,7 @@ export const create = mutation({
       ...args,
       reason,
       bookingId,
+      circleId,
       settlementHoldAppliedAt,
       status: 'open',
       createdAt: now,
@@ -94,7 +113,7 @@ export const create = mutation({
   },
 })
 
-async function safeGet<TableName extends 'companionProfiles' | 'bookings' | 'directMessages' | 'reviews' | 'posts' | 'postComments' | 'users'>(
+async function safeGet<TableName extends 'companionProfiles' | 'bookings' | 'directMessages' | 'reviews' | 'posts' | 'postComments' | 'users' | 'circles'>(
   ctx: MutationCtx,
   table: TableName,
   id: string,

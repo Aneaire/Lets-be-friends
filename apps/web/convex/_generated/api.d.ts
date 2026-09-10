@@ -11,6 +11,9 @@
 import type * as admin from "../admin.js";
 import type * as bookingEvidence from "../bookingEvidence.js";
 import type * as bookings from "../bookings.js";
+import type * as circleAuthorization from "../circleAuthorization.js";
+import type * as circleEvents from "../circleEvents.js";
+import type * as circles from "../circles.js";
 import type * as companionLocations from "../companionLocations.js";
 import type * as companions from "../companions.js";
 import type * as conversations from "../conversations.js";
@@ -47,6 +50,9 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   bookingEvidence: typeof bookingEvidence;
   bookings: typeof bookings;
+  circleAuthorization: typeof circleAuthorization;
+  circleEvents: typeof circleEvents;
+  circles: typeof circles;
   companionLocations: typeof companionLocations;
   companions: typeof companions;
   conversations: typeof conversations;

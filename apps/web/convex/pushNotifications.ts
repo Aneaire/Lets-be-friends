@@ -4,6 +4,7 @@ import { internal } from './_generated/api'
 import { internalAction, internalMutation, mutation, query } from './_generated/server'
 import { requireViewer } from './lib'
 import { buildNativePushPresentation, fallbackNativePushBody, type NativePushBody, type NativePushPresentation } from './notificationCatalog'
+import { canDeliverCircleNotification } from './notifications'
 
 export type { NativePushBody, NativePushPresentation } from './notificationCatalog'
 
@@ -186,6 +187,7 @@ export const prepareDeliveries = internalMutation({
     if (!notification) return { created: 0 }
     const recipient = await ctx.db.get(notification.recipientUserId)
     if (!recipient || recipient.suspended) return { created: 0 }
+    if (notification.circleId && !await canDeliverCircleNotification(ctx, notification, notification.recipientUserId)) return { created: 0 }
     const devices = await ctx.db.query('pushDevices')
       .withIndex('by_user_enabled', (q) => q.eq('userId', notification.recipientUserId).eq('enabled', true))
       .collect()
@@ -243,6 +245,12 @@ export const claimDeliveries = internalMutation({
         await permanentlyFail(ctx, delivery, 'notification_unavailable', args.now)
         continue
       }
+      // Membership, lifecycle, block, and mute state can change after enqueue.
+      // Reauthorize at claim time before exposing a push payload to the provider.
+      if (notification.circleId && !await canDeliverCircleNotification(ctx, notification, delivery.userId)) {
+        await permanentlyFail(ctx, delivery, 'circle_access_revoked', args.now)
+        continue
+      }
       if (!device || !device.enabled || device.userId !== delivery.userId || device.projectId !== args.projectId) {
         await permanentlyFail(ctx, delivery, 'device_unavailable', args.now)
         continue
@@ -250,6 +258,9 @@ export const claimDeliveries = internalMutation({
       const unread = await ctx.db.query('notifications')
         .withIndex('by_recipient_read_at', (q) => q.eq('recipientUserId', delivery.userId).eq('readAt', undefined))
         .collect()
+      const deliverableUnread = (await Promise.all(unread.map(async (row) => (
+        !row.circleId || await canDeliverCircleNotification(ctx, row, delivery.userId) ? row : null
+      )))).filter(Boolean)
       const presentation = await notificationPushPresentation(ctx, notification)
       const leaseExpiresAt = args.now + SEND_LEASE_MS
       const sendGeneration = (delivery.sendGeneration ?? 0) + 1
@@ -273,7 +284,7 @@ export const claimDeliveries = internalMutation({
         sendGeneration,
         tokenRevision: device.tokenRevision,
         kind: notification.kind,
-        unreadCount: unread.length,
+        unreadCount: deliverableUnread.length,
         presentation,
       })
     }
@@ -582,6 +593,7 @@ export function nativePushBody(kind: Doc<'notifications'>['kind']): NativePushBo
 }
 
 async function notificationPushPresentation(ctx: { db: any }, notification: Doc<'notifications'>): Promise<NativePushPresentation> {
+  if (notification.circleId) return nativePushPresentation({ kind: notification.kind })
   const [actor, message, comment] = await Promise.all([
     notification.actorUserId ? ctx.db.get(notification.actorUserId) as Promise<Doc<'users'> | null> : null,
     notification.messageId ? ctx.db.get(notification.messageId) as Promise<Doc<'directMessages'> | null> : null,

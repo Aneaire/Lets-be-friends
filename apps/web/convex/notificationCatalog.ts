@@ -6,10 +6,10 @@ const MAX_PUSH_TITLE_LENGTH = 80
 
 export type NotificationPriority = 'attention' | 'standard'
 export type NotificationTone = 'social' | 'danger' | 'self'
-export type NotificationFamily = 'booking' | 'messaging' | 'social' | 'companion_account' | 'identity' | 'safety'
-export type NotificationDestinationKind = 'booking' | 'conversation' | 'post' | 'profile' | 'companion' | 'identity' | 'safety'
+export type NotificationFamily = 'booking' | 'messaging' | 'social' | 'circle' | 'companion_account' | 'identity' | 'safety'
+export type NotificationDestinationKind = 'booking' | 'conversation' | 'post' | 'circle' | 'profile' | 'companion' | 'identity' | 'safety'
 export type NotificationPrivacy = 'generic' | 'actor_action' | 'message_preview' | 'comment_preview'
-export type NativePushBody = 'You have a new message.' | 'Someone mentioned you.' | 'You have a booking update.' | 'Your identity approval expires soon.' | 'Your identity approval has expired.' | 'You have a new update.'
+export type NativePushBody = 'You have a new message.' | 'Someone mentioned you.' | 'You have a booking update.' | 'You have a Circle update.' | 'Your identity approval expires soon.' | 'Your identity approval has expired.' | 'You have a new update.'
 export type NativePushPresentation = { title: string; body: string }
 
 export type NotificationCopyContext = {
@@ -112,6 +112,54 @@ export const notificationCatalog = {
   new_follower: {
     family: 'social', status: 'active', triggers: ['social.toggleFollow'], recipient: 'Followed member', destination: 'profile', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One notification per created follow record', push: { mode: 'actor_action', action: 'Started following you.', fallbackBody: 'You have a new update.' },
     inAppCopy: actorCopy('New follower', 'followed you', 'social', false),
+  },
+  circle_join_requested: {
+    family: 'circle', status: 'active', triggers: ['circles.requestToJoin'], recipient: 'Circle leaders', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per request attempt and leader', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('New Circle join request', 'A member requested to join a Circle you help manage.', 'social'),
+  },
+  circle_join_approved: {
+    family: 'circle', status: 'active', triggers: ['circles.decideJoinRequest'], recipient: 'Circle applicant', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per approved request attempt', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('Circle request approved', 'Your request to join a Circle was approved.', 'self'),
+  },
+  circle_join_rejected: {
+    family: 'circle', status: 'active', triggers: ['circles.decideJoinRequest'], recipient: 'Circle applicant', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per rejected request attempt', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('Circle request not approved', 'Your request to join a Circle was not approved.', 'danger'),
+  },
+  circle_reply: {
+    family: 'circle', status: 'active', triggers: ['social.createComment'], recipient: 'Circle discussion participant', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: true, dedupe: 'One notification per Circle reply and recipient', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: actorCopy('New Circle reply', 'replied in your Circle'),
+  },
+  circle_mention: {
+    family: 'circle', status: 'active', triggers: ['social.createPost', 'social.editPost', 'social.createComment', 'social.editComment'], recipient: 'Mentioned Circle member', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: true, dedupe: 'One notification per Circle mention and recipient', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: actorCopy('Circle mention', 'mentioned you in a Circle'),
+  },
+  circle_announcement: {
+    family: 'circle', status: 'active', triggers: ['social.createPost'], recipient: 'Circle members', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per announcement and member', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('New Circle announcement', 'A Circle you joined has a new announcement.', 'social'),
+  },
+  circle_reaction: {
+    family: 'circle', status: 'active', triggers: ['social.toggleLike'], recipient: 'Circle post author', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: true, dedupe: 'One notification per Circle reaction', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: actorCopy('New Circle reaction', 'reacted to your Circle post'),
+  },
+  circle_member_removed: {
+    family: 'circle', status: 'active', triggers: ['circles.moderateMember'], recipient: 'Removed Circle member', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per removal', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('Circle membership changed', 'You were removed from a Circle.', 'danger'),
+  },
+  circle_member_banned: {
+    family: 'circle', status: 'active', triggers: ['circles.moderateMember'], recipient: 'Banned Circle member', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per ban', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('Circle membership changed', 'You were banned from a Circle.', 'danger'),
+  },
+  circle_role_changed: {
+    family: 'circle', status: 'active', triggers: ['circles.setModerator'], recipient: 'Circle member', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per Circle role change', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('Circle role changed', 'Your role in a Circle changed.', 'self'),
+  },
+  circle_host_transfer: {
+    family: 'circle', status: 'active', triggers: ['circles.initiateHostTransfer', 'circles.acceptHostTransfer', 'circles.cancelHostTransfer'], recipient: 'Affected Circle host', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per host-transfer event', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('Circle host update', 'A Circle host assignment changed.', 'self'),
+  },
+  circle_lifecycle: {
+    family: 'circle', status: 'active', triggers: ['circles.setState'], recipient: 'Circle members', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per Circle lifecycle change', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('Circle status changed', 'A Circle you joined changed status.', 'self'),
   },
   review_received: {
     family: 'social', status: 'active', triggers: ['reviews.submit'], recipient: 'Other booking participant', destination: 'booking', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: false, dedupe: 'One notification per submitted review', push: { mode: 'actor_action', action: 'Left you a review.', fallbackBody: 'You have a new update.' },

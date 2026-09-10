@@ -248,3 +248,33 @@ describe('push notification registration and delivery', () => {
     expect(classifyReceipt(undefined)).toEqual({ status: 'retry_receipt', errorCode: 'receipt_pending' })
   })
 })
+
+describe('Circle push privacy', () => {
+  it('uses generic copy and terminalizes a queued delivery when Circle access is revoked', async () => {
+    const t = convexTest(schema, modules)
+    const actorId = await user(t, 'circle-push-actor')
+    const recipientId = await user(t, 'circle-push-recipient')
+    await t.withIdentity({ subject: 'circle-push-recipient' }).mutation(api.pushNotifications.registerDevice, { installationId: installOne, expoPushToken: tokenOne, platform: 'android', projectId })
+    const world = await t.run(async (ctx) => {
+      const now = Date.now()
+      const circleId = await ctx.db.insert('circles', { slug: 'private-push', name: 'Secret Circle Name', purpose: 'Private', category: 'Private', rules: ['Private'], mode: 'online', state: 'active', hostUserId: actorId, createdByUserId: actorId, createdAt: now, updatedAt: now })
+      const membershipId = await ctx.db.insert('circleMemberships', { circleId, userId: recipientId, state: 'active', role: 'member', rulesAcceptedAt: now, createdAt: now, updatedAt: now })
+      const postId = await ctx.db.insert('posts', { authorId: actorId, circleId, circleKind: 'discussion', body: 'Secret Circle post text', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      const activeNotificationId = await ctx.db.insert('notifications', { recipientUserId: recipientId, actorUserId: actorId, kind: 'circle_reply', priority: 'standard', circleId, postId, dedupeKey: 'circle-push-active', createdAt: now })
+      const revokedNotificationId = await ctx.db.insert('notifications', { recipientUserId: recipientId, actorUserId: actorId, kind: 'circle_mention', priority: 'standard', circleId, postId, dedupeKey: 'circle-push-revoked', createdAt: now + 1 })
+      return { circleId, membershipId, activeNotificationId, revokedNotificationId }
+    })
+
+    await t.mutation(internal.pushNotifications.prepareDeliveries, { notificationId: world.activeNotificationId, projectId })
+    const active = await t.mutation(internal.pushNotifications.claimDeliveries, { now: Date.now(), projectId, notificationId: world.activeNotificationId })
+    expect(active).toHaveLength(1)
+    expect(active[0].presentation).toEqual({ title: "Let's Be Friends", body: 'You have a Circle update.' })
+    expect(JSON.stringify(active[0].presentation)).not.toContain('Secret')
+
+    await t.mutation(internal.pushNotifications.prepareDeliveries, { notificationId: world.revokedNotificationId, projectId })
+    await t.run(async (ctx) => ctx.db.patch(world.membershipId, { state: 'removed' }))
+    expect(await t.mutation(internal.pushNotifications.claimDeliveries, { now: Date.now() + 1, projectId, notificationId: world.revokedNotificationId })).toEqual([])
+    const delivery = await t.run(async (ctx) => ctx.db.query('pushDeliveries').withIndex('by_notification', (q) => q.eq('notificationId', world.revokedNotificationId)).unique())
+    expect(delivery).toMatchObject({ state: 'permanent_failure', errorCode: 'circle_access_revoked' })
+  })
+})

@@ -537,3 +537,109 @@ describe('mandatory admin identity review', () => {
       .rejects.toThrow(/no longer available/)
   })
 })
+
+describe('companion approval role preservation', () => {
+  async function insertIdentityApprovedUser(
+    t: ReturnType<typeof createTest>,
+    clerkUserId: string,
+    role: 'member' | 'reviewer' | 'admin',
+  ) {
+    const userId = await insertUser(t, { clerkUserId, role, verificationStatus: 'approved' })
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.patch(userId, {
+        verificationSource: 'persona',
+        identityVerifiedAt: now,
+        identityExpiresAt: now + 86_400_000,
+        updatedAt: now,
+      })
+    })
+    return userId
+  }
+
+  async function insertPendingCompanion(t: ReturnType<typeof createTest>, userId: any, displayName: string) {
+    return await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('companionProfiles', {
+        userId,
+        displayName,
+        intro: 'A sufficiently detailed Companion introduction for testing.',
+        city: 'Cebu',
+        strengths: ['Good listener'],
+        categories: ['Coffee or meal companion'],
+        boundaries: ['Public places only'],
+        mode: 'both',
+        status: 'pending_review',
+        rating: 0,
+        reviewCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+  }
+
+  it('promotes a member to companion on approval', async () => {
+    const t = createTest()
+    await insertUser(t, { clerkUserId: 'role-admin-member', role: 'admin', verificationStatus: 'not_started' })
+    const applicantId = await insertIdentityApprovedUser(t, 'role-member-applicant', 'member')
+    const companionProfileId = await insertPendingCompanion(t, applicantId, 'Member applicant')
+
+    await t.withIdentity({ subject: 'role-admin-member' }).mutation(api.admin.reviewCompanionApplication, {
+      companionProfileId,
+      decision: 'approved',
+      note: 'Profile review complete.',
+    })
+
+    expect((await t.run(async (ctx) => ctx.db.get(applicantId)))?.role).toBe('companion')
+  })
+
+  it('retains the admin role when approving a Companion profile owned by an admin', async () => {
+    const t = createTest()
+    await insertUser(t, { clerkUserId: 'role-admin-actor', role: 'admin', verificationStatus: 'not_started' })
+    const applicantId = await insertIdentityApprovedUser(t, 'role-admin-applicant', 'admin')
+    const companionProfileId = await insertPendingCompanion(t, applicantId, 'Admin applicant')
+
+    await t.withIdentity({ subject: 'role-admin-actor' }).mutation(api.admin.reviewCompanionApplication, {
+      companionProfileId,
+      decision: 'approved',
+      note: 'Profile review complete.',
+    })
+
+    expect((await t.run(async (ctx) => ctx.db.get(applicantId)))?.role).toBe('admin')
+  })
+
+  it('retains the reviewer role when approving a Companion profile owned by a reviewer', async () => {
+    const t = createTest()
+    await insertUser(t, { clerkUserId: 'role-reviewer-actor', role: 'admin', verificationStatus: 'not_started' })
+    const applicantId = await insertIdentityApprovedUser(t, 'role-reviewer-applicant', 'reviewer')
+    const companionProfileId = await insertPendingCompanion(t, applicantId, 'Reviewer applicant')
+
+    await t.withIdentity({ subject: 'role-reviewer-actor' }).mutation(api.admin.reviewCompanionApplication, {
+      companionProfileId,
+      decision: 'approved',
+      note: 'Profile review complete.',
+    })
+
+    expect((await t.run(async (ctx) => ctx.db.get(applicantId)))?.role).toBe('reviewer')
+  })
+
+  it('does not change the role when rejecting a Companion application', async () => {
+    const t = createTest()
+    await insertUser(t, { clerkUserId: 'role-reject-actor', role: 'admin', verificationStatus: 'not_started' })
+    const applicantId = await insertIdentityApprovedUser(t, 'role-reject-applicant', 'member')
+    const companionProfileId = await insertPendingCompanion(t, applicantId, 'Rejected applicant')
+
+    await t.withIdentity({ subject: 'role-reject-actor' }).mutation(api.admin.reviewCompanionApplication, {
+      companionProfileId,
+      decision: 'rejected',
+      note: 'Profile does not meet guidelines.',
+    })
+
+    const result = await t.run(async (ctx) => ({
+      user: await ctx.db.get(applicantId),
+      companion: await ctx.db.get(companionProfileId),
+    }))
+    expect(result.companion?.status).toBe('rejected')
+    expect(result.user?.role).toBe('member')
+  })
+})

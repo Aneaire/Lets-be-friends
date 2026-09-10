@@ -25,6 +25,7 @@ import { getViewer, requireViewer, writeAudit } from './lib'
 import { createNotification } from './notifications'
 import { consumeRateLimit } from './rateLimit'
 import { isHiddenByPreference, requireNotBlocked } from './safety'
+import { isCircleParticipantRole, requireCircleDiscussionRead, requireCircleMember, requireCircleModerator, requireCircleWrite, requirePostAudienceRead, requirePostAudienceWrite } from './circleAuthorization'
 
 const MAX_MEDIA_UPLOADS_PER_DAY = 5
 const MEDIA_UPLOAD_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -111,7 +112,7 @@ async function feedPageResult(ctx: any, args: {
         .order('desc')
         .paginate(args.paginationOpts)
       const posts = (await Promise.all(result.page.map((save: Doc<'savedPosts'>) => ctx.db.get(save.postId))))
-        .filter((post): post is Doc<'posts'> => post !== null)
+        .filter((post): post is Doc<'posts'> => post !== null && !post.circleId)
       return {
         ...result,
         page: await postOnlyFeed(ctx, posts, viewer, 'recent', 'You saved this post'),
@@ -123,7 +124,7 @@ async function feedPageResult(ctx: any, args: {
     }
 
     const result = await ctx.db.query('posts')
-      .withIndex('by_created_at')
+      .withIndex('by_circle_created_at', (q: any) => q.eq('circleId', undefined))
       .order('desc')
       .paginate(args.paginationOpts)
 
@@ -146,7 +147,7 @@ async function feedPageResult(ctx: any, args: {
     })))
     if (viewer && args.paginationOpts.cursor === null) {
       const newestOwnPost = result.page.find((post: Doc<'posts'>) => (
-        post.authorId === viewer._id && isModerationVisible(post) && !post.deletedAt
+        !post.circleId && post.authorId === viewer._id && isModerationVisible(post) && !post.deletedAt
       ))
       if (newestOwnPost) {
         const ownItemKey = `post:${newestOwnPost._id}`
@@ -210,7 +211,7 @@ async function followingFeed(
   if (followedIds.length === 0) return { page: [], isDone: true, continueCursor: null }
 
   const result = await ctx.db.query('posts')
-    .withIndex('by_created_at')
+    .withIndex('by_circle_created_at', (q: any) => q.eq('circleId', undefined))
     .order('desc')
     .filter((q: any) => q.or(...followedIds.map((authorId) => q.eq(q.field('authorId'), authorId))))
     .paginate(paginationOpts)
@@ -239,6 +240,7 @@ export const recordFeedImpressions = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     validateInstrumentationInput(args.sessionId, args.items, true)
+    await rejectCircleInstrumentation(ctx, args.items)
     const uniqueItems = [...new Map(args.items.map((item) => [item.itemKey, item])).values()]
     let inserted = 0
     for (const item of uniqueItems) {
@@ -273,6 +275,7 @@ export const recordFeedAction = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     validateInstrumentationInput(args.sessionId, [args], false)
+    await rejectCircleInstrumentation(ctx, [args])
     const dedupeKey = instrumentationKey(viewer._id, args.sessionId, args.surface, 'action', args.itemKey, args.action)
     const existing = await ctx.db.query('feedEvents').withIndex('by_dedupe_key', (q) => q.eq('dedupeKey', dedupeKey)).first()
     if (existing) return { inserted: false }
@@ -298,8 +301,29 @@ export const byUser = query({
   handler: async (ctx, args) => {
     const viewer = await getViewer(ctx)
     if (viewer && viewer._id !== args.userId && await isHiddenByPreference(ctx, viewer._id, args.userId)) return []
-    const posts = await ctx.db.query('posts').withIndex('by_author', (q) => q.eq('authorId', args.userId)).order('desc').take(30)
-    return await Promise.all(posts.filter(isModerationVisible).map((post) => enrichPost(ctx, post, viewer)))
+    const posts = await ctx.db.query('posts').withIndex('by_author_circle_created_at', (q) => q.eq('authorId', args.userId).eq('circleId', undefined)).order('desc').take(30)
+    return await Promise.all(posts.filter((post) => !post.circleId && isModerationVisible(post)).map((post) => enrichPost(ctx, post, viewer)))
+  },
+})
+
+export const circleFeed = query({
+  args: { circleId: v.id('circles'), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    // Public discussion visibility admits eligible signed-in outsiders to
+    // read visible posts. Writes, reactions, saves, and removed content stay
+    // membership-gated through the write mutations below.
+    const access = await requireCircleDiscussionRead(ctx, args.circleId)
+    const result = await ctx.db.query('posts').withIndex('by_circle_created_at', (q) => q.eq('circleId', args.circleId)).order('desc').paginate(args.paginationOpts)
+    const page = (await Promise.all(result.page.map(async (post) => {
+      if (!isModerationVisible(post) || post.deletedAt || post.circleRemovedAt) return null
+      const author = await ctx.db.get(post.authorId)
+      if (!author || author.suspended) return null
+      if (post.authorId !== access.viewer._id && await isHiddenByPreference(ctx, access.viewer._id, post.authorId)) return null
+      // Audience and block checks run before enrichment can issue media or
+      // profile-image URLs for this private post.
+      return await enrichPost(ctx, post, access.viewer)
+    }))).flatMap((post) => post ? [post] : [])
+    return { ...result, page }
   },
 })
 
@@ -315,6 +339,11 @@ export const requestedPost = query({
       return null
     }
     if (!post || !isModerationVisible(post) || post.deletedAt) return null
+    if (post.circleRemovedAt) return null
+    if (post.circleId) {
+      if (!viewer) throw new Error('Active Circle membership required')
+      await requirePostAudienceRead(ctx, post)
+    }
     if (viewer && viewer._id !== post.authorId && await isHiddenByPreference(ctx, viewer._id, post.authorId)) return null
     const author = await ctx.db.get(post.authorId)
     if (!author || author.suspended) return null
@@ -331,12 +360,20 @@ export const commentsForPost = query({
     const viewer = await getViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || !isModerationVisible(post)) return []
+    if (post.circleRemovedAt) return []
+    if (post.circleId) await requirePostAudienceRead(ctx, post)
+    if (post.circleId) {
+      const author = await ctx.db.get(post.authorId)
+      if (!author || author.suspended) return []
+    }
     if (viewer && viewer._id !== post.authorId && await isHiddenByPreference(ctx, viewer._id, post.authorId)) return []
     const comments = await ctx.db.query('postComments').withIndex('by_post', (q) => q.eq('postId', args.postId)).order('desc').take(MAX_COMMENTS_DEPRECATED)
     const visibleComments = await Promise.all(comments
-      .filter(isModerationVisible)
+      .filter((comment) => isModerationVisible(comment) && !comment.circleRemovedAt)
       .sort((a, b) => a.createdAt - b.createdAt)
       .map(async (comment) => {
+        const author = await ctx.db.get(comment.authorId)
+        if (!author || author.suspended) return null
         if (viewer && viewer._id !== comment.authorId && await isHiddenByPreference(ctx, viewer._id, comment.authorId)) return null
         return await enrichComment(ctx, comment, viewer)
       }))
@@ -350,11 +387,19 @@ export const commentPage = query({
     const viewer = await getViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || !isModerationVisible(post)) return { page: [], isDone: true, continueCursor: '' }
+    if (post.circleRemovedAt) return { page: [], isDone: true, continueCursor: '' }
+    if (post.circleId) await requirePostAudienceRead(ctx, post)
+    if (post.circleId) {
+      const author = await ctx.db.get(post.authorId)
+      if (!author || author.suspended) return { page: [], isDone: true, continueCursor: '' }
+    }
     if (viewer && viewer._id !== post.authorId && await isHiddenByPreference(ctx, viewer._id, post.authorId)) return { page: [], isDone: true, continueCursor: '' }
     const result = await ctx.db.query('postComments').withIndex('by_post', (q) => q.eq('postId', args.postId)).order('desc').paginate(args.paginationOpts)
     return {
       ...result,
-      page: (await Promise.all(result.page.filter(isModerationVisible).map(async (comment) => {
+      page: (await Promise.all(result.page.filter((comment) => isModerationVisible(comment) && !comment.circleRemovedAt).map(async (comment) => {
+        const author = await ctx.db.get(comment.authorId)
+        if (!author || author.suspended) return null
         if (viewer && viewer._id !== comment.authorId && await isHiddenByPreference(ctx, viewer._id, comment.authorId)) return null
         return await enrichComment(ctx, comment, viewer)
       }))).flatMap((comment) => comment ? [comment] : []),
@@ -378,9 +423,10 @@ export const mediaUploadUsage = query({
 })
 
 export const mentionLookup = query({
-  args: { query: v.string() },
+  args: { query: v.string(), circleId: v.optional(v.id('circles')) },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
+    if (args.circleId) await requireCircleMember(ctx, args.circleId)
     const query = args.query.trim().toLowerCase().replace(/^@+/, '')
     if (!query) return []
     if (query.length > 24) return []
@@ -400,6 +446,11 @@ export const mentionLookup = query({
       if (user.suspended) continue
       if (viewer._id === user._id || !user.username) continue
       if (await isHiddenByPreference(ctx, viewer._id, user._id)) continue
+      if (args.circleId) {
+        if (!isCircleParticipantRole(user.role)) continue
+        const targetMembership = await ctx.db.query('circleMemberships').withIndex('by_circle_user', (q) => q.eq('circleId', args.circleId!).eq('userId', user._id)).unique()
+        if (targetMembership?.state !== 'active') continue
+      }
       const username = user.username.toLowerCase()
       seen.add(String(user._id))
       matches.push({
@@ -417,11 +468,21 @@ export const createPost = mutation({
     body: v.string(),
     mediaUploadIds: v.optional(v.array(v.id('postMediaUploads'))),
     experienceBookingId: v.optional(v.id('bookings')),
+    circleId: v.optional(v.id('circles')),
+    circleKind: v.optional(v.union(v.literal('discussion'), v.literal('announcement'))),
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const body = args.body.trim()
     const mediaUploadIds = args.mediaUploadIds ?? []
+    if (args.circleId) {
+      if (mediaUploadIds.length > 0) throw new Error('Circle posts are text-only')
+      if (args.experienceBookingId) throw new Error('Circle posts cannot be experience posts')
+      if ((args.circleKind ?? 'discussion') === 'announcement') await requireCircleModerator(ctx, args.circleId)
+      else await requireCircleWrite(ctx, args.circleId)
+    } else if (args.circleKind) {
+      throw new Error('Circle post kind requires a Circle')
+    }
     if (body.length < 1 && mediaUploadIds.length === 0) throw new Error('Post cannot be empty')
     if (body.length > 1000) throw new Error('Post is too long')
     if (mediaUploadIds.length > MAX_MEDIA_UPLOADS_PER_DAY) throw new Error('Posts can include up to 5 media uploads')
@@ -448,10 +509,12 @@ export const createPost = mutation({
       contentType: upload!.contentType!,
       size: upload!.size!,
     }))
-    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_POST, 'post')
+    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_POST, 'post', args.circleId)
     await consumeRateLimit(ctx, viewer._id, 'create_post')
     const postId = await ctx.db.insert('posts', {
       authorId: viewer._id,
+      circleId: args.circleId,
+      circleKind: args.circleId ? args.circleKind ?? 'discussion' : undefined,
       body,
       media,
       mentions: mentions.length > 0 ? mentions : undefined,
@@ -468,11 +531,19 @@ export const createPost = mutation({
     await Promise.all(mentions.map((mention) => createNotification(ctx, {
       recipientUserId: mention.userId,
       actorUserId: viewer._id,
-      kind: 'mention',
+      kind: args.circleId ? 'circle_mention' : 'mention',
       priority: 'standard',
       postId,
+      circleId: args.circleId,
       dedupeKey: `post-mention:${postId}:${mention.userId}`,
     })))
+    if (args.circleId && (args.circleKind ?? 'discussion') === 'announcement') {
+      const members = await ctx.db.query('circleMemberships').withIndex('by_circle_state', (q) => q.eq('circleId', args.circleId!).eq('state', 'active')).collect()
+      await Promise.all(members.map((row) => createNotification(ctx, {
+        recipientUserId: row.userId, actorUserId: viewer._id, kind: 'circle_announcement', priority: 'standard',
+        circleId: args.circleId, postId, dedupeKey: `circle-announcement:${postId}:${row.userId}`,
+      })))
+    }
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'post.created', targetType: 'post', targetId: String(postId) })
     return postId
   },
@@ -484,17 +555,20 @@ export const editPost = mutation({
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || post.authorId !== viewer._id || post.deletedAt) throw new Error('Only the author can edit this post')
+    await requirePostAudienceWrite(ctx, post)
+    if (post.circleRemovedAt) throw new Error('Post is unavailable')
     const body = args.body.trim()
     if (!body && (post.media?.length ?? 0) === 0) throw new Error('Post cannot be empty')
     if (body.length > 1000) throw new Error('Post is too long')
-    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_POST, 'post')
+    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_POST, 'post', post.circleId)
     await ctx.db.patch(args.postId, { body, mentions: mentions.length > 0 ? mentions : undefined, updatedAt: Date.now() })
     await Promise.all(mentions.map((mention) => createNotification(ctx, {
       recipientUserId: mention.userId,
       actorUserId: viewer._id,
-      kind: 'mention',
+      kind: post.circleId ? 'circle_mention' : 'mention',
       priority: 'standard',
       postId: post._id,
+      circleId: post.circleId,
       dedupeKey: `post-mention:${post._id}:${mention.userId}`,
     })))
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'post.edited', targetType: 'post', targetId: String(args.postId) })
@@ -507,6 +581,7 @@ export const deletePost = mutation({
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || post.authorId !== viewer._id) throw new Error('Only the author can delete this post')
+    await requirePostAudienceWrite(ctx, post)
     if (post.deletedAt) return
     const now = Date.now()
     await ctx.db.patch(args.postId, { hidden: true, deletedAt: now, updatedAt: now })
@@ -520,6 +595,8 @@ export const createComment = mutation({
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || post.hidden) throw new Error('Post not found')
+    await requirePostAudienceWrite(ctx, post)
+    if (post.circleRemovedAt) throw new Error('Post not found')
     await requireNotBlocked(ctx, viewer._id, post.authorId)
     const parentComment = args.parentCommentId ? await ctx.db.get(args.parentCommentId) : null
     if (args.parentCommentId && (!parentComment || parentComment.hidden || parentComment.postId !== args.postId)) {
@@ -528,10 +605,11 @@ export const createComment = mutation({
     if (parentComment && parentComment.authorId !== viewer._id) {
       await requireNotBlocked(ctx, viewer._id, parentComment.authorId)
     }
+    if (parentComment?.circleRemovedAt) throw new Error('Reply target not found')
     const body = args.body.trim()
     if (body.length < 1) throw new Error('Comment cannot be empty')
     if (body.length > 500) throw new Error('Comment is too long')
-    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_COMMENT, 'comment')
+    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_COMMENT, 'comment', post.circleId)
     await consumeRateLimit(ctx, viewer._id, 'create_comment')
     const now = Date.now()
     const commentId = await ctx.db.insert('postComments', {
@@ -551,21 +629,29 @@ export const createComment = mutation({
     await createNotification(ctx, {
       recipientUserId: post.authorId,
       actorUserId: viewer._id,
-      kind: 'post_commented',
+      kind: post.circleId ? 'circle_reply' : 'post_commented',
       priority: 'standard',
       postId: post._id,
       commentId,
+      circleId: post.circleId,
       dedupeKey: `comment:${commentId}:created`,
     })
     await Promise.all(mentions.map((mention) => createNotification(ctx, {
       recipientUserId: mention.userId,
       actorUserId: viewer._id,
-      kind: 'mention',
+      kind: post.circleId ? 'circle_mention' : 'mention',
       priority: 'standard',
       postId: post._id,
       commentId,
+      circleId: post.circleId,
       dedupeKey: `comment-mention:${commentId}:${mention.userId}`,
     })))
+    if (post.circleId && parentComment && parentComment.authorId !== post.authorId) {
+      await createNotification(ctx, {
+        recipientUserId: parentComment.authorId, actorUserId: viewer._id, kind: 'circle_reply', priority: 'standard',
+        circleId: post.circleId, postId: post._id, commentId, dedupeKey: `circle-reply:${commentId}:${parentComment.authorId}`,
+      })
+    }
     return commentId
   },
 })
@@ -580,10 +666,11 @@ export const editComment = mutation({
     }
     const post = await ctx.db.get(comment.postId)
     if (!post || post.hidden || post.deletedAt) throw new Error('Post not found')
+    await requirePostAudienceWrite(ctx, post)
     const body = args.body.trim()
     if (body.length < 1) throw new Error('Comment cannot be empty')
     if (body.length > 500) throw new Error('Comment is too long')
-    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_COMMENT, 'comment')
+    const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_COMMENT, 'comment', post.circleId)
     await ctx.db.patch(args.commentId, {
       body,
       mentions: mentions.length > 0 ? mentions : undefined,
@@ -592,10 +679,11 @@ export const editComment = mutation({
     await Promise.all(mentions.map((mention) => createNotification(ctx, {
       recipientUserId: mention.userId,
       actorUserId: viewer._id,
-      kind: 'mention',
+      kind: post.circleId ? 'circle_mention' : 'mention',
       priority: 'standard',
       postId: post._id,
       commentId: comment._id,
+      circleId: post.circleId,
       dedupeKey: `comment-mention:${comment._id}:${mention.userId}`,
     })))
     await writeAudit(ctx, {
@@ -616,6 +704,8 @@ export const deleteComment = mutation({
     if (comment.hidden) return
     const post = await ctx.db.get(comment.postId)
     if (!post || post.hidden || post.deletedAt) throw new Error('Post not found')
+    await requirePostAudienceWrite(ctx, post)
+    if (post.circleRemovedAt || comment.circleRemovedAt) throw new Error('Post not found')
     await ctx.db.patch(args.commentId, { hidden: true, updatedAt: Date.now() })
     await ctx.db.patch(post._id, { commentCount: adjustCounter(post.commentCount, -1) })
     await writeAudit(ctx, {
@@ -635,6 +725,8 @@ export const toggleCommentLike = mutation({
     if (!comment || comment.hidden) throw new Error('Comment not found')
     const post = await ctx.db.get(comment.postId)
     if (!post || post.hidden || post.deletedAt) throw new Error('Comment not found')
+    await requirePostAudienceWrite(ctx, post)
+    if (post.circleRemovedAt || comment.circleRemovedAt) throw new Error('Comment not found')
     if (post.authorId !== viewer._id) await requireNotBlocked(ctx, viewer._id, post.authorId)
     if (comment.authorId !== viewer._id) await requireNotBlocked(ctx, viewer._id, comment.authorId)
     await consumeRateLimit(ctx, viewer._id, 'toggle_reaction')
@@ -753,6 +845,8 @@ export const toggleSavePost = mutation({
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || post.hidden) throw new Error('Post not found')
+    await requirePostAudienceWrite(ctx, post)
+    if (post.circleRemovedAt) throw new Error('Post not found')
     await requireNotBlocked(ctx, viewer._id, post.authorId)
     const existing = await ctx.db.query('savedPosts').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', args.postId)).first()
     if (existing) {
@@ -774,6 +868,8 @@ export const toggleLike = mutation({
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post || post.hidden) throw new Error('Post not found')
+    await requirePostAudienceWrite(ctx, post)
+    if (post.circleRemovedAt) throw new Error('Post not found')
     await requireNotBlocked(ctx, viewer._id, post.authorId)
     await consumeRateLimit(ctx, viewer._id, 'toggle_reaction')
     const existing = await ctx.db.query('postReactions').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', args.postId)).first()
@@ -787,9 +883,10 @@ export const toggleLike = mutation({
     await createNotification(ctx, {
       recipientUserId: post.authorId,
       actorUserId: viewer._id,
-      kind: 'post_liked',
+      kind: post.circleId ? 'circle_reaction' : 'post_liked',
       priority: 'standard',
       postId: post._id,
+      circleId: post.circleId,
       dedupeKey: `post-like:${reactionId}:created`,
     })
     return true
@@ -842,6 +939,9 @@ async function postOnlyFeed(
 
 async function safeVisiblePosts(ctx: any, posts: Doc<'posts'>[], viewer?: Doc<'users'> | null, authorCache?: Map<string, Doc<'users'> | null>) {
   const checked = await Promise.all(posts.map(async (post) => {
+    // Circle content never enters global feeds, saved views, profile lists, or
+    // ranking inputs, even when the viewer belongs to that Circle.
+    if (post.circleId) return null
     if (!isModerationVisible(post) || post.deletedAt) return null
     const author = await cachedAuthor(ctx, post.authorId, authorCache)
     if (!author || author.suspended) return null
@@ -977,7 +1077,7 @@ async function viewerInterests(ctx: any, viewer: Doc<'users'> | null) {
   ])
   const interactionCompanionCache = new Map<string, Doc<'companionProfiles'> | null>()
   for (const post of interactedPosts) {
-    if (!post) continue
+    if (!post || post.circleId) continue
     interactedAuthorIds.add(String(post.authorId))
     const companion = await companionProfileForUser(ctx, post.authorId, interactionCompanionCache)
     companion?.categories.forEach((category: string) => addCategoryWeight(categoryWeights, category, 1))
@@ -1100,6 +1200,18 @@ function validateInstrumentationInput(
   }
 }
 
+async function rejectCircleInstrumentation(ctx: any, items: Array<{ itemKey: string; itemType: string }>) {
+  for (const item of items) {
+    if (!item.itemKey.startsWith('post:')) continue
+    try {
+      const post = await ctx.db.get(item.itemKey.slice(5) as Id<'posts'>)
+      if (post?.circleId) throw new Error('Circle posts cannot be recorded in global feed instrumentation')
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Circle posts')) throw error
+    }
+  }
+}
+
 function instrumentationKey(
   userId: Id<'users'>,
   sessionId: string,
@@ -1124,7 +1236,7 @@ async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | n
   ])
   return {
     ...post,
-    media: await mediaWithUrls(ctx, post.media),
+    media: post.circleId ? [] : await mediaWithUrls(ctx, post.media),
     commentCount: post.commentCount ?? 0,
     likeCount: post.likeCount ?? 0,
     savedCount: post.savedCount ?? 0,
@@ -1175,6 +1287,7 @@ async function resolveMentions(
   body: string,
   maximum: number,
   surface: 'post' | 'comment',
+  circleId?: Id<'circles'>,
 ): Promise<Array<{ userId: Id<'users'>; username: string }>> {
   const resolved: Array<{ userId: Id<'users'>; username: string }> = []
   const seen = new Set<string>()
@@ -1185,7 +1298,12 @@ async function resolveMentions(
     if (!user || user.suspended) continue
     if (user._id === authorId) continue
     if (seen.has(String(user._id))) continue
-    if (await isHiddenByPreference(ctx, authorId, user._id)) continue
+    if (circleId) {
+      await requireNotBlocked(ctx, authorId, user._id)
+      if (!isCircleParticipantRole(user.role)) throw new Error('Circle mention is unavailable')
+      const targetMembership = await ctx.db.query('circleMemberships').withIndex('by_circle_user', (q: any) => q.eq('circleId', circleId).eq('userId', user._id)).unique()
+      if (targetMembership?.state !== 'active') throw new Error('Circle mention is unavailable')
+    } else if (await isHiddenByPreference(ctx, authorId, user._id)) continue
     seen.add(String(user._id))
     resolved.push({ userId: user._id, username })
   }

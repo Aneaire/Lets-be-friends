@@ -402,7 +402,7 @@ describe('post and comment mentions', () => {
     const mention = mayaNotifications.page.find((row) => row.kind === 'mention')
     expect(mention).toBeTruthy()
     expect(mention?.actor).toMatchObject({ userId: String(world.authorId), displayName: 'author' })
-    expect(mention?.destination).toEqual({ type: 'post', postId: String(postId) })
+    expect(mention?.destination).toEqual({ type: 'post', postId: String(postId), commentId: String(commentId) })
     expect(mention?.title).toBe('You were mentioned')
     expect(mention?.body).toBe('author mentioned you in a comment.')
   })

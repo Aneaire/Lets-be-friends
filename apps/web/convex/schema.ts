@@ -139,6 +139,16 @@ const feedAction = v.union(
   v.literal('report_comment'),
 )
 const feedSurface = v.union(v.literal('for_you'), v.literal('following'), v.literal('saved'))
+const circleState = v.union(v.literal('active'), v.literal('archived'), v.literal('suspended'))
+const circleMembershipState = v.union(
+  v.literal('requested'),
+  v.literal('active'),
+  v.literal('rejected'),
+  v.literal('left'),
+  v.literal('removed'),
+  v.literal('banned'),
+)
+const circleRole = v.union(v.literal('member'), v.literal('moderator'), v.literal('host'))
 export default defineSchema({
   users: defineTable({
     clerkUserId: v.string(),
@@ -626,6 +636,7 @@ export default defineSchema({
     messageId: v.optional(v.id('directMessages')),
     postId: v.optional(v.id('posts')),
     commentId: v.optional(v.id('postComments')),
+    circleId: v.optional(v.id('circles')),
     reviewId: v.optional(v.id('reviews')),
     companionProfileId: v.optional(v.id('companionProfiles')),
     verificationRequestId: v.optional(v.id('verificationRequests')),
@@ -749,6 +760,10 @@ export default defineSchema({
   }).index('by_user', ['userId']).index('by_review', ['reviewId']).index('by_pair', ['userId', 'reviewId']),
   posts: defineTable({
     authorId: v.id('users'),
+    circleId: v.optional(v.id('circles')),
+    circleKind: v.optional(v.union(v.literal('discussion'), v.literal('announcement'))),
+    circleRemovedAt: v.optional(v.number()),
+    circleRemovedByUserId: v.optional(v.id('users')),
     body: v.string(),
     media: v.optional(v.array(postMedia)),
     mentions: v.optional(v.array(mentionEntry)),
@@ -763,7 +778,7 @@ export default defineSchema({
     savedCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_author', ['authorId']).index('by_author_hidden_created_at', ['authorId', 'hidden', 'createdAt']).index('by_created_at', ['createdAt']),
+  }).index('by_author', ['authorId']).index('by_author_hidden_created_at', ['authorId', 'hidden', 'createdAt']).index('by_author_circle_created_at', ['authorId', 'circleId', 'createdAt']).index('by_created_at', ['createdAt']).index('by_circle_created_at', ['circleId', 'createdAt']),
   postMediaUploads: defineTable({
     userId: v.id('users'),
     storageId: v.optional(v.id('_storage')),
@@ -783,6 +798,8 @@ export default defineSchema({
     mentions: v.optional(v.array(mentionEntry)),
     reportable: v.boolean(),
     hidden: v.boolean(),
+    circleRemovedAt: v.optional(v.number()),
+    circleRemovedByUserId: v.optional(v.id('users')),
     likeCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -819,6 +836,78 @@ export default defineSchema({
     companionProfileId: v.id('companionProfiles'),
     createdAt: v.number(),
   }).index('by_user', ['userId']).index('by_companion_profile', ['companionProfileId']).index('by_pair', ['userId', 'companionProfileId']),
+  circles: defineTable({
+    slug: v.string(),
+    name: v.string(),
+    purpose: v.string(),
+    category: v.string(),
+    rules: v.array(v.string()),
+    mode: v.union(v.literal('online'), v.literal('in_person'), v.literal('both')),
+    approximateArea: v.optional(v.string()),
+    // Optional so legacy Circles remain readable. Missing values resolve to
+    // the safe defaults: listed, members_only, members_only, approval_required.
+    discoverability: v.optional(v.union(v.literal('listed'), v.literal('unlisted'))),
+    discussionVisibility: v.optional(v.union(v.literal('members_only'), v.literal('signed_in'))),
+    memberListVisibility: v.optional(v.union(v.literal('members_only'), v.literal('signed_in'))),
+    joinPolicy: v.optional(v.union(v.literal('approval_required'), v.literal('open'))),
+    iconStorageId: v.optional(v.id('_storage')),
+    coverStorageId: v.optional(v.id('_storage')),
+    state: circleState,
+    preSuspensionState: v.optional(v.union(v.literal('active'), v.literal('archived'))),
+    hostUserId: v.id('users'),
+    pendingHostUserId: v.optional(v.id('users')),
+    hostTransferInitiatedByUserId: v.optional(v.id('users')),
+    hostTransferInitiatedAt: v.optional(v.number()),
+    createdByUserId: v.id('users'),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_slug', ['slug'])
+    .index('by_state', ['state'])
+    .index('by_host', ['hostUserId']),
+  circleMemberships: defineTable({
+    circleId: v.id('circles'),
+    userId: v.id('users'),
+    state: circleMembershipState,
+    role: circleRole,
+    rulesAcceptedAt: v.number(),
+    mutedAt: v.optional(v.number()),
+    decidedByUserId: v.optional(v.id('users')),
+    decidedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_circle', ['circleId'])
+    .index('by_user', ['userId'])
+    .index('by_circle_state', ['circleId', 'state'])
+    .index('by_user_state', ['userId', 'state'])
+    .index('by_circle_user', ['circleId', 'userId']),
+  circlePins: defineTable({
+    circleId: v.id('circles'),
+    postId: v.id('posts'),
+    pinnedByUserId: v.id('users'),
+    position: v.number(),
+    createdAt: v.number(),
+  })
+    .index('by_circle', ['circleId'])
+    .index('by_post', ['postId'])
+    .index('by_circle_post', ['circleId', 'postId']),
+  circleEvents: defineTable({
+    circleId: v.id('circles'),
+    title: v.string(),
+    details: v.string(),
+    startsAt: v.number(),
+    location: v.optional(v.string()),
+    mode: v.optional(v.union(v.literal('online'), v.literal('in_person'), v.literal('both'))),
+    thumbnailStorageId: v.optional(v.id('_storage')),
+    state: v.union(v.literal('scheduled'), v.literal('cancelled')),
+    createdByUserId: v.id('users'),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_circle', ['circleId'])
+    .index('by_circle_state', ['circleId', 'state'])
+    .index('by_circle_starts_at', ['circleId', 'startsAt']),
   memberSafetyPreferences: defineTable({
     ownerUserId: v.id('users'),
     targetUserId: v.id('users'),
@@ -859,8 +948,9 @@ export default defineSchema({
   }).index('by_key', ['key']),
   reports: defineTable({
     reporterId: v.id('users'),
-    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user')),
+    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('circle')),
     targetId: v.string(),
+    circleId: v.optional(v.id('circles')),
     bookingId: v.optional(v.id('bookings')),
     reason: v.string(),
     status: v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed')),
@@ -870,7 +960,7 @@ export default defineSchema({
     reviewerNote: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_status', ['status']).index('by_reporter', ['reporterId']).index('by_booking', ['bookingId']),
+  }).index('by_status', ['status']).index('by_reporter', ['reporterId']).index('by_booking', ['bookingId']).index('by_circle', ['circleId']),
   auditLogs: defineTable({
     actorUserId: v.optional(v.id('users')),
     action: v.string(),

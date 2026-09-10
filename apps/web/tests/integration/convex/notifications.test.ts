@@ -7,10 +7,10 @@ import { convexModules } from '../../helpers/convex'
 
 const modules = convexModules
 
-async function user(t: ReturnType<typeof convexTest>, subject: string) {
+async function user(t: ReturnType<typeof convexTest>, subject: string, profileImageUrl?: string) {
   return await t.run(async (ctx) => {
     const now = Date.now()
-    return await ctx.db.insert('users', { clerkUserId: subject, displayName: subject, role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now, updatedAt: now })
+    return await ctx.db.insert('users', { clerkUserId: subject, displayName: subject, profileImageUrl, role: 'member', verificationStatus: 'not_started', suspended: false, createdAt: now, updatedAt: now })
   })
 }
 
@@ -45,7 +45,7 @@ describe('notifications', () => {
 
   it('paginates safe presentation and omits actor identity for system notifications', async () => {
     const t = convexTest(schema, modules)
-    const alexId = await user(t, 'alex')
+    const alexId = await user(t, 'alex', 'https://example.com/alex.jpg')
     const samId = await user(t, 'sam')
     await t.run(async (ctx) => {
       await createNotification(ctx, { recipientUserId: samId, actorUserId: alexId, kind: 'new_follower', priority: 'standard', dedupeKey: 'follow' })
@@ -57,7 +57,94 @@ describe('notifications', () => {
     expect(first.isDone).toBe(false)
     expect(first.page[0]).not.toHaveProperty('actor')
     const second = await sam.query(api.notifications.list, { paginationOpts: { cursor: first.continueCursor, numItems: 1 } })
-    expect(second.page[0]).toMatchObject({ kind: 'new_follower', actor: { displayName: 'alex', available: true } })
+    expect(second.page[0]).toMatchObject({ kind: 'new_follower', actor: { displayName: 'alex', profileImageUrl: 'https://example.com/alex.jpg', available: true } })
+  })
+
+  it.each(['muted', 'blocked'] as const)('hides actor details and profile destinations after the recipient %s the actor', async (relationship) => {
+    const t = convexTest(schema, modules)
+    const actorId = await user(t, `actor-${relationship}`, 'https://example.com/private.jpg')
+    const recipientId = await user(t, `recipient-${relationship}`)
+    const notificationId = await t.run(async (ctx) => {
+      const id = await createNotification(ctx, { recipientUserId: recipientId, actorUserId: actorId, kind: 'new_follower', priority: 'standard', dedupeKey: `follow-${relationship}` })
+      const now = Date.now()
+      await ctx.db.insert('memberSafetyPreferences', {
+        ownerUserId: recipientId,
+        targetUserId: actorId,
+        pairKey: `${recipientId}:${actorId}`,
+        ...(relationship === 'muted' ? { mutedAt: now } : { blockedAt: now }),
+        createdAt: now,
+        updatedAt: now,
+      })
+      return id!
+    })
+    const recipient = t.withIdentity({ subject: `recipient-${relationship}` })
+
+    const rows = await recipient.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(rows.page[0]).toMatchObject({
+      actor: { displayName: "Let's Be Friends", available: false },
+      destination: { type: 'notifications' },
+      targetAvailable: false,
+    })
+    expect(rows.page[0].actor).not.toHaveProperty('profileImageUrl')
+    expect(await recipient.mutation(api.notifications.open, { notificationId: String(notificationId) })).toEqual({ status: 'unavailable' })
+  })
+
+  it('hides a suspended actor and makes the actor profile destination unavailable', async () => {
+    const t = convexTest(schema, modules)
+    const actorId = await user(t, 'suspended-actor', 'https://example.com/private.jpg')
+    const recipientId = await user(t, 'suspension-recipient')
+    const notificationId = await t.run(async (ctx) => {
+      const id = await createNotification(ctx, { recipientUserId: recipientId, actorUserId: actorId, kind: 'new_follower', priority: 'standard', dedupeKey: 'follow-before-suspension' })
+      await ctx.db.patch(actorId, { suspended: true, updatedAt: Date.now() })
+      return id!
+    })
+    const recipient = t.withIdentity({ subject: 'suspension-recipient' })
+
+    const rows = await recipient.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(rows.page[0].actor).toEqual({ displayName: "Let's Be Friends", available: false })
+    expect(rows.page[0].destination).toEqual({ type: 'notifications' })
+    expect(await recipient.mutation(api.notifications.open, { notificationId: String(notificationId) })).toEqual({ status: 'unavailable' })
+  })
+
+  it('makes a deleted post notification unavailable', async () => {
+    const t = convexTest(schema, modules)
+    const actorId = await user(t, 'post-actor')
+    const recipientId = await user(t, 'post-recipient')
+    const notificationId = await t.run(async (ctx) => {
+      const now = Date.now()
+      const postId = await ctx.db.insert('posts', { authorId: recipientId, body: 'A post', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      const id = await createNotification(ctx, { recipientUserId: recipientId, actorUserId: actorId, kind: 'post_liked', priority: 'standard', postId, dedupeKey: 'like-before-deletion' })
+      await ctx.db.patch(postId, { deletedAt: now + 1, updatedAt: now + 1 })
+      return id!
+    })
+    const recipient = t.withIdentity({ subject: 'post-recipient' })
+
+    const rows = await recipient.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(rows.page[0]).toMatchObject({ destination: { type: 'notifications' }, targetAvailable: false })
+    expect(await recipient.mutation(api.notifications.open, { notificationId: String(notificationId) })).toEqual({ status: 'unavailable' })
+  })
+
+  it('makes a comment notification unavailable after the recipient blocks its author', async () => {
+    const t = convexTest(schema, modules)
+    const actorId = await user(t, 'comment-actor', 'https://example.com/private.jpg')
+    const recipientId = await user(t, 'comment-recipient')
+    const notificationId = await t.run(async (ctx) => {
+      const now = Date.now()
+      const postId = await ctx.db.insert('posts', { authorId: recipientId, body: 'A post', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      const commentId = await ctx.db.insert('postComments', { postId, authorId: actorId, body: 'A comment', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      const id = await createNotification(ctx, { recipientUserId: recipientId, actorUserId: actorId, kind: 'post_commented', priority: 'standard', postId, commentId, dedupeKey: 'comment-before-block' })
+      await ctx.db.insert('memberSafetyPreferences', { ownerUserId: recipientId, targetUserId: actorId, pairKey: `${recipientId}:${actorId}`, blockedAt: now + 1, createdAt: now + 1, updatedAt: now + 1 })
+      return id!
+    })
+    const recipient = t.withIdentity({ subject: 'comment-recipient' })
+
+    const rows = await recipient.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(rows.page[0]).toMatchObject({
+      actor: { displayName: "Let's Be Friends", available: false },
+      destination: { type: 'notifications' },
+      targetAvailable: false,
+    })
+    expect(await recipient.mutation(api.notifications.open, { notificationId: String(notificationId) })).toEqual({ status: 'unavailable' })
   })
 
   it('enforces ownership and supports read, unread, and all-read actions', async () => {
@@ -200,8 +287,104 @@ describe('notifications', () => {
     const postMention = rows.page.find((row) => row.body.includes('in a post'))
     const commentMention = rows.page.find((row) => row.body.includes('in a comment'))
     expect(postMention).toMatchObject({ title: 'You were mentioned', body: 'Actor mentioned you in a post.', destination: { type: 'post', postId: String(postId) } })
-    expect(commentMention).toMatchObject({ body: 'Actor mentioned you in a comment.', destination: { type: 'post', postId: String(postId) } })
+    expect(commentMention).toMatchObject({ body: 'Actor mentioned you in a comment.', destination: { type: 'post', postId: String(postId), commentId: String(commentId) } })
     expect(commentMention?.kind).toBe('mention')
-    void commentId
+    expect(await recipient.mutation(api.notifications.open, { notificationId: commentMention!.id })).toEqual({
+      status: 'ready',
+      destination: { type: 'post', postId: String(postId), commentId: String(commentId) },
+    })
+  })
+
+  it('opens a direct message at the exact message and marks its notification read', async () => {
+    const t = convexTest(schema, modules)
+    const senderId = await user(t, 'sender')
+    const recipientId = await user(t, 'recipient')
+    const { conversationId, messageId, notificationId } = await t.run(async (ctx) => {
+      const now = Date.now()
+      const pairKey = [String(senderId), String(recipientId)].sort().join(':')
+      const conversationId = await ctx.db.insert('directConversations', { participantOneId: senderId, participantTwoId: recipientId, pairKey, createdAt: now, updatedAt: now })
+      const messageId = await ctx.db.insert('directMessages', { conversationId, senderId, body: 'Hello', reportable: true, createdAt: now })
+      const notificationId = await createNotification(ctx, { recipientUserId: recipientId, actorUserId: senderId, kind: 'direct_message', priority: 'standard', conversationId, messageId, dedupeKey: `message:${messageId}` })
+      return { conversationId, messageId, notificationId: notificationId! }
+    })
+    const recipient = t.withIdentity({ subject: 'recipient' })
+
+    expect(await recipient.mutation(api.notifications.open, { notificationId: String(notificationId) })).toEqual({
+      status: 'ready',
+      destination: { type: 'conversation', conversationId: String(conversationId), messageId: String(messageId) },
+    })
+    expect(await recipient.query(api.notifications.unreadCount, {})).toBe(0)
+  })
+})
+
+describe('Circle notification privacy', () => {
+  async function circleWorld(t: ReturnType<typeof convexTest>) {
+    const recipientId = await user(t, 'circle-recipient')
+    const actorId = await user(t, 'circle-actor')
+    return await t.run(async (ctx) => {
+      const now = Date.now()
+      const circleId = await ctx.db.insert('circles', {
+        slug: 'private-name', name: 'Private Circle Name', purpose: 'Private', category: 'Private', rules: ['Private'], mode: 'online',
+        state: 'active', hostUserId: actorId, createdByUserId: actorId, createdAt: now, updatedAt: now,
+      })
+      const membershipId = await ctx.db.insert('circleMemberships', { circleId, userId: recipientId, state: 'active', role: 'member', rulesAcceptedAt: now, createdAt: now, updatedAt: now })
+      await ctx.db.insert('circleMemberships', { circleId, userId: actorId, state: 'active', role: 'host', rulesAcceptedAt: now, createdAt: now, updatedAt: now })
+      const postId = await ctx.db.insert('posts', { authorId: actorId, circleId, circleKind: 'discussion', body: 'Secret post text', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      const commentId = await ctx.db.insert('postComments', { postId, authorId: actorId, body: 'Secret comment text', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      return { recipientId, actorId, circleId, membershipId, postId, commentId }
+    })
+  }
+
+  it('deduplicates activity, honors Circle mute, and uses a Circle destination without private copy', async () => {
+    const t = convexTest(schema, modules)
+    const world = await circleWorld(t)
+    const notificationId = await t.run(async (ctx) => {
+      const input = { recipientUserId: world.recipientId, actorUserId: world.actorId, kind: 'circle_reply' as const, priority: 'standard' as const, circleId: world.circleId, postId: world.postId, commentId: world.commentId, dedupeKey: 'circle-reply:one' }
+      const first = await createNotification(ctx, input)
+      expect(await createNotification(ctx, input)).toBe(first)
+      return first!
+    })
+    const recipient = t.withIdentity({ subject: 'circle-recipient' })
+    const row = (await recipient.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })).page[0]
+    expect(row).toMatchObject({ kind: 'circle_reply', destination: { type: 'circle', circleId: String(world.circleId), postId: String(world.postId), commentId: String(world.commentId) } })
+    expect(`${row.title} ${row.body}`).not.toContain('Private Circle Name')
+    expect(`${row.title} ${row.body}`).not.toContain('Secret')
+    expect(await recipient.mutation(api.notifications.open, { notificationId: String(notificationId) })).toMatchObject({ status: 'ready', destination: { type: 'circle' } })
+
+    await t.run(async (ctx) => ctx.db.patch(world.membershipId, { mutedAt: Date.now() }))
+    expect(await t.run((ctx) => createNotification(ctx, { recipientUserId: world.recipientId, actorUserId: world.actorId, kind: 'circle_announcement', priority: 'standard', circleId: world.circleId, postId: world.postId, dedupeKey: 'circle-announcement:muted' }))).toBeNull()
+    expect(await t.run((ctx) => createNotification(ctx, { recipientUserId: world.recipientId, actorUserId: world.actorId, kind: 'circle_member_removed', priority: 'attention', circleId: world.circleId, dedupeKey: 'circle-removal:not-muted' }))).toBeTruthy()
+  })
+
+  it('removes private activity from list, unread, and open after access revocation or suspension', async () => {
+    const t = convexTest(schema, modules)
+    const world = await circleWorld(t)
+    const notificationId = await t.run((ctx) => createNotification(ctx, { recipientUserId: world.recipientId, actorUserId: world.actorId, kind: 'circle_mention', priority: 'standard', circleId: world.circleId, postId: world.postId, commentId: world.commentId, dedupeKey: 'circle-mention:revoke' }))
+    await t.run(async (ctx) => ctx.db.patch(world.membershipId, { state: 'left' }))
+    const recipient = t.withIdentity({ subject: 'circle-recipient' })
+    expect((await recipient.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })).page).toEqual([])
+    expect(await recipient.query(api.notifications.unreadCount, {})).toBe(0)
+    expect(await recipient.mutation(api.notifications.open, { notificationId: String(notificationId) })).toEqual({ status: 'unavailable' })
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(world.membershipId, { state: 'active' })
+      await ctx.db.patch(world.circleId, { state: 'suspended' })
+    })
+    expect((await recipient.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })).page).toEqual([])
+  })
+
+  it('delivers join decisions despite Circle mute and suppresses blocked activity', async () => {
+    const t = convexTest(schema, modules)
+    const world = await circleWorld(t)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(world.membershipId, { state: 'rejected', mutedAt: Date.now() })
+      expect(await createNotification(ctx, { recipientUserId: world.recipientId, actorUserId: world.actorId, kind: 'circle_join_rejected', priority: 'attention', circleId: world.circleId, dedupeKey: 'join-rejected' })).toBeTruthy()
+      const now = Date.now()
+      await ctx.db.patch(world.membershipId, { state: 'active', mutedAt: undefined })
+      await ctx.db.insert('memberSafetyPreferences', { ownerUserId: world.recipientId, targetUserId: world.actorId, pairKey: `${world.recipientId}:${world.actorId}`, blockedAt: now, createdAt: now, updatedAt: now })
+      expect(await createNotification(ctx, { recipientUserId: world.recipientId, actorUserId: world.actorId, kind: 'circle_reply', priority: 'standard', circleId: world.circleId, postId: world.postId, dedupeKey: 'blocked-reply' })).toBeNull()
+    })
+    const rows = await t.withIdentity({ subject: 'circle-recipient' }).query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(rows.page.map((row) => row.kind)).toContain('circle_join_rejected')
   })
 })

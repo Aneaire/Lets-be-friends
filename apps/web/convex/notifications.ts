@@ -5,15 +5,18 @@ import { internal } from './_generated/api'
 import { mutation, query, type MutationCtx } from './_generated/server'
 import { requireViewer } from './lib'
 import { buildInAppNotificationCopy, notificationDefinition, type NotificationKind as CatalogNotificationKind } from './notificationCatalog'
-import { areUsersBlocked, preference } from './safety'
+import { areUsersBlocked, isHiddenByPreference, preference } from './safety'
+import { hasCurrentIdentityApproval } from './identityVerification'
+import { isCircleParticipantRole } from './circleAuthorization'
 
 export type NotificationKind = CatalogNotificationKind
 export type NotificationPriority = Doc<'notifications'>['priority']
 
 export type NotificationDestination =
   | { type: 'booking'; audience: 'member' | 'companion'; bookingId: string }
-  | { type: 'conversation'; conversationId: string }
-  | { type: 'post'; postId: string }
+  | { type: 'conversation'; conversationId: string; messageId?: string }
+  | { type: 'post'; postId: string; commentId?: string }
+  | { type: 'circle'; circleId: string; postId?: string; commentId?: string }
   | { type: 'companion' }
   | { type: 'identity' }
   | { type: 'profile'; userId: string }
@@ -31,6 +34,7 @@ export type CreateNotificationInput = {
   messageId?: Id<'directMessages'>
   postId?: Id<'posts'>
   commentId?: Id<'postComments'>
+  circleId?: Id<'circles'>
   reviewId?: Id<'reviews'>
   companionProfileId?: Id<'companionProfiles'>
   verificationRequestId?: Id<'verificationRequests'>
@@ -48,6 +52,7 @@ export async function createNotification(ctx: MutationCtx | { db: any; scheduler
   }
   const recipient = await ctx.db.get(input.recipientUserId)
   if (!recipient) return null
+  if (input.circleId && !await canDeliverCircleNotification(ctx, input, input.recipientUserId)) return null
   if (input.actorUserId && definition.respectsSocialPreferences) {
     if (await areUsersBlocked(ctx, input.recipientUserId, input.actorUserId)) return null
     if ((await preference(ctx, input.recipientUserId, input.actorUserId))?.mutedAt) return null
@@ -72,7 +77,8 @@ export const recent = query({
       .withIndex('by_recipient_created_at', (q) => q.eq('recipientUserId', viewer._id))
       .order('desc')
       .take(limit)
-    return await Promise.all(rows.map((row) => presentNotification(ctx, row, viewer._id)))
+    const visible = await visibleNotifications(ctx, rows, viewer._id)
+    return await Promise.all(visible.map((row) => presentNotification(ctx, row, viewer._id)))
   },
 })
 
@@ -86,7 +92,7 @@ export const list = query({
       .paginate(args.paginationOpts)
     return {
       ...result,
-      page: await Promise.all(result.page.map((row) => presentNotification(ctx, row, viewer._id))),
+      page: await Promise.all((await visibleNotifications(ctx, result.page, viewer._id)).map((row) => presentNotification(ctx, row, viewer._id))),
     }
   },
 })
@@ -98,7 +104,7 @@ export const unreadCount = query({
     const unread = await ctx.db.query('notifications')
       .withIndex('by_recipient_read_at', (q) => q.eq('recipientUserId', viewer._id).eq('readAt', undefined))
       .collect()
-    return unread.length
+    return (await visibleNotifications(ctx, unread, viewer._id)).length
   },
 })
 
@@ -161,7 +167,11 @@ async function requireOwnedNotification(ctx: { db: any }, notificationId: Id<'no
 
 async function presentNotification(ctx: { db: any }, notification: Doc<'notifications'>, viewerId: Id<'users'>) {
   const actor = notification.actorUserId ? await ctx.db.get(notification.actorUserId) as Doc<'users'> | null : null
-  const actorAvailable = Boolean(actor && !actor.suspended)
+  const actorHidden = actor && notification.actorUserId
+    ? await isHiddenByPreference(ctx, viewerId, notification.actorUserId)
+    : false
+  const actorAvailable = Boolean(actor && !actor.suspended && !actorHidden)
+  const actorProfileImageUrl = actorAvailable ? await profileImageUrl(ctx, actor!) : undefined
   const actorName = actorAvailable ? actor!.displayName : 'Let\'s Be Friends'
   const target = await resolveTarget(ctx, notification, viewerId)
   const copy = buildInAppNotificationCopy(notification.kind, {
@@ -175,8 +185,9 @@ async function presentNotification(ctx: { db: any }, notification: Doc<'notifica
     kind: notification.kind,
     priority: notification.priority,
     actor: notification.actorUserId ? {
-      userId: actorAvailable ? String(notification.actorUserId) : undefined,
+      ...(actorAvailable ? { userId: String(notification.actorUserId) } : {}),
       displayName: actorName,
+      ...(actorProfileImageUrl ? { profileImageUrl: actorProfileImageUrl } : {}),
       available: actorAvailable,
     } : undefined,
     title: copy.title,
@@ -195,6 +206,30 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
   category?: string
 }> {
   const destination = notificationDefinition(notification.kind).destination
+  if (destination === 'circle') {
+    if (!notification.circleId || !await canDeliverCircleNotification(ctx, notification, viewerId)) return { available: false, destination: { type: 'notifications' } }
+    const circle = await ctx.db.get(notification.circleId) as Doc<'circles'> | null
+    if (!circle || circle.state === 'suspended') return { available: false, destination: { type: 'notifications' } }
+    if (circle.state === 'archived') {
+      const membership = await ctx.db.query('circleMemberships').withIndex('by_circle_user', (q: any) => q.eq('circleId', circle._id).eq('userId', viewerId)).unique() as Doc<'circleMemberships'> | null
+      if (membership?.state !== 'active') return { available: false, destination: { type: 'notifications' } }
+    }
+    if (notification.postId) {
+      const post = await ctx.db.get(notification.postId) as Doc<'posts'> | null
+      if (!post || post.circleId !== circle._id || post.hidden || post.deletedAt || post.circleRemovedAt) return { available: false, destination: { type: 'notifications' } }
+      const postAuthor = await ctx.db.get(post.authorId) as Doc<'users'> | null
+      if (!postAuthor || postAuthor.suspended) return { available: false, destination: { type: 'notifications' } }
+      if (post.authorId !== viewerId && await isHiddenByPreference(ctx, viewerId, post.authorId)) return { available: false, destination: { type: 'notifications' } }
+      if (notification.commentId) {
+        const comment = await ctx.db.get(notification.commentId) as Doc<'postComments'> | null
+        if (!comment || comment.postId !== post._id || comment.hidden || comment.circleRemovedAt) return { available: false, destination: { type: 'notifications' } }
+        const commentAuthor = await ctx.db.get(comment.authorId) as Doc<'users'> | null
+        if (!commentAuthor || commentAuthor.suspended) return { available: false, destination: { type: 'notifications' } }
+        if (comment.authorId !== viewerId && await isHiddenByPreference(ctx, viewerId, comment.authorId)) return { available: false, destination: { type: 'notifications' } }
+      }
+    }
+    return { available: true, destination: { type: 'circle', circleId: String(circle._id), ...(notification.postId ? { postId: String(notification.postId) } : {}), ...(notification.commentId ? { commentId: String(notification.commentId) } : {}) } }
+  }
   if (destination === 'booking') {
     if (!notification.bookingId) return { available: false, destination: { type: 'notifications' } }
     const booking = await ctx.db.get(notification.bookingId) as Doc<'bookings'> | null
@@ -208,17 +243,50 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
     if (!notification.postId) return { available: false, destination: { type: 'notifications' } }
     const post = await ctx.db.get(notification.postId) as Doc<'posts'> | null
     const author = post ? await ctx.db.get(post.authorId) as Doc<'users'> | null : null
-    return post && !post.hidden && !post.deletedAt && author && !author.suspended
-      ? { available: true, destination: { type: 'post', postId: String(post._id) } }
-      : { available: false, destination: { type: 'notifications' } }
+    if (!post || post.hidden || post.deletedAt || !author || author.suspended) {
+      return { available: false, destination: { type: 'notifications' } }
+    }
+    if (notification.commentId) {
+      const comment = await ctx.db.get(notification.commentId) as Doc<'postComments'> | null
+      const commentAuthor = comment ? await ctx.db.get(comment.authorId) as Doc<'users'> | null : null
+      const commentHiddenByPreference = commentAuthor && commentAuthor._id !== viewerId
+        ? await isHiddenByPreference(ctx, viewerId, commentAuthor._id)
+        : false
+      if (!comment || comment.postId !== post._id || comment.hidden || !commentAuthor || commentAuthor.suspended || commentHiddenByPreference) {
+        return { available: false, destination: { type: 'notifications' } }
+      }
+    }
+    if (post.authorId !== viewerId && await isHiddenByPreference(ctx, viewerId, post.authorId)) {
+      return { available: false, destination: { type: 'notifications' } }
+    }
+    return {
+      available: true,
+      destination: {
+        type: 'post',
+        postId: String(post._id),
+        ...(notification.commentId ? { commentId: String(notification.commentId) } : {}),
+      },
+    }
   }
   if (destination === 'conversation') {
     if (!notification.conversationId) return { available: false, destination: { type: 'notifications' } }
     const conversation = await ctx.db.get(notification.conversationId) as Doc<'directConversations'> | null
     const participant = conversation && (conversation.participantOneId === viewerId || conversation.participantTwoId === viewerId)
-    return participant
-      ? { available: true, destination: { type: 'conversation', conversationId: String(conversation!._id) } }
-      : { available: false, destination: { type: 'notifications' } }
+    if (!participant) return { available: false, destination: { type: 'notifications' } }
+    if (notification.messageId) {
+      const message = await ctx.db.get(notification.messageId) as Doc<'directMessages'> | null
+      if (!message || message.conversationId !== conversation._id) {
+        return { available: false, destination: { type: 'notifications' } }
+      }
+    }
+    return {
+      available: true,
+      destination: {
+        type: 'conversation',
+        conversationId: String(conversation._id),
+        ...(notification.messageId ? { messageId: String(notification.messageId) } : {}),
+      },
+    }
   }
   if (destination === 'companion') {
     if (!notification.companionProfileId) return { available: false, destination: { type: 'notifications' } }
@@ -232,13 +300,67 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
       : { available: false, destination: { type: 'notifications' } }
   }
   if (destination === 'profile' && notification.actorUserId) {
-    return { available: true, destination: { type: 'profile', userId: String(notification.actorUserId) } }
+    const actor = await ctx.db.get(notification.actorUserId) as Doc<'users'> | null
+    if (!actor || actor.suspended || await isHiddenByPreference(ctx, viewerId, actor._id)) {
+      return { available: false, destination: { type: 'notifications' } }
+    }
+    return { available: true, destination: { type: 'profile', userId: String(actor._id) } }
   }
   return { available: false, destination: { type: 'notifications' } }
+}
+
+const circleActivityKinds = new Set<NotificationKind>(['circle_reply', 'circle_mention', 'circle_announcement', 'circle_reaction'])
+
+async function visibleNotifications(ctx: { db: any }, rows: Doc<'notifications'>[], viewerId: Id<'users'>) {
+  const checks = await Promise.all(rows.map(async (row) => {
+    if (!row.circleId || !circleActivityKinds.has(row.kind)) return row
+    return await canDeliverCircleNotification(ctx, row, viewerId) ? row : null
+  }))
+  return checks.filter((row): row is Doc<'notifications'> => row !== null)
+}
+
+export async function canDeliverCircleNotification(
+  ctx: { db: any },
+  notification: Pick<Doc<'notifications'>, 'kind' | 'circleId' | 'actorUserId' | 'postId' | 'commentId'> | CreateNotificationInput,
+  recipientUserId: Id<'users'>,
+) {
+  if (!notification.circleId) return true
+  const circle = await ctx.db.get(notification.circleId) as Doc<'circles'> | null
+  if (!circle) return false
+  const recipient = await ctx.db.get(recipientUserId) as Doc<'users'> | null
+  if (!recipient || recipient.suspended || !isCircleParticipantRole(recipient.role)) return false
+  const membership = await ctx.db.query('circleMemberships').withIndex('by_circle_user', (q: any) => q.eq('circleId', circle._id).eq('userId', recipientUserId)).unique() as Doc<'circleMemberships'> | null
+  if (notification.postId) {
+    const post = await ctx.db.get(notification.postId) as Doc<'posts'> | null
+    if (!post || post.circleId !== circle._id || post.hidden || post.deletedAt || post.circleRemovedAt) return false
+    const author = await ctx.db.get(post.authorId) as Doc<'users'> | null
+    if (!author || author.suspended) return false
+    if (notification.commentId) {
+      const comment = await ctx.db.get(notification.commentId) as Doc<'postComments'> | null
+      if (!comment || comment.postId !== post._id || comment.hidden || comment.circleRemovedAt) return false
+      const commentAuthor = await ctx.db.get(comment.authorId) as Doc<'users'> | null
+      if (!commentAuthor || commentAuthor.suspended) return false
+    }
+  }
+  if (circleActivityKinds.has(notification.kind)) {
+    if (circle.state === 'suspended' || membership?.state !== 'active' || membership.mutedAt) return false
+    if (notification.actorUserId && await areUsersBlocked(ctx, recipientUserId, notification.actorUserId)) return false
+    return true
+  }
+  if (notification.kind === 'circle_join_requested') {
+    if (circle.state !== 'active' || membership?.state !== 'active' || (membership.role !== 'host' && membership.role !== 'moderator')) return false
+    return hasCurrentIdentityApproval(recipient)
+  }
+  return true
 }
 
 function boundedLimit(value: number | undefined, fallback: number, maximum: number) {
   if (value === undefined) return fallback
   if (!Number.isFinite(value)) return fallback
   return Math.min(Math.max(Math.floor(value), 1), maximum)
+}
+
+async function profileImageUrl(ctx: { db: any; storage?: { getUrl: (id: Id<'_storage'>) => Promise<string | null> } }, user: Doc<'users'>) {
+  if (!user.profileImageStorageId || !ctx.storage) return user.profileImageUrl
+  return await ctx.storage.getUrl(user.profileImageStorageId) ?? user.profileImageUrl
 }

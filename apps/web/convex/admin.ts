@@ -13,7 +13,7 @@ const verificationStatusOrAll = v.union(v.literal('not_ready'), v.literal('pendi
 const companionStatusOrAll = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'), v.literal('all'))
 const reportStatus = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'))
 const reportStatusOrAll = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'), v.literal('all'))
-const reportTargetTypeOrAll = v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('all'))
+const reportTargetTypeOrAll = v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('circle'), v.literal('all'))
 const visibility = v.union(v.literal('visible'), v.literal('hidden'), v.literal('all'))
 
 async function requireAdmin(ctx: any) {
@@ -175,6 +175,10 @@ export const reports = query({
         ...report,
         reporterDisplayName: reporter?.displayName ?? 'Member',
         targetSummary: await describeReportTarget(ctx, report),
+        // Reviewers receive only the reported item and enough Circle identity
+        // to decide this report. General Circle browsing stays full-admin-only.
+        circleContext: await circleReportContext(ctx, report),
+        reportedCircleContent: await reportedCircleContent(ctx, report),
         bookingSettlementState: booking?.settlementState,
         bookingSettlementEligibleAt: booking?.settlementEligibleAt,
         evidence: evidence.map((decision) => ({ role: decision.role, decision: decision.decision })),
@@ -216,7 +220,7 @@ export const posts = query({
   handler: async (ctx, args) => {
     await requireAdmin(ctx)
     const visibilityFilter = args.visibility ?? 'visible'
-    const rows = await ctx.db.query('posts').withIndex('by_created_at').order('desc').take(100)
+    const rows = await ctx.db.query('posts').withIndex('by_circle_created_at', (q) => q.eq('circleId', undefined)).order('desc').take(100)
     const filtered = rows.filter((post) => matchesVisibility(post.hidden, visibilityFilter))
     return await Promise.all(filtered.map(async (post) => {
       const author = await ctx.db.get(post.authorId)
@@ -226,6 +230,20 @@ export const posts = query({
         authorDisplayName: author?.displayName ?? 'Member',
         authorSuspended: author?.suspended ?? false,
       }
+    }))
+  },
+})
+
+export const circlePosts = query({
+  args: { circleId: v.id('circles') },
+  handler: async (ctx, args) => {
+    await requireFullAdmin(ctx)
+    const circle = await ctx.db.get(args.circleId)
+    if (!circle) throw new Error('Circle not found')
+    const rows = await ctx.db.query('posts').withIndex('by_circle_created_at', (q) => q.eq('circleId', args.circleId)).order('desc').take(100)
+    return await Promise.all(rows.map(async (post) => {
+      const author = await ctx.db.get(post.authorId)
+      return { ...post, media: [], authorDisplayName: author?.displayName ?? 'Member', authorSuspended: author?.suspended ?? false }
     }))
   },
 })
@@ -282,7 +300,7 @@ export const reviewCompanionApplication = mutation({
     const now = Date.now()
     const after = { ...companion, status: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now }
     await ctx.db.patch(args.companionProfileId, { status: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now })
-    if (args.decision === 'approved') {
+    if (args.decision === 'approved' && user.role === 'member') {
       await ctx.db.patch(companion.userId, { role: 'companion', updatedAt: now })
     }
     await syncCompanionLocation(ctx, after, user)
@@ -557,6 +575,10 @@ export const setPostHidden = mutation({
     const admin = await requireAdmin(ctx)
     const post = await ctx.db.get(args.postId)
     if (!post) throw new Error('Post not found')
+    if (post.circleId && !isFullAdminRole(admin.role)) {
+      const circleReports = await ctx.db.query('reports').withIndex('by_circle', (q) => q.eq('circleId', post.circleId)).collect()
+      if (!circleReports.some((report) => report.targetType === 'post' && report.targetId === String(post._id))) throw new Error('Reported Circle post required')
+    }
     if (post.deletedAt && !args.hidden) throw new Error('Author-deleted posts cannot be restored')
     const note = args.hidden ? requireNote(args.note, 'Hiding a post') : normalizeNote(args.note)
     const after = { ...post, hidden: args.hidden, updatedAt: Date.now() }
@@ -695,7 +717,34 @@ async function describeReportTarget(ctx: any, report: { targetType: string; targ
     const message = await safeGet(ctx, report.targetId)
     return message?.body ? `Message: ${truncate(message.body, 80)}` : 'Message'
   }
+  if (report.targetType === 'circle') {
+    const circle = await safeGet(ctx, report.targetId)
+    return circle?.name ? `Circle: ${circle.name}` : 'Circle'
+  }
   return report.targetType
+}
+
+async function circleReportContext(ctx: any, report: { circleId?: any }) {
+  if (!report.circleId) return undefined
+  const circle = await ctx.db.get(report.circleId)
+  if (!circle) return undefined
+  return { circleId: circle._id, name: circle.name, slug: circle.slug, state: circle.state }
+}
+
+async function reportedCircleContent(ctx: any, report: { circleId?: any; targetType: string; targetId: string }) {
+  if (!report.circleId) return undefined
+  if (report.targetType === 'post') {
+    const post = await safeGet(ctx, report.targetId)
+    return post?.circleId === report.circleId ? { targetType: 'post' as const, postId: post._id, body: post.body, circleKind: post.circleKind } : undefined
+  }
+  if (report.targetType === 'comment') {
+    const comment = await safeGet(ctx, report.targetId)
+    if (!comment) return undefined
+    const post = await ctx.db.get(comment.postId)
+    if (post?.circleId !== report.circleId) return undefined
+    return { targetType: 'comment' as const, commentId: comment._id, body: comment.body, postId: comment.postId, postBody: post?.body }
+  }
+  return undefined
 }
 
 async function safeGet(ctx: any, id: string) {

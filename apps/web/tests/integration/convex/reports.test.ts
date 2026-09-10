@@ -244,3 +244,105 @@ describe('report target authorization', () => {
     await expectNoWrites(t)
   })
 })
+
+describe('Circle report privacy', () => {
+  async function circleWorld(t: ReturnType<typeof convexTest>) {
+    return await t.run(async (ctx) => {
+      const now = Date.now()
+      const addUser = async (subject: string, role: 'member' | 'reviewer' | 'admin' = 'member', verified = false) => await ctx.db.insert('users', {
+        clerkUserId: subject,
+        displayName: subject,
+        role,
+        verificationStatus: verified ? 'approved' : 'not_started',
+        verificationSource: verified ? 'in_app' : undefined,
+        identityVerifiedAt: verified ? now : undefined,
+        identityExpiresAt: verified ? now + 86_400_000 : undefined,
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const adminId = await addUser('circle-admin', 'admin')
+      const reviewerId = await addUser('circle-reviewer', 'reviewer')
+      const hostId = await addUser('circle-host', 'member', true)
+      const memberId = await addUser('circle-member')
+      await addUser('circle-outsider')
+      const circleId = await ctx.db.insert('circles', {
+        slug: 'reported-circle', name: 'Reported Circle', purpose: 'Private discussion', category: 'Safety', rules: ['Be kind'],
+        mode: 'online', state: 'active', hostUserId: hostId, createdByUserId: adminId, createdAt: now, updatedAt: now,
+      })
+      const hostMembershipId = await ctx.db.insert('circleMemberships', { circleId, userId: hostId, state: 'active', role: 'host', rulesAcceptedAt: now, createdAt: now, updatedAt: now })
+      const memberMembershipId = await ctx.db.insert('circleMemberships', { circleId, userId: memberId, state: 'active', role: 'member', rulesAcceptedAt: now, createdAt: now, updatedAt: now })
+      const postId = await ctx.db.insert('posts', { authorId: hostId, circleId, circleKind: 'discussion', body: 'Reported Circle post body', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      const commentId = await ctx.db.insert('postComments', { postId, authorId: hostId, body: 'Reported Circle comment body', reportable: true, hidden: false, createdAt: now, updatedAt: now })
+      return { circleId, postId, commentId, hostId, memberId, memberMembershipId, hostMembershipId, reviewerId }
+    })
+  }
+
+  it('routes Circle, post, and comment reports to platform review with denormalized context', async () => {
+    const t = createTest()
+    const world = await circleWorld(t)
+    const outsider = t.withIdentity({ subject: 'circle-outsider' })
+    const member = t.withIdentity({ subject: 'circle-member' })
+
+    await outsider.mutation(api.reports.create, { targetType: 'circle', targetId: String(world.circleId), reason: 'Circle concern' })
+    await member.mutation(api.reports.create, { targetType: 'post', targetId: String(world.postId), reason: 'Post concern' })
+    await member.mutation(api.reports.create, { targetType: 'comment', targetId: String(world.commentId), reason: 'Comment concern' })
+    const stored = await t.run(async (ctx) => ctx.db.query('reports').collect())
+    expect(stored).toHaveLength(3)
+    expect(stored.every((report) => report.circleId === world.circleId)).toBe(true)
+
+    await expect(t.withIdentity({ subject: 'circle-host' }).query(api.admin.reports, {})).rejects.toThrow('Admin role required')
+    const queue = await t.withIdentity({ subject: 'circle-reviewer' }).query(api.admin.reports, { targetType: 'post' })
+    expect(queue).toEqual([expect.objectContaining({
+      reporterId: world.memberId,
+      circleContext: { circleId: world.circleId, name: 'Reported Circle', slug: 'reported-circle', state: 'active' },
+      reportedCircleContent: expect.objectContaining({ targetType: 'post', body: 'Reported Circle post body' }),
+    })])
+  })
+
+  it('denies revoked readers without report or audit writes', async () => {
+    const t = createTest()
+    const world = await circleWorld(t)
+    await t.run(async (ctx) => ctx.db.patch(world.memberMembershipId, { state: 'left' }))
+
+    await expect(t.withIdentity({ subject: 'circle-member' }).mutation(api.reports.create, { targetType: 'post', targetId: String(world.postId), reason: 'No access' }))
+      .rejects.toThrow('Active Circle membership required')
+    await expect(t.withIdentity({ subject: 'circle-member' }).mutation(api.reports.create, { targetType: 'comment', targetId: String(world.commentId), reason: 'No access' }))
+      .rejects.toThrow('Active Circle membership required')
+    const state = await t.run(async (ctx) => ({ reports: await ctx.db.query('reports').collect(), audits: await ctx.db.query('auditLogs').collect() }))
+    expect(state.reports).toHaveLength(0)
+    expect(state.audits.filter((audit) => audit.action === 'report.created')).toHaveLength(0)
+  })
+
+  it('keeps general post listings Circle-free and reserves Circle browsing for full admins', async () => {
+    const t = createTest()
+    const world = await circleWorld(t)
+    await t.run(async (ctx) => ctx.db.insert('posts', { authorId: world.hostId, body: 'Global admin post', reportable: true, hidden: false, createdAt: Date.now(), updatedAt: Date.now() }))
+
+    const reviewer = t.withIdentity({ subject: 'circle-reviewer' })
+    expect(await reviewer.query(api.admin.posts, {})).toEqual([expect.objectContaining({ body: 'Global admin post' })])
+    await expect(reviewer.query(api.admin.circlePosts, { circleId: world.circleId })).rejects.toThrow('Full admin role required')
+    await expect(t.withIdentity({ subject: 'circle-admin' }).query(api.admin.circlePosts, { circleId: world.circleId }))
+      .resolves.toEqual([expect.objectContaining({ _id: world.postId, body: 'Reported Circle post body' })])
+  })
+
+  it('keeps platform hiding separate from Circle removal and limits reviewers to reported Circle posts', async () => {
+    const t = createTest()
+    const world = await circleWorld(t)
+    const reviewer = t.withIdentity({ subject: 'circle-reviewer' })
+
+    await expect(reviewer.mutation(api.admin.setPostHidden, { postId: world.postId, hidden: true, note: 'Needs platform review' }))
+      .rejects.toThrow('Reported Circle post required')
+    expect((await t.run(async (ctx) => ctx.db.get(world.postId)))?.hidden).toBe(false)
+    await t.withIdentity({ subject: 'circle-member' }).mutation(api.reports.create, { targetType: 'post', targetId: String(world.postId), reason: 'Report first' })
+    await reviewer.mutation(api.admin.setPostHidden, { postId: world.postId, hidden: true, note: 'Needs platform review' })
+    expect(await t.run(async (ctx) => ctx.db.get(world.postId))).toMatchObject({ hidden: true })
+    expect((await t.run(async (ctx) => ctx.db.get(world.postId)))?.circleRemovedAt).toBeUndefined()
+
+    await reviewer.mutation(api.admin.setPostHidden, { postId: world.postId, hidden: false })
+    await t.withIdentity({ subject: 'circle-host' }).mutation(api.circles.setPostRemoved, { postId: world.postId, removed: true })
+    const post = await t.run(async (ctx) => ctx.db.get(world.postId))
+    expect(post?.hidden).toBe(false)
+    expect(post?.circleRemovedAt).toBeTypeOf('number')
+  })
+})
