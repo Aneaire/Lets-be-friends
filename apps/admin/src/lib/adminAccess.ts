@@ -8,6 +8,7 @@ export type AdminRoute =
   | '/booking-verification'
   | '/reports'
   | '/users'
+  | '/circles'
   | '/posts'
   | '/reviews'
   | '/profile'
@@ -41,6 +42,7 @@ const adminNavSections: AdminNavSection[] = [
     title: 'Moderation',
     items: [
       { to: '/users', label: 'Users', fullAdminOnly: true },
+      { to: '/circles', label: 'Circles', fullAdminOnly: true },
       { to: '/posts', label: 'Posts' },
       { to: '/reviews', label: 'Reviews' },
     ],

@@ -14,7 +14,6 @@ type ReviewRecord = {
   note?: string
 }
 
-const openRecord = fn()
 const markReviewing = fn()
 const resolveRecord = fn()
 const dismissRecord = fn()
@@ -82,30 +81,31 @@ function ReviewWorklist({
       loading="Loading reports..."
       empty="No reports match this filter."
       ariaLabel="Safety reports"
-      renderRecord={(record) => (
+      getDialogTitle={(record) => record.target}
+      getDialogDescription={(record) => `Reported by ${record.member}`}
+      renderSummary={(record) => (
         <>
-          <div className="worklist-row-head">
-            <div>
-              <h2 className="text-h3">{record.target}</h2>
-              <div className="worklist-row-meta">
-                <span>Reporter: {record.member}</span>
-                <span className="dot" aria-hidden="true" />
-                <span>{record.submitted}</span>
-                <span className="dot" aria-hidden="true" />
-                <span className="status-pill" data-tone={record.status === 'Resolved' ? 'success' : 'warning'}>{record.status}</span>
-                <span className="dot" aria-hidden="true" />
-                <span className="admin-code">{record.id}</span>
-              </div>
-            </div>
-            <div className="admin-action-stack">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => openRecord(record.id)}>Open</button>
-              <button type="button" className="btn btn-neutral btn-sm" onClick={() => markReviewing(record.id)}>Mark reviewing</button>
-              {manyActions ? <button type="button" className="btn btn-neutral btn-sm" onClick={() => resolveRecord(record.id)}>Resolve</button> : null}
-              {manyActions ? <button type="button" className="btn btn-danger btn-sm" onClick={() => dismissRecord(record.id)}>Dismiss</button> : null}
-            </div>
-          </div>
+          <span className="text-h3 admin-worklist-title">{record.target}</span>
+          <span className="worklist-row-meta">
+            <span>Reporter: {record.member}</span>
+            <span className="dot" aria-hidden="true" />
+            <span>{record.submitted}</span>
+            <span className="dot" aria-hidden="true" />
+            <span className="status-pill" data-tone={record.status === 'Resolved' ? 'success' : 'warning'}>{record.status}</span>
+          </span>
+        </>
+      )}
+      renderDetails={(record) => (
+        <>
           <p className="text-body muted max-w-[76ch]">{record.reason}</p>
           {record.note ? <p className="text-meta">{record.note}</p> : null}
+        </>
+      )}
+      renderDialogActions={(record) => (
+        <>
+          <button type="button" className="btn btn-neutral btn-sm" onClick={() => markReviewing(record.id)}>Mark reviewing</button>
+          {manyActions ? <button type="button" className="btn btn-neutral btn-sm" onClick={() => resolveRecord(record.id)}>Resolve</button> : null}
+          {manyActions ? <button type="button" className="btn btn-danger btn-sm" onClick={() => dismissRecord(record.id)}>Dismiss</button> : null}
         </>
       )}
     />
@@ -128,8 +128,9 @@ export const PopulatedDesktop: Story = {
     await expect(
       canvas.getByRole('region', { name: 'Safety reports' }),
     ).toBeVisible()
-    await userEvent.click(canvas.getAllByRole('button', { name: 'Open' })[0])
-    await expect(openRecord).toHaveBeenCalledWith('report-1024')
+    await userEvent.click(canvas.getAllByRole('button', { name: /Booking conversation practice/ })[0])
+    await expect(within(document.body).getByRole('dialog', { name: 'Booking conversation practice' })).toBeVisible()
+    await expect(within(document.body).getByRole('button', { name: 'Mark reviewing' })).toBeVisible()
   },
 }
 
@@ -178,8 +179,9 @@ export const ManyActionsNarrow: Story = {
   args: { manyActions: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getAllByRole('button', { name: 'Resolve' })[0]).toBeVisible()
-    await expect(canvas.getAllByRole('button', { name: 'Dismiss' })[0]).toBeVisible()
+    await userEvent.click(canvas.getAllByRole('button', { name: /Booking conversation practice/ })[0])
+    await expect(within(document.body).getByRole('button', { name: 'Resolve' })).toBeVisible()
+    await expect(within(document.body).getByRole('button', { name: 'Dismiss' })).toBeVisible()
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(
       canvasElement.clientWidth,
     )
@@ -215,7 +217,9 @@ function ControlledFilters() {
       )}
       rows={[] as ReviewRecord[]}
       getKey={(record) => record.id}
-      renderRecord={() => null}
+      getDialogTitle={(record) => record.target}
+      renderSummary={() => null}
+      renderDetails={() => null}
       loading="Loading reports..."
       empty="No reports match this filter."
       ariaLabel="Safety reports"

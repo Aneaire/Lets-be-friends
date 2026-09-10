@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuditLogsRouteImport } from './routes/audit-logs'
 import { Route as BookingVerificationRouteImport } from './routes/booking-verification'
 import { Route as CategoriesRouteImport } from './routes/categories'
+import { Route as CirclesRouteImport } from './routes/circles'
 import { Route as CompanionApplicationsRouteImport } from './routes/companion-applications'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as PostsRouteImport } from './routes/posts'
@@ -40,6 +41,11 @@ const BookingVerificationRoute = BookingVerificationRouteImport.update({
 const CategoriesRoute = CategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CirclesRoute = CirclesRouteImport.update({
+  id: '/circles',
+  path: '/circles',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompanionApplicationsRoute = CompanionApplicationsRouteImport.update({
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/audit-logs': typeof AuditLogsRoute
   '/booking-verification': typeof BookingVerificationRoute
   '/categories': typeof CategoriesRoute
+  '/circles': typeof CirclesRoute
   '/companion-applications': typeof CompanionApplicationsRoute
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/audit-logs': typeof AuditLogsRoute
   '/booking-verification': typeof BookingVerificationRoute
   '/categories': typeof CategoriesRoute
+  '/circles': typeof CirclesRoute
   '/companion-applications': typeof CompanionApplicationsRoute
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
@@ -117,6 +125,7 @@ export interface FileRoutesById {
   '/audit-logs': typeof AuditLogsRoute
   '/booking-verification': typeof BookingVerificationRoute
   '/categories': typeof CategoriesRoute
+  '/circles': typeof CirclesRoute
   '/companion-applications': typeof CompanionApplicationsRoute
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
@@ -133,6 +142,7 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/booking-verification'
     | '/categories'
+    | '/circles'
     | '/companion-applications'
     | '/overview'
     | '/posts'
@@ -147,6 +157,7 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/booking-verification'
     | '/categories'
+    | '/circles'
     | '/companion-applications'
     | '/overview'
     | '/posts'
@@ -161,6 +172,7 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/booking-verification'
     | '/categories'
+    | '/circles'
     | '/companion-applications'
     | '/overview'
     | '/posts'
@@ -176,6 +188,7 @@ export interface RootRouteChildren {
   AuditLogsRoute: typeof AuditLogsRoute
   BookingVerificationRoute: typeof BookingVerificationRoute
   CategoriesRoute: typeof CategoriesRoute
+  CirclesRoute: typeof CirclesRoute
   CompanionApplicationsRoute: typeof CompanionApplicationsRoute
   OverviewRoute: typeof OverviewRoute
   PostsRoute: typeof PostsRoute
@@ -214,6 +227,13 @@ declare module '@tanstack/react-router' {
       path: '/categories'
       fullPath: '/categories'
       preLoaderRoute: typeof CategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/circles': {
+      id: '/circles'
+      path: '/circles'
+      fullPath: '/circles'
+      preLoaderRoute: typeof CirclesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/companion-applications': {
@@ -280,6 +300,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuditLogsRoute: AuditLogsRoute,
   BookingVerificationRoute: BookingVerificationRoute,
   CategoriesRoute: CategoriesRoute,
+  CirclesRoute: CirclesRoute,
   CompanionApplicationsRoute: CompanionApplicationsRoute,
   OverviewRoute: OverviewRoute,
   PostsRoute: PostsRoute,

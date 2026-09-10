@@ -1,6 +1,7 @@
 import {
   BarChart3,
   ClipboardCheck,
+  CircleDot,
   FileText,
   Flag,
   ListChecks,
@@ -24,6 +25,7 @@ const iconByRoute: Record<string, ReactNode> = {
   '/booking-verification': <ShieldCheck size={16} />,
   '/reports': <Flag size={16} />,
   '/users': <UsersRound size={16} />,
+  '/circles': <CircleDot size={16} />,
   '/posts': <FileText size={16} />,
   '/reviews': <ListChecks size={16} />,
   '/profile': <UserCog size={16} />,

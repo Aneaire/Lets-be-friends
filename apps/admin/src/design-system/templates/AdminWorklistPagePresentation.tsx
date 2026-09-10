@@ -1,4 +1,6 @@
-import type { Key, ReactNode } from 'react'
+import { ChevronRight } from 'lucide-react'
+import { useState, type Key, type ReactNode } from 'react'
+import { Dialog } from '../../../../web/src/design-system/molecules/Dialog'
 
 export function AdminWorklistPagePresentation<Row>({
   eyebrow,
@@ -8,7 +10,11 @@ export function AdminWorklistPagePresentation<Row>({
   filterControls,
   rows,
   getKey,
-  renderRecord,
+  renderSummary,
+  renderDetails,
+  renderDialogActions,
+  getDialogTitle,
+  getDialogDescription,
   loading,
   empty,
   ariaLabel,
@@ -20,11 +26,18 @@ export function AdminWorklistPagePresentation<Row>({
   filterControls?: ReactNode
   rows: readonly Row[] | undefined
   getKey: (row: Row) => Key
-  renderRecord: (row: Row) => ReactNode
+  renderSummary: (row: Row) => ReactNode
+  renderDetails: (row: Row) => ReactNode
+  renderDialogActions?: (row: Row) => ReactNode
+  getDialogTitle: (row: Row) => string
+  getDialogDescription?: (row: Row) => string | undefined
   loading: ReactNode
   empty: ReactNode
   ariaLabel: string
 }) {
+  const [selectedKey, setSelectedKey] = useState<Key | null>(null)
+  const selectedRow = rows?.find((row) => getKey(row) === selectedKey)
+
   return (
     <>
       <header className="admin-page-header">
@@ -50,13 +63,43 @@ export function AdminWorklistPagePresentation<Row>({
         <section className="panel" aria-label={ariaLabel}>
           <div className="worklist">
             {rows.map((row) => (
-              <article key={getKey(row)} className="worklist-row">
-                {renderRecord(row)}
+              <article key={getKey(row)} className="worklist-row admin-worklist-row">
+                <button
+                  type="button"
+                  className="admin-worklist-card"
+                  aria-haspopup="dialog"
+                  onClick={() => setSelectedKey(getKey(row))}
+                >
+                  <span className="admin-worklist-summary">{renderSummary(row)}</span>
+                  <span className="admin-worklist-disclosure">
+                    View details
+                    <ChevronRight size={17} aria-hidden="true" />
+                  </span>
+                </button>
               </article>
             ))}
           </div>
         </section>
       )}
+
+      {selectedRow ? (
+        <Dialog
+          open
+          onClose={() => setSelectedKey(null)}
+          title={getDialogTitle(selectedRow)}
+          description={getDialogDescription?.(selectedRow)}
+          size="large"
+          className="admin-review-dialog"
+          bodyClassName="admin-review-dialog-body"
+          footer={renderDialogActions ? (
+            <div className="admin-review-dialog-actions">
+              {renderDialogActions(selectedRow)}
+            </div>
+          ) : undefined}
+        >
+          {renderDetails(selectedRow)}
+        </Dialog>
+      ) : null}
     </>
   )
 }

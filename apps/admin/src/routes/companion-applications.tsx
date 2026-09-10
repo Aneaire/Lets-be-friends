@@ -37,39 +37,48 @@ function CompanionApplicationsPage() {
       loading="Loading Companion profile reviews..."
       empty="No Companion profiles match this filter."
       ariaLabel="Companion profile reviews"
-      renderRecord={(companion) => (
+      getDialogTitle={(companion) => companion.applicantDisplayName}
+      getDialogDescription={(companion) => `${companion.city} · ${formatMode(companion.mode)} · ${formatStatus(companion.status)}`}
+      renderSummary={(companion) => (
         <>
-          <div className="worklist-row-head">
-            <div>
-              <h2 className="text-h3">{companion.applicantDisplayName}</h2>
-              <div className="worklist-row-meta">
-                <span>{companion.city}</span>
-                <span className="dot" aria-hidden="true" />
-                <span>{formatMode(companion.mode)}</span>
-                <span className="dot" aria-hidden="true" />
-                <span className="status-pill" data-tone={statusTone(companion.status)}>{companion.status}</span>
-                <span className="dot" aria-hidden="true" />
-                <span>Identity {companion.applicantIdentityEligible ? 'approved' : 'not approved'}</span>
-                <span className="dot" aria-hidden="true" />
-                <span>{companion.verificationSource === 'in_app' ? 'In-app identity' : `Identity provider ${formatStatus(companion.verificationPersonaStatus ?? 'not started')}`}</span>
-              </div>
-            </div>
-            <div className="admin-action-stack">
-              <ActionNote
-                label="Approve"
-                submitLabel="Approve"
-                disabled={companion.status !== 'pending_review' || !companion.applicantIdentityEligible || companion.applicantSuspended}
-                onSubmit={(note) => reviewCompanion({ companionProfileId: companion._id, decision: 'approved', note })}
-              />
-              <ActionNote
-                label="Reject"
-                submitLabel="Reject"
-                tone="danger"
-                requireNote
-                disabled={companion.status !== 'pending_review'}
-                onSubmit={(note) => reviewCompanion({ companionProfileId: companion._id, decision: 'rejected', note })}
-              />
-            </div>
+          <span className="text-h3 admin-worklist-title">{companion.applicantDisplayName}</span>
+          <span className="worklist-row-meta">
+            <span>{companion.city}</span>
+            <span className="dot" aria-hidden="true" />
+            <span>{formatMode(companion.mode)}</span>
+            <span className="dot" aria-hidden="true" />
+            <span className="status-pill" data-tone={statusTone(companion.status)}>{formatStatus(companion.status)}</span>
+            <span className="dot" aria-hidden="true" />
+            <span>Identity {companion.applicantIdentityEligible ? 'approved' : 'not approved'}</span>
+          </span>
+        </>
+      )}
+      renderDialogActions={(companion) => (
+        <>
+          <ActionNote
+            label="Approve"
+            submitLabel="Approve"
+            disabled={companion.status !== 'pending_review' || !companion.applicantIdentityEligible || companion.applicantSuspended}
+            onSubmit={(note) => reviewCompanion({ companionProfileId: companion._id, decision: 'approved', note })}
+          />
+          <ActionNote
+            label="Reject"
+            submitLabel="Reject"
+            tone="danger"
+            requireNote
+            disabled={companion.status !== 'pending_review'}
+            onSubmit={(note) => reviewCompanion({ companionProfileId: companion._id, decision: 'rejected', note })}
+          />
+        </>
+      )}
+      renderDetails={(companion) => (
+        <>
+          <div className="worklist-row-meta">
+            <span>{companion.verificationSource === 'in_app' ? 'In-app identity' : `Identity provider ${formatStatus(companion.verificationPersonaStatus ?? 'not started')}`}</span>
+            <span className="dot" aria-hidden="true" />
+            <span>Provider decision: {formatStatus(companion.verificationPersonaDecision ?? 'unknown')}</span>
+            <span className="dot" aria-hidden="true" />
+            <span>Identity review: {formatStatus(companion.verificationAdminStatus ?? 'not started')}</span>
           </div>
           {companion.applicantSuspended && <p className="text-meta">Approval remains disabled while this member account is suspended.</p>}
           {!companion.applicantIdentityEligible && companion.status === 'pending_review' && (
@@ -86,11 +95,6 @@ function CompanionApplicationsPage() {
           </div>
           <div className="worklist-row-meta">
             <span>Boundaries: {companion.boundaries.join(', ') || 'none'}</span>
-          </div>
-          <div className="worklist-row-meta">
-            <span>Provider decision: {formatStatus(companion.verificationPersonaDecision ?? 'unknown')}</span>
-            <span className="dot" aria-hidden="true" />
-            <span>Identity review: {formatStatus(companion.verificationAdminStatus ?? 'not started')}</span>
           </div>
           {companion.applicationNote && <p className="text-meta">Note from member: {companion.applicationNote}</p>}
           {companion.reviewerNote && <p className="text-meta">Last internal note: {companion.reviewerNote}</p>}

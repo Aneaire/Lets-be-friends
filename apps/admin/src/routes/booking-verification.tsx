@@ -36,38 +36,42 @@ function BookingVerificationPage() {
       loading="Loading identity verification..."
       empty="No identity verification requests match this filter."
       ariaLabel="Identity verification requests"
-      renderRecord={(verification) => (
+      getDialogTitle={(verification) => verification.memberDisplayName}
+      getDialogDescription={(verification) => `${formatStatus(verification.requestType)} · Started ${formatTime(verification.createdAt)}`}
+      renderSummary={(verification) => (
         <>
-          <div className="worklist-row-head">
-            <div>
-              <h2 className="text-h3">{verification.memberDisplayName}</h2>
-              <div className="worklist-row-meta">
-                <span>{verification.requestType}</span>
-                <span className="dot" aria-hidden="true" />
-                <span className="tabular">Attempt {verification.attempt ?? 1}</span>
-                <span className="dot" aria-hidden="true" />
-                <span className="tabular">Started {formatTime(verification.createdAt)}</span>
-                <span className="dot" aria-hidden="true" />
-                <span className="status-pill" data-tone={adminStatusTone(verification.adminStatus)}>{formatStatus(verification.adminStatus)}</span>
-              </div>
-            </div>
-            <div className="admin-action-stack">
-              <ActionNote
-                label="Approve"
-                submitLabel="Approve"
-                disabled={!verification.approvalAllowed}
-                onSubmit={(note) => reviewMember({ verificationRequestId: verification._id, decision: 'approved', note })}
-              />
-              <ActionNote
-                label="Reject"
-                submitLabel="Reject"
-                tone="danger"
-                requireNote
-                disabled={!verification.reviewAllowed}
-                onSubmit={(note) => reviewMember({ verificationRequestId: verification._id, decision: 'rejected', note })}
-              />
-            </div>
-          </div>
+          <span className="text-h3 admin-worklist-title">{verification.memberDisplayName}</span>
+          <span className="worklist-row-meta">
+            <span>{formatStatus(verification.requestType)}</span>
+            <span className="dot" aria-hidden="true" />
+            <span className="tabular">Attempt {verification.attempt ?? 1}</span>
+            <span className="dot" aria-hidden="true" />
+            <span className="tabular">Started {formatTime(verification.createdAt)}</span>
+            <span className="dot" aria-hidden="true" />
+            <span className="status-pill" data-tone={adminStatusTone(verification.adminStatus)}>{formatStatus(verification.adminStatus)}</span>
+          </span>
+        </>
+      )}
+      renderDialogActions={(verification) => (
+        <>
+          <ActionNote
+            label="Approve"
+            submitLabel="Approve"
+            disabled={!verification.approvalAllowed}
+            onSubmit={(note) => reviewMember({ verificationRequestId: verification._id, decision: 'approved', note })}
+          />
+          <ActionNote
+            label="Reject"
+            submitLabel="Reject"
+            tone="danger"
+            requireNote
+            disabled={!verification.reviewAllowed}
+            onSubmit={(note) => reviewMember({ verificationRequestId: verification._id, decision: 'rejected', note })}
+          />
+        </>
+      )}
+      renderDetails={(verification) => (
+        <>
           <div className="worklist-row-meta">
             <span>Source: {verification.verificationSource === 'in_app' ? 'In-app identity' : 'Persona'}</span>
             {verification.verificationSource !== 'in_app' && <><span className="dot" aria-hidden="true" /><span>Provider: {formatStatus(verification.personaStatus)}</span></>}

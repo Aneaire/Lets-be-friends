@@ -6,7 +6,7 @@ import { ActionNote } from '../design-system/molecules/ActionNote'
 import { AdminWorklistPagePresentation } from '../design-system/templates/AdminWorklistPagePresentation'
 
 type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed' | 'all'
-type TargetType = 'all' | 'profile' | 'booking' | 'message' | 'review' | 'post' | 'comment' | 'user'
+type TargetType = 'all' | 'profile' | 'booking' | 'message' | 'review' | 'post' | 'comment' | 'user' | 'circle'
 
 export const Route = createFileRoute('/reports')({ component: ReportsPage })
 
@@ -23,7 +23,7 @@ function ReportsPage() {
     <AdminWorklistPagePresentation
       eyebrow="Moderation"
       title="Reports"
-      description="Triage member-submitted concerns about profiles, bookings, messages, reviews, posts, comments, and users."
+      description="Triage member-submitted concerns about profiles, bookings, messages, reviews, posts, comments, users, and Circles."
       filterControls={(
         <>
           <label className="field-row">
@@ -47,6 +47,7 @@ function ReportsPage() {
               <option value="post">Posts</option>
               <option value="comment">Comments</option>
               <option value="user">Users</option>
+              <option value="circle">Circles</option>
             </select>
           </label>
         </>
@@ -56,46 +57,65 @@ function ReportsPage() {
       loading="Loading reports..."
       empty="No reports match this filter."
       ariaLabel="Safety reports"
-      renderRecord={(report) => (
+      getDialogTitle={(report) => report.targetSummary}
+      getDialogDescription={(report) => `Reported by ${report.reporterDisplayName} · ${formatStatus(report.targetType)}`}
+      renderSummary={(report) => (
         <>
-                <div className="worklist-row-head">
-                  <div>
-                    <h2 className="text-h3">{report.targetSummary}</h2>
-                    <div className="worklist-row-meta">
-                      <span>Reporter: {report.reporterDisplayName}</span>
-                      <span className="dot" aria-hidden="true" />
-                      <span>{report.targetType}</span>
-                      <span className="dot" aria-hidden="true" />
-                      <span className="status-pill" data-tone={report.status === 'open' || report.status === 'reviewing' ? 'warning' : report.status === 'dismissed' ? 'danger' : 'success'}>{report.status}</span>
-                      <span className="dot" aria-hidden="true" />
-                      <span className="admin-code">{report.targetId}</span>
-                    </div>
-                  </div>
-                  <div className="admin-action-stack">
-                    <ActionNote
-                      label="Mark reviewing"
-                      submitLabel="Mark reviewing"
-                      disabled={report.status === 'reviewing'}
-                      onSubmit={(note) => updateReport({ reportId: report._id, status: 'reviewing', note })}
-                    />
-                    <ActionNote
-                      label="Resolve"
-                      submitLabel="Resolve"
-                      disabled={report.status === 'resolved'}
-                      onSubmit={(note) => updateReport({ reportId: report._id, status: 'resolved', note })}
-                    />
-                    <ActionNote
-                      label="Dismiss"
-                      submitLabel="Dismiss"
-                      tone="danger"
-                      requireNote
-                      disabled={report.status === 'dismissed'}
-                      onSubmit={(note) => updateReport({ reportId: report._id, status: 'dismissed', note })}
-                    />
-                  </div>
+          <span className="text-h3 admin-worklist-title">{report.targetSummary}</span>
+          <span className="worklist-row-meta">
+            <span>Reporter: {report.reporterDisplayName}</span>
+            <span className="dot" aria-hidden="true" />
+            <span>{formatStatus(report.targetType)}</span>
+            <span className="dot" aria-hidden="true" />
+            <span className="status-pill" data-tone={report.status === 'open' || report.status === 'reviewing' ? 'warning' : report.status === 'dismissed' ? 'danger' : 'success'}>{formatStatus(report.status)}</span>
+          </span>
+        </>
+      )}
+      renderDialogActions={(report) => (
+        <>
+          <ActionNote
+            label="Mark reviewing"
+            submitLabel="Mark reviewing"
+            disabled={report.status === 'reviewing'}
+            onSubmit={(note) => updateReport({ reportId: report._id, status: 'reviewing', note })}
+          />
+          <ActionNote
+            label="Resolve"
+            submitLabel="Resolve"
+            disabled={report.status === 'resolved'}
+            onSubmit={(note) => updateReport({ reportId: report._id, status: 'resolved', note })}
+          />
+          <ActionNote
+            label="Dismiss"
+            submitLabel="Dismiss"
+            tone="danger"
+            requireNote
+            disabled={report.status === 'dismissed'}
+            onSubmit={(note) => updateReport({ reportId: report._id, status: 'dismissed', note })}
+          />
+        </>
+      )}
+      renderDetails={(report) => (
+        <>
+          <p className="text-meta admin-code">Target ID: {report.targetId}</p>
+          <p className="text-body muted max-w-[76ch]">{report.reason}</p>
+          {report.circleContext && (
+            <div className="panel circle-report-context">
+              <p className="eyebrow">Reported Circle</p>
+              <p className="admin-cell-primary">{report.circleContext.name}</p>
+              <p className="text-meta">{report.circleContext.slug} · {formatStatus(report.circleContext.state)}</p>
+              {report.reportedCircleContent && (
+                <div className="circle-report-content">
+                  <p className="text-meta">Reported {formatStatus(report.reportedCircleContent.targetType)}</p>
+                  <p className="text-body">{report.reportedCircleContent.body}</p>
+                  {report.reportedCircleContent.targetType === 'comment' && report.reportedCircleContent.postBody && (
+                    <p className="text-tiny">Parent post: {report.reportedCircleContent.postBody}</p>
+                  )}
                 </div>
-                <p className="text-body muted max-w-[76ch]">{report.reason}</p>
-                {report.bookingId && (
+              )}
+            </div>
+          )}
+          {report.bookingId && (
                   <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-3 space-y-3">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <p className="text-meta">
@@ -168,10 +188,14 @@ function ReportsPage() {
                       )}
                     </div>
                   </div>
-                )}
+          )}
           {report.reviewerNote && <p className="text-meta">Last internal note: {report.reviewerNote}</p>}
         </>
       )}
     />
   )
+}
+
+function formatStatus(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1).replaceAll('_', ' ')
 }

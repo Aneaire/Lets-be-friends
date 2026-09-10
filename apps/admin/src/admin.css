@@ -1,4 +1,137 @@
 @layer components {
+  .circle-admin-layout {
+    display: grid;
+    grid-template-columns: minmax(15rem, 0.7fr) minmax(0, 1.6fr);
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .circle-admin-list {
+    display: grid;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .circle-admin-list-item {
+    display: grid;
+    gap: 0.35rem;
+    padding: 1rem;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .circle-admin-list-item:last-child {
+    border-bottom: 0;
+  }
+
+  .circle-admin-list-item:hover,
+  .circle-admin-list-item[aria-pressed="true"] {
+    background: var(--surface-subtle);
+  }
+
+  .circle-admin-list-item:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: -3px;
+  }
+
+  .circle-admin-detail,
+  .circle-admin-section,
+  .circle-admin-records {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .circle-admin-section {
+    padding: 1rem;
+  }
+
+  .circle-admin-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .circle-admin-facts div,
+  .circle-admin-record {
+    padding: 0.75rem;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--surface-subtle);
+  }
+
+  .circle-admin-facts dt {
+    color: var(--text-soft);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .circle-admin-facts dd {
+    margin: 0.25rem 0 0;
+    color: var(--text);
+    font-weight: 650;
+  }
+
+  .circle-admin-record {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .circle-admin-post {
+    display: grid;
+  }
+
+  .circle-admin-notice {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .circle-admin-notice[data-tone="error"] {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  .circle-admin-dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: color-mix(in oklch, var(--text) 42%, transparent);
+  }
+
+  .circle-admin-dialog {
+    display: grid;
+    width: min(100%, 34rem);
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  .circle-report-context {
+    display: grid;
+    gap: 0.35rem;
+    padding: 1rem;
+  }
+
+  .circle-report-content {
+    display: grid;
+    gap: 0.4rem;
+    margin-top: 0.4rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--rule);
+  }
+
   .admin-shell {
     display: grid;
     grid-template-columns: 16.5rem minmax(0, 1fr);
@@ -511,6 +644,82 @@
     gap: 0.5rem;
   }
 
+  .admin-worklist-row {
+    padding: 0;
+  }
+
+  .admin-worklist-card {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    padding: 1rem 1.25rem;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .admin-worklist-card:hover {
+    background: color-mix(in oklch, var(--text) 3%, var(--surface));
+  }
+
+  .admin-worklist-card:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: 2px solid var(--text);
+    outline-offset: -2px;
+  }
+
+  .admin-worklist-summary {
+    display: grid;
+    min-width: 0;
+    gap: 0.4rem;
+  }
+
+  .admin-worklist-title {
+    display: block;
+  }
+
+  .admin-worklist-disclosure {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+
+  .admin-worklist-card:hover .admin-worklist-disclosure {
+    color: var(--text);
+  }
+
+  .admin-review-dialog-body {
+    display: grid;
+    gap: 0.875rem;
+    overscroll-behavior: contain;
+  }
+
+  .admin-review-dialog-body > .panel {
+    padding: 1rem;
+  }
+
+  .admin-review-dialog-actions {
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+
+  .admin-review-dialog-actions > .action-note {
+    flex: 1 1 18rem;
+  }
+
   .action-note {
     display: grid;
     gap: 0.4rem;
@@ -645,6 +854,10 @@
   }
 
   @media (max-width: 980px) {
+    .circle-admin-layout {
+      grid-template-columns: 1fr;
+    }
+
     .admin-shell {
       grid-template-columns: 1fr;
     }
@@ -734,6 +947,15 @@
   }
 
   @media (max-width: 640px) {
+    .admin-worklist-card {
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    .admin-worklist-disclosure {
+      justify-self: end;
+    }
+
     .admin-page-header {
       align-items: flex-start;
       flex-direction: column;

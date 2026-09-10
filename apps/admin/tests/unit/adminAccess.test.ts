@@ -7,10 +7,12 @@ describe('admin access helpers', () => {
     const reviewerRoutes = getAdminNavSections('reviewer').flatMap((section) => section.items.map((item) => item.to))
 
     expect(adminRoutes).toContain('/users')
+    expect(adminRoutes).toContain('/circles')
     expect(adminRoutes).toContain('/audit-logs')
     expect(adminRoutes).toContain('/settings')
 
     expect(reviewerRoutes).not.toContain('/users')
+    expect(reviewerRoutes).not.toContain('/circles')
     expect(reviewerRoutes).not.toContain('/audit-logs')
     expect(reviewerRoutes).not.toContain('/settings')
     expect(reviewerRoutes).toContain('/companion-applications')
