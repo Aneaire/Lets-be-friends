@@ -1,5 +1,9 @@
 # Agent Instructions
 
+## Code Task Routing
+
+Use Muse Spark 1.3 Contributor through OpenCode for coding tasks by default. When a task needs escalation or has high complexity, follow the model and harness routing instructions in the global `AGENTS.md` instead.
+
 ## Product And Design Context
 
 This repo is for Let's Be Friends, a trust-first Companion discovery and booking product. Keep the product language respectful: use Companion, member, Strengths, booking, experience, online session, and in-person session. Do not describe people as rented objects or use Companion as a verb.
