@@ -31,6 +31,14 @@ describe('mobile notification helpers', () => {
     expect(mobileNotificationRoute({ type: 'notifications' })).toEqual({ pathname: '/notifications' })
   })
 
+  it('opens Circle notifications at the private Circle destination', () => {
+    expect(mobileNotificationRoute({ type: 'circle', circleId: 'circle-1' })).toEqual({ pathname: '/circles/[id]', params: { id: 'circle-1' } })
+    expect(mobileNotificationRoute({ type: 'circle', circleId: 'circle-1', postId: 'post-1', commentId: 'comment-1' })).toEqual({
+      pathname: '/circles/[id]',
+      params: { id: 'circle-1', postId: 'post-1', commentId: 'comment-1' },
+    })
+  })
+
   it('groups and ages notification rows consistently', () => {
     const now = 3 * 24 * 60 * 60 * 1000
     expect(notificationGroup({ priority: 'attention' }, now)).toBe('attention')

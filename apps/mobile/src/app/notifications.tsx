@@ -27,6 +27,7 @@ function ReadyNotifications() {
   )
   const notifications = notificationPage.results
   const markRead = useMutation(mobileApi.notifications.markRead)
+  const openNotification = useMutation(mobileApi.notifications.open)
   const markUnread = useMutation(mobileApi.notifications.markUnread)
   const markAllRead = useMutation(mobileApi.notifications.markAllRead)
   const items = notifications.map((notification) => ({
@@ -53,12 +54,11 @@ function ReadyNotifications() {
       onOpen={async (notification) => {
         const source = notifications.find((item) => item.id === notification.id)
         if (!source) return
-        if (!source.readAt) {
-          await markRead({ notificationId: source.id as never })
-        }
+        const opened = await openNotification({ notificationId: source.id })
+        if (opened.status !== 'ready') throw new Error('Notification destination unavailable')
         router.push(
           mobileNotificationRoute(
-            source.destination as MobileNotificationDestination,
+            opened.destination as MobileNotificationDestination,
           ) as never,
         )
       }}

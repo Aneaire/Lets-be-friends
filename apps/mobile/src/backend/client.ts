@@ -54,6 +54,36 @@ export const mobileApi = {
   reports: {
     create: generatedApi.reports.create,
   },
+  circles: {
+    discover: generatedApi.circles.discover,
+    creationEligibility: generatedApi.circles.creationEligibility,
+    mine: generatedApi.circles.mine,
+    detail: generatedApi.circles.detail,
+    hostManagement: generatedApi.circles.hostManagement,
+    members: generatedApi.circles.members,
+    joinRequests: generatedApi.circles.joinRequests,
+    removedContent: generatedApi.circles.removedContent,
+    create: generatedApi.circles.create,
+    edit: generatedApi.circles.edit,
+    updateSettings: generatedApi.circles.updateSettings,
+    generateCircleImageUploadUrl: generatedApi.circles.generateCircleImageUploadUrl,
+    setCircleImage: generatedApi.circles.setCircleImage,
+    removeCircleImage: generatedApi.circles.removeCircleImage,
+    requestToJoin: generatedApi.circles.requestToJoin,
+    cancelJoinRequest: generatedApi.circles.cancelJoinRequest,
+    decideJoinRequest: generatedApi.circles.decideJoinRequest,
+    moderateMember: generatedApi.circles.moderateMember,
+    setModerator: generatedApi.circles.setModerator,
+    leave: generatedApi.circles.leave,
+    setMuted: generatedApi.circles.setMuted,
+    initiateHostTransfer: generatedApi.circles.initiateHostTransfer,
+    acceptHostTransfer: generatedApi.circles.acceptHostTransfer,
+    cancelHostTransfer: generatedApi.circles.cancelHostTransfer,
+    unbanMember: generatedApi.circles.unbanMember,
+    setPostRemoved: generatedApi.circles.setPostRemoved,
+    setCommentRemoved: generatedApi.circles.setCommentRemoved,
+    setState: generatedApi.circles.setState,
+  },
   safety: {
     relationship: generatedApi.safety.relationship,
     mine: generatedApi.safety.mine,
@@ -72,6 +102,7 @@ export const mobileApi = {
   },
   social: {
     feed: generatedApi.social.feed,
+    circleFeed: generatedApi.social.circleFeed,
     requestedPost: generatedApi.social.requestedPost,
     byUser: generatedApi.social.byUser,
     commentsForPost: generatedApi.social.commentsForPost,
@@ -130,5 +161,7 @@ export type ReviewId = Id<'reviews'>
 export type ReviewMediaUploadId = Id<'reviewMediaUploads'>
 export type StorageId = Id<'_storage'>
 export type UserId = Id<'users'>
+export type CircleId = Id<'circles'>
+export type CircleMembershipId = Id<'circleMemberships'>
 export type PaymongoTopUpId = Id<'paymongoTopUps'>
 export type WithdrawalId = Id<'withdrawals'>

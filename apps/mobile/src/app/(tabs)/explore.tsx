@@ -25,6 +25,7 @@ import {
 } from '@/data/discovery'
 import { mapApprovedCompanion, type ApprovedCompanionRecord } from '@/data/companionViewModels'
 import { useAppTheme } from '@/theme/ThemeProvider'
+import { DiscoverCirclesEntry } from '@/features/circles/CircleEntryPoints'
 
 export default function ExploreScreen() {
   const configuration = useMobileBackendConfiguration()
@@ -81,6 +82,7 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
                 style={{ ...styles.nearbyButton, borderColor: theme.colors.socialText }}
               />
             </View>
+            <DiscoverCirclesEntry />
             <SearchField label="Search people" value={query} onChange={setQuery} placeholder="Search names, Strengths, or interests" />
             <View style={styles.quickFilters}>
               <Chip label={filters.bookableOnly ? 'Bookable only' : 'Include unavailable'} selected={filters.bookableOnly} onPress={() => setFilters((current) => ({ ...current, bookableOnly: !current.bookableOnly }))} />

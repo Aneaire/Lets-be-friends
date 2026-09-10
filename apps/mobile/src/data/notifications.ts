@@ -2,6 +2,7 @@ export type MobileNotificationDestination =
   | { type: 'booking'; audience: 'member' | 'companion'; bookingId: string }
   | { type: 'conversation'; conversationId: string }
   | { type: 'post'; postId: string }
+  | { type: 'circle'; circleId: string; postId?: string; commentId?: string }
   | { type: 'companion' }
   | { type: 'identity' }
   | { type: 'profile'; userId: string }
@@ -24,6 +25,7 @@ export function mobileNotificationRoute(destination: MobileNotificationDestinati
     case 'identity': return { pathname: '/profile' as const }
     case 'profile': return { pathname: '/member-profile/[id]' as const, params: { id: destination.userId } }
     case 'post': return { pathname: '/' as const, params: { postId: destination.postId } }
+    case 'circle': return { pathname: '/circles/[id]' as const, params: { id: destination.circleId, ...(destination.postId ? { postId: destination.postId } : {}), ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
     case 'safety': return { pathname: '/safety' as const }
     case 'notifications': return { pathname: '/notifications' as const }
   }

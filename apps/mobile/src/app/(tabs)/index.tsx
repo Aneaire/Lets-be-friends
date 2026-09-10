@@ -28,6 +28,7 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { dedupeFeedItems, maximumPostMediaItems, postMediaValidationError } from '@/data/discovery'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
+import { MyCirclesModule } from '@/features/circles/CircleEntryPoints'
 
 type FeedFilter = 'for_you' | 'following' | 'saved'
 type FeedItem = FunctionReturnType<typeof generatedApi.social.feedPage>['page'][number]
@@ -278,6 +279,8 @@ function ConnectedHome() {
       ) : (
         <View style={[styles.signInCard, { borderColor: theme.colors.border }]}><AppText variant="bodyStrong">Join the conversation</AppText><AppText variant="caption" color={theme.colors.textMuted}>{auth.status === 'unconfigured' ? 'Account services are not configured in this build. Public For You activity remains read only.' : 'Sign in to post, follow, save, comment, and shape your feed.'}</AppText>{auth.status === 'signed_out' ? <ActionButton label="Sign in" onPress={() => router.push('/auth')} secondary /> : null}</View>
       )}
+
+      {signedIn ? <MyCirclesModule /> : null}
 
       <SegmentedControl
         label="Community feed"
