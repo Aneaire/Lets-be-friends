@@ -30,6 +30,7 @@ const commentFixtures = vi.hoisted(() => ({
   ],
   loadMore: vi.fn(),
 }))
+const scrollIntoView = vi.fn()
 
 vi.mock('convex/react', () => ({
   usePaginatedQuery: () => ({ results: commentFixtures.comments, status: 'Exhausted', loadMore: commentFixtures.loadMore }),
@@ -75,6 +76,8 @@ const post = {
 } as any
 
 beforeEach(() => {
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
   vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
     callback(0)
     return 1
@@ -84,11 +87,37 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
   vi.unstubAllGlobals()
   vi.clearAllMocks()
 })
 
 describe('SocialPage comment interactions', () => {
+  it('opens and scrolls to the exact comment from a notification destination', () => {
+    render(
+      <PostRow
+        post={post}
+        focusComments
+        focusCommentId="comment-1"
+        viewerReady
+        onComment={vi.fn().mockResolvedValue(undefined)}
+        onEdit={vi.fn().mockResolvedValue(undefined)}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+        onLike={vi.fn().mockResolvedValue(undefined)}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+        onReport={vi.fn().mockResolvedValue(undefined)}
+        onEditComment={vi.fn().mockResolvedValue(undefined)}
+        onDeleteComment={vi.fn().mockResolvedValue(undefined)}
+        onLikeComment={vi.fn().mockResolvedValue(undefined)}
+        onReportComment={vi.fn().mockResolvedValue(undefined)}
+      />,
+    )
+
+    const comment = document.getElementById('comment-comment-1')
+    expect(comment?.getAttribute('tabindex')).toBe('-1')
+    expect(scrollIntoView).toHaveBeenCalled()
+  })
+
   it('opens comments, creates a comment, edits, likes, and deletes without an update-depth loop', async () => {
     const updateDepthErrors: string[] = []
     const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {

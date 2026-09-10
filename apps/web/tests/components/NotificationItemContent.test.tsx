@@ -40,6 +40,18 @@ describe('NotificationItemContent', () => {
     expect(screen.getByText('Report resolved')).toBeTruthy()
   })
 
+  it('shows an actor profile picture and uses a system icon when there is no actor', () => {
+    const { rerender, container } = render(
+      <NotificationItemContent title="New follower" actor={{ displayName: 'Alex', profileImageUrl: '/alex.jpg' }} />,
+    )
+
+    expect(container.querySelector('.ds-notification-item-visual img')?.getAttribute('src')).toBe('/alex.jpg')
+    expect(container.querySelector('.ds-notification-system-icon')).toBeNull()
+
+    rerender(<NotificationItemContent title="Identity approved" />)
+    expect(container.querySelector('.ds-notification-system-icon svg')).toBeTruthy()
+  })
+
   it('keeps navigation behavior on the caller-owned control', () => {
     const onOpen = vi.fn()
     render(

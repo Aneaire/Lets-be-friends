@@ -16,6 +16,7 @@ import { PostActionsMenu } from './PostActionsMenu'
 import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
 import { PostMediaGrid } from './PostMediaGrid'
+import { MyCirclesHomeModule } from '../circles/CircleIndexPage'
 
 type FeedItem = NonNullable<FunctionReturnType<typeof api.social.feedPage>>['page'][number]
 type FeedPostItem = Extract<FeedItem, { kind: 'post' }>
@@ -38,7 +39,7 @@ export function toFeedImpressionPosition(loadedIndex: number) {
   previewUrl: string
 }
 
-export function SocialPage({ postId }: { postId?: string }) {
+export function SocialPage({ postId, commentId }: { postId?: string; commentId?: string }) {
   const { isSignedIn } = useAuth()
   const navigate = useNavigate()
   const viewer = useQuery(api.users.viewer)
@@ -201,6 +202,8 @@ export function SocialPage({ postId }: { postId?: string }) {
           ))}
         </div>
 
+        {viewer && <MyCirclesHomeModule />}
+
         {error && (
           <div className="notice notice-danger social-notice" role="alert">
             <span className="notice-icon">!</span>
@@ -316,6 +319,7 @@ export function SocialPage({ postId }: { postId?: string }) {
                   key={item.itemKey}
                   post={post}
                   focusComments={postId === String(post._id)}
+                  focusCommentId={postId === String(post._id) ? commentId : undefined}
                   viewerReady={Boolean(viewer)}
                   onComment={async (body, parentCommentId) => {
                     await createComment({ postId: post._id, body, parentCommentId })
@@ -461,6 +465,7 @@ function SocialTimelineSkeleton() {
 export function PostRow({
   post,
   focusComments,
+  focusCommentId,
   viewerReady,
   onComment,
   onEdit,
@@ -475,6 +480,7 @@ export function PostRow({
 }: {
   post: FeedPost
   focusComments: boolean
+  focusCommentId?: string
   viewerReady: boolean
   onComment: (body: string, parentCommentId?: Id<'postComments'>) => Promise<void>
   onEdit: (body: string) => Promise<void>
@@ -508,6 +514,16 @@ export function PostRow({
     setCommentsOpen(true)
     requestAnimationFrame(() => rowRef.current?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }))
   }, [focusComments])
+
+  useEffect(() => {
+    if (!focusCommentId || commentsStatus === 'LoadingFirstPage') return
+    const target = document.getElementById(`comment-${focusCommentId}`)
+    if (target) {
+      requestAnimationFrame(() => target.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }))
+    } else if (commentsStatus === 'CanLoadMore') {
+      loadMoreComments(20)
+    }
+  }, [commentsStatus, focusCommentId, loadMoreComments, comments.length])
 
   function editFromOptions() {
     setEditing((value) => !value)
@@ -697,6 +713,7 @@ export function PostRow({
                     <CommentRow
                       key={comment._id}
                       comment={comment}
+                      focused={String(comment._id) === focusCommentId}
                       threadPosition={position}
                       isLastReply={isLastReply}
                       viewerReady={viewerReady}
@@ -727,6 +744,7 @@ export function PostRow({
 
 export function CommentRow({
   comment,
+  focused = false,
   viewerReady,
   onReply,
   onLike,
@@ -737,6 +755,7 @@ export function CommentRow({
   isLastReply,
 }: {
   comment: PostComment
+  focused?: boolean
   threadPosition: CommentThreadPosition
   isLastReply: boolean
   viewerReady: boolean
@@ -795,6 +814,8 @@ export function CommentRow({
 
   return (
     <CommentBubble
+      id={`comment-${comment._id}`}
+      tabIndex={focused ? -1 : undefined}
       author={comment.authorDisplayName}
       imageUrl={comment.authorProfileImageUrl}
       avatarAction={avatarAction}

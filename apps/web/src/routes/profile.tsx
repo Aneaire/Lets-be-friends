@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { User } from 'lucide-react'
 import { SignInButton, useAuth, useUser } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
@@ -18,6 +18,7 @@ type ProfilePost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUs
 type ProfileReview = NonNullable<ReturnType<typeof useQuery<typeof api.reviews.forCompanion>>>[number]
 
 function ProfilePage() {
+  const navigate = useNavigate()
   const { isSignedIn } = useAuth()
   const { user } = useUser()
   const viewer = useQuery(api.users.viewer)
@@ -31,6 +32,8 @@ function ProfilePage() {
   const toggleLikeReview = useMutation(api.reviews.toggleLike)
   const createReviewComment = useMutation(api.reviews.createComment)
   const deleteReviewComment = useMutation(api.reviews.deleteComment)
+  const toggleLikePost = useMutation(api.social.toggleLike)
+  const toggleSavePost = useMutation(api.social.toggleSavePost)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [editOpen, setEditOpen] = useState(false)
@@ -203,6 +206,9 @@ function ProfilePage() {
         onLikeReview={(review) => toggleLikeReview({ reviewId: review._id as Id<'reviews'> })}
         onCommentReview={(review, body) => createReviewComment({ reviewId: review._id as Id<'reviews'>, body })}
         onDeleteReviewComment={(review, commentId) => deleteReviewComment({ commentId: commentId as Id<'reviewComments'> })}
+        onLikePost={(post) => toggleLikePost({ postId: post._id as Id<'posts'> })}
+        onSavePost={(post) => toggleSavePost({ postId: post._id as Id<'posts'> })}
+        onOpenPostComments={(post) => void navigate({ to: '/social', search: { postId: post._id } })}
       />
 
       {editOpen && (

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as BecomeCompanionRouteImport } from './routes/become-companion'
+import { Route as CirclesRouteImport } from './routes/circles'
 import { Route as CompanionRouteImport } from './routes/companion'
 import { Route as CompanionProfileRouteImport } from './routes/companion-profile'
 import { Route as DiscoverRouteImport } from './routes/discover'
@@ -27,6 +28,8 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SocialRouteImport } from './routes/social'
 import { Route as VerifyIdentityRouteImport } from './routes/verify-identity'
 import { Route as WalletRouteImport } from './routes/wallet'
+import { Route as CirclesIndexRouteImport } from './routes/circles.index'
+import { Route as CirclesCircleIdRouteImport } from './routes/circles.$circleId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -41,6 +44,11 @@ const AppRoute = AppRouteImport.update({
 const BecomeCompanionRoute = BecomeCompanionRouteImport.update({
   id: '/become-companion',
   path: '/become-companion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CirclesRoute = CirclesRouteImport.update({
+  id: '/circles',
+  path: '/circles',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompanionRoute = CompanionRouteImport.update({
@@ -118,11 +126,22 @@ const WalletRoute = WalletRouteImport.update({
   path: '/wallet',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CirclesIndexRoute = CirclesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CirclesRoute,
+} as any)
+const CirclesCircleIdRoute = CirclesCircleIdRouteImport.update({
+  id: '/$circleId',
+  path: '/$circleId',
+  getParentRoute: () => CirclesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/become-companion': typeof BecomeCompanionRoute
+  '/circles': typeof CirclesRouteWithChildren
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
@@ -138,6 +157,8 @@ export interface FileRoutesByFullPath {
   '/social': typeof SocialRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
+  '/circles/$circleId': typeof CirclesCircleIdRoute
+  '/circles/': typeof CirclesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -158,12 +179,15 @@ export interface FileRoutesByTo {
   '/social': typeof SocialRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
+  '/circles/$circleId': typeof CirclesCircleIdRoute
+  '/circles': typeof CirclesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/become-companion': typeof BecomeCompanionRoute
+  '/circles': typeof CirclesRouteWithChildren
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
@@ -179,6 +203,8 @@ export interface FileRoutesById {
   '/social': typeof SocialRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
+  '/circles/$circleId': typeof CirclesCircleIdRoute
+  '/circles/': typeof CirclesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -186,6 +212,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/become-companion'
+    | '/circles'
     | '/companion'
     | '/companion-profile'
     | '/discover'
@@ -201,6 +228,8 @@ export interface FileRouteTypes {
     | '/social'
     | '/verify-identity'
     | '/wallet'
+    | '/circles/$circleId'
+    | '/circles/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -221,11 +250,14 @@ export interface FileRouteTypes {
     | '/social'
     | '/verify-identity'
     | '/wallet'
+    | '/circles/$circleId'
+    | '/circles'
   id:
     | '__root__'
     | '/'
     | '/app'
     | '/become-companion'
+    | '/circles'
     | '/companion'
     | '/companion-profile'
     | '/discover'
@@ -241,12 +273,15 @@ export interface FileRouteTypes {
     | '/social'
     | '/verify-identity'
     | '/wallet'
+    | '/circles/$circleId'
+    | '/circles/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
   BecomeCompanionRoute: typeof BecomeCompanionRoute
+  CirclesRoute: typeof CirclesRouteWithChildren
   CompanionRoute: typeof CompanionRoute
   CompanionProfileRoute: typeof CompanionProfileRoute
   DiscoverRoute: typeof DiscoverRoute
@@ -285,6 +320,13 @@ declare module '@tanstack/react-router' {
       path: '/become-companion'
       fullPath: '/become-companion'
       preLoaderRoute: typeof BecomeCompanionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/circles': {
+      id: '/circles'
+      path: '/circles'
+      fullPath: '/circles'
+      preLoaderRoute: typeof CirclesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/companion': {
@@ -392,13 +434,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WalletRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/circles/': {
+      id: '/circles/'
+      path: '/'
+      fullPath: '/circles/'
+      preLoaderRoute: typeof CirclesIndexRouteImport
+      parentRoute: typeof CirclesRoute
+    }
+    '/circles/$circleId': {
+      id: '/circles/$circleId'
+      path: '/$circleId'
+      fullPath: '/circles/$circleId'
+      preLoaderRoute: typeof CirclesCircleIdRouteImport
+      parentRoute: typeof CirclesRoute
+    }
   }
 }
+
+interface CirclesRouteChildren {
+  CirclesCircleIdRoute: typeof CirclesCircleIdRoute
+  CirclesIndexRoute: typeof CirclesIndexRoute
+}
+
+const CirclesRouteChildren: CirclesRouteChildren = {
+  CirclesCircleIdRoute: CirclesCircleIdRoute,
+  CirclesIndexRoute: CirclesIndexRoute,
+}
+
+const CirclesRouteWithChildren =
+  CirclesRoute._addFileChildren(CirclesRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
   BecomeCompanionRoute: BecomeCompanionRoute,
+  CirclesRoute: CirclesRouteWithChildren,
   CompanionRoute: CompanionRoute,
   CompanionProfileRoute: CompanionProfileRoute,
   DiscoverRoute: DiscoverRoute,

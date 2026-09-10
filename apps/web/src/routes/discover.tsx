@@ -2,7 +2,7 @@ import { Link, createFileRoute } from '@tanstack/react-router'
 import { useAuth } from '@clerk/react'
 import { useMutation, usePaginatedQuery } from 'convex/react'
 import { useEffect, useMemo, useState } from 'react'
-import { LayoutGrid, MapPin, SlidersHorizontal, X } from 'lucide-react'
+import { LayoutGrid, SlidersHorizontal, X } from 'lucide-react'
 import { activityCategoriesMatch, activityCategoryOptions, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { Checkbox } from '../design-system/atoms/Field'
@@ -15,7 +15,7 @@ export const Route = createFileRoute('/discover')({ component: DiscoverPage })
 
 type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 
-function DiscoverPage() {
+export function DiscoverPage() {
   const { isSignedIn } = useAuth()
   const {
     results: directoryResults,
@@ -28,6 +28,7 @@ function DiscoverPage() {
   const [category, setCategory] = useState<string | null>(null)
   const [strength, setStrength] = useState<string | null>(null)
   const [bookableOnly, setBookableOnly] = useState(false)
+  const [reviewsOnly, setReviewsOnly] = useState(false)
   const [query, setQuery] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
@@ -43,6 +44,7 @@ function DiscoverPage() {
       if (category && !(companion.categories ?? []).some((value) => activityCategoriesMatch(value, category))) return false
       if (strength && (companion.kind !== 'companion' || !companion.strengths.includes(strength))) return false
       if (bookableOnly && !companion.bookable) return false
+      if (reviewsOnly && (companion.kind === 'member' || (companion.reviewCount ?? 0) < 1)) return false
       if (searchTerm) {
         const haystack = [
           companion.displayName,
@@ -56,17 +58,17 @@ function DiscoverPage() {
       }
       return true
     })
-  }, [companions, mode, category, strength, bookableOnly, query])
+  }, [companions, mode, category, strength, bookableOnly, reviewsOnly, query])
 
-  const availableCount = filtered.filter((companion) => companion.bookable).length
   const moreFilterCount = strength ? 1 : 0
-  const anyFiltered = mode !== 'all' || category !== null || strength !== null || bookableOnly || query.trim() !== ''
+  const anyFiltered = mode !== 'all' || category !== null || strength !== null || bookableOnly || reviewsOnly || query.trim() !== ''
 
   const clearAllFilters = () => {
     setMode('all')
     setCategory(null)
     setStrength(null)
     setBookableOnly(false)
+    setReviewsOnly(false)
     setQuery('')
   }
 
@@ -81,18 +83,27 @@ function DiscoverPage() {
 
   return (
     <main className="marketing-page-wide discover-page">
-      <header className="discover-page-header">
-        <div>
-          <h1 className="text-h1">Explore people</h1>
-          <p className="text-meta mt-1">Meet members and find Companions by activity, Strength, city, or name.</p>
-        </div>
-        <p className="text-meta tabular">
-          {directoryStatus === 'LoadingFirstPage'
-            ? 'Loading people...'
-            : `${filtered.length} of ${companions.length} loaded ${filtered.length === 1 ? 'person' : 'people'} match these filters`}
-          {filtered.length > 0 && <span className="soft"> · {availableCount} available to book</span>}
-        </p>
-      </header>
+      <nav className="discover-destination-nav" aria-label="Explore destinations">
+        <Link
+          to="/discover"
+          className="discover-destination-link"
+          aria-current={reviewsOnly ? undefined : 'page'}
+          onClick={() => setReviewsOnly(false)}
+        >
+          People
+        </Link>
+        <Link to="/circles" className="discover-destination-link">Circles</Link>
+        <Link to="/nearby" className="discover-destination-link">Nearby</Link>
+        <a
+          href="#reviews"
+          className="discover-destination-link"
+          aria-current={reviewsOnly ? 'location' : undefined}
+          data-active={reviewsOnly || undefined}
+          onClick={() => setReviewsOnly(true)}
+        >
+          Reviews
+        </a>
+      </nav>
 
       <div className="discover-toolbar" role="region" aria-label="Filters">
         <div className="discover-toolbar-primary">
@@ -157,19 +168,7 @@ function DiscoverPage() {
         )}
       </div>
 
-      <section className="nearby-search-entry" aria-labelledby="nearby-search-entry-title">
-        <div>
-          <span className="eyebrow">Nearby discovery</span>
-          <h2 id="nearby-search-entry-title">Need another pair of hands nearby?</h2>
-          <p>Choose an area, adjust your filters, and find approved Companions offering help and company nearby.</p>
-        </div>
-        <Link to="/nearby" className="btn btn-social btn-sm">
-          <MapPin size={14} aria-hidden="true" />
-          Open nearby search
-        </Link>
-      </section>
-
-      <section aria-label="Results" className="discover-results mt-5">
+      <section id="reviews" aria-label="Results" className="discover-results mt-5">
         {directoryStatus === 'LoadingFirstPage' ? (
           <div className="empty-state">
             <p className="empty-state-title">Loading people...</p>

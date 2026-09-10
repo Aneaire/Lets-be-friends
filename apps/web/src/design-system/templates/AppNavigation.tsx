@@ -1,4 +1,4 @@
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useClerk, useUser } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import {
@@ -7,6 +7,7 @@ import {
   CalendarCheck,
   CheckCheck,
   Compass,
+  CircleDot,
   House,
   LogOut,
   MessageCircle,
@@ -25,7 +26,7 @@ import { api } from '../../../convex/_generated/api'
 import { findCompanions } from '../../lib/discoverySearch'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../../lib/memberVerification'
 import { companionSetupState, verificationNudge } from '../../lib/verificationNudge'
-import { activePrimaryNavigation, headerNavigation, primaryNavigation, sidebarNavigation } from '../../lib/navigation'
+import { activePrimaryNavigation, headerNavigation, mobileNavigation, primaryNavigation, sidebarNavigation } from '../../lib/navigation'
 import { formatNotificationTime, webDestination, type NotificationDestination } from '../../lib/notifications'
 import { BrandLogo } from '../atoms/BrandLogo'
 import { NotificationItemContent } from '../molecules/NotificationItemContent'
@@ -122,7 +123,7 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
             <span className="app-header-context">Welcome guide</span>
           ) : (
             <div className="app-header-context">
-              <strong>{primaryNavigation.find((item) => item.id === activeItem)?.label ?? 'Account'}</strong>
+              <strong>{sidebarNavigation.find((item) => item.id === activeItem)?.label ?? primaryNavigation.find((item) => item.id === activeItem)?.label ?? 'Account'}</strong>
               <HeaderSearch />
             </div>
           )}
@@ -311,15 +312,17 @@ export function HeaderPrimaryActions({ activeItem }: { activeItem: ReturnType<ty
   )
 }
 
-function NotificationNavigation() {
+export function NotificationNavigation() {
   const [open, setOpen] = useState(false)
+  const [openError, setOpenError] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const unreadCount = useQuery(api.notifications.unreadCount) ?? 0
   const notifications = useQuery(api.notifications.recent, { limit: 6 })
   const conversations = useQuery(api.conversations.list, {})
-  const markRead = useMutation(api.notifications.markRead)
+  const openNotification = useMutation(api.notifications.open)
   const markAllRead = useMutation(api.notifications.markAllRead)
+  const navigate = useNavigate()
   const messagesUnread = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0
 
   useEffect(() => {
@@ -351,11 +354,20 @@ function NotificationNavigation() {
       {messagesUnread > 0 && <Link to="/messages" className="notification-message-summary" onClick={() => setOpen(false)}><MessageCircle size={16} aria-hidden="true" /><span><strong>Messages</strong><small>{messagesUnread} unread {messagesUnread === 1 ? 'message' : 'messages'}</small></span></Link>}
       <div className="notification-panel-list">
         {notifications === undefined ? <p className="notification-panel-state">Loading...</p> : notifications.length === 0 ? <p className="notification-panel-state">You are all caught up.</p> : notifications.map((notification) => {
-          const destination = webDestination(notification.destination as NotificationDestination)
-          return <Link key={notification.id} {...destination} className="notification-panel-item" onClick={() => {
-            setOpen(false)
-            if (!notification.readAt) void markRead({ notificationId: notification.id as never })
-          }}>
+          return <button key={notification.id} type="button" className="notification-panel-item" onClick={() => void (async () => {
+            setOpenError('')
+            try {
+              const result = await openNotification({ notificationId: notification.id })
+              if (result.status !== 'ready') {
+                setOpenError('This notification is no longer available.')
+                return
+              }
+              setOpen(false)
+              await navigate(webDestination(result.destination as NotificationDestination) as never)
+            } catch {
+              setOpenError('The notification could not be opened. Try again.')
+            }
+          })()}>
             <NotificationItemContent
               title={notification.title}
               body={notification.body}
@@ -364,10 +376,12 @@ function NotificationNavigation() {
               density="compact"
               tone={notification.tone}
               unread={!notification.readAt}
+              actor={notification.actor}
             />
-          </Link>
+          </button>
         })}
       </div>
+      {openError && <p className="notification-panel-error" role="alert">{openError}</p>}
       <Link to="/notifications" className="notification-panel-footer" onClick={() => setOpen(false)}>View all</Link>
     </section>}
   </div>
@@ -410,7 +424,7 @@ export function MobilePrimaryNavigation({
   const messagesUnread = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0
   return (
     <nav className="mobile-primary-nav" aria-label="Mobile primary navigation">
-      {primaryNavigation.map((item) => (
+      {mobileNavigation.map((item) => (
         <Link
           key={item.id}
           to={item.to}
@@ -438,11 +452,12 @@ export function MobilePrimaryNavigation({
   )
 }
 
-function NavigationIcon({ id }: { id: (typeof primaryNavigation)[number]['id'] }) {
+function NavigationIcon({ id }: { id: ReturnType<typeof activePrimaryNavigation> }) {
   if (id === 'home') return <House size={20} aria-hidden="true" />
   if (id === 'discover') return <Compass size={20} aria-hidden="true" />
   if (id === 'messages') return <MessageCircle size={20} aria-hidden="true" />
   if (id === 'bookings') return <CalendarCheck size={20} aria-hidden="true" />
+  if (id === 'circles') return <CircleDot size={20} aria-hidden="true" />
   return <UserRoundCog size={20} aria-hidden="true" />
 }
 

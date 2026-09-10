@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { HTMLAttributes, ReactNode } from 'react'
 
 import { MessageDeliveryStatus } from '../../design-system/atoms/MessageDeliveryStatus'
 
@@ -12,7 +12,8 @@ export function MessageBubble({
   media,
   attachments,
   actions,
-}: {
+  ...props
+}: HTMLAttributes<HTMLElement> & {
   direction: 'incoming' | 'outgoing'
   body?: string
   timestamp: string
@@ -29,6 +30,7 @@ export function MessageBubble({
 
   return (
     <article
+      {...props}
       className="ds-message"
       data-direction={direction}
       data-pending={pending || undefined}

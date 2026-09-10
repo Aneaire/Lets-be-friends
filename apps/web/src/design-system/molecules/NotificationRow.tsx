@@ -11,6 +11,7 @@ export type NotificationRowProps = {
   timeLabel: string
   dateTime: string
   tone?: NotificationItemTone
+  actor?: { displayName: string; profileImageUrl?: string }
   unread: boolean
   onOpen: () => Promise<void>
   onToggle: () => Promise<unknown>
@@ -22,6 +23,7 @@ export function NotificationRow({
   timeLabel,
   dateTime,
   tone = 'neutral',
+  actor,
   unread,
   onOpen,
   onToggle,
@@ -60,6 +62,7 @@ export function NotificationRow({
           timeLabel={timeLabel}
           dateTime={dateTime}
           tone={tone}
+          actor={actor}
           unread={unread}
         />
       </button>

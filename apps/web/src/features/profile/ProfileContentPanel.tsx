@@ -1,8 +1,9 @@
 import { Link } from '@tanstack/react-router'
 import { Heart, MessageCircle, Star } from 'lucide-react'
-import { useId, useRef, useState, type ReactNode, type Ref } from 'react'
+import { useId, useRef, useState, type Dispatch, type ReactNode, type Ref, type SetStateAction } from 'react'
 import { Avatar } from '../../design-system/atoms/Avatar'
 import { OpenableImage } from '../../design-system/molecules/OpenableImage'
+import { PostActionBar } from '../social/PostActionBar'
 import { PostMediaGrid, type DisplayPostMediaItem } from '../social/PostMediaGrid'
 
 export type ProfileContentPost = {
@@ -10,6 +11,10 @@ export type ProfileContentPost = {
   body?: string
   createdAt: number
   media: readonly DisplayPostMediaItem[]
+  likeCount: number
+  commentCount: number
+  liked: boolean
+  saved: boolean
 }
 
 export type ProfileContentReview = {
@@ -50,6 +55,9 @@ export function ProfileContentPanel({
   unavailableReviewsAction,
   emptyReviewsDescription = 'Reviews will appear here after members complete plans together.',
   reviewAction,
+  onLikePost,
+  onSavePost,
+  onOpenPostComments,
   onLikeReview,
   onCommentReview,
   onDeleteReviewComment,
@@ -66,6 +74,9 @@ export function ProfileContentPanel({
   unavailableReviewsAction?: ReactNode
   emptyReviewsDescription?: string
   reviewAction?: (review: ProfileContentReview) => ReactNode
+  onLikePost?: (post: ProfileContentPost) => Promise<unknown>
+  onSavePost?: (post: ProfileContentPost) => Promise<unknown>
+  onOpenPostComments?: (post: ProfileContentPost) => void
   onLikeReview?: (review: ProfileContentReview) => Promise<unknown>
   onCommentReview?: (review: ProfileContentReview, body: string) => Promise<unknown>
   onDeleteReviewComment?: (review: ProfileContentReview, commentId: string) => Promise<unknown>
@@ -78,6 +89,8 @@ export function ProfileContentPanel({
   const [deleteTarget, setDeleteTarget] = useState<{ reviewId: string; commentId: string } | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [postActionBusy, setPostActionBusy] = useState<string | null>(null)
+  const [postActionErrors, setPostActionErrors] = useState<Record<string, string>>({})
   const tabId = useId()
   const postsTabRef = useRef<HTMLButtonElement>(null)
   const reviewsTabRef = useRef<HTMLButtonElement>(null)
@@ -133,6 +146,19 @@ export function ProfileContentPanel({
                   </div>
                   {post.body && <p className="text-body muted whitespace-pre-wrap profile-post-body">{post.body}</p>}
                   {post.media.length > 0 && <PostMediaGrid media={post.media} className="profile-post-media" />}
+                  <PostActionBar
+                    liked={post.liked}
+                    likeCount={post.likeCount}
+                    commentCount={post.commentCount}
+                    saved={post.saved}
+                    commentsOpen={false}
+                    likeDisabled={!onLikePost || postActionBusy === `${post._id}:like`}
+                    showSave={Boolean(onSavePost)}
+                    onLike={() => void runPostAction(post, 'like', onLikePost, setPostActionBusy, setPostActionErrors)}
+                    onToggleComments={() => onOpenPostComments?.(post)}
+                    onSave={() => void runPostAction(post, 'save', onSavePost, setPostActionBusy, setPostActionErrors)}
+                  />
+                  {postActionErrors[post._id] && <p className="text-meta social-comment-error">{postActionErrors[post._id]}</p>}
                 </article>
               ))}
             </div>
@@ -330,6 +356,28 @@ export function ProfileContentPanel({
       )}
     </section>
   )
+}
+
+async function runPostAction(
+  post: ProfileContentPost,
+  action: 'like' | 'save',
+  handler: ((post: ProfileContentPost) => Promise<unknown>) | undefined,
+  setBusy: Dispatch<SetStateAction<string | null>>,
+  setErrors: Dispatch<SetStateAction<Record<string, string>>>,
+) {
+  if (!handler) return
+  setBusy(`${post._id}:${action}`)
+  setErrors((current) => ({ ...current, [post._id]: '' }))
+  try {
+    await handler(post)
+  } catch (error) {
+    setErrors((current) => ({
+      ...current,
+      [post._id]: error instanceof Error ? error.message : `Post could not be ${action === 'like' ? 'appreciated' : 'saved'}.`,
+    }))
+  } finally {
+    setBusy(null)
+  }
 }
 
 function RatingStars({ rating }: { rating: number }) {

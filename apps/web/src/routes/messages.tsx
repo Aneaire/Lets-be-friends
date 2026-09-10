@@ -23,9 +23,10 @@ import {
 import { bookingMessagePresentation } from '../lib/messageBookings'
 
 export const Route = createFileRoute('/messages')({
-  validateSearch: (search: Record<string, unknown>): { conversationId?: string } => (
-    typeof search.conversationId === 'string' ? { conversationId: search.conversationId } : {}
-  ),
+  validateSearch: (search: Record<string, unknown>): { conversationId?: string; messageId?: string } => ({
+    ...(typeof search.conversationId === 'string' ? { conversationId: search.conversationId } : {}),
+    ...(typeof search.messageId === 'string' ? { messageId: search.messageId } : {}),
+  }),
   component: MessagesPage,
 })
 
@@ -51,7 +52,7 @@ type PendingOutgoingMessage = {
 function MessagesPage() {
   const { isSignedIn } = useAuth()
   const navigate = useNavigate()
-  const { conversationId } = Route.useSearch()
+  const { conversationId, messageId } = Route.useSearch()
   const conversations = useQuery(api.conversations.list, isSignedIn ? {} : 'skip') as Conversation[] | undefined
   const viewer = useQuery(api.users.viewer, isSignedIn ? {} : 'skip')
   const selectedConversationId = conversationId ? conversationId as Id<'directConversations'> : undefined
@@ -74,8 +75,10 @@ function MessagesPage() {
   const threadEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    threadEndRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [pendingOutgoing, thread?.messages.length])
+    const target = messageId ? document.getElementById(`message-${messageId}`) : null
+    if (target) target.scrollIntoView({ block: 'center' })
+    else threadEndRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [messageId, pendingOutgoing, thread?.messages.length])
 
   useEffect(() => {
     setPendingOutgoing(null)
@@ -160,12 +163,13 @@ function MessagesPage() {
                   <div className="direct-day-divider">{formatMessageDay(message.createdAt)}</div>
                 )}
                 {message.booking && bookingLastIndex.get(message.booking.bookingId) !== index ? (
-                  <div className="booking-update-line" data-own={message.sentByViewer}>
+                  <div id={`message-${message._id}`} className="booking-update-line" data-own={message.sentByViewer}>
                     <p>{message.body}</p>
                     <time dateTime={new Date(message.createdAt).toISOString()}>{formatMessageTime(message.createdAt)}</time>
                   </div>
                 ) : message.booking ? (
                   <article
+                    id={`message-${message._id}`}
                     className="direct-booking"
                     data-own={message.sentByViewer}
                     data-floating={index === floatingBookingIndex ? 'true' : undefined}
@@ -211,6 +215,7 @@ function MessagesPage() {
                   </article>
                 ) : (
                   <DirectMessageContent
+                    id={`message-${message._id}`}
                     direction={message.sentByViewer ? 'outgoing' : 'incoming'}
                     attachments={message.attachments}
                     body={message.body}
@@ -298,6 +303,7 @@ function MessagesPage() {
 }
 
 function DirectMessageContent({
+  id,
   direction,
   attachments,
   body,
@@ -306,6 +312,7 @@ function DirectMessageContent({
   onOpenImage,
   actions,
 }: {
+  id?: string
   direction: 'incoming' | 'outgoing'
   attachments: ThreadAttachment[]
   body?: string
@@ -323,6 +330,7 @@ function DirectMessageContent({
 
   return (
     <MessageBubble
+      id={id}
       direction={direction}
       body={body}
       timestamp={formatMessageTime(createdAt)}

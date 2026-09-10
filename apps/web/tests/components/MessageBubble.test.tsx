@@ -11,6 +11,7 @@ describe('MessageBubble', () => {
   it('presents incoming and outgoing messages through the same readable shell', () => {
     const { container, rerender } = render(
       <MessageBubble
+        id="message-message-1"
         direction="incoming"
         body="Would 2:30 PM work?"
         timestamp="2:24 PM"
@@ -20,6 +21,7 @@ describe('MessageBubble', () => {
 
     const message = container.querySelector('.ds-message')
     expect(message?.getAttribute('data-direction')).toBe('incoming')
+    expect(message?.getAttribute('id')).toBe('message-message-1')
     expect(screen.getByText('Would 2:30 PM work?')).toBeTruthy()
     expect(screen.queryByLabelText('Message sent')).toBeNull()
 

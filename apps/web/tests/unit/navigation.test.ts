@@ -1,25 +1,36 @@
 import { describe, expect, it } from 'vitest'
-import { activePrimaryNavigation, headerNavigation, isWorkspacePath, primaryNavigation, sidebarNavigation } from '../../src/lib/navigation'
+import { activePrimaryNavigation, headerNavigation, isWorkspacePath, mobileNavigation, primaryNavigation, sidebarNavigation } from '../../src/lib/navigation'
 
 describe('application navigation', () => {
   it('keeps frequent member destinations in a stable order', () => {
     expect(primaryNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
       { label: 'Home', to: '/social' },
       { label: 'Explore', to: '/discover' },
+      { label: 'Circles', to: '/circles' },
       { label: 'Messages', to: '/messages' },
       { label: 'Bookings', to: '/app' },
     ])
   })
 
-  it('keeps the sidebar focused on discovery destinations', () => {
+  it('keeps the sidebar focused on discovery and Circle destinations', () => {
     expect(sidebarNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
       { label: 'Home', to: '/social' },
       { label: 'Explore', to: '/discover' },
+      { label: 'Circles', to: '/circles' },
     ])
   })
 
   it('keeps messages and bookings in the signed-in header', () => {
     expect(headerNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
+      { label: 'Messages', to: '/messages' },
+      { label: 'Bookings', to: '/app' },
+    ])
+  })
+
+  it('keeps Circles out of the mobile bottom tabs', () => {
+    expect(mobileNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
+      { label: 'Home', to: '/social' },
+      { label: 'Explore', to: '/discover' },
       { label: 'Messages', to: '/messages' },
       { label: 'Bookings', to: '/app' },
     ])

@@ -1,5 +1,5 @@
 import { SignInButton, useAuth } from '@clerk/react'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { ArrowLeft, Heart, User } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
@@ -17,11 +17,14 @@ export const Route = createFileRoute('/member-profile')({
 type MemberPost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUser>>>[number]
 
 function MemberProfilePage() {
+  const navigate = useNavigate()
   const { userId } = Route.useSearch()
   const { isSignedIn } = useAuth()
   const profile = useQuery(api.users.publicProfile, userId ? { userId: userId as Id<'users'> } : 'skip')
   const posts = useQuery(api.social.byUser, profile?._id ? { userId: profile._id } : 'skip') as MemberPost[] | undefined
   const toggleFollow = useMutation(api.social.toggleFollow)
+  const toggleLikePost = useMutation(api.social.toggleLike)
+  const toggleSavePost = useMutation(api.social.toggleSavePost)
 
   if (!userId) return <UnavailableProfile detail="Choose someone from Explore first." />
   if (profile === undefined) return <main className="marketing-page"><div className="empty-state">Loading profile...</div></main>
@@ -80,6 +83,9 @@ function MemberProfilePage() {
         emptyPostsDescription="This member has not shared a post yet."
         unavailableReviewsTitle="Reviews are not available for this member profile."
         unavailableReviewsDescription="Reviews appear when a member has an approved Companion profile."
+        onLikePost={isSignedIn ? (post) => toggleLikePost({ postId: post._id as Id<'posts'> }) : undefined}
+        onSavePost={isSignedIn ? (post) => toggleSavePost({ postId: post._id as Id<'posts'> }) : undefined}
+        onOpenPostComments={(post) => void navigate({ to: '/social', search: { postId: post._id } })}
       />
     </main>
   )

@@ -29,6 +29,8 @@ function CompanionProfilePage() {
   const posts = useQuery(api.social.byUser, companion?.userId ? { userId: companion.userId } : 'skip') as CompanionPost[] | undefined
   const toggleSaveProfile = useMutation(api.companions.toggleSaveProfile)
   const toggleFollow = useMutation(api.social.toggleFollow)
+  const toggleLikePost = useMutation(api.social.toggleLike)
+  const toggleSavePost = useMutation(api.social.toggleSavePost)
   const toggleSaveReview = useMutation(api.reviews.toggleSave)
   const toggleLikeReview = useMutation(api.reviews.toggleLike)
   const createReviewComment = useMutation(api.reviews.createComment)
@@ -211,6 +213,9 @@ function CompanionProfilePage() {
         onLikeReview={isSignedIn ? (review) => toggleLikeReview({ reviewId: review._id as Id<'reviews'> }) : undefined}
         onCommentReview={isSignedIn ? (review, body) => createReviewComment({ reviewId: review._id as Id<'reviews'>, body }) : undefined}
         onDeleteReviewComment={isSignedIn ? (review, commentId) => deleteReviewComment({ commentId: commentId as Id<'reviewComments'> }) : undefined}
+        onLikePost={isSignedIn ? (post) => toggleLikePost({ postId: post._id as Id<'posts'> }) : undefined}
+        onSavePost={isSignedIn ? (post) => toggleSavePost({ postId: post._id as Id<'posts'> }) : undefined}
+        onOpenPostComments={(post) => void navigate({ to: '/social', search: { postId: post._id } })}
         reviewAction={(review) => isSignedIn ? (
           <button
             type="button"

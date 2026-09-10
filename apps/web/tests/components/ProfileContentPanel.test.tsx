@@ -11,6 +11,10 @@ const posts = [{
   body: 'A quiet creative session can be social too.',
   createdAt: Date.UTC(2026, 7, 23, 8, 13),
   media: [],
+  likeCount: 2,
+  commentCount: 1,
+  liked: false,
+  saved: false,
 }]
 
 const reviews = [{
@@ -33,6 +37,48 @@ const reviews = [{
 }]
 
 describe('ProfileContentPanel', () => {
+  it('shows the standard post actions and delegates like, comment, and save', async () => {
+    const onLikePost = vi.fn().mockResolvedValue(true)
+    const onSavePost = vi.fn().mockResolvedValue(true)
+    const onOpenPostComments = vi.fn()
+
+    render(
+      <ProfileContentPanel
+        ownerName="Mara"
+        posts={posts}
+        reviews={[]}
+        onLikePost={onLikePost}
+        onSavePost={onSavePost}
+        onOpenPostComments={onOpenPostComments}
+      />,
+    )
+
+    expect(screen.getByLabelText('Post actions')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Appreciate post' }))
+    await waitFor(() => expect(onLikePost).toHaveBeenCalledWith(posts[0]))
+    fireEvent.click(screen.getByRole('button', { name: 'Show 1 comment' }))
+    expect(onOpenPostComments).toHaveBeenCalledWith(posts[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Save post' }))
+    await waitFor(() => expect(onSavePost).toHaveBeenCalledWith(posts[0]))
+  })
+
+  it('shows a post action error without leaving the action busy', async () => {
+    const onLikePost = vi.fn().mockRejectedValue(new Error('Like is unavailable.'))
+    render(
+      <ProfileContentPanel
+        ownerName="Mara"
+        posts={posts}
+        reviews={[]}
+        onLikePost={onLikePost}
+      />,
+    )
+
+    const likeButton = screen.getByRole('button', { name: 'Appreciate post' })
+    fireEvent.click(likeButton)
+    await waitFor(() => expect(screen.getByText('Like is unavailable.')).toBeTruthy())
+    expect(likeButton.hasAttribute('disabled')).toBe(false)
+  })
+
   it('shows reviewer identity, five stars, and working social actions', async () => {
     const onSave = vi.fn()
     const onLike = vi.fn().mockResolvedValue(true)
@@ -184,11 +230,19 @@ describe('ProfileContentPanel', () => {
         body: 'my babies',
         createdAt: Date.UTC(2026, 7, 28, 8, 10),
         media: [{ storageId: 'image-1', kind: 'image', url: 'https://example.com/cat.jpg' } as const],
+        likeCount: 2,
+        commentCount: 1,
+        liked: false,
+        saved: false,
       },
       {
         _id: 'post-image-only',
         createdAt: Date.UTC(2026, 7, 27, 8, 10),
         media: [{ storageId: 'image-2', kind: 'image', url: 'https://example.com/cats.jpg' } as const],
+        likeCount: 0,
+        commentCount: 0,
+        liked: false,
+        saved: false,
       },
     ]
     render(

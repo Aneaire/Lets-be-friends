@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const navigationMocks = vi.hoisted(() => ({
+  navigate: vi.fn(),
+  query: vi.fn(),
+  mutation: vi.fn(),
+}))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -19,18 +25,22 @@ vi.mock('@tanstack/react-router', () => ({
     return <a href={`${to}${query}`} {...props}>{children}</a>
   },
   useRouterState: vi.fn(),
+  useNavigate: () => navigationMocks.navigate,
 }))
 
 // Header search queries the bounded server directory; the fallback directory
 // prop keeps these interaction tests deterministic without a Convex provider.
 vi.mock('convex/react', () => ({
-  useQuery: () => undefined,
-  useMutation: () => vi.fn(),
+  useQuery: (...args: unknown[]) => navigationMocks.query(...args),
+  useMutation: (...args: unknown[]) => navigationMocks.mutation(...args),
 }))
 
-import { AccountAvatar, DesktopPrimaryNavigation, HeaderPrimaryActions, HeaderSearch, MobilePrimaryNavigation, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
+import { AccountAvatar, DesktopPrimaryNavigation, HeaderPrimaryActions, HeaderSearch, MobilePrimaryNavigation, NotificationNavigation, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.resetAllMocks()
+})
 
 const directory: HeaderSearchPerson[] = [
   {
@@ -69,6 +79,39 @@ describe('account avatar', () => {
   })
 })
 
+describe('notification navigation', () => {
+  it('reports an open failure without navigating or rejecting the click handler', async () => {
+    let queryIndex = 0
+    let mutationIndex = 0
+    const openNotification = vi.fn().mockRejectedValue(new Error('Network unavailable'))
+    navigationMocks.query.mockImplementation(() => {
+      const values = [1, [{
+        id: 'notification-1',
+        title: 'New follower',
+        body: 'Alex followed you.',
+        tone: 'social',
+        priority: 'standard',
+        destination: { type: 'profile', userId: 'alex' },
+        targetAvailable: true,
+        createdAt: Date.now(),
+      }], []]
+      return values[queryIndex++ % values.length]
+    })
+    navigationMocks.mutation.mockImplementation(() => {
+      const values = [openNotification, vi.fn()]
+      return values[mutationIndex++ % values.length]
+    })
+
+    render(<NotificationNavigation />)
+    fireEvent.click(screen.getByRole('button', { name: /Open notifications/ }))
+    fireEvent.click(screen.getByRole('button', { name: /New follower/ }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('The notification could not be opened. Try again.')
+    await waitFor(() => expect(openNotification).toHaveBeenCalledWith({ notificationId: 'notification-1' }))
+    expect(navigationMocks.navigate).not.toHaveBeenCalled()
+  })
+})
+
 describe('header primary actions', () => {
   it('links Messages and Bookings from the signed-in header', () => {
     render(<HeaderPrimaryActions activeItem={null} />)
@@ -88,15 +131,26 @@ describe('header primary actions', () => {
 })
 
 describe('primary navigation surfaces', () => {
-  it('keeps the desktop rail focused on Home and Explore', () => {
+  it('adds Circles to the desktop rail', () => {
     render(<DesktopPrimaryNavigation activeItem="home" />)
 
     const nav = screen.getByRole('navigation', { name: /primary navigation/i })
-    expect(nav.querySelectorAll('a.primary-nav-link')).toHaveLength(2)
+    expect(nav.querySelectorAll('a.primary-nav-link')).toHaveLength(3)
     expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Explore' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Circles' }).getAttribute('href')).toBe('/circles')
     expect(screen.queryByRole('link', { name: 'Messages' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Bookings' })).toBeNull()
+  })
+
+  it('marks Circles active on desktop while mobile stays on frequent destinations', () => {
+    render(<DesktopPrimaryNavigation activeItem="circles" />)
+    expect(screen.getByRole('link', { name: 'Circles' }).getAttribute('aria-current')).toBe('page')
+
+    cleanup()
+    render(<MobilePrimaryNavigation activeItem="circles" accountOpen={false} accountActive={false} onOpenAccount={() => {}} />)
+    expect(screen.getByRole('navigation', { name: /mobile primary navigation/i }).querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(4)
+    expect(screen.queryByRole('link', { name: 'Circles' })).toBeNull()
   })
 
   it('keeps Messages and Bookings in the mobile bottom tabs', () => {
@@ -106,6 +160,7 @@ describe('primary navigation surfaces', () => {
     expect(nav.querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(4)
     expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Explore' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Circles' })).toBeNull()
     expect(screen.getByRole('link', { name: 'Messages' }).getAttribute('aria-current')).toBe('page')
     expect(screen.getByRole('link', { name: 'Bookings' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Account' })).toBeTruthy()

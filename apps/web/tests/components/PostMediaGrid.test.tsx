@@ -31,9 +31,72 @@ describe('PostMediaGrid', () => {
     expect(image?.getAttribute('loading')).toBe('lazy')
     expect(screen.getByRole('button', { name: 'Open post image 1' })).toBe(image)
     expect(video?.getAttribute('src')).toBe('/clip.mp4')
-    expect(video?.controls).toBe(true)
+    expect(video?.controls).toBe(false)
+    expect(video?.autoplay).toBe(true)
+    expect(video?.loop).toBe(true)
+    expect(video?.muted).toBe(true)
     expect(video?.playsInline).toBe(true)
     expect(video?.preload).toBe('metadata')
+    expect(screen.getByRole('button', { name: 'Unmute video' })).toBeTruthy()
+    expect(container.querySelector('.social-post-video-time')).toBeNull()
+  })
+
+  it('updates video time, toggles sound, and opens the expanded video', () => {
+    const { container } = render(
+      <PostMediaGrid media={[{ storageId: 'video-1', kind: 'video', url: '/clip.mp4' }]} />,
+    )
+    const video = container.querySelector('video')!
+    Object.defineProperties(video, {
+      duration: { configurable: true, value: 76 },
+      currentTime: { configurable: true, writable: true, value: 6 },
+      pause: { configurable: true, value: vi.fn() },
+    })
+
+    fireEvent.loadedMetadata(video)
+    fireEvent.timeUpdate(video)
+    expect(container.querySelector<HTMLElement>('.social-post-video-progress')?.style.getPropertyValue('--video-progress')).toBe(`${(6 / 76) * 100}%`)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unmute video' }))
+    expect(screen.getByRole('button', { name: 'Mute video' }).getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(video)
+    expect(video.pause).toHaveBeenCalledOnce()
+    expect(screen.getByRole('dialog', { name: 'Video 1 shared in this post' })).toBeTruthy()
+    expect(screen.getByLabelText('Video 1 shared in this post, expanded')).toBeTruthy()
+  })
+
+  it('pauses outside the feed viewport and resumes after becoming visible', () => {
+    let reportIntersection: IntersectionObserverCallback = () => undefined
+    const observe = vi.fn()
+    const disconnect = vi.fn()
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) {
+        reportIntersection = callback
+      }
+      observe = observe
+      disconnect = disconnect
+    })
+
+    const { container, unmount } = render(
+      <PostMediaGrid media={[{ storageId: 'video-1', kind: 'video', url: '/clip.mp4' }]} />,
+    )
+    const video = container.querySelector('video')!
+    const play = vi.fn().mockResolvedValue(undefined)
+    const pause = vi.fn()
+    Object.defineProperties(video, {
+      play: { configurable: true, value: play },
+      pause: { configurable: true, value: pause },
+    })
+
+    reportIntersection([{ isIntersecting: true, intersectionRatio: 0.59 } as IntersectionObserverEntry], {} as IntersectionObserver)
+    expect(pause).toHaveBeenCalledOnce()
+    reportIntersection([{ isIntersecting: true, intersectionRatio: 0.6 } as IntersectionObserverEntry], {} as IntersectionObserver)
+    expect(play).toHaveBeenCalledOnce()
+    expect(observe).toHaveBeenCalledWith(container.querySelector('.social-post-video'))
+
+    unmount()
+    expect(disconnect).toHaveBeenCalledOnce()
+    vi.unstubAllGlobals()
   })
 
   it('keeps display items keyed by storage id when their order changes', () => {

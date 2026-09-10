@@ -18,6 +18,7 @@ function NotificationsPage() {
   const { isSignedIn } = useAuth()
   const notificationPage = usePaginatedQuery(api.notifications.list, isSignedIn ? {} : 'skip', { initialNumItems: 30 })
   const notifications = notificationPage.results as Notification[]
+  const openNotification = useMutation(api.notifications.open)
   const markRead = useMutation(api.notifications.markRead)
   const markUnread = useMutation(api.notifications.markUnread)
   const markAllRead = useMutation(api.notifications.markAllRead)
@@ -52,11 +53,11 @@ function NotificationsPage() {
             timeLabel={formatNotificationTime(notification.createdAt)}
             dateTime={new Date(notification.createdAt).toISOString()}
             tone={notification.tone}
+            actor={notification.actor}
             unread={!notification.readAt}
             onOpen={async () => {
-              if (!notification.readAt) await markRead({ notificationId: notification.id as Id<'notifications'> })
-              const destination = webDestination(notification.destination as NotificationDestination)
-              await navigate(destination as never)
+              const result = await openNotification({ notificationId: notification.id })
+              if (result.status === 'ready') await navigate(webDestination(result.destination as NotificationDestination) as never)
             }}
             onToggle={async () => notification.readAt
               ? markUnread({ notificationId: notification.id as Id<'notifications'> })
