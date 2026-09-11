@@ -465,6 +465,8 @@ export const create = mutation({
     discussionVisibility: v.optional(discussionVisibilityValidator),
     memberListVisibility: v.optional(memberListVisibilityValidator),
     joinPolicy: v.optional(joinPolicyValidator),
+    iconStorageId: v.optional(v.id('_storage')),
+    coverStorageId: v.optional(v.id('_storage')),
   },
   handler: async (ctx, args) => {
     const creator = await requireViewer(ctx)
@@ -476,11 +478,14 @@ export const create = mutation({
     if (await ctx.db.query('circles').withIndex('by_slug', (q) => q.eq('slug', slug)).unique()) throw new Error('Circle slug is already taken')
     const details = circleMetadata(args)
     const settings = parseCircleSettings(args)
+    if (args.iconStorageId) await requireCircleImageStorage(ctx, args.iconStorageId)
+    if (args.coverStorageId) await requireCircleImageStorage(ctx, args.coverStorageId)
     const now = Date.now()
     // Convex commits the Circle and its sole initial host membership as one
     // ownership unit, so a creator can never be left with a hostless Circle.
     const circleId = await ctx.db.insert('circles', {
       slug, ...details, mode: args.mode, state: 'active', ...settings, hostUserId: creator._id,
+      iconStorageId: args.iconStorageId, coverStorageId: args.coverStorageId,
       createdByUserId: creator._id, createdAt: now, updatedAt: now,
     })
     await ctx.db.insert('circleMemberships', {
@@ -535,6 +540,16 @@ export const generateCircleImageUploadUrl = mutation({
     const access = await requireHostOrFullAdmin(ctx, args.circleId)
     if (!access.isCircleHost) throw new Error('Circle images are managed by its host')
     if (access.circle.state !== 'active') throw new Error('Active Circle required')
+    return await ctx.storage.generateUploadUrl()
+  },
+})
+
+export const generateCreateImageUploadUrl = mutation({
+  args: { kind: v.union(v.literal('icon'), v.literal('cover')) },
+  handler: async (ctx) => {
+    const creator = await requireViewer(ctx)
+    if (!isCircleParticipantRole(creator.role)) throw new Error('Circle participation requires an eligible account role')
+    assertTrustedCircleRoleEligibility(creator, 'host')
     return await ctx.storage.generateUploadUrl()
   },
 })

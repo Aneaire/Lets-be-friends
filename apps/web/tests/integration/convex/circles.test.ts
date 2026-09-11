@@ -1113,3 +1113,63 @@ describe('Circle authorization foundation', () => {
       .toEqual([hostId, recipientId].sort())
   })
 })
+
+describe('Circle creation images', () => {
+  async function storeImage(t: ReturnType<typeof convexTest>, type: string) {
+    return await t.run(async (ctx) => {
+      const storageId = await ctx.storage.store(new Blob(['bytes'], { type }))
+      await (ctx.db as any).patch(storageId, { contentType: type })
+      return storageId
+    })
+  }
+
+  it('attaches an icon and cover supplied at creation', async () => {
+    const t = convexTest(schema, convexModules)
+    const hostId = await insertUser(t, 'host', { verified: true })
+    const host = await t.run(async (ctx) => ctx.db.get(hostId))
+    if (!host) throw new Error('Test host not found')
+    const iconId = await storeImage(t, 'image/png')
+    const coverId = await storeImage(t, 'image/jpeg')
+
+    const circleId = await t.withIdentity({ subject: 'host' }).mutation(api.circles.create, {
+      slug: 'coffee-friends',
+      name: 'Coffee Friends',
+      purpose: 'Talk about coffee.',
+      category: 'Coffee',
+      rules: ['Be kind.'],
+      mode: 'both',
+      iconStorageId: iconId,
+      coverStorageId: coverId,
+    })
+
+    const detail = await t.withIdentity({ subject: 'host' }).query(api.circles.detail, { circleId })
+    if (detail.unavailable) throw new Error('Test Circle should be available')
+    expect(detail.iconUrl).toBeTruthy()
+    expect(detail.coverUrl).toBeTruthy()
+  })
+
+  it('rejects non-image uploads at creation', async () => {
+    const t = convexTest(schema, convexModules)
+    const hostId = await insertUser(t, 'host', { verified: true })
+    void hostId
+    const badId = await storeImage(t, 'video/mp4')
+
+    await expect(t.withIdentity({ subject: 'host' }).mutation(api.circles.create, {
+      slug: 'coffee-friends',
+      name: 'Coffee Friends',
+      purpose: 'Talk about coffee.',
+      category: 'Coffee',
+      rules: ['Be kind.'],
+      mode: 'both',
+      iconStorageId: badId,
+    })).rejects.toThrow('Circle images must be JPEG, PNG, or WebP still images')
+  })
+
+  it('denies pre-creation uploads without host eligibility', async () => {
+    const t = convexTest(schema, convexModules)
+    await insertUser(t, 'unverified')
+
+    await expect(t.withIdentity({ subject: 'unverified' }).mutation(api.circles.generateCreateImageUploadUrl, { kind: 'icon' }))
+      .rejects.toThrow('identity approval')
+  })
+})

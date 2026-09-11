@@ -99,7 +99,7 @@ export function CircleWorkspacePage({ circleId, postId, commentId }: { circleId:
         </div>
         <p>{detail.purpose}</p>
         <div className="circle-facts">
-          <span><Users size={14} aria-hidden="true" /> {detail.memberCount} members</span>
+          <span><Users size={14} aria-hidden="true" /> {detail.memberCount} {detail.memberCount === 1 ? 'member' : 'members'}</span>
           <span><MapPin size={14} aria-hidden="true" /> {detail.approximateArea ?? (detail.mode === 'online' ? 'Online' : 'Area shared in Circle')}</span>
           {detail.circleState === 'archived' && <span className="status-pill">Archived, read-only</span>}
           {detail.role && detail.role !== 'member' && <span className="status-pill" data-tone="social">{detail.role}</span>}
@@ -114,9 +114,11 @@ export function CircleWorkspacePage({ circleId, postId, commentId }: { circleId:
           <section className="circle-preview-grid" aria-label="Circle preview">
             <article className="circle-preview-panel"><h2>About this Circle</h2><h3>Hosted by</h3><p>{detail.host?.displayName ?? 'Circle host'}</p>
               <h3>Visibility</h3>
-              <p className="text-meta">{detail.discoverability === 'unlisted' ? 'Unlisted. This Circle is reachable only by direct link.' : 'Listed. Signed-in members can find this Circle in Discover.'}</p>
-              <p className="text-meta">{detail.discussionVisibility === 'signed_in' ? 'Discussions are visible to signed-in members. Join to post, react, or comment.' : 'Discussions are visible to active members only.'}</p>
-              <p className="text-meta">{detail.memberListVisibility === 'signed_in' ? 'The member list is visible to signed-in members.' : 'The member list is visible to active members only.'}</p>
+              <ul className="circle-visibility-list">
+                <li>{detail.discoverability === 'unlisted' ? 'Unlisted. Reachable only by direct link.' : 'Listed in Discover.'}</li>
+                <li>{detail.discussionVisibility === 'signed_in' ? 'Discussions open to signed-in members. Join to post, react, or comment.' : 'Discussions open to active members only.'}</li>
+                <li>{detail.memberListVisibility === 'signed_in' ? 'Member list open to signed-in members.' : 'Member list open to active members only.'}</li>
+              </ul>
             </article>
             <aside className="circle-join-panel">
               <h2>{membershipState === 'requested' ? 'Request pending' : membershipState === 'banned' ? 'Access unavailable' : detail.joinPolicy === 'open' ? 'Join this Circle' : 'Request to join'}</h2>
@@ -129,6 +131,7 @@ export function CircleWorkspacePage({ circleId, postId, commentId }: { circleId:
               {membershipState !== 'banned' && <button type="button" className="btn btn-ghost btn-sm" onClick={() => void run('report-circle', () => report({ targetType: 'circle', targetId: id, reason: 'Circle needs safety review' }), 'Circle report sent to safety review.')}>Report Circle</button>}
             </aside>
           </section>
+          {detail.canReadDiscussion && <CircleEventsCarousel circleId={id} canLead={false} />}
           {detail.canReadDiscussion && <CirclePreviewDiscussions circleId={id} />}
           {detail.canReadMembers && <CirclePreviewMembers circleId={id} />}
         </>
@@ -287,25 +290,7 @@ function CircleManage({ circleId }: { circleId: Id<'circles'> }) {
       <section className="circle-manage-section" aria-labelledby="circle-privacy-title">
         <div className="circle-section-heading"><h2 id="circle-privacy-title">Privacy settings</h2><span>Host only</span></div>
         <p className="text-meta">These settings control who can find this Circle and what signed-in members can see before joining. Narrowing visibility never exposes past private content. Widening visibility applies to future reads only after you save.</p>
-        <form className="circle-manage-form" onSubmit={(event) => {
-          event.preventDefault()
-          const data = new FormData(event.currentTarget)
-          void act(() => updateSettings({
-            circleId,
-            discoverability: String(data.get('discoverability') ?? 'listed') as 'listed' | 'unlisted',
-            discussionVisibility: String(data.get('discussionVisibility') ?? 'members_only') as 'members_only' | 'signed_in',
-            memberListVisibility: String(data.get('memberListVisibility') ?? 'members_only') as 'members_only' | 'signed_in',
-            joinPolicy: String(data.get('joinPolicy') ?? 'approval_required') as 'approval_required' | 'open',
-          }), 'Privacy settings saved.')
-        }}>
-          <div className="circle-form-grid">
-            <label><span>Discoverability</span><select className="field" name="discoverability" defaultValue={management.circle.settings.discoverability}><option value="listed">Listed in Discover</option><option value="unlisted">Unlisted, direct link only</option></select><small>Listed Circles appear in Discover for signed-in members. Unlisted Circles stay reachable by direct link but never appear in Discover.</small></label>
-            <label><span>Join policy</span><select className="field" name="joinPolicy" defaultValue={management.circle.settings.joinPolicy}><option value="approval_required">Approval required</option><option value="open">Open, instant join</option></select><small>Approval keeps the request and host decision flow. Open admits an eligible member instantly after they acknowledge the rules. Banned members stay blocked either way, and archived Circles accept no new joins.</small></label>
-            <label><span>Discussion visibility</span><select className="field" name="discussionVisibility" defaultValue={management.circle.settings.discussionVisibility}><option value="members_only">Active members only</option><option value="signed_in">Visible to signed-in members</option></select><small>Signed-in lets eligible members read discussions before joining. Only active members can post, react, comment, or moderate. Removed content stays hidden from everyone except moderators.</small></label>
-            <label><span>Member list visibility</span><select className="field" name="memberListVisibility" defaultValue={management.circle.settings.memberListVisibility}><option value="members_only">Active members only</option><option value="signed_in">Visible to signed-in members</option></select><small>Signed-in shows active member profiles and roles only. Requests, past members, bans, and moderation records are never shown in the member list.</small></label>
-          </div>
-          <div className="circle-form-actions"><button className="btn btn-self">Save privacy settings</button></div>
-        </form>
+        <CirclePrivacyForm circleId={circleId} settings={management.circle.settings} onSave={(args) => act(() => updateSettings({ circleId, ...args }), 'Privacy settings saved.')} />
       </section>
 
       <CircleImageManage circleId={circleId} iconUrl={management.circle.iconUrl} coverUrl={management.circle.coverUrl} active={management.circle.state === 'active'} generateImageUploadUrl={generateImageUploadUrl} setImage={setImage} removeImage={removeImage} />
@@ -337,6 +322,55 @@ function CircleManage({ circleId }: { circleId: Id<'circles'> }) {
         <button type="button" className={management.circle.state === 'archived' ? 'btn btn-self' : 'btn btn-danger'} onClick={() => setConfirmation({ kind: 'lifecycle', state: management.circle.state === 'archived' ? 'active' : 'archived' })}>{management.circle.state === 'archived' ? 'Reactivate Circle' : 'Archive Circle'}</button>
       </section>
     </div>
+  )
+}
+
+type CirclePrivacySettings = {
+  discoverability: 'listed' | 'unlisted'
+  discussionVisibility: 'members_only' | 'signed_in'
+  memberListVisibility: 'members_only' | 'signed_in'
+  joinPolicy: 'approval_required' | 'open'
+}
+
+function CirclePrivacyForm({ circleId, settings, onSave }: {
+  circleId: Id<'circles'>
+  settings: CirclePrivacySettings
+  onSave: (args: CirclePrivacySettings) => Promise<unknown>
+}) {
+  const [discussionVisibility, setDiscussionVisibility] = useState(settings.discussionVisibility)
+  const [memberListVisibility, setMemberListVisibility] = useState(settings.memberListVisibility)
+  const access = discussionVisibility === 'signed_in' && memberListVisibility === 'signed_in' ? 'public' : 'private'
+
+  return (
+    <form className="circle-manage-form" onSubmit={(event) => {
+      event.preventDefault()
+      const data = new FormData(event.currentTarget)
+      void onSave({
+        discoverability: String(data.get('discoverability') ?? 'listed') as 'listed' | 'unlisted',
+        discussionVisibility,
+        memberListVisibility,
+        joinPolicy: String(data.get('joinPolicy') ?? 'approval_required') as 'approval_required' | 'open',
+      })
+    }}>
+      <div className="circle-form-grid">
+        <label className="circle-form-wide"><span>Circle access</span><select
+          className="field"
+          value={access}
+          onChange={(event) => {
+            const next = event.currentTarget.value as 'private' | 'public'
+            setDiscussionVisibility(next === 'public' ? 'signed_in' : 'members_only')
+            setMemberListVisibility(next === 'public' ? 'signed_in' : 'members_only')
+          }}
+        ><option value="private">Private</option><option value="public">Public</option></select><small>{access === 'public'
+          ? 'Public Circles let signed-in members preview discussions, members, and events before joining. Posting stays members only.'
+          : 'Private Circles show only purpose, host, and rules until someone joins.'}</small></label>
+        <label><span>Discoverability</span><select className="field" name="discoverability" defaultValue={settings.discoverability}><option value="listed">Listed in Discover</option><option value="unlisted">Unlisted, direct link only</option></select><small>Listed Circles appear in Discover for signed-in members. Unlisted Circles stay reachable by direct link but never appear in Discover.</small></label>
+        <label><span>Join policy</span><select className="field" name="joinPolicy" defaultValue={settings.joinPolicy}><option value="approval_required">Approval required</option><option value="open">Open, instant join</option></select><small>Approval keeps the request and host decision flow. Open admits an eligible member instantly after they acknowledge the rules. Banned members stay blocked either way, and archived Circles accept no new joins.</small></label>
+        <label><span>Discussion visibility</span><select className="field" name="discussionVisibility" value={discussionVisibility} onChange={(event) => setDiscussionVisibility(event.currentTarget.value as 'members_only' | 'signed_in')}><option value="members_only">Active members only</option><option value="signed_in">Visible to signed-in members</option></select><small>Signed-in lets eligible members read discussions before joining. Only active members can post, react, comment, or moderate. Removed content stays hidden from everyone except moderators.</small></label>
+        <label><span>Member list visibility</span><select className="field" name="memberListVisibility" value={memberListVisibility} onChange={(event) => setMemberListVisibility(event.currentTarget.value as 'members_only' | 'signed_in')}><option value="members_only">Active members only</option><option value="signed_in">Visible to signed-in members</option></select><small>Signed-in shows active member profiles and roles only. Requests, past members, bans, and moderation records are never shown in the member list.</small></label>
+      </div>
+      <div className="circle-form-actions"><button className="btn btn-self">Save privacy settings</button></div>
+    </form>
   )
 }
 
@@ -424,7 +458,7 @@ function CircleImageManage({ circleId, iconUrl, coverUrl, active, generateImageU
   )
 }
 
-async function uploadCircleImage(file: File, generateUploadUrl: () => Promise<string>): Promise<Id<'_storage'>> {
+export async function uploadCircleImage(file: File, generateUploadUrl: () => Promise<string>): Promise<Id<'_storage'>> {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Circle images must be JPEG, PNG, or WebP still images.')
   if (file.size > 5 * 1024 * 1024) throw new Error('Circle images must be 5 MB or smaller.')
   const uploadUrl = await generateUploadUrl()

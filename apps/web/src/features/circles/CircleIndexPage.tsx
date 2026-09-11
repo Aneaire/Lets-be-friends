@@ -1,8 +1,10 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
-import { CircleDot, MapPin, Plus, Users, X } from 'lucide-react'
+import { CircleDot, ImagePlus, MapPin, Plus, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../../../convex/_generated/api'
+import type { Id } from '../../../convex/_generated/dataModel'
+import { uploadCircleImage } from './CircleWorkspacePage'
 
 type CircleSummary = NonNullable<ReturnType<typeof useQuery<typeof api.circles.discover>>>[number]
 
@@ -25,7 +27,7 @@ function CircleRow({ circle }: { circle: CircleSummary & { membershipState?: str
         </span>
         <span>{circle.purpose}</span>
         <span className="circle-index-meta">
-          <span><Users size={13} aria-hidden="true" /> {circle.memberCount} members</span>
+          <span><Users size={13} aria-hidden="true" /> {circle.memberCount} {circle.memberCount === 1 ? 'member' : 'members'}</span>
           <span><MapPin size={13} aria-hidden="true" /> {circle.approximateArea ?? (circle.mode === 'online' ? 'Online' : 'Area shared in Circle')}</span>
         </span>
       </span>
@@ -45,6 +47,44 @@ export function CircleIndexPage() {
   const [createError, setCreateError] = useState('')
   const [rules, setRules] = useState<string[]>([''])
   const [createFormValid, setCreateFormValid] = useState(false)
+  const [iconStorageId, setIconStorageId] = useState<Id<'_storage'> | null>(null)
+  const [coverStorageId, setCoverStorageId] = useState<Id<'_storage'> | null>(null)
+  const [iconPreview, setIconPreview] = useState<string | undefined>()
+  const [coverPreview, setCoverPreview] = useState<string | undefined>()
+  const [dragOver, setDragOver] = useState<'icon' | 'cover' | null>(null)
+  const generateCreateUploadUrl = useMutation(api.circles.generateCreateImageUploadUrl)
+
+  function resetCreateForm() {
+    setCreateError('')
+    setRules([''])
+    setCreateFormValid(false)
+    setIconStorageId(null)
+    setCoverStorageId(null)
+    setIconPreview(undefined)
+    setCoverPreview(undefined)
+  }
+
+  async function uploadCreateImage(kind: 'icon' | 'cover', file: File | null) {
+    if (!file || file.size === 0 || submitting) return
+    setSubmitting(true)
+    setCreateError('')
+    try {
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Circle images must be JPEG, PNG, or WebP still images.')
+      if (file.size > 5 * 1024 * 1024) throw new Error('Circle images must be 5 MB or smaller.')
+      const storageId = await uploadCircleImage(file, () => generateCreateUploadUrl({ kind }))
+      if (kind === 'icon') {
+        setIconStorageId(storageId)
+        setIconPreview(URL.createObjectURL(file))
+      } else {
+        setCoverStorageId(storageId)
+        setCoverPreview(URL.createObjectURL(file))
+      }
+    } catch (cause) {
+      setCreateError(cause instanceof Error ? cause.message : 'The Circle image could not be uploaded.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
   const mineRows = Array.isArray(mine) ? mine : []
   const discoverRows = Array.isArray(discover) ? discover : []
   const myIds = new Set(mineRows.map((circle) => String(circle._id)))
@@ -63,7 +103,7 @@ export function CircleIndexPage() {
           <p>Find a familiar group, follow the conversation, and get to know people at your own pace.</p>
         </div>
         <div className="circle-index-header-actions">
-          {canCreate ? <button type="button" className="btn btn-self" onClick={() => { setCreateError(''); setRules(['']); setCreateFormValid(false); setCreating(true) }}><Plus size={16} aria-hidden="true" /> Create Circle</button> : needsVerification ? <Link to="/verify-identity" search={{ intent: 'member', returnTo: '/profile' }} className="btn btn-self-quiet">Verify to create a Circle</Link> : null}
+          {canCreate ? <button type="button" className="btn btn-self" onClick={() => { resetCreateForm(); setCreating(true) }}><Plus size={16} aria-hidden="true" /> Create Circle</button> : needsVerification ? <Link to="/verify-identity" search={{ intent: 'member', returnTo: '/profile' }} className="btn btn-self-quiet">Verify to create a Circle</Link> : null}
           <CircleDot size={42} strokeWidth={1.25} aria-hidden="true" />
         </div>
       </header>
@@ -88,6 +128,8 @@ export function CircleIndexPage() {
                 mode: String(data.get('mode') ?? 'online') as 'online' | 'in_person' | 'both',
                 approximateArea: String(data.get('approximateArea') ?? '') || undefined,
                 rules: submittedRules,
+                iconStorageId: iconStorageId ?? undefined,
+                coverStorageId: coverStorageId ?? undefined,
               })
               await navigate({ to: '/circles/$circleId', params: { circleId } })
             } catch (cause) {
@@ -103,6 +145,36 @@ export function CircleIndexPage() {
               <label><span>Category</span><input className="field" name="category" required maxLength={60} placeholder="Coffee" /></label>
               <label><span>Mode</span><select className="field" name="mode" defaultValue="online"><option value="online">Online</option><option value="in_person">In person</option><option value="both">Online and in person</option></select></label>
               <label className="circle-form-wide"><span>Approximate area</span><input className="field" name="approximateArea" maxLength={80} placeholder="Cebu City or Online" /><small>Use a city or broad area. Do not enter a home or meeting address.</small></label>
+              <div className="circle-form-wide circle-create-images">
+                {(['icon', 'cover'] as const).map((kind) => {
+                  const preview = kind === 'icon' ? iconPreview : coverPreview
+                  return (
+                    <label
+                      key={kind}
+                      className="circle-dropzone"
+                      data-dragging={dragOver === kind}
+                      onDragOver={(event) => { event.preventDefault(); setDragOver(kind) }}
+                      onDragLeave={() => setDragOver((current) => current === kind ? null : current)}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        setDragOver(null)
+                        void uploadCreateImage(kind, event.dataTransfer.files?.[0] ?? null)
+                      }}
+                    >
+                      <input type="file" className="sr-only" accept="image/jpeg,image/png,image/webp" disabled={submitting} onChange={(event) => {
+                        const file = event.currentTarget.files?.item?.(0) ?? null
+                        void uploadCreateImage(kind, file)
+                        event.currentTarget.value = ''
+                      }} />
+                      <span className="circle-dropzone-caption">{kind === 'icon' ? 'Icon' : 'Cover'} (optional)</span>
+                      {preview
+                        ? <img className={kind === 'icon' ? 'circle-icon-preview' : 'circle-cover-preview'} src={preview} alt={`${kind} preview`} />
+                        : <span className="circle-dropzone-hint"><ImagePlus size={20} aria-hidden="true" /><span>{kind === 'icon' ? 'Drop the square icon here or click to browse.' : 'Drop the wide cover here or click to browse.'}</span></span>}
+                      <small>JPEG, PNG, or WebP, 5 MB or smaller.</small>
+                    </label>
+                  )
+                })}
+              </div>
             </div>
             <fieldset className="circle-rule-picker">
               <legend>Circle rules</legend>

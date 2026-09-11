@@ -49,6 +49,36 @@ describe('Circle creation', () => {
     })))
   })
 
+  it('offers optional icon and cover uploads in the creation form', () => {
+    mocks.query.mockImplementation((fn) => fn === 'circles.creationEligibility' ? { eligible: true, reason: null } : [])
+    render(<CircleIndexPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Circle' }))
+    expect((screen.getByLabelText(/Icon.*optional/) as HTMLInputElement).accept).toBe('image/jpeg,image/png,image/webp')
+    expect((screen.getByLabelText(/Cover.*optional/) as HTMLInputElement).accept).toBe('image/jpeg,image/png,image/webp')
+    expect((screen.getByLabelText(/Icon.*optional/) as HTMLInputElement).type).toBe('file')
+  })
+
+  it('uploads a dropped icon and shows its preview', async () => {
+    mocks.query.mockImplementation((fn) => fn === 'circles.creationEligibility' ? { eligible: true, reason: null } : [])
+    mocks.create.mockResolvedValue('https://upload.example')
+    const originalFetch = globalThis.fetch
+    const originalCreateObjectURL = URL.createObjectURL
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ storageId: 'storage-1' }) }) as unknown as typeof fetch
+    URL.createObjectURL = vi.fn(() => 'blob:icon') as unknown as typeof URL.createObjectURL
+    try {
+      render(<CircleIndexPage />)
+      fireEvent.click(screen.getByRole('button', { name: 'Create Circle' }))
+      fireEvent.drop(screen.getByLabelText(/Icon.*optional/), { dataTransfer: { files: [new File(['bytes'], 'icon.png', { type: 'image/png' })] } })
+
+      await waitFor(() => expect(screen.getByAltText('icon preview')).toBeTruthy())
+      expect(globalThis.fetch).toHaveBeenCalledWith('https://upload.example', expect.objectContaining({ method: 'POST' }))
+    } finally {
+      globalThis.fetch = originalFetch
+      URL.createObjectURL = originalCreateObjectURL
+    }
+  })
+
   it('requires at least one non-empty custom rule', () => {
     mocks.query.mockImplementation((fn) => fn === 'circles.creationEligibility' ? { eligible: true, reason: null } : [])
     render(<CircleIndexPage />)

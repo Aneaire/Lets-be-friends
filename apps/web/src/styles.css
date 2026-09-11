@@ -43,6 +43,18 @@
 .circle-rule-picker li > .btn { margin-left: 0.5rem; }
 .circle-rule-add { justify-self: start; }
 .circle-form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.circle-create-images { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.circle-create-image { display: grid; gap: 0.6rem; align-content: start; }
+.circle-dropzone { display: grid; gap: 0.6rem; justify-items: center; border: 1px dashed var(--border-strong); border-radius: 10px; background: transparent; padding: 1rem; color: var(--text-muted); font-size: 0.8rem; font-weight: 650; text-align: center; cursor: pointer; }
+.circle-dropzone:hover { border-color: var(--accent-self); background: var(--surface); color: var(--text); }
+.circle-dropzone[data-dragging="true"] { border-color: var(--accent-social); background: var(--accent-social-soft); color: var(--text); }
+.circle-dropzone:focus-within { outline: 2px solid var(--accent-social); outline-offset: 2px; }
+.circle-dropzone-caption { font-size: 0.82rem; }
+.circle-dropzone-hint { display: grid; gap: 0.35rem; justify-items: center; color: var(--text-soft); font-weight: 400; line-height: 1.45; }
+.circle-dropzone > small { color: var(--text-soft); font-weight: 400; line-height: 1.4; }
+@media (max-width: 767px) {
+  .circle-create-images { grid-template-columns: 1fr; }
+}
 
 .circles-index-header h1 {
   margin: 0.2rem 0 0;
@@ -155,10 +167,14 @@
 
 .circle-back-link { display: inline-block; margin-bottom: 1rem; color: var(--text-muted); font-size: 0.82rem; text-decoration: none; }
 .circle-back-link::before { content: "← "; }
-.circle-cover { display: block; width: 100%; aspect-ratio: 4 / 1; object-fit: cover; border: 1px solid var(--border); background: var(--surface); margin-bottom: 1rem; }
+.circle-cover { display: block; width: 100%; aspect-ratio: 4 / 1; max-height: 11rem; object-fit: cover; border: 1px solid var(--border); background: var(--surface); margin-bottom: 1rem; }
+.circle-workspace-header:has(.circle-cover) .circle-title-line { margin-top: -2.4rem; padding-inline: 0.5rem; }
+.circle-workspace-header:has(.circle-cover) .circle-icon-large,
+.circle-workspace-header:has(.circle-cover) .circle-marker-large { width: 4.5rem; height: 4.5rem; margin-top: 0; border: 2px solid var(--surface); }
+.circle-workspace-header:has(.circle-cover) .circle-icon-large { box-shadow: 0 0 0 1px var(--border); }
 .circle-icon { width: 2.5rem; height: 2.5rem; flex: 0 0 auto; border: 1px solid var(--border-strong); border-radius: 50%; object-fit: cover; background: var(--surface); }
-.circle-icon-large { width: 2.75rem; height: 2.75rem; margin-top: 0.15rem; }
-.circle-marker-large { width: 2.75rem; height: 2.75rem; margin-top: 0.15rem; }
+.circle-icon-large { width: 3.5rem; height: 3.5rem; margin-top: 0.15rem; }
+.circle-marker-large { width: 3.5rem; height: 3.5rem; margin-top: 0.15rem; }
 .circle-preview-section { margin-top: 2rem; display: grid; gap: 0.75rem; }
 .circle-image-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .circle-image-card { display: grid; gap: 0.75rem; align-content: start; border: 1px solid var(--border); padding: 1rem; }
@@ -175,8 +191,10 @@
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 0.6fr);
   gap: 1.25rem;
+  align-items: start;
   margin-top: 1.5rem;
 }
+.circle-preview-grid + .circle-events-carousel { margin-top: 1.75rem; }
 .circle-preview-panel,
 .circle-join-panel,
 .circle-about-grid > * { border: 1px solid var(--border); background: var(--surface); padding: clamp(1rem, 2vw, 1.5rem); }
@@ -186,6 +204,10 @@
 .circle-preview-grid h3 { margin: 1.25rem 0 0.25rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-soft); }
 .circle-preview-panel > p { margin: 0.5rem 0 0; color: var(--text-muted); font-size: 0.9rem; line-height: 1.55; }
 .circle-preview-panel > p.text-meta { font-size: 0.82rem; }
+.circle-visibility-list { display: grid; margin: 0.4rem 0 0; padding: 0; list-style: none; color: var(--text-muted); font-size: 0.82rem; line-height: 1.5; }
+.circle-visibility-list li { border-top: 1px solid var(--rule); padding: 0.45rem 0; }
+.circle-visibility-list li:first-child { border-top: 0; padding-top: 0; }
+.circle-visibility-list li:last-child { padding-bottom: 0; }
 .circle-join-panel { display: grid; gap: 0.8rem; align-content: start; }
 @media (min-width: 901px) {
   .circle-join-panel { position: sticky; top: 5rem; }

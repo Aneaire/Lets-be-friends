@@ -152,6 +152,30 @@ describe('Circle events', () => {
     expect(await member.query(api.circleEvents.list, { circleId })).toMatchObject([{ state: 'scheduled' }])
   })
 
+  it('shows upcoming events to outsiders only on public Circles', async () => {
+    const t = convexTest(schema, convexModules)
+    const hostId = await insertUser(t, 'host', { verified: true })
+    await insertUser(t, 'outsider')
+    const circleId = await createCircle(t, hostId)
+    const host = t.withIdentity({ subject: 'host' })
+    const outsider = t.withIdentity({ subject: 'outsider' })
+
+    await host.mutation(api.circleEvents.create, { circleId, ...eventInput() })
+    await expect(outsider.query(api.circleEvents.list, { circleId }))
+      .rejects.toThrow('Active Circle membership required')
+
+    await host.mutation(api.circles.updateSettings, {
+      circleId,
+      discoverability: 'listed',
+      discussionVisibility: 'signed_in',
+      memberListVisibility: 'signed_in',
+      joinPolicy: 'approval_required',
+    })
+    const events = await outsider.query(api.circleEvents.list, { circleId })
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({ title: 'Coffee crawl' })
+  })
+
   it('hides past events from the upcoming list', async () => {
     const t = convexTest(schema, convexModules)
     const hostId = await insertUser(t, 'host', { verified: true })

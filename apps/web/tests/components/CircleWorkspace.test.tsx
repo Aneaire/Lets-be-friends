@@ -115,6 +115,16 @@ describe('Circle workspace', () => {
     expect(screen.getByRole('heading', { name: 'Coffee Friends' })).toBeTruthy()
     expect(screen.getAllByText('Talk about coffee.')).toHaveLength(1)
     expect(screen.getByRole('heading', { name: 'About this Circle' })).toBeTruthy()
+    expect(screen.getByText('4 members')).toBeTruthy()
+  })
+
+  it('uses the singular member label for a Circle of one', () => {
+    mocks.query.mockReturnValue({ ...preview, memberCount: 1 })
+    mocks.mutation.mockReturnValue(vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    expect(screen.getByText('1 member')).toBeTruthy()
+    expect(screen.queryByText('1 members')).toBeNull()
   })
 
   it('shows upcoming events to members without leader controls or a separate pinned card', () => {
@@ -180,6 +190,49 @@ describe('Circle workspace', () => {
     expect(screen.getByLabelText('Event title')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Removed content' })).toBeTruthy()
     expect(screen.getByText('Nothing is waiting to be restored.')).toBeTruthy()
+  })
+
+  it('shows upcoming events read-only to visitors of a public Circle', () => {
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: null, canReadDiscussion: true, canReadMembers: false }
+      if (fn === 'circleEvents.list') return [{ _id: 'event-1', title: 'Coffee crawl', details: 'Meet at the plaza.', startsAt: Date.now() + 86_400_000, location: 'Cebu City', mode: 'in_person', state: 'scheduled', thumbnailUrl: undefined, organizerDisplayName: 'Maya' }]
+      return undefined
+    })
+    mocks.mutation.mockReturnValue(vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    expect(screen.getByRole('heading', { name: 'Upcoming events' })).toBeTruthy()
+    expect(screen.getByText('Coffee crawl')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Plan event' })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Request to join' })).toBeTruthy()
+  })
+
+  it('saves public access as signed-in visibility for discussions and members', async () => {
+    const updateSettings = vi.fn().mockResolvedValue(undefined)
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'host', canRead: true, canWrite: true, canModerate: true, isCanonicalHost: true, pendingTransferForViewer: false }
+      if (fn === 'circles.hostManagement') return {
+        circle: { name: 'Coffee Friends', purpose: 'Talk about coffee.', category: 'Coffee', rules: ['Be kind.'], mode: 'both', approximateArea: 'Cebu', state: 'active', settings: { discoverability: 'listed', discussionVisibility: 'members_only', memberListVisibility: 'members_only', joinPolicy: 'approval_required' }, iconUrl: undefined, coverUrl: undefined },
+        activeMembers: [],
+        bannedMembers: [],
+        pendingTransfer: null,
+      }
+      return undefined
+    })
+    mocks.mutation.mockImplementation((fn) => fn === 'circles.updateSettings' ? updateSettings : vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Manage' }))
+    fireEvent.change(screen.getByLabelText(/Circle access/), { target: { value: 'public' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save privacy settings' }))
+
+    await waitFor(() => expect(updateSettings).toHaveBeenCalledWith({
+      circleId: 'circle-1',
+      discoverability: 'listed',
+      discussionVisibility: 'signed_in',
+      memberListVisibility: 'signed_in',
+      joinPolicy: 'approval_required',
+    }))
   })
 
   it('renders a private unavailable state without Circle content', () => {
@@ -406,9 +459,9 @@ describe('Circle workspace', () => {
     mocks.mutation.mockReturnValue(vi.fn())
 
     render(<CircleWorkspacePage circleId="circle-1" />)
-    expect(screen.getByText('Unlisted. This Circle is reachable only by direct link.')).toBeTruthy()
-    expect(screen.getByText('Discussions are visible to signed-in members. Join to post, react, or comment.')).toBeTruthy()
-    expect(screen.getByText('The member list is visible to signed-in members.')).toBeTruthy()
+    expect(screen.getByText('Unlisted. Reachable only by direct link.')).toBeTruthy()
+    expect(screen.getByText('Discussions open to signed-in members. Join to post, react, or comment.')).toBeTruthy()
+    expect(screen.getByText('Member list open to signed-in members.')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Join this Circle' })).toBeTruthy()
     expect(screen.getByText('This Circle admits new members instantly. Joining adds you as an active member right away.')).toBeTruthy()
     fireEvent.click(screen.getByRole('checkbox', { name: /read and agree/i }))
