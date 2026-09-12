@@ -29,6 +29,7 @@ import { dedupeFeedItems, maximumPostMediaItems, postMediaValidationError } from
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { MyCirclesModule } from '@/features/circles/CircleEntryPoints'
+import { MyGatheringsModule } from '@/features/gatherings/GatheringEntryPoints'
 
 type FeedFilter = 'for_you' | 'following' | 'saved'
 type FeedItem = FunctionReturnType<typeof generatedApi.social.feedPage>['page'][number]
@@ -281,6 +282,7 @@ function ConnectedHome() {
       )}
 
       {signedIn ? <MyCirclesModule /> : null}
+      {signedIn ? <MyGatheringsModule /> : null}
 
       <SegmentedControl
         label="Community feed"

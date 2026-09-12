@@ -5,6 +5,7 @@ import {
   BadgeCheck,
   Bell,
   CalendarCheck,
+  CalendarHeart,
   CheckCheck,
   Compass,
   CircleDot,
@@ -458,6 +459,7 @@ function NavigationIcon({ id }: { id: ReturnType<typeof activePrimaryNavigation>
   if (id === 'messages') return <MessageCircle size={20} aria-hidden="true" />
   if (id === 'bookings') return <CalendarCheck size={20} aria-hidden="true" />
   if (id === 'circles') return <CircleDot size={20} aria-hidden="true" />
+  if (id === 'gatherings') return <CalendarHeart size={20} aria-hidden="true" />
   return <UserRoundCog size={20} aria-hidden="true" />
 }
 

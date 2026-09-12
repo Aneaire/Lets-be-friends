@@ -65,6 +65,8 @@ function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
           <Stack.Screen name="notifications" />
           <Stack.Screen name="circles/index" />
           <Stack.Screen name="circles/[id]" />
+          <Stack.Screen name="gatherings/index" />
+          <Stack.Screen name="gatherings/[id]" />
           <Stack.Screen name="post-comments/[id]" />
           <Stack.Screen name="wallet" />
           <Stack.Screen name="safety" />

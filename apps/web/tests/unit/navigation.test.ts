@@ -7,16 +7,18 @@ describe('application navigation', () => {
       { label: 'Home', to: '/social' },
       { label: 'Explore', to: '/discover' },
       { label: 'Circles', to: '/circles' },
+      { label: 'Gatherings', to: '/gatherings' },
       { label: 'Messages', to: '/messages' },
       { label: 'Bookings', to: '/app' },
     ])
   })
 
-  it('keeps the sidebar focused on discovery and Circle destinations', () => {
+  it('keeps the sidebar focused on discovery, Circle, and Gathering destinations', () => {
     expect(sidebarNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
       { label: 'Home', to: '/social' },
       { label: 'Explore', to: '/discover' },
       { label: 'Circles', to: '/circles' },
+      { label: 'Gatherings', to: '/gatherings' },
     ])
   })
 
@@ -67,6 +69,8 @@ describe('application navigation', () => {
     expect(isWorkspacePath('/wallet')).toBe(true)
     expect(isWorkspacePath('/get-verified')).toBe(true)
     expect(isWorkspacePath('/nearby')).toBe(true)
+    expect(isWorkspacePath('/gatherings')).toBe(true)
+    expect(isWorkspacePath('/gatherings/gathering-1')).toBe(true)
     expect(isWorkspacePath('/discover')).toBe(false)
   })
 })

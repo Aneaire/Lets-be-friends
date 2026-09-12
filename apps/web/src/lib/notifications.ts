@@ -3,6 +3,7 @@ export type NotificationDestination =
   | { type: 'conversation'; conversationId: string; messageId?: string }
   | { type: 'post'; postId: string; commentId?: string }
   | { type: 'circle'; circleId: string; postId?: string; commentId?: string }
+  | { type: 'gathering'; gatheringId: string }
   | { type: 'companion' }
   | { type: 'identity' }
   | { type: 'profile'; userId: string }
@@ -18,6 +19,7 @@ export function webDestination(destination: NotificationDestination) {
     case 'conversation': return { to: '/messages' as const, search: { conversationId: destination.conversationId, ...(destination.messageId ? { messageId: destination.messageId } : {}) } }
     case 'post': return { to: '/social' as const, search: { postId: destination.postId, ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
     case 'circle': return { to: '/circles/$circleId' as const, params: { circleId: destination.circleId }, search: { ...(destination.postId ? { postId: destination.postId } : {}), ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
+    case 'gathering': return { to: '/gatherings/$gatheringId' as const, params: { gatheringId: destination.gatheringId }, search: {} }
     case 'companion': return { to: '/companion' as const, search: {} }
     case 'identity': return { to: '/profile' as const, search: {} }
     case 'profile': return { to: '/member-profile' as const, search: { userId: destination.userId } }

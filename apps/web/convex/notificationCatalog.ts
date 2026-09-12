@@ -7,9 +7,9 @@ const MAX_PUSH_TITLE_LENGTH = 80
 export type NotificationPriority = 'attention' | 'standard'
 export type NotificationTone = 'social' | 'danger' | 'self'
 export type NotificationFamily = 'booking' | 'messaging' | 'social' | 'circle' | 'companion_account' | 'identity' | 'safety'
-export type NotificationDestinationKind = 'booking' | 'conversation' | 'post' | 'circle' | 'profile' | 'companion' | 'identity' | 'safety'
+export type NotificationDestinationKind = 'booking' | 'conversation' | 'post' | 'circle' | 'gathering' | 'profile' | 'companion' | 'identity' | 'safety'
 export type NotificationPrivacy = 'generic' | 'actor_action' | 'message_preview' | 'comment_preview'
-export type NativePushBody = 'You have a new message.' | 'Someone mentioned you.' | 'You have a booking update.' | 'You have a Circle update.' | 'Your identity approval expires soon.' | 'Your identity approval has expired.' | 'You have a new update.'
+export type NativePushBody = 'You have a new message.' | 'Someone mentioned you.' | 'You have a booking update.' | 'You have a Circle update.' | 'You have a Gathering invite.' | 'You have a Gathering update.' | 'Your identity approval expires soon.' | 'Your identity approval has expired.' | 'You have a new update.'
 export type NativePushPresentation = { title: string; body: string }
 
 export type NotificationCopyContext = {
@@ -160,6 +160,30 @@ export const notificationCatalog = {
   circle_lifecycle: {
     family: 'circle', status: 'active', triggers: ['circles.setState'], recipient: 'Circle members', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per Circle lifecycle change', push: { mode: 'generic', body: 'You have a Circle update.' },
     inAppCopy: systemCopy('Circle status changed', 'A Circle you joined changed status.', 'self'),
+  },
+  gathering_invite: {
+    family: 'booking', status: 'active', triggers: ['gatherings.postInvite'], recipient: 'Invited member', destination: 'gathering', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One invite notification per Gathering and recipient', push: { mode: 'generic', body: 'You have a Gathering invite.' },
+    inAppCopy: actorCopy('New Gathering invite', 'invited you to a Gathering'),
+  },
+  gathering_join_requested: {
+    family: 'booking', status: 'active', triggers: ['gatherings.requestJoin'], recipient: 'Gathering host', destination: 'gathering', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One join-request notification per Gathering and member', push: { mode: 'generic', body: 'You have a Gathering update.' },
+    inAppCopy: actorCopy('New Gathering join request', 'asked to join your Gathering'),
+  },
+  gathering_join_confirmed: {
+    family: 'booking', status: 'active', triggers: ['gatherings.decideParticipant'], recipient: 'Confirmed participant', destination: 'gathering', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One confirmation notification per Gathering and participant', push: { mode: 'generic', body: 'You have a Gathering update.' },
+    inAppCopy: systemCopy('You joined a Gathering', 'Your seat in a Gathering is confirmed.', 'self'),
+  },
+  gathering_join_declined: {
+    family: 'booking', status: 'active', triggers: ['gatherings.decideParticipant'], recipient: 'Declined participant', destination: 'gathering', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One decline notification per Gathering and participant', push: { mode: 'generic', body: 'You have a Gathering update.' },
+    inAppCopy: systemCopy('Gathering request not approved', 'A Gathering host did not confirm your request.', 'danger'),
+  },
+  gathering_participant_removed: {
+    family: 'booking', status: 'active', triggers: ['gatherings.decideParticipant'], recipient: 'Removed participant', destination: 'gathering', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One removal notification per Gathering and participant', push: { mode: 'generic', body: 'You have a Gathering update.' },
+    inAppCopy: systemCopy('Removed from a Gathering', 'A host removed you from a Gathering.', 'danger'),
+  },
+  gathering_cancelled: {
+    family: 'booking', status: 'active', triggers: ['gatherings.cancel'], recipient: 'Gathering participants', destination: 'gathering', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One cancellation notification per Gathering and participant', push: { mode: 'generic', body: 'You have a Gathering update.' },
+    inAppCopy: systemCopy('Gathering cancelled', 'A Gathering you joined was cancelled.', 'danger'),
   },
   review_received: {
     family: 'social', status: 'active', triggers: ['reviews.submit'], recipient: 'Other booking participant', destination: 'booking', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: false, dedupe: 'One notification per submitted review', push: { mode: 'actor_action', action: 'Left you a review.', fallbackBody: 'You have a new update.' },

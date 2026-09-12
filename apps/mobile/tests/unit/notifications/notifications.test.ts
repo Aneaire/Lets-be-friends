@@ -39,6 +39,10 @@ describe('mobile notification helpers', () => {
     })
   })
 
+  it('opens Gathering notifications at the Gathering destination', () => {
+    expect(mobileNotificationRoute({ type: 'gathering', gatheringId: 'gathering-1' })).toEqual({ pathname: '/gatherings/[id]', params: { id: 'gathering-1' } })
+  })
+
   it('groups and ages notification rows consistently', () => {
     const now = 3 * 24 * 60 * 60 * 1000
     expect(notificationGroup({ priority: 'attention' }, now)).toBe('attention')

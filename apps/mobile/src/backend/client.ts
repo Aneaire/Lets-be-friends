@@ -55,8 +55,7 @@ export const mobileApi = {
     create: generatedApi.reports.create,
   },
   circles: {
-    discover: generatedApi.circles.discover,
-    creationEligibility: generatedApi.circles.creationEligibility,
+    discover: generatedApi.circles.discover,    creationEligibility: generatedApi.circles.creationEligibility,
     mine: generatedApi.circles.mine,
     detail: generatedApi.circles.detail,
     hostManagement: generatedApi.circles.hostManagement,
@@ -83,6 +82,17 @@ export const mobileApi = {
     setPostRemoved: generatedApi.circles.setPostRemoved,
     setCommentRemoved: generatedApi.circles.setCommentRemoved,
     setState: generatedApi.circles.setState,
+  },
+  gatherings: {
+    mine: generatedApi.gatherings.mine,
+    get: generatedApi.gatherings.get,
+    listForCircle: generatedApi.gatherings.listForCircle,
+    create: generatedApi.gatherings.create,
+    postInvite: generatedApi.gatherings.postInvite,
+    requestJoin: generatedApi.gatherings.requestJoin,
+    decideParticipant: generatedApi.gatherings.decideParticipant,
+    leave: generatedApi.gatherings.leave,
+    cancel: generatedApi.gatherings.cancel,
   },
   safety: {
     relationship: generatedApi.safety.relationship,
@@ -163,5 +173,6 @@ export type StorageId = Id<'_storage'>
 export type UserId = Id<'users'>
 export type CircleId = Id<'circles'>
 export type CircleMembershipId = Id<'circleMemberships'>
+export type GatheringId = Id<'gatherings'>
 export type PaymongoTopUpId = Id<'paymongoTopUps'>
 export type WithdrawalId = Id<'withdrawals'>

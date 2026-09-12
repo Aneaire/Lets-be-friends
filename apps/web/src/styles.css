@@ -15074,3 +15074,148 @@ button.companion-preview-avatar {
     font-size: 0.9rem;
   }
 }
+
+/* Gatherings: a host-funded group experience with confirmed seats. The seat
+   count and state are written out in words so status never relies on color. */
+.gatherings-page,
+.gathering-workspace {
+  width: min(72rem, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: clamp(1.5rem, 4vw, 3.5rem) 0 6rem;
+  color: var(--text);
+}
+
+.gatherings-header,
+.gathering-workspace-header {
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: clamp(1.25rem, 3vw, 2rem);
+}
+
+.gatherings-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.gathering-workspace-header h1 {
+  margin: 0.25rem 0 0;
+  max-width: 46rem;
+  overflow-wrap: break-word;
+  font-family: "Bricolage Grotesque Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(1.6rem, 1.1rem + 2.4vw, 2.5rem);
+  font-weight: 650;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.gatherings-header h1 {
+  margin: 0.2rem 0 0;
+  font-family: "Bricolage Grotesque Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(2.35rem, 7vw, 5.4rem);
+  font-weight: 650;
+  line-height: 0.92;
+  letter-spacing: -0.055em;
+}
+
+.gatherings-header p {
+  max-width: 42rem;
+  margin: 0.9rem 0 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.gatherings-header-actions { display: flex; align-items: center; gap: 1rem; }
+
+.gatherings-section { margin-top: clamp(2.25rem, 5vw, 4rem); }
+
+.gathering-create-panel { margin-top: 1.5rem; border: 1px solid var(--accent-self-line); background: var(--surface); padding: clamp(1rem, 3vw, 2rem); }
+.gathering-create-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+.gathering-create-heading h2 { margin: 0.2rem 0 0; font-family: "Bricolage Grotesque Variable", Inter, sans-serif; font-size: 1.65rem; letter-spacing: -0.035em; }
+.gathering-create-note { margin: 0.5rem 0 0; border-left: 2px solid var(--accent-self); padding-left: 0.8rem; color: var(--text-muted); font-size: 0.88rem; }
+.gathering-form { display: grid; gap: 1.25rem; margin-top: 1.25rem; }
+.gathering-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.gathering-form-grid label { display: grid; align-content: start; gap: 0.35rem; color: var(--text-muted); font-size: 0.8rem; font-weight: 650; }
+.gathering-form-grid label > small { color: var(--text-soft); font-weight: 400; line-height: 1.4; }
+.gathering-form-grid textarea { min-height: 6.5rem; resize: vertical; }
+.gathering-form-wide { grid-column: 1 / -1; }
+.gathering-form-datetime { display: grid; gap: 0.6rem; }
+.gathering-form-datetime > .label { color: var(--text-muted); font-size: 0.8rem; font-weight: 650; }
+.gathering-form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+
+.gathering-list { display: grid; }
+.gathering-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; border-bottom: 1px solid var(--rule); padding: 1.2rem 0; color: inherit; text-decoration: none; }
+.gathering-row:hover .gathering-row-title strong,
+.gathering-row:focus-visible .gathering-row-title strong { color: var(--accent-social); }
+.gathering-row:focus-visible { outline: 2px solid var(--accent-social); outline-offset: 4px; }
+.gathering-row-marker { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border: 1px solid var(--accent-social-line); border-radius: 999px; background: var(--surface); color: var(--accent-social); }
+.gathering-row-marker[data-cancelled="true"] { border-color: var(--border-strong); color: var(--text-soft); }
+.gathering-row-copy { min-width: 0; display: grid; gap: 0.28rem; color: var(--text-muted); }
+.gathering-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; color: var(--text); }
+.gathering-row-title strong { font-family: "Bricolage Grotesque Variable", Inter, sans-serif; font-size: 1.08rem; transition: color 140ms ease; }
+.gathering-row-meta { display: flex; flex-wrap: wrap; gap: 0.8rem; color: var(--text-soft); font-size: 0.78rem; }
+.gathering-row-meta span { display: inline-flex; align-items: center; gap: 0.28rem; }
+.gathering-row-when { display: grid; justify-items: end; gap: 0.2rem; color: var(--accent-social); text-align: right; font-size: 0.78rem; font-weight: 700; }
+.gathering-row-when small { color: var(--text-soft); font-weight: 400; }
+
+.gathering-marker { display: grid; place-items: center; width: 3.4rem; height: 3.4rem; border: 1px solid var(--accent-social-line); border-radius: 999px; background: var(--surface); color: var(--accent-social); }
+.gathering-marker[data-state="cancelled"] { border-color: var(--border-strong); color: var(--text-soft); }
+.gathering-host-line { margin: 0.35rem 0 0; color: var(--text-muted); }
+
+.gathering-workspace-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 0.6fr); gap: 1.25rem; align-items: start; margin-top: 1.5rem; }
+.gathering-main, .gathering-side { display: grid; gap: 1.5rem; align-content: start; min-width: 0; }
+.gathering-workspace-grid .circle-section-heading { margin-top: 0; }
+
+.gathering-participant-list { display: grid; }
+.gathering-participant { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; border-bottom: 1px solid var(--rule); padding: 0.9rem 0; }
+.gathering-participant > div:nth-child(2) { display: flex; align-items: center; gap: 0.5rem; }
+.gathering-participant-actions { display: flex; gap: 0.35rem; }
+
+.gathering-invite-composer { display: grid; gap: 0.8rem; border: 1px solid var(--border); background: var(--surface); padding: 1rem; }
+.gathering-invite-composer form { display: grid; gap: 0.75rem; }
+.gathering-invite-composer textarea { min-height: 5.5rem; resize: vertical; }
+.gathering-invite-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 0.75rem; }
+.gathering-invite-row label { display: grid; gap: 0.35rem; color: var(--text-muted); font-size: 0.8rem; font-weight: 650; }
+
+.gathering-action-panel { display: grid; gap: 0.8rem; align-content: start; border: 1px solid var(--border); background: var(--surface); padding: clamp(1rem, 2vw, 1.5rem); }
+.gathering-action-panel h2 { margin: 0; font-family: "Bricolage Grotesque Variable", Inter, sans-serif; font-size: 1.05rem; letter-spacing: -0.015em; }
+.gathering-host { display: flex; align-items: center; gap: 0.55rem; }
+@media (min-width: 901px) {
+  .gathering-side { position: sticky; top: 5rem; }
+}
+
+.gathering-invite-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.7rem; border: 1px solid var(--accent-social-line); background: var(--accent-social-soft); margin-top: 0.75rem; padding: 0.7rem 0.85rem; color: inherit; text-decoration: none; }
+.gathering-invite-card:hover .btn, .gathering-invite-card:focus-visible .btn { filter: brightness(0.96); }
+.gathering-invite-card:focus-visible { outline: 2px solid var(--accent-social); outline-offset: 2px; }
+.gathering-invite-copy { display: grid; gap: 0.15rem; min-width: 0; }
+.gathering-invite-copy strong { font-size: 0.86rem; }
+.gathering-invite-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 0.76rem; }
+
+@media (max-width: 900px) {
+  .gathering-workspace-grid { grid-template-columns: 1fr; }
+  .gathering-side { position: static; }
+}
+
+@media (max-width: 767px) {
+  .gatherings-page, .gathering-workspace { width: min(100% - 1rem, 44rem); padding-top: 1rem; }
+  .gatherings-header h1 { font-size: clamp(2.2rem, 14vw, 3.8rem); }
+  .gathering-workspace-header h1 { font-size: clamp(1.5rem, 7vw, 2.1rem); }
+  .gathering-form-grid { grid-template-columns: 1fr; }
+  .gathering-form-wide { grid-column: auto; }
+  .gathering-row { grid-template-columns: auto minmax(0, 1fr); }
+  .gathering-row-when { grid-column: 2; justify-items: start; text-align: left; }
+  .gathering-participant { grid-template-columns: auto minmax(0, 1fr); }
+  .gathering-participant-actions { grid-column: 2; flex-wrap: wrap; }
+  .gatherings-header-actions { align-items: flex-end; flex-direction: column-reverse; }
+}
+
+@media (max-width: 420px) {
+  .gathering-invite-row { grid-template-columns: 1fr; }
+  .gathering-invite-card { grid-template-columns: auto minmax(0, 1fr); }
+  .gathering-invite-card .btn { grid-column: 2; justify-self: start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gathering-row-title strong { transition: none; }
+}

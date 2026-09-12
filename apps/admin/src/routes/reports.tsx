@@ -6,7 +6,7 @@ import { ActionNote } from '../design-system/molecules/ActionNote'
 import { AdminWorklistPagePresentation } from '../design-system/templates/AdminWorklistPagePresentation'
 
 type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed' | 'all'
-type TargetType = 'all' | 'profile' | 'booking' | 'message' | 'review' | 'post' | 'comment' | 'user' | 'circle'
+type TargetType = 'all' | 'profile' | 'booking' | 'message' | 'review' | 'post' | 'comment' | 'user' | 'circle' | 'gathering'
 
 export const Route = createFileRoute('/reports')({ component: ReportsPage })
 
@@ -23,7 +23,7 @@ function ReportsPage() {
     <AdminWorklistPagePresentation
       eyebrow="Moderation"
       title="Reports"
-      description="Triage member-submitted concerns about profiles, bookings, messages, reviews, posts, comments, users, and Circles."
+      description="Triage member-submitted concerns about profiles, bookings, messages, reviews, posts, comments, users, Circles, and Gatherings."
       filterControls={(
         <>
           <label className="field-row">
@@ -48,6 +48,7 @@ function ReportsPage() {
               <option value="comment">Comments</option>
               <option value="user">Users</option>
               <option value="circle">Circles</option>
+              <option value="gathering">Gatherings</option>
             </select>
           </label>
         </>

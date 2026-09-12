@@ -7,7 +7,7 @@ import { requireViewer } from './lib'
 import { buildInAppNotificationCopy, notificationDefinition, type NotificationKind as CatalogNotificationKind } from './notificationCatalog'
 import { areUsersBlocked, isHiddenByPreference, preference } from './safety'
 import { hasCurrentIdentityApproval } from './identityVerification'
-import { isCircleParticipantRole } from './circleAuthorization'
+import { isCircleParticipantRole, getCircleAuthorization } from './circleAuthorization'
 
 export type NotificationKind = CatalogNotificationKind
 export type NotificationPriority = Doc<'notifications'>['priority']
@@ -17,6 +17,7 @@ export type NotificationDestination =
   | { type: 'conversation'; conversationId: string; messageId?: string }
   | { type: 'post'; postId: string; commentId?: string }
   | { type: 'circle'; circleId: string; postId?: string; commentId?: string }
+  | { type: 'gathering'; gatheringId: string }
   | { type: 'companion' }
   | { type: 'identity' }
   | { type: 'profile'; userId: string }
@@ -35,7 +36,8 @@ export type CreateNotificationInput = {
   postId?: Id<'posts'>
   commentId?: Id<'postComments'>
   circleId?: Id<'circles'>
-  reviewId?: Id<'reviews'>
+  gatheringId?: Id<'gatherings'>
+  reviewId?: Id<'reviews'> 
   companionProfileId?: Id<'companionProfiles'>
   verificationRequestId?: Id<'verificationRequests'>
   reportId?: Id<'reports'>
@@ -165,7 +167,7 @@ async function requireOwnedNotification(ctx: { db: any }, notificationId: Id<'no
   return notification
 }
 
-async function presentNotification(ctx: { db: any }, notification: Doc<'notifications'>, viewerId: Id<'users'>) {
+async function presentNotification(ctx: { db: any; auth: any }, notification: Doc<'notifications'>, viewerId: Id<'users'>) {
   const actor = notification.actorUserId ? await ctx.db.get(notification.actorUserId) as Doc<'users'> | null : null
   const actorHidden = actor && notification.actorUserId
     ? await isHiddenByPreference(ctx, viewerId, notification.actorUserId)
@@ -200,7 +202,7 @@ async function presentNotification(ctx: { db: any }, notification: Doc<'notifica
   }
 }
 
-async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'>, viewerId: Id<'users'>): Promise<{
+async function resolveTarget(ctx: { db: any; auth: any }, notification: Doc<'notifications'>, viewerId: Id<'users'>): Promise<{
   available: boolean
   destination: NotificationDestination
   category?: string
@@ -288,6 +290,29 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
       },
     }
   }
+  if (destination === 'gathering') {
+    if (!notification.gatheringId) return { available: false, destination: { type: 'notifications' } }
+    const gathering = await ctx.db.get(notification.gatheringId) as Doc<'gatherings'> | null
+    if (!gathering) return { available: false, destination: { type: 'notifications' } }
+    const isHost = gathering.hostUserId === viewerId
+    const participant = isHost
+      ? null
+      : await ctx.db.query('gatheringParticipants').withIndex('by_gathering_user', (q: any) => q.eq('gatheringId', gathering._id).eq('userId', viewerId)).unique() as Doc<'gatheringParticipants'> | null
+    if (!isHost && !participant) {
+      // An Invite notification can reach a Circle member before they request a
+      // seat. Keep the target available while they can still read an Invite.
+      const invites = await ctx.db.query('posts').withIndex('by_gathering', (q: any) => q.eq('gatheringId', gathering._id)).collect() as Doc<'posts'>[]
+      let canReadInvite = false
+      for (const post of invites) {
+        if (post.hidden || post.deletedAt || post.circleRemovedAt) continue
+        if (!post.circleId) { canReadInvite = true; break }
+        const access = await getCircleAuthorization(ctx, post.circleId)
+        if (access.canReadDiscussion) { canReadInvite = true; break }
+      }
+      if (!canReadInvite) return { available: false, destination: { type: 'notifications' } }
+    }
+    return { available: true, destination: { type: 'gathering', gatheringId: String(gathering._id) }, category: gathering.category }
+  }
   if (destination === 'companion') {
     if (!notification.companionProfileId) return { available: false, destination: { type: 'notifications' } }
     const companion = await ctx.db.get(notification.companionProfileId)
@@ -309,7 +334,7 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
   return { available: false, destination: { type: 'notifications' } }
 }
 
-const circleActivityKinds = new Set<NotificationKind>(['circle_reply', 'circle_mention', 'circle_announcement', 'circle_reaction'])
+const circleActivityKinds = new Set<NotificationKind>(['circle_reply', 'circle_mention', 'circle_announcement', 'circle_reaction', 'gathering_invite'])
 
 async function visibleNotifications(ctx: { db: any }, rows: Doc<'notifications'>[], viewerId: Id<'users'>) {
   const checks = await Promise.all(rows.map(async (row) => {

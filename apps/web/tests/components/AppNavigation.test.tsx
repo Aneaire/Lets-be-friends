@@ -131,14 +131,15 @@ describe('header primary actions', () => {
 })
 
 describe('primary navigation surfaces', () => {
-  it('adds Circles to the desktop rail', () => {
+  it('adds Circles and Gatherings to the desktop rail', () => {
     render(<DesktopPrimaryNavigation activeItem="home" />)
 
     const nav = screen.getByRole('navigation', { name: /primary navigation/i })
-    expect(nav.querySelectorAll('a.primary-nav-link')).toHaveLength(3)
+    expect(nav.querySelectorAll('a.primary-nav-link')).toHaveLength(4)
     expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Explore' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Circles' }).getAttribute('href')).toBe('/circles')
+    expect(screen.getByRole('link', { name: 'Gatherings' }).getAttribute('href')).toBe('/gatherings')
     expect(screen.queryByRole('link', { name: 'Messages' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Bookings' })).toBeNull()
   })

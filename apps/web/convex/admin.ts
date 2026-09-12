@@ -13,7 +13,7 @@ const verificationStatusOrAll = v.union(v.literal('not_ready'), v.literal('pendi
 const companionStatusOrAll = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'), v.literal('all'))
 const reportStatus = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'))
 const reportStatusOrAll = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'), v.literal('all'))
-const reportTargetTypeOrAll = v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('circle'), v.literal('all'))
+const reportTargetTypeOrAll = v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('circle'), v.literal('gathering'), v.literal('all'))
 const visibility = v.union(v.literal('visible'), v.literal('hidden'), v.literal('all'))
 
 async function requireAdmin(ctx: any) {
@@ -720,6 +720,10 @@ async function describeReportTarget(ctx: any, report: { targetType: string; targ
   if (report.targetType === 'circle') {
     const circle = await safeGet(ctx, report.targetId)
     return circle?.name ? `Circle: ${circle.name}` : 'Circle'
+  }
+  if (report.targetType === 'gathering') {
+    const gathering = await safeGet(ctx, report.targetId)
+    return gathering?.category ? `Gathering: ${gathering.category}` : 'Gathering'
   }
   return report.targetType
 }

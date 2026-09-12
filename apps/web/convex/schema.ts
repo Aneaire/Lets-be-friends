@@ -149,6 +149,16 @@ const circleMembershipState = v.union(
   v.literal('banned'),
 )
 const circleRole = v.union(v.literal('member'), v.literal('moderator'), v.literal('host'))
+const bookingKind = v.union(v.literal('solo'), v.literal('group'))
+const gatheringState = v.union(v.literal('open'), v.literal('closed'), v.literal('cancelled'))
+const gatheringParticipantState = v.union(
+  v.literal('requested'),
+  v.literal('confirmed'),
+  v.literal('declined'),
+  v.literal('removed'),
+  v.literal('left'),
+)
+const gatheringGuestListVisibility = v.union(v.literal('confirmed_only'), v.literal('public'))
 export default defineSchema({
   users: defineTable({
     clerkUserId: v.string(),
@@ -345,6 +355,8 @@ export default defineSchema({
   bookings: defineTable({
     memberId: v.id('users'),
     companionProfileId: v.id('companionProfiles'),
+    // Missing values resolve to a solo booking for legacy rows.
+    kind: v.optional(bookingKind),
     category: v.string(),
     mode: v.union(v.literal('online'), v.literal('in_person')),
     requestedAt: v.number(),
@@ -637,6 +649,7 @@ export default defineSchema({
     postId: v.optional(v.id('posts')),
     commentId: v.optional(v.id('postComments')),
     circleId: v.optional(v.id('circles')),
+    gatheringId: v.optional(v.id('gatherings')),
     reviewId: v.optional(v.id('reviews')),
     companionProfileId: v.optional(v.id('companionProfiles')),
     verificationRequestId: v.optional(v.id('verificationRequests')),
@@ -762,6 +775,7 @@ export default defineSchema({
     authorId: v.id('users'),
     circleId: v.optional(v.id('circles')),
     circleKind: v.optional(v.union(v.literal('discussion'), v.literal('announcement'))),
+    gatheringId: v.optional(v.id('gatherings')),
     circleRemovedAt: v.optional(v.number()),
     circleRemovedByUserId: v.optional(v.id('users')),
     body: v.string(),
@@ -778,7 +792,7 @@ export default defineSchema({
     savedCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_author', ['authorId']).index('by_author_hidden_created_at', ['authorId', 'hidden', 'createdAt']).index('by_author_circle_created_at', ['authorId', 'circleId', 'createdAt']).index('by_created_at', ['createdAt']).index('by_circle_created_at', ['circleId', 'createdAt']),
+  }).index('by_author', ['authorId']).index('by_author_hidden_created_at', ['authorId', 'hidden', 'createdAt']).index('by_author_circle_created_at', ['authorId', 'circleId', 'createdAt']).index('by_created_at', ['createdAt']).index('by_circle_created_at', ['circleId', 'createdAt']).index('by_gathering', ['gatheringId']),
   postMediaUploads: defineTable({
     userId: v.id('users'),
     storageId: v.optional(v.id('_storage')),
@@ -908,6 +922,47 @@ export default defineSchema({
     .index('by_circle', ['circleId'])
     .index('by_circle_state', ['circleId', 'state'])
     .index('by_circle_starts_at', ['circleId', 'startsAt']),
+  gatherings: defineTable({
+    hostUserId: v.id('users'),
+    companionProfileId: v.id('companionProfiles'),
+    // Set once the canonical booking is created. Optional so a Gathering record
+    // is never left dangling if booking creation is rolled back during testing.
+    bookingId: v.optional(v.id('bookings')),
+    circleId: v.optional(v.id('circles')),
+    category: v.string(),
+    mode: v.union(v.literal('online'), v.literal('in_person')),
+    startsAt: v.number(),
+    durationMinutes: v.number(),
+    capacity: v.number(),
+    // Missing values resolve to confirmed_only. Public guest lists require an
+    // explicit host choice.
+    guestListVisibility: v.optional(gatheringGuestListVisibility),
+    state: gatheringState,
+    cancelledByUserId: v.optional(v.id('users')),
+    cancelledAt: v.optional(v.number()),
+    cancellationReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_host', ['hostUserId'])
+    .index('by_circle', ['circleId'])
+    .index('by_booking', ['bookingId'])
+    .index('by_companion', ['companionProfileId'])
+    .index('by_state_starts_at', ['state', 'startsAt']),
+  gatheringParticipants: defineTable({
+    gatheringId: v.id('gatherings'),
+    userId: v.id('users'),
+    state: gatheringParticipantState,
+    decidedByUserId: v.optional(v.id('users')),
+    decidedAt: v.optional(v.number()),
+    joinedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_gathering', ['gatheringId'])
+    .index('by_user', ['userId'])
+    .index('by_gathering_state', ['gatheringId', 'state'])
+    .index('by_gathering_user', ['gatheringId', 'userId']),
   memberSafetyPreferences: defineTable({
     ownerUserId: v.id('users'),
     targetUserId: v.id('users'),
@@ -948,10 +1003,11 @@ export default defineSchema({
   }).index('by_key', ['key']),
   reports: defineTable({
     reporterId: v.id('users'),
-    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('circle')),
+    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('circle'), v.literal('gathering')),
     targetId: v.string(),
     circleId: v.optional(v.id('circles')),
     bookingId: v.optional(v.id('bookings')),
+    gatheringId: v.optional(v.id('gatherings')),
     reason: v.string(),
     status: v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed')),
     settlementHoldAppliedAt: v.optional(v.number()),
@@ -960,7 +1016,7 @@ export default defineSchema({
     reviewerNote: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_status', ['status']).index('by_reporter', ['reporterId']).index('by_booking', ['bookingId']).index('by_circle', ['circleId']),
+  }).index('by_status', ['status']).index('by_reporter', ['reporterId']).index('by_booking', ['bookingId']).index('by_circle', ['circleId']).index('by_gathering', ['gatheringId']),
   auditLogs: defineTable({
     actorUserId: v.optional(v.id('users')),
     action: v.string(),

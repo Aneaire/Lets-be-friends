@@ -16,6 +16,7 @@ import { IconButton } from '@/design-system/atoms/IconButton'
 import { ActionSheet, type ActionSheetItem } from '@/design-system/molecules/ActionSheet'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { ReportAction } from '@/features/safety/ReportAction'
+import { GatheringInviteCard } from '@/features/gatherings/GatheringInviteCard'
 import { AppText } from '@/design-system/atoms/Typography'
 
 import { EditPostSheet } from './EditPostSheet'
@@ -243,6 +244,7 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
     >
       <View style={styles.postBody}>
         {post.body ? <MentionBody body={post.body} mentions={post.mentions} /> : null}
+        {post.gatheringId ? <GatheringInviteCard gatheringId={post.gatheringId} /> : null}
         <PostMediaGrid
           media={post.media}
           imagePressContext="feed"

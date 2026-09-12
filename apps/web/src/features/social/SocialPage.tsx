@@ -17,6 +17,7 @@ import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
 import { PostMediaGrid } from './PostMediaGrid'
 import { MyCirclesHomeModule } from '../circles/CircleIndexPage'
+import { GatheringInviteSummary } from '../gatherings/GatheringsPage'
 
 type FeedItem = NonNullable<FunctionReturnType<typeof api.social.feedPage>>['page'][number]
 type FeedPostItem = Extract<FeedItem, { kind: 'post' }>
@@ -597,6 +598,11 @@ export function PostRow({
           <span className="ds-post-meta-separator" aria-hidden="true">·</span>
           <span>Experience post</span>
         </>
+      ) : post.gatheringId ? (
+        <>
+          <span className="ds-post-meta-separator" aria-hidden="true">·</span>
+          <span>Gathering invite</span>
+        </>
       ) : undefined}
       actions={viewerReady ? (
         <PostActionsMenu
@@ -642,6 +648,7 @@ export function PostRow({
             </div>
           </form>
         ) : post.body ? <MentionText body={post.body} mentions={post.mentions} className="social-post-copy" /> : null}
+        {post.gatheringId && <GatheringInviteSummary gatheringId={post.gatheringId} />}
         {actionError && <p className="text-meta social-comment-error mt-2">{actionError}</p>}
         {post.media.length > 0 && <PostMediaGrid media={post.media} />}
         <PostActionBar

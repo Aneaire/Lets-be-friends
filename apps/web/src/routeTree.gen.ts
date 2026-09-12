@@ -16,6 +16,7 @@ import { Route as CirclesRouteImport } from './routes/circles'
 import { Route as CompanionRouteImport } from './routes/companion'
 import { Route as CompanionProfileRouteImport } from './routes/companion-profile'
 import { Route as DiscoverRouteImport } from './routes/discover'
+import { Route as GatheringsRouteImport } from './routes/gatherings'
 import { Route as GetVerifiedRouteImport } from './routes/get-verified'
 import { Route as MemberProfileRouteImport } from './routes/member-profile'
 import { Route as MessagesRouteImport } from './routes/messages'
@@ -30,6 +31,8 @@ import { Route as VerifyIdentityRouteImport } from './routes/verify-identity'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as CirclesIndexRouteImport } from './routes/circles.index'
 import { Route as CirclesCircleIdRouteImport } from './routes/circles.$circleId'
+import { Route as GatheringsIndexRouteImport } from './routes/gatherings.index'
+import { Route as GatheringsGatheringIdRouteImport } from './routes/gatherings.$gatheringId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -64,6 +67,11 @@ const CompanionProfileRoute = CompanionProfileRouteImport.update({
 const DiscoverRoute = DiscoverRouteImport.update({
   id: '/discover',
   path: '/discover',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GatheringsRoute = GatheringsRouteImport.update({
+  id: '/gatherings',
+  path: '/gatherings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GetVerifiedRoute = GetVerifiedRouteImport.update({
@@ -136,6 +144,16 @@ const CirclesCircleIdRoute = CirclesCircleIdRouteImport.update({
   path: '/$circleId',
   getParentRoute: () => CirclesRoute,
 } as any)
+const GatheringsIndexRoute = GatheringsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => GatheringsRoute,
+} as any)
+const GatheringsGatheringIdRoute = GatheringsGatheringIdRouteImport.update({
+  id: '/$gatheringId',
+  path: '/$gatheringId',
+  getParentRoute: () => GatheringsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -145,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
+  '/gatherings': typeof GatheringsRouteWithChildren
   '/get-verified': typeof GetVerifiedRoute
   '/member-profile': typeof MemberProfileRoute
   '/messages': typeof MessagesRoute
@@ -158,7 +177,9 @@ export interface FileRoutesByFullPath {
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
   '/circles/$circleId': typeof CirclesCircleIdRoute
+  '/gatherings/$gatheringId': typeof GatheringsGatheringIdRoute
   '/circles/': typeof CirclesIndexRoute
+  '/gatherings/': typeof GatheringsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -180,7 +201,9 @@ export interface FileRoutesByTo {
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
   '/circles/$circleId': typeof CirclesCircleIdRoute
+  '/gatherings/$gatheringId': typeof GatheringsGatheringIdRoute
   '/circles': typeof CirclesIndexRoute
+  '/gatherings': typeof GatheringsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -191,6 +214,7 @@ export interface FileRoutesById {
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
+  '/gatherings': typeof GatheringsRouteWithChildren
   '/get-verified': typeof GetVerifiedRoute
   '/member-profile': typeof MemberProfileRoute
   '/messages': typeof MessagesRoute
@@ -204,7 +228,9 @@ export interface FileRoutesById {
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
   '/circles/$circleId': typeof CirclesCircleIdRoute
+  '/gatherings/$gatheringId': typeof GatheringsGatheringIdRoute
   '/circles/': typeof CirclesIndexRoute
+  '/gatherings/': typeof GatheringsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -216,6 +242,7 @@ export interface FileRouteTypes {
     | '/companion'
     | '/companion-profile'
     | '/discover'
+    | '/gatherings'
     | '/get-verified'
     | '/member-profile'
     | '/messages'
@@ -229,7 +256,9 @@ export interface FileRouteTypes {
     | '/verify-identity'
     | '/wallet'
     | '/circles/$circleId'
+    | '/gatherings/$gatheringId'
     | '/circles/'
+    | '/gatherings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -251,7 +280,9 @@ export interface FileRouteTypes {
     | '/verify-identity'
     | '/wallet'
     | '/circles/$circleId'
+    | '/gatherings/$gatheringId'
     | '/circles'
+    | '/gatherings'
   id:
     | '__root__'
     | '/'
@@ -261,6 +292,7 @@ export interface FileRouteTypes {
     | '/companion'
     | '/companion-profile'
     | '/discover'
+    | '/gatherings'
     | '/get-verified'
     | '/member-profile'
     | '/messages'
@@ -274,7 +306,9 @@ export interface FileRouteTypes {
     | '/verify-identity'
     | '/wallet'
     | '/circles/$circleId'
+    | '/gatherings/$gatheringId'
     | '/circles/'
+    | '/gatherings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -285,6 +319,7 @@ export interface RootRouteChildren {
   CompanionRoute: typeof CompanionRoute
   CompanionProfileRoute: typeof CompanionProfileRoute
   DiscoverRoute: typeof DiscoverRoute
+  GatheringsRoute: typeof GatheringsRouteWithChildren
   GetVerifiedRoute: typeof GetVerifiedRoute
   MemberProfileRoute: typeof MemberProfileRoute
   MessagesRoute: typeof MessagesRoute
@@ -348,6 +383,13 @@ declare module '@tanstack/react-router' {
       path: '/discover'
       fullPath: '/discover'
       preLoaderRoute: typeof DiscoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gatherings': {
+      id: '/gatherings'
+      path: '/gatherings'
+      fullPath: '/gatherings'
+      preLoaderRoute: typeof GatheringsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/get-verified': {
@@ -448,6 +490,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CirclesCircleIdRouteImport
       parentRoute: typeof CirclesRoute
     }
+    '/gatherings/': {
+      id: '/gatherings/'
+      path: '/'
+      fullPath: '/gatherings/'
+      preLoaderRoute: typeof GatheringsIndexRouteImport
+      parentRoute: typeof GatheringsRoute
+    }
+    '/gatherings/$gatheringId': {
+      id: '/gatherings/$gatheringId'
+      path: '/$gatheringId'
+      fullPath: '/gatherings/$gatheringId'
+      preLoaderRoute: typeof GatheringsGatheringIdRouteImport
+      parentRoute: typeof GatheringsRoute
+    }
   }
 }
 
@@ -464,6 +520,20 @@ const CirclesRouteChildren: CirclesRouteChildren = {
 const CirclesRouteWithChildren =
   CirclesRoute._addFileChildren(CirclesRouteChildren)
 
+interface GatheringsRouteChildren {
+  GatheringsGatheringIdRoute: typeof GatheringsGatheringIdRoute
+  GatheringsIndexRoute: typeof GatheringsIndexRoute
+}
+
+const GatheringsRouteChildren: GatheringsRouteChildren = {
+  GatheringsGatheringIdRoute: GatheringsGatheringIdRoute,
+  GatheringsIndexRoute: GatheringsIndexRoute,
+}
+
+const GatheringsRouteWithChildren = GatheringsRoute._addFileChildren(
+  GatheringsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
@@ -472,6 +542,7 @@ const rootRouteChildren: RootRouteChildren = {
   CompanionRoute: CompanionRoute,
   CompanionProfileRoute: CompanionProfileRoute,
   DiscoverRoute: DiscoverRoute,
+  GatheringsRoute: GatheringsRouteWithChildren,
   GetVerifiedRoute: GetVerifiedRoute,
   MemberProfileRoute: MemberProfileRoute,
   MessagesRoute: MessagesRoute,

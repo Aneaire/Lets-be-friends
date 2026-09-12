@@ -12,7 +12,7 @@ import { BottomSheet } from '@/design-system/molecules/BottomSheet'
 import { FormField } from '@/design-system/molecules/FormField'
 import { density } from '@/theme/tokens'
 
-type ReportTarget = 'profile' | 'message' | 'review' | 'post' | 'comment' | 'user'
+type ReportTarget = 'profile' | 'message' | 'review' | 'post' | 'comment' | 'user' | 'gathering'
 
 export function ReportAction({ targetType, targetId, label, compact = false, open: controlledOpen, onOpenChange, showTrigger = true, onReported }: {
   targetType: ReportTarget

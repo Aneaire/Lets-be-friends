@@ -20,6 +20,7 @@ import type * as conversations from "../conversations.js";
 import type * as counters from "../counters.js";
 import type * as crons from "../crons.js";
 import type * as finance from "../finance.js";
+import type * as gatherings from "../gatherings.js";
 import type * as http from "../http.js";
 import type * as identityRecords from "../identityRecords.js";
 import type * as identityVerification from "../identityVerification.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   counters: typeof counters;
   crons: typeof crons;
   finance: typeof finance;
+  gatherings: typeof gatherings;
   http: typeof http;
   identityRecords: typeof identityRecords;
   identityVerification: typeof identityVerification;

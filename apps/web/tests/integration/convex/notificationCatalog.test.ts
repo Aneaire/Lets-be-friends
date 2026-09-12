@@ -9,7 +9,7 @@ import {
 
 describe('notification catalog', () => {
   it('tracks every notification kind with complete active configuration', () => {
-    expect(notificationKinds).toHaveLength(34)
+    expect(notificationKinds).toHaveLength(40)
     expect(new Set(notificationKinds).size).toBe(notificationKinds.length)
     expect(notificationKinds.slice().sort()).toEqual(Object.keys(notificationCatalog).sort())
 
@@ -21,7 +21,7 @@ describe('notification catalog', () => {
       expect(definition.recipient.trim()).not.toBe('')
       expect(definition.allowedPriorities.length).toBeGreaterThan(0)
       expect(definition.dedupe.trim()).not.toBe('')
-      expect(definition.destination).toMatch(/^(booking|conversation|post|circle|profile|companion|identity|safety)$/)
+      expect(definition.destination).toMatch(/^(booking|conversation|post|circle|gathering|profile|companion|identity|safety)$/)
       expect(definition.privacy).toMatch(/^(generic|actor_action|message_preview|comment_preview)$/)
       const policyPrivacy = definition.push.mode === 'generic'
         ? 'generic'

@@ -12,6 +12,8 @@ import {
 } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
+import type { Doc, Id } from './_generated/dataModel'
+import type { MutationCtx } from './_generated/server'
 import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
 import { ensureConversationBetween, sendBookingMessage } from './conversations'
 import { hasCurrentIdentityApproval } from './identityVerification'
@@ -85,72 +87,95 @@ export const createDraft = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (!hasCurrentIdentityApproval(viewer)) {
-      throw new Error('A current identity check and safety review are required before you can request a booking.')
-    }
-    const companion = await ctx.db.get(args.companionProfileId)
-    if (!companion || companion.status !== 'approved') throw new Error('Companion is not available for booking')
-    const companionUser = await ctx.db.get(companion.userId)
-    if (!companionUser || companionUser.suspended || !hasCurrentIdentityApproval(companionUser)) {
-      throw new Error('Companion is not currently available for new bookings')
-    }
-    if (!canBookCompanion(String(viewer._id), String(companion.userId))) throw new Error('You cannot book your own Companion profile.')
-    await requireNotBlocked(ctx, viewer._id, companion.userId)
-    if (!companion.categories.includes(args.category)) throw new Error('This experience category is not offered by the Companion')
-    if (companion.mode !== 'both' && companion.mode !== args.mode) throw new Error('This booking mode is not offered by the Companion')
-    if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new Error('Booking time must be in the future')
-    const durationMinutes = validateBookingDurationMinutes(args.durationMinutes)
-    const hourlyRateCentavos = validateCompanionHourlyRateCentavos(companion.hourlyRateCentavos ?? Number.NaN)
-    if (!memberWalletV2Enabled()) throw new Error('Member-wallet bookings are not enabled')
-    const price = calculateMemberWalletBookingPrice(hourlyRateCentavos, durationMinutes)
-    const availableCentavos = await availableMemberBookingBalance(ctx, viewer._id)
-    if (availableCentavos < price.memberTotalCentavos) {
-      throw new Error(`Insufficient booking balance. Add at least ${price.memberTotalCentavos - availableCentavos} more centavos before sending.`)
-    }
-
-    const now = Date.now()
-    const bookingId = await ctx.db.insert('bookings', {
-      memberId: viewer._id,
-      ...args,
-      durationMinutes,
-      pricingModel: price.pricingModel,
-      serviceSubtotalCentavos: price.serviceSubtotalCentavos,
-      memberBookingFeeBps: price.memberBookingFeeBps,
-      memberBookingFeeCentavos: price.memberBookingFeeCentavos,
-      memberTotalCentavos: price.memberTotalCentavos,
-      companionEarningsCentavos: price.companionEarningsCentavos,
-      currency: price.currency,
-      settlementState: 'unreserved',
-      status: 'request_sent',
-      createdAt: now,
-      updatedAt: now,
-    })
-    await writeAudit(ctx, {
-      actorUserId: viewer._id,
-      action: 'booking.request_sent',
-      targetType: 'booking',
-      targetId: String(bookingId),
-      after: price,
-    })
-    const conversationId = await ensureConversationBetween(ctx, viewer._id, companion.userId)
-    await sendBookingMessage(ctx, {
-      conversationId,
-      senderUserId: viewer._id,
-      bookingId,
-      body: bookingRequestMessage(viewer.displayName, args.category, args.mode, args.requestedAt, durationMinutes),
-    })
-    await createNotification(ctx, {
-      recipientUserId: companion.userId,
-      actorUserId: viewer._id,
-      kind: 'booking_request',
-      priority: 'attention',
-      bookingId,
-      conversationId,
-      dedupeKey: `booking:${bookingId}:request`,
-    })
-    return { bookingId, ...price }
+    return await createBookingRequest(ctx, viewer, args)
   },
 })
+
+export type BookingRequestInput = {
+  companionProfileId: Id<'companionProfiles'>
+  category: string
+  mode: 'online' | 'in_person'
+  requestedAt: number
+  durationMinutes: number
+  notes?: string
+}
+
+export async function createBookingRequest(
+  ctx: MutationCtx,
+  viewer: Doc<'users'>,
+  args: BookingRequestInput,
+  kind: 'solo' | 'group' = 'solo',
+) {
+  if (!hasCurrentIdentityApproval(viewer)) {
+    throw new Error('A current identity check and safety review are required before you can request a booking.')
+  }
+  const companion = await ctx.db.get(args.companionProfileId)
+  if (!companion || companion.status !== 'approved') throw new Error('Companion is not available for booking')
+  const companionUser = await ctx.db.get(companion.userId)
+  if (!companionUser || companionUser.suspended || !hasCurrentIdentityApproval(companionUser)) {
+    throw new Error('Companion is not currently available for new bookings')
+  }
+  if (!canBookCompanion(String(viewer._id), String(companion.userId))) throw new Error('You cannot book your own Companion profile.')
+  await requireNotBlocked(ctx, viewer._id, companion.userId)
+  if (!companion.categories.includes(args.category)) throw new Error('This experience category is not offered by the Companion')
+  if (companion.mode !== 'both' && companion.mode !== args.mode) throw new Error('This booking mode is not offered by the Companion')
+  if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new Error('Booking time must be in the future')
+  const durationMinutes = validateBookingDurationMinutes(args.durationMinutes)
+  const hourlyRateCentavos = validateCompanionHourlyRateCentavos(companion.hourlyRateCentavos ?? Number.NaN)
+  if (!memberWalletV2Enabled()) throw new Error('Member-wallet bookings are not enabled')
+  const price = calculateMemberWalletBookingPrice(hourlyRateCentavos, durationMinutes)
+  const availableCentavos = await availableMemberBookingBalance(ctx, viewer._id)
+  if (availableCentavos < price.memberTotalCentavos) {
+    throw new Error(`Insufficient booking balance. Add at least ${price.memberTotalCentavos - availableCentavos} more centavos before sending.`)
+  }
+
+  const now = Date.now()
+  const bookingId = await ctx.db.insert('bookings', {
+    memberId: viewer._id,
+    companionProfileId: args.companionProfileId,
+    kind,
+    category: args.category,
+    mode: args.mode,
+    requestedAt: args.requestedAt,
+    durationMinutes,
+    notes: args.notes,
+    pricingModel: price.pricingModel,
+    serviceSubtotalCentavos: price.serviceSubtotalCentavos,
+    memberBookingFeeBps: price.memberBookingFeeBps,
+    memberBookingFeeCentavos: price.memberBookingFeeCentavos,
+    memberTotalCentavos: price.memberTotalCentavos,
+    companionEarningsCentavos: price.companionEarningsCentavos,
+    currency: price.currency,
+    settlementState: 'unreserved',
+    status: 'request_sent',
+    createdAt: now,
+    updatedAt: now,
+  })
+  await writeAudit(ctx, {
+    actorUserId: viewer._id,
+    action: 'booking.request_sent',
+    targetType: 'booking',
+    targetId: String(bookingId),
+    after: price,
+  })
+  const conversationId = await ensureConversationBetween(ctx, viewer._id, companion.userId)
+  await sendBookingMessage(ctx, {
+    conversationId,
+    senderUserId: viewer._id,
+    bookingId,
+    body: bookingRequestMessage(viewer.displayName, args.category, args.mode, args.requestedAt, durationMinutes),
+  })
+  await createNotification(ctx, {
+    recipientUserId: companion.userId,
+    actorUserId: viewer._id,
+    kind: 'booking_request',
+    priority: 'attention',
+    bookingId,
+    conversationId,
+    dedupeKey: `booking:${bookingId}:request`,
+  })
+  return { bookingId, ...price }
+}
 
 export const editRequest = mutation({
   args: {
@@ -300,57 +325,61 @@ export const cancel = mutation({
   args: { bookingId: v.id('bookings'), reason: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    const booking = await ctx.db.get(args.bookingId)
-    if (!booking) throw new Error('Booking not found')
-    const companion = await ctx.db.get(booking.companionProfileId)
-    if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new Error('Not your booking')
-    if (booking.status === 'cancelled') return { status: 'cancelled' as const, idempotent: true }
-    if (
-      booking.pricingModel === MEMBER_WALLET_PRICING_MODEL
-      && (booking.memberCompletedAt || booking.companionCompletedAt)
-    ) {
-      throw new Error('A completion confirmation has already been recorded. Use the report/dispute flow instead of cancelling.')
-    }
-    if (!canCancelBooking(booking.status)) throw new Error('This booking can no longer be cancelled')
-    if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && booking.status === 'accepted') {
-      if (booking.settlementState === 'blocked' || await hasActiveBookingReport(ctx, booking._id)) {
-        throw new Error('This booking has an active safety hold. A full admin must resolve the reserved funds.')
-      }
-      await releaseBookingFunds(ctx, booking, viewer._id)
-    }
-    const now = Date.now()
-    const reason = args.reason?.trim() || undefined
-    await ctx.db.patch(args.bookingId, {
-      status: 'cancelled',
-      settlementState: booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && booking.status === 'accepted' ? 'refunded' : booking.settlementState,
-      cancelledByUserId: viewer._id,
-      cancelledAt: now,
-      cancellationReason: reason,
-      updatedAt: now,
-    })
-    await writeAudit(ctx, { actorUserId: viewer._id, action: 'booking.cancelled', targetType: 'booking', targetId: String(args.bookingId), note: reason })
-    const otherUserId = booking.memberId === viewer._id ? companion?.userId : booking.memberId
-    if (otherUserId) {
-      const cancellationConversationId = await ensureConversationBetween(ctx, viewer._id, otherUserId)
-      await sendBookingMessage(ctx, {
-        conversationId: cancellationConversationId,
-        senderUserId: viewer._id,
-        bookingId: args.bookingId,
-        body: bookingCancelledMessage(viewer.displayName, viewer._id === booking.memberId, booking.category, reason),
-      })
-      await createNotification(ctx, {
-        recipientUserId: otherUserId,
-        actorUserId: viewer._id,
-        kind: 'booking_cancelled',
-        priority: 'attention',
-        bookingId: args.bookingId,
-        conversationId: cancellationConversationId,
-        dedupeKey: `booking:${args.bookingId}:cancelled`,
-      })
-    }
-    return { status: 'cancelled' as const, idempotent: false }
+    return await cancelBookingRequest(ctx, viewer, args.bookingId, args.reason)
   },
 })
+
+export async function cancelBookingRequest(ctx: MutationCtx, viewer: Doc<'users'>, bookingId: Id<'bookings'>, reasonInput?: string) {
+  const booking = await ctx.db.get(bookingId)
+  if (!booking) throw new Error('Booking not found')
+  const companion = await ctx.db.get(booking.companionProfileId)
+  if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new Error('Not your booking')
+  if (booking.status === 'cancelled') return { status: 'cancelled' as const, idempotent: true }
+  if (
+    booking.pricingModel === MEMBER_WALLET_PRICING_MODEL
+    && (booking.memberCompletedAt || booking.companionCompletedAt)
+  ) {
+    throw new Error('A completion confirmation has already been recorded. Use the report/dispute flow instead of cancelling.')
+  }
+  if (!canCancelBooking(booking.status)) throw new Error('This booking can no longer be cancelled')
+  if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && booking.status === 'accepted') {
+    if (booking.settlementState === 'blocked' || await hasActiveBookingReport(ctx, booking._id)) {
+      throw new Error('This booking has an active safety hold. A full admin must resolve the reserved funds.')
+    }
+    await releaseBookingFunds(ctx, booking, viewer._id)
+  }
+  const now = Date.now()
+  const reason = reasonInput?.trim() || undefined
+  await ctx.db.patch(bookingId, {
+    status: 'cancelled',
+    settlementState: booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && booking.status === 'accepted' ? 'refunded' : booking.settlementState,
+    cancelledByUserId: viewer._id,
+    cancelledAt: now,
+    cancellationReason: reason,
+    updatedAt: now,
+  })
+  await writeAudit(ctx, { actorUserId: viewer._id, action: 'booking.cancelled', targetType: 'booking', targetId: String(bookingId), note: reason })
+  const otherUserId = booking.memberId === viewer._id ? companion?.userId : booking.memberId
+  if (otherUserId) {
+    const cancellationConversationId = await ensureConversationBetween(ctx, viewer._id, otherUserId)
+    await sendBookingMessage(ctx, {
+      conversationId: cancellationConversationId,
+      senderUserId: viewer._id,
+      bookingId,
+      body: bookingCancelledMessage(viewer.displayName, viewer._id === booking.memberId, booking.category, reason),
+    })
+    await createNotification(ctx, {
+      recipientUserId: otherUserId,
+      actorUserId: viewer._id,
+      kind: 'booking_cancelled',
+      priority: 'attention',
+      bookingId,
+      conversationId: cancellationConversationId,
+      dedupeKey: `booking:${bookingId}:cancelled`,
+    })
+  }
+  return { status: 'cancelled' as const, idempotent: false }
+}
 
 export const markCompleted = mutation({
   args: { bookingId: v.id('bookings') },

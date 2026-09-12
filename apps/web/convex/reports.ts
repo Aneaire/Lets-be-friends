@@ -8,7 +8,7 @@ import { isHiddenByPreference } from './safety'
 
 export const create = mutation({
   args: {
-    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('circle')),
+    targetType: v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('circle'), v.literal('gathering')),
     targetId: v.string(),
     reason: v.string(),
   },
@@ -20,6 +20,7 @@ export const create = mutation({
     const now = Date.now()
     let bookingId: Id<'bookings'> | undefined
     let circleId: Id<'circles'> | undefined
+    let gatheringId: Id<'gatherings'> | undefined
     let settlementHoldAppliedAt: number | undefined
 
     if (args.targetType === 'profile') {
@@ -73,6 +74,23 @@ export const create = mutation({
       if (!circle || circle.state !== 'active') throw new Error('Circle not found')
       await requireCirclePreview(ctx, circle._id)
       circleId = circle._id
+    } else if (args.targetType === 'gathering') {
+      const gathering = await safeGet(ctx, 'gatherings', args.targetId)
+      if (!gathering) throw new Error('Gathering not found')
+      const participant = await ctx.db
+        .query('gatheringParticipants')
+        .withIndex('by_gathering_user', (q) => q.eq('gatheringId', gathering._id).eq('userId', viewer._id))
+        .unique()
+      if (gathering.hostUserId !== viewer._id && !participant) throw new Error('Only a Gathering participant can report this Gathering')
+      gatheringId = gathering._id
+      circleId = gathering.circleId
+      if (gathering.bookingId) {
+        const booking = await ctx.db.get(gathering.bookingId)
+        bookingId = gathering.bookingId
+        if (booking?.pricingModel === MEMBER_WALLET_PRICING_MODEL && ['reserved', 'pending', 'blocked'].includes(booking.settlementState ?? '')) {
+          settlementHoldAppliedAt = now
+        }
+      }
     } else {
       const user = await safeGet(ctx, 'users', args.targetId)
       if (!user || user.suspended) throw new Error('Member not found')
@@ -96,6 +114,7 @@ export const create = mutation({
       reason,
       bookingId,
       circleId,
+      gatheringId,
       settlementHoldAppliedAt,
       status: 'open',
       createdAt: now,
@@ -113,7 +132,7 @@ export const create = mutation({
   },
 })
 
-async function safeGet<TableName extends 'companionProfiles' | 'bookings' | 'directMessages' | 'reviews' | 'posts' | 'postComments' | 'users' | 'circles'>(
+async function safeGet<TableName extends 'companionProfiles' | 'bookings' | 'directMessages' | 'reviews' | 'posts' | 'postComments' | 'users' | 'circles' | 'gatherings'>(
   ctx: MutationCtx,
   table: TableName,
   id: string,
