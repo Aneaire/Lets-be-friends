@@ -1,9 +1,9 @@
-import { activeMentionQuery, arrangeCommentThreads, splitBodyIntoSegments, withoutLeadingReplyMention, type CommentThreadPosition, type FeedInstrumentationAction, type StoredMention } from '@lets-be-friends/shared'
+import { activeMentionQuery, arrangeCommentThreads, pollValidationError, splitBodyIntoSegments, withoutLeadingReplyMention, type CommentThreadPosition, type FeedInstrumentationAction, type StoredMention } from '@lets-be-friends/shared'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import type { FunctionReturnType } from 'convex/server'
-import { Heart, ImagePlus, MessageCircle, Send, User } from 'lucide-react'
+import { Heart, ImagePlus, ListChecks, MessageCircle, Send, User } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { api } from '../../../convex/_generated/api'
@@ -16,6 +16,8 @@ import { PostActionsMenu } from './PostActionsMenu'
 import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
 import { PostMediaGrid } from './PostMediaGrid'
+import { PollCard } from './PollCard'
+import { PollComposer, emptyPollDraft, type PollDraft } from './PollComposer'
 import { MyCirclesHomeModule } from '../circles/CircleIndexPage'
 
 type FeedItem = NonNullable<FunctionReturnType<typeof api.social.feedPage>>['page'][number]
@@ -64,6 +66,7 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
   const discardPostMediaUpload = useMutation(api.social.discardPostMediaUpload)
   const toggleSave = useMutation(api.social.toggleSavePost)
   const toggleLike = useMutation(api.social.toggleLike)
+  const voteOnPoll = useMutation(api.social.voteOnPoll)
   const recordFeedImpressions = useMutation(api.social.recordFeedImpressions)
   const recordFeedAction = useMutation(api.social.recordFeedAction)
   const report = useMutation(api.reports.create)
@@ -75,6 +78,8 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
   const [posting, setPosting] = useState(false)
   const [composerBody, setComposerBody] = useState('')
   const [selectedMedia, setSelectedMedia] = useState<SelectedMedia[]>([])
+  const [pollOpen, setPollOpen] = useState(false)
+  const [pollDraft, setPollDraft] = useState<PollDraft>(emptyPollDraft)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const selectedMediaRef = useRef<SelectedMedia[]>([])
   const mediaLimit = mediaUsage?.limit ?? 5
@@ -221,15 +226,26 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
               let mediaUploadIds: Id<'postMediaUploads'>[] = []
               try {
                 const body = composerBody.trim()
-                if (!body && selectedMedia.length === 0) return
+                if (!body && selectedMedia.length === 0 && !pollOpen) return
+                const pollError = pollOpen ? pollValidationError(pollDraft) : null
+                if (pollError) {
+                  setError(pollError)
+                  return
+                }
                 mediaUploadIds = await uploadPostMedia(
                   selectedMedia,
                   generatePostMediaUploadUrl,
                   registerPostMediaUpload,
                   discardPostMediaUpload,
                 )
-                await createPost({ body, mediaUploadIds: mediaUploadIds.length > 0 ? mediaUploadIds : undefined })
+                await createPost({
+                  body,
+                  mediaUploadIds: mediaUploadIds.length > 0 ? mediaUploadIds : undefined,
+                  poll: pollOpen ? { question: pollDraft.question, options: pollDraft.options } : undefined,
+                })
                 setComposerBody('')
+                setPollOpen(false)
+                setPollDraft(emptyPollDraft())
                 clearSelectedMedia()
                 setNotice('Post shared.')
               } catch (postError) {
@@ -259,17 +275,37 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
               {selectedMedia.length > 0 && (
                 <PostMediaGrid mode="preview" media={selectedMedia} onRemove={removeSelectedMedia} />
               )}
+              {pollOpen && (
+                <PollComposer value={pollDraft} onChange={setPollDraft} disabled={posting} />
+              )}
               <div className="social-composer-toolbar">
                 <div className="social-upload-actions">
                   <button
                     type="button"
                     className="social-icon-button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={remainingUploads <= selectedMedia.length}
+                    disabled={pollOpen || remainingUploads <= selectedMedia.length}
                     aria-label="Add photos or video"
                     title="Add photos or video"
                   >
                     <ImagePlus size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className="social-icon-button"
+                    data-active={pollOpen}
+                    aria-pressed={pollOpen}
+                    aria-label={pollOpen ? 'Remove poll' : 'Add a poll'}
+                    title={pollOpen ? 'Remove poll' : 'Add a poll'}
+                    onClick={() => {
+                      setPollOpen((open) => {
+                        if (!open) clearSelectedMedia()
+                        return !open
+                      })
+                      setError('')
+                    }}
+                  >
+                    <ListChecks size={18} />
                   </button>
                   <input
                     ref={fileInputRef}
@@ -363,6 +399,9 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
                     await report({ targetType: 'comment', targetId: commentId, reason: 'Comment needs safety review' })
                     recordAction(item, 'report_comment')
                     setNotice('Comment report sent to safety review.')
+                  }}
+                  onVotePoll={async (optionId) => {
+                    await voteOnPoll({ postId: post._id, optionId })
                   }}
                 />
               )
@@ -477,6 +516,7 @@ export function PostRow({
   onDeleteComment,
   onLikeComment,
   onReportComment,
+  onVotePoll,
 }: {
   post: FeedPost
   focusComments: boolean
@@ -492,6 +532,7 @@ export function PostRow({
   onDeleteComment: (commentId: Id<'postComments'>) => Promise<void>
   onLikeComment: (commentId: Id<'postComments'>) => Promise<void>
   onReportComment: (commentId: Id<'postComments'>) => Promise<void>
+  onVotePoll: (optionId: string) => Promise<void>
 }) {
   const [commentsOpen, setCommentsOpen] = useState(false)
   const [commenting, setCommenting] = useState(false)
@@ -644,6 +685,7 @@ export function PostRow({
         ) : post.body ? <MentionText body={post.body} mentions={post.mentions} className="social-post-copy" /> : null}
         {actionError && <p className="text-meta social-comment-error mt-2">{actionError}</p>}
         {post.media.length > 0 && <PostMediaGrid media={post.media} />}
+        {post.poll && <PollCard poll={post.poll} disabled={!viewerReady} onVote={onVotePoll} />}
         <PostActionBar
           liked={post.liked}
           likeCount={post.likeCount}

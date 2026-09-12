@@ -1003,6 +1003,249 @@ describe('comment deletion', () => {
   })
 })
 
+describe('post polls', () => {
+  const pollPayload = (overrides: Record<string, unknown> = {}) => ({
+    question: 'Do you watch the agent while it works?',
+    options: ['Usually', 'Occasionally', 'Almost never'],
+    ...overrides,
+  })
+
+  async function insertPollPost(
+    t: ReturnType<typeof convexTest>,
+    authorId: any,
+    options: { hidden?: boolean; createdAt?: number; circleId?: any } = {},
+  ) {
+    return await t.run(async (ctx) => {
+      const now = options.createdAt ?? Date.now()
+      return await ctx.db.insert('posts', {
+        authorId,
+        circleId: options.circleId,
+        body: '',
+        poll: {
+          question: 'Ready-made poll',
+          options: [
+            { id: 'option-1', label: 'First', voteCount: 0 },
+            { id: 'option-2', label: 'Second', voteCount: 0 },
+          ],
+          totalVotes: 0,
+        },
+        reportable: true,
+        hidden: options.hidden ?? false,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+  }
+
+  it('creates a normalized poll on a post with an otherwise empty body', async () => {
+    const t = createTest()
+    await insertUser(t, 'poll-author')
+    const author = t.withIdentity({ subject: 'poll-author' })
+
+    const postId = await author.mutation(api.social.createPost, {
+      body: '   ',
+      poll: { question: '  Which one?  ', options: ['  Coffee  ', 'Walk'] },
+    })
+    const post = await t.run(async (ctx) => ctx.db.get(postId))
+    expect(post?.body).toBe('')
+    expect(post?.poll).toMatchObject({ question: 'Which one?', totalVotes: 0 })
+    expect(post?.poll?.options).toEqual([
+      { id: 'option-1', label: 'Coffee', voteCount: 0 },
+      { id: 'option-2', label: 'Walk', voteCount: 0 },
+    ])
+  })
+
+  it('rejects invalid polls without creating a post or audit entry', async () => {
+    const t = createTest()
+    await insertUser(t, 'poll-author')
+    const author = t.withIdentity({ subject: 'poll-author' })
+
+    await expect(author.mutation(api.social.createPost, {
+      body: '',
+      poll: { question: 'Only one', options: ['A'] },
+    })).rejects.toThrow('at least 2 options')
+    await expect(author.mutation(api.social.createPost, {
+      body: '',
+      poll: { question: 'Too many', options: ['A', 'B', 'C', 'D', 'E'] },
+    })).rejects.toThrow('up to 4 options')
+    await expect(author.mutation(api.social.createPost, {
+      body: '',
+      poll: { question: 'Duplicates', options: ['A', 'a'] },
+    })).rejects.toThrow('Poll options must be different')
+    await expect(author.mutation(api.social.createPost, {
+      body: '',
+      poll: { question: '   ', options: ['A', 'B'] },
+    })).rejects.toThrow('Poll question cannot be empty')
+    await expect(author.mutation(api.social.createPost, {
+      body: '',
+      poll: { question: 'Q'.repeat(201), options: ['A', 'B'] },
+    })).rejects.toThrow('question')
+
+    const state = await t.run(async (ctx) => ({
+      posts: (await ctx.db.query('posts').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+    }))
+    expect(state).toEqual({ posts: 0, audits: 0 })
+  })
+
+  it('casts one vote per member and keeps option counters exact', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'poll-author')
+    await insertUser(t, 'poll-voter')
+    await insertUser(t, 'poll-voter-two')
+    const postId = await insertPollPost(t, authorId)
+    const voter = t.withIdentity({ subject: 'poll-voter' })
+
+    expect(await voter.mutation(api.social.voteOnPoll, { postId, optionId: 'option-2' })).toBe('option-2')
+    let post = await t.run(async (ctx) => ctx.db.get(postId))
+    expect(post?.poll?.totalVotes).toBe(1)
+    expect(post?.poll?.options).toMatchObject([
+      { id: 'option-1', voteCount: 0 },
+      { id: 'option-2', voteCount: 1 },
+    ])
+
+    await expect(voter.mutation(api.social.voteOnPoll, { postId, optionId: 'option-1' })).rejects.toThrow('already voted')
+    expect(await t.run(async (ctx) => ctx.db.query('pollVotes').collect())).toHaveLength(1)
+
+    await t.withIdentity({ subject: 'poll-voter-two' }).mutation(api.social.voteOnPoll, { postId, optionId: 'option-1' })
+    post = await t.run(async (ctx) => ctx.db.get(postId))
+    expect(post?.poll?.totalVotes).toBe(2)
+    expect(post?.poll?.options?.map((option) => option.voteCount)).toEqual([1, 1])
+  })
+
+  it('rejects votes on closed polls and unknown options without partial writes', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'poll-author')
+    await insertUser(t, 'poll-voter')
+    const postId = await insertPollPost(t, authorId)
+    const voter = t.withIdentity({ subject: 'poll-voter' })
+
+    await expect(voter.mutation(api.social.voteOnPoll, { postId, optionId: 'missing' })).rejects.toThrow('Poll option not found')
+    await t.run(async (ctx) => ctx.db.patch(postId, {
+      poll: {
+        question: 'Ready-made poll',
+        options: [
+          { id: 'option-1', label: 'First', voteCount: 0 },
+          { id: 'option-2', label: 'Second', voteCount: 0 },
+        ],
+        totalVotes: 0,
+        closesAt: Date.now() - 1,
+      },
+    }))
+    await expect(voter.mutation(api.social.voteOnPoll, { postId, optionId: 'option-1' })).rejects.toThrow('closed')
+
+    const state = await t.run(async (ctx) => ({
+      votes: (await ctx.db.query('pollVotes').collect()).length,
+      post: await ctx.db.get(postId),
+    }))
+    expect(state.votes).toBe(0)
+    expect(state.post?.poll?.totalVotes).toBe(0)
+  })
+
+  it('exposes per-viewer vote state and percentages that sum to 100', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'poll-author')
+    await insertUser(t, 'poll-voter')
+    await insertUser(t, 'poll-voter-two')
+    await insertUser(t, 'poll-voter-three')
+    const postId = await insertPollPost(t, authorId)
+
+    await t.withIdentity({ subject: 'poll-voter' }).mutation(api.social.voteOnPoll, { postId, optionId: 'option-1' })
+    await t.withIdentity({ subject: 'poll-voter-two' }).mutation(api.social.voteOnPoll, { postId, optionId: 'option-1' })
+    await t.withIdentity({ subject: 'poll-voter-three' }).mutation(api.social.voteOnPoll, { postId, optionId: 'option-2' })
+
+    const enriched = await t.withIdentity({ subject: 'poll-voter' }).query(api.social.requestedPost, { postId: String(postId) })
+    expect(enriched?.poll).toMatchObject({ totalVotes: 3, votedOptionId: 'option-1', closed: false })
+    expect(enriched?.poll?.options.map((option) => option.percentage)).toEqual([67, 33])
+    expect(enriched?.poll?.options.map((option) => option.percentage).reduce((sum, value) => sum + value, 0)).toBe(100)
+
+    const other = await t.withIdentity({ subject: 'poll-voter-three' }).query(api.social.requestedPost, { postId: String(postId) })
+    expect(other?.poll?.votedOptionId).toBe('option-2')
+  })
+
+  it('hides a moderated poll from reads and rejects votes on it', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'poll-author')
+    await insertUser(t, 'poll-voter')
+    const postId = await insertPollPost(t, authorId, { hidden: true })
+    const voter = t.withIdentity({ subject: 'poll-voter' })
+
+    expect(await voter.query(api.social.requestedPost, { postId: String(postId) })).toBeNull()
+    await expect(voter.mutation(api.social.voteOnPoll, { postId, optionId: 'option-1' })).rejects.toThrow('Post not found')
+    expect(await t.run(async (ctx) => ctx.db.query('pollVotes').collect())).toHaveLength(0)
+  })
+
+  it('rejects votes from a blocked member without partial writes', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'poll-author')
+    const blockedId = await insertUser(t, 'poll-blocked')
+    const postId = await insertPollPost(t, authorId)
+    const now = Date.now()
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberSafetyPreferences', {
+        ownerUserId: authorId,
+        targetUserId: blockedId,
+        pairKey: `${authorId}:${blockedId}`,
+        blockedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    await expect(t.withIdentity({ subject: 'poll-blocked' }).mutation(api.social.voteOnPoll, { postId, optionId: 'option-1' }))
+      .rejects.toThrow('blocked')
+    expect(await t.run(async (ctx) => ctx.db.query('pollVotes').collect())).toHaveLength(0)
+  })
+
+  it('scopes Circle polls to active membership and rejects announcement polls', async () => {
+    const t = createTest()
+    const hostId = await insertUser(t, 'poll-host')
+    const memberId = await insertUser(t, 'poll-member')
+    await insertUser(t, 'poll-outsider')
+    const now = Date.now()
+    const circleId = await t.run(async (ctx) => {
+      const circleId = await ctx.db.insert('circles', {
+        slug: 'poll-circle',
+        name: 'Poll Circle',
+        purpose: 'Ask each other questions.',
+        category: 'Coffee',
+        rules: ['Be kind.'],
+        mode: 'both',
+        state: 'active',
+        hostUserId: hostId,
+        createdByUserId: hostId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert('circleMemberships', { circleId, userId: hostId, state: 'active', role: 'host', rulesAcceptedAt: now, createdAt: now, updatedAt: now })
+      await ctx.db.insert('circleMemberships', { circleId, userId: memberId, state: 'active', role: 'member', rulesAcceptedAt: now, createdAt: now, updatedAt: now })
+      return circleId
+    })
+    const member = t.withIdentity({ subject: 'poll-member' })
+    const outsider = t.withIdentity({ subject: 'poll-outsider' })
+
+    await expect(t.withIdentity({ subject: 'poll-host' }).mutation(api.social.createPost, {
+      body: '',
+      circleId,
+      circleKind: 'announcement',
+      poll: pollPayload(),
+    })).rejects.toThrow('Announcements cannot include a poll')
+
+    const postId = await member.mutation(api.social.createPost, {
+      body: '',
+      circleId,
+      poll: pollPayload(),
+    })
+    await expect(outsider.query(api.social.requestedPost, { postId: String(postId) })).rejects.toThrow('membership')
+    await expect(outsider.mutation(api.social.voteOnPoll, { postId, optionId: 'option-1' })).rejects.toThrow('membership')
+
+    await member.mutation(api.social.voteOnPoll, { postId, optionId: 'option-1' })
+    const enriched = await member.query(api.social.requestedPost, { postId: String(postId) })
+    expect(enriched?.poll).toMatchObject({ totalVotes: 1, votedOptionId: 'option-1' })
+    expect(await t.run(async (ctx) => ctx.db.query('pollVotes').collect())).toHaveLength(1)
+  })
+})
+
 describe('following feed recents', () => {
   it('prefers the most recently followed authors when capping the feed', async () => {
     const t = createTest()

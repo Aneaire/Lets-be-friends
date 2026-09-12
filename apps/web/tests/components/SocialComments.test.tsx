@@ -110,6 +110,7 @@ describe('SocialPage comment interactions', () => {
         onDeleteComment={vi.fn().mockResolvedValue(undefined)}
         onLikeComment={vi.fn().mockResolvedValue(undefined)}
         onReportComment={vi.fn().mockResolvedValue(undefined)}
+        onVotePoll={vi.fn().mockResolvedValue(undefined)}
       />,
     )
 
@@ -145,6 +146,7 @@ describe('SocialPage comment interactions', () => {
           onDeleteComment={onDeleteComment}
           onLikeComment={onLikeComment}
           onReportComment={vi.fn().mockResolvedValue(undefined)}
+          onVotePoll={vi.fn().mockResolvedValue(undefined)}
         />,
       )
 

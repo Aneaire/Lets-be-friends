@@ -8,6 +8,8 @@ import {
   MAX_MENTIONS_PER_POST,
   MENTION_LOOKUP_LIMIT,
   normalizeUsername,
+  pollPercentages,
+  pollValidationError,
   rerankFeedCandidates,
   type FeedCandidateSource,
   type FeedInstrumentationAction,
@@ -70,6 +72,11 @@ const feedAction = v.union(
   v.literal('report_comment'),
 )
 const feedSurface = v.union(v.literal('for_you'), v.literal('following'), v.literal('saved'))
+const pollInput = v.object({
+  question: v.string(),
+  options: v.array(v.string()),
+  closesAt: v.optional(v.number()),
+})
 
 type PostRankingCandidate = FeedRankingCandidate & {
   post: Doc<'posts'>
@@ -467,6 +474,7 @@ export const createPost = mutation({
   args: {
     body: v.string(),
     mediaUploadIds: v.optional(v.array(v.id('postMediaUploads'))),
+    poll: v.optional(pollInput),
     experienceBookingId: v.optional(v.id('bookings')),
     circleId: v.optional(v.id('circles')),
     circleKind: v.optional(v.union(v.literal('discussion'), v.literal('announcement'))),
@@ -475,15 +483,25 @@ export const createPost = mutation({
     const viewer = await requireViewer(ctx)
     const body = args.body.trim()
     const mediaUploadIds = args.mediaUploadIds ?? []
+    const pollArg = args.poll
     if (args.circleId) {
       if (mediaUploadIds.length > 0) throw new Error('Circle posts are text-only')
       if (args.experienceBookingId) throw new Error('Circle posts cannot be experience posts')
+      if (pollArg && (args.circleKind ?? 'discussion') === 'announcement') {
+        throw new Error('Announcements cannot include a poll')
+      }
       if ((args.circleKind ?? 'discussion') === 'announcement') await requireCircleModerator(ctx, args.circleId)
       else await requireCircleWrite(ctx, args.circleId)
     } else if (args.circleKind) {
       throw new Error('Circle post kind requires a Circle')
     }
-    if (body.length < 1 && mediaUploadIds.length === 0) throw new Error('Post cannot be empty')
+    if (pollArg) {
+      if (mediaUploadIds.length > 0) throw new Error('Polls cannot include photos or video')
+      if (args.experienceBookingId) throw new Error('Experience posts cannot include a poll')
+      const pollError = pollValidationError(pollArg)
+      if (pollError) throw new Error(pollError)
+    }
+    if (body.length < 1 && mediaUploadIds.length === 0 && !pollArg) throw new Error('Post cannot be empty')
     if (body.length > 1000) throw new Error('Post is too long')
     if (mediaUploadIds.length > MAX_MEDIA_UPLOADS_PER_DAY) throw new Error('Posts can include up to 5 media uploads')
     if (new Set(mediaUploadIds.map(String)).size !== mediaUploadIds.length) throw new Error('Each media upload can be attached only once')
@@ -511,6 +529,16 @@ export const createPost = mutation({
     }))
     const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_POST, 'post', args.circleId)
     await consumeRateLimit(ctx, viewer._id, 'create_post')
+    const poll = pollArg ? {
+      question: pollArg.question.trim(),
+      options: pollArg.options.map((label, index) => ({
+        id: `option-${index + 1}`,
+        label: label.trim(),
+        voteCount: 0,
+      })),
+      totalVotes: 0,
+      closesAt: pollArg.closesAt,
+    } : undefined
     const postId = await ctx.db.insert('posts', {
       authorId: viewer._id,
       circleId: args.circleId,
@@ -518,6 +546,7 @@ export const createPost = mutation({
       body,
       media,
       mentions: mentions.length > 0 ? mentions : undefined,
+      poll,
       experienceBookingId: args.experienceBookingId,
       reportable: true,
       hidden: false,
@@ -558,7 +587,7 @@ export const editPost = mutation({
     await requirePostAudienceWrite(ctx, post)
     if (post.circleRemovedAt) throw new Error('Post is unavailable')
     const body = args.body.trim()
-    if (!body && (post.media?.length ?? 0) === 0) throw new Error('Post cannot be empty')
+    if (!body && (post.media?.length ?? 0) === 0 && !post.poll) throw new Error('Post cannot be empty')
     if (body.length > 1000) throw new Error('Post is too long')
     const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_POST, 'post', post.circleId)
     await ctx.db.patch(args.postId, { body, mentions: mentions.length > 0 ? mentions : undefined, updatedAt: Date.now() })
@@ -890,6 +919,48 @@ export const toggleLike = mutation({
       dedupeKey: `post-like:${reactionId}:created`,
     })
     return true
+  },
+})
+
+export const voteOnPoll = mutation({
+  args: { postId: v.id('posts'), optionId: v.string() },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const post = await ctx.db.get(args.postId)
+    if (!post || post.hidden || post.deletedAt) throw new Error('Post not found')
+    await requirePostAudienceWrite(ctx, post)
+    if (post.circleRemovedAt) throw new Error('Post not found')
+    await requireNotBlocked(ctx, viewer._id, post.authorId)
+    const poll = post.poll
+    if (!poll) throw new Error('This post does not have a poll')
+    const now = Date.now()
+    if (poll.closesAt !== undefined && now >= poll.closesAt) throw new Error('This poll is closed')
+    const optionIndex = poll.options.findIndex((option) => option.id === args.optionId)
+    if (optionIndex === -1) throw new Error('Poll option not found')
+    const existing = await ctx.db.query('pollVotes')
+      .withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', args.postId))
+      .first()
+    if (existing) throw new Error('You have already voted in this poll')
+    await consumeRateLimit(ctx, viewer._id, 'vote_poll')
+    await ctx.db.insert('pollVotes', {
+      userId: viewer._id,
+      postId: args.postId,
+      optionId: args.optionId,
+      createdAt: now,
+    })
+    const options = poll.options.map((option, index) => (
+      index === optionIndex ? { ...option, voteCount: (option.voteCount ?? 0) + 1 } : option
+    ))
+    await ctx.db.patch(args.postId, {
+      poll: { ...poll, options, totalVotes: (poll.totalVotes ?? 0) + 1 },
+    })
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'post.poll.voted',
+      targetType: 'post',
+      targetId: String(args.postId),
+    })
+    return args.optionId
   },
 })
 
@@ -1227,16 +1298,18 @@ async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | n
   authorCache?: Map<string, Doc<'users'> | null>
   companionProfileCache?: Map<string, Doc<'companionProfiles'> | null>
 }) {
-  const [author, authorCompanionProfile, likedReaction, savedRow, followingRow] = await Promise.all([
+  const [author, authorCompanionProfile, likedReaction, savedRow, followingRow, pollVote] = await Promise.all([
     cachedAuthor(ctx, post.authorId, caches?.authorCache),
     companionProfileForUser(ctx, post.authorId, caches?.companionProfileCache ?? new Map<string, Doc<'companionProfiles'> | null>()),
     viewer ? ctx.db.query('postReactions').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('postId', post._id)).first() : null,
     viewer ? ctx.db.query('savedPosts').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('postId', post._id)).first() : null,
     viewer ? ctx.db.query('follows').withIndex('by_pair', (q: any) => q.eq('followerId', viewer._id).eq('followingId', post.authorId)).first() : null,
+    post.poll && viewer ? ctx.db.query('pollVotes').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('postId', post._id)).first() : null,
   ])
   return {
     ...post,
     media: post.circleId ? [] : await mediaWithUrls(ctx, post.media),
+    poll: post.poll ? enrichedPoll(post.poll, pollVote?.optionId, Date.now()) : undefined,
     commentCount: post.commentCount ?? 0,
     likeCount: post.likeCount ?? 0,
     savedCount: post.savedCount ?? 0,
@@ -1250,6 +1323,25 @@ async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | n
     saved: Boolean(savedRow),
     followingAuthor: Boolean(followingRow),
     ownPost: viewer?._id === post.authorId,
+  }
+}
+
+function enrichedPoll(poll: NonNullable<Doc<'posts'>['poll']>, votedOptionId: string | undefined, now: number) {
+  const counts = poll.options.map((option) => option.voteCount ?? 0)
+  const percentages = pollPercentages(counts)
+  const totalVotes = poll.totalVotes ?? counts.reduce((sum, count) => sum + count, 0)
+  return {
+    question: poll.question,
+    options: poll.options.map((option, index) => ({
+      id: option.id,
+      label: option.label,
+      voteCount: counts[index],
+      percentage: percentages[index],
+    })),
+    totalVotes,
+    closesAt: poll.closesAt,
+    closed: poll.closesAt !== undefined && now >= poll.closesAt,
+    votedOptionId,
   }
 }
 

@@ -1,5 +1,6 @@
 export * from './feed'
 export * from './finance'
+export * from './polls'
 export * from './discovery'
 export * from './mentions'
 export * from './map'

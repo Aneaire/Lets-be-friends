@@ -121,6 +121,7 @@ export const mobileApi = {
     toggleSavePost: generatedApi.social.toggleSavePost,
     toggleLike: generatedApi.social.toggleLike,
     toggleFollow: generatedApi.social.toggleFollow,
+    voteOnPoll: generatedApi.social.voteOnPoll,
     recordFeedImpressions: generatedApi.social.recordFeedImpressions,
     recordFeedAction: generatedApi.social.recordFeedAction,
   },

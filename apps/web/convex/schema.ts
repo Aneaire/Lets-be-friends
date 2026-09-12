@@ -109,6 +109,19 @@ const mentionEntry = v.object({
   userId: v.id('users'),
   username: v.string(),
 })
+// Poll option vote counts mirror the canonical pollVotes rows and are updated
+// in the same mutation that inserts or deletes the matching vote.
+const pollOption = v.object({
+  id: v.string(),
+  label: v.string(),
+  voteCount: v.number(),
+})
+const pollDefinition = v.object({
+  question: v.string(),
+  options: v.array(pollOption),
+  totalVotes: v.number(),
+  closesAt: v.optional(v.number()),
+})
 const directAttachment = v.object({
   storageId: v.id('_storage'),
   kind: v.union(v.literal('image'), v.literal('video'), v.literal('file')),
@@ -767,6 +780,7 @@ export default defineSchema({
     body: v.string(),
     media: v.optional(v.array(postMedia)),
     mentions: v.optional(v.array(mentionEntry)),
+    poll: v.optional(pollDefinition),
     experienceBookingId: v.optional(v.id('bookings')),
     reportable: v.boolean(),
     hidden: v.boolean(),
@@ -824,6 +838,14 @@ export default defineSchema({
     userId: v.id('users'),
     postId: v.id('posts'),
     reaction: v.literal('like'),
+    createdAt: v.number(),
+  }).index('by_user', ['userId']).index('by_post', ['postId']).index('by_pair', ['userId', 'postId']),
+  // One row per member per poll post. The by_pair index enforces a single vote
+  // and option counters on the post mirror these rows transactionally.
+  pollVotes: defineTable({
+    userId: v.id('users'),
+    postId: v.id('posts'),
+    optionId: v.string(),
     createdAt: v.number(),
   }).index('by_user', ['userId']).index('by_post', ['postId']).index('by_pair', ['userId', 'postId']),
   savedReviews: defineTable({
@@ -933,7 +955,7 @@ export default defineSchema({
   }).index('by_dedupe_key', ['dedupeKey']).index('by_user_session', ['userId', 'sessionId']).index('by_created_at', ['createdAt']),
   rateLimits: defineTable({
     userId: v.id('users'),
-    actionFamily: v.union(v.literal('create_post'), v.literal('create_comment'), v.literal('toggle_reaction')),
+    actionFamily: v.union(v.literal('create_post'), v.literal('create_comment'), v.literal('toggle_reaction'), v.literal('vote_poll')),
     bucketStart: v.number(),
     count: v.number(),
     expiresAt: v.number(),

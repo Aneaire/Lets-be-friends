@@ -24,6 +24,7 @@ import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
 import { PostFollowAction } from './PostFollowAction'
 import { PostMediaGrid } from './PostMediaGrid'
+import { PollCard } from './PollCard'
 import { openMemberProfile } from './socialNavigation'
 import { CompanionRecommendationCard, GuidanceFeedCard } from './SocialFeedRecommendations'
 
@@ -69,6 +70,7 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
   const post = item.post
   const toggleLike = useMutation(mobileApi.social.toggleLike)
   const toggleSave = useMutation(mobileApi.social.toggleSavePost)
+  const voteOnPoll = useMutation(mobileApi.social.voteOnPoll)
   const editPost = useMutation(mobileApi.social.editPost)
   const deletePost = useMutation(mobileApi.social.deletePost)
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -249,6 +251,15 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
           onOpenImage={() => router.push(postCommentsRoute(post._id as PostId))}
           onOpenVideo={(url) => void openVideo(url)}
         />
+        {post.poll ? (
+          <PollCard
+            poll={post.poll}
+            disabled={!signedIn || busy}
+            onVote={async (optionId) => {
+              await voteOnPoll({ postId: post._id as PostId, optionId })
+            }}
+          />
+        ) : null}
         {!post.ownPost && signedIn ? <ReportAction targetType="post" targetId={String(post._id)} label="Report post" open={reportOpen} onOpenChange={setReportOpen} showTrigger={false} onReported={() => onAction('report')} /> : null}
         <ActionSheet
           visible={optionsOpen}
