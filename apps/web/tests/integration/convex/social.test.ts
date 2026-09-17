@@ -603,6 +603,94 @@ describe('comment replies and likes', () => {
   })
 })
 
+describe('featured comment in the feed', () => {
+  it('features the conversation with the most interactions once it reaches three', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'featured-author', { username: 'featured_author' })
+    await insertUser(t, 'featured-commenter', { username: 'featured_commenter' })
+    await insertUser(t, 'featured-replier', { username: 'featured_replier' })
+    await insertUser(t, 'featured-liker-a')
+    await insertUser(t, 'featured-liker-b')
+    const postId = await insertPost(t, authorId, 'A post with a busy thread')
+
+    const rootId = await t.withIdentity({ subject: 'featured-commenter' })
+      .mutation(api.social.createComment, { postId, body: 'The comment members joined' })
+    const replyId = await t.withIdentity({ subject: 'featured-replier' })
+      .mutation(api.social.createComment, { postId, parentCommentId: rootId, body: 'A reply that keeps it going' })
+    await t.withIdentity({ subject: 'featured-liker-a' }).mutation(api.social.toggleCommentLike, { commentId: rootId })
+    await t.withIdentity({ subject: 'featured-liker-b' }).mutation(api.social.toggleCommentLike, { commentId: replyId })
+
+    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const item = items.find((entry) => entry.kind === 'post' && entry.post._id === postId)
+    expect(item?.post.featuredComment).toMatchObject({
+      _id: rootId,
+      body: 'The comment members joined',
+      authorDisplayName: 'featured-commenter',
+      likeCount: 1,
+      threadInteractionCount: 3,
+    })
+  })
+
+  it('does not feature a conversation below three interactions', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'quiet-author')
+    await insertUser(t, 'quiet-commenter')
+    await insertUser(t, 'quiet-liker')
+    const postId = await insertPost(t, authorId, 'A quiet post')
+    const rootId = await t.withIdentity({ subject: 'quiet-commenter' })
+      .mutation(api.social.createComment, { postId, body: 'Only lightly liked' })
+    await t.withIdentity({ subject: 'quiet-liker' }).mutation(api.social.toggleCommentLike, { commentId: rootId })
+
+    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const item = items.find((entry) => entry.kind === 'post' && entry.post._id === postId)
+    expect(item?.post.featuredComment).toBeNull()
+  })
+
+  it('ignores hidden comments when choosing a featured conversation', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'hidden-featured-author')
+    await insertUser(t, 'hidden-featured-commenter')
+    await insertUser(t, 'hidden-featured-liker-a')
+    await insertUser(t, 'hidden-featured-liker-b')
+    const postId = await insertPost(t, authorId, 'A post whose comment was hidden')
+    const rootId = await t.withIdentity({ subject: 'hidden-featured-commenter' })
+      .mutation(api.social.createComment, { postId, body: 'Hidden after reports' })
+    await t.withIdentity({ subject: 'hidden-featured-liker-a' }).mutation(api.social.toggleCommentLike, { commentId: rootId })
+    await t.withIdentity({ subject: 'hidden-featured-liker-b' }).mutation(api.social.toggleCommentLike, { commentId: rootId })
+    await t.run(async (ctx) => ctx.db.patch(rootId, { hidden: true }))
+
+    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const item = items.find((entry) => entry.kind === 'post' && entry.post._id === postId)
+    expect(item?.post.featuredComment).toBeNull()
+  })
+
+  it('features conversations in the following and saved feeds', async () => {
+    const t = createTest()
+    const viewerId = await insertUser(t, 'featured-feed-viewer')
+    const followedId = await insertUser(t, 'featured-feed-followed')
+    await insertUser(t, 'featured-feed-liker-a')
+    await insertUser(t, 'featured-feed-liker-b')
+    await insertUser(t, 'featured-feed-liker-c')
+    await t.run(async (ctx) => ctx.db.insert('follows', { followerId: viewerId, followingId: followedId, createdAt: Date.now() }))
+    const postId = await insertPost(t, followedId, 'A followed and saved post')
+    const rootId = await t.withIdentity({ subject: 'featured-feed-liker-a' })
+      .mutation(api.social.createComment, { postId, body: 'A well liked comment' })
+    for (const subject of ['featured-feed-liker-a', 'featured-feed-liker-b', 'featured-feed-liker-c']) {
+      await t.withIdentity({ subject }).mutation(api.social.toggleCommentLike, { commentId: rootId })
+    }
+    const viewer = t.withIdentity({ subject: 'featured-feed-viewer' })
+    await viewer.mutation(api.social.toggleSavePost, { postId })
+
+    const followingItems = await viewer.query(api.social.feed, { filter: 'following' }) as any[]
+    expect(followingItems.find((entry) => entry.kind === 'post' && entry.post._id === postId)?.post.featuredComment)
+      .toMatchObject({ _id: rootId, threadInteractionCount: 3 })
+
+    const savedItems = await viewer.query(api.social.feed, { filter: 'saved' }) as any[]
+    expect(savedItems.find((entry) => entry.kind === 'post' && entry.post._id === postId)?.post.featuredComment)
+      .toMatchObject({ _id: rootId, threadInteractionCount: 3 })
+  })
+})
+
 describe('following feed bounded behavior', () => {
   it('keeps followed posts visible despite unrelated newer posts', async () => {
     const t = createTest()

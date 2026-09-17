@@ -250,7 +250,9 @@ export function ProfileContentPanel({
                     <div className="profile-review-comments">
                       {review.comments?.map((comment) => (
                         <div key={comment._id} className="profile-review-comment">
-                          <Avatar name={comment.authorDisplayName} src={comment.authorProfileImageUrl} size="small" decorative />
+                          <Link to="/member-profile" search={{ userId: comment.authorId }} className="profile-review-author-link" aria-label={`View ${comment.authorDisplayName}'s profile`}>
+                            <Avatar name={comment.authorDisplayName} src={comment.authorProfileImageUrl} size="small" decorative />
+                          </Link>
                           <div>
                             <strong>{comment.authorDisplayName}</strong>
                             <p>{comment.body}</p>

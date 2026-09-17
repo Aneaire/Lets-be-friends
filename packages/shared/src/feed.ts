@@ -128,6 +128,103 @@ export function arrangeCommentThreads<T extends ThreadableComment>(comments: rea
   return arranged
 }
 
+export const FEATURED_COMMENT_MIN_INTERACTIONS = 3
+
+export type FeaturedCommentCandidate = {
+  _id: string
+  parentCommentId?: string | null
+  createdAt: number
+  likeCount?: number | null
+}
+
+export type FeaturedCommentSelection<T> = {
+  comment: T
+  interactionCount: number
+}
+
+/**
+ * Selects the single comment conversation to feature with a feed post.
+ *
+ * A conversation is a root comment plus every reply beneath it. Its
+ * interaction count is every like on every comment in the conversation plus
+ * the number of replies, so a comment becomes eligible once its whole thread
+ * reaches the minimum. The busiest eligible conversation wins, with the most
+ * liked root, newest root, and id as deterministic tie-breakers. Returns null
+ * when no conversation reaches the minimum.
+ *
+ * Callers are responsible for filtering comments the viewer must not see. The
+ * bounded scan that feeds this function is the second visibility guard.
+ */
+export function selectFeaturedComment<T extends FeaturedCommentCandidate>(
+  comments: readonly T[],
+  minimumInteractions = FEATURED_COMMENT_MIN_INTERACTIONS,
+): FeaturedCommentSelection<T> | null {
+  if (comments.length === 0) return null
+
+  const byId = new Map(comments.map((comment) => [String(comment._id), comment]))
+  const children = new Map<string, T[]>()
+  const roots: T[] = []
+
+  for (const comment of comments) {
+    const commentId = String(comment._id)
+    const parentId = comment.parentCommentId ? String(comment.parentCommentId) : ''
+    if (!parentId || parentId === commentId || !byId.has(parentId)) {
+      roots.push(comment)
+      continue
+    }
+    const siblings = children.get(parentId) ?? []
+    siblings.push(comment)
+    children.set(parentId, siblings)
+  }
+
+  const newestFirst = (left: T, right: T) => right.createdAt - left.createdAt || String(left._id).localeCompare(String(right._id))
+  roots.sort(newestFirst)
+
+  const threads: Array<{ root: T; interactionCount: number }> = []
+  const visited = new Set<string>()
+
+  function collectThread(root: T) {
+    const rootId = String(root._id)
+    if (visited.has(rootId)) return
+    visited.add(rootId)
+
+    let likes = Math.max(0, root.likeCount ?? 0)
+    let replies = 0
+    const queue = [rootId]
+    while (queue.length > 0) {
+      const parentId = queue.shift() as string
+      for (const child of children.get(parentId) ?? []) {
+        const childId = String(child._id)
+        if (visited.has(childId)) continue
+        visited.add(childId)
+        likes += Math.max(0, child.likeCount ?? 0)
+        replies += 1
+        queue.push(childId)
+      }
+    }
+    threads.push({ root, interactionCount: likes + replies })
+  }
+
+  roots.forEach(collectThread)
+  // Malformed cycles have no natural root. Promote one so every conversation
+  // is still considered exactly once.
+  comments
+    .filter((comment) => !visited.has(String(comment._id)))
+    .sort(newestFirst)
+    .forEach(collectThread)
+
+  const eligible = threads.filter((thread) => thread.interactionCount >= minimumInteractions)
+  if (eligible.length === 0) return null
+  eligible.sort((left, right) => (
+    right.interactionCount - left.interactionCount
+    || Math.max(0, right.root.likeCount ?? 0) - Math.max(0, left.root.likeCount ?? 0)
+    || right.root.createdAt - left.root.createdAt
+    || String(left.root._id).localeCompare(String(right.root._id))
+  ))
+  const best = eligible[0]
+  return { comment: best.root, interactionCount: best.interactionCount }
+}
+
 export const feedScoreWeights = {
   relationship: 0.3,
   category: 0.25,

@@ -6,6 +6,7 @@ import {
   arrangeCommentThreads,
   rerankFeedCandidates,
   scoreFeedCandidate,
+  selectFeaturedComment,
   type FeedRankingCandidate,
 } from '../../src/feed'
 
@@ -80,5 +81,58 @@ describe('comment thread arrangement', () => {
     ])).toEqual([
       { comment: { _id: 'orphan', parentCommentId: 'not-loaded', createdAt: 20 }, position: 'standalone', isLastReply: false },
     ])
+  })
+})
+
+describe('featured comment selection', () => {
+  it('returns null when every conversation is below the interaction minimum', () => {
+    expect(selectFeaturedComment([])).toBeNull()
+    expect(selectFeaturedComment([
+      { _id: 'quiet', createdAt: 10, likeCount: 1 },
+      { _id: 'reply', parentCommentId: 'quiet', createdAt: 11, likeCount: 0 },
+    ])).toBeNull()
+  })
+
+  it('counts likes on every comment in a thread plus its replies', () => {
+    const selection = selectFeaturedComment([
+      { _id: 'root', createdAt: 10, likeCount: 0 },
+      { _id: 'reply-a', parentCommentId: 'root', createdAt: 11, likeCount: 2 },
+      { _id: 'reply-b', parentCommentId: 'root', createdAt: 12, likeCount: 0 },
+    ])
+
+    expect(selection).toMatchObject({ comment: { _id: 'root' }, interactionCount: 4 })
+  })
+
+  it('features the busiest conversation and ignores likes on hidden rows', () => {
+    const selection = selectFeaturedComment([
+      { _id: 'small', createdAt: 10, likeCount: 3 },
+      { _id: 'big-root', createdAt: 5, likeCount: 1 },
+      { _id: 'big-reply-a', parentCommentId: 'big-root', createdAt: 6, likeCount: 4 },
+      { _id: 'big-reply-b', parentCommentId: 'big-reply-a', createdAt: 7, likeCount: 1 },
+    ])
+
+    expect(selection).toMatchObject({ comment: { _id: 'big-root' }, interactionCount: 8 })
+  })
+
+  it('treats an orphaned reply as its own conversation and never double counts a cycle', () => {
+    expect(selectFeaturedComment([
+      { _id: 'orphan', parentCommentId: 'not-loaded', createdAt: 20, likeCount: 3 },
+    ])).toMatchObject({ comment: { _id: 'orphan' }, interactionCount: 3 })
+
+    const cycle = selectFeaturedComment([
+      { _id: 'a', parentCommentId: 'b', createdAt: 1, likeCount: 2 },
+      { _id: 'b', parentCommentId: 'a', createdAt: 2, likeCount: 2 },
+    ])
+    expect(cycle).toMatchObject({ interactionCount: 5 })
+  })
+
+  it('is deterministic when interaction counts tie', () => {
+    const comments = [
+      { _id: 'older', createdAt: 10, likeCount: 3 },
+      { _id: 'newer', createdAt: 20, likeCount: 3 },
+    ]
+
+    expect(selectFeaturedComment(comments)?.comment._id).toBe('newer')
+    expect(selectFeaturedComment([...comments].reverse())?.comment._id).toBe('newer')
   })
 })

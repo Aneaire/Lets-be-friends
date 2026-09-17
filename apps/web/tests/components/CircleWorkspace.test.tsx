@@ -321,6 +321,24 @@ describe('Circle workspace', () => {
     expect(screen.queryByRole('button', { name: /Like/ })).toBeNull()
   })
 
+  it('links Circle post and comment avatars to their member profiles', () => {
+    mocks.paginated.mockReturnValue({ results: [post], status: 'Exhausted', loadMore: vi.fn() })
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'member', canRead: true, canWrite: true }
+      if (fn === 'social.commentsForPost') return [{
+        _id: 'comment-1', postId: 'post-1', authorId: 'member-3', body: 'A reply', reportable: true, hidden: false,
+        createdAt: Date.now(), updatedAt: Date.now(), authorDisplayName: 'Sam', ownComment: false, likeCount: 0, liked: false,
+      }]
+      return undefined
+    })
+    mocks.mutation.mockReturnValue(vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    expect(screen.getByLabelText("View Alex's profile").getAttribute('href')).toBe('/member-profile')
+    fireEvent.click(screen.getByRole('button', { name: /Show 1 comment/ }))
+    expect(screen.getByLabelText("View Sam's profile").getAttribute('href')).toBe('/member-profile')
+  })
+
   it('announces post action failures instead of leaving a rejected mutation unhandled', async () => {
     const toggleLike = vi.fn().mockRejectedValue(new Error('Like could not be saved.'))
     mocks.paginated.mockReturnValue({ results: [post], status: 'Exhausted', loadMore: vi.fn() })

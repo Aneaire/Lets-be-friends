@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, to, search, ...props }: { children: ReactNode; to: string; search?: Record<string, unknown>; 'aria-label'?: string }) => (
+    <a href={to} data-search={search ? JSON.stringify(search) : undefined} {...props}>{children}</a>
+  ),
+}))
+
 import { ProfileContentPanel } from '../../src/features/profile/ProfileContentPanel'
 
 afterEach(cleanup)
@@ -115,6 +123,7 @@ describe('ProfileContentPanel', () => {
     await waitFor(() => expect(onLike).toHaveBeenCalledWith(reviews[0]))
     fireEvent.click(screen.getByRole('button', { name: 'Comment 1' }))
     expect(screen.getByText('This sounds like a thoughtful plan.')).toBeTruthy()
+    expect(screen.getByLabelText("View Mara Reyes's profile").getAttribute('href')).toBe('/member-profile')
     fireEvent.change(screen.getByRole('textbox', { name: "Comment on Angelo Santiago's review" }), { target: { value: 'I agree.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
     await waitFor(() => expect(onComment).toHaveBeenCalledWith(reviews[0], 'I agree.'))

@@ -11,6 +11,7 @@ import {
   pollPercentages,
   pollValidationError,
   rerankFeedCandidates,
+  selectFeaturedComment,
   type FeedCandidateSource,
   type FeedInstrumentationAction,
   type FeedInstrumentationSource,
@@ -37,6 +38,10 @@ const FOR_YOU_PAGE_SIZE = 20
 const MAX_INSTRUMENTATION_BATCH = 20
 const FEED_ALGORITHM_VERSION = 'feed_v1'
 const MAX_COMMENTS_DEPRECATED = 100
+// A feed post scans only its most recent comments when looking for a featured
+// conversation. The scan is also capped by the post's own comment count, so a
+// quiet post costs far less than this ceiling.
+const MAX_FEATURED_COMMENT_SCAN = 200
 // Following feed cap. Only the most recently followed MAX_FOLLOWED_AUTHORS
 // authors are considered (newest follows first, deterministically), so a member
 // who follows more authors sees only their latest follows. The DB filter builds
@@ -150,7 +155,7 @@ async function feedPageResult(ctx: any, args: {
       itemKey: `post:${candidate.post._id}`,
       source: candidate.source,
       reason: candidate.reason,
-      post: await enrichPost(ctx, candidate.post, viewer, { authorCache, companionProfileCache }),
+      post: await enrichPost(ctx, candidate.post, viewer, { authorCache, companionProfileCache }, { includeFeaturedComment: true }),
     })))
     if (viewer && args.paginationOpts.cursor === null) {
       const newestOwnPost = result.page.find((post: Doc<'posts'>) => (
@@ -164,7 +169,7 @@ async function feedPageResult(ctx: any, args: {
           itemKey: ownItemKey,
           source: 'recent' as const,
           reason: 'Your newest post',
-          post: await enrichPost(ctx, newestOwnPost, viewer, { authorCache, companionProfileCache }),
+          post: await enrichPost(ctx, newestOwnPost, viewer, { authorCache, companionProfileCache }, { includeFeaturedComment: true }),
         }
         postItems = [ownItem, ...postItems.filter((item) => item.itemKey !== ownItemKey)]
         // The pinned post is moved, never trimmed: slicing back to the page
@@ -228,7 +233,7 @@ async function followingFeed(
     itemKey: `post:${post._id}`,
     source: 'followed' as const,
     reason: 'From someone you follow',
-    post: await enrichPost(ctx, post, viewer),
+    post: await enrichPost(ctx, post, viewer, undefined, { includeFeaturedComment: true }),
   })))
   return { ...result, page }
 }
@@ -1004,7 +1009,7 @@ async function postOnlyFeed(
     itemKey: `post:${post._id}`,
     source,
     reason,
-    post: await enrichPost(ctx, post, viewer),
+    post: await enrichPost(ctx, post, viewer, undefined, { includeFeaturedComment: true }),
   })))
 }
 
@@ -1297,7 +1302,7 @@ function instrumentationKey(
 async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | null, caches?: {
   authorCache?: Map<string, Doc<'users'> | null>
   companionProfileCache?: Map<string, Doc<'companionProfiles'> | null>
-}) {
+}, options?: { includeFeaturedComment?: boolean }) {
   const [author, authorCompanionProfile, likedReaction, savedRow, followingRow, pollVote] = await Promise.all([
     cachedAuthor(ctx, post.authorId, caches?.authorCache),
     companionProfileForUser(ctx, post.authorId, caches?.companionProfileCache ?? new Map<string, Doc<'companionProfiles'> | null>()),
@@ -1306,7 +1311,7 @@ async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | n
     viewer ? ctx.db.query('follows').withIndex('by_pair', (q: any) => q.eq('followerId', viewer._id).eq('followingId', post.authorId)).first() : null,
     post.poll && viewer ? ctx.db.query('pollVotes').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('postId', post._id)).first() : null,
   ])
-  return {
+  const enriched = {
     ...post,
     media: post.circleId ? [] : await mediaWithUrls(ctx, post.media),
     poll: post.poll ? enrichedPoll(post.poll, pollVote?.optionId, Date.now()) : undefined,
@@ -1323,6 +1328,30 @@ async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | n
     saved: Boolean(savedRow),
     followingAuthor: Boolean(followingRow),
     ownPost: viewer?._id === post.authorId,
+  }
+  if (!options?.includeFeaturedComment) return { ...enriched, featuredComment: null }
+  return { ...enriched, featuredComment: await featuredCommentForPost(ctx, post, viewer) }
+}
+
+/**
+ * Finds the comment conversation to surface with a feed post. Only comments the
+ * viewer can see are considered, and the scan is bounded by the post's own
+ * comment count so a post with few comments never reads the full ceiling.
+ */
+async function featuredCommentForPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | null) {
+  const commentCount = post.commentCount ?? 0
+  if (commentCount < 1) return null
+  const scanLimit = Math.max(1, Math.min(MAX_FEATURED_COMMENT_SCAN, commentCount))
+  const comments = await ctx.db.query('postComments')
+    .withIndex('by_post', (q: any) => q.eq('postId', post._id))
+    .order('desc')
+    .take(scanLimit)
+  const visible: Doc<'postComments'>[] = comments.filter((comment: Doc<'postComments'>) => isModerationVisible(comment) && !comment.circleRemovedAt)
+  const selection = selectFeaturedComment(visible)
+  if (!selection) return null
+  return {
+    ...await enrichComment(ctx, selection.comment, viewer),
+    threadInteractionCount: selection.interactionCount,
   }
 }
 

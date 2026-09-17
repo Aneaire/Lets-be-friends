@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,11 +8,32 @@ const feedState = vi.hoisted(() => ({
   viewer: { _id: 'user-viewer', displayName: 'Viewer Friend' },
   feedHookCalls: 0,
   impressionCalls: [] as Array<{ items: Array<{ itemKey: string; position: number }> }>,
+  links: [] as Array<{ to?: unknown; search?: Record<string, unknown>; label?: string }>,
 }))
 
 function buildFeedPosts(count: number) {
   return Array.from({ length: count }, (_, index) => {
     const postId = `post-${index}`
+    const featuredComment = index === 0 ? {
+      _id: 'comment-0',
+      postId,
+      authorId: 'user-commenter',
+      body: 'The most discussed comment',
+      reportable: true,
+      hidden: false,
+      likeCount: 4,
+      liked: false,
+      ownComment: false,
+      authorDisplayName: 'Commenter',
+      authorUsername: 'commenter',
+      authorProfileImageUrl: undefined,
+      replyToAuthorDisplayName: undefined,
+      replyToAuthorId: undefined,
+      replyToAuthorUsername: undefined,
+      threadInteractionCount: 6,
+      createdAt: Date.UTC(2026, 6, 20, 12, 30),
+      updatedAt: Date.UTC(2026, 6, 20, 12, 30),
+    } : null
     return {
       kind: 'post' as const,
       itemKey: `post:${postId}`,
@@ -26,10 +47,11 @@ function buildFeedPosts(count: number) {
         mentions: undefined,
         reportable: true,
         hidden: false,
-        commentCount: 0,
+        commentCount: index === 0 ? 3 : 0,
         likeCount: 0,
         savedCount: 0,
         liked: false,
+        featuredComment,
         authorDisplayName: `Author ${index % 7}`,
         authorUsername: `author_${index % 7}`,
         authorProfileImageUrl: undefined,
@@ -72,7 +94,10 @@ vi.mock('convex/react', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
+  Link: ({ children, to, search, 'aria-label': ariaLabel }: { children: React.ReactNode; to?: unknown; search?: Record<string, unknown>; 'aria-label'?: string }) => {
+    feedState.links.push({ to, search, label: ariaLabel })
+    return <a href="#" aria-label={ariaLabel}>{children}</a>
+  },
   useNavigate: () => vi.fn(),
 }))
 
@@ -90,6 +115,7 @@ afterEach(() => {
   cleanup()
   feedState.feedHookCalls = 0
   feedState.impressionCalls.length = 0
+  feedState.links.length = 0
 })
 
 describe('SocialPage feed stability', () => {
@@ -131,5 +157,21 @@ describe('SocialPage feed stability', () => {
     } finally {
       errorSpy.mockRestore()
     }
+  })
+
+  it('shows the most discussed comment and opens its conversation on demand', async () => {
+    render(<SocialPage />)
+
+    await waitFor(() => expect(screen.getAllByText('Most discussed')).toHaveLength(1))
+    expect(screen.getByText('The most discussed comment')).toBeTruthy()
+    expect(screen.getByText('See the conversation (6 interactions)')).toBeTruthy()
+  })
+
+  it('links a member post avatar to that member profile', async () => {
+    render(<SocialPage />)
+
+    await waitFor(() => expect(screen.getAllByText('Most discussed')).toHaveLength(1))
+    const authorLink = feedState.links.find((link) => link.to === '/member-profile' && link.label === "View Author 0's profile")
+    expect(authorLink?.search).toEqual({ userId: 'user-author-0' })
   })
 })

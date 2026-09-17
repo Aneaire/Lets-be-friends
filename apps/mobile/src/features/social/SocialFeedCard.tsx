@@ -19,6 +19,7 @@ import { ReportAction } from '@/features/safety/ReportAction'
 import { AppText } from '@/design-system/atoms/Typography'
 
 import { EditPostSheet } from './EditPostSheet'
+import { FeaturedCommentPreview } from './FeaturedCommentPreview'
 import { MentionBody } from './MentionBody'
 import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
@@ -257,6 +258,15 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
             disabled={!signedIn || busy}
             onVote={async (optionId) => {
               await voteOnPoll({ postId: post._id as PostId, optionId })
+            }}
+          />
+        ) : null}
+        {post.featuredComment ? (
+          <FeaturedCommentPreview
+            comment={post.featuredComment}
+            onOpenThread={() => {
+              onAction('comment')
+              router.push(postCommentsRoute(post._id as PostId))
             }}
           />
         ) : null}
