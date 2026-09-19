@@ -16,6 +16,7 @@ export type PostActionBarProps = {
   onLike: () => void
   onComment: () => void
   onSave: () => void
+  onShare?: () => void
 }
 
 export function PostActionBar({
@@ -29,6 +30,7 @@ export function PostActionBar({
   onLike,
   onComment,
   onSave,
+  onShare,
 }: PostActionBarProps) {
   return (
     <View style={styles.actions}>
@@ -54,6 +56,14 @@ export function PostActionBar({
         disabled={disabled}
         onPress={onSave}
       />
+      {onShare ? (
+        <PostAction
+          label="Share post"
+          icon="share-social-outline"
+          disabled={disabled}
+          onPress={onShare}
+        />
+      ) : null}
     </View>
   )
 }

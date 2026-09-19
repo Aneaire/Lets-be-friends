@@ -18,40 +18,68 @@ export const forCompanion = query({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx).catch(() => null)
     const reviews = await ctx.db.query('reviews').withIndex('by_companion_profile', (q) => q.eq('companionProfileId', args.companionProfileId)).order('desc').take(20)
-    return await Promise.all(reviews.filter(isModerationVisible).map(async (review) => {
-      const reviewer = await ctx.db.get(review.reviewerId)
-      const [likedReaction, savedRow, comments, imageUrl, reviewerProfileImageUrl] = await Promise.all([
-        viewer ? ctx.db.query('reviewReactions').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('reviewId', review._id)).first() : null,
-        viewer ? ctx.db.query('savedReviews').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('reviewId', review._id)).first() : null,
-        ctx.db.query('reviewComments').withIndex('by_review', (q) => q.eq('reviewId', review._id)).order('desc').take(MAX_REVIEW_COMMENTS),
-        review.imageStorageId ? ctx.storage.getUrl(review.imageStorageId) : null,
-        reviewer ? profileImageUrl(ctx, reviewer) : undefined,
-      ])
-      // Take the newest 20, then render that bounded set chronologically so a
-      // freshly submitted comment is never hidden behind older ones.
-      const visibleComments = comments.filter(isModerationVisible).sort((a, b) => a.createdAt - b.createdAt)
-      return {
-        ...review,
-        imageUrl,
-        reviewerDisplayName: reviewer ? fullName(reviewer) : 'Member',
-        reviewerProfileImageUrl,
-        likeCount: review.likeCount ?? 0,
-        liked: Boolean(likedReaction),
-        commentCount: review.commentCount ?? 0,
-        comments: await Promise.all(visibleComments.map(async (comment) => {
-          const author = await ctx.db.get(comment.authorId)
-          return {
-            ...comment,
-            authorDisplayName: author ? fullName(author) : 'Member',
-            authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
-            ownComment: viewer?._id === comment.authorId,
-          }
-        })),
-        saved: Boolean(savedRow),
-      }
-    }))
+    return await Promise.all(reviews.filter(isModerationVisible).map((review) => enrichReview(ctx, review, viewer, { includeComments: true })))
   },
 })
+
+export const requested = query({
+  args: { reviewId: v.id('reviews') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx).catch(() => null)
+    const review = await ctx.db.get(args.reviewId)
+    if (!review || !isModerationVisible(review) || !review.companionProfileId) return null
+    const companion = await ctx.db.get(review.companionProfileId)
+    if (!companion || companion.status !== 'approved') return null
+    return await enrichReview(ctx, review, viewer, { includeComments: true })
+  },
+})
+
+/**
+ * Flattens a review into the shape web and mobile render. Comments are only
+ * loaded when a detail surface needs them; feed cards leave them empty so the
+ * feed does not pay for a thread it does not show.
+ */
+export async function enrichReview(
+  ctx: any,
+  review: Doc<'reviews'>,
+  viewer: Doc<'users'> | null,
+  options: { includeComments?: boolean } = {},
+) {
+  const includeComments = options.includeComments ?? false
+  const reviewer = await ctx.db.get(review.reviewerId)
+  const [likedReaction, savedRow, imageUrl, reviewerProfileImageUrl] = await Promise.all([
+    viewer ? ctx.db.query('reviewReactions').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('reviewId', review._id)).first() : null,
+    viewer ? ctx.db.query('savedReviews').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('reviewId', review._id)).first() : null,
+    review.imageStorageId ? ctx.storage.getUrl(review.imageStorageId) : null,
+    reviewer ? profileImageUrl(ctx, reviewer) : undefined,
+  ])
+  // Take the newest 20, then render that bounded set chronologically so a
+  // freshly submitted comment is never hidden behind older ones.
+  let visibleComments: Doc<'reviewComments'>[] = []
+  if (includeComments) {
+    const comments = await ctx.db.query('reviewComments').withIndex('by_review', (q: any) => q.eq('reviewId', review._id)).order('desc').take(MAX_REVIEW_COMMENTS)
+    visibleComments = comments.filter(isModerationVisible).sort((a: Doc<'reviewComments'>, b: Doc<'reviewComments'>) => a.createdAt - b.createdAt)
+  }
+  return {
+    ...review,
+    imageUrl,
+    reviewerDisplayName: reviewer ? fullName(reviewer) : 'Member',
+    reviewerProfileImageUrl,
+    likeCount: review.likeCount ?? 0,
+    liked: Boolean(likedReaction),
+    commentCount: review.commentCount ?? 0,
+    comments: await Promise.all(visibleComments.map(async (comment) => {
+      const author = await ctx.db.get(comment.authorId)
+      return {
+        ...comment,
+        authorDisplayName: author ? fullName(author) : 'Member',
+        authorProfileImageUrl: author ? await profileImageUrl(ctx, author) : undefined,
+        ownComment: viewer?._id === comment.authorId,
+      }
+    })),
+    saved: Boolean(savedRow),
+  }
+}
 
 export const generateImageUploadUrl = mutation({
   args: {},

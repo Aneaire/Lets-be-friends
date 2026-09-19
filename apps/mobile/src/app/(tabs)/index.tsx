@@ -38,7 +38,7 @@ const feedFilterOptions = [
   { value: 'following', label: 'Following' },
   { value: 'saved', label: 'Saved' },
 ] satisfies Array<{ value: FeedFilter; label: string }>
-type FeedAction = 'open_companion' | 'open_guidance' | 'comment' | 'like' | 'save' | 'follow' | 'report' | 'report_comment'
+type FeedAction = 'open_companion' | 'open_guidance' | 'open_review' | 'comment' | 'like' | 'save' | 'share' | 'follow' | 'report' | 'report_comment'
 
 export default function HomeScreen() {
   const backend = useMobileBackendConfiguration()

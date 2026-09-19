@@ -1,7 +1,7 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import { User } from 'lucide-react'
 import { formatPhp } from '@lets-be-friends/shared'
@@ -10,9 +10,10 @@ import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { ProfileContentPanel } from '../features/profile/ProfileContentPanel'
 
 export const Route = createFileRoute('/companion-profile')({
-  validateSearch: (search: Record<string, unknown>): { companionProfileId?: string } => (
-    typeof search.companionProfileId === 'string' ? { companionProfileId: search.companionProfileId } : {}
-  ),
+  validateSearch: (search: Record<string, unknown>): { companionProfileId?: string; reviewId?: string } => ({
+    ...(typeof search.companionProfileId === 'string' ? { companionProfileId: search.companionProfileId } : {}),
+    ...(typeof search.reviewId === 'string' ? { reviewId: search.reviewId } : {}),
+  }),
   component: CompanionProfilePage,
 })
 
@@ -21,11 +22,17 @@ type CompanionReview = NonNullable<ReturnType<typeof useQuery<typeof api.reviews
 type CompanionPost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUser>>>[number]
 
 function CompanionProfilePage() {
-  const { companionProfileId } = Route.useSearch()
+  const { companionProfileId, reviewId } = Route.useSearch()
   const navigate = useNavigate()
   const { isSignedIn } = useAuth()
   const companion = useQuery(api.companions.getPublic, companionProfileId ? { companionProfileId: companionProfileId as Id<'companionProfiles'> } : 'skip') as CompanionProfile | null | undefined
   const reviews = useQuery(api.reviews.forCompanion, companionProfileId ? { companionProfileId: companionProfileId as Id<'companionProfiles'> } : 'skip') as CompanionReview[] | undefined
+  const requestedReview = useQuery(api.reviews.requested, reviewId ? { reviewId: reviewId as Id<'reviews'> } : 'skip') as CompanionReview | null | undefined
+  const displayedReviews = useMemo(() => {
+    if (!reviews) return reviews
+    if (!requestedReview || reviews.some((review) => String(review._id) === String(requestedReview._id))) return reviews
+    return [requestedReview, ...reviews]
+  }, [reviews, requestedReview])
   const posts = useQuery(api.social.byUser, companion?.userId ? { userId: companion.userId } : 'skip') as CompanionPost[] | undefined
   const toggleSaveProfile = useMutation(api.companions.toggleSaveProfile)
   const toggleFollow = useMutation(api.social.toggleFollow)
@@ -35,6 +42,7 @@ function CompanionProfilePage() {
   const toggleLikeReview = useMutation(api.reviews.toggleLike)
   const createReviewComment = useMutation(api.reviews.createComment)
   const deleteReviewComment = useMutation(api.reviews.deleteComment)
+  const createPost = useMutation(api.social.createPost)
   const report = useMutation(api.reports.create)
   const startConversation = useMutation(api.conversations.start)
   const [notice, setNotice] = useState('')
@@ -205,7 +213,8 @@ function CompanionProfilePage() {
       <ProfileContentPanel
         ownerName={companion.displayName}
         posts={posts}
-        reviews={reviews}
+        reviews={displayedReviews}
+        focusedReviewId={reviewId}
         rating={companion.rating}
         reviewCount={companion.reviewCount}
         emptyPostsDescription="This member has not shared a post yet."
@@ -213,6 +222,10 @@ function CompanionProfilePage() {
         onLikeReview={isSignedIn ? (review) => toggleLikeReview({ reviewId: review._id as Id<'reviews'> }) : undefined}
         onCommentReview={isSignedIn ? (review, body) => createReviewComment({ reviewId: review._id as Id<'reviews'>, body }) : undefined}
         onDeleteReviewComment={isSignedIn ? (review, commentId) => deleteReviewComment({ commentId: commentId as Id<'reviewComments'> }) : undefined}
+        onShareReviewToFeed={isSignedIn ? async (review, message) => {
+          await createPost({ body: message, sharedReviewId: review._id as Id<'reviews'> })
+          setNotice('Review shared to your feed.')
+        } : undefined}
         onLikePost={isSignedIn ? (post) => toggleLikePost({ postId: post._id as Id<'posts'> }) : undefined}
         onSavePost={isSignedIn ? (post) => toggleSavePost({ postId: post._id as Id<'posts'> }) : undefined}
         onOpenPostComments={(post) => void navigate({ to: '/social', search: { postId: post._id } })}

@@ -3,14 +3,14 @@ import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { BlurTargetView } from 'expo-blur'
-import { useEffect, useRef, useState } from 'react'
-import { Image, Pressable, StyleSheet, View } from 'react-native'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Image, Pressable, Share, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type CompanionProfileId, type ReviewId, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
-import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { showAppToast, useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { TextField } from '@/design-system/atoms/Field'
@@ -25,6 +25,8 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { PostCard } from '@/features/social/PostCard'
 import { PostImageViewer, type PostViewerImage } from '@/features/social/PostImageViewer'
 import { PostMediaGrid } from '@/features/social/PostMediaGrid'
+import { ShareSheet } from '@/features/social/ShareSheet'
+import { reviewShareUrl } from '@/features/social/shareLinks'
 import { companionContentTabHeader, companionContentTabs, companionProfileTypography, companionRatePresentation, defaultCompanionContentTab, type CompanionContentTab } from '@/features/companion/companionProfilePresentation'
 import { validateReviewComment } from '@/data/bookingActions'
 import { mapPublicCompanion, resolveCompanionBookingAction, type ApprovedCompanionRecord, type CompanionDetailViewModel } from '@/data/companionViewModels'
@@ -37,37 +39,44 @@ type Review = FunctionReturnType<typeof mobileApi.reviews.forCompanion>[number]
 type Post = FunctionReturnType<typeof mobileApi.social.byUser>[number]
 
 export default function CompanionProfileScreen() {
-  const params = useLocalSearchParams<{ id?: string }>()
+  const params = useLocalSearchParams<{ id?: string; reviewId?: string }>()
   const configuration = useMobileBackendConfiguration()
   const id = typeof params.id === 'string' ? params.id : ''
+  const reviewId = typeof params.reviewId === 'string' ? params.reviewId : undefined
 
   if (configuration.status !== 'configured') return <ProfileState title="Companion profiles need member services" detail="This build cannot connect to approved profiles." />
   if (!id) return <ProfileState title="Companion not found" detail="This profile link is incomplete." />
-  return <ConnectedCompanionProfile id={id} />
+  return <ConnectedCompanionProfile id={id} reviewId={reviewId} />
 }
 
-function ConnectedCompanionProfile({ id }: { id: string }) {
+function ConnectedCompanionProfile({ id, reviewId }: { id: string; reviewId?: string }) {
   const directory = useQuery(mobileApi.companions.listApproved, {})
   const record = directory?.find((item: ApprovedCompanionRecord) => String(item._id) === id)
   const result = useQuery(mobileApi.companions.getPublic, record ? { companionProfileId: id as CompanionProfileId } : 'skip')
 
   if (directory === undefined || (record && result === undefined)) return <PageSkeleton variant="publicProfile" />
   if (!record || result === null) return <ProfileState title="Companion not found" detail="This approved profile is no longer available." action="Return to Explore" onPress={() => router.replace('/explore')} />
-  return <CompanionDetail companion={mapPublicCompanion(result as ApprovedCompanionRecord)} />
+  return <CompanionDetail companion={mapPublicCompanion(result as ApprovedCompanionRecord)} reviewId={reviewId} />
 }
 
-function CompanionDetail({ companion }: { companion: CompanionDetailViewModel }) {
+function CompanionDetail({ companion, reviewId }: { companion: CompanionDetailViewModel; reviewId?: string }) {
   const theme = useAppTheme()
   const member = useMobileMember()
   const startConversation = useMutation(mobileApi.conversations.start)
   const toggleSave = useMutation(mobileApi.companions.toggleSaveProfile)
   const toggleFollow = useMutation(mobileApi.social.toggleFollow)
   const reviews = useQuery(mobileApi.reviews.forCompanion, { companionProfileId: companion.id as CompanionProfileId })
+  const requestedReview = useQuery(mobileApi.reviews.requested, reviewId ? { reviewId: reviewId as ReviewId } : 'skip')
+  const displayedReviews = useMemo(() => {
+    if (!reviews) return reviews
+    if (!requestedReview || reviews.some((review) => String(review._id) === String(requestedReview._id))) return reviews
+    return [requestedReview, ...reviews]
+  }, [reviews, requestedReview])
   const posts = useQuery(mobileApi.social.byUser, companion.userId ? { userId: companion.userId as UserId } : 'skip')
   const bookingAction = resolveCompanionBookingAction(companion)
   const [saved, setSaved] = useState(Boolean(companion.saved))
   const [following, setFollowing] = useState(Boolean(companion.following))
-  const [contentTab, setContentTab] = useState<CompanionContentTab>(defaultCompanionContentTab())
+  const [contentTab, setContentTab] = useState<CompanionContentTab>(reviewId ? 'reviews' : defaultCompanionContentTab())
   const [busy, setBusy] = useState<'message' | 'save' | 'follow' | null>(null)
   const [message, setMessage] = useState('')
   const blurTarget = useRef<View>(null)
@@ -189,7 +198,7 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
             </View>
             {contentHeader.ratingSummary ? <AppText variant="bodyStrong" color={theme.colors.socialText} style={styles.ratingSummary}>{contentHeader.ratingSummary}</AppText> : null}
           </View>
-          {reviews === undefined ? <ProfileContentSkeleton /> : reviews.length ? <ReviewList reviews={reviews} signedIn={signedIn} onOpenImage={setViewerImage} /> : <AppText color={theme.colors.textMuted}>No public reviews yet.</AppText>}
+          {displayedReviews === undefined ? <ProfileContentSkeleton /> : displayedReviews.length ? <ReviewList reviews={displayedReviews} signedIn={signedIn} companionProfileId={companion.id} focusedReviewId={reviewId} onOpenImage={setViewerImage} /> : <AppText color={theme.colors.textMuted}>No public reviews yet.</AppText>}
         </View>
       )}
 
@@ -205,15 +214,17 @@ function CompanionDetail({ companion }: { companion: CompanionDetailViewModel })
   )
 }
 
-function ReviewList({ reviews, signedIn, onOpenImage }: { reviews: Review[]; signedIn: boolean; onOpenImage: (image: PostViewerImage) => void }) {
+function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, onOpenImage }: { reviews: Review[]; signedIn: boolean; companionProfileId: string; focusedReviewId?: string; onOpenImage: (image: PostViewerImage) => void }) {
   const toggleSave = useMutation(mobileApi.reviews.toggleSave)
   const toggleLike = useMutation(mobileApi.reviews.toggleLike)
   const createComment = useMutation(mobileApi.reviews.createComment)
+  const createPost = useMutation(mobileApi.social.createPost)
   const [savedOverrides, setSavedOverrides] = useState<Record<string, boolean>>({})
   const [likeOverrides, setLikeOverrides] = useState<Record<string, { liked: boolean; likeCount: number }>>({})
   const [openComments, setOpenComments] = useState<Set<string>>(() => new Set())
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
   const [commentBusy, setCommentBusy] = useState<string | null>(null)
+  const [shareReview, setShareReview] = useState<Review | null>(null)
   const [error, setError] = useState('')
   useAppToastMessage(error)
 
@@ -310,36 +321,69 @@ function ReviewList({ reviews, signedIn, onOpenImage }: { reviews: Review[]; sig
     }
   }
 
-  return <View style={styles.cardList}>{reviews.map((review) => {
-    const key = String(review._id)
-    return <ReviewCard
-      key={review._id}
-      review={review}
-      signedIn={signedIn}
-      saved={savedFor(review)}
-      liked={likeFor(review).liked}
-      likeCount={likeFor(review).likeCount}
-      commentsOpen={openComments.has(key)}
-      commentBusy={commentBusy === key}
-      commentDraft={commentDrafts[key] ?? ''}
-      onToggleSave={() => void toggleSaveReview(review)}
-      onToggleLike={() => void toggleLikeReview(review)}
-      onToggleComments={() => setOpenComments((current) => {
-        const next = new Set(current)
-        if (next.has(key)) next.delete(key)
-        else next.add(key)
-        return next
+  const shareUrl = shareReview ? reviewShareUrl(companionProfileId, String(shareReview._id)) : undefined
+
+  async function shareReviewLink() {
+    if (!shareUrl) {
+      setError('Sharing needs the web app URL configured.')
+      return
+    }
+    await Share.share({ message: shareUrl })
+    setError('')
+  }
+
+  async function shareReviewToFeed(note: string) {
+    if (!shareReview) return
+    await createPost({ body: note, sharedReviewId: shareReview._id as ReviewId })
+    showAppToast('Shared to your feed.', 'success')
+  }
+
+  return (
+    <View style={styles.cardList}>
+      {reviews.map((review) => {
+        const key = String(review._id)
+        return <ReviewCard
+          key={review._id}
+          review={review}
+          signedIn={signedIn}
+          focused={String(review._id) === focusedReviewId}
+          saved={savedFor(review)}
+          liked={likeFor(review).liked}
+          likeCount={likeFor(review).likeCount}
+          commentsOpen={openComments.has(key)}
+          commentBusy={commentBusy === key}
+          commentDraft={commentDrafts[key] ?? ''}
+          onToggleSave={() => void toggleSaveReview(review)}
+          onToggleLike={() => void toggleLikeReview(review)}
+          onShare={() => setShareReview(review)}
+          onToggleComments={() => setOpenComments((current) => {
+            const next = new Set(current)
+            if (next.has(key)) next.delete(key)
+            else next.add(key)
+            return next
+          })}
+          onChangeCommentDraft={(value) => { setCommentDrafts((current) => ({ ...current, [key]: value })); setError('') }}
+          onSubmitComment={() => void submitComment(review)}
+          onOpenImage={() => review.imageUrl ? onOpenImage({ url: review.imageUrl, index: 0, total: 1 }) : undefined}
+        />
       })}
-      onChangeCommentDraft={(value) => { setCommentDrafts((current) => ({ ...current, [key]: value })); setError('') }}
-      onSubmitComment={() => void submitComment(review)}
-      onOpenImage={() => review.imageUrl ? onOpenImage({ url: review.imageUrl, index: 0, total: 1 }) : undefined}
-    />
-  })}</View>
+      <ShareSheet
+        visible={Boolean(shareReview)}
+        title="Share review"
+        previewLabel={`Review by ${shareReview?.reviewerDisplayName ?? ''}`}
+        previewBody={shareReview?.body}
+        onShareToFeed={shareReviewToFeed}
+        onShareLink={shareReviewLink}
+        onClose={() => setShareReview(null)}
+      />
+    </View>
+  )
 }
 
-function ReviewCard({ review, signedIn, saved, liked, likeCount, commentsOpen, commentBusy, commentDraft, onToggleSave, onToggleLike, onToggleComments, onChangeCommentDraft, onSubmitComment, onOpenImage }: {
+function ReviewCard({ review, signedIn, focused = false, saved, liked, likeCount, commentsOpen, commentBusy, commentDraft, onToggleSave, onToggleLike, onShare, onToggleComments, onChangeCommentDraft, onSubmitComment, onOpenImage }: {
   review: Review
   signedIn: boolean
+  focused?: boolean
   saved: boolean
   liked: boolean
   likeCount: number
@@ -348,6 +392,7 @@ function ReviewCard({ review, signedIn, saved, liked, likeCount, commentsOpen, c
   commentDraft: string
   onToggleSave: () => void
   onToggleLike: () => void
+  onShare: () => void
   onToggleComments: () => void
   onChangeCommentDraft: (value: string) => void
   onSubmitComment: () => void
@@ -355,7 +400,7 @@ function ReviewCard({ review, signedIn, saved, liked, likeCount, commentsOpen, c
 }) {
   const theme = useAppTheme()
 
-  return <View style={[styles.reviewCard, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}>
+  return <View accessibilityRole={focused ? 'summary' : undefined} style={[styles.reviewCard, { backgroundColor: theme.colors.surfaceRaised, borderColor: focused ? theme.colors.social : theme.colors.border, borderWidth: focused ? 2 : StyleSheet.hairlineWidth }]}>
     <View style={styles.reviewHeader}>
       <Avatar uri={review.reviewerProfileImageUrl ?? undefined} name={review.reviewerDisplayName} size={38} />
       <View style={styles.reviewIdentity}>
@@ -379,6 +424,10 @@ function ReviewCard({ review, signedIn, saved, liked, likeCount, commentsOpen, c
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Unsave review' : 'Save review'} onPress={onToggleSave} style={styles.textAction}>
             <AppText variant="caption" color={theme.colors.socialText}>{saved ? 'Saved' : 'Save'}</AppText>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Share ${review.reviewerDisplayName}'s review`} onPress={onShare} style={styles.textAction}>
+            <AppIcon name="share-social-outline" size={16} color={theme.colors.textMuted} />
+            <AppText variant="caption" color={theme.colors.textMuted}>Share</AppText>
           </Pressable>
           <View style={styles.reviewReport}><ReportAction targetType="review" targetId={String(review._id)} label="Report review" compact /></View>
         </>

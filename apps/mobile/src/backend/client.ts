@@ -92,6 +92,7 @@ export const mobileApi = {
   },
   reviews: {
     forCompanion: generatedApi.reviews.forCompanion,
+    requested: generatedApi.reviews.requested,
     toggleSave: generatedApi.reviews.toggleSave,
     submit: generatedApi.reviews.submit,
     toggleLike: generatedApi.reviews.toggleLike,

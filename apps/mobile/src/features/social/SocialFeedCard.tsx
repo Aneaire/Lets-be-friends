@@ -3,7 +3,7 @@ import { useMutation } from 'convex/react'
 import { router } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { useState } from 'react'
-import { Alert, Pressable, StyleSheet, View } from 'react-native'
+import { Alert, Pressable, Share, StyleSheet, View } from 'react-native'
 import { api as generatedApi } from '../../../../web/convex/_generated/api'
 
 import { mobileApi, type PostId } from '@/backend/client'
@@ -14,7 +14,7 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { IconButton } from '@/design-system/atoms/IconButton'
 import { ActionSheet, type ActionSheetItem } from '@/design-system/molecules/ActionSheet'
-import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { useAppToastMessage, showAppToast } from '@/design-system/molecules/AppToast'
 import { ReportAction } from '@/features/safety/ReportAction'
 import { AppText } from '@/design-system/atoms/Typography'
 
@@ -26,11 +26,14 @@ import { PostCard } from './PostCard'
 import { PostFollowAction } from './PostFollowAction'
 import { PostMediaGrid } from './PostMediaGrid'
 import { PollCard } from './PollCard'
+import { ReviewFeedCard } from './ReviewFeedCard'
+import { ShareSheet } from './ShareSheet'
+import { postShareUrl } from './shareLinks'
 import { openMemberProfile } from './socialNavigation'
 import { CompanionRecommendationCard, GuidanceFeedCard } from './SocialFeedRecommendations'
 
 type FeedItem = FunctionReturnType<typeof generatedApi.social.feedPage>['page'][number]
-type FeedAction = 'open_companion' | 'open_guidance' | 'comment' | 'like' | 'save' | 'follow' | 'report' | 'report_comment'
+type FeedAction = 'open_companion' | 'open_guidance' | 'open_review' | 'comment' | 'like' | 'save' | 'share' | 'follow' | 'report' | 'report_comment'
 
 export function SocialFeedCard({ item, signedIn, following, followBusy = false, onToggleFollow, onAction }: {
   item: FeedItem
@@ -42,6 +45,7 @@ export function SocialFeedCard({ item, signedIn, following, followBusy = false, 
 }) {
   if (item.kind === 'companion') return <CompanionRecommendation item={item} onAction={onAction} />
   if (item.kind === 'guidance') return <GuidanceCard item={item} onAction={onAction} />
+  if (item.kind === 'review') return <ReviewFeedCard item={item} signedIn={signedIn} onAction={onAction} />
   return <ConnectedPostCard item={item} signedIn={signedIn} following={following ?? item.post.followingAuthor} followBusy={followBusy} onToggleFollow={onToggleFollow} onAction={onAction} />
 }
 
@@ -74,11 +78,13 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
   const voteOnPoll = useMutation(mobileApi.social.voteOnPoll)
   const editPost = useMutation(mobileApi.social.editPost)
   const deletePost = useMutation(mobileApi.social.deletePost)
+  const createPost = useMutation(mobileApi.social.createPost)
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editBody, setEditBody] = useState(post.body)
   const [busy, setBusy] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [error, setError] = useState('')
   useAppToastMessage(error)
 
@@ -170,12 +176,38 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
     setTimeout(() => setReportOpen(true), 220)
   }
 
+  function openShare() {
+    setOptionsOpen(false)
+    setTimeout(() => setShareOpen(true), 220)
+  }
+
+  const shareUrl = postShareUrl(String(post._id))
+
+  async function sharePostLink() {
+    if (!shareUrl) {
+      setError('Sharing needs the web app URL configured.')
+      return
+    }
+    await Share.share({ message: shareUrl })
+    setError('')
+    onAction('share')
+  }
+
+  async function sharePostToFeed(note: string) {
+    await createPost({ body: note, sharedPostId: post._id as PostId })
+    setError('')
+    onAction('share')
+    showAppToast('Shared to your feed.', 'success')
+  }
+
   const optionItems: ActionSheetItem[] = post.ownPost
     ? [
+        { label: 'Share post', icon: 'share-social-outline', tone: 'self', onPress: openShare },
         { label: 'Edit post', icon: 'create-outline', tone: 'self', onPress: editFromOptions },
         { label: 'Delete post', icon: 'trash-outline', tone: 'danger', onPress: deleteFromOptions },
       ]
     : [
+        { label: 'Share post', icon: 'share-social-outline', tone: 'social', onPress: openShare },
         { label: 'Report post', icon: 'flag-outline', tone: 'danger', onPress: reportFromOptions },
       ]
 
@@ -241,6 +273,7 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
             router.push(postCommentsRoute(post._id as PostId))
           }}
           onSave={() => void save()}
+          onShare={signedIn ? openShare : undefined}
         />
       )}
     >
@@ -285,6 +318,15 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
           onBodyChange={setEditBody}
           onSave={() => void saveEdit()}
           onClose={() => setEditing(false)}
+        />
+        <ShareSheet
+          visible={shareOpen}
+          title="Share post"
+          previewLabel={`Post by ${post.authorDisplayName}`}
+          previewBody={post.body}
+          onShareToFeed={sharePostToFeed}
+          onShareLink={sharePostLink}
+          onClose={() => setShareOpen(false)}
         />
       </View>
     </PostCard>

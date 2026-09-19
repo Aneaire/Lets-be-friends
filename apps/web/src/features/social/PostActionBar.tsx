@@ -1,4 +1,4 @@
-import { Bookmark, Heart, MessageCircle } from 'lucide-react'
+import { Bookmark, Heart, MessageCircle, Share2 } from 'lucide-react'
 
 export function PostActionBar({
   liked,
@@ -11,6 +11,7 @@ export function PostActionBar({
   onLike,
   onToggleComments,
   onSave,
+  onShare,
 }: {
   liked: boolean
   likeCount: number
@@ -22,6 +23,7 @@ export function PostActionBar({
   onLike: () => void
   onToggleComments: () => void
   onSave: () => void
+  onShare?: () => void
 }) {
   return (
     <div className="social-action-bar" aria-label="Post actions">
@@ -58,6 +60,17 @@ export function PostActionBar({
           title={saved ? 'Remove saved post' : 'Save post'}
         >
           <Bookmark size={17} fill={saved ? 'currentColor' : 'none'} aria-hidden="true" />
+        </button>
+      )}
+      {onShare && (
+        <button
+          type="button"
+          onClick={onShare}
+          className="social-action"
+          aria-label="Share post"
+          title="Share post"
+        >
+          <Share2 size={17} aria-hidden="true" />
         </button>
       )}
     </div>

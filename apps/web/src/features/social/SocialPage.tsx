@@ -1,4 +1,4 @@
-import { activeMentionQuery, arrangeCommentThreads, pollValidationError, splitBodyIntoSegments, withoutLeadingReplyMention, type CommentThreadPosition, type FeedInstrumentationAction, type StoredMention } from '@lets-be-friends/shared'
+import { activeMentionQuery, arrangeCommentThreads, pollValidationError, withoutLeadingReplyMention, type CommentThreadPosition, type FeedInstrumentationAction } from '@lets-be-friends/shared'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
@@ -12,12 +12,17 @@ import { Avatar } from '../../design-system/atoms/Avatar'
 import { ConfirmationDialog } from '../../design-system/molecules/Dialog'
 import { CommentActionsMenu } from './CommentActionsMenu'
 import { CommentBubble } from './CommentBubble'
+import { MentionText } from './MentionText'
 import { PostActionsMenu } from './PostActionsMenu'
 import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
 import { PostMediaGrid } from './PostMediaGrid'
 import { PollCard } from './PollCard'
 import { PollComposer, emptyPollDraft, type PollDraft } from './PollComposer'
+import { ReviewFeedCard } from './ReviewFeedCard'
+import { ShareDialog } from './ShareDialog'
+import { SharedPostEmbed, SharedReviewEmbed } from './SharedEmbeds'
+import { shareTargetUrl } from './shareLinks'
 import { MyCirclesHomeModule } from '../circles/CircleIndexPage'
 
 type FeedItem = NonNullable<FunctionReturnType<typeof api.social.feedPage>>['page'][number]
@@ -67,6 +72,8 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
   const toggleSave = useMutation(api.social.toggleSavePost)
   const toggleLike = useMutation(api.social.toggleLike)
   const voteOnPoll = useMutation(api.social.voteOnPoll)
+  const toggleReviewLike = useMutation(api.reviews.toggleLike)
+  const toggleReviewSave = useMutation(api.reviews.toggleSave)
   const recordFeedImpressions = useMutation(api.social.recordFeedImpressions)
   const recordFeedAction = useMutation(api.social.recordFeedAction)
   const report = useMutation(api.reports.create)
@@ -349,6 +356,30 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
               if (item.kind === 'guidance') {
                 return <GuidanceCard key={item.itemKey} item={item} onOpen={() => recordAction(item, 'open_guidance')} />
               }
+              if (item.kind === 'review') {
+                const review = item.review
+                return (
+                  <ReviewFeedCard
+                    key={item.itemKey}
+                    review={review}
+                    viewerReady={Boolean(viewer)}
+                    onLike={() => {
+                      void toggleReviewLike({ reviewId: review._id })
+                      recordAction(item, 'like')
+                    }}
+                    onSave={() => {
+                      void toggleReviewSave({ reviewId: review._id })
+                      recordAction(item, 'save')
+                    }}
+                    onOpen={() => recordAction(item, 'open_review')}
+                    onShareToFeed={async (message) => {
+                      await createPost({ body: message, sharedReviewId: review._id })
+                      recordAction(item, 'share')
+                      setNotice('Review shared to your feed.')
+                    }}
+                  />
+                )
+              }
               const post = item.post
               return (
                 <PostRow
@@ -402,6 +433,11 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
                   }}
                   onVotePoll={async (optionId) => {
                     await voteOnPoll({ postId: post._id, optionId })
+                  }}
+                  onShareToFeed={async (message) => {
+                    await createPost({ body: message, sharedPostId: post._id })
+                    recordAction(item, 'share')
+                    setNotice('Post shared to your feed.')
                   }}
                 />
               )
@@ -517,6 +553,7 @@ export function PostRow({
   onLikeComment,
   onReportComment,
   onVotePoll,
+  onShareToFeed,
 }: {
   post: FeedPost
   focusComments: boolean
@@ -533,6 +570,7 @@ export function PostRow({
   onLikeComment: (commentId: Id<'postComments'>) => Promise<void>
   onReportComment: (commentId: Id<'postComments'>) => Promise<void>
   onVotePoll: (optionId: string) => Promise<void>
+  onShareToFeed?: (message: string) => Promise<void>
 }) {
   const [commentsOpen, setCommentsOpen] = useState(false)
   const [commenting, setCommenting] = useState(false)
@@ -540,6 +578,7 @@ export function PostRow({
   const [commentBody, setCommentBody] = useState('')
   const [editing, setEditing] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [actionPending, setActionPending] = useState('')
   const [actionError, setActionError] = useState('')
   const { results: comments, status: commentsStatus, loadMore: loadMoreComments } = usePaginatedQuery(
@@ -701,6 +740,8 @@ export function PostRow({
             onOpenThread={() => setCommentsOpen(true)}
           />
         )}
+        {post.sharedPost && <SharedPostEmbed post={post.sharedPost} />}
+        {post.sharedReview && <SharedReviewEmbed review={post.sharedReview} />}
         <PostActionBar
           liked={post.liked}
           likeCount={post.likeCount}
@@ -724,7 +765,22 @@ export function PostRow({
           }}
           onToggleComments={() => setCommentsOpen((open) => !open)}
           onSave={onSave}
+          onShare={viewerReady && onShareToFeed ? () => setShareOpen(true) : undefined}
         />
+        {onShareToFeed && (
+          <ShareDialog
+            open={shareOpen}
+            onClose={() => setShareOpen(false)}
+            title="Share this post"
+            url={shareTargetUrl({ kind: 'post', postId: String(post._id) })}
+            preview={{
+              label: `Post by ${post.authorDisplayName}`,
+              body: post.body,
+              imageUrl: post.media?.[0]?.url,
+            }}
+            onShareToFeed={onShareToFeed}
+          />
+        )}
         {commentsOpen && (
           <div className="social-comments">
             {viewerReady && (
@@ -1079,27 +1135,6 @@ export function CommentRow({
       )}
       {actionError && <p className="social-comment-error" role="alert">{actionError}</p>}
     </CommentBubble>
-  )
-}
-
-function MentionText({ body, mentions, className }: { body: string; mentions?: StoredMention[]; className?: string }) {
-  const segments = splitBodyIntoSegments(body, mentions ?? [])
-  return (
-    <p className={className}>
-      {segments.map((segment, index) => segment.type === 'mention' ? (
-        <Link
-          key={index}
-          to="/member-profile"
-          search={{ userId: segment.userId }}
-          className="social-mention"
-          onClick={(event) => event.stopPropagation()}
-        >
-          @{segment.username}
-        </Link>
-      ) : (
-        <span key={index}>{segment.text}</span>
-      ))}
-    </p>
   )
 }
 

@@ -27,6 +27,7 @@ import { hasCurrentIdentityApproval } from './identityVerification'
 import { getViewer, requireViewer, writeAudit } from './lib'
 import { createNotification } from './notifications'
 import { consumeRateLimit } from './rateLimit'
+import { enrichReview } from './reviews'
 import { isHiddenByPreference, requireNotBlocked } from './safety'
 import { isCircleParticipantRole, requireCircleDiscussionRead, requireCircleMember, requireCircleModerator, requireCircleWrite, requirePostAudienceRead, requirePostAudienceWrite } from './circleAuthorization'
 
@@ -42,6 +43,11 @@ const MAX_COMMENTS_DEPRECATED = 100
 // conversation. The scan is also capped by the post's own comment count, so a
 // quiet post costs far less than this ceiling.
 const MAX_FEATURED_COMMENT_SCAN = 200
+// Reviews surfaced in For You as discovery cards. The scan and cap keep the
+// first page bounded; eligibility favors recent, positive, written experiences.
+const FEED_REVIEW_LIMIT = 3
+const FEED_REVIEW_SCAN = 60
+const FEED_REVIEW_MIN_RATING = 4
 // Following feed cap. Only the most recently followed MAX_FOLLOWED_AUTHORS
 // authors are considered (newest follows first, deterministically), so a member
 // who follows more authors sees only their latest follows. The DB filter builds
@@ -55,7 +61,7 @@ const MAX_STORAGE_REFERENCE_CHECK = 10
 // export for events still inside this window.
 const FEED_EVENT_RETENTION_MS = 90 * 24 * 60 * 60 * 1_000
 
-const feedItemType = v.union(v.literal('post'), v.literal('companion'), v.literal('guidance'))
+const feedItemType = v.union(v.literal('post'), v.literal('review'), v.literal('companion'), v.literal('guidance'))
 const feedSource = v.union(
   v.literal('followed'),
   v.literal('interest'),
@@ -63,15 +69,18 @@ const feedSource = v.union(
   v.literal('trending'),
   v.literal('recent'),
   v.literal('exploration'),
+  v.literal('review'),
   v.literal('companion_fallback'),
   v.literal('first_party_guidance'),
 )
 const feedAction = v.union(
   v.literal('open_companion'),
   v.literal('open_guidance'),
+  v.literal('open_review'),
   v.literal('comment'),
   v.literal('like'),
   v.literal('save'),
+  v.literal('share'),
   v.literal('follow'),
   v.literal('report'),
   v.literal('report_comment'),
@@ -177,12 +186,15 @@ async function feedPageResult(ctx: any, args: {
         // cursor already advanced past this page's rows, losing it forever.
       }
     }
-    if (args.paginationOpts.cursor !== null || postItems.length >= 8) return { ...result, page: postItems }
+    const feedItems = args.paginationOpts.cursor === null
+      ? interleaveReviewItems(postItems, await feedReviewItems(ctx, viewer))
+      : postItems
+    if (args.paginationOpts.cursor !== null || feedItems.length >= 8) return { ...result, page: feedItems }
     const companionItems = await approvedCompanionFallback(ctx, viewer, 3, interests)
     return {
       ...result,
       page: [
-        ...postItems,
+        ...feedItems,
         ...companionItems,
         {
           kind: 'guidance' as const,
@@ -483,12 +495,42 @@ export const createPost = mutation({
     experienceBookingId: v.optional(v.id('bookings')),
     circleId: v.optional(v.id('circles')),
     circleKind: v.optional(v.union(v.literal('discussion'), v.literal('announcement'))),
+    sharedPostId: v.optional(v.id('posts')),
+    sharedReviewId: v.optional(v.id('reviews')),
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const body = args.body.trim()
     const mediaUploadIds = args.mediaUploadIds ?? []
     const pollArg = args.poll
+    let sharedPostId = args.sharedPostId
+    let sharedReviewId = args.sharedReviewId
+    if (sharedPostId && sharedReviewId) throw new Error('Share one item at a time')
+    if (sharedPostId) {
+      if (args.circleId) throw new Error('Posts cannot be shared into a Circle')
+      const target = await ctx.db.get(sharedPostId)
+      if (!target || !isModerationVisible(target) || target.deletedAt || target.circleId) throw new Error('This post is no longer available to share')
+      // Sharing a share always points at the original so the feed never nests.
+      if (target.sharedReviewId) {
+        sharedPostId = undefined
+        sharedReviewId = target.sharedReviewId
+      } else if (target.sharedPostId) {
+        sharedPostId = target.sharedPostId
+      }
+    }
+    if (sharedReviewId) {
+      if (args.circleId) throw new Error('Reviews cannot be shared into a Circle')
+      const target = await ctx.db.get(sharedReviewId)
+      if (!target || !isModerationVisible(target) || !target.companionProfileId) throw new Error('This review is no longer available to share')
+      const companion = await ctx.db.get(target.companionProfileId)
+      if (!companion || companion.status !== 'approved') throw new Error('This review is no longer available to share')
+    }
+    const isShare = Boolean(sharedPostId || sharedReviewId)
+    if (isShare) {
+      if (mediaUploadIds.length > 0) throw new Error('Shared posts are text-only')
+      if (pollArg) throw new Error('Shared posts cannot include a poll')
+      if (args.experienceBookingId) throw new Error('Shared posts cannot be experience posts')
+    }
     if (args.circleId) {
       if (mediaUploadIds.length > 0) throw new Error('Circle posts are text-only')
       if (args.experienceBookingId) throw new Error('Circle posts cannot be experience posts')
@@ -506,7 +548,7 @@ export const createPost = mutation({
       const pollError = pollValidationError(pollArg)
       if (pollError) throw new Error(pollError)
     }
-    if (body.length < 1 && mediaUploadIds.length === 0 && !pollArg) throw new Error('Post cannot be empty')
+    if (body.length < 1 && mediaUploadIds.length === 0 && !pollArg && !isShare) throw new Error('Post cannot be empty')
     if (body.length > 1000) throw new Error('Post is too long')
     if (mediaUploadIds.length > MAX_MEDIA_UPLOADS_PER_DAY) throw new Error('Posts can include up to 5 media uploads')
     if (new Set(mediaUploadIds.map(String)).size !== mediaUploadIds.length) throw new Error('Each media upload can be attached only once')
@@ -553,6 +595,8 @@ export const createPost = mutation({
       mentions: mentions.length > 0 ? mentions : undefined,
       poll,
       experienceBookingId: args.experienceBookingId,
+      sharedPostId,
+      sharedReviewId,
       reportable: true,
       hidden: false,
       likeCount: 0,
@@ -1302,7 +1346,7 @@ function instrumentationKey(
 async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | null, caches?: {
   authorCache?: Map<string, Doc<'users'> | null>
   companionProfileCache?: Map<string, Doc<'companionProfiles'> | null>
-}, options?: { includeFeaturedComment?: boolean }) {
+}, options?: { includeFeaturedComment?: boolean; embedShared?: boolean }) {
   const [author, authorCompanionProfile, likedReaction, savedRow, followingRow, pollVote] = await Promise.all([
     cachedAuthor(ctx, post.authorId, caches?.authorCache),
     companionProfileForUser(ctx, post.authorId, caches?.companionProfileCache ?? new Map<string, Doc<'companionProfiles'> | null>()),
@@ -1329,8 +1373,128 @@ async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | n
     followingAuthor: Boolean(followingRow),
     ownPost: viewer?._id === post.authorId,
   }
-  if (!options?.includeFeaturedComment) return { ...enriched, featuredComment: null }
-  return { ...enriched, featuredComment: await featuredCommentForPost(ctx, post, viewer) }
+  const embedded = options?.embedShared === false ? null : await sharedContentForPost(ctx, post, viewer, caches)
+  const withShared = {
+    ...enriched,
+    sharedPost: embedded?.kind === 'post' ? embedded.post : null,
+    sharedReview: embedded?.kind === 'review' ? embedded.review : null,
+  }
+  if (!options?.includeFeaturedComment) return { ...withShared, featuredComment: null }
+  return { ...withShared, featuredComment: await featuredCommentForPost(ctx, post, viewer) }
+}
+
+/**
+ * Loads the post or review a share points at. Returns null when the original
+ * is missing, hidden, deleted, or a Circle post, so a share degrades to just the
+ * sharer's message instead of a broken embed. Embedded originals never embed
+ * their own share, which keeps a normalized share one level deep.
+ *
+ * The explicit SharedEmbed return type breaks the enrichPost <->
+ * sharedContentForPost inference cycle.
+ */
+type SharedEmbed =
+  | { kind: 'post'; post: any }
+  | { kind: 'review'; review: Awaited<ReturnType<typeof enrichReview>> & { companionDisplayName?: string } }
+  | null
+
+type FeedReviewItem = {
+  kind: 'review'
+  itemKey: string
+  source: 'review'
+  reason: string
+  review: Awaited<ReturnType<typeof enrichReview>> & { companionDisplayName?: string }
+}
+
+async function sharedContentForPost(
+  ctx: any,
+  post: Doc<'posts'>,
+  viewer: Doc<'users'> | null,
+  caches?: {
+    authorCache?: Map<string, Doc<'users'> | null>
+    companionProfileCache?: Map<string, Doc<'companionProfiles'> | null>
+  },
+): Promise<SharedEmbed> {
+  if (post.sharedReviewId) {
+    const review = await ctx.db.get(post.sharedReviewId)
+    if (!review || !isModerationVisible(review) || !review.companionProfileId) return null
+    const companion = await ctx.db.get(review.companionProfileId)
+    if (!companion || companion.status !== 'approved') return null
+    const companionUser = companion ? await ctx.db.get(companion.userId) : null
+    return {
+      kind: 'review' as const,
+      review: {
+        ...await enrichReview(ctx, review, viewer),
+        companionDisplayName: companionUser?.displayName ?? 'Companion',
+      },
+    }
+  }
+  if (post.sharedPostId) {
+    const original = await ctx.db.get(post.sharedPostId)
+    if (!original || !isModerationVisible(original) || original.deletedAt || original.circleId) return null
+    const author = await cachedAuthor(ctx, original.authorId, caches?.authorCache)
+    if (!author || author.suspended) return null
+    if (viewer && viewer._id !== original.authorId && await isHiddenByPreference(ctx, viewer._id, original.authorId)) return null
+    return { kind: 'post' as const, post: await enrichPost(ctx, original, viewer, caches, { embedShared: false }) }
+  }
+  return null
+}
+
+/**
+ * Review discovery cards for the first For You page. Only recent, positive,
+ * written experiences from approved Companions reach the feed, and the scan is
+ * bounded so the first page stays cheap. Nested shares and comments are skipped.
+ */
+async function feedReviewItems(ctx: any, viewer: Doc<'users'> | null) {
+  const reviews = await ctx.db.query('reviews').withIndex('by_created_at').order('desc').take(FEED_REVIEW_SCAN)
+  const items: FeedReviewItem[] = []
+  for (const review of reviews) {
+    if (items.length >= FEED_REVIEW_LIMIT) break
+    if (!isModerationVisible(review) || !review.companionProfileId) continue
+    if (review.rating < FEED_REVIEW_MIN_RATING) continue
+    if (!review.body && !review.imageStorageId) continue
+    if (viewer && review.reviewerId === viewer._id) continue
+    const reviewer = await ctx.db.get(review.reviewerId)
+    if (!reviewer || reviewer.suspended) continue
+    if (viewer && await isHiddenByPreference(ctx, viewer._id, review.reviewerId)) continue
+    const companion = await ctx.db.get(review.companionProfileId)
+    if (!companion || companion.status !== 'approved') continue
+    const companionUser = await ctx.db.get(companion.userId)
+    if (!companionUser || companionUser.suspended || !hasCurrentIdentityApproval(companionUser)) continue
+    if (viewer && companionUser._id !== viewer._id && await isHiddenByPreference(ctx, viewer._id, companionUser._id)) continue
+    items.push({
+      kind: 'review' as const,
+      itemKey: `review:${review._id}`,
+      source: 'review' as const,
+      reason: `A recent experience with ${companionUser.displayName}`,
+      review: {
+        ...await enrichReview(ctx, review, viewer),
+        companionDisplayName: companionUser.displayName,
+      },
+    })
+  }
+  return items
+}
+
+/**
+ * Spreads review cards through the post list so discovery is not confined to the
+ * bottom of the page. Review order is preserved and leftover reviews trail.
+ */
+function interleaveReviewItems<T, U>(postItems: T[], reviewItems: U[]): (T | U)[] {
+  if (reviewItems.length === 0) return postItems
+  const combined: (T | U)[] = []
+  let reviewIndex = 0
+  postItems.forEach((item, index) => {
+    combined.push(item)
+    if ((index + 1) % 5 === 0 && reviewIndex < reviewItems.length) {
+      combined.push(reviewItems[reviewIndex])
+      reviewIndex += 1
+    }
+  })
+  while (reviewIndex < reviewItems.length) {
+    combined.push(reviewItems[reviewIndex])
+    reviewIndex += 1
+  }
+  return combined
 }
 
 /**

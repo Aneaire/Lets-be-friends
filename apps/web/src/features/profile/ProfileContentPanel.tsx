@@ -1,9 +1,11 @@
 import { Link } from '@tanstack/react-router'
-import { Heart, MessageCircle, Star } from 'lucide-react'
-import { useId, useRef, useState, type Dispatch, type ReactNode, type Ref, type SetStateAction } from 'react'
+import { Heart, MessageCircle, Share2, Star } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type Ref, type SetStateAction } from 'react'
 import { Avatar } from '../../design-system/atoms/Avatar'
 import { OpenableImage } from '../../design-system/molecules/OpenableImage'
 import { PostActionBar } from '../social/PostActionBar'
+import { ShareDialog } from '../social/ShareDialog'
+import { shareTargetUrl } from '../social/shareLinks'
 import { PostMediaGrid, type DisplayPostMediaItem } from '../social/PostMediaGrid'
 
 export type ProfileContentPost = {
@@ -26,6 +28,8 @@ export type ProfileContentReview = {
   reviewerId?: string
   reviewerDisplayName: string
   reviewerProfileImageUrl?: string | null
+  companionProfileId?: string
+  companionDisplayName?: string
   likeCount?: number
   liked?: boolean
   commentCount?: number
@@ -55,12 +59,14 @@ export function ProfileContentPanel({
   unavailableReviewsAction,
   emptyReviewsDescription = 'Reviews will appear here after members complete plans together.',
   reviewAction,
+  focusedReviewId,
   onLikePost,
   onSavePost,
   onOpenPostComments,
   onLikeReview,
   onCommentReview,
   onDeleteReviewComment,
+  onShareReviewToFeed,
   className,
 }: {
   ownerName: string
@@ -74,12 +80,14 @@ export function ProfileContentPanel({
   unavailableReviewsAction?: ReactNode
   emptyReviewsDescription?: string
   reviewAction?: (review: ProfileContentReview) => ReactNode
+  focusedReviewId?: string
   onLikePost?: (post: ProfileContentPost) => Promise<unknown>
   onSavePost?: (post: ProfileContentPost) => Promise<unknown>
   onOpenPostComments?: (post: ProfileContentPost) => void
   onLikeReview?: (review: ProfileContentReview) => Promise<unknown>
   onCommentReview?: (review: ProfileContentReview, body: string) => Promise<unknown>
   onDeleteReviewComment?: (review: ProfileContentReview, commentId: string) => Promise<unknown>
+  onShareReviewToFeed?: (review: ProfileContentReview, message: string) => Promise<unknown>
   className?: string
 }) {
   const [selectedTab, setSelectedTab] = useState<ContentTab>('posts')
@@ -91,6 +99,7 @@ export function ProfileContentPanel({
   const [deleteError, setDeleteError] = useState('')
   const [postActionBusy, setPostActionBusy] = useState<string | null>(null)
   const [postActionErrors, setPostActionErrors] = useState<Record<string, string>>({})
+  const [shareReview, setShareReview] = useState<ProfileContentReview | null>(null)
   const tabId = useId()
   const postsTabRef = useRef<HTMLButtonElement>(null)
   const reviewsTabRef = useRef<HTMLButtonElement>(null)
@@ -99,6 +108,17 @@ export function ProfileContentPanel({
     setSelectedTab(tab)
     if (focus) (tab === 'posts' ? postsTabRef : reviewsTabRef).current?.focus()
   }
+
+  useEffect(() => {
+    if (!focusedReviewId) return
+    setSelectedTab('reviews')
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(`review-${focusedReviewId}`)
+      target?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+      target?.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [focusedReviewId])
 
   return (
     <section className={rootClassName}>
@@ -192,7 +212,12 @@ export function ProfileContentPanel({
           {reviews && reviews.length > 0 && (
             <div className="worklist profile-review-list">
               {reviews.map((review) => (
-                <article key={review._id} className="worklist-row profile-review-card">
+                <article
+                  key={review._id}
+                  id={`review-${review._id}`}
+                  tabIndex={focusedReviewId === review._id ? -1 : undefined}
+                  className={`worklist-row profile-review-card${focusedReviewId === review._id ? ' profile-review-card-focused' : ''}`}
+                >
                   <div className="profile-review-author-row">
                     {review.reviewerId ? (
                       <Link to="/member-profile" search={{ userId: review.reviewerId }} className="profile-review-author-link" aria-label={`View ${review.reviewerDisplayName}'s profile`}>
@@ -245,6 +270,16 @@ export function ProfileContentPanel({
                       <MessageCircle size={17} aria-hidden="true" />
                       Comment{review.commentCount ? ` ${review.commentCount}` : ''}
                     </button>
+                    {onShareReviewToFeed && (
+                      <button
+                        type="button"
+                        className="profile-review-action"
+                        onClick={() => setShareReview(review)}
+                      >
+                        <Share2 size={17} aria-hidden="true" />
+                        Share
+                      </button>
+                    )}
                   </div>
                   {openComments.has(review._id) && (
                     <div className="profile-review-comments">
@@ -355,6 +390,21 @@ export function ProfileContentPanel({
             </div>
           )}
         </div>
+      )}
+      {shareReview && onShareReviewToFeed && (
+        <ShareDialog
+          open
+          onClose={() => setShareReview(null)}
+          title="Share this review"
+          url={shareTargetUrl({ kind: 'review', companionProfileId: String(shareReview.companionProfileId ?? ''), reviewId: shareReview._id })}
+          preview={{
+            label: `Review by ${shareReview.reviewerDisplayName}`,
+            meta: `Experience with ${ownerName}`,
+            body: shareReview.body ?? '',
+            imageUrl: shareReview.imageUrl,
+          }}
+          onShareToFeed={async (message) => { await onShareReviewToFeed(shareReview, message) }}
+        />
       )}
     </section>
   )

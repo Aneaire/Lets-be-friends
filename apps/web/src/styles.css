@@ -9884,6 +9884,65 @@ textarea.field {
 .social-featured-comment-action:hover { text-decoration: underline; }
 .social-featured-comment-action:focus-visible { outline: 2px solid var(--accent-social); outline-offset: 2px; }
 
+.social-share-preview {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.625rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.75rem;
+  background: var(--surface-sunk);
+}
+
+.social-share-preview-image {
+  width: 100%;
+  max-height: 12rem;
+  object-fit: cover;
+  border-radius: 0.5rem;
+}
+
+.social-share-preview-copy { display: grid; gap: 0.15rem; }
+
+.social-share-preview-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.social-share-preview-meta { margin: 0; color: var(--text-muted); font-size: 0.75rem; }
+.social-share-preview-body { margin: 0; color: var(--text); }
+.social-share-message { display: grid; gap: 0.25rem; margin-top: 0.75rem; }
+.social-share-message textarea { min-height: 4.5rem; resize: vertical; }
+.social-share-copy-label { display: inline-flex; align-items: center; gap: 0.35rem; }
+
+.social-shared-embed {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.75rem;
+  background: var(--surface-sunk);
+}
+
+.social-shared-embed-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.social-shared-embed-avatar { display: block; width: 2.5rem; height: 2.5rem; border-radius: 999px; }
+.social-shared-embed-author { color: var(--text); font-weight: 700; }
+.social-shared-embed-body { margin: 0; color: var(--text); }
+.social-shared-embed-image { display: grid; }
+
+.social-review-companion { color: var(--accent-social); font-weight: 650; }
+.social-review-body { margin: 0; color: var(--text); }
+.profile-review-card-focused { outline: 2px solid var(--accent-social); outline-offset: 3px; border-radius: 0.5rem; }
+
 .social-comment-reply-form {
   display: grid;
   gap: 0.375rem;

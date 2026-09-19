@@ -138,15 +138,18 @@ const feedSource = v.union(
   v.literal('trending'),
   v.literal('recent'),
   v.literal('exploration'),
+  v.literal('review'),
   v.literal('companion_fallback'),
   v.literal('first_party_guidance'),
 )
 const feedAction = v.union(
   v.literal('open_companion'),
   v.literal('open_guidance'),
+  v.literal('open_review'),
   v.literal('comment'),
   v.literal('like'),
   v.literal('save'),
+  v.literal('share'),
   v.literal('follow'),
   v.literal('report'),
   v.literal('report_comment'),
@@ -746,7 +749,7 @@ export default defineSchema({
     commentCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
-  }).index('by_booking', ['bookingId']).index('by_booking_reviewer', ['bookingId', 'reviewerId']).index('by_companion_profile', ['companionProfileId']).index('by_reviewee', ['revieweeId']),
+  }).index('by_booking', ['bookingId']).index('by_booking_reviewer', ['bookingId', 'reviewerId']).index('by_companion_profile', ['companionProfileId']).index('by_reviewee', ['revieweeId']).index('by_created_at', ['createdAt']),
   reviewMediaUploads: defineTable({
     userId: v.id('users'),
     storageId: v.optional(v.id('_storage')),
@@ -782,6 +785,10 @@ export default defineSchema({
     mentions: v.optional(v.array(mentionEntry)),
     poll: v.optional(pollDefinition),
     experienceBookingId: v.optional(v.id('bookings')),
+    // Share-to-feed references. At most one is set. A share carries the sharer's
+    // optional message in body and never owns the original's media or poll.
+    sharedPostId: v.optional(v.id('posts')),
+    sharedReviewId: v.optional(v.id('reviews')),
     reportable: v.boolean(),
     hidden: v.boolean(),
     deletedAt: v.optional(v.number()),
@@ -943,7 +950,7 @@ export default defineSchema({
     userId: v.id('users'),
     sessionId: v.string(),
     itemKey: v.string(),
-    itemType: v.union(v.literal('post'), v.literal('companion'), v.literal('guidance')),
+    itemType: v.union(v.literal('post'), v.literal('review'), v.literal('companion'), v.literal('guidance')),
     source: feedSource,
     surface: feedSurface,
     algorithmVersion: v.string(),

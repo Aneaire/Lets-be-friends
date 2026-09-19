@@ -1354,3 +1354,113 @@ describe('following feed recents', () => {
     expect(bodies).not.toContain('post 1')
   })
 })
+
+describe('sharing and reviews in the feed', () => {
+  it('shares a post into the feed, embeds the original, and flattens share-of-share', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'share-author')
+    await insertUser(t, 'share-viewer')
+    const postId = await insertPost(t, authorId, 'Original thoughts')
+    const viewer = t.withIdentity({ subject: 'share-viewer' })
+
+    const shareId = await viewer.mutation(api.social.createPost, { body: 'Worth reading', sharedPostId: postId })
+    const reshareId = await viewer.mutation(api.social.createPost, { body: '', sharedPostId: shareId })
+
+    const stored = await t.run(async (ctx) => ({ share: await ctx.db.get(shareId), reshare: await ctx.db.get(reshareId) }))
+    expect(stored.share).toMatchObject({ body: 'Worth reading', sharedPostId: postId })
+    expect(stored.reshare).toMatchObject({ sharedPostId: postId })
+    expect(stored.reshare?.sharedReviewId).toBeUndefined()
+
+    const enriched = await viewer.query(api.social.requestedPost, { postId: String(shareId) })
+    expect(enriched?.sharedPost).toMatchObject({ _id: postId, body: 'Original thoughts' })
+  })
+
+  it('rejects sharing a hidden post and sharing a share of an unavailable review', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'share-hidden-author')
+    await insertUser(t, 'share-hidden-viewer')
+    const hiddenPostId = await insertPost(t, authorId, 'Hidden', { hidden: true })
+    const deletedPostId = await insertPost(t, authorId, 'Deleted', { deleted: true })
+    const viewer = t.withIdentity({ subject: 'share-hidden-viewer' })
+
+    await expect(viewer.mutation(api.social.createPost, { body: '', sharedPostId: hiddenPostId })).rejects.toThrow('no longer available')
+    await expect(viewer.mutation(api.social.createPost, { body: '', sharedPostId: deletedPostId })).rejects.toThrow('no longer available')
+  })
+
+  it('surfaces a recent positive review from an approved Companion in For You', async () => {
+    const t = createTest()
+    const companionUserId = await insertUser(t, 'feed-review-companion', { approvedIdentity: true })
+    const companionProfileId = await insertCompanion(t, companionUserId)
+    const reviewerId = await insertUser(t, 'feed-review-member')
+    const revieweeId = await insertUser(t, 'feed-review-reviewee')
+    const bookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
+      memberId: reviewerId,
+      companionProfileId,
+      category: 'Good company',
+      mode: 'online',
+      requestedAt: Date.now() - 86_400_000,
+      durationMinutes: 60,
+      status: 'completed',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }))
+    const reviewId = await t.run(async (ctx) => ctx.db.insert('reviews', {
+      bookingId,
+      reviewerId,
+      revieweeId,
+      companionProfileId,
+      rating: 5,
+      body: 'A wonderful afternoon together',
+      hidden: false,
+      likeCount: 0,
+      commentCount: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }))
+
+    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const reviewItem = items.find((item) => item.kind === 'review')
+    expect(reviewItem?.review).toMatchObject({
+      _id: reviewId,
+      rating: 5,
+      body: 'A wonderful afternoon together',
+      companionDisplayName: 'feed-review-companion',
+    })
+  })
+
+  it('keeps hidden and low-rated reviews out of the feed and shares a review into the feed', async () => {
+    const t = createTest()
+    const companionUserId = await insertUser(t, 'feed-review-companion-2', { approvedIdentity: true })
+    const companionProfileId = await insertCompanion(t, companionUserId)
+    const reviewerId = await insertUser(t, 'feed-review-member-2')
+    const revieweeId = await insertUser(t, 'feed-review-reviewee-2')
+    const now = Date.now()
+    const bookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
+      memberId: reviewerId,
+      companionProfileId,
+      category: 'Good company',
+      mode: 'online',
+      requestedAt: now - 86_400_000,
+      durationMinutes: 60,
+      status: 'completed',
+      createdAt: now,
+      updatedAt: now,
+    }))
+    const { lowRatedId, hiddenId, goodId } = await t.run(async (ctx) => ({
+      lowRatedId: await ctx.db.insert('reviews', { bookingId, reviewerId, revieweeId, companionProfileId, rating: 2, body: 'It was fine', hidden: false, likeCount: 0, commentCount: 0, createdAt: now, updatedAt: now }),
+      hiddenId: await ctx.db.insert('reviews', { bookingId, reviewerId, revieweeId, companionProfileId, rating: 5, body: 'Hidden praise', hidden: true, likeCount: 0, commentCount: 0, createdAt: now + 1, updatedAt: now + 1 }),
+      goodId: await ctx.db.insert('reviews', { bookingId, reviewerId, revieweeId, companionProfileId, rating: 4, body: 'A kind afternoon', hidden: false, likeCount: 0, commentCount: 0, createdAt: now + 2, updatedAt: now + 2 }),
+    }))
+
+    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const reviewIds = items.filter((item) => item.kind === 'review').map((item) => String(item.review._id))
+    expect(reviewIds).toContain(goodId)
+    expect(reviewIds).not.toContain(lowRatedId)
+    expect(reviewIds).not.toContain(hiddenId)
+
+    const sharer = t.withIdentity({ subject: 'feed-review-member-2' })
+    const shareId = await sharer.mutation(api.social.createPost, { body: 'So glad this happened', sharedReviewId: goodId })
+    const enriched = await sharer.query(api.social.requestedPost, { postId: String(shareId) })
+    expect(enriched?.sharedReview).toMatchObject({ _id: goodId, companionDisplayName: 'feed-review-companion-2' })
+  })
+})

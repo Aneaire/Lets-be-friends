@@ -11,6 +11,7 @@ export type FeedCandidateSource = (typeof feedCandidateSources)[number]
 
 export const feedInstrumentationSources = [
   ...feedCandidateSources,
+  'review',
   'companion_fallback',
   'first_party_guidance',
 ] as const
@@ -18,9 +19,11 @@ export const feedInstrumentationSources = [
 export const feedInstrumentationActions = [
   'open_companion',
   'open_guidance',
+  'open_review',
   'comment',
   'like',
   'save',
+  'share',
   'follow',
   'report',
   'report_comment',
