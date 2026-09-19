@@ -6,6 +6,7 @@ import { api } from '../../../convex/_generated/api'
 import { Avatar } from '../../design-system/atoms/Avatar'
 import { OpenableImage } from '../../design-system/molecules/OpenableImage'
 import { PostActionBar } from './PostActionBar'
+import { PostCard } from './PostCard'
 import { ShareDialog } from './ShareDialog'
 import { shareTargetUrl } from './shareLinks'
 
@@ -40,58 +41,64 @@ export function ReviewFeedCard({
 
   return (
     <>
-      <article className="social-post social-review-card" aria-label={`Review by ${review.reviewerDisplayName}`}>
-        <header className="social-post-head">
+      <PostCard
+        author={review.reviewerDisplayName}
+        imageUrl={review.reviewerProfileImageUrl}
+        timestamp={formatTime(review.createdAt)}
+        dateTime={new Date(review.createdAt).toISOString()}
+        className="social-review-card"
+        aria-label={`Review by ${review.reviewerDisplayName}`}
+        avatarAction={
           <Link to="/member-profile" search={{ userId: review.reviewerId }} className="social-post-avatar-link" aria-label={`View ${review.reviewerDisplayName}'s profile`}>
             <Avatar name={review.reviewerDisplayName} src={review.reviewerProfileImageUrl} size="large" className="ds-post-avatar-image" decorative />
           </Link>
-          <div className="social-post-identity">
-            <Link to="/member-profile" search={{ userId: review.reviewerId }} className="social-post-author-link">{review.reviewerDisplayName}</Link>
-            <div className="social-post-meta">
-              <time dateTime={new Date(review.createdAt).toISOString()}>{formatTime(review.createdAt)}</time>
-              <span aria-hidden="true" className="ds-post-meta-separator">·</span>
-              <Link
-                to="/companion-profile"
-                search={{ companionProfileId: review.companionProfileId, reviewId: review._id }}
-                className="social-review-companion"
-                onClick={onOpen}
-              >
-                Shared an experience with {review.companionDisplayName ?? 'this Companion'}
-              </Link>
-            </div>
-          </div>
-        </header>
-        <div className="social-post-body">
-          <div className="profile-review-stars" aria-label={`${review.rating} out of 5 stars`}>
-            {Array.from({ length: 5 }, (_, index) => {
-              const fill = Math.max(0, Math.min(1, review.rating - index))
-              return (
-                <span key={index} className="profile-review-star" aria-hidden="true">
-                  <Star size={18} />
-                  <span style={{ width: `${fill * 100}%` }}><Star size={18} fill="currentColor" /></span>
-                </span>
-              )
-            })}
-          </div>
-          {review.body ? <p className="social-review-body">{review.body}</p> : null}
-          {review.imageUrl ? (
-            <OpenableImage src={review.imageUrl} alt={`Photo shared with ${review.reviewerDisplayName}'s review`} />
-          ) : null}
-          <PostActionBar
-            liked={Boolean(review.liked)}
-            likeCount={review.likeCount ?? 0}
-            commentCount={review.commentCount ?? 0}
-            saved={Boolean(review.saved)}
-            commentsOpen={false}
-            likeDisabled={!viewerReady}
-            showSave={viewerReady}
-            onLike={onLike}
-            onToggleComments={onOpen}
-            onSave={onSave}
-            onShare={() => setShareOpen(true)}
-          />
+        }
+        authorAction={
+          <Link to="/member-profile" search={{ userId: review.reviewerId }} className="social-post-author-link">{review.reviewerDisplayName}</Link>
+        }
+        meta={
+          <>
+            <span aria-hidden="true" className="ds-post-meta-separator">·</span>
+            <Link
+              to="/companion-profile"
+              search={{ companionProfileId: review.companionProfileId, reviewId: review._id }}
+              className="social-review-companion"
+              onClick={onOpen}
+            >
+              Shared an experience with {review.companionDisplayName ?? 'this Companion'}
+            </Link>
+          </>
+        }
+      >
+        <div className="profile-review-stars" aria-label={`${review.rating} out of 5 stars`}>
+          {Array.from({ length: 5 }, (_, index) => {
+            const fill = Math.max(0, Math.min(1, review.rating - index))
+            return (
+              <span key={index} className="profile-review-star" aria-hidden="true">
+                <Star size={18} />
+                <span style={{ width: `${fill * 100}%` }}><Star size={18} fill="currentColor" /></span>
+              </span>
+            )
+          })}
         </div>
-      </article>
+        {review.body ? <p className="social-review-body">{review.body}</p> : null}
+        {review.imageUrl ? (
+          <OpenableImage src={review.imageUrl} alt={`Photo shared with ${review.reviewerDisplayName}'s review`} />
+        ) : null}
+        <PostActionBar
+          liked={Boolean(review.liked)}
+          likeCount={review.likeCount ?? 0}
+          commentCount={review.commentCount ?? 0}
+          saved={Boolean(review.saved)}
+          commentsOpen={false}
+          likeDisabled={!viewerReady}
+          showSave={viewerReady}
+          onLike={onLike}
+          onToggleComments={onOpen}
+          onSave={onSave}
+          onShare={() => setShareOpen(true)}
+        />
+      </PostCard>
       <ShareDialog
         open={shareOpen}
         onClose={() => setShareOpen(false)}
