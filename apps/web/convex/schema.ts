@@ -959,7 +959,7 @@ export default defineSchema({
     position: v.optional(v.number()),
     dedupeKey: v.string(),
     createdAt: v.number(),
-  }).index('by_dedupe_key', ['dedupeKey']).index('by_user_session', ['userId', 'sessionId']).index('by_created_at', ['createdAt']),
+  }).index('by_dedupe_key', ['dedupeKey']).index('by_user_session', ['userId', 'sessionId']).index('by_created_at', ['createdAt']).index('by_user_item_event_created_at', ['userId', 'itemType', 'eventType', 'createdAt']),
   rateLimits: defineTable({
     userId: v.id('users'),
     actionFamily: v.union(v.literal('create_post'), v.literal('create_comment'), v.literal('toggle_reaction'), v.literal('vote_poll')),

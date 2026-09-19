@@ -307,7 +307,7 @@ describe('feed instrumentation', () => {
     const events = await t.run(async (ctx) => ctx.db.query('feedEvents').collect())
     expect(events).toHaveLength(1)
     expect(events[0].position).toBe(4)
-    expect(events[0]).toMatchObject({ surface: 'for_you', algorithmVersion: 'feed_v1' })
+    expect(events[0]).toMatchObject({ surface: 'for_you', algorithmVersion: 'feed_v2' })
     expect(events[0]).not.toHaveProperty('location')
 
     await expect(viewer.mutation(api.social.recordFeedImpressions, { ...args, sessionId: 'short' }))
@@ -1392,7 +1392,6 @@ describe('sharing and reviews in the feed', () => {
     const companionUserId = await insertUser(t, 'feed-review-companion', { approvedIdentity: true })
     const companionProfileId = await insertCompanion(t, companionUserId)
     const reviewerId = await insertUser(t, 'feed-review-member')
-    const revieweeId = await insertUser(t, 'feed-review-reviewee')
     const bookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
       memberId: reviewerId,
       companionProfileId,
@@ -1407,7 +1406,7 @@ describe('sharing and reviews in the feed', () => {
     const reviewId = await t.run(async (ctx) => ctx.db.insert('reviews', {
       bookingId,
       reviewerId,
-      revieweeId,
+      revieweeId: companionUserId,
       companionProfileId,
       rating: 5,
       body: 'A wonderful afternoon together',
@@ -1426,17 +1425,37 @@ describe('sharing and reviews in the feed', () => {
       body: 'A wonderful afternoon together',
       companionDisplayName: 'feed-review-companion',
     })
+    expect(reviewItem?.source).toBe('review')
+    expect(typeof reviewItem?.reason).toBe('string')
+    expect(reviewItem?.reason).not.toContain('—')
   })
 
-  it('keeps hidden and low-rated reviews out of the feed and shares a review into the feed', async () => {
+  it('keeps hidden reviews out of the feed while low ratings stay eligible, and shares a review into the feed', async () => {
     const t = createTest()
     const companionUserId = await insertUser(t, 'feed-review-companion-2', { approvedIdentity: true })
     const companionProfileId = await insertCompanion(t, companionUserId)
-    const reviewerId = await insertUser(t, 'feed-review-member-2')
-    const revieweeId = await insertUser(t, 'feed-review-reviewee-2')
+    const lowReviewerId = await insertUser(t, 'feed-review-member-2-low')
+    const goodReviewerId = await insertUser(t, 'feed-review-member-2')
+    const lowCompanionUserId = await insertUser(t, 'feed-review-companion-2-low', { approvedIdentity: true })
+    const lowCompanionProfileId = await insertCompanion(t, lowCompanionUserId)
     const now = Date.now()
+    for (let index = 0; index < 8; index += 1) {
+      const authorId = await insertUser(t, `feed-review-2-author-${index}`)
+      await insertPost(t, authorId, `background post ${index}`, { createdAt: now - 100 - index })
+    }
+    const lowBookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
+      memberId: lowReviewerId,
+      companionProfileId: lowCompanionProfileId,
+      category: 'Good company',
+      mode: 'online',
+      requestedAt: now - 86_400_000,
+      durationMinutes: 60,
+      status: 'completed',
+      createdAt: now,
+      updatedAt: now,
+    }))
     const bookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
-      memberId: reviewerId,
+      memberId: goodReviewerId,
       companionProfileId,
       category: 'Good company',
       mode: 'online',
@@ -1447,20 +1466,339 @@ describe('sharing and reviews in the feed', () => {
       updatedAt: now,
     }))
     const { lowRatedId, hiddenId, goodId } = await t.run(async (ctx) => ({
-      lowRatedId: await ctx.db.insert('reviews', { bookingId, reviewerId, revieweeId, companionProfileId, rating: 2, body: 'It was fine', hidden: false, likeCount: 0, commentCount: 0, createdAt: now, updatedAt: now }),
-      hiddenId: await ctx.db.insert('reviews', { bookingId, reviewerId, revieweeId, companionProfileId, rating: 5, body: 'Hidden praise', hidden: true, likeCount: 0, commentCount: 0, createdAt: now + 1, updatedAt: now + 1 }),
-      goodId: await ctx.db.insert('reviews', { bookingId, reviewerId, revieweeId, companionProfileId, rating: 4, body: 'A kind afternoon', hidden: false, likeCount: 0, commentCount: 0, createdAt: now + 2, updatedAt: now + 2 }),
+      lowRatedId: await ctx.db.insert('reviews', { bookingId: lowBookingId, reviewerId: lowReviewerId, revieweeId: lowCompanionUserId, companionProfileId: lowCompanionProfileId, rating: 2, body: 'It was fine', hidden: false, likeCount: 0, commentCount: 0, createdAt: now, updatedAt: now }),
+      hiddenId: await ctx.db.insert('reviews', { bookingId, reviewerId: goodReviewerId, revieweeId: companionUserId, companionProfileId, rating: 5, body: 'Hidden praise', hidden: true, likeCount: 0, commentCount: 0, createdAt: now + 1, updatedAt: now + 1 }),
+      goodId: await ctx.db.insert('reviews', { bookingId, reviewerId: goodReviewerId, revieweeId: companionUserId, companionProfileId, rating: 4, body: 'A kind afternoon', hidden: false, likeCount: 0, commentCount: 0, createdAt: now + 2, updatedAt: now + 2 }),
     }))
 
     const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
     const reviewIds = items.filter((item) => item.kind === 'review').map((item) => String(item.review._id))
     expect(reviewIds).toContain(goodId)
-    expect(reviewIds).not.toContain(lowRatedId)
+    // feed_v2 is rating-neutral: substantive 1 through 5 star reviews are eligible.
+    expect(reviewIds).toContain(lowRatedId)
     expect(reviewIds).not.toContain(hiddenId)
 
     const sharer = t.withIdentity({ subject: 'feed-review-member-2' })
     const shareId = await sharer.mutation(api.social.createPost, { body: 'So glad this happened', sharedReviewId: goodId })
     const enriched = await sharer.query(api.social.requestedPost, { postId: String(shareId) })
     expect(enriched?.sharedReview).toMatchObject({ _id: goodId, companionDisplayName: 'feed-review-companion-2' })
+  })
+})
+
+describe('review feed v2', () => {
+  async function reviewWorld(
+    t: ReturnType<typeof convexTest>,
+    name: string,
+    options: {
+      rating?: number
+      body?: string | null
+      bookingStatus?: string
+      reviewerSuspended?: boolean
+      companionStatus?: 'approved' | 'draft'
+      companionIdentity?: boolean
+      withImage?: boolean
+      createdAt?: number
+    } = {},
+  ) {
+    const reviewerId = await insertUser(t, `${name}-reviewer`, { suspended: options.reviewerSuspended })
+    const companionUserId = await insertUser(t, `${name}-companion-user`, { approvedIdentity: options.companionIdentity ?? true })
+    const companionProfileId = await insertCompanion(t, companionUserId, options.companionStatus ?? 'approved')
+    const now = options.createdAt ?? Date.now()
+    const bookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
+      memberId: reviewerId,
+      companionProfileId,
+      category: 'Coffee or meal companion',
+      mode: 'online',
+      requestedAt: now - 86_400_000,
+      durationMinutes: 60,
+      status: (options.bookingStatus ?? 'completed') as any,
+      createdAt: now,
+      updatedAt: now,
+    }))
+    let imageStorageId: any = undefined
+    if (options.withImage) {
+      imageStorageId = await t.run(async (ctx) => ctx.storage.store(new Blob(['review photo'], { type: 'image/png' })))
+    }
+    const body = options.body === undefined ? 'A thoughtful and substantive experience together' : options.body
+    const reviewId = await t.run(async (ctx) => ctx.db.insert('reviews', {
+      bookingId,
+      reviewerId,
+      revieweeId: companionUserId,
+      companionProfileId,
+      rating: options.rating ?? 5,
+      ...(body === null ? {} : { body }),
+      ...(imageStorageId ? { imageStorageId } : {}),
+      hidden: false,
+      likeCount: 0,
+      commentCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    }))
+    return { reviewerId, companionUserId, companionProfileId, bookingId, reviewId }
+  }
+
+  it('serves feed_v2 impressions and keeps explicit shared reviews working', async () => {
+    const t = createTest()
+    await insertUser(t, 'v2-viewer')
+    await reviewWorld(t, 'v2-basic', { rating: 5 })
+    const viewer = t.withIdentity({ subject: 'v2-viewer' })
+    const result = await viewer.mutation(api.social.recordFeedImpressions, {
+      sessionId: 'session-v2-1234',
+      surface: 'for_you',
+      items: [{ itemKey: 'guidance:feed-basics', itemType: 'guidance', source: 'first_party_guidance', position: 0 }],
+    })
+    expect(result).toEqual({ inserted: 1 })
+    const events = await t.run(async (ctx) => ctx.db.query('feedEvents').collect())
+    expect(events[0]).toMatchObject({ algorithmVersion: 'feed_v2' })
+
+    const items = await viewer.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const direct = items.filter((item: any) => item.kind === 'review' && !item.review?._id?.toString().includes('share'))
+    expect(direct.length).toBeGreaterThan(0)
+    for (const item of direct) {
+      expect(item.source).toBe('review')
+      expect(item.reason).not.toContain('—')
+    }
+  })
+
+  it('serves every star rating 1 through 5 without positivity bias', async () => {
+    for (const rating of [1, 2, 3, 4, 5]) {
+      const t = createTest()
+      await insertUser(t, `v2-parity-viewer-${rating}`)
+      const now = Date.now()
+      for (let index = 0; index < 8; index += 1) {
+        const authorId = await insertUser(t, `v2-parity-${rating}-author-${index}`)
+        await insertPost(t, authorId, `parity post ${index}`, { createdAt: now - 100 - index })
+      }
+      const world = await reviewWorld(t, `v2-parity-${rating}`, {
+        rating,
+        body: `A substantive ${rating}-star experience with real detail and care`,
+      })
+      const items = await t.withIdentity({ subject: `v2-parity-viewer-${rating}` }).query(api.social.feed, { filter: 'for_you' }) as any[]
+      const reviewIds = items.filter((item: any) => item.kind === 'review').map((item: any) => String(item.review._id))
+      expect(reviewIds).toContain(String(world.reviewId))
+    }
+  })
+
+  it('treats every rating the same and requires substantive trust-safe content', async () => {
+    const t = createTest()
+    await insertUser(t, 'v2-neutral-viewer')
+    const now = Date.now()
+    for (let index = 0; index < 8; index += 1) {
+      const authorId = await insertUser(t, `v2-neutral-author-${index}`)
+      await insertPost(t, authorId, `neutral post ${index}`, { createdAt: now - 100 - index })
+    }
+    const one = await reviewWorld(t, 'v2-one', { rating: 1, body: 'A substantive but disappointing experience' })
+    const five = await reviewWorld(t, 'v2-five', { rating: 5, body: 'A substantive and wonderful experience!!' })
+    // Not substantive: no body and no photo.
+    await reviewWorld(t, 'v2-empty', { rating: 5, body: null })
+    // Wrong lifecycle: booking never completed.
+    await reviewWorld(t, 'v2-pending', { rating: 5, bookingStatus: 'accepted' })
+    // Suspended reviewer and unapproved Companion stay out.
+    await reviewWorld(t, 'v2-suspended', { rating: 5, reviewerSuspended: true })
+    await reviewWorld(t, 'v2-draft', { rating: 5, companionStatus: 'draft' })
+
+    const items = await t.withIdentity({ subject: 'v2-neutral-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
+    const reviewIds = items.filter((item: any) => item.kind === 'review').map((item: any) => String(item.review._id))
+    expect(reviewIds).toContain(String(one.reviewId))
+    expect(reviewIds).toContain(String(five.reviewId))
+    expect(reviewIds).toHaveLength(2)
+  })
+
+  it('hides reviews across block and mute preferences', async () => {
+    const t = createTest()
+    const viewerId = await insertUser(t, 'v2-block-viewer')
+    const world = await reviewWorld(t, 'v2-block', { rating: 3 })
+    const now = Date.now()
+    await t.run(async (ctx) => ctx.db.insert('memberSafetyPreferences', {
+      ownerUserId: viewerId,
+      targetUserId: world.reviewerId,
+      pairKey: `${viewerId}:${world.reviewerId}`,
+      blockedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    }))
+    const blocked = await t.withIdentity({ subject: 'v2-block-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
+    expect(blocked.filter((item: any) => item.kind === 'review')).toHaveLength(0)
+
+    await t.run(async (ctx) => {
+      const rows = await ctx.db.query('memberSafetyPreferences').collect()
+      for (const row of rows) await ctx.db.delete(row._id)
+      await ctx.db.insert('memberSafetyPreferences', {
+        ownerUserId: viewerId,
+        targetUserId: world.companionUserId,
+        pairKey: `${viewerId}:${world.companionUserId}`,
+        mutedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+    const muted = await t.withIdentity({ subject: 'v2-block-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
+    expect(muted.filter((item: any) => item.kind === 'review')).toHaveLength(0)
+  })
+
+  it('matches viewer interests in reasons and ranks relevant reviews first', async () => {
+    const t = createTest()
+    const viewerId = await insertUser(t, 'v2-interest-viewer')
+    const companionUserId = await insertUser(t, 'v2-interest-companion', { approvedIdentity: true })
+    const companionProfileId = await insertCompanion(t, companionUserId)
+    const now = Date.now()
+    // Viewer booked this Companion category before, building an interest.
+    await t.run(async (ctx) => ctx.db.insert('bookings', {
+      memberId: viewerId,
+      companionProfileId,
+      category: 'Coffee or meal companion',
+      mode: 'online',
+      requestedAt: now - 2 * 86_400_000,
+      durationMinutes: 60,
+      status: 'completed',
+      createdAt: now - 2 * 86_400_000,
+      updatedAt: now - 2 * 86_400_000,
+    }))
+    const reviewerId = await insertUser(t, 'v2-interest-reviewer')
+    const bookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
+      memberId: reviewerId,
+      companionProfileId,
+      category: 'Coffee or meal companion',
+      mode: 'online',
+      requestedAt: now - 86_400_000,
+      durationMinutes: 60,
+      status: 'completed',
+      createdAt: now,
+      updatedAt: now,
+    }))
+    await t.run(async (ctx) => ctx.db.insert('reviews', {
+      bookingId,
+      reviewerId,
+      revieweeId: companionUserId,
+      companionProfileId,
+      rating: 2,
+      body: 'A substantive low rating experience with real detail and care',
+      hidden: false,
+      likeCount: 0,
+      commentCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    }))
+
+    const items = await t.withIdentity({ subject: 'v2-interest-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
+    const review = items.find((item: any) => item.kind === 'review')
+    expect(review?.reason).toContain('Coffee or meal companion')
+    expect(review?.reason).not.toContain('—')
+  })
+
+  it('caps direct reviews at two, spaces them, and keeps one per reviewer and Companion', async () => {
+    const t = createTest()
+    await insertUser(t, 'v2-cap-viewer')
+    const now = Date.now()
+    for (let index = 0; index < 10; index += 1) {
+      const authorId = await insertUser(t, `v2-cap-author-${index}`)
+      await insertPost(t, authorId, `cap post ${index}`, { createdAt: now - index })
+    }
+    const worlds: Array<Awaited<ReturnType<typeof reviewWorld>>> = []
+    for (let index = 0; index < 4; index += 1) {
+      worlds.push(await reviewWorld(t, `v2-cap-${index}`, { rating: 5, createdAt: now - index }))
+    }
+    // Duplicate reviewer and Companion must not double count.
+    await t.run(async (ctx) => ctx.db.insert('reviews', {
+      bookingId: worlds[0].bookingId,
+      reviewerId: worlds[0].reviewerId,
+      revieweeId: worlds[0].companionUserId,
+      companionProfileId: worlds[0].companionProfileId,
+      rating: 5,
+      body: 'A second substantive review from the same reviewer',
+      hidden: false,
+      likeCount: 0,
+      commentCount: 0,
+      createdAt: now - 100,
+      updatedAt: now - 100,
+    }))
+
+    const viewer = t.withIdentity({ subject: 'v2-cap-viewer' })
+    const first = await viewer.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const reviews = first.filter((item: any) => item.kind === 'review')
+    expect(reviews.length).toBeLessThanOrEqual(2)
+    expect(reviews).toHaveLength(2)
+    const positions = first.map((item: any, index: number) => ({ item, index })).filter(({ item }: any) => item.kind === 'review').map(({ index }: any) => index)
+    expect(positions[1] - positions[0]).toBeGreaterThan(1)
+    const reviewerIds = reviews.map((item: any) => String(item.review.reviewerId))
+    expect(new Set(reviewerIds).size).toBe(reviewerIds.length)
+    const companionNames = reviews.map((item: any) => String(item.review.companionDisplayName))
+    expect(new Set(companionNames).size).toBe(companionNames.length)
+
+    const second = await viewer.query(api.social.feed, { filter: 'for_you' }) as any[]
+    expect(second.map((item: any) => item.itemKey)).toEqual(first.map((item: any) => item.itemKey))
+  })
+
+  it('suppresses recently shown reviews when alternatives exist and falls back otherwise', async () => {
+    const t = createTest()
+    await insertUser(t, 'v2-suppress-viewer')
+    const now = Date.now()
+    for (let index = 0; index < 10; index += 1) {
+      const authorId = await insertUser(t, `v2-suppress-author-${index}`)
+      await insertPost(t, authorId, `suppress post ${index}`, { createdAt: now - 100 - index })
+    }
+    const worlds = [
+      await reviewWorld(t, 'v2-suppress-a', { rating: 5 }),
+      await reviewWorld(t, 'v2-suppress-b', { rating: 1 }),
+      await reviewWorld(t, 'v2-suppress-c', { rating: 3 }),
+    ]
+    const viewer = t.withIdentity({ subject: 'v2-suppress-viewer' })
+    const shownReviewIds = async () => (await viewer.query(api.social.feed, { filter: 'for_you' }) as any[])
+      .filter((item: any) => item.kind === 'review')
+      .map((item: any) => String(item.review._id))
+
+    // Three eligible candidates with a cap of two: the first page shows two,
+    // leaving one unseen alternative.
+    let reviewIds = await shownReviewIds()
+    expect(reviewIds).toHaveLength(2)
+    const hidden = worlds.map((world) => String(world.reviewId)).find((id) => !reviewIds.includes(id))
+    expect(hidden).toBeDefined()
+
+    // Suppressing both shown reviews must surface the unseen third. When
+    // suppression runs after the cap, only the seen pair remains and the
+    // helper falls back to it, so this fails without suppression-first ordering.
+    await viewer.mutation(api.social.recordFeedImpressions, {
+      sessionId: 'session-suppress-1234',
+      surface: 'for_you',
+      items: reviewIds.map((id, index) => ({ itemKey: `review:${id}`, itemType: 'review' as const, source: 'review' as const, position: 3 + index })),
+    })
+    reviewIds = await shownReviewIds()
+    expect(reviewIds).toEqual([hidden])
+
+    // Suppressing every candidate falls back instead of emptying discovery.
+    await viewer.mutation(api.social.recordFeedImpressions, {
+      sessionId: 'session-suppress-5678',
+      surface: 'for_you',
+      items: [{ itemKey: `review:${hidden}`, itemType: 'review', source: 'review', position: 3 }],
+    })
+    reviewIds = await shownReviewIds()
+    expect(reviewIds).toHaveLength(2)
+  })
+
+  it('keeps For You pagination correct with reviews only on the first page', async () => {
+    const t = createTest()
+    await insertUser(t, 'v2-page-viewer')
+    const now = Date.now()
+    for (let index = 0; index < 25; index += 1) {
+      const authorId = await insertUser(t, `v2-page-author-${index}`)
+      await insertPost(t, authorId, `page post ${index}`, { createdAt: now - index })
+    }
+    await reviewWorld(t, 'v2-page', { rating: 4 })
+    const viewer = t.withIdentity({ subject: 'v2-page-viewer' })
+
+    const first: any = await viewer.query(api.social.feedPage, { filter: 'for_you', paginationOpts: { cursor: null, numItems: 20 } })
+    expect(first.page.filter((item: any) => item.kind === 'review').length).toBeGreaterThan(0)
+    expect(first.page.filter((item: any) => item.kind === 'review').length).toBeLessThanOrEqual(2)
+
+    const second: any = await viewer.query(api.social.feedPage, { filter: 'for_you', paginationOpts: { cursor: first.continueCursor, numItems: 20 } })
+    expect(second.page.filter((item: any) => item.kind === 'review')).toHaveLength(0)
+    const postKeys = new Set([
+      ...first.page.filter((item: any) => item.kind === 'post').map((item: any) => item.itemKey),
+      ...second.page.filter((item: any) => item.kind === 'post').map((item: any) => item.itemKey),
+    ])
+    expect(postKeys.size).toBe(
+      first.page.filter((item: any) => item.kind === 'post').length
+      + second.page.filter((item: any) => item.kind === 'post').length,
+    )
   })
 })

@@ -325,3 +325,108 @@ function compareRankedCandidates<T extends FeedRankingCandidate>(left: RankedFee
   if (left.score !== right.score) return right.score - left.score
   return left.id.localeCompare(right.id)
 }
+
+export const FEED_V2_ALGORITHM_VERSION = 'feed_v2'
+export const FEED_V2_MAX_DIRECT_REVIEWS = 2
+export const FEED_V2_REVIEW_SUPPRESSION_MS = 7 * 24 * 60 * 60 * 1000
+// Insertion milestones count original posts, not final positions. The first
+// direct review lands after the third post and the second after the eighth,
+// which keeps reviews spaced, deterministic, and never adjacent on a 20-ish
+// first page while degrading gracefully on sparse feeds.
+export const FEED_V2_REVIEW_INSERT_AFTER_COUNTS = [3, 8] as const
+
+export type ReviewFeedCandidate = FeedRankingCandidate & {
+  reviewerId: string
+  companionId: string
+}
+
+/**
+ * Trust-first review scoring uses the same six interpretable signals as posts.
+ * The review star rating is intentionally not an input: callers build signals
+ * from relationship, category, freshness, engagement, trust quality, and
+ * underexposure only, so a 1-star substantive review scores like a 5-star one
+ * with the same signals.
+ */
+export function scoreReviewCandidate(signals: FeedScoreSignals) {
+  return scoreFeedCandidate(signals)
+}
+
+/**
+ * Keeps the highest-ranked candidate per reviewer and per Companion profile.
+ * Input must already be ranked (score desc, id asc); output preserves that
+ * order and is capped, so selection stays deterministic.
+ */
+export function dedupeReviewCandidates<T extends ReviewFeedCandidate>(
+  ranked: RankedFeedCandidate<T>[],
+  limit = FEED_V2_MAX_DIRECT_REVIEWS,
+) {
+  const cap = Math.max(0, Math.min(FEED_V2_MAX_DIRECT_REVIEWS, Math.floor(limit)))
+  const selected: RankedFeedCandidate<T>[] = []
+  const seenReviewers = new Set<string>()
+  const seenCompanions = new Set<string>()
+  for (const candidate of ranked) {
+    if (selected.length >= cap) break
+    if (seenReviewers.has(candidate.reviewerId) || seenCompanions.has(candidate.companionId)) continue
+    seenReviewers.add(candidate.reviewerId)
+    seenCompanions.add(candidate.companionId)
+    selected.push(candidate)
+  }
+  return selected
+}
+
+/**
+ * Suppresses reviews already shown to the viewer when alternatives exist.
+ * Candidates carry a raw id while impression history stores itemKeys such as
+ * `review:<id>`; toItemKey bridges the two. Returns the unsuppressed subset,
+ * or the original list when every candidate was recently shown (fallback so a
+ * sparse feed never goes empty because of suppression alone).
+ */
+export function suppressRecentlyShownReviews<T extends FeedRankingCandidate>(
+  candidates: T[],
+  shownItemKeys: ReadonlySet<string> | readonly string[],
+  toItemKey: (candidate: T) => string = (candidate) => `review:${candidate.id}`,
+) {
+  if (candidates.length === 0) return candidates
+  const shown = shownItemKeys instanceof Set ? shownItemKeys : new Set(shownItemKeys)
+  if (shown.size === 0) return [...candidates]
+  const unsuppressed = candidates.filter((candidate) => !shown.has(toItemKey(candidate)))
+  return unsuppressed.length > 0 ? unsuppressed : [...candidates]
+}
+
+/**
+ * Blends at most maxDirectReviews review cards into a post list. Reviews are
+ * inserted after fixed post counts, never adjacent, at most one trailing
+ * review when the post list is too short to space two, and input order is
+ * preserved for determinism.
+ */
+export function blendReviewsIntoFeed<T, U>(
+  postItems: readonly T[],
+  reviewItems: readonly U[],
+  maxDirectReviews = FEED_V2_MAX_DIRECT_REVIEWS,
+) {
+  const cap = Math.max(0, Math.min(FEED_V2_MAX_DIRECT_REVIEWS, Math.floor(maxDirectReviews)))
+  const reviews = reviewItems.slice(0, cap)
+  if (reviews.length === 0) return [...postItems]
+  const milestones = FEED_V2_REVIEW_INSERT_AFTER_COUNTS.slice(0, cap)
+  const blended: Array<T | U> = []
+  let reviewIndex = 0
+  postItems.forEach((post, index) => {
+    blended.push(post)
+    if (reviewIndex < reviews.length && index + 1 === milestones[reviewIndex]) {
+      blended.push(reviews[reviewIndex])
+      reviewIndex += 1
+    }
+  })
+  // Sparse feeds may never reach a milestone. Append at most one trailing
+  // review so two reviews can never end up adjacent.
+  if (reviewIndex < reviews.length && blended.length > 0) {
+    const lastIsReview = reviewIndex > 0 && blended.length > 0 && blended[blended.length - 1] === reviews[reviewIndex - 1]
+    if (!lastIsReview) {
+      blended.push(reviews[reviewIndex])
+      reviewIndex += 1
+    }
+  } else if (reviewIndex < reviews.length && blended.length === 0) {
+    blended.push(reviews[reviewIndex])
+  }
+  return blended
+}

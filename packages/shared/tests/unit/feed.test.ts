@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
+  blendReviewsIntoFeed,
   boundedRatio,
+  dedupeReviewCandidates,
   engagementScore,
   freshnessScore,
   arrangeCommentThreads,
+  rankFeedCandidates,
   rerankFeedCandidates,
   scoreFeedCandidate,
+  scoreReviewCandidate,
   selectFeaturedComment,
+  suppressRecentlyShownReviews,
+  FEED_V2_MAX_DIRECT_REVIEWS,
   type FeedRankingCandidate,
+  type ReviewFeedCandidate,
 } from '../../src/feed'
 
 describe('feed ranking', () => {
@@ -134,5 +141,107 @@ describe('featured comment selection', () => {
 
     expect(selectFeaturedComment(comments)?.comment._id).toBe('newer')
     expect(selectFeaturedComment([...comments].reverse())?.comment._id).toBe('newer')
+  })
+})
+
+describe('review feed v2', () => {
+  const signals = {
+    relationship: 0.5,
+    category: 0.6,
+    freshness: 0.7,
+    meaningfulEngagement: 0.4,
+    trustQuality: 0.7,
+    underexposure: 0.5,
+  }
+
+  function reviewCandidate(id: string, reviewerId: string, companionId: string): ReviewFeedCandidate {
+    return {
+      id,
+      authorId: reviewerId,
+      category: 'Coffee',
+      source: 'recent',
+      reviewerId,
+      companionId,
+      signals: { ...signals },
+    }
+  }
+
+  it('keeps the star rating out of the feed score', () => {
+    // The rating is not part of FeedScoreSignals, so a 1-star and a 5-star
+    // review with identical signals score identically.
+    expect(scoreReviewCandidate({ ...signals })).toBe(scoreFeedCandidate({ ...signals }))
+    // The score still reads the signals, so different substance scores differently.
+    expect(scoreReviewCandidate({ ...signals, trustQuality: 1 })).not.toBe(
+      scoreReviewCandidate({ ...signals, trustQuality: 0 }),
+    )
+  })
+
+  it('caps direct reviews and keeps one per reviewer and Companion deterministically', () => {
+    const raw = [
+      reviewCandidate('review-a', 'reviewer-1', 'companion-1'),
+      reviewCandidate('review-b', 'reviewer-1', 'companion-2'),
+      reviewCandidate('review-c', 'reviewer-2', 'companion-1'),
+      reviewCandidate('review-d', 'reviewer-2', 'companion-2'),
+      reviewCandidate('review-e', 'reviewer-3', 'companion-3'),
+    ]
+    const ranked = rankFeedCandidates(raw)
+    const selected = dedupeReviewCandidates(ranked)
+    expect(selected).toHaveLength(FEED_V2_MAX_DIRECT_REVIEWS)
+    expect(selected.map((candidate) => candidate.id)).toEqual(['review-a', 'review-d'])
+    // Ranking sorts internally, so raw input order never changes the outcome.
+    const reselected = dedupeReviewCandidates(rankFeedCandidates([...raw].reverse()))
+    expect(reselected.map((candidate) => candidate.id)).toEqual(selected.map((candidate) => candidate.id))
+  })
+
+  it('suppresses recently shown reviews only when alternatives exist', () => {
+    const candidates = [
+      reviewCandidate('a', 'reviewer-1', 'companion-1'),
+      reviewCandidate('b', 'reviewer-2', 'companion-2'),
+    ]
+    expect(suppressRecentlyShownReviews(candidates, new Set<string>())).toHaveLength(2)
+    expect(suppressRecentlyShownReviews(candidates, new Set(['review:a']))).toEqual([candidates[1]])
+    // Fallback keeps the feed non-empty when every candidate was shown.
+    expect(suppressRecentlyShownReviews(candidates, new Set(['review:a', 'review:b']))).toHaveLength(2)
+  })
+
+  it('prefers an unseen third candidate over two seen top candidates', () => {
+    const ranked = rankFeedCandidates([
+      reviewCandidate('a', 'reviewer-1', 'companion-1'),
+      reviewCandidate('b', 'reviewer-2', 'companion-2'),
+      reviewCandidate('c', 'reviewer-3', 'companion-3'),
+    ])
+    expect(ranked.map((candidate) => candidate.id)).toEqual(['a', 'b', 'c'])
+    // Suppression runs before the cap: hiding the top two lets the unseen
+    // third surface instead of falling back to the seen pair.
+    const unsuppressed = suppressRecentlyShownReviews(ranked, new Set(['review:a', 'review:b']))
+    expect(unsuppressed.map((candidate) => candidate.id)).toEqual(['c'])
+    expect(dedupeReviewCandidates(unsuppressed).map((candidate) => candidate.id)).toEqual(['c'])
+    // Fallback only when every eligible candidate was recently shown.
+    const fallback = suppressRecentlyShownReviews(ranked, new Set(['review:a', 'review:b', 'review:c']))
+    expect(fallback).toHaveLength(3)
+    expect(dedupeReviewCandidates(fallback).map((candidate) => candidate.id)).toEqual(['a', 'b'])
+  })
+
+  it('blends at most two reviews with spacing and never adjacent', () => {
+    const posts = Array.from({ length: 20 }, (_, index) => ({ kind: 'post' as const, id: `post-${index}` }))
+    const reviews = [{ kind: 'review' as const, id: 'r1' }, { kind: 'review' as const, id: 'r2' }, { kind: 'review' as const, id: 'r3' }]
+    const blended = blendReviewsIntoFeed(posts, reviews)
+    const reviewPositions = blended
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => (item as { kind: string }).kind === 'review')
+      .map(({ index }) => index)
+    expect(blended).toHaveLength(22)
+    // Milestones count original posts, so the second insertion shifts by one.
+    expect(reviewPositions).toEqual([3, 9])
+    expect(reviewPositions[1] - reviewPositions[0]).toBeGreaterThan(1)
+    expect(blendReviewsIntoFeed(posts, reviews)).toEqual(blended)
+  })
+
+  it('avoids adjacent reviews on sparse feeds by trailing at most one', () => {
+    const posts = [{ kind: 'post' as const, id: 'p0' }]
+    const reviews = [{ kind: 'review' as const, id: 'r1' }, { kind: 'review' as const, id: 'r2' }]
+    const blended = blendReviewsIntoFeed(posts, reviews)
+    expect(blended.filter((item) => (item as { kind: string }).kind === 'review')).toHaveLength(1)
+    expect(blended.map((item) => (item as { kind: string }).kind)).toEqual(['post', 'review'])
   })
 })

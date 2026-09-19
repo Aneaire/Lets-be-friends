@@ -1,7 +1,12 @@
 import {
+  blendReviewsIntoFeed,
   boundedRatio,
   collectMentionUsernames,
+  dedupeReviewCandidates,
   engagementScore,
+  FEED_V2_ALGORITHM_VERSION,
+  FEED_V2_MAX_DIRECT_REVIEWS,
+  FEED_V2_REVIEW_SUPPRESSION_MS,
   freshnessScore,
   isModerationVisible,
   MAX_MENTIONS_PER_COMMENT,
@@ -10,12 +15,15 @@ import {
   normalizeUsername,
   pollPercentages,
   pollValidationError,
+  rankFeedCandidates,
   rerankFeedCandidates,
   selectFeaturedComment,
+  suppressRecentlyShownReviews,
   type FeedCandidateSource,
   type FeedInstrumentationAction,
   type FeedInstrumentationSource,
   type FeedRankingCandidate,
+  type ReviewFeedCandidate,
 } from '@lets-be-friends/shared'
 import { paginationOptsValidator } from 'convex/server'
 import { v } from 'convex/values'
@@ -37,17 +45,22 @@ const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024
 const FOR_YOU_PAGE_SIZE = 20
 const MAX_INSTRUMENTATION_BATCH = 20
-const FEED_ALGORITHM_VERSION = 'feed_v1'
+const FEED_ALGORITHM_VERSION = FEED_V2_ALGORITHM_VERSION
 const MAX_COMMENTS_DEPRECATED = 100
 // A feed post scans only its most recent comments when looking for a featured
 // conversation. The scan is also capped by the post's own comment count, so a
 // quiet post costs far less than this ceiling.
 const MAX_FEATURED_COMMENT_SCAN = 200
-// Reviews surfaced in For You as discovery cards. The scan and cap keep the
-// first page bounded; eligibility favors recent, positive, written experiences.
-const FEED_REVIEW_LIMIT = 3
+// Direct review discovery cards for the first For You page. The scan is
+// bounded and the cap keeps the first page to at most 2 reviews. Eligibility
+// is trust-first: member-to-Companion reviews from completed bookings that are
+// moderation-visible, substantive (body or photo), and block/mute safe. All
+// star ratings are eligible and the rating never boosts the score.
+const FEED_REVIEW_LIMIT = FEED_V2_MAX_DIRECT_REVIEWS
 const FEED_REVIEW_SCAN = 60
-const FEED_REVIEW_MIN_RATING = 4
+const FEED_REVIEW_SUPPRESSION_MS = FEED_V2_REVIEW_SUPPRESSION_MS
+const FEED_REVIEW_IMPRESSION_SCAN = 30
+const COMPLETED_BOOKING_STATUSES = ['completed', 'review_window', 'closed'] as const
 // Following feed cap. Only the most recently followed MAX_FOLLOWED_AUTHORS
 // authors are considered (newest follows first, deterministically), so a member
 // who follows more authors sees only their latest follows. The DB filter builds
@@ -187,7 +200,11 @@ async function feedPageResult(ctx: any, args: {
       }
     }
     const feedItems = args.paginationOpts.cursor === null
-      ? interleaveReviewItems(postItems, await feedReviewItems(ctx, viewer))
+      ? blendReviewsIntoFeed(postItems, await feedReviewItems(ctx, viewer, {
+        authorCache,
+        companionProfileCache,
+        interests,
+      }))
       : postItems
     if (args.paginationOpts.cursor !== null || feedItems.length >= 8) return { ...result, page: feedItems }
     const companionItems = await approvedCompanionFallback(ctx, viewer, 3, interests)
@@ -1440,61 +1457,167 @@ async function sharedContentForPost(
 }
 
 /**
- * Review discovery cards for the first For You page. Only recent, positive,
- * written experiences from approved Companions reach the feed, and the scan is
- * bounded so the first page stays cheap. Nested shares and comments are skipped.
+ * Trust-first direct review cards for the first For You page.
+ *
+ * Eligibility is deliberately narrow: member-to-Companion reviews from
+ * completed bookings that are moderation-visible, substantive (body or photo),
+ * written by an active reviewer about an approved, active, identity-approved
+ * Companion, and safe under block/mute preferences. All star ratings are
+ * eligible and the rating never enters the score.
+ *
+ * Ranking reuses the six interpretable post signals and viewer interests.
+ * Reads stay bounded: one review scan, one bounded follow read, one bounded
+ * impression read, and per-candidate gets served from per-query caches.
  */
-async function feedReviewItems(ctx: any, viewer: Doc<'users'> | null) {
+type ReviewRankingCandidate = ReviewFeedCandidate & {
+  review: Doc<'reviews'>
+  companionDisplayName: string
+  topic?: string
+}
+
+async function feedReviewItems(
+  ctx: any,
+  viewer: Doc<'users'> | null,
+  caches?: {
+    authorCache?: Map<string, Doc<'users'> | null>
+    companionProfileCache?: Map<string, Doc<'companionProfiles'> | null>
+    interests?: Awaited<ReturnType<typeof viewerInterests>>
+  },
+) {
+  const now = Date.now()
+  const interests = caches?.interests ?? await viewerInterests(ctx, viewer)
+  const follows = viewer
+    ? await ctx.db.query('follows').withIndex('by_follower', (q: any) => q.eq('followerId', viewer._id)).order('desc').take(30)
+    : []
+  const followedIds = new Set(follows.map((follow: Doc<'follows'>) => String(follow.followingId)))
   const reviews = await ctx.db.query('reviews').withIndex('by_created_at').order('desc').take(FEED_REVIEW_SCAN)
-  const items: FeedReviewItem[] = []
+
+  const candidates: ReviewRankingCandidate[] = []
   for (const review of reviews) {
-    if (items.length >= FEED_REVIEW_LIMIT) break
     if (!isModerationVisible(review) || !review.companionProfileId) continue
-    if (review.rating < FEED_REVIEW_MIN_RATING) continue
-    if (!review.body && !review.imageStorageId) continue
-    if (viewer && review.reviewerId === viewer._id) continue
-    const reviewer = await ctx.db.get(review.reviewerId)
+    const hasBody = Boolean(review.body?.trim())
+    if (!hasBody && !review.imageStorageId) continue
+    if (viewer && String(review.reviewerId) === String(viewer._id)) continue
+    const reviewer = await cachedAuthor(ctx, review.reviewerId, caches?.authorCache)
     if (!reviewer || reviewer.suspended) continue
     if (viewer && await isHiddenByPreference(ctx, viewer._id, review.reviewerId)) continue
     const companion = await ctx.db.get(review.companionProfileId)
     if (!companion || companion.status !== 'approved') continue
-    const companionUser = await ctx.db.get(companion.userId)
-    if (!companionUser || companionUser.suspended || !hasCurrentIdentityApproval(companionUser)) continue
-    if (viewer && companionUser._id !== viewer._id && await isHiddenByPreference(ctx, viewer._id, companionUser._id)) continue
+    const companionUser = await cachedAuthor(ctx, companion.userId, caches?.authorCache)
+    if (!companionUser || companionUser.suspended || !hasCurrentIdentityApproval(companionUser, now)) continue
+    if (viewer && String(companionUser._id) !== String(viewer?._id) && await isHiddenByPreference(ctx, viewer._id, companionUser._id)) continue
+    const booking = await ctx.db.get(review.bookingId)
+    if (!booking || !(COMPLETED_BOOKING_STATUSES as readonly string[]).includes(booking.status)) continue
+    if (String(booking.memberId) !== String(review.reviewerId)) continue
+    if (String(booking.companionProfileId) !== String(review.companionProfileId)) continue
+    if (String(review.revieweeId) !== String(companion.userId)) continue
+
+    const topics = [
+      booking.category,
+      ...(companion.categories ?? []),
+      ...(companion.strengths ?? []),
+    ]
+    const topicMatch = bestTopicMatch(topics, interests.categoryWeights, interests.maximumCategoryWeight)
+    const engagement = engagementScore(review.commentCount ?? 0, review.likeCount ?? 0, 0)
+    const followedReviewer = followedIds.has(String(review.reviewerId))
+    const bookedCompanion = interests.bookedCompanionUserIds.has(String(companion.userId))
+    const savedCompanion = interests.savedCompanionUserIds.has(String(companion.userId))
+    const interacted = interests.interactedAuthorIds.has(String(review.reviewerId))
+      || interests.interactedAuthorIds.has(String(companion.userId))
+    const relationship = followedReviewer
+      ? 1
+      : bookedCompanion
+        ? 0.85
+        : savedCompanion
+          ? 0.7
+          : interacted
+            ? 0.55
+            : 0
+    // Rating-neutral trust: approved, identity-approved Companion plus durable
+    // evidence (reviewCount) and substance (photo, detailed body). The star
+    // rating is never read here.
+    const bodyLength = review.body?.trim().length ?? 0
+    const trustQuality = Math.min(1, (
+      0.65
+      + boundedRatio(companion.reviewCount ?? 0, 20) * 0.2
+      + (review.imageStorageId ? 0.05 : 0)
+      + (bodyLength >= 80 ? 0.05 : 0)
+    ))
+    const reviewerIsNew = now - reviewer.createdAt <= 30 * 24 * 60 * 60 * 1000
+    const underexposure = Math.max(reviewerIsNew ? 0.8 : 0.35, 1 - engagement)
+    const source = candidateSource({
+      followed: followedReviewer,
+      categorySignal: topicMatch.score,
+      completedExperience: true,
+      engagement,
+      underexposure,
+    })
+    candidates.push({
+      id: String(review._id),
+      authorId: String(review.reviewerId),
+      category: topicMatch.topic ?? topics[0],
+      source,
+      reviewerId: String(review.reviewerId),
+      companionId: String(review.companionProfileId),
+      signals: {
+        relationship,
+        category: topicMatch.score,
+        freshness: freshnessScore(review.createdAt, now),
+        meaningfulEngagement: engagement,
+        trustQuality,
+        underexposure,
+      },
+      seen: false,
+      review,
+      companionDisplayName: companionUser.displayName,
+      topic: topicMatch.topic,
+    })
+  }
+
+  // Suppression runs before the cap so an unseen lower-ranked candidate can
+  // replace seen top candidates. Fallback (inside the helper) only triggers
+  // when every eligible candidate was recently shown. Dedupe runs last so one
+  // reviewer and one Companion per page still holds after suppression.
+  const ranked = rankFeedCandidates(candidates)
+  const unsuppressed = viewer
+    ? suppressRecentlyShownReviews(ranked, await recentReviewImpressions(ctx, viewer, now), (candidate) => `review:${candidate.id}`)
+    : ranked
+  const selected = dedupeReviewCandidates(unsuppressed, FEED_REVIEW_LIMIT)
+
+  const items: FeedReviewItem[] = []
+  for (const candidate of selected) {
     items.push({
       kind: 'review' as const,
-      itemKey: `review:${review._id}`,
+      itemKey: `review:${candidate.review._id}`,
       source: 'review' as const,
-      reason: `A recent experience with ${companionUser.displayName}`,
+      reason: reviewReasonFor(candidate),
       review: {
-        ...await enrichReview(ctx, review, viewer),
-        companionDisplayName: companionUser.displayName,
+        ...await enrichReview(ctx, candidate.review, viewer),
+        companionDisplayName: candidate.companionDisplayName,
       },
     })
   }
   return items
 }
 
-/**
- * Spreads review cards through the post list so discovery is not confined to the
- * bottom of the page. Review order is preserved and leftover reviews trail.
- */
-function interleaveReviewItems<T, U>(postItems: T[], reviewItems: U[]): (T | U)[] {
-  if (reviewItems.length === 0) return postItems
-  const combined: (T | U)[] = []
-  let reviewIndex = 0
-  postItems.forEach((item, index) => {
-    combined.push(item)
-    if ((index + 1) % 5 === 0 && reviewIndex < reviewItems.length) {
-      combined.push(reviewItems[reviewIndex])
-      reviewIndex += 1
-    }
-  })
-  while (reviewIndex < reviewItems.length) {
-    combined.push(reviewItems[reviewIndex])
-    reviewIndex += 1
+function reviewReasonFor(candidate: { topic?: string; companionDisplayName: string }) {
+  if (candidate.topic) {
+    return `A recent experience with ${candidate.companionDisplayName} matching your interest in ${candidate.topic}`
   }
-  return combined
+  return `A recent experience with ${candidate.companionDisplayName} from a completed booking`
+}
+
+async function recentReviewImpressions(ctx: any, viewer: Doc<'users'>, now: number) {
+  const cutoff = now - FEED_REVIEW_SUPPRESSION_MS
+  const events = await ctx.db.query('feedEvents')
+    .withIndex('by_user_item_event_created_at', (q: any) => q
+      .eq('userId', viewer._id)
+      .eq('itemType', 'review')
+      .eq('eventType', 'impression')
+      .gte('createdAt', cutoff))
+    .order('desc')
+    .take(FEED_REVIEW_IMPRESSION_SCAN)
+  return new Set<string>(events.filter((event: any) => event.createdAt >= cutoff).map((event: any) => String(event.itemKey)))
 }
 
 /**
