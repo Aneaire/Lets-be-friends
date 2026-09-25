@@ -7,7 +7,7 @@ export const MIN_COMPANION_HOURLY_RATE_CENTAVOS = 10_000
 export const MAX_COMPANION_HOURLY_RATE_CENTAVOS = 1_000_000
 export const MIN_BOOKING_DURATION_MINUTES = 15
 export const MAX_BOOKING_DURATION_MINUTES = 12 * 60
-export const MIN_TOP_UP_CENTAVOS = 10_000
+export const MIN_TOP_UP_CENTAVOS = 100
 export const MAX_TOP_UP_CENTAVOS = 10_000_000
 export const MIN_COMPANION_WITHDRAWAL_CENTAVOS = 10_000
 export const MAX_COMPANION_WITHDRAWAL_CENTAVOS = 5_000_000
@@ -34,7 +34,7 @@ export function validateBookingDurationMinutes(value: number) {
 export function validateTopUpCentavos(value: number) {
   if (!Number.isSafeInteger(value)) throw new Error('Top-up amount must be a whole number of centavos')
   if (value < MIN_TOP_UP_CENTAVOS || value > MAX_TOP_UP_CENTAVOS) {
-    throw new Error('Top-up amount must be between ₱100 and ₱100,000')
+    throw new Error('Top-up amount must be between ₱1 and ₱100,000')
   }
   return value
 }

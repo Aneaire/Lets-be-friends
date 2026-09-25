@@ -21,7 +21,7 @@ const companion: DiscoveryCompanion = {
 const meta = {
   title: 'Web/Organisms/Companion list item',
   component: CompanionListItem,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   decorators: [(Story) => <div className="discover-results"><div className="panel discover-results-panel"><div className="worklist" role="list"><Story /></div></div></div>],
   args: { companion, signedIn: true, onFollow: async () => undefined },
 } satisfies Meta<typeof CompanionListItem>

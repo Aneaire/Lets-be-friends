@@ -90,9 +90,9 @@ function ReadyCompanionScreen() {
       setBusy(action)
       setMessage('')
       try {
-        await submitApplication(validated.value)
+        const result = await submitApplication(validated.value)
         formDirtyRef.current = false
-        setMessage('Companion profile sent for review.')
+        setMessage(result.requiresReview ? 'Companion profile sent for review.' : 'Profile updated. Your changes are live.')
       } catch {
         setMessage('Your Companion profile could not be saved. Review the details and try again.')
       } finally {

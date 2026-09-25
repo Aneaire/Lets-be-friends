@@ -35,7 +35,7 @@ const ledger = [
 const meta = {
   title: 'Mobile/Finance/Companion finance',
   component: CompanionFinancePresentation,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     canAcceptBookings: true,
     availableEarnings: '₱3,420.00',
@@ -136,7 +136,7 @@ export const BookingAcceptancePaused: Story = {
 }
 
 export const LargeValuesAt320: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileTiny' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     availableEarnings: '₱9,999,999.99',
     pendingEarnings: '₱888,888.88',

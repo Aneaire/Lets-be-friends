@@ -1,11 +1,12 @@
 import { Link } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useQuery } from 'convex/react'
-import { ArrowRight, BadgeDollarSign, Check, ShieldCheck, UserRound } from 'lucide-react'
+import { ArrowRight, BadgeDollarSign, ShieldCheck, UserRound } from 'lucide-react'
 import { api } from '../../../convex/_generated/api'
 import { BrandLogo } from '../../design-system/atoms/BrandLogo'
 import { identityEntitlementStatus, memberVerificationPresentation, canOpenCompanionProfile } from '../../lib/memberVerification'
 import { companionSetupState } from '../../lib/verificationNudge'
+import { VerificationStep } from './VerificationStep'
 
 export function GetVerifiedPage() {
   const { isSignedIn } = useAuth()
@@ -60,119 +61,112 @@ export function GetVerifiedPage() {
 
       <div className="verification-layout">
         <div className="verification-steps">
-          <section className="verification-step" data-complete={identityDone} aria-labelledby="verify-identity-heading">
-            <div className="verification-step-marker" aria-hidden="true">
-              {identityDone ? <Check size={20} /> : <span>1</span>}
-            </div>
-            <div className="verification-step-body">
-              <div className="verification-step-heading">
-                <div className="verification-step-title">
-                  <ShieldCheck size={20} aria-hidden="true" />
-                  <h2 id="verify-identity-heading" className="text-h2">Identity check</h2>
-                </div>
-                {verification && (
-                  <span className="status-pill" data-tone={verification.tone}>{verification.label}</span>
-                )}
+          <VerificationStep
+            step={1}
+            title="Identity check"
+            icon={<ShieldCheck size={20} aria-hidden="true" />}
+            completed={identityDone}
+            headingId="verify-identity-heading"
+            status={verification ? <span className="status-pill" data-tone={verification.tone}>{verification.label}</span> : undefined}
+          >
+            <p className="text-body muted">Submit a government ID and a current selfie. Only the safety team reviews them.</p>
+            {!verification && (
+              <div className="verification-status-loading" role="status">
+                <span className="ds-spinner" aria-hidden="true" />
+                <span>Loading identity status...</span>
               </div>
-              <p className="text-body muted">Submit a government ID and a current selfie. Only the safety team reviews them.</p>
-              {!verification && (
-                <div className="verification-status-loading" role="status">
-                  <span className="ds-spinner" aria-hidden="true" />
-                  <span>Loading identity status...</span>
-                </div>
-              )}
-              {verification && !identityDone && (
-                <>
-                  <p className="verification-guidance">{verification.guidance}</p>
-                  <Link
-                    to="/verify-identity"
-                    search={{ intent: 'member', returnTo: '/get-verified' }}
-                    className="btn btn-self mt-4"
-                  >
-                    Verify identity <ArrowRight size={16} aria-hidden="true" />
-                  </Link>
-                </>
-              )}
-              {verification && identityDone && (
-                <p className="verification-complete-copy">Your identity and safety review are approved.</p>
-              )}
-            </div>
-          </section>
-
-          <section className="verification-step" data-complete={companionDone} aria-labelledby="verify-companion-heading">
-            <div className="verification-step-marker" aria-hidden="true">
-              {companionDone ? <Check size={20} /> : <span>2</span>}
-            </div>
-            <div className="verification-step-body">
-              <div className="verification-step-heading">
-                <div className="verification-step-title">
-                  <UserRound size={20} aria-hidden="true" />
-                  <h2 id="verify-companion-heading" className="text-h2">Companion profile</h2>
-                </div>
-                <span
-                  className="status-pill"
-                  data-tone={companionDone ? 'success' : companion === 'pending_review' ? 'warning' : 'self'}
+            )}
+            {verification && !identityDone && (
+              <>
+                <p className="verification-guidance">{verification.guidance}</p>
+                <Link
+                  to="/verify-identity"
+                  search={{ intent: 'member', returnTo: '/get-verified' }}
+                  className="btn btn-self mt-4"
                 >
-                  {application === undefined
-                    ? 'Loading...'
-                    : companion === 'approved'
-                      ? 'Approved'
-                      : companion === 'pending_review'
-                        ? 'In review'
-                        : companion === 'rejected'
-                          ? 'Needs changes'
-                          : companion === 'suspended'
-                            ? 'Suspended'
-                            : 'Not started'}
-                </span>
+                  Verify identity <ArrowRight size={16} aria-hidden="true" />
+                </Link>
+              </>
+            )}
+            {verification && identityDone && (
+              <p className="verification-complete-copy">Your identity and safety review are approved.</p>
+            )}
+          </VerificationStep>
+
+          <VerificationStep
+            step={2}
+            title="Companion profile"
+            icon={<UserRound size={20} aria-hidden="true" />}
+            completed={companionDone}
+            headingId="verify-companion-heading"
+            status={
+              <span
+                className="status-pill"
+                data-tone={companionDone ? 'success' : companion === 'pending_review' ? 'warning' : 'self'}
+              >
+                {application === undefined
+                  ? 'Loading...'
+                  : companion === 'approved'
+                    ? 'Approved'
+                    : companion === 'pending_review'
+                      ? 'In review'
+                      : companion === 'rejected'
+                        ? 'Needs changes'
+                        : companion === 'suspended'
+                          ? 'Suspended'
+                          : 'Not started'}
+              </span>
+            }
+          >
+            <p className="text-body muted">Share your activities, session format, availability, and profile details.</p>
+            {application === undefined && (
+              <div className="verification-status-loading" role="status">
+                <span className="ds-spinner" aria-hidden="true" />
+                <span>Loading Companion profile...</span>
               </div>
-              <p className="text-body muted">Share your activities, session format, availability, and profile details.</p>
-              {application === undefined && (
-                <div className="verification-status-loading" role="status">
-                  <span className="ds-spinner" aria-hidden="true" />
-                  <span>Loading Companion profile...</span>
-                </div>
-              )}
-              {application !== undefined && !companionDone && !companionUnlocked && companion === 'pending_review' && (
-                <>
-                  <p className="verification-guidance verification-lock-note">
-                    Your Companion profile is saved. Its review cannot proceed until your identity is submitted for safety review.
-                  </p>
-                  <button type="button" className="btn btn-self mt-4" disabled aria-disabled="true" title="Submit your identity check first">
-                    Continue application
-                    <ArrowRight size={16} aria-hidden="true" />
-                  </button>
-                </>
-              )}
-              {application !== undefined && !companionDone && !companionUnlocked && companion !== 'pending_review' && (
-                <>
-                  <p className="verification-guidance verification-lock-note">
-                    Submit your identity check for safety review first. Your Companion profile unlocks after your identity is submitted for review.
-                  </p>
-                  <button type="button" className="btn btn-self mt-4" disabled aria-disabled="true" title="Submit your identity check first">
-                    {companion === 'none' || companion === 'draft' ? 'Create Companion profile' : 'Continue application'}
-                    <ArrowRight size={16} aria-hidden="true" />
-                  </button>
-                </>
-              )}
-              {application !== undefined && !companionDone && companionUnlocked && (
-                <>
-                  <p className="verification-guidance">
-                    {companion === 'pending_review'
-                      ? 'Your application is with the review team. Approval makes your profile visible to members.'
-                      : 'Create your profile and send it to the safety team for review.'}
-                  </p>
-                  <Link to="/become-companion" className="btn btn-self mt-4">
-                    {companion === 'none' || companion === 'draft' ? 'Create Companion profile' : 'Continue application'}
-                    <ArrowRight size={16} aria-hidden="true" />
-                  </Link>
-                </>
-              )}
-              {application !== undefined && companionDone && (
+            )}
+            {application !== undefined && !companionDone && !companionUnlocked && companion === 'pending_review' && (
+              <>
+                <p className="verification-guidance verification-lock-note">
+                  Your Companion profile is saved. Its review cannot proceed until your identity is submitted for safety review.
+                </p>
+                <button type="button" className="btn btn-self mt-4" disabled aria-disabled="true" title="Submit your identity check first">
+                  Continue application
+                  <ArrowRight size={16} aria-hidden="true" />
+                </button>
+              </>
+            )}
+            {application !== undefined && !companionDone && !companionUnlocked && companion !== 'pending_review' && (
+              <>
+                <p className="verification-guidance verification-lock-note">
+                  Submit your identity check for safety review first. Your Companion profile unlocks after your identity is submitted for review.
+                </p>
+                <button type="button" className="btn btn-self mt-4" disabled aria-disabled="true" title="Submit your identity check first">
+                  {companion === 'none' || companion === 'draft' ? 'Create Companion profile' : 'Continue application'}
+                  <ArrowRight size={16} aria-hidden="true" />
+                </button>
+              </>
+            )}
+            {application !== undefined && !companionDone && companionUnlocked && (
+              <>
+                <p className="verification-guidance">
+                  {companion === 'pending_review'
+                    ? 'Your application is with the review team. Approval makes your profile visible to members.'
+                    : 'Create your profile and send it to the safety team for review.'}
+                </p>
+                <Link to="/become-companion" className="btn btn-self mt-4">
+                  {companion === 'none' || companion === 'draft' ? 'Create Companion profile' : 'Continue application'}
+                  <ArrowRight size={16} aria-hidden="true" />
+                </Link>
+              </>
+            )}
+            {application !== undefined && companionDone && (
+              <>
                 <p className="verification-complete-copy">Your Companion profile is approved and visible to members.</p>
-              )}
-            </div>
-          </section>
+                <Link to="/settings" className="btn btn-neutral mt-4">Manage in settings</Link>
+              </>
+            )}
+          </VerificationStep>
         </div>
 
         <aside className="verification-outcome" aria-labelledby="verify-earnings-heading">

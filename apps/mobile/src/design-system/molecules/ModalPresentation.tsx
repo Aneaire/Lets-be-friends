@@ -49,6 +49,7 @@ type ModalPresentationAnimationProps = {
   backdropStyle?: StyleProp<AnimatedViewStyle>
   surfaceStyle?: StyleProp<AnimatedViewStyle>
   interactionEnabled?: boolean
+  hosted?: boolean
 }
 
 export function modalAnimationPlan(
@@ -66,6 +67,31 @@ export function modalAnimationPlan(
   } as const
 }
 
+/**
+ * The web accessibility contract for a modal surface. React Native Web only
+ * exposes a dialog landmark when the element carries an explicit `dialog`
+ * role, so this is what makes the overlay reachable to `getByRole('dialog')`
+ * in stories and assistive technology without suppressing any a11y rule.
+ */
+export function modalSurfaceAccessibility({
+  titleId,
+  hasDescription,
+  descriptionId,
+  busy,
+}: {
+  titleId: string
+  hasDescription: boolean
+  descriptionId: string
+  busy: boolean
+}) {
+  return {
+    role: 'dialog' as const,
+    'aria-labelledby': titleId,
+    'aria-describedby': hasDescription ? descriptionId : undefined,
+    'aria-busy': busy || undefined,
+  }
+}
+
 export function ModalPresentation({
   title,
   description,
@@ -79,6 +105,7 @@ export function ModalPresentation({
   backdropStyle,
   surfaceStyle,
   interactionEnabled = true,
+  hosted = false,
 }: ModalPresentationProps & ModalPresentationAnimationProps) {
   const theme = useAppTheme()
   const insets = useContext(SafeAreaInsetsContext)
@@ -121,9 +148,13 @@ export function ModalPresentation({
         accessibilityLabelledBy={titleId}
         accessibilityState={{ busy }}
         accessibilityViewIsModal
-        aria-busy={busy || undefined}
-        aria-labelledby={titleId}
-        aria-describedby={description ? descriptionId : undefined}
+        {...modalSurfaceAccessibility({
+          titleId,
+          hasDescription: Boolean(description),
+          descriptionId,
+          busy,
+        })}
+        role={hosted ? undefined : 'dialog'}
         importantForAccessibility="yes"
         onAccessibilityEscape={busy ? undefined : onClose}
         style={[
@@ -276,6 +307,7 @@ export function ModalHost({
     <Modal
       visible={visible || rendered}
       transparent
+      accessibilityLabel={presentationProps.title}
       animationType={motion.native}
       presentationStyle="overFullScreen"
       statusBarTranslucent
@@ -285,6 +317,7 @@ export function ModalHost({
         {...presentationProps}
         busy={busy}
         onClose={onClose}
+        hosted
         backdropStyle={backdropStyle}
         surfaceStyle={surfaceStyle}
         interactionEnabled={visible}

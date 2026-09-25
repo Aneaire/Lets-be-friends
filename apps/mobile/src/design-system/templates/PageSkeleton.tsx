@@ -375,7 +375,11 @@ function NotificationsSkeleton() {
 
 export function NotificationListSkeleton() {
   return (
-    <View accessibilityLabel="Loading notification activity" style={styles.notificationList}>
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading notification activity"
+      accessibilityState={{ busy: true }}
+      style={styles.notificationList}>
       <Skeleton width="34%" height={13} />
       <ListRowsSkeleton count={5} />
     </View>

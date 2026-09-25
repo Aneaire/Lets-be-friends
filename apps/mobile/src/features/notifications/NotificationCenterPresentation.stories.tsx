@@ -49,7 +49,7 @@ const rejectAction = fn(async () => {
 const meta = {
   title: 'Mobile/Notifications/Notification center',
   component: NotificationCenterPresentation,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     notifications,
     onBack: goBack,
@@ -83,8 +83,9 @@ export const Loading: Story = {
   args: { notifications: [], loadingFirstPage: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Loading notifications')).toBeVisible()
-    await expect(canvas.getByLabelText('Loading')).toBeVisible()
+    await expect(canvas.getByLabelText('Loading notification activity')).toBeVisible()
+    await expect(canvas.queryByText('You are all caught up')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('NEEDS YOUR ATTENTION')).not.toBeInTheDocument()
   },
 }
 
@@ -144,7 +145,7 @@ export const CanLoadMore: Story = {
 }
 
 export const LongContentAt320: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileTiny' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     notifications: [
       {

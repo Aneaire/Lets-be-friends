@@ -8,7 +8,7 @@ import { SegmentedControl } from './SegmentedControl'
 
 const meta = {
   title: 'Mobile/Molecules/Segmented control',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 
 export default meta

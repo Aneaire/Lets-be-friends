@@ -6,7 +6,7 @@ import { ProductMap } from './ProductMap'
 const meta = {
   title: 'Mobile/Organisms/Product map',
   component: ProductMap,
-  parameters: { viewport: { defaultViewport: 'mobileDefault' } },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     center: { latitude: 14.5995, longitude: 120.9842 },
     radiusKm: 5,

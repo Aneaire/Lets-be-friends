@@ -3,6 +3,7 @@ import {
   calculateBookingPrice,
   nextSaturdayManilaCutoff,
   validateCompanionHourlyRateCentavos,
+  validateTopUpCentavos,
 } from '@lets-be-friends/shared'
 
 describe('booking finance rules', () => {
@@ -22,6 +23,15 @@ describe('booking finance rules', () => {
   it('rejects unsafe or out-of-range hourly rates', () => {
     expect(() => validateCompanionHourlyRateCentavos(9_999)).toThrow('between ₱100 and ₱10,000')
     expect(() => validateCompanionHourlyRateCentavos(10_000.5)).toThrow('whole number of centavos')
+  })
+
+  it('accepts top-ups from ₱1 and rejects fractions of a peso', () => {
+    expect(validateTopUpCentavos(100)).toBe(100)
+    expect(validateTopUpCentavos(9_999)).toBe(9_999)
+    expect(validateTopUpCentavos(10_000_000)).toBe(10_000_000)
+    expect(() => validateTopUpCentavos(99)).toThrow('between ₱1 and ₱100,000')
+    expect(() => validateTopUpCentavos(10_000_001)).toThrow('between ₱1 and ₱100,000')
+    expect(() => validateTopUpCentavos(100.5)).toThrow('whole number of centavos')
   })
 
   it('uses Saturday 09:00 Asia/Manila and rolls an exact cutoff to the next week', () => {

@@ -67,6 +67,8 @@ describe('admin worklist page presentation', () => {
     expect(within(dialog).getByRole('button', { name: 'Approve' })).toBeTruthy()
     expect(within(dialog).getByRole('button', { name: 'Reject' })).toBeTruthy()
 
+    expect(screen.getAllByRole('banner')).toHaveLength(1)
+
     fireEvent.keyDown(dialog, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Aurelia Buena' })).toBeNull()
   })

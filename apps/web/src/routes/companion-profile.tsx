@@ -212,6 +212,7 @@ function CompanionProfilePage() {
 
       <ProfileContentPanel
         ownerName={companion.displayName}
+        ownerImageUrl={companion.profileImageUrl}
         posts={posts}
         reviews={displayedReviews}
         focusedReviewId={reviewId}

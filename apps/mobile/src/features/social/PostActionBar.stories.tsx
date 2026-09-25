@@ -59,7 +59,7 @@ function CountRefreshStory() {
 
 const meta = {
   title: 'Mobile/Molecules/Post action bar',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 
 export default meta

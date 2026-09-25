@@ -8,7 +8,7 @@ import { FormField } from './FormField'
 import { IdentityRow } from './IdentityRow'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-const meta = { title: 'Mobile/Molecules/Core patterns', parameters: { viewport: { defaultViewport: 'mobileDefault' } } } satisfies Meta
+const meta = { title: 'Mobile/Molecules/Core patterns', globals: { viewport: { value: 'mobileDefault', isRotated: false } } } satisfies Meta
 export default meta
 type Story = StoryObj<typeof meta>
 export const FieldOptional: Story = { render: () => <FormField label="Display name" optional hint="Shown to other members"><TextField defaultValue="Alex Rivera" /></FormField> }

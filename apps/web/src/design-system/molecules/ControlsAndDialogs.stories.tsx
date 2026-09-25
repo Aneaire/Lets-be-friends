@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { useState } from 'react'
 import { Button } from '../atoms/Button'
 import { ConfirmationDialog, Dialog } from './Dialog'
@@ -8,7 +8,7 @@ import { SegmentedControl } from './SegmentedControl'
 
 const meta = {
   title: 'Web/Molecules/Selection and overlays',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 export default meta
 type Story = StoryObj<typeof meta>
@@ -136,12 +136,11 @@ export const BookingDialog: Story = {
     const dialog = await page.findByRole('dialog', {
       name: 'Booking details',
     })
-    await expect(
-      within(dialog).getByRole('button', { name: 'Close dialog' }),
-    ).toHaveFocus()
+    const closeButton = within(dialog).getByRole('button', { name: 'Close dialog' })
+    await waitFor(() => expect(closeButton).toHaveFocus())
     await userEvent.keyboard('{Escape}')
     await expect(page.queryByRole('dialog')).not.toBeInTheDocument()
-    await expect(opener).toHaveFocus()
+    await waitFor(() => expect(opener).toHaveFocus())
   },
 }
 

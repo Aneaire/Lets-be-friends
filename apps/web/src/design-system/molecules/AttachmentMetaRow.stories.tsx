@@ -7,7 +7,7 @@ import { AttachmentMetaRow } from './AttachmentMetaRow'
 const meta = {
   title: 'Web/Molecules/Attachment meta row',
   component: AttachmentMetaRow,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   decorators: [(Story) => <div style={{ width: 'min(100%, 34rem)' }}><Story /></div>],
 } satisfies Meta<typeof AttachmentMetaRow>
 

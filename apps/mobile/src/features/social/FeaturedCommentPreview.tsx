@@ -88,7 +88,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   author: {
-    alignSelf: 'flex-start',
+    alignSelf: 'stretch',
+    minWidth: 0,
   },
   action: {
     alignSelf: 'flex-start',

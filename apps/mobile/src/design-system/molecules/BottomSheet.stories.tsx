@@ -12,7 +12,7 @@ import { BottomSheetPresentation } from './BottomSheet'
 
 const meta = {
   title: 'Mobile/Molecules/Bottom sheet',
-  parameters: { viewport: { defaultViewport: 'mobileDefault' } },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
 } satisfies Meta
 
 export default meta
@@ -122,7 +122,7 @@ export const Open: Story = {
 export const Closed: Story = { render: () => <SheetStory initialVisible={false} /> }
 export const LongContent: Story = { render: () => <SheetStory initialVisible variant="long" /> }
 export const Narrow320: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   render: () => <SheetStory initialVisible variant="narrow" />,
 }
 

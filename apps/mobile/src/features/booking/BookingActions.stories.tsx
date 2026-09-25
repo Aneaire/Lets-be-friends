@@ -8,8 +8,8 @@ import { BookingMessagesButton } from './BookingMessagesButton'
 
 const meta = {
   title: 'Mobile/Booking/Booking actions',
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   parameters: {
-    viewport: { defaultViewport: 'mobileSmall' },
     a11y: { config: { rules: [{ id: 'aria-allowed-attr', enabled: false }] } },
   },
 } satisfies Meta

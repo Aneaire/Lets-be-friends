@@ -31,7 +31,7 @@ function FreshRelationshipStory() {
 
 const meta = {
   title: 'Mobile/Molecules/Post follow action',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 
 export default meta

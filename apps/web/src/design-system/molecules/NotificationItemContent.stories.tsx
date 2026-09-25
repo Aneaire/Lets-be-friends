@@ -4,7 +4,7 @@ import { NotificationItemContent } from './NotificationItemContent'
 const meta = {
   title: 'Web/Molecules/Notification item content',
   component: NotificationItemContent,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   decorators: [
     (Story) => (
       <button

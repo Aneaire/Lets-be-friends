@@ -9,7 +9,7 @@ const darkTheme = { theme: 'dark' }
 const meta = {
   title: 'Mobile/Molecules/Attachment metadata row',
   component: AttachmentMetaRow,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     name: 'session-notes.pdf',
     detail: '1.5 MiB · Open private attachment',

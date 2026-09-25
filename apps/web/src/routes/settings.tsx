@@ -1,13 +1,16 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth, useUser } from '@clerk/react'
 import { useQuery } from 'convex/react'
-import { Moon, Sun, UserRound, UserRoundCog } from 'lucide-react'
+import { BadgeDollarSign, Moon, ShieldCheck, Sun, UserRound, UserRoundCog } from 'lucide-react'
+import { formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { Button } from '../design-system/atoms/Button'
 import { useThemeChoice } from '../design-system/atoms/ThemeToggle'
+import { SettingsLinkRow, SettingsSection } from '../features/presentation/SettingsPresentation'
 
 export const Route = createFileRoute('/settings')({ component: SettingsPage })
 
-function SettingsPage() {
+export function SettingsPage() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
   const application = useQuery(api.companions.myApplication)
@@ -19,7 +22,7 @@ function SettingsPage() {
         <h1 className="text-h1 mt-2">Sign in to manage your settings.</h1>
         <div className="mt-6">
           <SignInButton mode="modal">
-            <button className="btn btn-self">Sign in</button>
+            <Button intent="self">Sign in</Button>
           </SignInButton>
         </div>
       </main>
@@ -37,13 +40,11 @@ function SettingsPage() {
       </header>
 
       <div className="settings-stack">
-        <section className="settings-section" aria-labelledby="appearance-heading">
-          <div className="settings-section-heading">
-            <div>
-              <h2 id="appearance-heading" className="text-h2">Appearance</h2>
-              <p className="text-meta mt-1">This preference is saved on this device.</p>
-            </div>
-          </div>
+        <SettingsSection
+          headingId="appearance-heading"
+          title="Appearance"
+          description="This preference is saved on this device."
+        >
           <div className="settings-row settings-row-choice">
             <div className="settings-row-copy">
               <strong>Color theme</strong>
@@ -70,32 +71,65 @@ function SettingsPage() {
               </button>
             </div>
           </div>
-        </section>
+        </SettingsSection>
 
-        <section className="settings-section" aria-labelledby="account-heading">
-          <div className="settings-section-heading">
-            <div>
-              <h2 id="account-heading" className="text-h2">Account</h2>
-              <p className="text-meta mt-1">Keep personal details separate from app preferences.</p>
-            </div>
-          </div>
-          <Link to="/profile" className="settings-link-row">
-            <UserRound size={19} aria-hidden="true" className="settings-row-icon" />
-            <span className="settings-row-copy">
-              <strong>Personal profile</strong>
-              <span>{email ? `Name, photo, bio, and sign-in email (${email})` : 'Name, photo, bio, and sign-in details'}</span>
-            </span>
-            <span className="settings-link-action">Manage</span>
-          </Link>
-          <Link to={application ? '/become-companion' : '/companion'} className="settings-link-row">
-            <UserRoundCog size={19} aria-hidden="true" className="settings-row-icon" />
-            <span className="settings-row-copy">
-              <strong>Companion profile</strong>
-              <span>{application ? 'Strengths, availability, boundaries, and rate' : 'Create a profile to share experiences with members'}</span>
-            </span>
-            <span className="settings-link-action">{application ? 'Edit' : 'Get started'}</span>
-          </Link>
-        </section>
+        <SettingsSection
+          headingId="account-heading"
+          title="Account"
+          description="Keep personal details separate from app preferences."
+        >
+          <SettingsLinkRow
+            link={<Link to="/profile" />}
+            icon={<UserRound size={19} aria-hidden="true" className="settings-row-icon" />}
+            title="Personal profile"
+            description={email ? `Name, photo, bio, and sign-in email (${email})` : 'Name, photo, bio, and sign-in details'}
+            actionLabel="Manage"
+          />
+        </SettingsSection>
+
+        <SettingsSection
+          headingId="companion-heading"
+          title="Companion"
+          description={application
+            ? application.status === 'approved'
+              ? 'Verified profiles are locked. Change your price and profile details here.'
+              : 'Manage your Companion profile and track its review.'
+            : 'Share your everyday Strengths with members.'}
+        >
+          {application ? (
+            <>
+              <SettingsLinkRow
+                link={<Link to="/become-companion" search={{ edit: true }} />}
+                icon={<BadgeDollarSign size={19} aria-hidden="true" className="settings-row-icon" />}
+                title="Hourly rate"
+                description={<>Currently {formatPhp(application.hourlyRateCentavos ?? 0)} per hour. Rate changes go live right away.</>}
+                actionLabel="Change"
+              />
+              <SettingsLinkRow
+                link={<Link to="/become-companion" search={{ edit: true }} />}
+                icon={<UserRoundCog size={19} aria-hidden="true" className="settings-row-icon" />}
+                title="Companion profile details"
+                description="Activities, session format, intro, and location. Changes the review team checks go back to review."
+                actionLabel="Edit"
+              />
+              <SettingsLinkRow
+                link={<Link to="/get-verified" />}
+                icon={<ShieldCheck size={19} aria-hidden="true" className="settings-row-icon" />}
+                title="Verification status"
+                description="Review your identity and Companion approval."
+                actionLabel="View"
+              />
+            </>
+          ) : (
+            <SettingsLinkRow
+              link={<Link to="/companion" />}
+              icon={<UserRoundCog size={19} aria-hidden="true" className="settings-row-icon" />}
+              title="Become a Companion"
+              description="Create a profile to share experiences with members."
+              actionLabel="Get started"
+            />
+          )}
+        </SettingsSection>
       </div>
     </main>
   )

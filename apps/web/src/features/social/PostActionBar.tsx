@@ -7,6 +7,7 @@ export function PostActionBar({
   saved,
   commentsOpen,
   likeDisabled,
+  commentsDisabled = false,
   showSave,
   onLike,
   onToggleComments,
@@ -19,6 +20,7 @@ export function PostActionBar({
   saved: boolean
   commentsOpen: boolean
   likeDisabled: boolean
+  commentsDisabled?: boolean
   showSave: boolean
   onLike: () => void
   onToggleComments: () => void
@@ -26,7 +28,7 @@ export function PostActionBar({
   onShare?: () => void
 }) {
   return (
-    <div className="social-action-bar" aria-label="Post actions">
+    <div className="social-action-bar" role="group" aria-label="Post actions">
       <button
         type="button"
         disabled={likeDisabled}
@@ -45,6 +47,7 @@ export function PostActionBar({
         aria-label={commentCount > 0 ? `Show ${commentCount} ${commentCount === 1 ? 'comment' : 'comments'}` : 'Show comments'}
         title="Show comments"
         aria-expanded={commentsOpen}
+        disabled={commentsDisabled}
         onClick={onToggleComments}
       >
         <MessageCircle size={17} aria-hidden="true" />

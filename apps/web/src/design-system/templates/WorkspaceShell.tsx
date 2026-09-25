@@ -1,7 +1,7 @@
 import type React from 'react'
 
 export type WorkspaceShellProps = {
-  title: string
+  title: React.ReactNode
   status?: React.ReactNode
   actions?: React.ReactNode
   toolbar?: React.ReactNode

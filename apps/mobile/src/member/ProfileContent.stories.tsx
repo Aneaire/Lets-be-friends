@@ -33,7 +33,7 @@ const needsSetupMember: ProfileViewModel = {
 const meta = {
   title: 'Mobile/Profile/Signed-in profile',
   component: SignedInProfileContent,
-  parameters: { viewport: { defaultViewport: 'mobileDefault' } },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     profile: verifiedMember,
     bio: 'Coffee enthusiast and weekend hiker.',

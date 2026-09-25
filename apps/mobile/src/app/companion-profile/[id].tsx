@@ -23,8 +23,9 @@ import { PageSkeleton, ProfileContentSkeleton } from '@/design-system/templates/
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { PostCard } from '@/features/social/PostCard'
+import { PostContent } from '@/features/social/PostContent'
 import { PostImageViewer, type PostViewerImage } from '@/features/social/PostImageViewer'
-import { PostMediaGrid } from '@/features/social/PostMediaGrid'
+import { ReviewContent } from '@/features/social/ReviewContent'
 import { ShareSheet } from '@/features/social/ShareSheet'
 import { reviewShareUrl } from '@/features/social/shareLinks'
 import { companionContentTabHeader, companionContentTabs, companionProfileTypography, companionRatePresentation, defaultCompanionContentTab, type CompanionContentTab } from '@/features/companion/companionProfilePresentation'
@@ -408,9 +409,15 @@ function ReviewCard({ review, signedIn, focused = false, saved, liked, likeCount
         <AppText variant="caption" color={theme.colors.textMuted}>{formatMessageTimestamp(review.createdAt)}</AppText>
       </View>
     </View>
-    <ReviewStars rating={review.rating} />
-    {review.body ? <AppText>{review.body}</AppText> : null}
-    {review.imageUrl ? <ReviewImage url={review.imageUrl} reviewerName={review.reviewerDisplayName} onOpen={onOpenImage} /> : null}
+    <ReviewContent
+      review={{
+        reviewerDisplayName: review.reviewerDisplayName,
+        rating: review.rating,
+        body: review.body,
+        imageUrl: review.imageUrl,
+      }}
+      onOpenImage={onOpenImage}
+    />
     <View style={styles.reviewActions} accessibilityLabel={`Actions for ${review.reviewerDisplayName}'s review`}>
       {signedIn ? (
         <>
@@ -472,37 +479,6 @@ function TextCount({ count, limit }: { count: number; limit: number }) {
   return <AppText variant="caption" color={count > limit ? theme.colors.danger : theme.colors.textMuted} style={styles.textCount}>{count}/{limit}</AppText>
 }
 
-function ReviewImage({ url, reviewerName, onOpen }: { url: string; reviewerName: string; onOpen: () => void }) {
-  const theme = useAppTheme()
-  const DEFAULT_ASPECT = 4 / 3
-  const [aspect, setAspect] = useState(DEFAULT_ASPECT)
-  const label = `Photo shared with ${reviewerName}'s review`
-
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${label}`} onPress={onOpen} style={({ pressed }) => [styles.reviewImageWrap, pressed && styles.pressed]}>
-      <Image
-        source={{ uri: url }}
-        resizeMode="cover"
-        accessibilityLabel={label}
-        onLoad={(event) => {
-          const { width, height } = event.nativeEvent.source
-          if (width > 0 && height > 0) setAspect(width / height)
-        }}
-        style={[styles.reviewImage, { aspectRatio: aspect, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
-      />
-    </Pressable>
-  )
-}
-
-function ReviewStars({ rating }: { rating: number }) {
-  const theme = useAppTheme()
-  const filled = Math.round(rating)
-  return <View accessibilityRole="text" accessibilityLabel={`${rating.toFixed(1)} out of 5 stars`} style={styles.starsRow}>
-    <View style={styles.stars}>{Array.from({ length: 5 }, (_, index) => <AppIcon key={index} name={index < filled ? 'star' : 'star-outline'} color={index < filled ? theme.colors.socialText : theme.colors.textMuted} size={14} />)}</View>
-    <AppText variant="caption" color={theme.colors.textMuted}>{rating.toFixed(1)}</AppText>
-  </View>
-}
-
 function ProfilePost({ post, companionName, imageUrl }: { post: Post; companionName: string; imageUrl?: string }) {
   const theme = useAppTheme()
   const [mediaError, setMediaError] = useState('')
@@ -517,8 +493,7 @@ function ProfilePost({ post, companionName, imageUrl }: { post: Post; companionN
   }
 
   return <PostCard author={companionName} imageUrl={imageUrl} timestamp={formatMessageTimestamp(post.createdAt)} meta={<AppText variant="caption" color={theme.colors.textMuted}>· {post.likeCount} likes · {post.commentCount} comments</AppText>}>
-    {post.body ? <AppText>{post.body}</AppText> : null}
-    {post.media.length > 0 ? <PostMediaGrid media={post.media} onOpenVideo={(url) => void openVideo(url)} /> : null}
+    <PostContent body={post.body} media={post.media} onOpenVideo={(url) => void openVideo(url)} />
     {mediaError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{mediaError}</AppText> : null}
   </PostCard>
 }
@@ -601,10 +576,6 @@ const styles = StyleSheet.create({
   reviewCard: { gap: density.textStackGap, paddingHorizontal: density.compactCardPadding, paddingVertical: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: density.controlRadius },
   reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: density.cardGap },
   reviewIdentity: { flex: 1, minWidth: 0, gap: 1 },
-  starsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  stars: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-  reviewImageWrap: { width: '100%', overflow: 'hidden', borderRadius: 8 },
-  reviewImage: { width: '100%', borderWidth: StyleSheet.hairlineWidth, borderRadius: 8 },
   reviewActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginTop: 2, minHeight: 34 },
   textAction: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 5, justifyContent: 'center' },
   reviewReport: { flexDirection: 'row', alignItems: 'center', minHeight: 34 },

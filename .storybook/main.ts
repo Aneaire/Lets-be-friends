@@ -17,6 +17,13 @@ const config: StorybookConfig = {
   docs: { defaultName: 'Documentation' },
   viteFinal: async (viteConfig) => ({
     ...viteConfig,
+    optimizeDeps: {
+      ...viteConfig.optimizeDeps,
+      include: [
+        ...(viteConfig.optimizeDeps?.include ?? []),
+        '@tanstack/react-router',
+      ],
+    },
     resolve: {
       ...viteConfig.resolve,
       dedupe: [

@@ -3,6 +3,7 @@ import { useAction, useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../../convex/_generated/api'
+import { FormField } from '../../design-system/molecules/FormField'
 
 type PayoutDashboard = NonNullable<ReturnType<typeof useQuery<typeof api.withdrawals.dashboard>>>
 
@@ -150,21 +151,18 @@ export function CompanionWithdrawalPanel() {
             {!setup && <p className="text-meta">Loading PayMongo’s current InstaPay institutions…</p>}
             {setup && (
               <>
-                <label className="field-row">
-                  <span className="label">Bank or e-wallet</span>
+                <FormField label="Bank or e-wallet">
                   <select name="institutionBic" className="field" required disabled={payoutBusy} defaultValue="">
                     <option value="" disabled>Choose an institution</option>
                     {setup.institutions.map((institution) => <option key={institution.bic} value={institution.bic}>{institution.name}</option>)}
                   </select>
-                </label>
-                <label className="field-row">
-                  <span className="label">Verified account holder</span>
+                </FormField>
+                <FormField label="Verified account holder">
                   <input className="field" value={setup.accountName} readOnly aria-readonly="true" />
-                </label>
-                <label className="field-row">
-                  <span className="label">Account number</span>
+                </FormField>
+                <FormField label="Account number">
                   <input name="payoutAccountNumber" className="field tabular" inputMode="numeric" autoComplete="off" minLength={8} maxLength={28} required disabled={payoutBusy} />
-                </label>
+                </FormField>
               </>
             )}
             <div className="flex gap-2 flex-wrap">
@@ -190,10 +188,9 @@ export function CompanionWithdrawalPanel() {
               setWithdrawalDraft(amountCentavos)
             }}
           >
-            <label className="field-row flex-1 min-w-56">
-              <span className="label">Withdrawal amount <span className="label-aux">PHP</span></span>
+            <FormField label="Withdrawal amount" aux="PHP" className="flex-1 min-w-56">
               <input name="withdrawalPesos" type="number" min={payouts.minimumCentavos / 100} max={Math.min(payouts.maximumCentavos, payouts.availableEarningsCentavos) / 100} step="0.01" defaultValue={Math.min(1_000, payouts.availableEarningsCentavos / 100)} required className="field" />
-            </label>
+            </FormField>
             <button className="btn btn-self" disabled={payouts.availableEarningsCentavos < payouts.minimumCentavos}>Review withdrawal</button>
           </form>
         )}

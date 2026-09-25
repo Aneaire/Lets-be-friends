@@ -1,10 +1,22 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CircleSafetyConsole, type CircleSafetyDetail, type CircleSafetyListItem } from '../../src/features/circles/CircleSafetyConsole'
 
-afterEach(cleanup)
+beforeEach(() => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    callback(0)
+    return 1
+  })
+  vi.stubGlobal('cancelAnimationFrame', vi.fn())
+})
+
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+  document.body.style.overflow = ''
+})
 
 const circle: CircleSafetyListItem = {
   _id: 'circle-1',
@@ -82,6 +94,18 @@ describe('Circle safety console', () => {
     fireEvent.change(screen.getByLabelText('Internal reason'), { target: { value: 'Current host lost account access.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Confirm recovery' }))
     await waitFor(() => expect(props.onRecoverHost).toHaveBeenCalledWith('circle-1', 'user-2', 'Current host lost account access.'))
+  })
+
+  it('reports search input changes through the shared search field', () => {
+    const props = renderConsole()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Circles' }), { target: { value: 'coffee' } })
+    expect(props.onSearchChange).toHaveBeenCalledWith('coffee')
+  })
+
+  it('focuses the new host select when the recovery dialog opens', () => {
+    renderConsole()
+    fireEvent.click(screen.getByRole('button', { name: 'Emergency ownership recovery' }))
+    expect(document.activeElement).toBe(screen.getByLabelText('New host'))
   })
 
   it('announces mutation errors', async () => {

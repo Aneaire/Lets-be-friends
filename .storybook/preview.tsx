@@ -33,7 +33,7 @@ const preview: Preview = {
       },
     },
   },
-  initialGlobals: { viewport: 'desktop', theme: 'light' },
+  initialGlobals: { viewport: { value: 'desktop', isRotated: false }, theme: 'light' },
   decorators: [
     (Story, context) => {
       const dark = context.globals.theme === 'dark'

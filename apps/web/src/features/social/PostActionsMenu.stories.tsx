@@ -5,7 +5,7 @@ import { PostActionsMenu } from './PostActionsMenu'
 const meta = {
   title: 'Features/Social/Post actions menu',
   component: PostActionsMenu,
-  globals: { viewport: 'mobileDefault' },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     ownedByViewer: false,
     onEdit: () => undefined,

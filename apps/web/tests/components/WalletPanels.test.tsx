@@ -32,7 +32,7 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 import { CompanionWithdrawalPanel } from '../../src/features/wallet/CompanionWithdrawalPanel'
-import { MemberWalletPanel } from '../../src/features/wallet/MemberWalletPanel'
+import { MemberWalletPanel, type MemberFinance } from '../../src/features/wallet/MemberWalletPanel'
 
 afterEach(() => {
   cleanup()
@@ -59,6 +59,82 @@ describe('dedicated wallet page panels', () => {
     expect(screen.getByText('Add money with PayMongo QR Ph')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Create QR Ph top-up' })).toBeTruthy()
     expect(screen.getByText('No member-wallet top-up attempt yet.')).toBeTruthy()
+  })
+
+  it('keeps the amount editable and the button active to regenerate an in-progress QR', () => {
+    const activeTopUp = {
+      _id: 'topup-active',
+      _creationTime: Date.now(),
+      beneficiaryUserId: 'member-1',
+      purpose: 'member_booking_balance' as const,
+      amountCentavos: 100_000,
+      currency: 'PHP' as const,
+      mode: 'test' as const,
+      status: 'awaiting_payment' as const,
+      providerIntentId: 'pi_active',
+      qrImageUrl: 'https://example.test/qr.png',
+      expiresAt: Date.now() + 600_000,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    } as unknown as MemberFinance['topUps'][number]
+    render(
+      <MemberWalletPanel
+        finance={{ ...memberFinance, topUps: [activeTopUp] }}
+        onCreateTopUp={async () => {}}
+      />,
+    )
+
+    const amountInput = screen.getByRole('spinbutton', { name: /Top-up amount/i }) as HTMLInputElement
+    const regenerateButton = screen.getByRole('button', { name: 'Regenerate QR Ph top-up' }) as HTMLButtonElement
+    expect(amountInput.disabled).toBe(false)
+    expect(regenerateButton.disabled).toBe(false)
+  })
+
+  it('shows the latest paid attempt instead of an older superseded QR', () => {
+    const now = Date.now()
+    const paidTopUp = {
+      _id: 'topup-paid',
+      _creationTime: now,
+      beneficiaryUserId: 'member-1',
+      purpose: 'member_booking_balance' as const,
+      amountCentavos: 100_00,
+      currency: 'PHP' as const,
+      mode: 'test' as const,
+      status: 'paid' as const,
+      providerIntentId: 'pi_paid',
+      qrImageUrl: 'https://example.test/paid.png',
+      expiresAt: now - 1_000,
+      paidAt: now,
+      createdAt: now,
+      updatedAt: now,
+    } as unknown as MemberFinance['topUps'][number]
+    const supersededTopUp = {
+      _id: 'topup-superseded',
+      _creationTime: now - 60_000,
+      beneficiaryUserId: 'member-1',
+      purpose: 'member_booking_balance' as const,
+      amountCentavos: 1_000_00,
+      currency: 'PHP' as const,
+      mode: 'test' as const,
+      status: 'expired' as const,
+      providerIntentId: 'pi_superseded',
+      qrImageUrl: 'https://example.test/superseded.png',
+      expiresAt: now - 30_000,
+      expiredAt: now - 30_000,
+      failureCode: 'superseded',
+      createdAt: now - 60_000,
+      updatedAt: now - 30_000,
+    } as unknown as MemberFinance['topUps'][number]
+    render(
+      <MemberWalletPanel
+        finance={{ ...memberFinance, topUps: [paidTopUp, supersededTopUp] }}
+        onCreateTopUp={async () => {}}
+      />,
+    )
+
+    expect(screen.getByText('₱100.00')).toBeTruthy()
+    expect(screen.getByText('paid')).toBeTruthy()
+    expect(screen.queryByText('This QR expired. You can create a fresh top-up.')).toBeNull()
   })
 
   it('shows a loading state while the booking wallet connects', () => {

@@ -4,7 +4,7 @@ import { IconButton } from '../atoms/IconButton'
 
 export type ActionMenuItem = { label: string; icon?: ReactNode; tone?: 'neutral' | 'self' | 'social' | 'danger'; disabled?: boolean; onSelect: () => void }
 
-export function ActionMenu({ label = 'Options', items, disabled = false }: { label?: string; items: ActionMenuItem[]; disabled?: boolean }) {
+export function ActionMenu({ label = 'Options', panelLabel, items, disabled = false }: { label?: string; panelLabel?: string; items: ActionMenuItem[]; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -50,7 +50,7 @@ export function ActionMenu({ label = 'Options', items, disabled = false }: { lab
   return (
     <div className="ds-action-menu" ref={rootRef}>
       <IconButton ref={triggerRef} label={label} disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? panelId : undefined} onClick={() => setOpen((current) => !current)}><Ellipsis size={20} /></IconButton>
-      {open ? <div id={panelId} className="ds-action-menu-panel" role="menu" aria-label={label} onKeyDown={moveFocus}>{items.map((item, index) => <button ref={(element) => { itemRefs.current[index] = element }} key={item.label} type="button" role="menuitem" tabIndex={-1} className="ds-action-menu-item" data-tone={item.tone ?? 'neutral'} disabled={item.disabled} onClick={() => { setOpen(false); item.onSelect() }}>{item.icon}<span>{item.label}</span></button>)}</div> : null}
+      {open ? <div id={panelId} className="ds-action-menu-panel" role="menu" aria-label={panelLabel ?? label} onKeyDown={moveFocus}>{items.map((item, index) => <button ref={(element) => { itemRefs.current[index] = element }} key={item.label} type="button" role="menuitem" tabIndex={-1} className="ds-action-menu-item" data-tone={item.tone ?? 'neutral'} disabled={item.disabled} onClick={() => { setOpen(false); triggerRef.current?.focus(); item.onSelect() }}>{item.icon}<span>{item.label}</span></button>)}</div> : null}
     </div>
   )
 }

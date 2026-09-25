@@ -17,7 +17,7 @@ const confirmBlock = fn()
 const meta = {
   title: 'Mobile/Safety/Member safety actions',
   component: MemberSafetyActionsPresentation,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     relationship: {
       blocked: false,
@@ -181,7 +181,7 @@ export const UnblockConfirmationDark: Story = {
 }
 
 export const Narrow: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileTiny' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   play: async ({ canvasElement }) => {
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(
       canvasElement.clientWidth,

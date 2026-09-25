@@ -7,7 +7,7 @@ import { Checkbox, TextField } from './Field'
 import { IconButton } from './IconButton'
 import { StatusBadge } from './StatusBadge'
 
-const meta = { title: 'Mobile/Atoms/Core controls', parameters: { viewport: { defaultViewport: 'mobileSmall' } } } satisfies Meta
+const meta = { title: 'Mobile/Atoms/Core controls', globals: { viewport: { value: 'mobileSmall', isRotated: false } } } satisfies Meta
 export default meta
 type Story = StoryObj<typeof meta>
 

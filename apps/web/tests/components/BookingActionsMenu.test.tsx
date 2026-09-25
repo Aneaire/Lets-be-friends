@@ -16,12 +16,12 @@ describe('BookingActionsMenu', () => {
   it('keeps secondary booking actions hidden until the menu is opened', () => {
     render(<BookingActionsMenu onCancel={vi.fn()} onEditRequest={vi.fn()} onReport={vi.fn()} />)
 
-    expect(screen.queryByRole('button', { name: 'Edit request' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Edit request' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'More booking actions' }))
 
-    expect(screen.getByRole('button', { name: 'Edit request' }).getAttribute('data-tone')).toBe('social')
-    expect(screen.getByRole('button', { name: 'Cancel booking' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Report' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Edit request' }).getAttribute('data-tone')).toBe('social')
+    expect(screen.getByRole('menuitem', { name: 'Cancel booking' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Report' })).toBeTruthy()
   })
 
   it('runs the selected action and closes the panel', () => {
@@ -29,10 +29,10 @@ describe('BookingActionsMenu', () => {
     render(<BookingActionsMenu onReport={onReport} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'More booking actions' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Report' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Report' }))
 
     expect(onReport).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('button', { name: 'Report' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Report' })).toBeNull()
   })
 
   it('restores the persistent trigger after an action-opened dialog closes', () => {
@@ -57,7 +57,7 @@ describe('BookingActionsMenu', () => {
     render(<Example />)
     const trigger = screen.getByRole('button', { name: 'More booking actions' })
     fireEvent.click(trigger)
-    fireEvent.click(screen.getByRole('button', { name: 'Edit request' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit request' }))
     fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }))
 
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -71,7 +71,7 @@ describe('BookingActionsMenu', () => {
     fireEvent.click(trigger)
     fireEvent.keyDown(document, { key: 'Escape' })
 
-    expect(screen.queryByRole('button', { name: 'Report' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Report' })).toBeNull()
     expect(document.activeElement).toBe(trigger)
   })
 })

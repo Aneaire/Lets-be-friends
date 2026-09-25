@@ -45,7 +45,7 @@ export const Compact: Story = { args: { compact: true } }
 export const Completed: Story = { args: { booking: { ...booking, status: 'completed' } } }
 export const NoTotal: Story = { args: { booking: { ...booking, memberTotalCentavos: undefined } } }
 export const LongContentAt320: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     booking: {
       ...booking,

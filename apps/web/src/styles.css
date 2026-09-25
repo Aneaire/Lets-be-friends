@@ -2241,6 +2241,13 @@
   --accent-social-line: oklch(80% 0.08 342.36);
   --accent-foreground: oklch(99% 0 0);
   --accent-control-foreground: #FFFFFF;
+  /* Derived control surfaces. Darker than the logo accent so white control text
+     reaches 4.5:1. Mirrors mobile theme tokens selfControl/socialControl.
+     The logo/brand accents (--accent-self-button, --accent-social-button) stay exact. */
+  --accent-self-control: #0875B8;
+  --accent-self-control-hover: #0A6AA6;
+  --accent-social-control: #90336F;
+  --accent-social-control-hover: #832F64;
   --danger: oklch(50% 0.2 28);
   --danger-hover: oklch(43% 0.22 28);
   --danger-soft: oklch(96% 0.025 28);
@@ -2714,18 +2721,23 @@ body {
   display: grid;
   gap: 0.625rem;
   padding: 0.75rem;
-  border-bottom: 1px solid var(--rule);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   background: var(--surface);
+  transition: background-color 140ms ease;
 }
+.ds-post-card:hover { background: var(--surface-sunk); }
 .ds-post-avatar { width: 2.75rem; min-width: 2.75rem; }
 .ds-post-body { min-width: 0; }
+.ds-post-body > .social-media-grid { width: auto; margin-top: 0.5rem; margin-left: 0; border-radius: 8px; }
+.ds-post-body > .social-action-bar { width: 100%; max-width: none; justify-content: flex-start; gap: 0.25rem; margin: 0.25rem 0 0; padding-top: 0; border-top: 0; }
 .ds-post-head { display: grid; grid-template-columns: 2.75rem minmax(0, 1fr) auto; min-height: 2.75rem; align-items: flex-start; gap: 0.625rem; }
 .ds-post-identity { display: grid; min-width: 0; align-content: start; gap: 0.05rem; }
 .ds-post-identity :is(strong, .social-post-author-link) { min-width: 0; overflow: hidden; color: var(--text); font-size: 0.875rem; font-weight: 700; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .ds-post-meta { display: flex; min-width: 0; align-items: baseline; gap: 0.25rem; color: var(--text-muted); font-size: 0.75rem; line-height: 1.3; }
 .ds-post-meta time { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds-post-meta-separator { color: var(--text-soft); }
-.ds-post-copy { margin: 0.25rem 0 0; color: var(--text); font-size: 0.9rem; line-height: 1.5; }
+.ds-post-copy { margin: 0.4rem 0 0; white-space: pre-wrap; color: var(--text); font-size: 0.9375rem; line-height: 1.55; }
 
 .ds-story-stack { display: grid; width: min(100%, 24rem); gap: 0.75rem; }
 .ds-story-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
@@ -3137,7 +3149,7 @@ button:disabled {
 .direct-thread {
   display: grid;
   min-height: min(42rem, calc(100vh - 14rem));
-  grid-template-rows: auto minmax(18rem, 1fr) auto;
+  grid-template-rows: auto auto minmax(18rem, 1fr) auto;
   overflow: hidden;
   border: 1px solid var(--rule);
   border-radius: 10px;
@@ -3400,29 +3412,59 @@ button:disabled {
   color: var(--danger);
 }
 
-.direct-booking {
-  display: flex;
-  width: 100%;
+.direct-thread-pin-slot {
+  min-width: 0;
+}
+
+.direct-thread-pin-slot[data-active="true"] {
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface-sunk);
+  padding: 0.75rem 1rem;
+}
+
+.conversation-booking-pin {
+  display: grid;
   max-width: 44rem;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
+  gap: 0.4rem;
 }
 
-.direct-booking[data-floating="true"] {
-  position: sticky;
-  top: 0;
-  z-index: 8;
+.conversation-booking-pin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
-.direct-booking[data-floating="true"] .booking-request-card {
-  border-color: var(--border);
-  background: var(--surface);
-  box-shadow: 0 0.35rem 1.25rem color-mix(in oklch, var(--text) 8%, transparent);
+.conversation-booking-pin-label {
+  color: var(--text-soft);
+  font-size: 0.625rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.direct-booking .direct-message-report {
-  align-self: flex-end;
+.conversation-booking-pin-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.conversation-booking-pin-report {
+  justify-self: end;
+}
+
+.conversation-booking-history {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation-booking-history-empty {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.85rem;
 }
 
 .booking-update-line {
@@ -4001,15 +4043,15 @@ button:disabled {
 
 .booking-view-switch:focus-visible,
 .booking-calendar-nav-button:focus-visible,
-.booking-calendar-day:focus-visible {
+.booking-calendar-day:focus-visible,
+.booking-day-booking:focus-visible {
   outline: 0;
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent-social) 28%, transparent);
 }
 
 .booking-calendar-layout {
-  display: grid;
+  display: block;
   min-width: 0;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -4019,7 +4061,6 @@ button:disabled {
 .booking-calendar-panel {
   min-width: 0;
   padding: clamp(1rem, 2.5vw, 1.5rem);
-  border-right: 1px solid var(--rule);
 }
 
 .booking-calendar-header {
@@ -4084,7 +4125,7 @@ button:disabled {
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 4.5rem;
+  min-height: clamp(4.5rem, 9vw, 7rem);
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
@@ -4131,7 +4172,7 @@ button:disabled {
   place-items: center;
   margin-left: auto;
   border-radius: 999px;
-  background: var(--accent-social-button);
+  background: var(--success);
   color: var(--accent-control-foreground);
   font-size: 0.6875rem;
   font-weight: 700;
@@ -4141,45 +4182,88 @@ button:disabled {
   min-width: 0;
 }
 
-.booking-day-panel {
-  min-width: 0;
-  overflow-wrap: anywhere;
+.booking-day-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.booking-day-bookings {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.booking-day-booking {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   background: var(--surface);
+  color: var(--text);
+  text-align: left;
 }
 
-.booking-day-header {
-  padding: clamp(1rem, 2.5vw, 1.5rem);
-  border-bottom: 1px solid var(--rule);
+.booking-day-booking:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-sunk);
 }
 
-.booking-day-worklist > * + * {
-  border-top: 1px solid var(--rule);
+.booking-day-booking-main {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
 }
 
-.booking-day-worklist .worklist-row {
-  padding-inline: clamp(1rem, 2.5vw, 1.5rem);
+.booking-day-booking-name {
+  overflow-wrap: anywhere;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.booking-day-booking-summary {
+  overflow-wrap: anywhere;
+}
+
+.booking-day-booking-meta {
+  display: grid;
+  flex-shrink: 0;
+  justify-items: end;
+  gap: 0.35rem;
+}
+
+.booking-day-booking-time {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.booking-detail-dialog-body {
+  display: grid;
+  gap: 1rem;
+}
+
+.booking-detail-dialog-body .worklist-row {
+  padding: 0;
+}
+
+.booking-detail-dialog-body .avatar {
+  background: transparent;
 }
 
 .booking-day-empty {
   display: grid;
-  min-height: 14rem;
+  min-height: 10rem;
   place-content: center;
   justify-items: center;
   gap: 0.75rem;
   padding: 2rem;
   color: var(--text-muted);
   text-align: center;
-}
-
-@media (max-width: 1024px) {
-  .booking-calendar-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .booking-calendar-panel {
-    border-right: 0;
-    border-bottom: 1px solid var(--rule);
-  }
 }
 
 @media (max-width: 560px) {
@@ -4210,6 +4294,15 @@ button:disabled {
     min-width: 1rem;
     height: 1rem;
     font-size: 0.625rem;
+  }
+
+  .booking-day-booking {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .booking-day-booking-meta {
+    justify-items: start;
   }
 }
 
@@ -4956,6 +5049,110 @@ button:disabled {
   }
 }
 
+/* Member /app loading skeleton. Mirrors the live workspace geometry. */
+
+.app-page-skeleton-title {
+  width: min(13rem, 62%);
+  height: clamp(1.6rem, 1.4rem + 0.9vw, 2.15rem);
+  border-radius: 6px;
+}
+
+.app-page-skeleton-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.app-page-skeleton-status-label {
+  width: 3.25rem;
+}
+
+.app-page-skeleton-pill {
+  width: 6rem;
+  height: 1.5rem;
+  border-radius: 999px;
+}
+
+.app-page-skeleton-action {
+  width: 9.5rem;
+  height: 2.25rem;
+}
+
+.app-page-skeleton-mobile-label {
+  width: 3.25rem;
+}
+
+.app-page-skeleton-count {
+  width: 1.5rem;
+  height: 1.25rem;
+  border-radius: 999px;
+}
+
+.app-page-skeleton-rail-title {
+  width: 6rem;
+}
+
+.app-page-skeleton-rail-label {
+  width: 5.5rem;
+}
+
+.app-page-skeleton-section-title {
+  width: 7rem;
+  height: 1.5rem;
+}
+
+.app-page-skeleton-count-label {
+  width: 3.75rem;
+}
+
+.app-page-skeleton-balance {
+  width: 7rem;
+}
+
+.app-page-skeleton-switch-label {
+  width: 4.25rem;
+}
+
+.app-page-skeleton-nav-button {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 8px;
+}
+
+.app-page-skeleton-eyebrow {
+  width: 4rem;
+  height: 0.625rem;
+}
+
+.app-page-skeleton-month {
+  width: 8rem;
+  height: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.app-page-skeleton-weekday {
+  width: 1.75rem;
+  height: 0.5rem;
+  margin-inline: auto;
+}
+
+.app-page-skeleton-day-number {
+  width: 1.25rem;
+  height: 0.75rem;
+}
+
+@media (max-width: 767px) {
+  .app-page-skeleton-action {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-page-skeleton .skeleton {
+    animation: none;
+  }
+}
+
 /* ──────────────────────────────────────────────────────────────
    Trust signals
    ────────────────────────────────────────────────────────────── */
@@ -5063,14 +5260,14 @@ button:disabled {
 
 .btn.btn-self,
 a.btn.btn-self:visited {
-  background: var(--accent-self-button);
-  border-color: var(--accent-self-button);
+  background: var(--accent-self-control);
+  border-color: var(--accent-self-control);
   color: var(--accent-control-foreground);
 }
 
 .btn-self:hover {
-  background: var(--accent-self-button-hover);
-  border-color: var(--accent-self-button-hover);
+  background: var(--accent-self-control-hover);
+  border-color: var(--accent-self-control-hover);
 }
 
 .btn-self-quiet {
@@ -5085,14 +5282,14 @@ a.btn.btn-self:visited {
 
 .btn.btn-social,
 a.btn.btn-social:visited {
-  background: var(--accent-social-button);
-  border-color: var(--accent-social-button);
+  background: var(--accent-social-control);
+  border-color: var(--accent-social-control);
   color: var(--accent-control-foreground);
 }
 
 .btn-social:hover {
-  background: var(--accent-social-button-hover);
-  border-color: var(--accent-social-button-hover);
+  background: var(--accent-social-control-hover);
+  border-color: var(--accent-social-control-hover);
 }
 
 .btn-social-quiet {
@@ -7591,17 +7788,12 @@ textarea.field {
   border-top: 0;
 }
 
-.profile-content-panel .profile-post-card,
 .profile-content-panel .profile-review-list .profile-review-card {
-  gap: 0;
+  gap: 0.85rem;
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   background: var(--surface);
-}
-
-.profile-content-panel .profile-review-list .profile-review-card {
-  gap: 0.85rem;
 }
 
 .profile-content-panel .profile-content-empty {
@@ -7619,18 +7811,6 @@ textarea.field {
 
 .profile-content-panel .profile-post-card:hover {
   background: var(--surface);
-}
-
-.profile-content-panel .profile-post-card .profile-post-body {
-  margin: 0.125rem 0 0;
-}
-
-.profile-content-panel .profile-post-card .profile-post-media {
-  margin-top: 0.75rem;
-}
-
-.profile-content-panel .profile-post-card .profile-post-body + .profile-post-media {
-  margin-top: 0;
 }
 
 .profile-rating-summary {
@@ -9360,10 +9540,28 @@ textarea.field {
   cursor: zoom-in;
 }
 
+.social-post-video-open {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.social-post-video-open:focus-visible {
+  outline: 2px solid var(--accent-control-foreground);
+  outline-offset: -3px;
+}
+
 .social-post-video-controls {
   position: absolute;
   right: 0.75rem;
   bottom: 0.75rem;
+  z-index: 1;
   display: flex;
   align-items: center;
   pointer-events: none;
@@ -9404,6 +9602,7 @@ textarea.field {
   right: 0;
   bottom: 0;
   left: 0;
+  z-index: 1;
   height: 2px;
   overflow: hidden;
   background: color-mix(in oklch, var(--accent-foreground) 30%, transparent);
@@ -9555,14 +9754,6 @@ textarea.field {
   display: grid;
   gap: 0.6rem;
   margin-top: 0.6rem;
-}
-
-.social-post-copy {
-  margin: 0.45rem 0 0;
-  white-space: pre-wrap;
-  color: var(--text);
-  font-size: 0.95rem;
-  line-height: 1.55;
 }
 
 .social-poll {
@@ -10276,7 +10467,7 @@ textarea.field {
   min-height: 0;
   border: 0;
   border-radius: 0;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
 .messages-chat .messages-chat-pane .direct-message-list {
@@ -10539,6 +10730,10 @@ textarea.field {
 
   .direct-message-list {
     padding: 0.75rem;
+  }
+
+  .direct-thread-pin-slot[data-active="true"] {
+    padding: 0.65rem 0.75rem;
   }
 
   .direct-message-images {
@@ -11184,9 +11379,9 @@ textarea.field {
   }
 
   .invitation-prompt[data-featured="true"] {
-    border-color: var(--accent-social-button);
-    background: var(--accent-social-button);
-    color: var(--accent-foreground);
+    border-color: var(--accent-social-control);
+    background: var(--accent-social-control);
+    color: var(--accent-control-foreground);
   }
 
   .invitation-actions {
@@ -12596,11 +12791,6 @@ textarea.field {
     padding: 1.25rem;
   }
 
-  .web-app-shell .social-post-copy {
-    font-size: 1rem;
-    line-height: 1.65;
-  }
-
   .web-app-shell .social-reserve-card {
     border-left: 4px solid var(--accent-social-button);
     padding: 1.25rem;
@@ -13109,17 +13299,12 @@ textarea.field {
     margin-top: 0.75rem;
   }
 
-  .web-app-shell .profile-content-panel .profile-post-card,
   .web-app-shell .profile-content-panel .profile-review-list .profile-review-card {
-    gap: 0;
+    gap: 0.85rem;
     border: 1px solid var(--border);
     border-radius: 12px;
     overflow: hidden;
     background: var(--surface);
-  }
-
-  .web-app-shell .profile-content-panel .profile-review-list .profile-review-card {
-    gap: 0.85rem;
   }
 
   .web-app-shell .profile-content-panel .profile-content-empty {
@@ -13127,18 +13312,6 @@ textarea.field {
     border: 1px solid var(--border);
     border-radius: 12px;
     background: var(--surface);
-  }
-
-  .web-app-shell .profile-content-panel .profile-post-card .profile-post-body {
-    margin: 0.125rem 0 0;
-  }
-
-  .web-app-shell .profile-content-panel .profile-post-card .profile-post-media {
-    margin-top: 0.75rem;
-  }
-
-  .web-app-shell .profile-content-panel .profile-post-card .profile-post-body + .profile-post-media {
-    margin-top: 0;
   }
 
   .booking-plan-context,
@@ -13251,11 +13424,6 @@ textarea.field {
   .social-feed {
     gap: 0.65rem;
     padding-top: 0.65rem;
-  }
-
-  .web-app-shell .social-post-copy {
-    font-size: 0.9375rem;
-    line-height: 1.55;
   }
 
   .social-feed-reason {
@@ -14069,23 +14237,7 @@ textarea.field {
   }
 
   .web-app-shell .social-feed .ds-post-card {
-    gap: 0.625rem;
-    padding: 0.75rem;
-    border: 1px solid var(--border);
     border-radius: 0;
-    background: var(--surface);
-    box-shadow: none;
-    transition: background-color 140ms ease;
-  }
-
-  .web-app-shell .social-feed .ds-post-card:hover {
-    background: var(--surface-sunk);
-  }
-
-  .web-app-shell .social-feed .ds-post-head {
-    grid-template-columns: 2.75rem minmax(0, 1fr) auto;
-    min-height: 2.75rem;
-    gap: 0.625rem;
   }
 
   .web-app-shell .social-feed .ds-post-avatar,
@@ -14097,10 +14249,6 @@ textarea.field {
 
   .web-app-shell .social-feed .ds-post-avatar .avatar {
     border-radius: 999px;
-  }
-
-  .web-app-shell .social-feed .ds-post-identity {
-    gap: 0.05rem;
   }
 
   .web-app-shell .social-feed .ds-action-menu > .icon-button {
@@ -14123,13 +14271,6 @@ textarea.field {
     outline-offset: 2px;
   }
 
-  .web-app-shell .social-post-copy {
-    margin-top: 0.2rem;
-    font-size: 0.9375rem;
-    line-height: 1.5;
-  }
-
-  .web-app-shell .social-feed .ds-post-body > .social-media-grid,
   .companion-social-post .social-media-grid {
     width: auto;
     margin-top: 0.5rem;
@@ -14138,7 +14279,6 @@ textarea.field {
   }
 
   .web-app-shell .social-post .social-action-bar,
-  .web-app-shell .social-feed .ds-post-body > .social-action-bar,
   .social-story-timeline .social-action-bar {
     width: 100%;
     max-width: 22rem;

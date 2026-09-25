@@ -7,7 +7,7 @@ import { NotificationRow } from './NotificationRow'
 const meta = {
   title: 'Mobile/Molecules/Notification row',
   component: NotificationRow,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     title: 'New message',
     body: 'Alex Rivera sent you a message.',

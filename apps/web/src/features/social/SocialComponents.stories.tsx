@@ -48,7 +48,7 @@ function SocialStoryTimeline({ children }: { children: ReactNode }) {
 
 const meta = {
   title: 'Web/Organisms/Social content',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 
 export default meta

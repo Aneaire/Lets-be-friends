@@ -1,4 +1,5 @@
 import { LocateFixed, MapPin } from 'lucide-react'
+import { Button } from '../../design-system/atoms/Button'
 
 export type NearbyOriginMode = 'device' | 'custom' | null
 
@@ -16,24 +17,24 @@ export function NearbyOriginActions({
 
   return (
     <div className="nearby-search-origin-actions" aria-label="Search origin">
-      <button
-        type="button"
-        className={`btn btn-sm ${deviceActive ? 'btn-social' : 'btn-neutral'}`}
+      <Button
+        size="small"
+        intent={deviceActive ? 'social' : 'neutral'}
         aria-pressed={deviceActive}
         onClick={onUseCurrentLocation}
+        leadingIcon={<LocateFixed size={15} aria-hidden="true" />}
       >
-        <LocateFixed size={15} aria-hidden="true" />
         Use my location
-      </button>
-      <button
-        type="button"
-        className={`btn btn-sm ${pinActive ? 'btn-social' : 'btn-neutral'}`}
+      </Button>
+      <Button
+        size="small"
+        intent={pinActive ? 'social' : 'neutral'}
         aria-pressed={pinActive}
         onClick={onBeginTravelPin}
+        leadingIcon={<MapPin size={15} aria-hidden="true" />}
       >
-        <MapPin size={15} aria-hidden="true" />
         Place a pin
-      </button>
+      </Button>
     </div>
   )
 }

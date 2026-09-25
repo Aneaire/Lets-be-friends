@@ -26,7 +26,7 @@ const preview: Preview = {
       toolbar: { icon: 'paintbrush', items: [{ value: 'light', title: 'Light' }, { value: 'dark', title: 'Dark' }] },
     },
   },
-  initialGlobals: { viewport: 'mobileDefault', theme: 'light' },
+  initialGlobals: { viewport: { value: 'mobileDefault', isRotated: false }, theme: 'light' },
   decorators: [
     (Story, context) => {
       const scheme: ColorScheme = context.globals.theme === 'dark' ? 'dark' : 'light'

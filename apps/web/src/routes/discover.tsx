@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { LayoutGrid, SlidersHorizontal, X } from 'lucide-react'
 import { activityCategoriesMatch, activityCategoryOptions, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { Button } from '../design-system/atoms/Button'
 import { Checkbox } from '../design-system/atoms/Field'
+import { EmptyState } from '../design-system/molecules/FeedbackState'
 import { SearchField } from '../design-system/molecules/SearchField'
 import { SegmentedControl } from '../design-system/molecules/SegmentedControl'
 import { CompanionListItem, type DiscoveryCompanion } from '../design-system/organisms/CompanionListItem'
@@ -161,28 +163,26 @@ export function DiscoverPage() {
         {anyFiltered && (
           <div className="discover-toolbar-active">
             <span className="text-meta">Active filters</span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={clearAllFilters}>
+            <Button intent="ghost" size="small" onClick={clearAllFilters}>
               Clear all
-            </button>
+            </Button>
           </div>
         )}
       </div>
 
       <section id="reviews" aria-label="Results" className="discover-results mt-5">
         {directoryStatus === 'LoadingFirstPage' ? (
-          <div className="empty-state">
-            <p className="empty-state-title">Loading people...</p>
-          </div>
+          <EmptyState title="Loading people..." />
         ) : filtered.length === 0 && directoryStatus !== 'CanLoadMore' ? (
-          <div className="empty-state">
-            <p className="empty-state-title">No matches with these filters.</p>
-            <p className="text-meta">Try another activity or clear the filters to see everyone.</p>
-          </div>
+          <EmptyState
+            title="No matches with these filters."
+            description="Try another activity or clear the filters to see everyone."
+          />
         ) : filtered.length === 0 ? (
-          <div className="empty-state">
-            <p className="empty-state-title">No matches in the people loaded so far.</p>
-            <p className="text-meta">Load more people or clear the filters to see everyone loaded.</p>
-          </div>
+          <EmptyState
+            title="No matches in the people loaded so far."
+            description="Load more people or clear the filters to see everyone loaded."
+          />
         ) : (
           <div className="panel discover-results-panel">
             <div className="worklist" role="list">
@@ -206,9 +206,9 @@ export function DiscoverPage() {
         )}
         {directoryStatus === 'CanLoadMore' && (
           <div className="discover-load-more">
-            <button type="button" className="btn btn-neutral btn-sm" onClick={() => loadMoreDirectory(50)}>
+            <Button intent="neutral" size="small" onClick={() => loadMoreDirectory(50)}>
               Load more people
-            </button>
+            </Button>
           </div>
         )}
         {directoryStatus === 'LoadingMore' && (
@@ -270,12 +270,12 @@ export function DiscoverPage() {
             </div>
 
             <footer className="filters-drawer-footer">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={clearAllFilters}>
+              <Button intent="ghost" size="small" onClick={clearAllFilters}>
                 Clear all
-              </button>
-              <button type="button" className="btn btn-social btn-sm" onClick={() => setFiltersOpen(false)}>
+              </Button>
+              <Button intent="social" size="small" onClick={() => setFiltersOpen(false)}>
                 Show {filtered.length} {filtered.length === 1 ? 'result' : 'results'}
-              </button>
+              </Button>
             </footer>
           </aside>
         </div>

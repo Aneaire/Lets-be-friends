@@ -2,45 +2,49 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { MouseEvent, ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const directory = vi.hoisted(() => ({
-  results: [
-    {
-      _id: 'reviewed-companion',
-      kind: 'companion',
-      displayName: 'Reviewed Companion',
-      city: 'Makati',
-      mode: 'both',
-      rating: 4.8,
-      reviewCount: 6,
-      intro: 'Coffee and conversation.',
-      strengths: [],
-    },
-    {
-      _id: 'new-companion',
-      kind: 'companion',
-      displayName: 'New Companion',
-      city: 'Manila',
-      mode: 'online',
-      rating: 0,
-      reviewCount: 0,
-      intro: 'Online company.',
-      strengths: [],
-    },
-    {
-      _id: 'reviewed-member',
-      kind: 'member',
-      displayName: 'Reviewed Member',
-      city: 'Pasig',
-      mode: 'online',
-      rating: 5,
-      reviewCount: 2,
-      intro: 'A community member.',
-      strengths: [],
-    },
-  ],
+  status: 'Exhausted' as 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted',
+  results: [] as unknown[],
+  loadMore: vi.fn(),
 }))
+
+const baseResults = [
+  {
+    _id: 'reviewed-companion',
+    kind: 'companion',
+    displayName: 'Reviewed Companion',
+    city: 'Makati',
+    mode: 'both',
+    rating: 4.8,
+    reviewCount: 6,
+    intro: 'Coffee and conversation.',
+    strengths: [],
+  },
+  {
+    _id: 'new-companion',
+    kind: 'companion',
+    displayName: 'New Companion',
+    city: 'Manila',
+    mode: 'online',
+    rating: 0,
+    reviewCount: 0,
+    intro: 'Online company.',
+    strengths: [],
+  },
+  {
+    _id: 'reviewed-member',
+    kind: 'member',
+    displayName: 'Reviewed Member',
+    city: 'Pasig',
+    mode: 'online',
+    rating: 5,
+    reviewCount: 2,
+    intro: 'A community member.',
+    strengths: [],
+  },
+]
 
 vi.mock('../../convex/_generated/api', () => ({
   api: {
@@ -51,7 +55,7 @@ vi.mock('../../convex/_generated/api', () => ({
 
 vi.mock('convex/react', () => ({
   useMutation: () => vi.fn(),
-  usePaginatedQuery: () => ({ results: directory.results, status: 'Exhausted', loadMore: vi.fn() }),
+  usePaginatedQuery: () => ({ results: directory.results, status: directory.status, loadMore: directory.loadMore }),
 }))
 
 vi.mock('@clerk/react', () => ({ useAuth: () => ({ isSignedIn: true }) }))
@@ -87,6 +91,12 @@ vi.mock('../../src/features/discovery/CategoryFilterDialog', () => ({ CategoryFi
 import { DiscoverPage } from '../../src/routes/discover'
 
 afterEach(cleanup)
+
+beforeEach(() => {
+  directory.status = 'Exhausted'
+  directory.results = baseResults
+  directory.loadMore.mockClear()
+})
 
 describe('Explore destinations', () => {
   it('uses page links for destinations and filters Reviews to reviewed Companions', () => {
@@ -125,5 +135,27 @@ describe('Explore destinations', () => {
     expect(reviews.getAttribute('aria-current')).toBeNull()
     expect(screen.getByText('New Companion')).toBeTruthy()
     expect(screen.getByText('Reviewed Member')).toBeTruthy()
+  })
+
+  it('shows the empty state and clears active filters', () => {
+    directory.results = []
+    render(<DiscoverPage />)
+
+    expect(screen.getByText('No matches with these filters.')).toBeTruthy()
+    expect(screen.getByText('Try another activity or clear the filters to see everyone.')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('link', { name: 'Reviews' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+
+    expect(screen.queryByRole('button', { name: 'Clear all' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'People' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('loads the next page from the design-system button', () => {
+    directory.status = 'CanLoadMore'
+    render(<DiscoverPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more people' }))
+    expect(directory.loadMore).toHaveBeenCalledWith(50)
   })
 })

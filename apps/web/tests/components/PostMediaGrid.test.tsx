@@ -37,6 +37,11 @@ describe('PostMediaGrid', () => {
     expect(video?.muted).toBe(true)
     expect(video?.playsInline).toBe(true)
     expect(video?.preload).toBe('metadata')
+    expect(video?.getAttribute('role')).toBeNull()
+    expect(video?.getAttribute('tabindex')).toBeNull()
+    const openButton = screen.getByRole('button', { name: 'Open Video 2 shared in this post' })
+    expect(openButton.classList.contains('social-post-video-open')).toBe(true)
+    expect(openButton.hasAttribute('style')).toBe(false)
     expect(screen.getByRole('button', { name: 'Unmute video' })).toBeTruthy()
     expect(container.querySelector('.social-post-video-time')).toBeNull()
   })
@@ -59,7 +64,7 @@ describe('PostMediaGrid', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Unmute video' }))
     expect(screen.getByRole('button', { name: 'Mute video' }).getAttribute('aria-pressed')).toBe('true')
 
-    fireEvent.click(video)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Video 1 shared in this post' }))
     expect(video.pause).toHaveBeenCalledOnce()
     expect(screen.getByRole('dialog', { name: 'Video 1 shared in this post' })).toBeTruthy()
     expect(screen.getByLabelText('Video 1 shared in this post, expanded')).toBeTruthy()
@@ -96,6 +101,76 @@ describe('PostMediaGrid', () => {
 
     unmount()
     expect(disconnect).toHaveBeenCalledOnce()
+    vi.unstubAllGlobals()
+  })
+
+  it('contains a rejected autoplay promise when a video scrolls into view', () => {
+    let reportIntersection: IntersectionObserverCallback = () => undefined
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) {
+        reportIntersection = callback
+      }
+      observe = vi.fn()
+      disconnect = vi.fn()
+    })
+
+    const { container } = render(
+      <PostMediaGrid media={[{ storageId: 'video-1', kind: 'video', url: '/clip.mp4' }]} />,
+    )
+    const video = container.querySelector('video')!
+    const rejectedPlayback = Promise.reject(new DOMException('The play() request was interrupted.', 'AbortError'))
+    void rejectedPlayback.catch(() => undefined)
+    const catchSpy = vi.spyOn(rejectedPlayback, 'catch')
+    const play = vi.fn().mockReturnValue(rejectedPlayback)
+    const pause = vi.fn()
+    Object.defineProperties(video, {
+      play: { configurable: true, value: play },
+      pause: { configurable: true, value: pause },
+    })
+
+    reportIntersection([{ isIntersecting: true, intersectionRatio: 0.6 } as IntersectionObserverEntry], {} as IntersectionObserver)
+
+    expect(play).toHaveBeenCalledOnce()
+    expect(catchSpy).toHaveBeenCalledOnce()
+
+    reportIntersection([{ isIntersecting: false, intersectionRatio: 0 } as IntersectionObserverEntry], {} as IntersectionObserver)
+    expect(pause).toHaveBeenCalledOnce()
+    vi.unstubAllGlobals()
+  })
+
+  it('resumes inline playback on close and contains a rejected play promise', () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 0
+    })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+
+    const { container } = render(
+      <PostMediaGrid media={[{ storageId: 'video-1', kind: 'video', url: '/clip.mp4' }]} />,
+    )
+    const inlineVideo = container.querySelector('video')!
+    const rejectedPlayback = Promise.reject(new DOMException('The play() request was interrupted.', 'AbortError'))
+    void rejectedPlayback.catch(() => undefined)
+    const catchSpy = vi.spyOn(rejectedPlayback, 'catch')
+    const play = vi.fn().mockReturnValue(rejectedPlayback)
+    const pause = vi.fn()
+    Object.defineProperties(inlineVideo, {
+      play: { configurable: true, value: play },
+      pause: { configurable: true, value: pause },
+      currentTime: { configurable: true, writable: true, value: 4 },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Video 1 shared in this post' }))
+    expect(pause).toHaveBeenCalledOnce()
+
+    const dialogVideo = screen.getByLabelText('Video 1 shared in this post, expanded')
+    Object.defineProperty(dialogVideo, 'currentTime', { configurable: true, value: 9 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close video' }))
+
+    expect(inlineVideo.currentTime).toBe(9)
+    expect(play).toHaveBeenCalledOnce()
+    expect(catchSpy).toHaveBeenCalledOnce()
     vi.unstubAllGlobals()
   })
 

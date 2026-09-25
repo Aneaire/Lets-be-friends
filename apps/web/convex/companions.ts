@@ -352,6 +352,20 @@ export const submitApplication = mutation({
       throw new Error('Accept the current location consent and Terms and Conditions before applying as a Companion')
     }
     const { bio: _bio, ...applicationArgs } = args
+    // An approved Companion stays live when the edit only touches review-neutral
+    // details such as the hourly rate or bio. Review-sensitive fields still send
+    // the updated profile back for safety review.
+    const requiresReview = !existing
+      || existing.status !== 'approved'
+      || companionApplicationNeedsReview(existing, {
+        intro: args.intro,
+        city: args.city,
+        strengths: args.strengths,
+        categories: categoryResult.value,
+        boundaries: args.boundaries,
+        mode: args.mode,
+        earningMotivation,
+      })
     const patch = {
       ...applicationArgs,
       earningMotivation,
@@ -360,7 +374,7 @@ export const submitApplication = mutation({
       approximateArea: undefined,
       approximateLatitude: roundCoordinate(sourceLatitude),
       approximateLongitude: roundCoordinate(sourceLongitude),
-      status: 'pending_review' as const,
+      status: requiresReview ? 'pending_review' as const : 'approved' as const,
       rating: existing?.rating ?? 0,
       reviewCount: existing?.reviewCount ?? 0,
       updatedAt: now,
@@ -378,12 +392,12 @@ export const submitApplication = mutation({
 
     await writeAudit(ctx, {
       actorUserId: viewer._id,
-      action: 'companion_application.submitted',
+      action: requiresReview ? 'companion_application.submitted' : 'companion_profile.updated',
       targetType: 'companionProfile',
       targetId: String(companionProfileId),
-      after: { status: 'pending_review', identityApproved: hasCurrentIdentityApproval(viewer) },
+      after: { status: requiresReview ? 'pending_review' : 'approved', identityApproved: hasCurrentIdentityApproval(viewer), requiresReview },
     })
-    return companionProfileId
+    return { companionProfileId, requiresReview }
   },
 })
 
@@ -406,6 +420,34 @@ export const updateHourlyRate = mutation({
     return hourlyRateCentavos
   },
 })
+
+function companionApplicationNeedsReview(
+  existing: Doc<'companionProfiles'>,
+  next: {
+    intro: string
+    city: string
+    strengths: string[]
+    categories: string[]
+    boundaries: string[]
+    mode: 'online' | 'in_person' | 'both'
+    earningMotivation: string
+  },
+) {
+  return (existing.intro ?? '').trim() !== next.intro.trim()
+    || (existing.city ?? '').trim() !== next.city.trim()
+    || existing.mode !== next.mode
+    || (existing.earningMotivation ?? '').trim() !== next.earningMotivation.trim()
+    || !sameStringMembers(existing.strengths, next.strengths)
+    || !sameStringMembers(existing.boundaries, next.boundaries)
+    || !sameStringMembers(existing.categories, next.categories)
+}
+
+function sameStringMembers(left: string[], right: string[]) {
+  if (left.length !== right.length) return false
+  const leftSorted = [...left].sort()
+  const rightSorted = [...right].sort()
+  return leftSorted.every((value, index) => value === rightSorted[index])
+}
 
 function validateNearbyOrigin(args: { latitude?: number; longitude?: number; radiusKm?: number }) {
   if (args.radiusKm !== undefined && !nearbyRadiusOptions.includes(args.radiusKm as typeof nearbyRadiusOptions[number])) {

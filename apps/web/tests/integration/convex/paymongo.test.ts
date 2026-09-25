@@ -263,4 +263,50 @@ describe('PayMongo trust boundary', () => {
       else process.env.MEMBER_WALLET_V2_ENABLED = previous
     }
   })
+
+  it('supersedes an active member top-up so a fresh amount regenerates the QR', async () => {
+    const previous = process.env.MEMBER_WALLET_V2_ENABLED
+    process.env.MEMBER_WALLET_V2_ENABLED = 'true'
+    try {
+      const t = createTest()
+      const { memberId, activeTopUpId } = await t.run(async (ctx) => {
+        const now = Date.now()
+        const memberId = await ctx.db.insert('users', {
+          clerkUserId: 'regenerate-member', displayName: 'Regenerate Member', role: 'member', verificationStatus: 'approved', suspended: false, createdAt: now, updatedAt: now,
+        })
+        const activeTopUpId = await ctx.db.insert('paymongoTopUps', {
+          beneficiaryUserId: memberId,
+          purpose: 'member_booking_balance',
+          amountCentavos: 25_000,
+          currency: 'PHP',
+          mode: 'test',
+          status: 'awaiting_payment',
+          providerIntentId: 'pi_regenerate_old',
+          qrImageUrl: 'https://example.test/old.png',
+          expiresAt: now + 600_000,
+          createdAt: now,
+          updatedAt: now,
+        })
+        return { memberId, activeTopUpId }
+      })
+
+      const prepared = await t.mutation(internal.paymongo.prepareTopUp, {
+        clerkUserId: 'regenerate-member', amountCentavos: 50_000, mode: 'test', purpose: 'member_booking_balance',
+      })
+      expect(prepared.topUpId).not.toBe(activeTopUpId)
+
+      const state = await t.run(async (ctx) => ({
+        previous: await ctx.db.get(activeTopUpId),
+        created: await ctx.db.get(prepared.topUpId),
+        topUps: await ctx.db.query('paymongoTopUps').collect(),
+      }))
+      expect(state.previous).toMatchObject({ status: 'expired', failureCode: 'superseded' })
+      expect(state.previous?.expiredAt).toBeTypeOf('number')
+      expect(state.created).toMatchObject({ beneficiaryUserId: memberId, amountCentavos: 50_000, status: 'creating' })
+      expect(state.topUps).toHaveLength(2)
+    } finally {
+      if (previous === undefined) delete process.env.MEMBER_WALLET_V2_ENABLED
+      else process.env.MEMBER_WALLET_V2_ENABLED = previous
+    }
+  })
 })

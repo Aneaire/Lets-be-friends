@@ -6,7 +6,7 @@ import { InlineNotice } from '../../../../web/src/design-system/molecules/Feedba
 import { Surface } from '../../../../web/src/design-system/molecules/Surface'
 
 function SharedPrimitives() { return <div className="ds-story-stack"><Surface density="compact"><div className="ds-story-row"><StatusBadge tone="warning">Review needed</StatusBadge><StatusBadge tone="success">Resolved</StatusBadge></div></Surface><InlineNotice title="Admin actions stay neutral">Approval and resolution use neutral controls. Safety actions use danger.</InlineNotice><div className="ds-story-row"><Button intent="neutral" leadingIcon={<ShieldCheck size={16} />}>Review record</Button><Button intent="danger">Suspend member</Button></div></div> }
-const meta = { title: 'Admin/Foundations/Shared primitives', component: SharedPrimitives, parameters: { viewport: { defaultViewport: 'mobileDefault' } } } satisfies Meta<typeof SharedPrimitives>
+const meta = { title: 'Admin/Foundations/Shared primitives', component: SharedPrimitives, globals: { viewport: { value: 'mobileDefault', isRotated: false } } } satisfies Meta<typeof SharedPrimitives>
 export default meta
 type Story = StoryObj<typeof meta>
 export const SemanticAdminStates: Story = {}

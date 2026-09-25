@@ -113,13 +113,13 @@ export function Dialog({
         aria-busy={busy || undefined}
         tabIndex={-1}
       >
-        <header className="ds-dialog-header">
+        <div className="ds-dialog-header">
           <div>
             <h2 id={titleId}>{title}</h2>
             {description ? <p id={descriptionId}>{description}</p> : null}
           </div>
           <IconButton label={closeLabel} onClick={onClose} disabled={busy}><X size={19} aria-hidden="true" /></IconButton>
-        </header>
+        </div>
         {children ? (
           <div
             className={`ds-dialog-body ${bodyClassName}`.trim()}

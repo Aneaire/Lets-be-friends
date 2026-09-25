@@ -101,23 +101,6 @@
     color: var(--danger);
   }
 
-  .circle-admin-dialog-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 30;
-    display: grid;
-    place-items: center;
-    padding: 1rem;
-    background: color-mix(in oklch, var(--text) 42%, transparent);
-  }
-
-  .circle-admin-dialog {
-    display: grid;
-    width: min(100%, 34rem);
-    gap: 1rem;
-    padding: 1.25rem;
-  }
-
   .circle-report-context {
     display: grid;
     gap: 0.35rem;

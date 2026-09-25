@@ -56,17 +56,31 @@ export const forCompanion = query({
     const viewer = await getViewer(ctx)
     if (!viewer) return []
     if (viewer.suspended) throw new Error('Account is suspended')
-    const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
-    if (!companion) return []
-    const bookings = await ctx.db.query('bookings').withIndex('by_companion', (q) => q.eq('companionProfileId', companion._id)).order('desc').collect()
+    const companions = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).collect()
+    if (companions.length === 0) return []
+    const companionsById = new Map(companions.map((companion) => [companion._id, companion]))
+    const bookingsByProfile = await Promise.all(companions.map((companion) =>
+      ctx.db.query('bookings').withIndex('by_companion', (q) => q.eq('companionProfileId', companion._id)).collect(),
+    ))
+    const seenBookingIds = new Set<string>()
+    const bookings = bookingsByProfile
+      .flat()
+      .filter((booking) => {
+        const id = String(booking._id)
+        if (seenBookingIds.has(id)) return false
+        seenBookingIds.add(id)
+        return true
+      })
+      .sort((left, right) => right.createdAt - left.createdAt)
     return await Promise.all(bookings.map(async (booking) => {
       const member = await ctx.db.get(booking.memberId)
+      const companion = companionsById.get(booking.companionProfileId)
       const reviews = await ctx.db.query('reviews').withIndex('by_booking', (q) => q.eq('bookingId', booking._id)).collect()
       return {
         ...booking,
         memberDisplayName: member?.displayName ?? 'Member',
         companionDisplayName: viewer.displayName,
-        companionCity: companion.city,
+        companionCity: companion?.city ?? 'Unknown location',
         viewerHasReviewed: reviews.some((review) => review.reviewerId === viewer._id),
         otherHasReviewed: reviews.some((review) => review.reviewerId === booking.memberId),
       }

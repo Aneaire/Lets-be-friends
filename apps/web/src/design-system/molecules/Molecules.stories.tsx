@@ -35,7 +35,7 @@ const viewerItems = [
     onSelect: reportPost,
   },
 ]
-const meta = { title: 'Web/Molecules/Core patterns', parameters: { viewport: { defaultViewport: 'mobileDefault' } } } satisfies Meta
+const meta = { title: 'Web/Molecules/Core patterns', globals: { viewport: { value: 'mobileDefault', isRotated: false } } } satisfies Meta
 export default meta
 type Story = StoryObj<typeof meta>
 

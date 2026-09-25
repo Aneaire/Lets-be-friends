@@ -30,7 +30,7 @@ const rejectDecision = fn(async () => {
 const meta = {
   title: 'Features/Booking/Request card',
   component: BookingRequestCard,
-  globals: { viewport: 'mobileDefault' },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     intro: 'A relaxed afternoon plan with clear timing and meeting details.',
     booking,
@@ -43,7 +43,7 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-function FloatingThread(props: ComponentProps<typeof BookingRequestCard>) {
+function PinnedThread(props: ComponentProps<typeof BookingRequestCard>) {
   return (
     <section
       aria-label="Booking conversation preview"
@@ -56,7 +56,7 @@ function FloatingThread(props: ComponentProps<typeof BookingRequestCard>) {
         background: 'var(--app-bg)',
       }}
     >
-      <div className="direct-booking" data-floating="true">
+      <div className="direct-thread-pin-slot" data-active="true" style={{ marginBottom: '1rem' }}>
         <BookingRequestCard {...props} />
       </div>
       <div style={{ display: 'grid', gap: '0.75rem', paddingBlock: '1rem 24rem' }} aria-hidden="true">
@@ -154,11 +154,11 @@ export const MissingOptionalPricing: Story = {
     ).not.toBeInTheDocument()
   },
 }
-export const FloatingInThreadLight: Story = {
+export const PinnedInThreadLight: Story = {
   globals: { theme: 'light' },
-  render: (args) => <FloatingThread {...args} />,
+  render: (args) => <PinnedThread {...args} />,
 }
-export const FloatingInThreadDark: Story = {
+export const PinnedInThreadDark: Story = {
   globals: { theme: 'dark' },
-  render: (args) => <FloatingThread {...args} />,
+  render: (args) => <PinnedThread {...args} />,
 }

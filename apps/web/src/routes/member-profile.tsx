@@ -78,6 +78,7 @@ function MemberProfilePage() {
       <ProfileContentPanel
         className="mt-6"
         ownerName={profile.displayName}
+        ownerImageUrl={profile.profileImageUrl}
         posts={posts}
         reviews={null}
         emptyPostsDescription="This member has not shared a post yet."

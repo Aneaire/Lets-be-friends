@@ -54,7 +54,7 @@ function WalletView({ wallet }: { wallet: Wallet }) {
   const [clockNow, setClockNow] = useState(() => Date.now())
   const busyRef = useRef(false)
   const activeTopUp = wallet.topUps.find((topUp) => topUpPresentation(topUp.status, topUp.expiresAt, clockNow).active)
-  const displayTopUp = activeTopUp ?? wallet.topUps.find((topUp) => topUp.qrImageUrl && topUp.status !== 'paid')
+  const displayTopUp = activeTopUp ?? wallet.topUps[0]
   const waitingForCreatedTopUp = pendingCreatedTopUpId !== null
 
   useEffect(() => {

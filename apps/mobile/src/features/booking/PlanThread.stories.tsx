@@ -8,7 +8,7 @@ const requestedAt = Date.UTC(2026, 8, 12, 6, 30)
 const meta = {
   title: 'Mobile/Booking/Plan thread',
   component: PlanThread,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     status: 'request_sent',
     requestedAt,

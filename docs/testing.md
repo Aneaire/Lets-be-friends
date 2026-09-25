@@ -14,6 +14,9 @@ Automated tests are organized by the workspace that owns the behavior. This make
 | Mobile | `apps/mobile/tests/unit/<feature>` | Mobile view models, routing decisions, adapters, and pure behavior grouped by feature |
 | Admin | `apps/admin/tests/unit` | Admin-only access and presentation rules |
 | Shared | `packages/shared/tests/unit` | Cross-platform domain, feed, finance, map, mention, and username rules |
+| Web/admin Storybook | `apps/web/src/**/*.stories.tsx`, `apps/admin/src/**/*.stories.tsx` | Shared component stories, run through `.storybook` |
+| Mobile Storybook | `apps/mobile/src/**/*.stories.tsx` | React Native Web stories, run through `apps/mobile/.storybook` |
+| UI infrastructure | `scripts/`, `vitest.storybook*.config.ts` | Storybook viewport, policy, and control-contrast checks |
 
 Do not put test files beside production files. Do not create a root `tests/e2e` directory until the project selects and configures an E2E runner.
 
@@ -65,9 +68,55 @@ pnpm --filter @lets-be-friends/shared typecheck
 
 # Convex generated API consistency
 pnpm convex:codegen
+
+# Web and admin Storybook browser tests
+pnpm test-storybook
+
+# Mobile Storybook browser tests
+pnpm test-storybook:mobile
+
+# Fast UI infrastructure checks (no browser)
+pnpm check:web-tokens
+pnpm check:storybook
 ```
 
 When changing a Convex public function, run the focused integration test and `pnpm convex:codegen`. Generated Convex files are outputs, not a place for hand-written tests.
+
+### Node 26 and web/admin theme tests
+
+Node 26 exposes an experimental `localStorage` global that shadows the jsdom storage used by the theme tests, so `window.localStorage` becomes undefined. The root `pnpm test` script runs through `scripts/run-with-node-options.mjs`, which adds `--no-experimental-webstorage` when the running Node supports it. When you run a workspace test directly instead of through the root script, pass the flag yourself:
+
+```bash
+NODE_OPTIONS=--no-experimental-webstorage pnpm --filter @lets-be-friends/web test
+NODE_OPTIONS=--no-experimental-webstorage pnpm --filter @lets-be-friends/admin test
+```
+
+## Storybook UI checks
+
+Storybook exercises real components in a browser context. Two independent gates are mandatory for UI changes:
+
+- `pnpm build-storybook` and `pnpm build-storybook:mobile` prove the static Storybooks compile.
+- `pnpm test-storybook` and `pnpm test-storybook:mobile` run story interactions and the a11y assertions configured as `a11y: { test: 'error' }`.
+
+Builds alone do not prove interaction or accessibility correctness; run both.
+
+Storybook runs in a browser runner with isolated mocks (mobile icons, routing, backend, and safe-area metrics). Results are browser results, not installed-device results, so native permissions, maps, keyboard avoidance, and real icon glyphs still require manual device verification.
+
+Static infrastructure checks run without a browser:
+
+- `pnpm check:web-tokens` proves the derived control tokens keep white control text at or above WCAG AA (4.5:1) in default and hover states, and that the logo/brand accents (`#1093ED` self, `#C1519C` social) stay exact.
+- `pnpm check:storybook` enforces viewport configuration and story policy. Viewport globals must be objects (`{ value, isRotated }`) and `parameters.viewport.defaultViewport` is rejected.
+- `pnpm validate:ui` runs the static checks, both Storybook builds, and both Storybook test suites. The viewport enforcement check is part of it by default, so it stays red until every legacy or string viewport declaration is migrated. `pnpm validate:ui:checks` runs only the static checks.
+
+Story viewport declarations are migrated with an idempotent script, not by hand:
+
+```bash
+node scripts/storybook/migrate-viewport-globals.mjs            # dry run
+pnpm storybook:migrate:viewport                                # apply
+pnpm check:storybook                                           # enforce
+```
+
+The script also completes object globals that are missing `isRotated` and normalizes known aliases (`reset` to `desktop`, `mobileTiny` to `mobileSmall`). Coordinate before running it so it does not conflict with in-progress story edits.
 
 ## Required final gates
 
@@ -79,7 +128,17 @@ pnpm test
 pnpm build
 ```
 
-Report every failed or unavailable gate. Do not describe manual inspection as an automated pass.
+For a UI change, also run the Storybook gates:
+
+```bash
+pnpm build-storybook
+pnpm build-storybook:mobile
+pnpm test-storybook
+pnpm test-storybook:mobile
+pnpm validate:ui
+```
+
+`pnpm validate:ui` covers the builds and tests in one command. Report every failed or unavailable gate. Do not describe manual inspection as an automated pass.
 
 ## Product capability coverage
 
@@ -93,7 +152,7 @@ This matrix describes current evidence honestly. A capability marked partial has
 | Mobile view models, access decisions, notifications, booking rules, wallet, and push adapter logic | Unit coverage | No installed-device E2E, native permission flow, or real push delivery test |
 | Admin access model | Unit coverage | Admin route UI and browser workflows are not automated |
 | Clerk, Persona, PayMongo, Expo push, maps, and other external services | Adapter or simulated integration coverage where present | No live-provider tests, real credentials, webhook delivery, or production writes |
-| Accessibility, responsive layout, and visual regressions | Limited assertions inside selected component tests | No dedicated accessibility or visual-regression runner |
+| Accessibility, responsive layout, and visual regressions | Storybook browser tests assert interactions, run `addon-a11y`, and exercise narrow viewport stories; control-token contrast is enforced statically | No screenshot/visual-regression runner, and Storybook viewports are not installed-device sizes |
 
 ## Manual and installed-device verification
 

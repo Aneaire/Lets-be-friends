@@ -120,7 +120,7 @@ export const Disabled: Story = {
 }
 
 export const DangerNarrow: Story = {
-  globals: { viewport: 'mobileDefault' },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     label: 'Reject booking verification request',
     submitLabel: 'Reject request',

@@ -36,6 +36,8 @@ Web density variables live in `apps/web/src/design-system/foundations/compact.cs
 
 ## Storybook
 
+See the [reusable UI map](reusable-ui.md) for production consumers, post/feed/profile composition, and guidance on reusing or adding components.
+
 Run the web and admin library:
 
 ```bash

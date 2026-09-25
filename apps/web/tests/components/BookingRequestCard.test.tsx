@@ -65,4 +65,22 @@ describe('BookingRequestCard', () => {
     expect(screen.queryByText(/Your entitlement/)).toBeNull()
     expect(screen.queryByText(/Bring your favorite game/)).toBeNull()
   })
+
+  it('shows a read-only previous booking summary without decision actions', () => {
+    const { container } = render(
+      <BookingRequestCard
+        booking={baseBooking}
+        viewerId={'companion-1' as Id<'users'>}
+        readOnly
+        onDecide={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    )
+
+    expect(container.firstElementChild?.getAttribute('data-density')).toBe('compact')
+    expect(screen.getByText('Needs your decision').getAttribute('data-tone')).toBe('social')
+    expect(screen.queryByRole('button', { name: 'Accept request' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Decline' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Edit request' })).toBeNull()
+  })
 })

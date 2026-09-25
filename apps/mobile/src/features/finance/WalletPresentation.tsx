@@ -102,7 +102,7 @@ export function WalletPresentation({
         <View style={styles.copy}>
           <AppText variant="heading">Add balance with QR Ph</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            Enter PHP 100 to PHP 100,000. Only a provider-confirmed paid intent credits this wallet.
+            Enter PHP 1 to PHP 100,000. Only a provider-confirmed paid intent credits this wallet.
           </AppText>
         </View>
         <TextInput

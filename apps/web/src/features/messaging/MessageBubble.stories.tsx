@@ -9,7 +9,7 @@ import { PendingOutgoingMessageBubble } from './PendingOutgoingMessageBubble'
 
 const meta = {
   title: 'Web/Organisms/Messaging thread',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 export default meta
 type Story = StoryObj<typeof meta>

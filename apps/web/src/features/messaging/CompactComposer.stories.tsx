@@ -7,7 +7,7 @@ import { CompactComposer } from './CompactComposer'
 
 const meta = {
   title: 'Web/Organisms/Compact composer',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   decorators: [(Story) => <div style={{ width: 'min(100%, 24rem)' }}><Story /></div>],
 } satisfies Meta
 

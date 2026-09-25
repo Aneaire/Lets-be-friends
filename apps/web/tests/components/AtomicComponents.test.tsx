@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Avatar } from '../../src/design-system/atoms/Avatar'
@@ -45,6 +45,17 @@ describe('atomic design-system components', () => {
     expect(input.getAttribute('aria-describedby')).toBe(screen.getByRole('alert').id)
   })
 
+  it('renders a custom unit hint and wrapper classes on a form field', () => {
+    const { container } = render(
+      <FormField label="Withdrawal amount" aux="PHP" className="flex-1">
+        <Input />
+      </FormField>,
+    )
+    expect(screen.getByLabelText(/Withdrawal amount/)).toBeTruthy()
+    expect(screen.getByText('PHP')).toBeTruthy()
+    expect(container.querySelector('.field-row')?.classList.contains('flex-1')).toBe(true)
+  })
+
   it('gives a checkbox its visible label and forwards its controlled state', () => {
     const onChange = vi.fn()
     render(<Checkbox label="Available to book" checked onChange={onChange} />)
@@ -83,6 +94,26 @@ describe('atomic design-system components', () => {
     expect(document.activeElement).toBe(report)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menuitem', { name: 'Report post' })).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('returns focus to the trigger and uses a distinct panel label after selecting an item', () => {
+    const onSelect = vi.fn()
+    render(
+      <ActionMenu
+        label="More booking actions"
+        panelLabel="Booking actions"
+        items={[{ label: 'Report', tone: 'danger', onSelect }]}
+      />,
+    )
+    const trigger = screen.getByRole('button', { name: 'More booking actions' })
+    fireEvent.click(trigger)
+
+    const menu = screen.getByRole('menu', { name: 'Booking actions' })
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Report' }))
+
+    expect(onSelect).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('menu')).toBeNull()
     expect(document.activeElement).toBe(trigger)
   })
 

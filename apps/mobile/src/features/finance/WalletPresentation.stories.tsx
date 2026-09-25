@@ -44,7 +44,7 @@ const changeAmount = fn()
 const meta = {
   title: 'Mobile/Finance/Booking wallet',
   component: WalletPresentation,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     enabled: true,
     balances,
@@ -175,7 +175,7 @@ export const ConfirmationMessage: Story = {
 }
 
 export const LongHistoryAt320: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileTiny' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     topUps: [
       paidTopUp,

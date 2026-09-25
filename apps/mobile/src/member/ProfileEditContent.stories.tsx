@@ -46,7 +46,7 @@ function ProfileEditStory({ initialName, initialBio, busy = false, onSave, onCan
 
 const meta = {
   title: 'Mobile/Profile/Edit profile',
-  parameters: { viewport: { defaultViewport: 'mobileDefault' } },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     initialName: 'Alex Rivera',
     initialBio: 'Coffee enthusiast and weekend hiker.',

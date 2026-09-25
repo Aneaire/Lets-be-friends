@@ -47,7 +47,7 @@ function EditPostSheetStory({
 const meta = {
   title: 'Mobile/Features/Social/Edit post sheet',
   component: EditPostSheetStory,
-  parameters: { viewport: { defaultViewport: 'mobileDefault' } },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     initialBody: 'Looking for someone to practice conversational English with this weekend.',
     onSave: fn(),
@@ -106,7 +106,7 @@ export const Busy: Story = {
 }
 
 export const Narrow320: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 }
 
 const styles = StyleSheet.create({

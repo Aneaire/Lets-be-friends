@@ -21,7 +21,7 @@ const dismissToast = fn()
 
 const meta = {
   title: 'Mobile/Molecules/Infrastructure',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 
 export default meta

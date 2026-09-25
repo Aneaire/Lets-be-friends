@@ -8,7 +8,7 @@ import { SearchField } from './SearchField'
 
 const meta = {
   title: 'Mobile/Molecules/Search field',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 
 export default meta

@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { Button } from '../../../../web/src/design-system/atoms/Button'
+import { Dialog } from '../../../../web/src/design-system/molecules/Dialog'
+import { SearchField } from '../../../../web/src/design-system/molecules/SearchField'
 
 export type CircleSafetyListItem = {
   _id: string
@@ -121,6 +124,29 @@ export function CircleSafetyConsole(props: Props) {
 
   const detail = props.detail
 
+  const closeConfirmation = () => {
+    if (busy) return
+    setConfirmation(null)
+    setRecipientUserId('')
+    setReason('')
+  }
+
+  const confirmationTitle = confirmation
+    ? confirmation.kind === 'suspend'
+      ? `Suspend ${confirmation.circleName}?`
+      : confirmation.kind === 'cancel-transfer'
+        ? `Cancel the transfer for ${confirmation.circleName}?`
+        : `Recover ownership of ${confirmation.circleName}?`
+    : ''
+
+  const confirmationDescription = confirmation
+    ? confirmation.kind === 'suspend'
+      ? 'Members will lose access to Circle content and cannot post until a full admin reactivates it.'
+      : confirmation.kind === 'cancel-transfer'
+        ? `${confirmation.recipientName} will no longer be able to accept ownership. The current host will keep the Circle.`
+        : 'Use this only when the current host cannot act. The selected verified member becomes the only host and any pending transfer is cancelled.'
+    : undefined
+
   return (
     <>
       <header className="admin-page-header">
@@ -143,10 +169,12 @@ export function CircleSafetyConsole(props: Props) {
             <option value="suspended">Suspended</option>
           </select>
         </label>
-        <label className="field-row">
-          <span className="label">Search</span>
-          <input className="field" value={props.search} onChange={(event) => props.onSearchChange(event.currentTarget.value)} placeholder="Name or slug" />
-        </label>
+        <SearchField
+          label="Search Circles"
+          value={props.search}
+          onChange={props.onSearchChange}
+          placeholder="Name or slug"
+        />
       </div>
 
       <div className="circle-admin-layout">
@@ -255,53 +283,50 @@ export function CircleSafetyConsole(props: Props) {
       </div>
 
       {confirmation && (
-        <div className="circle-admin-dialog-backdrop">
-          <div className="panel circle-admin-dialog" role="dialog" aria-modal="true" aria-labelledby="circle-admin-dialog-title">
-            <h2 className="text-h2" id="circle-admin-dialog-title">{
-              confirmation.kind === 'suspend'
-                ? `Suspend ${confirmation.circleName}?`
-                : confirmation.kind === 'cancel-transfer'
-                  ? `Cancel the transfer for ${confirmation.circleName}?`
-                  : `Recover ownership of ${confirmation.circleName}?`
-            }</h2>
-            {confirmation.kind === 'suspend' ? (
-              <>
-                <p className="text-body muted">Members will lose access to Circle content and cannot post until a full admin reactivates it.</p>
-                <div className="admin-action-stack">
-                  <button className="btn btn-ghost" type="button" disabled={busy} onClick={() => setConfirmation(null)}>Keep active</button>
-                  <button className="btn btn-danger" type="button" disabled={busy} onClick={() => void run(() => props.onSetState(confirmation.circleId, 'suspended'), 'Circle suspended.')}>Confirm suspension</button>
-                </div>
-              </>
-            ) : confirmation.kind === 'cancel-transfer' ? (
-              <>
-                <p className="text-body muted">{confirmation.recipientName} will no longer be able to accept ownership. The current host will keep the Circle.</p>
-                <div className="admin-action-stack">
-                  <button className="btn btn-ghost" type="button" disabled={busy} onClick={() => setConfirmation(null)}>Keep transfer</button>
-                  <button className="btn btn-neutral" type="button" disabled={busy} onClick={() => void run(() => props.onCancelTransfer(confirmation.circleId), 'Pending transfer cancelled.')}>Confirm cancellation</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-body muted">Use this only when the current host cannot act. The selected verified member becomes the only host and any pending transfer is cancelled.</p>
-                <label className="field-row">
-                  <span className="label">New host</span>
-                  <select className="field" value={recipientUserId} onChange={(event) => setRecipientUserId(event.currentTarget.value)}>
-                    <option value="">Select an eligible member</option>
-                    {detail?.emergencyHostCandidates.map((candidate) => <option key={candidate.userId} value={candidate.userId}>{candidate.displayName}</option>)}
-                  </select>
-                </label>
-                <label className="field-row">
-                  <span className="label">Internal reason</span>
-                  <textarea className="field" value={reason} onChange={(event) => setReason(event.currentTarget.value)} placeholder="Why the current host cannot act" />
-                </label>
-                <div className="admin-action-stack">
-                  <button className="btn btn-ghost" type="button" disabled={busy} onClick={() => setConfirmation(null)}>Cancel</button>
-                  <button className="btn btn-neutral" type="button" disabled={busy || !recipientUserId || !reason.trim()} onClick={() => void run(() => props.onRecoverHost(confirmation.circleId, recipientUserId, reason), 'Circle ownership recovered.')}>Confirm recovery</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <Dialog
+          open
+          onClose={closeConfirmation}
+          title={confirmationTitle}
+          description={confirmationDescription}
+          size="small"
+          busy={busy}
+          footer={confirmation.kind === 'suspend' ? (
+            <>
+              <Button intent="ghost" disabled={busy} onClick={closeConfirmation}>Keep active</Button>
+              <Button intent="danger" disabled={busy} onClick={() => void run(() => props.onSetState(confirmation.circleId, 'suspended'), 'Circle suspended.')}>Confirm suspension</Button>
+            </>
+          ) : confirmation.kind === 'cancel-transfer' ? (
+            <>
+              <Button intent="ghost" disabled={busy} onClick={closeConfirmation}>Keep transfer</Button>
+              <Button intent="neutral" disabled={busy} onClick={() => void run(() => props.onCancelTransfer(confirmation.circleId), 'Pending transfer cancelled.')}>Confirm cancellation</Button>
+            </>
+          ) : (
+            <>
+              <Button intent="ghost" disabled={busy} onClick={closeConfirmation}>Cancel</Button>
+              <Button
+                intent="neutral"
+                disabled={busy || !recipientUserId || !reason.trim()}
+                onClick={() => void run(() => props.onRecoverHost(confirmation.circleId, recipientUserId, reason), 'Circle ownership recovered.')}
+              >Confirm recovery</Button>
+            </>
+          )}
+        >
+          {confirmation.kind === 'recover' ? (
+            <>
+              <label className="field-row">
+                <span className="label">New host</span>
+                <select className="field" data-dialog-initial value={recipientUserId} onChange={(event) => setRecipientUserId(event.currentTarget.value)}>
+                  <option value="">Select an eligible member</option>
+                  {detail?.emergencyHostCandidates.map((candidate) => <option key={candidate.userId} value={candidate.userId}>{candidate.displayName}</option>)}
+                </select>
+              </label>
+              <label className="field-row">
+                <span className="label">Internal reason</span>
+                <textarea className="field" value={reason} onChange={(event) => setReason(event.currentTarget.value)} placeholder="Why the current host cannot act" />
+              </label>
+            </>
+          ) : null}
+        </Dialog>
       )}
     </>
   )

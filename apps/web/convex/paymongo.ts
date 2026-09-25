@@ -216,7 +216,12 @@ export const prepareTopUp = internalMutation({
         await ctx.db.patch(topUp._id, { status: 'expired', expiredAt: now, updatedAt: now })
         continue
       }
-      throw new Error('An unresolved QR Ph top-up is already active')
+      await ctx.db.patch(topUp._id, {
+        status: 'expired',
+        expiredAt: now,
+        failureCode: 'superseded',
+        updatedAt: now,
+      })
     }
 
     const topUpId = await ctx.db.insert('paymongoTopUps', {

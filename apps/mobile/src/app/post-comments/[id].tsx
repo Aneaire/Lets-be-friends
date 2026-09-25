@@ -21,8 +21,8 @@ import { CommentBubble } from '@/features/social/CommentBubble'
 import { CommentActionsMenu } from '@/features/social/CommentActionsMenu'
 import { MentionBody } from '@/features/social/MentionBody'
 import { PostCard } from '@/features/social/PostCard'
+import { PostContent } from '@/features/social/PostContent'
 import { PostImageViewer, type PostViewerImage } from '@/features/social/PostImageViewer'
-import { PostMediaGrid } from '@/features/social/PostMediaGrid'
 import { openMemberProfile } from '@/features/social/socialNavigation'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -362,8 +362,9 @@ function CommentsPost({ post, onOpenImage, onOpenVideo }: {
       )}
     >
       <View style={styles.postBody}>
-        {post.body ? <MentionBody body={post.body} mentions={post.mentions} /> : null}
-        <PostMediaGrid
+        <PostContent
+          body={post.body}
+          mentions={post.mentions}
           media={post.media}
           imagePressContext="comments"
           onOpenImage={(item, index, total) => onOpenImage({ url: item.url, index, total })}

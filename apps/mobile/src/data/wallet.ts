@@ -14,7 +14,7 @@ export function parseWalletAmount(input: string) {
   const normalized = trimmed.replaceAll(',', '')
   const centavos = Math.round(Number(normalized) * 100)
   if (!Number.isSafeInteger(centavos) || centavos < MIN_TOP_UP_CENTAVOS || centavos > MAX_TOP_UP_CENTAVOS) {
-    return { ok: false as const, message: 'Top-up amount must be between PHP 100 and PHP 100,000.' }
+    return { ok: false as const, message: 'Top-up amount must be between PHP 1 and PHP 100,000.' }
   }
   return { ok: true as const, amountCentavos: centavos }
 }

@@ -1,21 +1,36 @@
-import { Star } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
-import type { FunctionReturnType } from 'convex/server'
-import { api } from '../../../convex/_generated/api'
+import type { StoredMention } from '@lets-be-friends/shared'
 import { Avatar } from '../../design-system/atoms/Avatar'
-import { OpenableImage } from '../../design-system/molecules/OpenableImage'
 import { MentionText } from './MentionText'
-import { PostMediaGrid } from './PostMediaGrid'
+import { PostMediaGrid, type DisplayPostMediaItem } from './PostMediaGrid'
+import { ReviewContent } from './ReviewContent'
+import { formatSocialTime } from './formatSocialTime'
 
-type FeedItem = NonNullable<FunctionReturnType<typeof api.social.feedPage>>['page'][number]
-type FeedPost = Extract<FeedItem, { kind: 'post' }>['post']
+export type SharedPostView = {
+  authorId: string
+  authorDisplayName: string
+  authorProfileImageUrl?: string | null
+  authorCompanionProfileId?: string | null
+  ownPost?: boolean
+  body?: string
+  mentions?: StoredMention[]
+  media?: readonly DisplayPostMediaItem[]
+  createdAt: number
+}
 
-export type SharedPostPayload = NonNullable<FeedPost['sharedPost']>
-export type SharedReviewPayload = NonNullable<FeedPost['sharedReview']>
+export type SharedReviewView = {
+  reviewerId: string
+  reviewerDisplayName: string
+  reviewerProfileImageUrl?: string | null
+  companionDisplayName?: string
+  rating: number
+  body?: string | null
+  imageUrl?: string | null
+}
 
 function AuthorProfileLink({ post, className, label, children }: {
-  post: SharedPostPayload
+  post: SharedPostView
   className: string
   label: string
   children: ReactNode
@@ -29,7 +44,7 @@ function AuthorProfileLink({ post, className, label, children }: {
   return <Link to="/member-profile" search={{ userId: post.authorId }} className={className} aria-label={label}>{children}</Link>
 }
 
-export function SharedPostEmbed({ post }: { post: SharedPostPayload }) {
+export function SharedPostEmbed({ post }: { post: SharedPostView }) {
   return (
     <article className="social-shared-embed" aria-label={`Shared post by ${post.authorDisplayName}`}>
       <header className="social-shared-embed-head">
@@ -40,7 +55,7 @@ export function SharedPostEmbed({ post }: { post: SharedPostPayload }) {
           <AuthorProfileLink post={post} className="social-shared-embed-author" label={`View ${post.authorDisplayName}'s profile`}>
             {post.authorDisplayName}
           </AuthorProfileLink>
-          <time className="text-meta" dateTime={new Date(post.createdAt).toISOString()}>{formatTime(post.createdAt)}</time>
+          <time className="text-meta" dateTime={new Date(post.createdAt).toISOString()}>{formatSocialTime(post.createdAt)}</time>
         </div>
       </header>
       {post.body ? <MentionText body={post.body} mentions={post.mentions} className="social-shared-embed-body" /> : null}
@@ -49,7 +64,7 @@ export function SharedPostEmbed({ post }: { post: SharedPostPayload }) {
   )
 }
 
-export function SharedReviewEmbed({ review }: { review: SharedReviewPayload }) {
+export function SharedReviewEmbed({ review }: { review: SharedReviewView }) {
   return (
     <article className="social-shared-embed" aria-label={`Shared review by ${review.reviewerDisplayName}`}>
       <header className="social-shared-embed-head">
@@ -61,32 +76,14 @@ export function SharedReviewEmbed({ review }: { review: SharedReviewPayload }) {
           <p className="text-meta">reviewed {review.companionDisplayName ?? 'a Companion'}</p>
         </div>
       </header>
-      <div className="profile-review-stars" aria-label={`${review.rating} out of 5 stars`}>
-        {Array.from({ length: 5 }, (_, index) => {
-          const fill = Math.max(0, Math.min(1, review.rating - index))
-          return (
-            <span key={index} className="profile-review-star" aria-hidden="true">
-              <Star size={18} />
-              <span style={{ width: `${fill * 100}%` }}><Star size={18} fill="currentColor" /></span>
-            </span>
-          )
-        })}
-      </div>
-      {review.body ? <p className="social-shared-embed-body">{review.body}</p> : null}
-      {review.imageUrl ? (
-        <div className="social-shared-embed-image">
-          <OpenableImage src={review.imageUrl} alt={`Photo shared with ${review.reviewerDisplayName}'s review`} />
-        </div>
-      ) : null}
+      <ReviewContent
+        rating={review.rating}
+        body={review.body}
+        imageUrl={review.imageUrl}
+        reviewerDisplayName={review.reviewerDisplayName}
+        bodyClassName="social-shared-embed-body"
+        imageWrapperClassName="social-shared-embed-image"
+      />
     </article>
   )
-}
-
-function formatTime(timestamp: number) {
-  return new Date(timestamp).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
 }

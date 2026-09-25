@@ -37,7 +37,7 @@ type Story = StoryObj<typeof meta>
 export const Default: Story = {}
 
 export const NarrowMobile: Story = {
-  globals: { viewport: 'mobileSmall' },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 }
 
 export const RejectedSave: Story = {

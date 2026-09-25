@@ -12,9 +12,9 @@ import { Screen, Section } from './Screen'
 const meta = {
   title: 'Mobile/Templates/Screen',
   component: Screen,
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   parameters: {
     mobileCanvasPadding: 0,
-    viewport: { defaultViewport: 'mobileDefault' },
   },
 } satisfies Meta<typeof Screen>
 

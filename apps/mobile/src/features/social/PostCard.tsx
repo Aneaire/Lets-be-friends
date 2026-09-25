@@ -14,6 +14,7 @@ export function PostCard({
   avatarAction,
   authorAction,
   meta,
+  metaPlacement = 'inline',
   headerAction,
   children,
   footer,
@@ -25,6 +26,7 @@ export function PostCard({
   avatarAction?: ReactNode
   authorAction?: ReactNode
   meta?: ReactNode
+  metaPlacement?: 'inline' | 'below'
   headerAction?: ReactNode
   children: ReactNode
   footer?: ReactNode
@@ -46,13 +48,14 @@ export function PostCard({
         <View style={styles.identity}>
           <View style={styles.authorLine}>
             {authorAction ?? <AppText variant="bodyStrong" numberOfLines={1}>{author}</AppText>}
-            {meta}
+            {metaPlacement === 'inline' ? meta : null}
           </View>
           <View style={styles.metadataLine}>
             {username ? <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>@{username}</AppText> : null}
             {username ? <AppText variant="caption" color={theme.colors.textMuted}>·</AppText> : null}
             <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{timestamp}</AppText>
           </View>
+          {metaPlacement === 'below' && meta ? <View style={styles.metaBelow}>{meta}</View> : null}
         </View>
         {headerAction ? <View style={styles.headerAction}>{headerAction}</View> : null}
       </View>
@@ -93,6 +96,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 4,
+  },
+  metaBelow: {
+    minWidth: 0,
+    maxWidth: '100%',
+    alignSelf: 'flex-start',
   },
   headerAction: {
     marginRight: -8,

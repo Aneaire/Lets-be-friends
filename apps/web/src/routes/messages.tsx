@@ -5,8 +5,9 @@ import { ArrowLeft, CircleCheck, FileText, Flag, Image as ImageIcon, LoaderCircl
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
-import { BookingRequestCard } from '../features/booking/BookingRequestCard'
+import { ConversationBookingPin } from '../features/booking/ConversationBookingPin'
 import { BookingRequestEditor, type EditableBookingRequest } from '../features/booking/BookingRequestEditor'
+import { usePinnedBookingDismissal } from '../features/booking/usePinnedBookingDismissal'
 import { Avatar } from '../design-system/atoms/Avatar'
 import { CompactComposer } from '../features/messaging/CompactComposer'
 import { ConversationListItemContent } from '../features/messaging/ConversationListItem'
@@ -20,7 +21,7 @@ import {
   prepareChatAttachment,
   type PreparedChatAttachment,
 } from '../lib/chatAttachments'
-import { bookingMessagePresentation } from '../lib/messageBookings'
+import { bookingMessagePresentation, conversationBookingThread } from '../lib/messageBookings'
 
 export const Route = createFileRoute('/messages')({
   validateSearch: (search: Record<string, unknown>): { conversationId?: string; messageId?: string } => ({
@@ -49,7 +50,7 @@ type PendingOutgoingMessage = {
   messageId?: Id<'directMessages'>
 }
 
-function MessagesPage() {
+export function MessagesPage() {
   const { isSignedIn } = useAuth()
   const navigate = useNavigate()
   const { conversationId, messageId } = Route.useSearch()
@@ -60,7 +61,13 @@ function MessagesPage() {
     api.conversations.messages,
     isSignedIn && selectedConversationId ? { conversationId: selectedConversationId } : 'skip',
   )
-  const { lastIndexByBookingId: bookingLastIndex, floatingBookingIndex, latestBookingStatus } = bookingMessagePresentation(thread?.messages ?? [])
+  const { latestBookingStatus } = bookingMessagePresentation(thread?.messages ?? [])
+  const { current: currentBooking, history: previousBookings } = conversationBookingThread(thread?.messages ?? [])
+  const { dismissed: bookingDismissed, dismiss: dismissCurrentBooking } = usePinnedBookingDismissal({
+    conversationId: selectedConversationId,
+    bookingId: currentBooking?.booking.bookingId,
+  })
+  const currentBookingMessage = thread && currentBooking ? thread.messages[currentBooking.messageIndex] : undefined
   const latestBookingEnded = latestBookingStatus === 'completed' || latestBookingStatus === 'review_window' || latestBookingStatus === 'closed'
   const report = useMutation(api.reports.create)
   const decideBooking = useMutation(api.bookings.companionDecision)
@@ -89,6 +96,17 @@ function MessagesPage() {
       void markRead({ conversationId: selectedConversationId })
     }
   }, [isSignedIn, markRead, selectedConversationId])
+
+  async function reportMessage(messageTargetId: Id<'directMessages'>) {
+    setError('')
+    try {
+      await report({ targetType: 'message', targetId: messageTargetId, reason: 'Message needs safety review' })
+      setNotice('Message sent to safety review.')
+    } catch (reportError) {
+      setNotice('')
+      setError(reportError instanceof Error ? reportError.message : 'Message could not be reported.')
+    }
+  }
 
   if (!isSignedIn) {
     return (
@@ -150,6 +168,34 @@ function MessagesPage() {
             <Link to="/safety" className="direct-thread-safety-link">Safety</Link>
           </header>
 
+          <div className="direct-thread-pin-slot" data-active={currentBooking && !bookingDismissed ? 'true' : undefined}>
+            {currentBooking && !bookingDismissed && (
+              <ConversationBookingPin
+                booking={currentBooking.booking}
+                intro={currentBookingMessage?.body}
+                viewerId={viewer?._id}
+                history={previousBookings.map((entry) => entry.booking)}
+                onDecide={async (bookingId, decision) => {
+                  setError('')
+                  try {
+                    await decideBooking({
+                      bookingId,
+                      decision,
+                      note: decision === 'accepted' ? 'Accepted from Messages.' : 'Declined from Messages.',
+                    })
+                    setNotice(decision === 'accepted' ? 'Booking request accepted.' : 'Booking request declined.')
+                  } catch (decideError) {
+                    setNotice('')
+                    setError(decideError instanceof Error ? decideError.message : 'The decision could not be saved.')
+                  }
+                }}
+                onEdit={(booking) => setEditingBooking(booking)}
+                onReport={currentBookingMessage ? () => { void reportMessage(currentBookingMessage._id) } : undefined}
+                onDismiss={dismissCurrentBooking}
+              />
+            )}
+          </div>
+
           <div className="direct-message-list" aria-live="polite">
             {thread.messages.length === 0 && (
               <div className="direct-thread-empty">
@@ -162,57 +208,11 @@ function MessagesPage() {
                 {messageDayGroupChanged(thread.messages, index) && (
                   <div className="direct-day-divider">{formatMessageDay(message.createdAt)}</div>
                 )}
-                {message.booking && bookingLastIndex.get(message.booking.bookingId) !== index ? (
+                {message.booking ? (
                   <div id={`message-${message._id}`} className="booking-update-line" data-own={message.sentByViewer}>
                     <p>{message.body}</p>
                     <time dateTime={new Date(message.createdAt).toISOString()}>{formatMessageTime(message.createdAt)}</time>
                   </div>
-                ) : message.booking ? (
-                  <article
-                    id={`message-${message._id}`}
-                    className="direct-booking"
-                    data-own={message.sentByViewer}
-                    data-floating={index === floatingBookingIndex ? 'true' : undefined}
-                  >
-                    <BookingRequestCard
-                      intro={message.body}
-                      booking={message.booking}
-                      viewerId={viewer?._id}
-                      onDecide={async (bookingId, decision) => {
-                        setError('')
-                        try {
-                          await decideBooking({
-                            bookingId,
-                            decision,
-                            note: decision === 'accepted' ? 'Accepted from Messages.' : 'Declined from Messages.',
-                          })
-                          setNotice(decision === 'accepted' ? 'Booking request accepted.' : 'Booking request declined.')
-                        } catch (decideError) {
-                          setNotice('')
-                          setError(decideError instanceof Error ? decideError.message : 'The decision could not be saved.')
-                        }
-                      }}
-                      onEdit={(booking) => setEditingBooking(booking)}
-                    />
-                    <button
-                      type="button"
-                      className="direct-message-report"
-                      aria-label="Report message"
-                      title="Report message"
-                      onClick={async () => {
-                        setError('')
-                        try {
-                          await report({ targetType: 'message', targetId: message._id, reason: 'Message needs safety review' })
-                          setNotice('Message sent to safety review.')
-                        } catch (reportError) {
-                          setNotice('')
-                          setError(reportError instanceof Error ? reportError.message : 'Message could not be reported.')
-                        }
-                      }}
-                    >
-                      <Flag size={14} aria-hidden="true" />
-                    </button>
-                  </article>
                 ) : (
                   <DirectMessageContent
                     id={`message-${message._id}`}
@@ -228,16 +228,7 @@ function MessagesPage() {
                         className="direct-message-report"
                         aria-label="Report message"
                         title="Report message"
-                        onClick={async () => {
-                          setError('')
-                          try {
-                            await report({ targetType: 'message', targetId: message._id, reason: 'Message needs safety review' })
-                            setNotice('Message sent to safety review.')
-                          } catch (reportError) {
-                            setNotice('')
-                            setError(reportError instanceof Error ? reportError.message : 'Message could not be reported.')
-                          }
-                        }}
+                        onClick={() => { void reportMessage(message._id) }}
                       >
                         <Flag size={14} aria-hidden="true" />
                       </button>

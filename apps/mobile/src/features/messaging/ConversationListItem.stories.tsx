@@ -6,7 +6,7 @@ import { ConversationListItem } from './ConversationListItem'
 const meta = {
   title: 'Mobile/Organisms/Conversation list item',
   component: ConversationListItem,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     name: 'Alex Rivera',
     preview: 'Would 2:30 PM work for the online session?',

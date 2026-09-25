@@ -12,7 +12,7 @@ const retryAvailability = fn()
 const meta = {
   title: 'Mobile/Settings/Push notifications',
   component: PushNotificationSettingsPresentation,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     state: {
       status: 'disabled',
@@ -107,7 +107,7 @@ export const PendingServerCleanup: Story = {
 }
 
 export const AvailabilityErrorAt320: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileTiny' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     state: {
       status: 'availability_error',

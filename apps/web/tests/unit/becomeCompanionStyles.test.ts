@@ -38,11 +38,12 @@ describe('Become Companion layout styles', () => {
     expect(route).toContain('Tell me about yourself (Bio)')
   })
 
-  it('replaces the submitted form with clear review and identity actions', () => {
-    expect(route).toContain('Thank you for applying to be a Companion')
-    expect(route).toContain('sent to our review team')
-    expect(route).toContain('both reviews are now in progress')
-    expect(route).toContain('Your application will be reviewed')
+  it('replaces the submitted form with clear review, live-update, and identity actions', () => {
+    expect(route).toContain('Your Companion profile is back in review')
+    expect(route).toContain('sent for safety review')
+    expect(route).toContain('stays hidden from discovery until the review is complete')
+    expect(route).toContain('Your changes are live')
+    expect(route).toContain('No review needed')
     expect(route).toContain('View verification status')
     expect(route).toContain('to="/get-verified"')
     expect(route).toContain('to="/"')
@@ -76,6 +77,14 @@ describe('Become Companion layout styles', () => {
     expect(route).toContain('isSignedIn && !submitted && companionUnlocked')
     expect(route).toContain("useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')")
     expect(route).toMatch(/const companionUnlocked = viewer[\s\S]*canOpenCompanionProfile\(viewer\.identityEligible/)
+  })
+
+  it('locks the approved profile editor and routes edits through settings', () => {
+    expect(route).toContain('companionProfileEditorLocked')
+    expect(route).toContain('Your Companion profile is locked')
+    expect(route).toContain('Manage in settings')
+    expect(route).toContain('validateSearch')
+    expect(route).toContain("search.edit === 'true'")
   })
 
   it('marks the locked card with a neutral identity icon', () => {

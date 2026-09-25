@@ -72,6 +72,7 @@ export function PollCard({
             <Pressable
               key={option.id}
               accessibilityRole="radio"
+              aria-checked={active}
               accessibilityState={{ checked: active, disabled: !canVote || busy }}
               disabled={!canVote || busy}
               onPress={() => {

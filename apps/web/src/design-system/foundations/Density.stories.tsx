@@ -25,7 +25,7 @@ export function DensityReference() {
 const meta = {
   title: 'Foundations/Density',
   component: DensityReference,
-  globals: { viewport: 'mobileDefault' },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
 } satisfies Meta<typeof DensityReference>
 
 export default meta

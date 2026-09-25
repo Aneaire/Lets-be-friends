@@ -6,8 +6,8 @@ import { ReportAction } from './ReportAction'
 const meta = {
   title: 'Mobile/Safety/Report action',
   component: ReportAction,
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   parameters: {
-    viewport: { defaultViewport: 'mobileSmall' },
     a11y: { config: { rules: [{ id: 'aria-allowed-attr', enabled: false }] } },
   },
   args: {

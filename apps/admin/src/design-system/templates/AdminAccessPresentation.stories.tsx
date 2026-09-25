@@ -44,7 +44,7 @@ export const Loading: Story = {
 }
 
 export const LoadingNarrowDark: Story = {
-  globals: { viewport: 'mobileSmall', theme: 'dark' },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false }, theme: 'dark' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(
@@ -121,7 +121,7 @@ export const Denied: Story = {
 }
 
 export const DeniedNarrowDark: Story = {
-  globals: { viewport: 'mobileSmall', theme: 'dark' },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false }, theme: 'dark' },
   args: { state: 'denied' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

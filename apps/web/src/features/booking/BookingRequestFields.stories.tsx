@@ -132,7 +132,7 @@ export const Disabled: Story = {
 }
 
 export const LongNotesAt320: Story = {
-  globals: { viewport: 'mobileSmall' },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     category: 'A long community activity title that still needs to remain readable',
     categoryOptions: [

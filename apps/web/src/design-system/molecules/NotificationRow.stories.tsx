@@ -13,7 +13,7 @@ const rejectUpdate = fn(async () => {
 const meta = {
   title: 'Web/Molecules/Notification row',
   component: NotificationRow,
-  globals: { viewport: 'mobileDefault' },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     title: 'Booking request accepted',
     body: 'Alex accepted your conversation practice request.',
@@ -91,7 +91,7 @@ export const ActionFailure: Story = {
 }
 
 export const LongCopyNarrow: Story = {
-  globals: { viewport: 'mobileSmall' },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     title: 'Your booking needs another identity check before it can continue',
     body: 'Open the booking to review what changed, why the check is required, and which details remain private from the other participant.',
@@ -106,7 +106,7 @@ export const LongCopyNarrow: Story = {
 }
 
 export const SafetyDark: Story = {
-  globals: { theme: 'dark', viewport: 'mobileDefault' },
+  globals: { theme: 'dark', viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     title: 'Safety report received',
     body: 'The report is private and available only to authorized reviewers.',

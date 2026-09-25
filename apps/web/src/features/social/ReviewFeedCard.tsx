@@ -1,14 +1,14 @@
-import { Star } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { FunctionReturnType } from 'convex/server'
 import { api } from '../../../convex/_generated/api'
 import { Avatar } from '../../design-system/atoms/Avatar'
-import { OpenableImage } from '../../design-system/molecules/OpenableImage'
 import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
+import { ReviewContent } from './ReviewContent'
 import { ShareDialog } from './ShareDialog'
 import { shareTargetUrl } from './shareLinks'
+import { formatSocialTime } from './formatSocialTime'
 
 type FeedItem = NonNullable<FunctionReturnType<typeof api.social.feedPage>>['page'][number]
 export type FeedReview = Extract<FeedItem, { kind: 'review' }>['review']
@@ -44,7 +44,7 @@ export function ReviewFeedCard({
       <PostCard
         author={review.reviewerDisplayName}
         imageUrl={review.reviewerProfileImageUrl}
-        timestamp={formatTime(review.createdAt)}
+        timestamp={formatSocialTime(review.createdAt)}
         dateTime={new Date(review.createdAt).toISOString()}
         className="social-review-card"
         aria-label={`Review by ${review.reviewerDisplayName}`}
@@ -70,21 +70,12 @@ export function ReviewFeedCard({
           </>
         }
       >
-        <div className="profile-review-stars" aria-label={`${review.rating} out of 5 stars`}>
-          {Array.from({ length: 5 }, (_, index) => {
-            const fill = Math.max(0, Math.min(1, review.rating - index))
-            return (
-              <span key={index} className="profile-review-star" aria-hidden="true">
-                <Star size={18} />
-                <span style={{ width: `${fill * 100}%` }}><Star size={18} fill="currentColor" /></span>
-              </span>
-            )
-          })}
-        </div>
-        {review.body ? <p className="social-review-body">{review.body}</p> : null}
-        {review.imageUrl ? (
-          <OpenableImage src={review.imageUrl} alt={`Photo shared with ${review.reviewerDisplayName}'s review`} />
-        ) : null}
+        <ReviewContent
+          rating={review.rating}
+          body={review.body}
+          imageUrl={review.imageUrl}
+          reviewerDisplayName={review.reviewerDisplayName}
+        />
         <PostActionBar
           liked={Boolean(review.liked)}
           likeCount={review.likeCount ?? 0}
@@ -116,13 +107,4 @@ export function ReviewFeedCard({
       />
     </>
   )
-}
-
-function formatTime(timestamp: number) {
-  return new Date(timestamp).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
 }

@@ -4,7 +4,9 @@ describe('wallet presentation', () => {
   it('parses server-supported PHP top-up amounts exactly to centavos', () => {
     expect(parseWalletAmount('100')).toEqual({ ok: true, amountCentavos: 10_000 })
     expect(parseWalletAmount('1,250.50')).toEqual({ ok: true, amountCentavos: 125_050 })
-    expect(parseWalletAmount('99.99')).toMatchObject({ ok: false })
+    expect(parseWalletAmount('1')).toEqual({ ok: true, amountCentavos: 100 })
+    expect(parseWalletAmount('99.99')).toEqual({ ok: true, amountCentavos: 9_999 })
+    expect(parseWalletAmount('0.99')).toMatchObject({ ok: false })
     expect(parseWalletAmount('100000.01')).toMatchObject({ ok: false })
     expect(parseWalletAmount('1.234')).toMatchObject({ ok: false })
     expect(parseWalletAmount('10,0.00')).toMatchObject({ ok: false })

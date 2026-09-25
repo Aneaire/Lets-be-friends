@@ -61,7 +61,7 @@ function ComposerStory({
 
 const meta = {
   title: 'Mobile/Organisms/Post composer',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 
 export default meta

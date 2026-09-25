@@ -164,7 +164,7 @@ export const ActionsAndToolbar: Story = {
 }
 
 export const MobileNavigation320: Story = {
-  globals: { viewport: 'mobileSmall' },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   play: async ({ canvasElement }) => {
     const pastLink = canvasElement.querySelector<HTMLAnchorElement>(
       '.workspace-mobile-nav-link[href="#past"]',
@@ -180,7 +180,7 @@ export const MobileNavigation320: Story = {
 }
 
 export const LongTitleAndRail: Story = {
-  globals: { viewport: 'mobileDefault' },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     title: 'Bookings, identity checks, and account follow-up',
     rail: <Rail long />,
@@ -188,7 +188,7 @@ export const LongTitleAndRail: Story = {
 }
 
 export const Dark: Story = {
-  globals: { theme: 'dark', viewport: 'mobileDefault' },
+  globals: { theme: 'dark', viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     status: (
       <span className="workspace-status-item">

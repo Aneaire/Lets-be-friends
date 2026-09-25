@@ -19,18 +19,15 @@ import { ReportAction } from '@/features/safety/ReportAction'
 import { AppText } from '@/design-system/atoms/Typography'
 
 import { EditPostSheet } from './EditPostSheet'
-import { FeaturedCommentPreview } from './FeaturedCommentPreview'
-import { MentionBody } from './MentionBody'
 import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
+import { PostContent } from './PostContent'
 import { PostFollowAction } from './PostFollowAction'
-import { PostMediaGrid } from './PostMediaGrid'
-import { PollCard } from './PollCard'
-import { ReviewFeedCard } from './ReviewFeedCard'
 import { ShareSheet } from './ShareSheet'
 import { postShareUrl } from './shareLinks'
 import { openMemberProfile } from './socialNavigation'
 import { CompanionRecommendationCard, GuidanceFeedCard } from './SocialFeedRecommendations'
+import { ReviewFeedCard } from './ReviewFeedCard'
 
 type FeedItem = FunctionReturnType<typeof generatedApi.social.feedPage>['page'][number]
 type FeedAction = 'open_companion' | 'open_guidance' | 'open_review' | 'comment' | 'like' | 'save' | 'share' | 'follow' | 'report' | 'report_comment'
@@ -278,31 +275,24 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
       )}
     >
       <View style={styles.postBody}>
-        {post.body ? <MentionBody body={post.body} mentions={post.mentions} /> : null}
-        <PostMediaGrid
+        <PostContent
+          body={post.body}
+          mentions={post.mentions}
           media={post.media}
+          poll={post.poll}
+          featuredComment={post.featuredComment}
+          disabled={!signedIn || busy}
           imagePressContext="feed"
           onOpenImage={() => router.push(postCommentsRoute(post._id as PostId))}
           onOpenVideo={(url) => void openVideo(url)}
+          onVote={async (optionId) => {
+            await voteOnPoll({ postId: post._id as PostId, optionId })
+          }}
+          onOpenFeaturedThread={() => {
+            onAction('comment')
+            router.push(postCommentsRoute(post._id as PostId))
+          }}
         />
-        {post.poll ? (
-          <PollCard
-            poll={post.poll}
-            disabled={!signedIn || busy}
-            onVote={async (optionId) => {
-              await voteOnPoll({ postId: post._id as PostId, optionId })
-            }}
-          />
-        ) : null}
-        {post.featuredComment ? (
-          <FeaturedCommentPreview
-            comment={post.featuredComment}
-            onOpenThread={() => {
-              onAction('comment')
-              router.push(postCommentsRoute(post._id as PostId))
-            }}
-          />
-        ) : null}
         {!post.ownPost && signedIn ? <ReportAction targetType="post" targetId={String(post._id)} label="Report post" open={reportOpen} onOpenChange={setReportOpen} showTrigger={false} onReported={() => onAction('report')} /> : null}
         <ActionSheet
           visible={optionsOpen}

@@ -116,13 +116,20 @@ const meta = {
   title: 'Admin/Templates/Worklist page',
   component: ReviewWorklist,
   parameters: { layout: 'padded' },
+  decorators: [
+    (Story) => (
+      <main className="admin-content">
+        <Story />
+      </main>
+    ),
+  ],
 } satisfies Meta<typeof ReviewWorklist>
 
 export default meta
 type Story = StoryObj<typeof meta>
 
 export const PopulatedDesktop: Story = {
-  globals: { viewport: 'reset' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
@@ -153,7 +160,7 @@ export const Empty: Story = {
 }
 
 export const LongRecordAt320: Story = {
-  globals: { viewport: 'mobileSmall' },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     rows: [
       {
@@ -175,7 +182,7 @@ export const LongRecordAt320: Story = {
 }
 
 export const ManyActionsNarrow: Story = {
-  globals: { viewport: 'mobileDefault' },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: { manyActions: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -240,6 +247,6 @@ export const FilterInteraction: Story = {
 }
 
 export const NarrowDark: Story = {
-  globals: { theme: 'dark', viewport: 'mobileDefault' },
+  globals: { theme: 'dark', viewport: { value: 'mobileDefault', isRotated: false } },
   args: { manyActions: true },
 }

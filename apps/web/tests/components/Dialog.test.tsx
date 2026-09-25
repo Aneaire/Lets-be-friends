@@ -46,6 +46,21 @@ describe('Dialog', () => {
     expect(document.body.style.overflow).toBe('')
   })
 
+  it('does not add a second banner landmark when the page already has a header', () => {
+    render(
+      <>
+        <header>Page banner</header>
+        <Dialog open onClose={() => {}} title="Booking details">
+          <button type="button">Review booking</button>
+        </Dialog>
+      </>,
+    )
+
+    expect(screen.getAllByRole('banner')).toHaveLength(1)
+    const dialog = screen.getByRole('dialog', { name: 'Booking details' })
+    expect(dialog.querySelector('header')).toBeNull()
+  })
+
   it('guards dismissal without rerunning focus setup when busy changes', () => {
     const onClose = vi.fn()
     const requestAnimationFrame = vi.mocked(window.requestAnimationFrame)

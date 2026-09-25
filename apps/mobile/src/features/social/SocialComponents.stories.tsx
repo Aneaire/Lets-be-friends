@@ -1,10 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import { useState } from 'react'
 import { FlatList, Pressable, StyleSheet, View } from 'react-native'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
-import { AppIcon, type AppIconName } from '@/design-system/atoms/AppIcon'
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { TextField } from '@/design-system/atoms/Field'
 import { IconButton } from '@/design-system/atoms/IconButton'
@@ -15,33 +14,24 @@ import { ActionSheetPresentation, type ActionSheetItem } from '@/design-system/m
 import { BottomSheetPresentation } from '@/design-system/molecules/BottomSheet'
 
 import { CommentBubble } from './CommentBubble'
+import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
+import { PostContent } from './PostContent'
+import { PostFollowAction } from './PostFollowAction'
 
-function StoryAction({
-  label,
-  icon,
-  count,
-}: {
-  label: string
-  icon: AppIconName
-  count?: number
-}) {
-  const theme = useAppTheme()
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={() => undefined}
-      style={({ pressed }) => [styles.action, pressed && styles.pressed]}
-    >
-      <AppIcon name={icon} size={19} color={theme.colors.textMuted} />
-      {count ? <AppText variant="caption" color={theme.colors.textMuted}>{count}</AppText> : null}
-    </Pressable>
-  )
-}
+const likePost = fn()
+const commentOnPost = fn()
+const savePost = fn()
+const followAuthor = fn()
+const openAuthorProfile = fn()
+const openPostOptions = fn()
+const openVideo = fn()
+const voteOnPoll = fn(async () => undefined)
 
 function SocialPost({ owner }: { owner: boolean }) {
+  const [liked, setLiked] = useState(false)
+  const [saved, setSaved] = useState(false)
+
   return (
     <PostCard
       author="Gelo Santiago"
@@ -55,11 +45,16 @@ function SocialPost({ owner }: { owner: boolean }) {
         />
       )}
       footer={(
-        <View style={styles.actions}>
-          <StoryAction label="Remove appreciation" icon="heart" count={3} />
-          <StoryAction label="Show 2 comments" icon="chatbubble-outline" count={2} />
-          <StoryAction label="Save post" icon="bookmark-outline" />
-        </View>
+        <PostActionBar
+          liked={liked}
+          likeCount={liked ? 4 : 3}
+          saved={saved}
+          commentCount={2}
+          commentLabel="Comment on post"
+          onLike={() => { setLiked((current) => !current); likePost() }}
+          onComment={commentOnPost}
+          onSave={() => { setSaved((current) => !current); savePost() }}
+        />
       )}
     >
       <AppText>
@@ -190,7 +185,7 @@ function CommentsSheetComposition() {
 
 const meta = {
   title: 'Mobile/Organisms/Social content',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 
 export default meta
@@ -205,7 +200,7 @@ export const OwnerPost: Story = {
 }
 
 export const PostOptionsNarrow320: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   render: () => <PostOptionsComposition />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -216,7 +211,7 @@ export const PostOptionsNarrow320: Story = {
 }
 
 export const LinkedIdentityNarrow320: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   render: () => <LinkedIdentityPost />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -228,7 +223,7 @@ export const LinkedIdentityNarrow320: Story = {
 }
 
 export const CommentsSheetNarrow320: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   render: () => <CommentsSheetComposition />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -299,22 +294,5 @@ const styles = StyleSheet.create({
     minHeight: density.compactControlHeight,
     justifyContent: 'center',
     marginVertical: -11,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    maxWidth: 260,
-  },
-  action: {
-    minWidth: density.compactControlHeight,
-    minHeight: density.compactControlHeight,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-  },
-  pressed: {
-    opacity: 0.68,
   },
 })

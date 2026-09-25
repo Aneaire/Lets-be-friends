@@ -1,40 +1,11 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
-import { CircleDot, ImagePlus, MapPin, Plus, Users, X } from 'lucide-react'
+import { CircleDot, ImagePlus, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
+import { CircleCard, CircleHomeCard } from '../presentation/CircleCards'
 import { uploadCircleImage } from './CircleWorkspacePage'
-
-type CircleSummary = NonNullable<ReturnType<typeof useQuery<typeof api.circles.discover>>>[number]
-
-function CircleMarker({ circle }: { circle: Pick<CircleSummary, 'mode' | 'iconUrl' | 'name'> & { membershipState?: string } }) {
-  const mode = circle.mode === 'in_person' ? 'In person' : circle.mode === 'online' ? 'Online' : 'Online and in person'
-  if (circle.iconUrl) return <img className="circle-icon" src={circle.iconUrl} alt={`${circle.name}, ${mode}${circle.membershipState === 'active' ? ', joined' : ''}`} />
-  return <span className="circle-marker" data-member={circle.membershipState === 'active'} aria-label={`${mode}${circle.membershipState === 'active' ? ', joined' : ''}`} />
-}
-
-function CircleRow({ circle }: { circle: CircleSummary & { membershipState?: string; circleState?: string; role?: string } }) {
-  return (
-    <Link to="/circles/$circleId" params={{ circleId: circle._id }} className="circle-index-row">
-      <CircleMarker circle={circle} />
-      <span className="circle-index-copy">
-        <span className="circle-index-title">
-          <strong>{circle.name}</strong>
-          {circle.role && circle.role !== 'member' && <span className="status-pill" data-tone="social">{circle.role}</span>}
-          {circle.circleState === 'archived' && <span className="status-pill">Archived</span>}
-          {circle.joinPolicy === 'open' && <span className="status-pill" data-tone="social">Open join</span>}
-        </span>
-        <span>{circle.purpose}</span>
-        <span className="circle-index-meta">
-          <span><Users size={13} aria-hidden="true" /> {circle.memberCount} {circle.memberCount === 1 ? 'member' : 'members'}</span>
-          <span><MapPin size={13} aria-hidden="true" /> {circle.approximateArea ?? (circle.mode === 'online' ? 'Online' : 'Area shared in Circle')}</span>
-        </span>
-      </span>
-      <span className="circle-index-category">{circle.category}</span>
-    </Link>
-  )
-}
 
 export function CircleIndexPage() {
   const mine = useQuery(api.circles.mine)
@@ -211,7 +182,7 @@ export function CircleIndexPage() {
               <h2 id="my-circles-title">My circles</h2>
               <span className="tabular">{mineRows.length}</span>
             </div>
-            {mineRows.length ? <div className="circle-index-list">{mineRows.map((circle) => <CircleRow key={circle._id} circle={circle} />)}</div> : (
+            {mineRows.length ? <div className="circle-index-list">{mineRows.map((circle) => <CircleCard key={circle._id} link={<Link to="/circles/$circleId" params={{ circleId: circle._id }} />} circle={circle} />)}</div> : (
               <div className="circle-state-card"><strong>You have not joined a Circle yet.</strong><p>Browse the active Circles below and request a place in one that fits.</p></div>
             )}
           </section>
@@ -221,7 +192,7 @@ export function CircleIndexPage() {
               <h2 id="discover-circles-title">Discover circles</h2>
               <span className="tabular">{available.length}</span>
             </div>
-            {available.length ? <div className="circle-index-list">{available.map((circle) => <CircleRow key={circle._id} circle={circle} />)}</div> : (
+            {available.length ? <div className="circle-index-list">{available.map((circle) => <CircleCard key={circle._id} link={<Link to="/circles/$circleId" params={{ circleId: circle._id }} />} circle={circle} />)}</div> : (
               <div className="circle-state-card"><strong>No new Circles right now.</strong><p>Your joined Circles are listed above.</p></div>
             )}
           </section>
@@ -237,7 +208,7 @@ export function MyCirclesHomeModule() {
   return (
     <section className="home-circles-module" aria-labelledby="home-circles-title">
       <div className="circle-section-heading"><h2 id="home-circles-title">My circles</h2><Link to="/circles">See all</Link></div>
-      {mine === undefined ? <p role="status" className="text-meta">Loading circles...</p> : active.length === 0 ? <p>Join a Circle to see its active conversations here.</p> : <div>{active.map((circle) => <Link key={circle._id} to="/circles/$circleId" params={{ circleId: circle._id }}><CircleMarker circle={circle} /><span><strong>{circle.name}</strong><small>{circle.memberCount} members</small></span></Link>)}</div>}
+      {mine === undefined ? <p role="status" className="text-meta">Loading circles...</p> : active.length === 0 ? <p>Join a Circle to see its active conversations here.</p> : <div>{active.map((circle) => <CircleHomeCard key={circle._id} link={<Link to="/circles/$circleId" params={{ circleId: circle._id }} />} circle={circle} />)}</div>}
     </section>
   )
 }

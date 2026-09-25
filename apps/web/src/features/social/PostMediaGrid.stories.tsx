@@ -78,7 +78,7 @@ function UploadPreviewStory() {
 
 const meta = {
   title: 'Web/Organisms/Post media grid',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 
 export default meta

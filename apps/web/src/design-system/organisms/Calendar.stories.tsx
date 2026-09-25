@@ -10,7 +10,7 @@ const meta = {
     value: new Date(2026, 7, 15),
     onChange: () => undefined,
   },
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta<typeof Calendar>
 export default meta
 type Story = StoryObj<typeof meta>

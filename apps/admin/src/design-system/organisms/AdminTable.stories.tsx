@@ -81,11 +81,11 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const StandardDesktop: Story = {
-  globals: { viewport: 'reset' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
 }
 
 export const CompactMobile: Story = {
-  globals: { viewport: 'mobileDefault' },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
 }
 
 export const Loading: Story = {
@@ -124,7 +124,7 @@ export const LongContent: Story = {
       },
     ],
   },
-  globals: { viewport: 'mobileDefault' },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
 }
 
 export const HorizontalOverflow: Story = {
@@ -135,7 +135,7 @@ export const HorizontalOverflow: Story = {
       { key: 'reviewer', header: 'Reviewer', render: (row) => row.reviewer },
     ],
   },
-  globals: { viewport: 'mobileDefault' },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   play: async ({ canvasElement }) => {
     const table = within(canvasElement).getByRole('table')
     const scrollRegion = table.parentElement
@@ -178,7 +178,7 @@ export const ManyActionsNarrow: Story = {
       },
     ],
   },
-  globals: { viewport: 'mobileDefault' },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getAllByRole('button', { name: 'Open' })[0])

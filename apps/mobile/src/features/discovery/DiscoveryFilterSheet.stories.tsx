@@ -30,7 +30,7 @@ function FilterSheetStory({ initialFilters = defaultDiscoveryFilters }: { initia
 
 const meta = {
   title: 'Mobile/Features/Discovery/Filter sheet',
-  parameters: { viewport: { defaultViewport: 'mobileDefault' } },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
 } satisfies Meta
 
 export default meta
@@ -98,7 +98,7 @@ export const CloseButton: Story = {
 }
 
 export const Narrow320: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   render: () => <FilterSheetStory />,
 }
 

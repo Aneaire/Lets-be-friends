@@ -4,7 +4,6 @@ import {
   useState,
   type CSSProperties,
   type Dispatch,
-  type KeyboardEvent,
   type SetStateAction,
   type SyntheticEvent,
 } from 'react'
@@ -108,6 +107,11 @@ export function PostMediaGrid(props: PostMediaGridProps) {
   )
 }
 
+function playOptionalVideo(video: HTMLVideoElement) {
+  const playback = video.play() as Promise<void> | undefined
+  void playback?.catch(() => undefined)
+}
+
 function PostVideo({ label, src }: { label: string; src: string }) {
   const inlineStageRef = useRef<HTMLDivElement>(null)
   const inlineVideoRef = useRef<HTMLVideoElement>(null)
@@ -127,7 +131,7 @@ function PostVideo({ label, src }: { label: string; src: string }) {
       const visible = entry.isIntersecting && entry.intersectionRatio >= 0.6
       inlineVisibleRef.current = visible
       if (open) return
-      if (visible) void video.play()
+      if (visible) playOptionalVideo(video)
       else video.pause()
     }, { threshold: [0, 0.6] })
 
@@ -141,12 +145,6 @@ function PostVideo({ label, src }: { label: string; src: string }) {
     setOpen(true)
   }
 
-  function handleVideoKeyDown(event: KeyboardEvent<HTMLVideoElement>) {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    event.preventDefault()
-    openViewer()
-  }
-
   function closeViewer() {
     const dialogVideo = dialogVideoRef.current
     if (dialogVideo) setCurrentTime(dialogVideo.currentTime)
@@ -155,7 +153,7 @@ function PostVideo({ label, src }: { label: string; src: string }) {
       const video = inlineVideoRef.current
       if (!video) return
       video.currentTime = dialogVideo?.currentTime ?? video.currentTime
-      if (inlineVisibleRef.current) void video.play()
+      if (inlineVisibleRef.current) playOptionalVideo(video)
     })
   }
 
@@ -177,13 +175,14 @@ function PostVideo({ label, src }: { label: string; src: string }) {
           muted={muted}
           playsInline
           preload="metadata"
-          role="button"
-          tabIndex={0}
-          aria-label={label}
-          onClick={openViewer}
-          onKeyDown={handleVideoKeyDown}
           onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
           onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+        />
+        <button
+          type="button"
+          className="social-post-video-open"
+          aria-label={`Open ${label}`}
+          onClick={openViewer}
         />
         <div className="social-post-video-controls">
           <button

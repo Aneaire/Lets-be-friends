@@ -41,7 +41,7 @@ function StoryReportAction() {
 
 const meta = {
   title: 'Mobile/Organisms/Conversation thread presentation',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 
 export default meta

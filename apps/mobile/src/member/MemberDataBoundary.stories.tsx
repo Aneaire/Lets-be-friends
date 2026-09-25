@@ -15,7 +15,7 @@ function BoundaryProbe() {
 const meta = {
   title: 'Mobile/Member/Member data boundary',
   component: MemberDataBoundary,
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
     resetKey: 'member-1',
     children: <BoundaryProbe />,

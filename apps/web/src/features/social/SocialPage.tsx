@@ -12,6 +12,7 @@ import { Avatar } from '../../design-system/atoms/Avatar'
 import { ConfirmationDialog } from '../../design-system/molecules/Dialog'
 import { CommentActionsMenu } from './CommentActionsMenu'
 import { CommentBubble } from './CommentBubble'
+import { FeaturedComment } from './FeaturedComment'
 import { MentionText } from './MentionText'
 import { PostActionsMenu } from './PostActionsMenu'
 import { PostActionBar } from './PostActionBar'
@@ -730,12 +731,12 @@ export function PostRow({
               <button disabled={Boolean(actionPending)} className="btn btn-social btn-sm">{actionPending === 'edit' ? 'Saving...' : 'Save'}</button>
             </div>
           </form>
-        ) : post.body ? <MentionText body={post.body} mentions={post.mentions} className="social-post-copy" /> : null}
+        ) : post.body ? <MentionText body={post.body} mentions={post.mentions} className="ds-post-copy" /> : null}
         {actionError && <p className="text-meta social-comment-error mt-2">{actionError}</p>}
         {post.media.length > 0 && <PostMediaGrid media={post.media} />}
         {post.poll && <PollCard poll={post.poll} disabled={!viewerReady} onVote={onVotePoll} />}
         {post.featuredComment && !commentsOpen && (
-          <FeaturedCommentPreview
+          <FeaturedComment
             comment={post.featuredComment}
             onOpenThread={() => setCommentsOpen(true)}
           />
@@ -852,49 +853,6 @@ export function PostRow({
           </div>
         )}
     </PostCard>
-  )
-}
-
-function FeaturedCommentPreview({
-  comment,
-  onOpenThread,
-}: {
-  comment: NonNullable<FeedPost['featuredComment']>
-  onOpenThread: () => void
-}) {
-  const avatarAction = comment.ownComment ? (
-    <Link to="/profile" className="social-comment-avatar-link" aria-label="View your profile">
-      <Avatar name={comment.authorDisplayName} src={comment.authorProfileImageUrl} size="small" className="ds-comment-avatar" decorative />
-    </Link>
-  ) : (
-    <Link
-      to="/member-profile"
-      search={{ userId: comment.authorId }}
-      className="social-comment-avatar-link"
-      aria-label={`View ${comment.authorDisplayName}'s profile`}
-    >
-      <Avatar name={comment.authorDisplayName} src={comment.authorProfileImageUrl} size="small" className="ds-comment-avatar" decorative />
-    </Link>
-  )
-
-  return (
-    <section className="social-featured-comment" aria-label="Most discussed comment">
-      <p className="social-featured-comment-label">Most discussed</p>
-      <CommentBubble
-        author={comment.authorDisplayName}
-        imageUrl={comment.authorProfileImageUrl}
-        avatarAction={avatarAction}
-        timestamp={formatTime(comment.createdAt)}
-        dateTime={new Date(comment.createdAt).toISOString()}
-        edited={comment.updatedAt > comment.createdAt}
-        threadPosition="standalone"
-      >
-        <MentionText body={withoutLeadingReplyMention(comment.body, comment.replyToAuthorUsername)} mentions={comment.mentions} />
-      </CommentBubble>
-      <button type="button" className="social-featured-comment-action" onClick={onOpenThread}>
-        See the conversation ({comment.threadInteractionCount} interactions)
-      </button>
-    </section>
   )
 }
 

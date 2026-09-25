@@ -12,7 +12,7 @@ import { DialogPresentation } from './Dialog'
 
 const meta = {
   title: 'Mobile/Molecules/Dialog',
-  parameters: { viewport: { defaultViewport: 'mobileDefault' } },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
 } satisfies Meta
 
 export default meta

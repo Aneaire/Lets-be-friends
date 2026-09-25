@@ -90,7 +90,7 @@ export const Reviewer: Story = {
 }
 
 export const Narrow: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileDefault' } },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     viewerRole: 'reviewer',
     displayName: 'Alex Kim',

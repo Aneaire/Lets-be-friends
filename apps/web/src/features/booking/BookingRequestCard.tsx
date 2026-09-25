@@ -29,13 +29,15 @@ type CardProps = {
   viewerId?: Id<'users'>
   onDecide: (bookingId: Id<'bookings'>, decision: 'accepted' | 'declined') => Promise<void>
   onEdit: (booking: BookingRequestView) => void
+  readOnly?: boolean
 }
 
-export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit }: CardProps) {
+export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit, readOnly = false }: CardProps) {
   const isRequester = viewerId !== undefined && booking.memberId === viewerId
   const pending = booking.status === 'request_sent'
-  const canDecide = pending && !isRequester
-  const canEdit = pending && isRequester
+  const showPendingDetails = pending && !readOnly
+  const canDecide = pending && !isRequester && !readOnly
+  const canEdit = pending && isRequester && !readOnly
   const [busy, setBusy] = useState<'accepted' | 'declined' | null>(null)
   const [actionError, setActionError] = useState('')
 
@@ -54,7 +56,7 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
   }
 
   return (
-    <div className="booking-request-card" data-density={pending ? 'full' : 'compact'}>
+    <div className="booking-request-card" data-density={showPendingDetails ? 'full' : 'compact'}>
       <div className="booking-request-card-head">
         <div className="min-w-0">
           <p className="text-h3">{booking.category}</p>
@@ -64,7 +66,7 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
             <span className="tabular">{formatBookingDate(booking.requestedAt)}</span>
             <span className="dot" aria-hidden="true" />
             <span>{formatDuration(booking.durationMinutes)}</span>
-            {pending && (
+            {showPendingDetails && (
               <>
                 <span className="dot" aria-hidden="true" />
                 <span>with {booking.companionDisplayName}</span>
@@ -75,7 +77,7 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit 
         <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
       </div>
 
-      {pending && (
+      {showPendingDetails && (
         <>
           <div className="booking-request-card-state">
             <span aria-hidden="true" />

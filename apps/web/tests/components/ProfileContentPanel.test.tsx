@@ -119,9 +119,9 @@ describe('ProfileContentPanel', () => {
     expect(screen.getByLabelText('5 out of 5 stars').querySelectorAll('.profile-review-star')).toHaveLength(5)
     fireEvent.click(screen.getByRole('button', { name: 'Save rating' }))
     expect(onSave).toHaveBeenCalledWith('review-1')
-    fireEvent.click(screen.getByRole('button', { name: 'Like 2' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Appreciate post' }))
     await waitFor(() => expect(onLike).toHaveBeenCalledWith(reviews[0]))
-    fireEvent.click(screen.getByRole('button', { name: 'Comment 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show 1 comment' }))
     expect(screen.getByText('This sounds like a thoughtful plan.')).toBeTruthy()
     expect(screen.getByLabelText("View Mara Reyes's profile").getAttribute('href')).toBe('/member-profile')
     fireEvent.change(screen.getByRole('textbox', { name: "Comment on Angelo Santiago's review" }), { target: { value: 'I agree.' } })
@@ -161,7 +161,7 @@ describe('ProfileContentPanel', () => {
     )
 
     fireEvent.click(screen.getByRole('tab', { name: 'Reviews' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Comment 2' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show 2 comments' }))
     expect(screen.getByText('My own note on this review.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: "Delete your comment on Angelo Santiago's review" })).toBeTruthy()
     expect(screen.queryAllByRole('button', { name: /Delete your comment/ })).toHaveLength(1)
@@ -210,7 +210,7 @@ describe('ProfileContentPanel', () => {
     )
 
     fireEvent.click(screen.getByRole('tab', { name: 'Reviews' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Comment 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show 1 comment' }))
     expect(screen.getByText('My own note on this review.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Delete your comment/ })).toBeNull()
   })
@@ -232,7 +232,7 @@ describe('ProfileContentPanel', () => {
     expect(screen.getByText('Reviews appear when a member has an approved Companion profile.')).toBeTruthy()
   })
 
-  it('separates profile posts into cards with tight body to image spacing', () => {
+  it('uses the shared PostCard body and media spacing for profile posts', () => {
     const mediaPosts = [
       {
         _id: 'post-with-media',
@@ -266,10 +266,24 @@ describe('ProfileContentPanel', () => {
     expect(list).toBeTruthy()
     expect(list?.querySelectorAll('.profile-post-card')).toHaveLength(2)
 
-    const body = list?.querySelector('.profile-post-card .profile-post-body')
+    const body = list?.querySelector('.profile-post-card .ds-post-body > .ds-post-copy')
     expect(body?.textContent).toBe('my babies')
     const media = body?.nextElementSibling
-    expect(media?.classList.contains('profile-post-media')).toBe(true)
+    expect(media?.classList.contains('social-media-grid')).toBe(true)
+  })
+
+  it('renders the owner image on every profile post card identity', () => {
+    render(
+      <ProfileContentPanel
+        ownerName="Angelo Santiago"
+        ownerImageUrl="/angelo.jpg"
+        posts={posts}
+        reviews={[]}
+      />,
+    )
+
+    const avatar = document.querySelector('.profile-post-card .ds-post-avatar img')
+    expect(avatar?.getAttribute('src')).toBe('/angelo.jpg')
   })
 
   it('renders posts and reviews without panel headings or home actions', () => {
@@ -292,5 +306,50 @@ describe('ProfileContentPanel', () => {
     expect(screen.queryByRole('heading', { name: 'Reviews' })).toBeNull()
     expect(screen.getByLabelText('4.9 out of 5 from 21 reviews')).toBeTruthy()
     expect(document.querySelector('.profile-review-list .profile-review-card')).toBeTruthy()
+  })
+
+  it('reuses the shared PostCard layout and renders shared post and review embeds', () => {
+    const sharedPosts = [{
+      _id: 'post-share',
+      createdAt: Date.UTC(2026, 7, 28, 8, 10),
+      media: [],
+      likeCount: 0,
+      commentCount: 0,
+      liked: false,
+      saved: false,
+      body: 'Sharing something worth seeing.',
+      sharedPost: {
+        authorId: 'user-original',
+        authorDisplayName: 'Original Author',
+        authorProfileImageUrl: null,
+        createdAt: Date.UTC(2026, 7, 20, 8, 10),
+        body: 'An embedded original post.',
+        media: [],
+      },
+      sharedReview: {
+        reviewerId: 'user-reviewer',
+        reviewerDisplayName: 'Reviewer Name',
+        rating: 4,
+        body: 'An embedded review body.',
+        imageUrl: null,
+      },
+    }]
+    render(
+      <ProfileContentPanel
+        ownerName="Angelo Santiago"
+        posts={sharedPosts}
+        reviews={[]}
+      />,
+    )
+
+    const card = document.querySelector('.profile-post-list .profile-post-card')
+    expect(card?.classList.contains('ds-post-card')).toBe(true)
+    expect(card?.querySelector('header.ds-post-head')).toBeTruthy()
+    expect(card?.querySelector('.ds-post-body')).toBeTruthy()
+    expect(screen.getByRole('article', { name: 'Shared post by Original Author' })).toBeTruthy()
+    expect(screen.getByText('An embedded original post.')).toBeTruthy()
+    expect(screen.getByRole('article', { name: 'Shared review by Reviewer Name' })).toBeTruthy()
+    expect(screen.getByText('An embedded review body.')).toBeTruthy()
+    expect(screen.getByLabelText('4 out of 5 stars')).toBeTruthy()
   })
 })

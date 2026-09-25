@@ -194,6 +194,7 @@ function ProfilePage() {
       <ProfileContentPanel
         className="mt-6"
         ownerName={displayName}
+        ownerImageUrl={profileImageUrl || undefined}
         posts={viewer ? posts : []}
         reviews={application ? reviews : null}
         rating={application?.rating}

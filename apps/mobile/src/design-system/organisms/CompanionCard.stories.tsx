@@ -59,7 +59,7 @@ const meta = {
   title: 'Mobile/Organisms/Companion card',
   component: CompanionCard,
   args: { companion: verifiedCompanion },
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta<typeof CompanionCard>
 
 export default meta

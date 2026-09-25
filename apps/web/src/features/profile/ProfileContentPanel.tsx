@@ -1,11 +1,13 @@
 import { Link } from '@tanstack/react-router'
-import { Heart, MessageCircle, Share2, Star } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type Ref, type SetStateAction } from 'react'
 import { Avatar } from '../../design-system/atoms/Avatar'
-import { OpenableImage } from '../../design-system/molecules/OpenableImage'
 import { PostActionBar } from '../social/PostActionBar'
+import { PostCard } from '../social/PostCard'
+import { ReviewContent } from '../social/ReviewContent'
 import { ShareDialog } from '../social/ShareDialog'
 import { shareTargetUrl } from '../social/shareLinks'
+import { SharedPostEmbed, SharedReviewEmbed, type SharedPostView, type SharedReviewView } from '../social/SharedEmbeds'
+import { formatSocialTime } from '../social/formatSocialTime'
 import { PostMediaGrid, type DisplayPostMediaItem } from '../social/PostMediaGrid'
 
 export type ProfileContentPost = {
@@ -17,6 +19,8 @@ export type ProfileContentPost = {
   commentCount: number
   liked: boolean
   saved: boolean
+  sharedPost?: SharedPostView | null
+  sharedReview?: SharedReviewView | null
 }
 
 export type ProfileContentReview = {
@@ -49,6 +53,7 @@ type ContentTab = 'posts' | 'reviews'
 
 export function ProfileContentPanel({
   ownerName,
+  ownerImageUrl,
   posts,
   reviews,
   rating,
@@ -70,6 +75,7 @@ export function ProfileContentPanel({
   className,
 }: {
   ownerName: string
+  ownerImageUrl?: string | null
   posts: readonly ProfileContentPost[] | undefined
   reviews: readonly ProfileContentReview[] | undefined | null
   rating?: number
@@ -157,15 +163,18 @@ export function ProfileContentPanel({
           {posts && posts.length > 0 && (
             <div className="worklist profile-post-list">
               {posts.map((post) => (
-                <article key={post._id} className="worklist-row profile-post-card">
-                  <div className="worklist-row-head">
-                    <div className="min-w-0">
-                      <h3 className="text-h3">{ownerName}</h3>
-                      <div className="worklist-row-meta tabular">{formatTime(post.createdAt)}</div>
-                    </div>
-                  </div>
-                  {post.body && <p className="text-body muted whitespace-pre-wrap profile-post-body">{post.body}</p>}
-                  {post.media.length > 0 && <PostMediaGrid media={post.media} className="profile-post-media" />}
+                <PostCard
+                  key={post._id}
+                  className="profile-post-card"
+                  author={ownerName}
+                  imageUrl={ownerImageUrl}
+                  timestamp={formatSocialTime(post.createdAt)}
+                  dateTime={new Date(post.createdAt).toISOString()}
+                >
+                  {post.body && <p className="ds-post-copy">{post.body}</p>}
+                  {post.media.length > 0 && <PostMediaGrid media={post.media} />}
+                  {post.sharedPost && <SharedPostEmbed post={post.sharedPost} />}
+                  {post.sharedReview && <SharedReviewEmbed review={post.sharedReview} />}
                   <PostActionBar
                     liked={post.liked}
                     likeCount={post.likeCount}
@@ -179,7 +188,7 @@ export function ProfileContentPanel({
                     onSave={() => void runPostAction(post, 'save', onSavePost, setPostActionBusy, setPostActionErrors)}
                   />
                   {postActionErrors[post._id] && <p className="text-meta social-comment-error">{postActionErrors[post._id]}</p>}
-                </article>
+                </PostCard>
               ))}
             </div>
           )}
@@ -188,7 +197,7 @@ export function ProfileContentPanel({
         <div id={`${tabId}-reviews-panel`} role="tabpanel" aria-labelledby={`${tabId}-reviews-tab`}>
           {typeof rating === 'number' && reviewCount ? (
             <div className="profile-rating-row">
-              <div className="profile-rating-summary" aria-label={`${rating.toFixed(1)} out of 5 from ${reviewCount} reviews`}>
+              <div className="profile-rating-summary" role="img" aria-label={`${rating.toFixed(1)} out of 5 from ${reviewCount} reviews`}>
                 <strong>{rating.toFixed(1)}</strong>
                 <span>★</span>
                 <small>{reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}</small>
@@ -232,55 +241,38 @@ export function ProfileContentPanel({
                       ) : (
                         <h3 className="text-h3">{review.reviewerDisplayName}</h3>
                       )}
-                      <div className="worklist-row-meta tabular">{formatTime(review.createdAt)}</div>
+                      <div className="worklist-row-meta tabular">{formatSocialTime(review.createdAt)}</div>
                     </div>
                     {reviewAction?.(review)}
                   </div>
-                  <RatingStars rating={review.rating} />
-                  {review.body && <p className="text-body muted profile-review-body">{review.body}</p>}
-                  {review.imageUrl && (
-                    <div className="profile-review-image">
-                      <OpenableImage src={review.imageUrl} alt={`Photo shared with ${review.reviewerDisplayName}'s review`} />
-                    </div>
-                  )}
-                  <div className="profile-review-actions" aria-label={`Actions for ${review.reviewerDisplayName}'s review`}>
-                    <button
-                      type="button"
-                      className="profile-review-action"
-                      data-active={review.liked || undefined}
-                      disabled={!onLikeReview}
-                      onClick={() => void onLikeReview?.(review)}
-                      title={onLikeReview ? undefined : 'Sign in to like this review'}
-                    >
-                      <Heart size={17} fill={review.liked ? 'currentColor' : 'none'} aria-hidden="true" />
-                      Like{review.likeCount ? ` ${review.likeCount}` : ''}
-                    </button>
-                    <button
-                      type="button"
-                      className="profile-review-action"
-                      disabled={!onCommentReview && !(review.commentCount || 0)}
-                      onClick={() => setOpenComments((current) => {
-                        const next = new Set(current)
-                        if (next.has(review._id)) next.delete(review._id)
-                        else next.add(review._id)
-                        return next
-                      })}
-                      title={!onCommentReview ? 'Sign in to comment on this review' : undefined}
-                    >
-                      <MessageCircle size={17} aria-hidden="true" />
-                      Comment{review.commentCount ? ` ${review.commentCount}` : ''}
-                    </button>
-                    {onShareReviewToFeed && (
-                      <button
-                        type="button"
-                        className="profile-review-action"
-                        onClick={() => setShareReview(review)}
-                      >
-                        <Share2 size={17} aria-hidden="true" />
-                        Share
-                      </button>
-                    )}
-                  </div>
+                  <ReviewContent
+                    rating={review.rating}
+                    body={review.body}
+                    imageUrl={review.imageUrl}
+                    reviewerDisplayName={review.reviewerDisplayName}
+                    showRatingValue
+                    bodyClassName="text-body muted profile-review-body"
+                    imageWrapperClassName="profile-review-image"
+                  />
+                  <PostActionBar
+                    liked={Boolean(review.liked)}
+                    likeCount={review.likeCount ?? 0}
+                    commentCount={review.commentCount ?? 0}
+                    saved={Boolean(review.saved)}
+                    commentsOpen={openComments.has(review._id)}
+                    likeDisabled={!onLikeReview}
+                    commentsDisabled={!onCommentReview && !(review.commentCount || 0)}
+                    showSave={false}
+                    onLike={() => void onLikeReview?.(review)}
+                    onToggleComments={() => setOpenComments((current) => {
+                      const next = new Set(current)
+                      if (next.has(review._id)) next.delete(review._id)
+                      else next.add(review._id)
+                      return next
+                    })}
+                    onSave={() => undefined}
+                    onShare={onShareReviewToFeed ? () => setShareReview(review) : undefined}
+                  />
                   {openComments.has(review._id) && (
                     <div className="profile-review-comments">
                       {review.comments?.map((comment) => (
@@ -432,23 +424,6 @@ async function runPostAction(
   }
 }
 
-function RatingStars({ rating }: { rating: number }) {
-  return (
-    <div className="profile-review-stars" aria-label={`${rating} out of 5 stars`}>
-      {Array.from({ length: 5 }, (_, index) => {
-        const fill = Math.max(0, Math.min(1, rating - index))
-        return (
-          <span key={index} className="profile-review-star" aria-hidden="true">
-            <Star size={18} />
-            <span style={{ width: `${fill * 100}%` }}><Star size={18} fill="currentColor" /></span>
-          </span>
-        )
-      })}
-      <strong>{rating.toFixed(1)}</strong>
-    </div>
-  )
-}
-
 function ContentTabButton({
   buttonRef,
   id,
@@ -489,13 +464,4 @@ function ContentTabButton({
       {children}
     </button>
   )
-}
-
-function formatTime(timestamp: number) {
-  return new Date(timestamp).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
 }

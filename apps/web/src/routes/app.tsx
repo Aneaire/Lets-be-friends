@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
-import { useAction, useMutation, useQuery } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search, User, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -12,10 +12,20 @@ import { WorkspaceShell } from '../design-system/templates/AppShell'
 import { BookingRequestEditor, type EditableBookingRequest } from '../features/booking/BookingRequestEditor'
 import { BookingRequestFields } from '../features/booking/BookingRequestFields'
 import { BookingActionsMenu } from '../features/booking/BookingActionsMenu'
+import { AppPageSkeleton } from '../features/booking/AppPageSkeleton'
+import { BookingCompletionAction } from '../features/booking/BookingCompletionAction'
 import { BookingsView, type BookingsViewMode } from '../features/booking/BookingsView'
+import { CompanionBookingRow, companionStatusPresentation } from '../features/booking/CompanionBookingRow'
+import {
+  calendarParticipantName,
+  combineCalendarBookings,
+  isActiveCalendarBooking,
+  type CombinedCalendarBooking,
+  type CompanionPerspectiveBooking,
+} from '../features/booking/combinedBookings'
+import { EvidenceDecision } from '../features/booking/EvidenceDecision'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
-import { prepareEvidenceImage } from '../lib/chatAttachments'
 import { findCompanions } from '../lib/discoverySearch'
 import { ReviewForm } from '../features/profile/ReviewForm'
 
@@ -71,11 +81,13 @@ function AppPage() {
   const viewer = useQuery(api.users.viewer)
   const latestMemberVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const bookings = useQuery(api.bookings.mine, viewer ? {} : 'skip')
+  const companionBookings = useQuery(api.bookings.forCompanion, viewer ? {} : 'skip')
   const memberFinance = useQuery(api.finance.memberDashboard, viewer ? {} : 'skip')
   const identityFlow = useIdentityVerification('member')
   const createDraft = useMutation(api.bookings.createDraft)
   const cancelBooking = useMutation(api.bookings.cancel)
   const completeBooking = useMutation(api.bookings.markCompleted)
+  const decideCompanionBooking = useMutation(api.bookings.companionDecision)
   const submitReview = useMutation(api.reviews.submit)
   const report = useMutation(api.reports.create)
   const updateBookingRequest = useMutation(api.bookings.editRequest)
@@ -97,7 +109,9 @@ function AppPage() {
       )
     : { state: 'not_started' as const, label: 'Loading', tone: 'self' as const, guidance: 'Loading identity status…', action: 'none' as const }
   const canBook = verification.state === 'approved'
-  const viewerLoading = viewer === undefined
+  const coreDataReady = viewer === undefined
+    ? false
+    : viewer === null || (latestMemberVerification !== undefined && bookings !== undefined && companionBookings !== undefined && memberFinance !== undefined)
   const approvedCompanions = useQuery(
     api.companions.listApproved,
     canBook ? {} : 'skip',
@@ -107,6 +121,10 @@ function AppPage() {
       (companion) => companion.bookable && companion.viewerBookingEligibility === 'eligible',
     ),
     [approvedCompanions],
+  )
+  const combinedBookings = useMemo(
+    () => combineCalendarBookings(bookings, companionBookings),
+    [bookings, companionBookings],
   )
 
   const openBookingDialog = useCallback((opener?: HTMLElement) => {
@@ -128,12 +146,15 @@ function AppPage() {
   }, [companionProfileId, navigate])
 
   useEffect(() => {
-    if (!bookingId || !bookings?.some((booking) => String(booking._id) === bookingId)) return
-    requestAnimationFrame(() => document.getElementById(`booking-${bookingId}`)?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }))
-  }, [bookingId, bookings])
+    if (!bookingId) return
+    const linkedBooking = combinedBookings.find((booking) => String(booking._id) === bookingId)
+    if (!linkedBooking) return
+    const elementId = linkedBooking.perspective === 'companion' ? `companion-booking-${bookingId}` : `booking-${bookingId}`
+    requestAnimationFrame(() => document.getElementById(elementId)?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }))
+  }, [bookingId, combinedBookings])
 
   useEffect(() => {
-    if (!companionProfileId || viewerLoading) return
+    if (!companionProfileId || !coreDataReady) return
 
     if (!canBook) {
       setBookingDialogOpen(false)
@@ -144,7 +165,7 @@ function AppPage() {
 
     bookingOpenerRef.current = bookingTriggerRef.current
     setBookingDialogOpen(true)
-  }, [canBook, companionProfileId, navigate, viewerLoading])
+  }, [canBook, companionProfileId, coreDataReady, navigate])
 
   if (!isSignedIn) {
     return (
@@ -159,16 +180,19 @@ function AppPage() {
     )
   }
 
-  const openBookings = (bookings ?? []).filter((booking) =>
-    ['request_sent', 'accepted', 'verification_required'].includes(booking.status),
-  ).length
-  const completedBookings = (bookings ?? []).filter((booking) =>
-    ['completed', 'review_window', 'closed', 'declined', 'cancelled'].includes(booking.status),
-  ).length
+  if (!coreDataReady) {
+    return <AppPageSkeleton />
+  }
+
+  const openBookings = combinedBookings.filter((booking) => isActiveCalendarBooking(booking)).length
+  const completedBookings = combinedBookings.filter((booking) => !isActiveCalendarBooking(booking)).length
+  const memberActiveBookings = combinedBookings.filter((booking) => booking.perspective === 'member' && isActiveCalendarBooking(booking))
+  const memberPastBookings = combinedBookings.filter((booking) => booking.perspective === 'member' && !isActiveCalendarBooking(booking))
+  const companionSideBookings = combinedBookings.filter((booking) => booking.perspective === 'companion')
 
   const heldBooking = (bookings ?? []).find((booking) => booking.status === 'verification_required')
 
-  const renderBookingRow = (booking: Booking) => (
+  const renderMemberBookingRow = (booking: Booking) => (
     <BookingRow
       key={booking._id}
       booking={booking}
@@ -192,6 +216,45 @@ function AppPage() {
       }}
       onEditRequest={(bookingRequest) => setEditingBooking(bookingRequest)}
     />
+  )
+
+  const renderCompanionBookingRow = (booking: CompanionPerspectiveBooking) => (
+    <CompanionBookingRow
+      key={`companion-${booking._id}`}
+      booking={booking}
+      onAccept={async () => {
+        await decideCompanionBooking({ bookingId: booking._id, decision: 'accepted', note: 'Accepted by Companion.' })
+        setNotice('Booking accepted. Chat is open for safe coordination.')
+      }}
+      onDecline={async () => {
+        await decideCompanionBooking({ bookingId: booking._id, decision: 'declined', note: 'Declined by Companion.' })
+        setNotice('Booking declined.')
+      }}
+      onCancel={async () => {
+        await cancelBooking({ bookingId: booking._id, reason: 'Cancelled by Companion.' })
+        setNotice('Booking cancelled.')
+      }}
+      onComplete={async () => {
+        const result = await completeBooking({ bookingId: booking._id })
+        setNotice(result.awaitingOtherConfirmation
+          ? 'Completion confirmed. Waiting for the member to confirm separately.'
+          : 'Both people confirmed completion. The review window is open and member-wallet funds moved to pending earnings once.')
+      }}
+      onReview={async (rating, body, imageUploadId) => {
+        await submitReview({ bookingId: booking._id, rating, body, imageUploadId })
+        setNotice('Review submitted.')
+      }}
+      onReport={async () => {
+        await report({ targetType: 'booking', targetId: booking._id, reason: 'Companion flagged this booking for safety review' })
+        setNotice('Report sent to safety review.')
+      }}
+    />
+  )
+
+  const renderBookingRow = (booking: CombinedCalendarBooking) => (
+    booking.perspective === 'companion'
+      ? renderCompanionBookingRow(booking)
+      : renderMemberBookingRow(booking)
   )
 
   return (
@@ -356,8 +419,7 @@ function AppPage() {
             </Link>
           </div>
         </header>
-        {viewer === undefined && <div className="empty-state">Loading your profile…</div>}
-        {viewer && (bookings ?? []).length === 0 && (
+        {viewer && combinedBookings.length === 0 && (
           <div className="empty-state">
             <p className="empty-state-title">
               {canBook ? 'No bookings yet.' : 'Verify once before sending a booking request.'}
@@ -396,26 +458,30 @@ function AppPage() {
             ) : null}
           </div>
         )}
-        {(bookings ?? []).length > 0 && (
+        {combinedBookings.length > 0 && (
           <BookingsView
-            bookings={bookings ?? []}
+            bookings={combinedBookings}
             bookingId={bookingId}
             view={bookingsView}
             onViewChange={setBookingsView}
             renderBooking={renderBookingRow}
+            statusPresentation={(status, booking) =>
+              booking.perspective === 'companion'
+                ? companionStatusPresentation(status)
+                : statusCopy[status as BookingStatus] ?? { label: status, tone: 'self' }
+            }
+            participantName={(booking) => calendarParticipantName(booking)}
             cards={(
               <>
                 <section aria-labelledby="open-bookings-title">
                   <header className="flex items-baseline justify-between gap-3 mb-3">
                     <h2 id="open-bookings-title" className="text-h2">Open bookings</h2>
-                    <span className="text-meta tabular">{openBookings} active</span>
+                    <span className="text-meta tabular">{memberActiveBookings.length} active</span>
                   </header>
-                  {openBookings > 0 ? (
+                  {memberActiveBookings.length > 0 ? (
                     <div className="panel">
                       <div className="worklist">
-                        {(bookings ?? [])
-                          .filter((booking) => ['request_sent', 'accepted', 'verification_required'].includes(booking.status))
-                          .map(renderBookingRow)}
+                        {memberActiveBookings.map(renderBookingRow)}
                       </div>
                     </div>
                   ) : (
@@ -423,17 +489,29 @@ function AppPage() {
                   )}
                 </section>
 
-                {completedBookings > 0 && (
+                {memberPastBookings.length > 0 && (
                   <section id="archive" className="mt-10">
                     <header className="flex items-baseline justify-between gap-3 mb-3">
                       <h2 className="text-h2">Past bookings</h2>
-                      <span className="text-meta tabular">{completedBookings}</span>
+                      <span className="text-meta tabular">{memberPastBookings.length}</span>
                     </header>
                     <div className="panel">
                       <div className="worklist">
-                        {(bookings ?? [])
-                          .filter((booking) => ['completed', 'review_window', 'closed', 'declined', 'cancelled'].includes(booking.status))
-                          .map(renderBookingRow)}
+                        {memberPastBookings.map(renderBookingRow)}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {companionSideBookings.length > 0 && (
+                  <section id="companion-bookings" className="mt-10" aria-labelledby="companion-bookings-title">
+                    <header className="flex items-baseline justify-between gap-3 mb-3">
+                      <h2 id="companion-bookings-title" className="text-h2">Bookings as Companion</h2>
+                      <span className="text-meta tabular">{companionSideBookings.length}</span>
+                    </header>
+                    <div className="panel">
+                      <div className="worklist">
+                        {companionSideBookings.map(renderBookingRow)}
                       </div>
                     </div>
                   </section>
@@ -564,7 +642,12 @@ function BookingRow({
       )}
 
       {booking.pricingModel === 'member_wallet_v2' && booking.status === 'accepted' && (
-        <EvidenceDecision bookingId={booking._id} label="End evidence" />
+        <EvidenceDecision
+          bookingId={booking._id}
+          label="End evidence"
+          guidance="Optional and private. A reviewer or admin can retrieve it only while a linked booking report is active, and each retrieval is audited. Your counterpart cannot access it."
+          skipWarning="Strict warning: skipping means no private image from your role will be available to help reviewers evaluate a later booking report. Skip anyway?"
+        />
       )}
 
       <div className="worklist-row-actions">
@@ -573,80 +656,12 @@ function BookingRow({
             Open conversation
           </Link>
         )}
-        {canComplete && !booking.memberCompletedAt && <button type="button" onClick={onComplete} className="btn btn-social-quiet btn-sm">Confirm completion</button>}
+        {canComplete && !booking.memberCompletedAt && <BookingCompletionAction onComplete={onComplete} />}
         {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Companion</span>}
         {canReview && <ReviewForm onReview={onReview} />}
         {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
       </div>
     </article>
-  )
-}
-
-function EvidenceDecision({ bookingId, label }: { bookingId: Id<'bookings'>; label: string }) {
-  const evidence = useQuery(api.bookingEvidence.status, { bookingId })
-  const uploadImage = useAction(api.bookingEvidence.uploadImage)
-  const skip = useMutation(api.bookingEvidence.skip)
-  const [busy, setBusy] = useState(false)
-  const [evidenceError, setEvidenceError] = useState('')
-
-  if (evidence?.decision) {
-    return <div className="evidence-decision"><p className="text-meta"><strong>{label}:</strong> {evidence.decision === 'uploaded' ? 'Private image saved' : 'Skipped after warning acknowledgement'}.</p></div>
-  }
-
-  return (
-    <div className="evidence-decision">
-      <div><p className="text-h3">{label}</p><p className="text-meta mt-1">Optional and private. A reviewer or admin can retrieve it only while a linked booking report is active, and each retrieval is audited. Your counterpart cannot access it.</p></div>
-      {evidenceError && <p className="text-meta text-[color:var(--danger)]">{evidenceError}</p>}
-      <div className="flex gap-2 flex-wrap">
-        <label className={`btn btn-social-quiet btn-sm ${busy ? 'pointer-events-none opacity-60' : ''}`}>
-          {busy ? 'Processing image…' : 'Upload private image'}
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-            className="sr-only"
-            disabled={busy}
-            onChange={async (event) => {
-              const file = event.currentTarget.files?.[0]
-              event.currentTarget.value = ''
-              if (!file) return
-              setBusy(true)
-              setEvidenceError('')
-              try {
-                const processed = await prepareEvidenceImage(file)
-                await uploadImage({
-                  bookingId,
-                  bytes: await processed.arrayBuffer(),
-                  contentType: processed.type,
-                })
-              } catch (error) {
-                setEvidenceError(error instanceof Error ? error.message : 'Evidence image could not be saved.')
-              } finally {
-                setBusy(false)
-              }
-            }}
-          />
-        </label>
-        <button
-          type="button"
-          className="btn btn-danger btn-sm"
-          disabled={busy}
-          onClick={async () => {
-            if (!window.confirm('Strict warning: skipping means no private image from your role will be available to help reviewers evaluate a later booking report. Skip anyway?')) return
-            setBusy(true)
-            setEvidenceError('')
-            try {
-              await skip({ bookingId, warningAcknowledged: true })
-            } catch (error) {
-              setEvidenceError(error instanceof Error ? error.message : 'Evidence decision could not be saved.')
-            } finally {
-              setBusy(false)
-            }
-          }}
-        >
-          Skip after warning
-        </button>
-      </div>
-    </div>
   )
 }
 

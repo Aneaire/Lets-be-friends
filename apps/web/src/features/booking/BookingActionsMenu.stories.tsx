@@ -28,15 +28,15 @@ export const FullMenu: Story = {
       name: 'More booking actions',
     })
     await userEvent.click(trigger)
-    const actions = canvas.getByRole('group', { name: 'Booking actions' })
+    const actions = canvas.getByRole('menu', { name: 'Booking actions' })
     await expect(
-      within(actions).getByRole('button', { name: 'Edit request' }),
+      within(actions).getByRole('menuitem', { name: 'Edit request' }),
     ).toBeVisible()
     await userEvent.click(
-      within(actions).getByRole('button', { name: 'Cancel booking' }),
+      within(actions).getByRole('menuitem', { name: 'Cancel booking' }),
     )
     await expect(cancelBooking).toHaveBeenCalledOnce()
-    await expect(canvas.queryByRole('group')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('menu')).not.toBeInTheDocument()
     await expect(trigger).toHaveFocus()
   },
 }
@@ -52,9 +52,9 @@ export const ReportOnly: Story = {
       canvas.getByRole('button', { name: 'More booking actions' }),
     )
     await expect(
-      canvas.queryByRole('button', { name: 'Cancel booking' }),
+      canvas.queryByRole('menuitem', { name: 'Cancel booking' }),
     ).not.toBeInTheDocument()
-    await userEvent.click(canvas.getByRole('button', { name: 'Report' }))
+    await userEvent.click(canvas.getByRole('menuitem', { name: 'Report' }))
     await expect(reportBooking).toHaveBeenCalledOnce()
   },
 }
@@ -67,7 +67,7 @@ export const EscapeRestoresFocus: Story = {
     })
     await userEvent.click(trigger)
     await userEvent.keyboard('{Escape}')
-    await expect(canvas.queryByRole('group')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('menu')).not.toBeInTheDocument()
     await expect(trigger).toHaveFocus()
   },
 }

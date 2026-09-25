@@ -708,3 +708,60 @@ describe('companion application identity gate', () => {
     expect(companions[0]).toMatchObject({ city: 'Mandaue City', status: 'pending_review' })
   })
 })
+
+describe('companion profile edits after approval', () => {
+  const baseApplication = {
+    intro: 'rate-editor offers a safe and friendly local activity for members.',
+    city: 'Private city label',
+    strengths: ['Good listener'],
+    categories: ['Coffee or meal companion'],
+    boundaries: ['Public places only'],
+    mode: 'in_person' as const,
+    hourlyRateCentavos: 50_000,
+    earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
+  }
+
+  async function insertEditableCompanion(t: ReturnType<typeof convexTest>) {
+    const { userId, companionProfileId } = await insertApprovedCompanion(t, 'rate-editor', { latitude: 10.31, longitude: 123.89 })
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.patch(userId, {
+        approximateLocationConsentedAt: now,
+        termsAcceptedAt: now,
+        termsVersion: '2026-08-13',
+      })
+      await ctx.db.patch(companionProfileId, { earningMotivation: baseApplication.earningMotivation })
+    })
+  }
+
+  it('keeps an approved Companion live when only the hourly rate changes', async () => {
+    const t = createTest()
+    await insertEditableCompanion(t)
+
+    const result = await t.withIdentity({ subject: 'rate-editor' }).mutation(api.companions.submitApplication, {
+      ...baseApplication,
+      hourlyRateCentavos: 75_000,
+    })
+
+    expect(result.requiresReview).toBe(false)
+    const companion = await t.run(async (ctx) => ctx.db.query('companionProfiles').first())
+    expect(companion).toMatchObject({ status: 'approved', hourlyRateCentavos: 75_000 })
+    const audits: any[] = await t.run(async (ctx) => ctx.db.query('auditLogs').collect())
+    expect(audits.some((entry) => entry.action === 'companion_profile.updated')).toBe(true)
+    expect(audits.some((entry) => entry.action === 'companion_application.submitted')).toBe(false)
+  })
+
+  it('sends an approved Companion back to review when review-sensitive content changes', async () => {
+    const t = createTest()
+    await insertEditableCompanion(t)
+
+    const result = await t.withIdentity({ subject: 'rate-editor' }).mutation(api.companions.submitApplication, {
+      ...baseApplication,
+      intro: 'A revised safe and friendly companion application with enough detail to review.',
+    })
+
+    expect(result.requiresReview).toBe(true)
+    const companion = await t.run(async (ctx) => ctx.db.query('companionProfiles').first())
+    expect(companion).toMatchObject({ status: 'pending_review' })
+  })
+})

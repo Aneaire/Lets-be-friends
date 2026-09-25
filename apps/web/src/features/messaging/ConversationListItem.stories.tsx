@@ -3,7 +3,7 @@ import { ConversationListItemContent } from './ConversationListItem'
 
 const meta = {
   title: 'Web/Organisms/Conversation list item',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 export default meta
 type Story = StoryObj<typeof meta>

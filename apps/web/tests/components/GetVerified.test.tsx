@@ -42,6 +42,7 @@ vi.mock('@clerk/react', () => ({
 
 import { useQuery } from 'convex/react'
 import { GetVerifiedPage } from '../../src/features/verification/GetVerifiedPage'
+import { VerificationStep } from '../../src/features/verification/VerificationStep'
 
 const mockUseQuery = vi.mocked(useQuery)
 
@@ -170,5 +171,43 @@ describe('get verified page', () => {
 
     const links = screen.getAllByRole('link', { name: /Companion profile/ })
     expect(links.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('locks the approved Companion step and points edits to settings', () => {
+    queryState.viewer = { verificationStatus: 'approved', identityEligible: true }
+    queryState.latest = {
+      adminStatus: 'approved',
+      verificationSource: 'in_app',
+      identityStage: 'approved',
+      isCurrent: true,
+      reason: 'member',
+    }
+    queryState.application = { status: 'approved' }
+    render(<GetVerifiedPage />)
+
+    expect(screen.getByText('Your Companion profile is approved and visible to members.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Manage in settings' }).getAttribute('href')).toBe('/settings')
+    expect(screen.queryByTitle('Submit your identity check first')).toBeNull()
+  })
+})
+
+describe('VerificationStep', () => {
+  it('marks a completed step with a check and exposes its named heading', () => {
+    const { container } = render(
+      <VerificationStep
+        step={1}
+        title="Identity check"
+        icon={<span aria-hidden="true" />}
+        completed
+        headingId="verify-identity-heading"
+      >
+        <p>Approved copy</p>
+      </VerificationStep>,
+    )
+
+    const section = container.querySelector('.verification-step')
+    expect(section?.getAttribute('data-complete')).toBe('true')
+    expect(screen.getByRole('heading', { name: 'Identity check' }).getAttribute('id')).toBe('verify-identity-heading')
+    expect(container.querySelector('.verification-step-marker span')).toBeNull()
   })
 })

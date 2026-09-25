@@ -23,7 +23,7 @@ const evidenceCallbacks = {
 
 const meta = {
   title: 'Mobile/Organisms/Booking details',
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 } satisfies Meta
 
 export default meta

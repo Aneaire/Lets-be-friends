@@ -7,7 +7,7 @@ import { Checkbox, Input, Select, Textarea } from './Field'
 import { IconButton } from './IconButton'
 import { StatusBadge } from './StatusBadge'
 
-const meta = { title: 'Web/Atoms/Core controls', parameters: { viewport: { defaultViewport: 'mobileSmall' } } } satisfies Meta
+const meta = { title: 'Web/Atoms/Core controls', globals: { viewport: { value: 'mobileSmall', isRotated: false } } } satisfies Meta
 export default meta
 type Story = StoryObj<typeof meta>
 
@@ -15,12 +15,23 @@ export const ButtonIntents: Story = {
   render: () => <div className="ds-story-row"><Button intent="social">Message</Button><Button intent="self">Save profile</Button><Button intent="neutral">Details</Button><Button intent="danger">Delete</Button></div>,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const root = getComputedStyle(document.documentElement)
+    const resolveToken = (name: string) => {
+      const probe = document.createElement('span')
+      probe.style.backgroundColor = root.getPropertyValue(name).trim()
+      document.body.append(probe)
+      const value = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      return value
+    }
     const messageButton = getComputedStyle(canvas.getByRole('button', { name: 'Message' }))
     const saveButton = getComputedStyle(canvas.getByRole('button', { name: 'Save profile' }))
-    expect(messageButton.backgroundColor).toBe('rgb(193, 81, 156)')
-    expect(saveButton.backgroundColor).toBe('rgb(16, 147, 237)')
-    expect(messageButton.color).toBe('rgb(255, 255, 255)')
-    expect(saveButton.color).toBe('rgb(255, 255, 255)')
+    expect(messageButton.backgroundColor).toBe(resolveToken('--accent-social-control'))
+    expect(saveButton.backgroundColor).toBe(resolveToken('--accent-self-control'))
+    expect(messageButton.color).toBe(resolveToken('--accent-control-foreground'))
+    expect(saveButton.color).toBe(resolveToken('--accent-control-foreground'))
+    expect(root.getPropertyValue('--accent-social-button').trim()).toBe('#C1519C')
+    expect(root.getPropertyValue('--accent-self-button').trim()).toBe('#1093ED')
   },
 }
 export const ButtonLoadingDisabled: Story = { render: () => <div className="ds-story-row"><Button intent="social" loading loadingLabel="Sending">Send message</Button><Button disabled>Unavailable</Button><IconButton label="Save post" tone="social"><Bookmark size={18} /></IconButton><IconButton label="Add" tone="self"><Plus size={18} /></IconButton></div> }

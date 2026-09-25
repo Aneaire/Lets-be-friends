@@ -91,7 +91,7 @@ export function CategoryFilterDialog({
       ) : (
         <div className="category-filter-empty" role="status">
           <p>No categories match that search.</p>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setQuery('')}>Reset search</button>
+          <Button intent="ghost" size="small" onClick={() => setQuery('')}>Reset search</Button>
         </div>
       )}
     </Dialog>

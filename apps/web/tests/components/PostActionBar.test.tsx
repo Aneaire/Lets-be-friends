@@ -24,6 +24,12 @@ function renderActions(overrides: Partial<Parameters<typeof PostActionBar>[0]> =
 }
 
 describe('PostActionBar', () => {
+  it('exposes the actions as a named group', () => {
+    renderActions()
+
+    expect(screen.getByRole('group', { name: 'Post actions' })).toBeTruthy()
+  })
+
   it('shows icons without text or zero counts', () => {
     renderActions()
 
@@ -49,5 +55,14 @@ describe('PostActionBar', () => {
     expect(props.onLike).toHaveBeenCalledOnce()
     expect(props.onToggleComments).toHaveBeenCalledOnce()
     expect(props.onSave).toHaveBeenCalledOnce()
+  })
+
+  it('disables the comment control without hiding the like or save actions', () => {
+    renderActions({ commentsDisabled: true, likeCount: 2, commentCount: 1 })
+
+    const commentButton = screen.getByRole('button', { name: 'Show 1 comment' })
+    expect(commentButton.hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Appreciate post' }).hasAttribute('disabled')).toBe(false)
+    expect(screen.getByRole('button', { name: 'Save post' }).hasAttribute('disabled')).toBe(false)
   })
 })

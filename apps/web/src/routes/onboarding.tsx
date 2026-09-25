@@ -12,6 +12,10 @@ import {
   validateActivityCategories,
 } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { Button } from '../design-system/atoms/Button'
+import { Input, Textarea } from '../design-system/atoms/Field'
+import { InlineNotice } from '../design-system/molecules/FeedbackState'
+import { FormField } from '../design-system/molecules/FormField'
 import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
 import { roundCoordinates, type Coordinates } from '../lib/geo'
 import { currentTermsVersion, deviceLocationErrorMessage, goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
@@ -39,7 +43,7 @@ const companionJourney = [
   ['Help, earn, and connect', 'Accept or decline booking requests, coordinate safely, and earn from completed experiences. You can still book other Companions.'],
 ] as const
 
-function OnboardingPage() {
+export function OnboardingPage() {
   const { isSignedIn } = useAuth()
   const viewer = useQuery(api.users.viewer, isSignedIn ? {} : 'skip')
   const latestIdentityVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
@@ -96,7 +100,7 @@ function OnboardingPage() {
         <div className="onboarding-intro">
           <h1 className="text-display mt-4">What would you like to do together?</h1>
           <SignInButton mode="modal">
-            <button className="btn btn-self btn-lg mt-6">Sign in to continue</button>
+            <Button intent="self" size="large" className="mt-6">Sign in to continue</Button>
           </SignInButton>
         </div>
       </main>
@@ -369,9 +373,9 @@ function OnboardingPage() {
                 <p className="text-meta mt-1">Your rounded location is used continuously for discovery. If you become an approved Companion, your profile is always shown on the nearby map at this approximate location, including for online sessions. Ordinary member profiles are never placed on the map.</p>
               </div>
               <div className="flex gap-2 flex-wrap">
-                <button
-                  type="button"
-                  className="btn btn-self btn-sm"
+                <Button
+                  intent="self"
+                  size="small"
                   onClick={() => {
                     if (!navigator.geolocation) {
                       setLocationStatus('Location is not available in this browser. Try another browser or device.')
@@ -389,7 +393,7 @@ function OnboardingPage() {
                   }}
                 >
                   Use device location
-                </button>
+                </Button>
               </div>
               {pendingDeviceLocation && (
                 <div className="notice notice-warning mt-3" role="alert">
@@ -397,12 +401,12 @@ function OnboardingPage() {
                   <span>
                     <strong>Your device location may be exact.</strong> Only the two-decimal rounded result will be saved.
                     <span className="flex gap-2 flex-wrap mt-2">
-                      <button type="button" className="btn btn-self btn-sm" onClick={() => {
+                      <Button intent="self" size="small" onClick={() => {
                         setApproxLocation(roundCoordinates(pendingDeviceLocation))
                         setPendingDeviceLocation(null)
                         setLocationStatus('Rounded device location applied.')
-                      }}>Apply rounded location</button>
-                      <button type="button" className="btn btn-neutral btn-sm" onClick={() => setPendingDeviceLocation(null)}>Do not apply</button>
+                      }}>Apply rounded location</Button>
+                      <Button intent="neutral" size="small" onClick={() => setPendingDeviceLocation(null)}>Do not apply</Button>
                     </span>
                   </span>
                 </div>
@@ -481,18 +485,16 @@ function OnboardingPage() {
             <p className="text-body muted mt-2">Add the name and short introduction you want members to see. A profile photo can be added later from Profile.</p>
             <div className="onboarding-fields mt-6">
               <div className="onboarding-name-fields">
-                <label className="field-row">
-                  <span className="label">First name</span>
-                  <input className="field" autoComplete="given-name" value={firstName} maxLength={40} onChange={(event) => setFirstName(event.currentTarget.value)} />
-                </label>
-                <label className="field-row">
-                  <span className="label">Last name</span>
-                  <input className="field" autoComplete="family-name" value={lastName} maxLength={40} onChange={(event) => setLastName(event.currentTarget.value)} />
-                </label>
+                <FormField label="First name">
+                  <Input autoComplete="given-name" value={firstName} maxLength={40} onChange={(event) => setFirstName(event.currentTarget.value)} />
+                </FormField>
+                <FormField label="Last name">
+                  <Input autoComplete="family-name" value={lastName} maxLength={40} onChange={(event) => setLastName(event.currentTarget.value)} />
+                </FormField>
               </div>
               <label className="field-row">
                 <span className="label">Bio <span className="label-aux">optional</span></span>
-                <textarea className="field min-h-28" value={bio} maxLength={500} onChange={(event) => setBio(event.currentTarget.value)} placeholder="I can join you for your grocery trip and make it more fun." />
+                <Textarea className="min-h-28" value={bio} maxLength={500} onChange={(event) => setBio(event.currentTarget.value)} placeholder="I can join you for your grocery trip and make it more fun." />
               </label>
               {selectedGoal === 'companion' && (
                 <fieldset className="onboarding-category-field">
@@ -517,10 +519,8 @@ function OnboardingPage() {
                     })}
                   </div>
                   <div className="category-custom-entry mt-3">
-                    <label className="field-row">
-                      <span className="label">Add your own category</span>
-                      <input
-                        className="field"
+                    <FormField label="Add your own category">
+                      <Input
                         value={customCategory}
                         maxLength={maximumActivityCategoryLength}
                         disabled={selectedCategories.length >= maximumOnboardingActivityCategories}
@@ -535,15 +535,15 @@ function OnboardingPage() {
                         }}
                         placeholder="For example, museum visits"
                       />
-                    </label>
-                    <button
-                      type="button"
-                      className="btn btn-self btn-sm"
+                    </FormField>
+                    <Button
+                      intent="self"
+                      size="small"
                       disabled={selectedCategories.length >= maximumOnboardingActivityCategories}
                       onClick={addCustomCategory}
                     >
                       Add category
-                    </button>
+                    </Button>
                   </div>
                   {categoryError && <p className="field-row-help category-custom-error" role="alert">{categoryError}</p>}
                 </fieldset>
@@ -624,36 +624,35 @@ function OnboardingPage() {
           </div>
         )}
 
-        {identityFlow.message && <div className="notice notice-success mt-6" role="status"><span className="notice-icon">✓</span><span>{identityFlow.message}</span></div>}
-        {(error || identityFlow.error || companionIdentityFlow.error) && <div className="notice notice-danger mt-6"><span className="notice-icon">!</span><span>{companionIdentityFlow.error || identityFlow.error || error}</span></div>}
+        {identityFlow.message && <div className="mt-6"><InlineNotice tone="success">{identityFlow.message}</InlineNotice></div>}
+        {(error || identityFlow.error || companionIdentityFlow.error) && <div className="mt-6"><InlineNotice tone="danger">{companionIdentityFlow.error || identityFlow.error || error}</InlineNotice></div>}
 
         <footer className="onboarding-actions">
           {step > 1
-            ? <button type="button" className="btn btn-ghost" disabled={submitting} onClick={() => void finish(goalForSkip(goal))}>
+            ? <Button intent="ghost" disabled={submitting} onClick={() => void finish(goalForSkip(goal))}>
                 {submitting ? 'Saving…' : 'Skip for now'}
-              </button>
+              </Button>
             : <span />}
           <div className="flex items-center gap-2">
-            {step > 1 && <button type="button" className="btn btn-neutral" disabled={submitting} onClick={() => { setError(''); setStep((current) => current - 1) }}>Back</button>}
-            {step === 1 && <button type="button" className="btn btn-self" disabled={submitting || !approxLocation || !locationConsent || !termsAccepted || (!viewer.username && (Boolean(localUsernameError) || usernameAvailability === undefined || !usernameAvailability.available))} onClick={() => void saveUsernameAndContinue()}>{submitting ? 'Saving...' : viewer.username ? 'Save and continue' : 'Save setup and continue'}</button>}
-            {step === 2 && <button type="button" className="btn btn-self" onClick={() => setStep(3)}>Continue</button>}
-            {step === 3 && <button type="button" className="btn btn-self" disabled={submitting} onClick={() => void saveProfileAndContinue()}>{submitting ? 'Saving…' : 'Save and continue'}</button>}
-            {step === 4 && <button type="button" className="btn btn-self" onClick={() => setStep(5)}>Continue</button>}
+            {step > 1 && <Button intent="neutral" disabled={submitting} onClick={() => { setError(''); setStep((current) => current - 1) }}>Back</Button>}
+            {step === 1 && <Button intent="self" disabled={submitting || !approxLocation || !locationConsent || !termsAccepted || (!viewer.username && (Boolean(localUsernameError) || usernameAvailability === undefined || !usernameAvailability.available))} onClick={() => void saveUsernameAndContinue()}>{submitting ? 'Saving...' : viewer.username ? 'Save and continue' : 'Save setup and continue'}</Button>}
+            {step === 2 && <Button intent="self" onClick={() => setStep(3)}>Continue</Button>}
+            {step === 3 && <Button intent="self" disabled={submitting} onClick={() => void saveProfileAndContinue()}>{submitting ? 'Saving…' : 'Save and continue'}</Button>}
+            {step === 4 && <Button intent="self" onClick={() => setStep(5)}>Continue</Button>}
             {step === 5 && selectedGoal === 'companion' && (
-              <button
-                type="button"
-                className="btn btn-self"
+              <Button
+                intent="self"
                 disabled={submitting || companionIdentityFlow.busy || !hasCompanionApplication}
                 title={hasCompanionApplication ? undefined : 'Submit your Companion application above before continuing.'}
                 onClick={() => void finishCompanionWithIdentityReview()}
               >
                 {submitting || companionIdentityFlow.busy ? 'Opening identity check...' : companionIdentityActionLabel}
-              </button>
+              </Button>
             )}
             {step === 5 && selectedGoal === 'member' && (
-              <button type="button" className="btn btn-self" disabled={submitting || identityFlow.busy} onClick={() => void finishWithIdentityReview()}>
+              <Button intent="self" disabled={submitting || identityFlow.busy} onClick={() => void finishWithIdentityReview()}>
                 {submitting || identityFlow.busy ? 'Opening identity check...' : identityActionLabel}
-              </button>
+              </Button>
             )}
           </div>
         </footer>

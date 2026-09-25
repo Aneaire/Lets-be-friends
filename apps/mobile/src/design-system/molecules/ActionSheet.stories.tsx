@@ -51,7 +51,7 @@ function ActionSheetStory({ kind, disabled = false, busy = false, onAction }: Ac
 const meta = {
   title: 'Mobile/Molecules/Action sheet',
   component: ActionSheetStory,
-  parameters: { viewport: { defaultViewport: 'mobileDefault' } },
+  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
   args: {
     kind: 'owner',
     onAction: fn(),
@@ -111,7 +111,7 @@ export const Busy: Story = {
 
 export const Narrow320: Story = {
   args: { kind: 'owner' },
-  parameters: { viewport: { defaultViewport: 'mobileSmall' } },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
 }
 
 const styles = StyleSheet.create({
