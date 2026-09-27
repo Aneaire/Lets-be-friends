@@ -11,7 +11,7 @@ import { FeaturedComment, type FeaturedCommentView } from './FeaturedComment'
 import { SharedPostEmbed, SharedReviewEmbed, type SharedPostView, type SharedReviewView } from './SharedEmbeds'
 import { ProfileContentPanel, type ProfileContentPost, type ProfileContentReview } from '../profile/ProfileContentPanel'
 
-const storyPaths = ['/profile', '/member-profile', '/companion-profile', '/social', '/discover']
+const storyPaths = ['/profile', '/member-profile', '/companion-profile', '/social', '/discover', '/nearby']
 
 function StoryRouter({ children }: { children: ReactNode }) {
   const childrenRef = useRef(children)

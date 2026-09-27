@@ -141,11 +141,16 @@ function NearbySearchPage() {
 
   return (
     <main className="nearby-search-page">
+      <nav className="discover-destination-nav" aria-label="Explore destinations">
+        <Link to="/nearby" className="discover-destination-link" aria-current="page">Nearby</Link>
+        <Link to="/discover" className="discover-destination-link">People</Link>
+        <Link to="/circles" className="discover-destination-link">Circles</Link>
+      </nav>
       <header className="nearby-search-header">
         <div className="nearby-search-titlebar">
           <Link to="/discover" className="nearby-search-back">
             <ArrowLeft size={16} aria-hidden="true" />
-            <span>Explore</span>
+            <span>People</span>
           </Link>
           <div className="nearby-search-heading">
             <p className="eyebrow">Explore nearby</p>

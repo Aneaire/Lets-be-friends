@@ -194,7 +194,7 @@ function HomePage() {
             {invitationPrompts.map((prompt, index) => (
               <Link
                 key={prompt}
-                to="/discover"
+                to="/nearby"
                 className="invitation-prompt"
                 data-featured={index === 0 || undefined}
               >
@@ -203,7 +203,7 @@ function HomePage() {
             ))}
           </div>
           <div className="invitation-actions">
-            <Link to="/discover" className="btn btn-social btn-lg hero-action">Explore Companions</Link>
+            <Link to="/nearby" className="btn btn-social btn-lg hero-action">Explore Companions</Link>
             <HomeAuthAction />
             <Link to="/safety" className="btn btn-ghost">How safety works</Link>
           </div>
@@ -241,7 +241,7 @@ function HomePage() {
             {activityExamples.slice(0, 3).map((activity) => (
               <Link
                 key={activity.title}
-                to="/discover"
+                to="/nearby"
                 className="activity-card"
                 aria-label={`Explore people for ${activity.title.toLowerCase()}`}
               >
@@ -340,7 +340,7 @@ function HomePage() {
                   <ul aria-label={`${mode.label} examples`}>
                     {mode.examples.map((example) => <li key={example}>{example}</li>)}
                   </ul>
-                  <Link to="/discover" className={index === 0 ? 'btn btn-social-quiet btn-sm' : 'btn btn-self-quiet btn-sm'}>
+                  <Link to="/nearby" className={index === 0 ? 'btn btn-social-quiet btn-sm' : 'btn btn-self-quiet btn-sm'}>
                     Explore {mode.label.toLowerCase()} options
                   </Link>
                 </div>
@@ -357,7 +357,7 @@ function HomePage() {
               <p className="eyebrow">Need a little help?</p>
               <h2 className="text-display section-display">Find someone you will enjoy spending time with.</h2>
             </div>
-            <Link to="/discover" className="btn btn-social-quiet btn-sm">Explore everyone</Link>
+            <Link to="/nearby" className="btn btn-social-quiet btn-sm">Explore everyone</Link>
           </div>
           <div className="invitation-companion-grid">
               {companionsLoading && <HomeCompanionSkeletonRows />}
@@ -412,7 +412,7 @@ function HomePage() {
             <p className="lede mt-4">Let’s make everyday life a little easier and a little less lonely.</p>
             <div className="invitation-final-actions">
               <Link to="/become-companion" className="btn btn-self btn-lg">Become a Companion</Link>
-              <Link to="/discover" className="btn btn-social btn-lg">Find a Companion</Link>
+              <Link to="/nearby" className="btn btn-social btn-lg">Find a Companion</Link>
             </div>
           </div>
           <ActivityStoryPhoto

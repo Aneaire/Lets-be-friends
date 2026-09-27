@@ -61,7 +61,7 @@ function isRoundedCoordinate(value: number | undefined) {
 }
 
 export function onboardingDestination(goal: OnboardingGoal) {
-  return goal === 'companion' ? '/become-companion' as const : '/discover' as const
+  return goal === 'companion' ? '/become-companion' as const : '/nearby' as const
 }
 
 export function goalForSkip(goal?: OnboardingGoal): OnboardingGoal {

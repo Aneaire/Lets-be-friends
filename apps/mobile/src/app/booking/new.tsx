@@ -31,18 +31,18 @@ export default function NewBookingScreen() {
   const finance = useQuery(mobileApi.finance.memberDashboard, member.status === 'ready' ? {} : 'skip')
 
   if (member.status === 'signed_out') return <BookingGate title="Sign in to request a booking" actionLabel="Sign in" onPress={() => router.replace('/auth')} />
-  if (member.status === 'unconfigured') return <BookingGate title="Bookings need account services" actionLabel="Return to Explore" onPress={() => router.replace('/explore')} />
+  if (member.status === 'unconfigured') return <BookingGate title="Bookings need account services" actionLabel="Return to Explore" onPress={() => router.replace('/nearby')} />
   if (member.status === 'unavailable' || member.status === 'error') return <BookingGate title="Bookings are unavailable" detail="Your member account could not be connected safely." />
   if (member.status !== 'ready') return <PageSkeleton variant="bookingForm" />
   if (companionResult === undefined) return <PageSkeleton variant="bookingForm" />
-  if (companionResult === null) return <BookingGate title="This Companion is unavailable" actionLabel="Return to Explore" onPress={() => router.replace('/explore')} />
+  if (companionResult === null) return <BookingGate title="This Companion is unavailable" actionLabel="Return to Explore" onPress={() => router.replace('/nearby')} />
   if (finance === undefined) return <PageSkeleton variant="bookingForm" />
   if (finance === null) return <BookingGate title="Bookings are unavailable" detail="Your booking balance could not be connected safely." />
-  if (!finance.enabled) return <BookingGate title="Bookings are unavailable" detail="Member booking services are not accepting requests right now." actionLabel="Return to profile" onPress={() => goBackOr('/explore')} />
+  if (!finance.enabled) return <BookingGate title="Bookings are unavailable" detail="Member booking services are not accepting requests right now." actionLabel="Return to profile" onPress={() => goBackOr('/nearby')} />
 
   const companion = mapPublicCompanion(companionResult as ApprovedCompanionRecord)
   if (!companion.bookable || companion.viewerBookingEligibility !== 'eligible' || !companion.hourlyRateCentavos) {
-    return <BookingGate title="This booking cannot be requested" detail="Return to the Companion profile for current eligibility details." actionLabel="Return to profile" onPress={() => goBackOr('/explore')} />
+    return <BookingGate title="This booking cannot be requested" detail="Return to the Companion profile for current eligibility details." actionLabel="Return to profile" onPress={() => goBackOr('/nearby')} />
   }
   return <BookingForm companion={companion} availableCentavos={finance.availableCentavos} />
 }
@@ -110,7 +110,7 @@ function BookingForm({ companion, availableCentavos }: { companion: ReturnType<t
   return (
     <Screen contentStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.navRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => goBackOr('/explore')} style={styles.back}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => goBackOr('/nearby')} style={styles.back}>
           <AppText variant="heading">‹</AppText>
         </Pressable>
         <AppText variant="label" color={theme.colors.social}>BOOKING REQUEST</AppText>
@@ -151,7 +151,7 @@ function BookingForm({ companion, availableCentavos }: { companion: ReturnType<t
       </View>
 
       <ActionButton label={submitting ? 'Sending request' : 'Send booking request'} onPress={() => void submit()} disabled={submitting} />
-      <ActionButton label="Cancel" onPress={() => goBackOr('/explore')} secondary disabled={submitting} />
+      <ActionButton label="Cancel" onPress={() => goBackOr('/nearby')} secondary disabled={submitting} />
     </Screen>
   )
 }
@@ -221,7 +221,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return <BookingGate title="Booking options are temporarily unavailable" detail="No booking request was sent. Please try again." actionLabel="Try again" onPress={retry} />
 }
 
-function goBackOr(fallback: '/explore') {
+function goBackOr(fallback: '/nearby') {
   if (router.canGoBack()) router.back()
   else router.replace(fallback)
 }

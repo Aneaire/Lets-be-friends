@@ -68,7 +68,7 @@ function RootNotFound() {
       <p className="lede mt-2">The page may have moved, or you may have followed an old link. Members and Companions can still reach Home, Explore, and bookings from here.</p>
       <div className="mt-5 flex gap-2">
         <Link to="/" className="btn btn-social btn-sm">Go to Home</Link>
-        <Link to="/discover" className="btn btn-neutral btn-sm">Explore people</Link>
+        <Link to="/nearby" className="btn btn-neutral btn-sm">Explore people</Link>
       </div>
     </main>
   )

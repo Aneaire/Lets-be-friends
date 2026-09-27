@@ -609,7 +609,7 @@ function ConversationList({
           />
         </Link>
       ))}
-      <Link to="/discover" className="btn btn-social btn-sm mt-3">Find people</Link>
+      <Link to="/nearby" className="btn btn-social btn-sm mt-3">Find people</Link>
     </div>
   )
 }
@@ -621,7 +621,7 @@ function EmptyInbox() {
       <p className="empty-state-title">Your conversations will appear here.</p>
       <p className="text-meta">Open someone’s profile or a community post when you are ready to say hello.</p>
       <div className="flex gap-2 justify-center mt-4">
-        <Link to="/discover" className="btn btn-social btn-sm">Explore people</Link>
+        <Link to="/nearby" className="btn btn-social btn-sm">Explore people</Link>
         <Link to="/social" className="btn btn-neutral btn-sm">See community posts</Link>
       </div>
     </div>

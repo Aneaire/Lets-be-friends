@@ -1,15 +1,15 @@
 import {
   useRef,
-  useEffect,
   useState,
   type CSSProperties,
   type Dispatch,
   type SetStateAction,
   type SyntheticEvent,
 } from 'react'
-import { Volume2, VolumeX, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { OpenableImage } from '../../design-system/molecules/OpenableImage'
 import { Dialog } from '../../design-system/molecules/Dialog'
+import { SocialVideoPlayer } from './SocialVideoPlayer'
 
 type MediaKind = 'image' | 'video'
 
@@ -28,6 +28,7 @@ type DisplayPostMediaGridProps = {
   media: readonly DisplayPostMediaItem[]
   mode?: 'display'
   className?: string
+  onOpenAt?: (index: number) => void
 }
 
 type PreviewPostMediaGridProps = {
@@ -41,10 +42,6 @@ export type PostMediaGridProps = DisplayPostMediaGridProps | PreviewPostMediaGri
 
 type PortraitAspectStyle = CSSProperties & {
   '--social-media-aspect'?: number
-}
-
-type VideoProgressStyle = CSSProperties & {
-  '--video-progress': string
 }
 
 export function PostMediaGrid(props: PostMediaGridProps) {
@@ -79,6 +76,7 @@ export function PostMediaGrid(props: PostMediaGridProps) {
           const portraitStyle: PortraitAspectStyle | undefined = portraitAspect
             ? { '--social-media-aspect': portraitAspect }
             : undefined
+          const openViewer = props.onOpenAt ? () => props.onOpenAt?.(index) : undefined
 
           return (
             <div
@@ -87,7 +85,22 @@ export function PostMediaGrid(props: PostMediaGridProps) {
               data-layout={portraitAspect ? 'portrait' : undefined}
               style={portraitStyle}
             >
-              {item.url && item.kind === 'image' && (
+              {item.url && item.kind === 'image' && openViewer && (
+                <button
+                  type="button"
+                  className="social-media-open"
+                  onClick={openViewer}
+                  aria-label={`Open post image ${index + 1} with description and comments`}
+                >
+                  <img
+                    src={item.url}
+                    alt={`Image ${index + 1} shared in this post`}
+                    loading="lazy"
+                    onLoad={(event) => rememberPortraitAspect(event, item.storageId, setPortraitAspects)}
+                  />
+                </button>
+              )}
+              {item.url && item.kind === 'image' && !openViewer && (
                 <OpenableImage
                   src={item.url}
                   alt={`Image ${index + 1} shared in this post`}
@@ -98,7 +111,7 @@ export function PostMediaGrid(props: PostMediaGridProps) {
                 />
               )}
               {item.url && item.kind === 'video' && (
-                <PostVideo src={item.url} label={`Video ${index + 1} shared in this post`} />
+                <PostVideo src={item.url} label={`Video ${index + 1} shared in this post`} onOpen={openViewer} />
               )}
             </div>
           )
@@ -112,90 +125,52 @@ function playOptionalVideo(video: HTMLVideoElement) {
   void playback?.catch(() => undefined)
 }
 
-function PostVideo({ label, src }: { label: string; src: string }) {
+function PostVideo({ label, src, onOpen }: { label: string; src: string; onOpen?: () => void }) {
   const inlineStageRef = useRef<HTMLDivElement>(null)
-  const inlineVideoRef = useRef<HTMLVideoElement>(null)
-  const dialogVideoRef = useRef<HTMLVideoElement>(null)
-  const inlineVisibleRef = useRef(true)
-  const [duration, setDuration] = useState(0)
-  const [currentTime, setCurrentTime] = useState(0)
+  const dialogTimeRef = useRef(0)
   const [muted, setMuted] = useState(true)
+  const [startAt, setStartAt] = useState(0)
   const [open, setOpen] = useState(false)
 
-  useEffect(() => {
-    const stage = inlineStageRef.current
-    const video = inlineVideoRef.current
-    if (!stage || !video || !('IntersectionObserver' in window)) return
-
-    const observer = new IntersectionObserver(([entry]) => {
-      const visible = entry.isIntersecting && entry.intersectionRatio >= 0.6
-      inlineVisibleRef.current = visible
-      if (open) return
-      if (visible) playOptionalVideo(video)
-      else video.pause()
-    }, { threshold: [0, 0.6] })
-
-    observer.observe(stage)
-    return () => observer.disconnect()
-  }, [open])
-
   function openViewer() {
-    const video = inlineVideoRef.current
-    if (video) video.pause()
+    const video = inlineStageRef.current?.querySelector('video')
+    if (video) {
+      video.pause()
+      if (Number.isFinite(video.currentTime)) setStartAt(video.currentTime)
+    }
+    if (onOpen) {
+      onOpen()
+      return
+    }
     setOpen(true)
   }
 
   function closeViewer() {
-    const dialogVideo = dialogVideoRef.current
-    if (dialogVideo) setCurrentTime(dialogVideo.currentTime)
     setOpen(false)
-    window.requestAnimationFrame(() => {
-      const video = inlineVideoRef.current
-      if (!video) return
-      video.currentTime = dialogVideo?.currentTime ?? video.currentTime
-      if (inlineVisibleRef.current) playOptionalVideo(video)
-    })
+    const video = inlineStageRef.current?.querySelector('video')
+    if (video && Number.isFinite(dialogTimeRef.current)) {
+      try {
+        video.currentTime = dialogTimeRef.current
+      } catch {
+        // Ignore seeks the browser rejects before data loads.
+      }
+    }
   }
-
-  function toggleMuted() {
-    setMuted((value) => !value)
-  }
-
-  const progress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0
-  const progressStyle: VideoProgressStyle = { '--video-progress': `${progress * 100}%` }
 
   return (
     <>
       <div ref={inlineStageRef} className="social-post-video">
-        <video
-          ref={inlineVideoRef}
+        <SocialVideoPlayer
           src={src}
+          label={label}
           autoPlay
           loop
           muted={muted}
-          playsInline
-          preload="metadata"
-          onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
-          onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+          onMutedChange={setMuted}
+          onExpand={openViewer}
+          onSurfaceClick={openViewer}
+          pauseWhenHidden
         />
-        <button
-          type="button"
-          className="social-post-video-open"
-          aria-label={`Open ${label}`}
-          onClick={openViewer}
-        />
-        <div className="social-post-video-controls">
-          <button
-            type="button"
-            className="social-post-video-mute"
-            aria-label={muted ? 'Unmute video' : 'Mute video'}
-            aria-pressed={!muted}
-            onClick={toggleMuted}
-          >
-            {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
-          </button>
-        </div>
-        <div className="social-post-video-progress" style={progressStyle} aria-hidden="true" />
       </div>
       <Dialog
         open={open}
@@ -208,33 +183,18 @@ function PostVideo({ label, src }: { label: string; src: string }) {
         dismissOnBodyPointerDown
       >
         <div className="social-post-video social-post-video-expanded">
-          <video
-            ref={dialogVideoRef}
+          <SocialVideoPlayer
             src={src}
+            label={`${label}, expanded`}
             autoPlay
             loop
-            muted={muted}
-            playsInline
-            preload="metadata"
-            aria-label={`${label}, expanded`}
-            onLoadedMetadata={(event) => {
-              event.currentTarget.currentTime = currentTime
-              setDuration(event.currentTarget.duration)
+            startAt={startAt}
+            initialMuted={muted}
+            onMutedChange={setMuted}
+            onCurrentTimeChange={(next) => {
+              dialogTimeRef.current = next
             }}
-            onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
           />
-          <div className="social-post-video-controls">
-            <button
-              type="button"
-              className="social-post-video-mute"
-              aria-label={muted ? 'Unmute video' : 'Mute video'}
-              aria-pressed={!muted}
-              onClick={toggleMuted}
-            >
-              {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
-            </button>
-          </div>
-          <div className="social-post-video-progress" style={progressStyle} aria-hidden="true" />
         </div>
       </Dialog>
     </>

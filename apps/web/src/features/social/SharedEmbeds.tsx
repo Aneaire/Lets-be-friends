@@ -51,7 +51,7 @@ export function SharedPostEmbed({ post }: { post: SharedPostView }) {
         <AuthorProfileLink post={post} className="social-shared-embed-avatar" label={`View ${post.authorDisplayName}'s profile`}>
           <Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="small" decorative />
         </AuthorProfileLink>
-        <div>
+        <div className="social-shared-embed-identity">
           <AuthorProfileLink post={post} className="social-shared-embed-author" label={`View ${post.authorDisplayName}'s profile`}>
             {post.authorDisplayName}
           </AuthorProfileLink>
@@ -71,7 +71,7 @@ export function SharedReviewEmbed({ review }: { review: SharedReviewView }) {
         <Link to="/member-profile" search={{ userId: review.reviewerId }} className="social-shared-embed-avatar" aria-label={`View ${review.reviewerDisplayName}'s profile`}>
           <Avatar name={review.reviewerDisplayName} src={review.reviewerProfileImageUrl} size="small" decorative />
         </Link>
-        <div>
+        <div className="social-shared-embed-identity">
           <Link to="/member-profile" search={{ userId: review.reviewerId }} className="social-shared-embed-author">{review.reviewerDisplayName}</Link>
           <p className="text-meta">reviewed {review.companionDisplayName ?? 'a Companion'}</p>
         </div>

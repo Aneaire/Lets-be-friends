@@ -32,7 +32,7 @@ function ConversationInbox({ conversations }: { conversations: Conversation[] })
     <Screen contentStyle={styles.content}>
       <View style={styles.header}><AppText variant="title">Messages</AppText><AppText color={theme.colors.textMuted}>Direct conversations with booking context and live read state.</AppText></View>
       {conversations.length === 0 ? (
-        <StateView embedded title="No conversations yet" detail="Message a live Companion from their profile or start with a booking request." actionLabel="Explore Companions" onAction={() => router.push('/explore')} />
+        <StateView embedded title="No conversations yet" detail="Message a live Companion from their profile or start with a booking request." actionLabel="Explore Companions" onAction={() => router.push('/nearby')} />
       ) : <View style={styles.list}>{conversations.map((conversation) => <ConversationRow key={conversation._id} conversation={conversation} />)}</View>}
     </Screen>
   )

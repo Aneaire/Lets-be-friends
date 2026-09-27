@@ -43,7 +43,12 @@ describe('PostMediaGrid', () => {
     expect(openButton.classList.contains('social-post-video-open')).toBe(true)
     expect(openButton.hasAttribute('style')).toBe(false)
     expect(screen.getByRole('button', { name: 'Unmute video' })).toBeTruthy()
-    expect(container.querySelector('.social-post-video-time')).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Play Video 2 shared in this post' })).toHaveLength(1)
+    expect(screen.getByRole('slider', { name: 'Seek Video 2 shared in this post' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Go back 10 seconds' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Go forward 10 seconds' })).toBeNull()
+    expect(screen.queryByRole('slider', { name: 'Video volume' })).toBeNull()
+    expect(container.querySelector('.social-video-scrub')).toBeTruthy()
   })
 
   it('updates video time, toggles sound, and opens the expanded video', () => {
@@ -59,13 +64,25 @@ describe('PostMediaGrid', () => {
 
     fireEvent.loadedMetadata(video)
     fireEvent.timeUpdate(video)
-    expect(container.querySelector<HTMLElement>('.social-post-video-progress')?.style.getPropertyValue('--video-progress')).toBe(`${(6 / 76) * 100}%`)
+    const seek = screen.getByRole('slider', { name: 'Seek Video 1 shared in this post' }) as HTMLInputElement
+    expect(seek.max).toBe('76')
+    expect(seek.value).toBe('6')
 
     fireEvent.click(screen.getByRole('button', { name: 'Unmute video' }))
     expect(screen.getByRole('button', { name: 'Mute video' }).getAttribute('aria-pressed')).toBe('true')
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Video 1 shared in this post' }))
     expect(video.pause).toHaveBeenCalledOnce()
+    expect(screen.getByRole('dialog', { name: 'Video 1 shared in this post' })).toBeTruthy()
+    expect(screen.getByLabelText('Video 1 shared in this post, expanded')).toBeTruthy()
+  })
+
+  it('opens the expanded viewer when the video surface is clicked on the feed', () => {
+    render(
+      <PostMediaGrid media={[{ storageId: 'video-1', kind: 'video', url: '/clip.mp4' }]} />,
+    )
+
+    fireEvent.click(screen.getByLabelText('Video 1 shared in this post'))
     expect(screen.getByRole('dialog', { name: 'Video 1 shared in this post' })).toBeTruthy()
     expect(screen.getByLabelText('Video 1 shared in this post, expanded')).toBeTruthy()
   })
@@ -97,7 +114,7 @@ describe('PostMediaGrid', () => {
     expect(pause).toHaveBeenCalledOnce()
     reportIntersection([{ isIntersecting: true, intersectionRatio: 0.6 } as IntersectionObserverEntry], {} as IntersectionObserver)
     expect(play).toHaveBeenCalledOnce()
-    expect(observe).toHaveBeenCalledWith(container.querySelector('.social-post-video'))
+    expect(observe).toHaveBeenCalledWith(container.querySelector('.social-video-player'))
 
     unmount()
     expect(disconnect).toHaveBeenCalledOnce()
@@ -138,24 +155,13 @@ describe('PostMediaGrid', () => {
     vi.unstubAllGlobals()
   })
 
-  it('resumes inline playback on close and contains a rejected play promise', () => {
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-      callback(0)
-      return 0
-    })
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-
+  it('restores the expanded video position inline on close', () => {
     const { container } = render(
       <PostMediaGrid media={[{ storageId: 'video-1', kind: 'video', url: '/clip.mp4' }]} />,
     )
     const inlineVideo = container.querySelector('video')!
-    const rejectedPlayback = Promise.reject(new DOMException('The play() request was interrupted.', 'AbortError'))
-    void rejectedPlayback.catch(() => undefined)
-    const catchSpy = vi.spyOn(rejectedPlayback, 'catch')
-    const play = vi.fn().mockReturnValue(rejectedPlayback)
     const pause = vi.fn()
     Object.defineProperties(inlineVideo, {
-      play: { configurable: true, value: play },
       pause: { configurable: true, value: pause },
       currentTime: { configurable: true, writable: true, value: 4 },
     })
@@ -165,13 +171,12 @@ describe('PostMediaGrid', () => {
 
     const dialogVideo = screen.getByLabelText('Video 1 shared in this post, expanded')
     Object.defineProperty(dialogVideo, 'currentTime', { configurable: true, value: 9 })
+    fireEvent.timeUpdate(dialogVideo)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close video' }))
 
     expect(inlineVideo.currentTime).toBe(9)
-    expect(play).toHaveBeenCalledOnce()
-    expect(catchSpy).toHaveBeenCalledOnce()
-    vi.unstubAllGlobals()
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('keeps display items keyed by storage id when their order changes', () => {

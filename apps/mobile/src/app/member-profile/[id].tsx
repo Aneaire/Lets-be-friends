@@ -48,7 +48,7 @@ function ConnectedMemberProfile({ id }: { id: string }) {
   useAppToastMessage(message)
 
   if (profile === undefined) return <PageSkeleton variant="publicProfile" />
-  if (profile === null) return <ProfileState title="Profile unavailable" detail="This member profile is no longer available." action="Return to Explore" onPress={() => router.replace('/explore')} />
+  if (profile === null) return <ProfileState title="Profile unavailable" detail="This member profile is no longer available." action="Return to Explore" onPress={() => router.replace('/nearby')} />
 
   const userProfile = profile
   const signedIn = member.status === 'ready'
@@ -153,7 +153,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 
 function goBackOrExplore() {
   if (router.canGoBack()) router.back()
-  else router.replace('/explore')
+  else router.replace('/nearby')
 }
 
 const styles = StyleSheet.create({

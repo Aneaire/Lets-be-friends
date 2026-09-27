@@ -57,7 +57,7 @@ function CompanionRecommendation({ item, onAction }: { item: Extract<FeedItem, {
 }
 
 function GuidanceCard({ item, onAction }: { item: Extract<FeedItem, { kind: 'guidance' }>; onAction: (action: FeedAction) => void }) {
-  return <GuidanceFeedCard reason={item.reason} title={item.title} body={item.body} actionLabel={item.actionLabel} onPress={() => { onAction('open_guidance'); router.push('/explore') }} />
+  return <GuidanceFeedCard reason={item.reason} title={item.title} body={item.body} actionLabel={item.actionLabel} onPress={() => { onAction('open_guidance'); router.push('/nearby') }} />
 }
 
 function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFollow, onAction }: {

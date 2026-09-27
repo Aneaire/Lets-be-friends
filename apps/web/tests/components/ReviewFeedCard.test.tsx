@@ -35,6 +35,12 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
+vi.mock('convex/react', () => ({
+  useQuery: () => undefined,
+  useMutation: () => (..._args: unknown[]) => Promise.resolve(undefined),
+  usePaginatedQuery: () => ({ results: [], status: 'LoadingFirstPage', loadMore: () => undefined }),
+}))
+
 import { ReviewFeedCard } from '../../src/features/social/ReviewFeedCard'
 
 afterEach(cleanup)
@@ -119,15 +125,53 @@ describe('ReviewFeedCard layout regression', () => {
     expect(onLike).toHaveBeenCalledOnce()
 
     fireEvent.click(screen.getByRole('button', { name: 'Show 2 comments' }))
-    expect(onOpen).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('dialog', { name: 'Review by Robin Lee' })).toBeTruthy()
+    expect(screen.getByText('Loading comments...')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+    expect(onOpen).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('link', { name: 'Shared an experience with Jordan Companion' }))
-    expect(onOpen).toHaveBeenCalledTimes(2)
+    expect(onOpen).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'Save post' }))
     expect(onSave).toHaveBeenCalledOnce()
 
     fireEvent.click(screen.getByRole('button', { name: 'Share post' }))
     expect(screen.getByText('Share this review')).toBeTruthy()
+  })
+
+  it('opens the fullscreen viewer from the review photo with description and comments', () => {
+    mountCard()
+
+    fireEvent.click(screen.getByRole('button', { name: "Open Robin Lee's review photo with description and comments" }))
+    expect(screen.getByRole('dialog', { name: 'Review by Robin Lee' })).toBeTruthy()
+    expect(screen.getAllByText('A thoughtful walk and an easy conversation.').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('renders exactly one review per card even when the review carries comments', () => {
+    const review = {
+      ...buildReview(),
+      commentCount: 2,
+      comments: [
+        { _id: 'comment-1', body: 'First comment body', authorDisplayName: 'Alex Rivera' },
+        { _id: 'comment-2', body: 'Second comment body', authorDisplayName: 'Casey Morgan' },
+      ],
+    }
+    render(
+      <ReviewFeedCard
+        review={review as unknown as Parameters<typeof ReviewFeedCard>[0]['review']}
+        viewerReady
+        onLike={vi.fn()}
+        onOpen={vi.fn()}
+        onSave={vi.fn()}
+        onShareToFeed={vi.fn().mockResolvedValue(undefined)}
+      />,
+    )
+
+    expect(screen.getAllByRole('article', { name: 'Review by Robin Lee' })).toHaveLength(1)
+    expect(screen.getAllByLabelText('5 out of 5 stars')).toHaveLength(1)
+    expect(screen.getByText('A thoughtful walk and an easy conversation.')).toBeTruthy()
+    expect(screen.queryByText('First comment body')).toBeNull()
+    expect(screen.queryByText('Second comment body')).toBeNull()
   })
 })

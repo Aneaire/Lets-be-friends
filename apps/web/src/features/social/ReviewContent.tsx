@@ -9,6 +9,7 @@ export function ReviewContent({
   showRatingValue = false,
   bodyClassName = 'social-review-body',
   imageWrapperClassName,
+  onOpenImage,
 }: {
   rating: number
   body?: string | null
@@ -17,9 +18,21 @@ export function ReviewContent({
   showRatingValue?: boolean
   bodyClassName?: string
   imageWrapperClassName?: string
+  onOpenImage?: () => void
 }) {
   const image = imageUrl ? (
-    <OpenableImage src={imageUrl} alt={`Photo shared with ${reviewerDisplayName}'s review`} />
+    onOpenImage ? (
+      <button
+        type="button"
+        className="social-review-image-open"
+        onClick={onOpenImage}
+        aria-label={`Open ${reviewerDisplayName}'s review photo with description and comments`}
+      >
+        <img src={imageUrl} alt={`Photo shared with ${reviewerDisplayName}'s review`} loading="lazy" />
+      </button>
+    ) : (
+      <OpenableImage src={imageUrl} alt={`Photo shared with ${reviewerDisplayName}'s review`} />
+    )
   ) : null
 
   return (

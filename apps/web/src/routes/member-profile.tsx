@@ -47,7 +47,7 @@ function MemberProfilePage() {
 
   return (
     <main className="profile-page member-profile-page">
-      <Link to="/discover" className="member-profile-back"><ArrowLeft size={15} aria-hidden="true" />Explore people</Link>
+      <Link to="/nearby" className="member-profile-back"><ArrowLeft size={15} aria-hidden="true" />Explore people</Link>
       <section className="panel member-profile-card">
         <div className="member-profile-photo" aria-hidden={profile.profileImageUrl ? undefined : true}>
           {profile.profileImageUrl
@@ -93,5 +93,5 @@ function MemberProfilePage() {
 }
 
 function UnavailableProfile({ detail }: { detail: string }) {
-  return <main className="marketing-page"><h1 className="text-h1">Profile unavailable</h1><p className="lede mt-2">{detail}</p><Link to="/discover" className="btn btn-neutral btn-sm mt-5">Back to Explore</Link></main>
+  return <main className="marketing-page"><h1 className="text-h1">Profile unavailable</h1><p className="lede mt-2">{detail}</p><Link to="/nearby" className="btn btn-neutral btn-sm mt-5">Back to Explore</Link></main>
 }

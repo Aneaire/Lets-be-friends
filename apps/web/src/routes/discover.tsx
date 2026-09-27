@@ -86,6 +86,7 @@ export function DiscoverPage() {
   return (
     <main className="marketing-page-wide discover-page">
       <nav className="discover-destination-nav" aria-label="Explore destinations">
+        <Link to="/nearby" className="discover-destination-link">Nearby</Link>
         <Link
           to="/discover"
           className="discover-destination-link"
@@ -95,7 +96,6 @@ export function DiscoverPage() {
           People
         </Link>
         <Link to="/circles" className="discover-destination-link">Circles</Link>
-        <Link to="/nearby" className="discover-destination-link">Nearby</Link>
         <a
           href="#reviews"
           className="discover-destination-link"

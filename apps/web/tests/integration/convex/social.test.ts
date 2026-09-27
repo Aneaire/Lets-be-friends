@@ -1729,50 +1729,35 @@ describe('review feed v2', () => {
     expect(second.map((item: any) => item.itemKey)).toEqual(first.map((item: any) => item.itemKey))
   })
 
-  it('suppresses recently shown reviews when alternatives exist and falls back otherwise', async () => {
+  it('keeps the same direct reviews after impressions are recorded', async () => {
     const t = createTest()
-    await insertUser(t, 'v2-suppress-viewer')
+    await insertUser(t, 'v2-stable-viewer')
     const now = Date.now()
     for (let index = 0; index < 10; index += 1) {
-      const authorId = await insertUser(t, `v2-suppress-author-${index}`)
-      await insertPost(t, authorId, `suppress post ${index}`, { createdAt: now - 100 - index })
+      const authorId = await insertUser(t, `v2-stable-author-${index}`)
+      await insertPost(t, authorId, `stable post ${index}`, { createdAt: now - 100 - index })
     }
-    const worlds = [
-      await reviewWorld(t, 'v2-suppress-a', { rating: 5 }),
-      await reviewWorld(t, 'v2-suppress-b', { rating: 1 }),
-      await reviewWorld(t, 'v2-suppress-c', { rating: 3 }),
-    ]
-    const viewer = t.withIdentity({ subject: 'v2-suppress-viewer' })
+    await reviewWorld(t, 'v2-stable-a', { rating: 5 })
+    await reviewWorld(t, 'v2-stable-b', { rating: 1 })
+    await reviewWorld(t, 'v2-stable-c', { rating: 3 })
+    const viewer = t.withIdentity({ subject: 'v2-stable-viewer' })
     const shownReviewIds = async () => (await viewer.query(api.social.feed, { filter: 'for_you' }) as any[])
       .filter((item: any) => item.kind === 'review')
       .map((item: any) => String(item.review._id))
 
-    // Three eligible candidates with a cap of two: the first page shows two,
-    // leaving one unseen alternative.
-    let reviewIds = await shownReviewIds()
-    expect(reviewIds).toHaveLength(2)
-    const hidden = worlds.map((world) => String(world.reviewId)).find((id) => !reviewIds.includes(id))
-    expect(hidden).toBeDefined()
+    // Three eligible candidates with a cap of two: the first page shows two.
+    const before = await shownReviewIds()
+    expect(before).toHaveLength(2)
 
-    // Suppressing both shown reviews must surface the unseen third. When
-    // suppression runs after the cap, only the seen pair remains and the
-    // helper falls back to it, so this fails without suppression-first ordering.
+    // Recording impressions must not swap the cards in place. The feed query
+    // must not read feedEvents, otherwise the reactive re-run replaces the
+    // just-seen reviews seconds after first paint.
     await viewer.mutation(api.social.recordFeedImpressions, {
-      sessionId: 'session-suppress-1234',
+      sessionId: 'session-stable-1234',
       surface: 'for_you',
-      items: reviewIds.map((id, index) => ({ itemKey: `review:${id}`, itemType: 'review' as const, source: 'review' as const, position: 3 + index })),
+      items: before.map((id, index) => ({ itemKey: `review:${id}`, itemType: 'review' as const, source: 'review' as const, position: 3 + index })),
     })
-    reviewIds = await shownReviewIds()
-    expect(reviewIds).toEqual([hidden])
-
-    // Suppressing every candidate falls back instead of emptying discovery.
-    await viewer.mutation(api.social.recordFeedImpressions, {
-      sessionId: 'session-suppress-5678',
-      surface: 'for_you',
-      items: [{ itemKey: `review:${hidden}`, itemType: 'review', source: 'review', position: 3 }],
-    })
-    reviewIds = await shownReviewIds()
-    expect(reviewIds).toHaveLength(2)
+    expect(await shownReviewIds()).toEqual(before)
   })
 
   it('keeps For You pagination correct with reviews only on the first page', async () => {

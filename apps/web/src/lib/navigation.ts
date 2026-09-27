@@ -1,6 +1,6 @@
 export const primaryNavigation = [
   { id: 'home', to: '/social', label: 'Home' },
-  { id: 'discover', to: '/discover', label: 'Explore' },
+  { id: 'discover', to: '/nearby', label: 'Explore' },
   { id: 'circles', to: '/circles', label: 'Circles' },
   { id: 'messages', to: '/messages', label: 'Messages' },
   { id: 'bookings', to: '/app', label: 'Bookings' },

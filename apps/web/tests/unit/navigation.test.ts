@@ -5,7 +5,7 @@ describe('application navigation', () => {
   it('keeps frequent member destinations in a stable order', () => {
     expect(primaryNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
       { label: 'Home', to: '/social' },
-      { label: 'Explore', to: '/discover' },
+      { label: 'Explore', to: '/nearby' },
       { label: 'Circles', to: '/circles' },
       { label: 'Messages', to: '/messages' },
       { label: 'Bookings', to: '/app' },
@@ -15,7 +15,7 @@ describe('application navigation', () => {
   it('keeps the sidebar focused on discovery and Circle destinations', () => {
     expect(sidebarNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
       { label: 'Home', to: '/social' },
-      { label: 'Explore', to: '/discover' },
+      { label: 'Explore', to: '/nearby' },
       { label: 'Circles', to: '/circles' },
     ])
   })
@@ -30,7 +30,7 @@ describe('application navigation', () => {
   it('keeps Circles out of the mobile bottom tabs', () => {
     expect(mobileNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
       { label: 'Home', to: '/social' },
-      { label: 'Explore', to: '/discover' },
+      { label: 'Explore', to: '/nearby' },
       { label: 'Messages', to: '/messages' },
       { label: 'Bookings', to: '/app' },
     ])

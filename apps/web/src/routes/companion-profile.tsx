@@ -53,7 +53,7 @@ function CompanionProfilePage() {
     return (
       <main className="marketing-page">
         <h1 className="text-h1 mt-2">Choose someone from Explore first.</h1>
-        <Link to="/discover" className="btn btn-social btn-sm mt-5">Explore people</Link>
+        <Link to="/nearby" className="btn btn-social btn-sm mt-5">Explore people</Link>
       </main>
     )
   }
@@ -64,7 +64,7 @@ function CompanionProfilePage() {
       <main className="marketing-page">
         <h1 className="text-h1 mt-2">Profile is not available.</h1>
         <p className="lede mt-2">This profile may still be in review or no longer be available.</p>
-        <Link to="/discover" className="btn btn-neutral btn-sm mt-5">Back to Explore</Link>
+        <Link to="/nearby" className="btn btn-neutral btn-sm mt-5">Back to Explore</Link>
       </main>
     )
   }

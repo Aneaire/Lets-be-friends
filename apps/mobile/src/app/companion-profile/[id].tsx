@@ -56,7 +56,7 @@ function ConnectedCompanionProfile({ id, reviewId }: { id: string; reviewId?: st
   const result = useQuery(mobileApi.companions.getPublic, record ? { companionProfileId: id as CompanionProfileId } : 'skip')
 
   if (directory === undefined || (record && result === undefined)) return <PageSkeleton variant="publicProfile" />
-  if (!record || result === null) return <ProfileState title="Companion not found" detail="This approved profile is no longer available." action="Return to Explore" onPress={() => router.replace('/explore')} />
+  if (!record || result === null) return <ProfileState title="Companion not found" detail="This approved profile is no longer available." action="Return to Explore" onPress={() => router.replace('/nearby')} />
   return <CompanionDetail companion={mapPublicCompanion(result as ApprovedCompanionRecord)} reviewId={reviewId} />
 }
 
@@ -540,7 +540,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 
 function goBackOrExplore() {
   if (router.canGoBack()) router.back()
-  else router.replace('/explore')
+  else router.replace('/nearby')
 }
 
 const styles = StyleSheet.create({

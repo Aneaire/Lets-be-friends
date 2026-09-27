@@ -100,7 +100,7 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
               icon={<AppIcon name="calendar-outline" color={theme.colors.textMuted} size={26} />}
               title={filter === 'active' ? 'No upcoming sessions' : filter === 'requests' ? 'No open requests' : 'No past bookings'}
               description={filter === 'past' ? 'Completed and closed bookings will appear here.' : 'Explore approved Companions when you are ready to make a plan.'}
-              action={filter === 'past' ? undefined : <ActionButton label="Explore Companions" onPress={() => router.push('/explore')} secondary />}
+              action={filter === 'past' ? undefined : <ActionButton label="Explore Companions" onPress={() => router.push('/nearby')} secondary />}
             />
           )}
         </>

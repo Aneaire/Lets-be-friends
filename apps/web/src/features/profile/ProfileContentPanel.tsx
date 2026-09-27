@@ -4,9 +4,11 @@ import { Avatar } from '../../design-system/atoms/Avatar'
 import { PostActionBar } from '../social/PostActionBar'
 import { PostCard } from '../social/PostCard'
 import { ReviewContent } from '../social/ReviewContent'
+import { ReviewStars } from '../social/ReviewStars'
 import { ShareDialog } from '../social/ShareDialog'
 import { shareTargetUrl } from '../social/shareLinks'
 import { SharedPostEmbed, SharedReviewEmbed, type SharedPostView, type SharedReviewView } from '../social/SharedEmbeds'
+import { SocialLightbox } from '../social/SocialLightbox'
 import { formatSocialTime } from '../social/formatSocialTime'
 import { PostMediaGrid, type DisplayPostMediaItem } from '../social/PostMediaGrid'
 
@@ -106,6 +108,8 @@ export function ProfileContentPanel({
   const [postActionBusy, setPostActionBusy] = useState<string | null>(null)
   const [postActionErrors, setPostActionErrors] = useState<Record<string, string>>({})
   const [shareReview, setShareReview] = useState<ProfileContentReview | null>(null)
+  const [postLightbox, setPostLightbox] = useState<{ post: ProfileContentPost; index: number } | null>(null)
+  const [reviewLightbox, setReviewLightbox] = useState<ProfileContentReview | null>(null)
   const tabId = useId()
   const postsTabRef = useRef<HTMLButtonElement>(null)
   const reviewsTabRef = useRef<HTMLButtonElement>(null)
@@ -172,7 +176,7 @@ export function ProfileContentPanel({
                   dateTime={new Date(post.createdAt).toISOString()}
                 >
                   {post.body && <p className="ds-post-copy">{post.body}</p>}
-                  {post.media.length > 0 && <PostMediaGrid media={post.media} />}
+                  {post.media.length > 0 && <PostMediaGrid media={post.media} onOpenAt={(index) => setPostLightbox({ post, index })} />}
                   {post.sharedPost && <SharedPostEmbed post={post.sharedPost} />}
                   {post.sharedReview && <SharedReviewEmbed review={post.sharedReview} />}
                   <PostActionBar
@@ -253,6 +257,7 @@ export function ProfileContentPanel({
                     showRatingValue
                     bodyClassName="text-body muted profile-review-body"
                     imageWrapperClassName="profile-review-image"
+                    onOpenImage={review.imageUrl ? () => setReviewLightbox(review) : undefined}
                   />
                   <PostActionBar
                     liked={Boolean(review.liked)}
@@ -396,6 +401,138 @@ export function ProfileContentPanel({
             imageUrl: shareReview.imageUrl,
           }}
           onShareToFeed={async (message) => { await onShareReviewToFeed(shareReview, message) }}
+        />
+      )}
+      {postLightbox && (
+        <SocialLightbox
+          open
+          onClose={() => setPostLightbox(null)}
+          title={`Post by ${ownerName}`}
+          media={postLightbox.post.media.map((item, index) => ({
+            kind: item.kind,
+            url: item.url,
+            alt: `Image ${index + 1} shared in this post`,
+          }))}
+          initialIndex={postLightbox.index}
+          details={(
+            <div className="social-lightbox-post">
+              <div className="social-lightbox-author">
+                <Avatar name={ownerName} src={ownerImageUrl} size="large" decorative />
+                <div className="min-w-0">
+                  <div className="social-lightbox-author-name"><strong>{ownerName}</strong></div>
+                  <time className="text-meta" dateTime={new Date(postLightbox.post.createdAt).toISOString()}>{formatSocialTime(postLightbox.post.createdAt)}</time>
+                </div>
+              </div>
+              {postLightbox.post.body && <p className="ds-post-copy">{postLightbox.post.body}</p>}
+              <PostActionBar
+                liked={postLightbox.post.liked}
+                likeCount={postLightbox.post.likeCount}
+                commentCount={postLightbox.post.commentCount}
+                saved={postLightbox.post.saved}
+                commentsOpen
+                likeDisabled={!onLikePost}
+                showSave={Boolean(onSavePost)}
+                onLike={() => void runPostAction(postLightbox.post, 'like', onLikePost, setPostActionBusy, setPostActionErrors)}
+                onToggleComments={() => {
+                  const target = postLightbox.post
+                  setPostLightbox(null)
+                  onOpenPostComments?.(target)
+                }}
+                onSave={() => void runPostAction(postLightbox.post, 'save', onSavePost, setPostActionBusy, setPostActionErrors)}
+              />
+              <div className="social-lightbox-comments">
+                <p className="text-meta">
+                  {postLightbox.post.commentCount > 0
+                    ? `${postLightbox.post.commentCount} ${postLightbox.post.commentCount === 1 ? 'comment' : 'comments'} in the discussion.`
+                    : 'No comments yet.'}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-social-quiet btn-sm mt-2"
+                  onClick={() => {
+                    const target = postLightbox.post
+                    setPostLightbox(null)
+                    onOpenPostComments?.(target)
+                  }}
+                >
+                  View discussion
+                </button>
+              </div>
+            </div>
+          )}
+        />
+      )}
+      {reviewLightbox?.imageUrl && (
+        <SocialLightbox
+          open
+          onClose={() => setReviewLightbox(null)}
+          title={`Review by ${reviewLightbox.reviewerDisplayName}`}
+          media={[{ kind: 'image', url: reviewLightbox.imageUrl, alt: `Photo shared with ${reviewLightbox.reviewerDisplayName}'s review` }]}
+          details={(
+            <div className="social-lightbox-post">
+              <div className="social-lightbox-author">
+                <Avatar name={reviewLightbox.reviewerDisplayName} src={reviewLightbox.reviewerProfileImageUrl} size="large" decorative />
+                <div className="min-w-0">
+                  <div className="social-lightbox-author-name"><strong>{reviewLightbox.reviewerDisplayName}</strong></div>
+                  <time className="text-meta" dateTime={new Date(reviewLightbox.createdAt).toISOString()}>{formatSocialTime(reviewLightbox.createdAt)}</time>
+                </div>
+              </div>
+              <ReviewStars rating={reviewLightbox.rating} showValue />
+              {reviewLightbox.body && <p className="text-body muted profile-review-body">{reviewLightbox.body}</p>}
+              <PostActionBar
+                liked={Boolean(reviewLightbox.liked)}
+                likeCount={reviewLightbox.likeCount ?? 0}
+                commentCount={reviewLightbox.commentCount ?? 0}
+                saved={Boolean(reviewLightbox.saved)}
+                commentsOpen
+                likeDisabled={!onLikeReview}
+                showSave={false}
+                onLike={() => void onLikeReview?.(reviewLightbox)}
+                onToggleComments={() => setReviewLightbox(null)}
+                onSave={() => undefined}
+                onShare={onShareReviewToFeed ? () => { setReviewLightbox(null); setShareReview(reviewLightbox) } : undefined}
+              />
+              <div className="social-lightbox-comments">
+                {(reviewLightbox.comments ?? []).map((comment) => (
+                  <div key={comment._id} className="profile-review-comment">
+                    <Avatar name={comment.authorDisplayName} src={comment.authorProfileImageUrl} size="small" decorative />
+                    <div>
+                      <strong>{comment.authorDisplayName}</strong>
+                      <p>{comment.body}</p>
+                    </div>
+                  </div>
+                ))}
+                {(reviewLightbox.comments ?? []).length === 0 && <p className="text-meta">No comments yet.</p>}
+                {onCommentReview && (
+                  <form
+                    className="profile-review-comment-form"
+                    onSubmit={async (event) => {
+                      event.preventDefault()
+                      const body = commentDrafts[reviewLightbox._id]?.trim() ?? ''
+                      if (!body) return
+                      setCommentBusy(reviewLightbox._id)
+                      try {
+                        await onCommentReview(reviewLightbox, body)
+                        setCommentDrafts((current) => ({ ...current, [reviewLightbox._id]: '' }))
+                      } finally {
+                        setCommentBusy(null)
+                      }
+                    }}
+                  >
+                    <input
+                      className="field"
+                      value={commentDrafts[reviewLightbox._id] ?? ''}
+                      onChange={(event) => setCommentDrafts((current) => ({ ...current, [reviewLightbox._id]: event.target.value }))}
+                      placeholder="Write a comment"
+                      aria-label={`Comment on ${reviewLightbox.reviewerDisplayName}'s review`}
+                      maxLength={500}
+                    />
+                    <button className="btn btn-social-quiet btn-sm" disabled={commentBusy === reviewLightbox._id}>Post</button>
+                  </form>
+                )}
+              </div>
+            </div>
+          )}
         />
       )}
     </section>

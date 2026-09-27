@@ -18,6 +18,7 @@ import { PostActionsMenu } from './PostActionsMenu'
 import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
 import { PostMediaGrid } from './PostMediaGrid'
+import { SocialLightbox } from './SocialLightbox'
 import { PollCard } from './PollCard'
 import { PollComposer, emptyPollDraft, type PollDraft } from './PollComposer'
 import { ReviewFeedCard } from './ReviewFeedCard'
@@ -191,7 +192,7 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
             <h1 className="text-h1">Home</h1>
             <p className="text-meta">Everyday help, useful ideas, and people worth connecting with.</p>
           </div>
-          <Link to="/discover" className="btn btn-social-quiet btn-sm">Explore Companions</Link>
+          <Link to="/nearby" className="btn btn-social-quiet btn-sm">Explore Companions</Link>
         </header>
 
         <div className="social-feed-tabs" role="tablist" aria-label="Social feed">
@@ -268,7 +269,7 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
             <div className="social-composer-body">
               <div className="social-composer-intents">
                 <strong>Share an update</strong>
-                <Link to="/discover">Find help or company</Link>
+                <Link to="/nearby">Find help or company</Link>
               </div>
               <MentionField
                 value={composerBody}
@@ -359,6 +360,18 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
               }
               if (item.kind === 'review') {
                 const review = item.review
+                const openReviewDetail = () => {
+                  recordAction(item, 'open_review')
+                  if (review.companionProfileId) {
+                    void navigate({
+                      to: '/companion-profile',
+                      search: {
+                        companionProfileId: String(review.companionProfileId),
+                        reviewId: String(review._id),
+                      },
+                    })
+                  }
+                }
                 return (
                   <ReviewFeedCard
                     key={item.itemKey}
@@ -372,7 +385,7 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
                       void toggleReviewSave({ reviewId: review._id })
                       recordAction(item, 'save')
                     }}
-                    onOpen={() => recordAction(item, 'open_review')}
+                    onOpen={openReviewDetail}
                     onShareToFeed={async (message) => {
                       await createPost({ body: message, sharedReviewId: review._id })
                       recordAction(item, 'share')
@@ -580,11 +593,12 @@ export function PostRow({
   const [editing, setEditing] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [actionPending, setActionPending] = useState('')
   const [actionError, setActionError] = useState('')
   const { results: comments, status: commentsStatus, loadMore: loadMoreComments } = usePaginatedQuery(
     api.social.commentPage,
-    commentsOpen ? { postId: post._id } : 'skip',
+    commentsOpen || lightboxIndex !== null ? { postId: post._id } : 'skip',
     { initialNumItems: 20 },
   )
   const threadedComments = useMemo(() => comments ? arrangeCommentThreads(comments) : [], [comments])
@@ -608,6 +622,25 @@ export function PostRow({
 
   function editFromOptions() {
     setEditing((value) => !value)
+  }
+
+  function openLightbox(index: number) {
+    setCommentsOpen(true)
+    setLightboxIndex(index)
+  }
+
+  function handleLike() {
+    void (async () => {
+      setActionPending('like')
+      setActionError('')
+      try {
+        await onLike()
+      } catch (likeError) {
+        setActionError(likeError instanceof Error ? likeError.message : 'Like could not be updated.')
+      } finally {
+        setActionPending('')
+      }
+    })()
   }
 
   async function deleteFromOptions() {
@@ -672,7 +705,8 @@ export function PostRow({
   )
 
   return (
-    <PostCard
+    <>
+      <PostCard
       ref={rowRef}
       id={`post-${post._id}`}
       tabIndex={focusComments ? -1 : undefined}
@@ -733,7 +767,7 @@ export function PostRow({
           </form>
         ) : post.body ? <MentionText body={post.body} mentions={post.mentions} className="ds-post-copy" /> : null}
         {actionError && <p className="text-meta social-comment-error mt-2">{actionError}</p>}
-        {post.media.length > 0 && <PostMediaGrid media={post.media} />}
+        {post.media.length > 0 && <PostMediaGrid media={post.media} onOpenAt={openLightbox} />}
         {post.poll && <PollCard poll={post.poll} disabled={!viewerReady} onVote={onVotePoll} />}
         {post.featuredComment && !commentsOpen && (
           <FeaturedComment
@@ -751,19 +785,7 @@ export function PostRow({
           commentsOpen={commentsOpen}
           likeDisabled={!viewerReady || actionPending === 'like'}
           showSave={viewerReady}
-          onLike={() => {
-            void (async () => {
-              setActionPending('like')
-              setActionError('')
-              try {
-                await onLike()
-              } catch (likeError) {
-                setActionError(likeError instanceof Error ? likeError.message : 'Like could not be updated.')
-              } finally {
-                setActionPending('')
-              }
-            })()
-          }}
+          onLike={handleLike}
           onToggleComments={() => setCommentsOpen((open) => !open)}
           onSave={onSave}
           onShare={viewerReady && onShareToFeed ? () => setShareOpen(true) : undefined}
@@ -853,6 +875,114 @@ export function PostRow({
           </div>
         )}
     </PostCard>
+      {lightboxIndex !== null && post.media.length > 0 && (
+        <SocialLightbox
+          open
+          onClose={() => setLightboxIndex(null)}
+          title={`Post by ${post.authorDisplayName}`}
+          media={post.media.map((item: { kind: 'image' | 'video'; url: string | null }, index: number) => ({
+            kind: item.kind,
+            url: item.url,
+            alt: `Image ${index + 1} shared in this post`,
+          }))}
+          initialIndex={lightboxIndex}
+          details={(
+            <div className="social-lightbox-post">
+              <div className="social-lightbox-author">
+                {avatarAction}
+                <div className="min-w-0">
+                  <div className="social-lightbox-author-name">{authorAction ?? <strong>{post.authorDisplayName}</strong>}</div>
+                  <time className="text-meta" dateTime={new Date(post.createdAt).toISOString()}>{formatTime(post.createdAt)}</time>
+                </div>
+              </div>
+              {post.body ? <MentionText body={post.body} mentions={post.mentions} className="ds-post-copy" /> : null}
+              {post.poll && <PollCard poll={post.poll} disabled={!viewerReady} onVote={onVotePoll} />}
+              <PostActionBar
+                liked={post.liked}
+                likeCount={post.likeCount}
+                commentCount={post.commentCount}
+                saved={post.saved}
+                commentsOpen
+                likeDisabled={!viewerReady || actionPending === 'like'}
+                showSave={viewerReady}
+                onLike={handleLike}
+                onToggleComments={() => setLightboxIndex(null)}
+                onSave={onSave}
+                onShare={viewerReady && onShareToFeed ? () => setShareOpen(true) : undefined}
+              />
+              <div className="social-lightbox-comments">
+                {viewerReady && (
+                  <form
+                    className="social-comment-form"
+                    onSubmit={async (event) => {
+                      event.preventDefault()
+                      setCommenting(true)
+                      setCommentError('')
+                      try {
+                        const body = commentBody.trim()
+                        if (!body) return
+                        await onComment(body)
+                        setCommentBody('')
+                      } catch (error) {
+                        setCommentError(error instanceof Error ? error.message : 'Comment could not be added.')
+                      } finally {
+                        setCommenting(false)
+                      }
+                    }}
+                  >
+                    <MentionField
+                      value={commentBody}
+                      onChange={setCommentBody}
+                      name="comment-lightbox"
+                      className="field"
+                      maxLength={500}
+                      placeholder="Post your comment"
+                      ariaLabel="Comment"
+                    />
+                    <button disabled={commenting} className="btn btn-social btn-sm">{commenting ? 'Sending...' : 'Comment'}</button>
+                  </form>
+                )}
+                {commentError && <p className="text-meta social-comment-error">{commentError}</p>}
+                {commentsStatus === 'LoadingFirstPage' ? (
+                  <p className="text-meta">Loading comments...</p>
+                ) : comments.length === 0 ? (
+                  <p className="text-meta">No comments yet.</p>
+                ) : (
+                  <>
+                    <div className="social-comment-list">
+                      {threadedComments?.map(({ comment, position, isLastReply }) => (
+                        <CommentRow
+                          key={comment._id}
+                          comment={comment}
+                          focused={String(comment._id) === focusCommentId}
+                          threadPosition={position}
+                          isLastReply={isLastReply}
+                          viewerReady={viewerReady}
+                          onReply={(body) => onComment(body, comment._id)}
+                          onLike={() => onLikeComment(comment._id)}
+                          onEdit={(body) => onEditComment(comment._id, body)}
+                          onDelete={() => onDeleteComment(comment._id)}
+                          onReport={() => onReportComment(comment._id)}
+                        />
+                      ))}
+                    </div>
+                    {commentsStatus === 'CanLoadMore' && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm social-comment-load-more"
+                        onClick={() => loadMoreComments(20)}
+                      >
+                        Load more comments
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        />
+      )}
+    </>
   )
 }
 

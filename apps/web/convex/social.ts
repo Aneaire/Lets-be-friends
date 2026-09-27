@@ -6,7 +6,6 @@ import {
   engagementScore,
   FEED_V2_ALGORITHM_VERSION,
   FEED_V2_MAX_DIRECT_REVIEWS,
-  FEED_V2_REVIEW_SUPPRESSION_MS,
   freshnessScore,
   isModerationVisible,
   MAX_MENTIONS_PER_COMMENT,
@@ -18,7 +17,6 @@ import {
   rankFeedCandidates,
   rerankFeedCandidates,
   selectFeaturedComment,
-  suppressRecentlyShownReviews,
   type FeedCandidateSource,
   type FeedInstrumentationAction,
   type FeedInstrumentationSource,
@@ -58,8 +56,6 @@ const MAX_FEATURED_COMMENT_SCAN = 200
 // star ratings are eligible and the rating never boosts the score.
 const FEED_REVIEW_LIMIT = FEED_V2_MAX_DIRECT_REVIEWS
 const FEED_REVIEW_SCAN = 60
-const FEED_REVIEW_SUPPRESSION_MS = FEED_V2_REVIEW_SUPPRESSION_MS
-const FEED_REVIEW_IMPRESSION_SCAN = 30
 const COMPLETED_BOOKING_STATUSES = ['completed', 'review_window', 'closed'] as const
 // Following feed cap. Only the most recently followed MAX_FOLLOWED_AUTHORS
 // authors are considered (newest follows first, deterministically), so a member
@@ -221,7 +217,7 @@ async function feedPageResult(ctx: any, args: {
           title: 'Make For You feel more like you',
           body: 'Follow members, save useful posts, and book categories you enjoy. These signals help tune your feed without using exact location data.',
           actionLabel: 'Find Companions',
-          actionHref: '/discover' as const,
+          actionHref: '/nearby' as const,
         },
       ],
     }
@@ -1574,15 +1570,13 @@ async function feedReviewItems(
     })
   }
 
-  // Suppression runs before the cap so an unseen lower-ranked candidate can
-  // replace seen top candidates. Fallback (inside the helper) only triggers
-  // when every eligible candidate was recently shown. Dedupe runs last so one
-  // reviewer and one Companion per page still holds after suppression.
+  // Selection stays a pure function of review and interest rows. It must not
+  // read feedEvents: recording impressions would reactively re-run this query
+  // and swap the review cards seconds after first paint. Ranking plus the
+  // per-reviewer and per-Companion dedupe keeps the same cards in place until
+  // the underlying reviews or interests actually change.
   const ranked = rankFeedCandidates(candidates)
-  const unsuppressed = viewer
-    ? suppressRecentlyShownReviews(ranked, await recentReviewImpressions(ctx, viewer, now), (candidate) => `review:${candidate.id}`)
-    : ranked
-  const selected = dedupeReviewCandidates(unsuppressed, FEED_REVIEW_LIMIT)
+  const selected = dedupeReviewCandidates(ranked, FEED_REVIEW_LIMIT)
 
   const items: FeedReviewItem[] = []
   for (const candidate of selected) {
@@ -1605,19 +1599,6 @@ function reviewReasonFor(candidate: { topic?: string; companionDisplayName: stri
     return `A recent experience with ${candidate.companionDisplayName} matching your interest in ${candidate.topic}`
   }
   return `A recent experience with ${candidate.companionDisplayName} from a completed booking`
-}
-
-async function recentReviewImpressions(ctx: any, viewer: Doc<'users'>, now: number) {
-  const cutoff = now - FEED_REVIEW_SUPPRESSION_MS
-  const events = await ctx.db.query('feedEvents')
-    .withIndex('by_user_item_event_created_at', (q: any) => q
-      .eq('userId', viewer._id)
-      .eq('itemType', 'review')
-      .eq('eventType', 'impression')
-      .gte('createdAt', cutoff))
-    .order('desc')
-    .take(FEED_REVIEW_IMPRESSION_SCAN)
-  return new Set<string>(events.filter((event: any) => event.createdAt >= cutoff).map((event: any) => String(event.itemKey)))
 }
 
 /**

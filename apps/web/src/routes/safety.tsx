@@ -40,7 +40,7 @@ function SafetyPage() {
             Know what happens before you meet.
           </h1>
           <div className="safety-hero-actions">
-            <Link to="/discover" className="btn btn-social">Find a Companion</Link>
+            <Link to="/nearby" className="btn btn-social">Find a Companion</Link>
             <Link to="/become-companion" className="btn btn-self">Become a Companion</Link>
           </div>
         </div>
@@ -98,7 +98,7 @@ function SafetyPage() {
       <section className="safety-closing">
         <p className="eyebrow">A safer plan still starts with a good fit</p>
         <h2 className="text-display section-display">Take your time. Read the profile. Ask questions.</h2>
-        <Link to="/discover" className="btn btn-social btn-lg">Explore people and experiences</Link>
+        <Link to="/nearby" className="btn btn-social btn-lg">Explore people and experiences</Link>
       </section>
     </main>
   )

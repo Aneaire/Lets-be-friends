@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { MouseEvent, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -110,6 +110,8 @@ describe('Explore destinations', () => {
     expect(people.getAttribute('aria-current')).toBe('page')
     expect(screen.getByRole('link', { name: 'Circles' }).getAttribute('href')).toBe('/circles')
     expect(screen.getByRole('link', { name: 'Nearby' }).getAttribute('href')).toBe('/nearby')
+    const destinationLinks = within(destinations).getAllByRole('link').map((link) => link.textContent)
+    expect(destinationLinks[0]).toBe('Nearby')
     expect(reviews.getAttribute('href')).toBe('#reviews')
     expect(destinations.getAttribute('role')).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()

@@ -19,12 +19,26 @@ describe('post media layout styles', () => {
     )
   })
 
-  it('keeps the mute control visible on the lower-right of bright and dark videos', () => {
+  it('keeps the minimal video overlay legible across bright and dark videos', () => {
     expect(styles).toMatch(
-      /\.social-post-video-controls\s*\{[^}]*right:\s*0\.75rem;[^}]*bottom:\s*0\.75rem;/s,
+      /\.social-video-controls\s*\{[^}]*right:\s*0;[^}]*bottom:\s*0;[^}]*left:\s*0;/s,
     )
     expect(styles).toMatch(
-      /\.social-post-video-mute\s*\{[^}]*background:\s*color-mix\(in oklch, var\(--media-stage\) 76%, transparent\);[^}]*color:\s*var\(--accent-control-foreground\);/s,
+      /\.social-video-button\s*\{[^}]*color:\s*var\(--accent-control-foreground\);/s,
+    )
+    const controlsRule = /\.social-video-controls\s*\{([^}]*)\}/.exec(styles)
+    expect(controlsRule?.[1]).not.toContain('background:')
+    expect(styles).toMatch(
+      /\.social-video-button\.social-video-play\s*\{[^}]*background:\s*oklch\(0% 0 0 \/ 55%\);/s,
+    )
+    expect(styles).toMatch(
+      /\.social-video-scrub\s*\{[^}]*width:\s*calc\(100% \+ 1\.25rem\);[^}]*accent-color:\s*oklch\(100% 0 0\);/s,
+    )
+  })
+
+  it('keeps the mute toggle on the upper-left of the video', () => {
+    expect(styles).toMatch(
+      /\.social-video-mute-float\s*\{[^}]*top:\s*0\.625rem;[^}]*left:\s*0\.625rem;/s,
     )
   })
 })

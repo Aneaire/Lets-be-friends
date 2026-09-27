@@ -27,10 +27,10 @@ describe('shared post card styles', () => {
 })
 
 describe('post video open control styles', () => {
-  it('positions the semantic open control over the media and keeps controls stacked above it', () => {
-    expect(styles).toMatch(/\.social-post-video-open \{[^}]*position: absolute;[^}]*inset: 0;[^}]*width: 100%;[^}]*height: 100%;/s)
-    expect(styles).toMatch(/\.social-post-video-open:focus-visible \{[^}]*outline: 2px solid var\(--accent-control-foreground\);/s)
-    expect(styles).toMatch(/\.social-post-video-controls \{[^}]*z-index: 1;/s)
-    expect(styles).toMatch(/\.social-post-video-progress \{[^}]*z-index: 1;/s)
+  it('keeps the expand control visually hidden until keyboard focus above the full-width scrub bar', () => {
+    expect(styles).toMatch(/\.social-video-button\.social-post-video-open \{[^}]*clip: rect\(0 0 0 0\);/s)
+    expect(styles).toMatch(/\.social-video-button\.social-post-video-open:focus-visible \{[^}]*background: oklch\(0% 0 0 \/ 72%\);/s)
+    expect(styles).toMatch(/\.social-video-controls \{[^}]*z-index: 2;/s)
+    expect(styles).toMatch(/\.social-video-scrub \{[^}]*width: calc\(100% \+ 1\.25rem\);/s)
   })
 })

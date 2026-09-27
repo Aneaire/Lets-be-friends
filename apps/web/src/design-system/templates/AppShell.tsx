@@ -7,7 +7,7 @@ import { BrandLogo } from '../atoms/BrandLogo'
 import { ThemeToggle } from '../atoms/ThemeToggle'
 
 const publicNavigation = [
-  { to: '/discover', label: 'Explore' },
+  { to: '/nearby', label: 'Explore' },
   { to: '/safety', label: 'How it works' },
   { to: '/become-companion', label: 'Become a Companion' },
 ] as const
@@ -41,7 +41,7 @@ export function Header() {
 
         <div className="app-header-actions">
           {!onboarding && (
-            <Link to="/discover" className="discover-header-link" aria-label="Explore Companions and everyday help">
+            <Link to="/nearby" className="discover-header-link" aria-label="Explore Companions and everyday help">
               <Search size={17} aria-hidden="true" />
               <span>Explore</span>
             </Link>
@@ -73,7 +73,7 @@ export function Footer() {
           </span>
         </div>
         <div className="flex items-center gap-5">
-          <Link to="/discover" className="nav-link">Explore</Link>
+          <Link to="/nearby" className="nav-link">Explore</Link>
           <Link to="/safety" className="nav-link">How safety works</Link>
           <Link to="/become-companion" className="nav-link">Become a Companion</Link>
           <span className="text-soft">Everyday skills. Real connections.</span>
