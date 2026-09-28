@@ -1,5 +1,12 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
+import {
+  friendayCheckins,
+  friendayNotAllowed,
+  friendayPromise,
+  friendaySafetyGroups,
+  friendaySteps,
+} from '../features/social/FriendayGuide'
 
 export const Route = createFileRoute('/safety')({ component: SafetyPage })
 
@@ -94,6 +101,77 @@ function SafetyPage() {
           <p><strong>Reports:</strong> Participant booking reports block unsettled wallet funds until a full admin records a resolution.</p>
         </div>
       </details>
+
+      <section className="frienday-full-guide" id="frienday" aria-labelledby="frienday-title">
+        <p className="eyebrow">Frienday guide</p>
+        <h2 id="frienday-title" className="text-display section-display">Meet. Help. Earn. Make everyday life easier.</h2>
+        <p className="lede mt-4">
+          A Frienday is the agreed time when a Friend and a Friender meet and complete a booked
+          activity. In this guide, Friend means the Companion offering help and Friender means the
+          member booking help. Every Frienday has a clear task, an agreed time and place, a confirmed price,
+          clear boundaries, three check-ins when required, and completion confirmation before payment.
+        </p>
+        <div className="frienday-full-grid">
+          <article className="frienday-full-card" aria-labelledby="frienday-steps-title">
+            <h3 id="frienday-steps-title">How a Frienday works</h3>
+            <p>Nine steps from profile setup to review. Keep every agreement and change inside the app.</p>
+            <ol>
+              {friendaySteps.map((step) => (
+                <li key={step.title}>
+                  <strong>{step.title}.</strong> {step.body}
+                </li>
+              ))}
+            </ol>
+          </article>
+          <article className="frienday-full-card" aria-labelledby="frienday-checkins-title">
+            <h3 id="frienday-checkins-title">Three Friend Selfie check-ins</h3>
+            <p>Selfies support check-in and safety steps. They do not prove all work was complete and do not replace emergency services.</p>
+            <ul>
+              {friendayCheckins.map((checkin) => (
+                <li key={checkin.title}>
+                  <strong>{checkin.title}.</strong> {checkin.when}: {checkin.purpose}
+                </li>
+              ))}
+            </ul>
+          </article>
+          <article className="frienday-full-card" id="frienday-safety" aria-labelledby="frienday-safety-title">
+            <h3 id="frienday-safety-title">Frienday safety rules</h3>
+            <p>Meet in a well lit public place when possible. Confirm the person matches the profile before continuing.</p>
+            {friendaySafetyGroups.map((group) => (
+              <div key={group.title}>
+                <p><strong>{group.title}</strong></p>
+                <ul>
+                  {group.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </article>
+          <article className="frienday-full-card" id="frienday-not-allowed" aria-labelledby="frienday-not-allowed-title">
+            <h3 id="frienday-not-allowed-title">Activities that are not allowed</h3>
+            <p>These may not be requested, offered, or completed through Let&apos;s Be Friends.</p>
+            <ul>
+              {friendayNotAllowed.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </article>
+        </div>
+        <article className="frienday-full-card mt-4" id="frienday-promise" aria-labelledby="frienday-promise-title">
+          <h3 id="frienday-promise-title">A simple Frienday promise</h3>
+          <p>By booking or accepting a Frienday, both people agree to:</p>
+          <ul>
+            {friendayPromise.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          <div className="frienday-full-actions">
+            <Link to="/become-companion" className="btn btn-self">Create your Companion profile</Link>
+            <Link to="/nearby" className="btn btn-social">Find a Companion</Link>
+          </div>
+        </article>
+      </section>
 
       <section className="safety-closing">
         <p className="eyebrow">A safer plan still starts with a good fit</p>

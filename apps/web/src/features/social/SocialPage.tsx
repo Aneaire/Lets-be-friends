@@ -26,6 +26,8 @@ import { ShareDialog } from './ShareDialog'
 import { SharedPostEmbed, SharedReviewEmbed } from './SharedEmbeds'
 import { shareTargetUrl } from './shareLinks'
 import { MyCirclesHomeModule } from '../circles/CircleIndexPage'
+import { CurrentCircleRailCard } from '../circles/CurrentCircleRailCard'
+import { FriendayHowItWorksRail, FriendayMobileSummary, FriendaySafetyRail } from './FriendayGuide'
 
 type FeedItem = NonNullable<FunctionReturnType<typeof api.social.feedPage>>['page'][number]
 type FeedPostItem = Extract<FeedItem, { kind: 'post' }>
@@ -185,7 +187,11 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
   }
 
   return (
-    <main className="social-page">
+    <main className="social-page social-page-with-rails">
+      <aside className="frienday-rail frienday-rail-left" aria-label="Your circles and Frienday guide">
+        {viewer ? <CurrentCircleRailCard /> : null}
+        <FriendayHowItWorksRail />
+      </aside>
       <section className="social-timeline" aria-label="Home feed">
         <header className="social-timeline-header">
           <div>
@@ -194,6 +200,8 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
           </div>
           <Link to="/nearby" className="btn btn-social-quiet btn-sm">Explore Companions</Link>
         </header>
+
+        <FriendayMobileSummary />
 
         <div className="social-feed-tabs" role="tablist" aria-label="Social feed">
           {(['for_you', 'following', 'saved'] as const).map((filter) => (
@@ -469,6 +477,9 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
           <p className="text-meta tabular mt-3" role="status">Loading more posts...</p>
         )}
       </section>
+      <aside className="frienday-rail frienday-rail-right" aria-label="Frienday safety">
+        <FriendaySafetyRail />
+      </aside>
     </main>
   )
 }

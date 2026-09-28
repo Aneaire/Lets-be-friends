@@ -15754,3 +15754,607 @@ button.companion-preview-avatar {
     font-size: 0.9rem;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────
+   Frienday guide side rails for the Home feed
+   Fills the empty space beside the central timeline on wide
+   screens. Neutral cards only. Pink stays on booking actions,
+   blue stays on profile setup actions.
+   ────────────────────────────────────────────────────────────── */
+
+.social-page-with-rails {
+  width: min(100% - 2rem, 42rem);
+}
+
+.frienday-rail {
+  display: none;
+}
+
+.frienday-mobile-summary {
+  display: block;
+  margin-top: 0.65rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.frienday-mobile-summary > summary {
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.frienday-mobile-body {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+@media (min-width: 1200px) {
+  .web-app-shell .social-page-with-rails,
+  .social-page-with-rails {
+    width: min(100% - 2rem, 76rem);
+    display: grid;
+    grid-template-columns: 17rem minmax(0, 42rem) 19rem;
+    gap: 1rem;
+    align-items: start;
+    justify-content: center;
+  }
+
+  .frienday-rail {
+    display: block;
+    position: sticky;
+    top: 5rem;
+    min-width: 0;
+    max-height: calc(100dvh - 6rem);
+    overflow: auto;
+    scrollbar-width: thin;
+  }
+
+  .frienday-mobile-summary {
+    display: none;
+  }
+}
+
+@media (min-width: 1500px) {
+  .web-app-shell .social-page-with-rails,
+  .social-page-with-rails {
+    width: min(100% - 2rem, 84rem);
+    grid-template-columns: 19rem minmax(0, 44rem) 21rem;
+  }
+}
+
+.frienday-rail-stack {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+}
+
+.frienday-rail-card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0.9rem 1rem;
+}
+
+.frienday-rail-card .eyebrow {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.frienday-rail-title {
+  margin: 0.25rem 0 0;
+}
+
+.frienday-rail-intro {
+  margin: 0.4rem 0 0;
+  line-height: 1.5;
+}
+
+.frienday-mini-list {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.frienday-promise-list {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.7rem;
+}
+
+.frienday-danger-list {
+  color: var(--text-muted);
+}
+
+.frienday-step-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.frienday-step-list li {
+  display: grid;
+  grid-template-columns: 1.7rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.frienday-step-number {
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-sunk);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.frienday-step-list div {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.frienday-step-list strong {
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.frienday-step-list span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.frienday-checkin-list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.frienday-checkin-list li {
+  display: grid;
+  gap: 0.1rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.45rem;
+}
+
+.frienday-checkin-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.frienday-checkin-list strong {
+  font-size: 0.84rem;
+}
+
+.frienday-safety-group {
+  margin-top: 0.55rem;
+}
+
+.frienday-safety-group h3 {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-soft);
+}
+
+.frienday-safety-group ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.frienday-rail-link {
+  display: inline-block;
+  margin-top: 0.55rem;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.frienday-rail-link:hover {
+  color: var(--accent-social);
+}
+
+.frienday-rail-actions {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.frienday-rail-actions .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Clickable Frienday cards: neutral, icon led, calm motion. */
+
+.frienday-flip {
+  padding: 0;
+  overflow: hidden;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.frienday-flip:hover {
+  border-color: var(--border-strong);
+}
+
+.frienday-flip[data-open="true"] {
+  border-color: var(--border-strong);
+}
+
+.frienday-flip-head {
+  display: grid;
+  grid-template-columns: 1.9rem minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: start;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0.6rem 0.7rem;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.frienday-flip-head:hover .frienday-flip-icon {
+  transform: translateY(-1px);
+}
+
+.frienday-flip-icon {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-sunk);
+  color: var(--text);
+  transition: transform 140ms ease;
+}
+
+.frienday-flip-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.frienday-flip-copy .eyebrow {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.frienday-flip-title {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.frienday-flip-teaser {
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.frienday-flip-chevron {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-top: 0.15rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text-muted);
+  transition: transform 160ms ease;
+}
+
+.frienday-flip[data-open="true"] .frienday-flip-chevron {
+  transform: rotate(180deg);
+}
+
+.frienday-flip-head:focus-visible {
+  outline: 2px solid var(--accent-self);
+  outline-offset: -2px;
+}
+
+.frienday-flip-preview {
+  margin: 0;
+  border-top: 1px dashed var(--border);
+  padding: 0.4rem 0.7rem;
+  color: var(--text-soft);
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.frienday-flip-body {
+  display: grid;
+  gap: 0.5rem;
+  border-top: 1px solid var(--rule);
+  padding: 0.6rem 0.7rem 0.7rem;
+}
+
+.frienday-expand-btn {
+  justify-self: start;
+  margin-top: 0.45rem;
+}
+
+.frienday-tab-row,
+.frienday-checkin-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.frienday-tab,
+.frienday-checkin-dot {
+  min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.3rem 0.6rem;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.frienday-tab:hover,
+.frienday-checkin-dot:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.frienday-tab[data-active="true"],
+.frienday-checkin-dot[data-active="true"] {
+  border-color: var(--text);
+  background: var(--surface-sunk);
+  color: var(--text);
+}
+
+.frienday-tab:focus-visible,
+.frienday-checkin-dot:focus-visible,
+.frienday-expand-btn:focus-visible {
+  outline: 2px solid var(--accent-self);
+  outline-offset: 2px;
+}
+
+.frienday-checkin-dot-number {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.frienday-checkin-detail {
+  display: grid;
+  gap: 0.15rem;
+  border: 1px solid var(--border);
+  background: var(--surface-sunk);
+  padding: 0.5rem 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+/* Current Circle rail card: Facebook style shortcut with the most recent
+   Circle on top and up to three more below. Neutral surfaces only. */
+
+.current-circle-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: start;
+}
+
+.current-circle-hero-link {
+  margin: 0 -0.35rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.35rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.current-circle-hero-link:hover {
+  border-color: var(--border);
+  background: var(--surface-sunk);
+}
+
+.current-circle-hero-link:hover .current-circle-name {
+  color: var(--accent-social);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.current-circle-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.current-circle-name {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.current-circle-name:hover {
+  color: var(--accent-social);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.current-circle-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.76rem;
+}
+
+.current-circle-rows {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.current-circle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.5rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.current-circle-row:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-sunk);
+}
+
+.current-circle-row:focus-visible,
+.current-circle-hero-link:focus-visible {
+  outline: 2px solid var(--accent-self);
+  outline-offset: 2px;
+}
+
+.current-circle-row .circle-icon,
+.current-circle-row .circle-marker {
+  width: 1.7rem;
+  height: 1.7rem;
+  flex: 0 0 auto;
+}
+
+.current-circle-row-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.current-circle-row-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+
+.current-circle-row-copy small {
+  font-size: 0.72rem;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Frienday full guide on the Safety page
+   ────────────────────────────────────────────────────────────── */
+
+.frienday-full-guide {
+  margin-top: 2.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 2rem;
+}
+
+.frienday-full-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.frienday-full-card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1.25rem;
+}
+
+.frienday-full-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.frienday-full-card > p {
+  margin: 0.5rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.frienday-full-card ul,
+.frienday-full-card ol {
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.frienday-full-card li + li {
+  margin-top: 0.35rem;
+}
+
+.frienday-full-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .frienday-full-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frienday-rail {
+    scroll-behavior: auto;
+  }
+
+  .frienday-flip,
+  .frienday-flip-icon,
+  .frienday-flip-chevron {
+    transition: none;
+  }
+
+  .frienday-flip-head:hover .frienday-flip-icon {
+    transform: none;
+  }
+}
