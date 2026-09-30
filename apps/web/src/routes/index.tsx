@@ -5,6 +5,7 @@ import { activityCategories } from '@lets-be-friends/shared'
 import { User } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
+import { SignInAction } from '../features/auth/SignInAction'
 
 const homeTitle = "Everyday Help and Real Connections | Let's Be Friends"
 const homeDescription = 'Find verified Companions who offer everyday help, shared activities, and friendly company, or become a Companion and earn by sharing your Strengths.'
@@ -169,7 +170,7 @@ const homeFaqs = [
   },
 ] as const
 
-function HomePage() {
+export function HomePage() {
   const { isSignedIn } = useAuth()
   const companionsResult = useQuery(api.companions.listApproved, isSignedIn ? 'skip' : {}) as HomeCompanion[] | undefined
   const companions = companionsResult ?? []
@@ -192,18 +193,17 @@ function HomePage() {
           </p>
           <div className="invitation-prompt-list" aria-label="Things you can do together">
             {invitationPrompts.map((prompt, index) => (
-              <Link
+              <SignInAction
                 key={prompt}
-                to="/nearby"
                 className="invitation-prompt"
                 data-featured={index === 0 || undefined}
               >
                 {prompt}
-              </Link>
+              </SignInAction>
             ))}
           </div>
           <div className="invitation-actions">
-            <Link to="/nearby" className="btn btn-social btn-lg hero-action">Explore Companions</Link>
+            <SignInAction className="btn btn-social btn-lg hero-action">Explore Companions</SignInAction>
             <HomeAuthAction />
             <Link to="/safety" className="btn btn-ghost">How safety works</Link>
           </div>
@@ -239,21 +239,21 @@ function HomePage() {
           </div>
           <div className="activity-reel-grid">
             {activityExamples.slice(0, 3).map((activity) => (
-              <Link
+              <SignInAction
                 key={activity.title}
-                to="/nearby"
                 className="activity-card"
                 aria-label={`Explore people for ${activity.title.toLowerCase()}`}
               >
                 <MarketingActivityImage
                   activity={activity}
                   sizes="(max-width: 700px) calc(100vw - 1.75rem), (max-width: 900px) calc(50vw - 1.5rem), 33vw"
+                  interactive={false}
                 />
                 <span className="activity-card-copy">
                   <strong>{activity.title}</strong>
                   <span>{activity.description}</span>
                 </span>
-              </Link>
+              </SignInAction>
             ))}
           </div>
         </div>
@@ -340,9 +340,9 @@ function HomePage() {
                   <ul aria-label={`${mode.label} examples`}>
                     {mode.examples.map((example) => <li key={example}>{example}</li>)}
                   </ul>
-                  <Link to="/nearby" className={index === 0 ? 'btn btn-social-quiet btn-sm' : 'btn btn-self-quiet btn-sm'}>
+                  <SignInAction className={index === 0 ? 'btn btn-social-quiet btn-sm' : 'btn btn-self-quiet btn-sm'}>
                     Explore {mode.label.toLowerCase()} options
-                  </Link>
+                  </SignInAction>
                 </div>
               </article>
             ))}
@@ -357,7 +357,7 @@ function HomePage() {
               <p className="eyebrow">Need a little help?</p>
               <h2 className="text-display section-display">Find someone you will enjoy spending time with.</h2>
             </div>
-            <Link to="/nearby" className="btn btn-social-quiet btn-sm">Explore everyone</Link>
+            <SignInAction className="btn btn-social-quiet btn-sm">Explore everyone</SignInAction>
           </div>
           <div className="invitation-companion-grid">
               {companionsLoading && <HomeCompanionSkeletonRows />}
@@ -412,7 +412,7 @@ function HomePage() {
             <p className="lede mt-4">Let’s make everyday life a little easier and a little less lonely.</p>
             <div className="invitation-final-actions">
               <Link to="/become-companion" className="btn btn-self btn-lg">Become a Companion</Link>
-              <Link to="/nearby" className="btn btn-social btn-lg">Find a Companion</Link>
+              <SignInAction className="btn btn-social btn-lg">Find a Companion</SignInAction>
             </div>
           </div>
           <ActivityStoryPhoto
@@ -435,22 +435,26 @@ type MarketingActivity = (typeof activityExamples)[number]
 function MarketingActivityImage({
   activity,
   sizes,
+  interactive = true,
 }: {
   activity: MarketingActivity
   sizes: string
+  interactive?: boolean
 }) {
-  return (
-    <OpenableImage
-      src={activity.image}
-      srcSet={`${activity.image.replace('.webp', '-768.webp')} 768w, ${activity.image} 1536w`}
-      sizes={sizes}
-      alt={activity.alt}
-      loading="lazy"
-      decoding="async"
-      width={1536}
-      height={1024}
-    />
-  )
+  const imageProps = {
+    src: activity.image,
+    srcSet: `${activity.image.replace('.webp', '-768.webp')} 768w, ${activity.image} 1536w`,
+    sizes,
+    alt: activity.alt,
+    loading: 'lazy' as const,
+    decoding: 'async' as const,
+    width: 1536,
+    height: 1024,
+  }
+
+  if (!interactive) return <img {...imageProps} />
+
+  return <OpenableImage {...imageProps} />
 }
 
 function ActivityStoryPhoto({

@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { RequireSignedIn } from '../features/auth/RequireSignedIn'
 import { SocialPage } from '../features/social/SocialPage'
 
 export const Route = createFileRoute('/social')({
@@ -11,5 +12,9 @@ export const Route = createFileRoute('/social')({
 
 function SocialRoutePage() {
   const { postId, commentId } = Route.useSearch()
-  return <SocialPage postId={postId} commentId={commentId} />
+  return (
+    <RequireSignedIn>
+      <SocialPage postId={postId} commentId={commentId} />
+    </RequireSignedIn>
+  )
 }

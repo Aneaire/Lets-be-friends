@@ -73,8 +73,21 @@ async function insertCompanion(t: ReturnType<typeof convexTest>, userId: any, st
 }
 
 describe('social feed behavior', () => {
+  it('rejects anonymous reads so signed-out visitors cannot view the feed', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'anonymous-feed-author')
+    await insertPost(t, authorId, 'A post that should stay behind sign-in')
+
+    await expect(t.query(api.social.feed, { filter: 'for_you' })).rejects.toThrow('Profile sync required')
+    await expect(
+      t.query(api.social.feedPage, { filter: 'for_you', paginationOpts: { cursor: null, numItems: 20 } }),
+    ).rejects.toThrow('Profile sync required')
+  })
+
   it('terminates cursor pagination after returning more than 150 unique For You posts', async () => {
     const t = createTest()
+    await insertUser(t, 'pagination-viewer')
+    const viewer = t.withIdentity({ subject: 'pagination-viewer' })
     await t.run(async (ctx) => {
       const now = Date.now()
       for (let index = 0; index < 151; index += 1) {
@@ -87,7 +100,7 @@ describe('social feed behavior', () => {
     let cursor: string | null = null
     let done = false
     for (let pageNumber = 0; pageNumber < 12 && !done; pageNumber += 1) {
-      const result: any = await t.query(api.social.feedPage, { filter: 'for_you', paginationOpts: { cursor, numItems: 20 } })
+      const result: any = await viewer.query(api.social.feedPage, { filter: 'for_you', paginationOpts: { cursor, numItems: 20 } })
       result.page.filter((item: any) => item.kind === 'post').forEach((item: any) => {
         expect(itemKeys.has(item.itemKey)).toBe(false)
         itemKeys.add(item.itemKey)
@@ -133,6 +146,7 @@ describe('social feed behavior', () => {
 
   it('filters hidden, deleted, and suspended-author posts before ranking', async () => {
     const t = createTest()
+    await insertUser(t, 'visibility-viewer')
     const safeAuthor = await insertUser(t, 'safe-author')
     const suspendedAuthor = await insertUser(t, 'suspended-author', { suspended: true })
     await insertPost(t, safeAuthor, 'safe post')
@@ -140,7 +154,7 @@ describe('social feed behavior', () => {
     await insertPost(t, safeAuthor, 'deleted post', { hidden: true, deleted: true })
     await insertPost(t, suspendedAuthor, 'suspended post')
 
-    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const items = await t.withIdentity({ subject: 'visibility-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
     const postBodies = items.filter((item) => item.kind === 'post').map((item) => item.post.body)
     expect(postBodies).toEqual(['safe post'])
     expect(items.at(-1)).toMatchObject({ kind: 'guidance', source: 'first_party_guidance' })
@@ -154,8 +168,9 @@ describe('social feed behavior', () => {
     await insertCompanion(t, approvedUser)
     await insertCompanion(t, expiredUser)
     await insertCompanion(t, suspendedUser)
+    await insertUser(t, 'fallback-viewer')
 
-    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const items = await t.withIdentity({ subject: 'fallback-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
     const companions = items.filter((item) => item.kind === 'companion')
     expect(companions).toHaveLength(1)
     expect(companions[0].companion.displayName).toBe('approved-companion')
@@ -173,8 +188,9 @@ describe('social feed behavior', () => {
     const approvedCompanionId = await insertCompanion(t, approvedUser)
     await insertPost(t, approvedUser, 'companion post')
     await insertPost(t, memberUser, 'member post')
+    await insertUser(t, 'profile-target-viewer')
 
-    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const items = await t.withIdentity({ subject: 'profile-target-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
     const posts = items.filter((item) => item.kind === 'post').map((item) => item.post)
     expect(posts.find((post) => post.body === 'companion post').authorCompanionProfileId).toBe(approvedCompanionId)
     expect(posts.find((post) => post.body === 'member post').authorCompanionProfileId).toBeUndefined()
@@ -274,12 +290,13 @@ describe('social feed behavior', () => {
 
   it('uses guidance only as sparse-feed reserve content', async () => {
     const t = createTest()
+    await insertUser(t, 'reserve-viewer')
     for (let index = 0; index < 8; index += 1) {
       const authorId = await insertUser(t, `healthy-author-${index}`)
       await insertPost(t, authorId, `healthy post ${index}`, { createdAt: 1_000 + index })
     }
 
-    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const items = await t.withIdentity({ subject: 'reserve-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
     expect(items.filter((item) => item.kind === 'post')).toHaveLength(8)
     expect(items.some((item) => item.kind === 'guidance')).toBe(false)
     expect(items.some((item) => item.kind === 'companion')).toBe(false)
@@ -606,6 +623,7 @@ describe('comment replies and likes', () => {
 describe('featured comment in the feed', () => {
   it('features the conversation with the most interactions once it reaches three', async () => {
     const t = createTest()
+    await insertUser(t, 'featured-viewer')
     const authorId = await insertUser(t, 'featured-author', { username: 'featured_author' })
     await insertUser(t, 'featured-commenter', { username: 'featured_commenter' })
     await insertUser(t, 'featured-replier', { username: 'featured_replier' })
@@ -620,7 +638,7 @@ describe('featured comment in the feed', () => {
     await t.withIdentity({ subject: 'featured-liker-a' }).mutation(api.social.toggleCommentLike, { commentId: rootId })
     await t.withIdentity({ subject: 'featured-liker-b' }).mutation(api.social.toggleCommentLike, { commentId: replyId })
 
-    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const items = await t.withIdentity({ subject: 'featured-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
     const item = items.find((entry) => entry.kind === 'post' && entry.post._id === postId)
     expect(item?.post.featuredComment).toMatchObject({
       _id: rootId,
@@ -633,6 +651,7 @@ describe('featured comment in the feed', () => {
 
   it('does not feature a conversation below three interactions', async () => {
     const t = createTest()
+    await insertUser(t, 'quiet-viewer')
     const authorId = await insertUser(t, 'quiet-author')
     await insertUser(t, 'quiet-commenter')
     await insertUser(t, 'quiet-liker')
@@ -641,13 +660,14 @@ describe('featured comment in the feed', () => {
       .mutation(api.social.createComment, { postId, body: 'Only lightly liked' })
     await t.withIdentity({ subject: 'quiet-liker' }).mutation(api.social.toggleCommentLike, { commentId: rootId })
 
-    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const items = await t.withIdentity({ subject: 'quiet-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
     const item = items.find((entry) => entry.kind === 'post' && entry.post._id === postId)
     expect(item?.post.featuredComment).toBeNull()
   })
 
   it('ignores hidden comments when choosing a featured conversation', async () => {
     const t = createTest()
+    await insertUser(t, 'hidden-featured-viewer')
     const authorId = await insertUser(t, 'hidden-featured-author')
     await insertUser(t, 'hidden-featured-commenter')
     await insertUser(t, 'hidden-featured-liker-a')
@@ -659,7 +679,7 @@ describe('featured comment in the feed', () => {
     await t.withIdentity({ subject: 'hidden-featured-liker-b' }).mutation(api.social.toggleCommentLike, { commentId: rootId })
     await t.run(async (ctx) => ctx.db.patch(rootId, { hidden: true }))
 
-    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const items = await t.withIdentity({ subject: 'hidden-featured-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
     const item = items.find((entry) => entry.kind === 'post' && entry.post._id === postId)
     expect(item?.post.featuredComment).toBeNull()
   })
@@ -1389,6 +1409,7 @@ describe('sharing and reviews in the feed', () => {
 
   it('surfaces a recent positive review from an approved Companion in For You', async () => {
     const t = createTest()
+    await insertUser(t, 'feed-review-viewer')
     const companionUserId = await insertUser(t, 'feed-review-companion', { approvedIdentity: true })
     const companionProfileId = await insertCompanion(t, companionUserId)
     const reviewerId = await insertUser(t, 'feed-review-member')
@@ -1417,7 +1438,7 @@ describe('sharing and reviews in the feed', () => {
       updatedAt: Date.now(),
     }))
 
-    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const items = await t.withIdentity({ subject: 'feed-review-viewer' }).query(api.social.feed, { filter: 'for_you' }) as any[]
     const reviewItem = items.find((item) => item.kind === 'review')
     expect(reviewItem?.review).toMatchObject({
       _id: reviewId,
@@ -1432,6 +1453,7 @@ describe('sharing and reviews in the feed', () => {
 
   it('keeps hidden reviews out of the feed while low ratings stay eligible, and shares a review into the feed', async () => {
     const t = createTest()
+    await insertUser(t, 'feed-review-viewer-2')
     const companionUserId = await insertUser(t, 'feed-review-companion-2', { approvedIdentity: true })
     const companionProfileId = await insertCompanion(t, companionUserId)
     const lowReviewerId = await insertUser(t, 'feed-review-member-2-low')
@@ -1471,7 +1493,7 @@ describe('sharing and reviews in the feed', () => {
       goodId: await ctx.db.insert('reviews', { bookingId, reviewerId: goodReviewerId, revieweeId: companionUserId, companionProfileId, rating: 4, body: 'A kind afternoon', hidden: false, likeCount: 0, commentCount: 0, createdAt: now + 2, updatedAt: now + 2 }),
     }))
 
-    const items = await t.query(api.social.feed, { filter: 'for_you' }) as any[]
+    const items = await t.withIdentity({ subject: 'feed-review-viewer-2' }).query(api.social.feed, { filter: 'for_you' }) as any[]
     const reviewIds = items.filter((item) => item.kind === 'review').map((item) => String(item.review._id))
     expect(reviewIds).toContain(goodId)
     // feed_v2 is rating-neutral: substantive 1 through 5 star reviews are eligible.

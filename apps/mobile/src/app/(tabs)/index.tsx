@@ -57,7 +57,7 @@ function ConnectedHome() {
   const signedIn = member.status === 'ready'
   const accountPresentation = homeAccountPresentation(auth.status, member.status)
   const accountLoading = accountPresentation === 'account_loading'
-  const canQuery = filter === 'for_you' || signedIn
+  const canQuery = signedIn
   const feedPage = usePaginatedQuery(mobileApi.social.feedPage, canQuery ? { filter } : 'skip', { initialNumItems: 20 })
   const feedItems = useMemo(() => dedupeFeedItems(feedPage.results), [feedPage.results])
   const requestedPost = useQuery(mobileApi.social.requestedPost, requestedPostId ? { postId: requestedPostId } : 'skip')

@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { ArrowLeft, MapPin, RotateCcw } from 'lucide-react'
 import { activityCategoriesMatch, activityCategoryOptions, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
+import { RequireSignedIn } from '../features/auth/RequireSignedIn'
 import { EmptyState } from '../design-system/molecules/FeedbackState'
 import { SearchField } from '../design-system/molecules/SearchField'
 import { CompanionListItem, type DiscoveryCompanion } from '../design-system/organisms/CompanionListItem'
@@ -17,7 +18,15 @@ import {
   type NearbyRadiusKm,
 } from '../lib/geo'
 
-export const Route = createFileRoute('/nearby')({ component: NearbySearchPage })
+export const Route = createFileRoute('/nearby')({ component: NearbyRoutePage })
+
+function NearbyRoutePage() {
+  return (
+    <RequireSignedIn>
+      <NearbySearchPage />
+    </RequireSignedIn>
+  )
+}
 
 type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 

@@ -59,7 +59,7 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
     results: feedResults,
     status: feedStatus,
     loadMore: loadMoreFeed,
-  } = usePaginatedQuery(api.social.feedPage, { filter: viewer ? feedFilter : 'for_you' }, { initialNumItems: 20 })
+  } = usePaginatedQuery(api.social.feedPage, viewer ? { filter: feedFilter } : 'skip', { initialNumItems: 20 })
   const feedItems = feedResults as FeedItem[] | undefined
   const requestedPost = useQuery(api.social.requestedPost, postId ? { postId } : 'skip') as FeedPost | null | undefined
   const mediaUsage = useQuery(api.social.mediaUploadUsage)

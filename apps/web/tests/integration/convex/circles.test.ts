@@ -560,7 +560,7 @@ describe('Circle authorization foundation', () => {
     const member = t.withIdentity({ subject: 'member' })
     const postId = await member.mutation(api.social.createPost, { body: 'Private Circle discussion', circleId, circleKind: 'discussion' })
 
-    expect((await t.query(api.social.feed, {})).some((item: any) => item.kind === 'post' && item.post._id === postId)).toBe(false)
+    expect((await member.query(api.social.feed, {})).some((item: any) => item.kind === 'post' && item.post._id === postId)).toBe(false)
     expect(await member.query(api.social.byUser, { userId: memberId })).toEqual([])
     await member.mutation(api.social.toggleSavePost, { postId })
     expect(await member.query(api.social.feed, { filter: 'saved' })).toEqual([])

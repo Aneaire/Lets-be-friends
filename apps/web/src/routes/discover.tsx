@@ -11,9 +11,18 @@ import { EmptyState } from '../design-system/molecules/FeedbackState'
 import { SearchField } from '../design-system/molecules/SearchField'
 import { SegmentedControl } from '../design-system/molecules/SegmentedControl'
 import { CompanionListItem, type DiscoveryCompanion } from '../design-system/organisms/CompanionListItem'
+import { RequireSignedIn } from '../features/auth/RequireSignedIn'
 import { CategoryFilterDialog } from '../features/discovery/CategoryFilterDialog'
 
-export const Route = createFileRoute('/discover')({ component: DiscoverPage })
+export const Route = createFileRoute('/discover')({ component: DiscoverRoutePage })
+
+function DiscoverRoutePage() {
+  return (
+    <RequireSignedIn>
+      <DiscoverPage />
+    </RequireSignedIn>
+  )
+}
 
 type ModeFilter = 'all' | 'online' | 'in_person' | 'both'
 

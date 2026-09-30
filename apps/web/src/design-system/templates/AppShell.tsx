@@ -1,15 +1,16 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { Search } from 'lucide-react'
+import { SignInAction } from '../../features/auth/SignInAction'
 import { isWorkspacePath } from '../../lib/navigation'
 import { SignedInApplicationChrome } from './AppNavigation'
 import { BrandLogo } from '../atoms/BrandLogo'
 import { ThemeToggle } from '../atoms/ThemeToggle'
 
 const publicNavigation = [
-  { to: '/nearby', label: 'Explore' },
-  { to: '/safety', label: 'How it works' },
-  { to: '/become-companion', label: 'Become a Companion' },
+  { to: '/nearby', label: 'Explore', requiresAuth: true },
+  { to: '/safety', label: 'How it works', requiresAuth: false },
+  { to: '/become-companion', label: 'Become a Companion', requiresAuth: false },
 ] as const
 
 export function Header() {
@@ -32,19 +33,23 @@ export function Header() {
         ) : (
           <nav className="public-nav" aria-label="Primary navigation">
             {publicNavigation.map((item) => (
-              <Link key={item.to} to={item.to} className="nav-link" activeProps={{ 'aria-current': 'page' }}>
-                {item.label}
-              </Link>
+              item.requiresAuth ? (
+                <SignInAction key={item.to} className="nav-link">{item.label}</SignInAction>
+              ) : (
+                <Link key={item.to} to={item.to} className="nav-link" activeProps={{ 'aria-current': 'page' }}>
+                  {item.label}
+                </Link>
+              )
             ))}
           </nav>
         )}
 
         <div className="app-header-actions">
           {!onboarding && (
-            <Link to="/nearby" className="discover-header-link" aria-label="Explore Companions and everyday help">
+            <SignInAction className="discover-header-link" aria-label="Sign in to explore Companions and everyday help">
               <Search size={17} aria-hidden="true" />
               <span>Explore</span>
-            </Link>
+            </SignInAction>
           )}
           <ThemeToggle />
           <SignInButton mode="modal">
@@ -73,7 +78,7 @@ export function Footer() {
           </span>
         </div>
         <div className="flex items-center gap-5">
-          <Link to="/nearby" className="nav-link">Explore</Link>
+          <SignInAction className="nav-link">Explore</SignInAction>
           <Link to="/safety" className="nav-link">How safety works</Link>
           <Link to="/become-companion" className="nav-link">Become a Companion</Link>
           <span className="text-soft">Everyday skills. Real connections.</span>

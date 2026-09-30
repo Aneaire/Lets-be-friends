@@ -128,10 +128,10 @@ async function feedPageResult(ctx: any, args: {
   filter?: 'for_you' | 'following' | 'saved'
   paginationOpts: { cursor: string | null; numItems: number }
 }) {
-    const viewer = await getViewer(ctx)
-    if (viewer?.suspended) throw new Error('Account is suspended')
+    // The feed is a member surface: even For You must come from a signed-in,
+    // non-suspended viewer so the server never serves it to anonymous callers.
+    const viewer = await requireViewer(ctx)
     const filter = args.filter ?? 'for_you'
-    if (filter !== 'for_you' && !viewer) throw new Error('Sign in to use this feed')
     if (!Number.isSafeInteger(args.paginationOpts.numItems) || args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > FOR_YOU_PAGE_SIZE) {
       throw new Error(`Feed pages can include 1 to ${FOR_YOU_PAGE_SIZE} items`)
     }
