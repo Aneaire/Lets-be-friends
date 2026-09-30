@@ -38,6 +38,7 @@ import { isHiddenByPreference, requireNotBlocked } from './safety'
 import { isCircleParticipantRole, requireCircleDiscussionRead, requireCircleMember, requireCircleModerator, requireCircleWrite, requirePostAudienceRead, requirePostAudienceWrite } from './circleAuthorization'
 
 const MAX_MEDIA_UPLOADS_PER_DAY = 5
+const MAX_CIRCLE_POST_MEDIA = 3
 const MEDIA_UPLOAD_WINDOW_MS = 24 * 60 * 60 * 1000
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024
@@ -545,7 +546,6 @@ export const createPost = mutation({
       if (args.experienceBookingId) throw new Error('Shared posts cannot be experience posts')
     }
     if (args.circleId) {
-      if (mediaUploadIds.length > 0) throw new Error('Circle posts are text-only')
       if (args.experienceBookingId) throw new Error('Circle posts cannot be experience posts')
       if (pollArg && (args.circleKind ?? 'discussion') === 'announcement') {
         throw new Error('Announcements cannot include a poll')
@@ -563,6 +563,7 @@ export const createPost = mutation({
     }
     if (body.length < 1 && mediaUploadIds.length === 0 && !pollArg && !isShare) throw new Error('Post cannot be empty')
     if (body.length > 1000) throw new Error('Post is too long')
+    if (args.circleId && mediaUploadIds.length > MAX_CIRCLE_POST_MEDIA) throw new Error('Circle posts can include up to 3 media uploads')
     if (mediaUploadIds.length > MAX_MEDIA_UPLOADS_PER_DAY) throw new Error('Posts can include up to 5 media uploads')
     if (new Set(mediaUploadIds.map(String)).size !== mediaUploadIds.length) throw new Error('Each media upload can be attached only once')
     const uploads = await Promise.all(mediaUploadIds.map((uploadId) => ctx.db.get(uploadId)))
@@ -1370,7 +1371,7 @@ async function enrichPost(ctx: any, post: Doc<'posts'>, viewer: Doc<'users'> | n
   ])
   const enriched = {
     ...post,
-    media: post.circleId ? [] : await mediaWithUrls(ctx, post.media),
+    media: await mediaWithUrls(ctx, post.media),
     poll: post.poll ? enrichedPoll(post.poll, pollVote?.optionId, Date.now()) : undefined,
     commentCount: post.commentCount ?? 0,
     likeCount: post.likeCount ?? 0,

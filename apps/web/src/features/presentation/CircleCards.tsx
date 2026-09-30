@@ -1,5 +1,6 @@
 import { MapPin, Users } from 'lucide-react'
 import { cloneElement, type ReactElement, type ReactNode } from 'react'
+import { BrandLogo } from '../../design-system/atoms/BrandLogo'
 
 // Circle list rows and the compact home module card are intentionally separate
 // variants: they share CircleMarker and the link-slot cloning contract but have
@@ -42,7 +43,7 @@ export function CircleMarker({ circle }: {
   if (circle.iconUrl) {
     return <img className="circle-icon" src={circle.iconUrl} alt={`${circle.name}, ${mode}${circle.membershipState === 'active' ? ', joined' : ''}`} />
   }
-  return <span className="circle-marker" data-member={circle.membershipState === 'active'} role="img" aria-label={`${mode}${circle.membershipState === 'active' ? ', joined' : ''}`} />
+  return <span className="circle-marker" data-member={circle.membershipState === 'active'} role="img" aria-label={`${mode}${circle.membershipState === 'active' ? ', joined' : ''}`}><BrandLogo className="circle-marker-logo" /></span>
 }
 
 export function CircleCard({ link, circle }: { link: CircleLinkElement; circle: CircleCardView }) {

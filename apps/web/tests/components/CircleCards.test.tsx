@@ -66,4 +66,19 @@ describe('circle card presentation', () => {
     expect(screen.getByText('12 members')).toBeTruthy()
     expect(link.querySelector('.circle-marker')).toBeTruthy()
   })
+
+  it('shows the brand logo when a Circle has no icon and the icon image when it does', () => {
+    render(<CircleCard link={<a href="/circles/no-icon" />} circle={{ ...joinedOpen, iconUrl: undefined }} />)
+
+    const logo = screen.getByRole('link').querySelector<HTMLImageElement>('.circle-marker-logo')
+    expect(logo).toBeTruthy()
+    expect(logo?.getAttribute('src')).toBe('/logo.svg')
+
+    cleanup()
+    render(<CircleCard link={<a href="/circles/with-icon" />} circle={{ ...joinedOpen, iconUrl: 'https://example.com/icon.png' }} />)
+
+    const link = screen.getByRole('link')
+    expect(link.querySelector<HTMLImageElement>('.circle-icon')?.getAttribute('src')).toBe('https://example.com/icon.png')
+    expect(link.querySelector('.circle-marker')).toBeNull()
+  })
 })

@@ -70,6 +70,29 @@ async function insertMembership(
   })
 }
 
+async function insertRegisteredMediaUploads(
+  t: ReturnType<typeof convexTest>,
+  userId: Id<'users'>,
+  count: number,
+) {
+  return await t.run(async (ctx) => {
+    const ids: Id<'postMediaUploads'>[] = []
+    for (let index = 0; index < count; index += 1) {
+      const storageId = await ctx.storage.store(new Blob([`media-${index}`], { type: 'image/png' }))
+      ids.push(await ctx.db.insert('postMediaUploads', {
+        userId,
+        storageId,
+        kind: 'image',
+        contentType: 'image/png',
+        size: 7,
+        createdAt: Date.now(),
+        registeredAt: Date.now(),
+      }))
+    }
+    return ids
+  })
+}
+
 describe('Circle authorization foundation', () => {
   it('denies signed-out and suspended viewers', async () => {
     const t = convexTest(schema, convexModules)
@@ -618,19 +641,23 @@ describe('Circle authorization foundation', () => {
     expect((await t.run(async (ctx) => ctx.db.get(commentId)))?.body).toBe('Author reply')
   })
 
-  it('enforces text-only posts, announcement authority, and lifecycle access before side effects', async () => {
+  it('accepts Circle media within the 3-item cap, and still enforces announcement authority and lifecycle access before side effects', async () => {
     const t = convexTest(schema, convexModules)
     await insertUser(t, 'admin', { role: 'admin' })
     const hostId = await insertUser(t, 'host', { verified: true })
     const memberId = await insertUser(t, 'member')
     const circleId = await createCircle(t, 'admin', hostId)
     await insertMembership(t, circleId, memberId, 'active')
-    const uploadId = await t.run(async (ctx) => ctx.db.insert('postMediaUploads', { userId: memberId, createdAt: Date.now() }))
+    const uploadIds = await insertRegisteredMediaUploads(t, memberId, 4)
     const member = t.withIdentity({ subject: 'member' })
 
-    await expect(member.mutation(api.social.createPost, { body: 'No media', circleId, mediaUploadIds: [uploadId] })).rejects.toThrow('text-only')
+    const mediaPostId = await member.mutation(api.social.createPost, { body: 'With media', circleId, mediaUploadIds: [uploadIds[0]] })
+    expect((await t.run(async (ctx) => ctx.db.get(mediaPostId)))?.media).toHaveLength(1)
+    const feed = await member.query(api.social.circleFeed, { circleId, paginationOpts: { cursor: null, numItems: 10 } })
+    expect(feed.page.find((row) => row._id === mediaPostId)?.media).toMatchObject([{ kind: 'image', url: expect.any(String) }])
+
     await expect(member.mutation(api.social.createPost, { body: 'Announcement', circleId, circleKind: 'announcement' })).rejects.toThrow('moderator')
-    expect((await t.run(async (ctx) => ctx.db.get(uploadId)))?.postId).toBeUndefined()
+    expect((await t.run(async (ctx) => ctx.db.get(uploadIds[1])))?.postId).toBeUndefined()
     const announcementId = await t.withIdentity({ subject: 'host' }).mutation(api.social.createPost, { body: 'Official update', circleId, circleKind: 'announcement' })
 
     await t.withIdentity({ subject: 'host' }).mutation(api.circles.setState, { circleId, state: 'archived' })
@@ -639,6 +666,21 @@ describe('Circle authorization foundation', () => {
     await t.withIdentity({ subject: 'host' }).mutation(api.circles.setState, { circleId, state: 'active' })
     await t.withIdentity({ subject: 'admin' }).mutation(api.circles.setState, { circleId, state: 'suspended' })
     await expect(member.query(api.social.requestedPost, { postId: String(announcementId) })).rejects.toThrow('suspended')
+  })
+
+  it('rejects a Circle post with a fourth media upload before claiming any upload', async () => {
+    const t = convexTest(schema, convexModules)
+    await insertUser(t, 'admin', { role: 'admin' })
+    const hostId = await insertUser(t, 'host', { verified: true })
+    const memberId = await insertUser(t, 'member')
+    const circleId = await createCircle(t, 'admin', hostId)
+    await insertMembership(t, circleId, memberId, 'active')
+    const uploadIds = await insertRegisteredMediaUploads(t, memberId, 4)
+    const member = t.withIdentity({ subject: 'member' })
+
+    await expect(member.mutation(api.social.createPost, { body: 'Four media', circleId, mediaUploadIds: uploadIds })).rejects.toThrow('up to 3 media uploads')
+    expect((await t.run(async (ctx) => ctx.db.get(uploadIds[3])))?.postId).toBeUndefined()
+    expect((await member.query(api.social.circleFeed, { circleId, paginationOpts: { cursor: null, numItems: 10 } })).page).toEqual([])
   })
 
   it('hides blocked members mutually and rejects their Circle interactions and mentions', async () => {

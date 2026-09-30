@@ -17,7 +17,7 @@ vi.mock('../../convex/_generated/api', () => ({
     circleEvents: {
       list: 'circleEvents.list', generateThumbnailUploadUrl: 'circleEvents.generateThumbnailUploadUrl', create: 'circleEvents.create', update: 'circleEvents.update', setState: 'circleEvents.setState', removeThumbnail: 'circleEvents.removeThumbnail',
     },
-    social: { circleFeed: 'social.circleFeed', requestedPost: 'social.requestedPost', createPost: 'social.createPost', commentsForPost: 'social.commentsForPost', createComment: 'social.createComment', toggleLike: 'social.toggleLike', toggleSavePost: 'social.toggleSavePost', toggleCommentLike: 'social.toggleCommentLike' },
+    social: { circleFeed: 'social.circleFeed', requestedPost: 'social.requestedPost', createPost: 'social.createPost', commentsForPost: 'social.commentsForPost', createComment: 'social.createComment', toggleLike: 'social.toggleLike', toggleSavePost: 'social.toggleSavePost', toggleCommentLike: 'social.toggleCommentLike', mediaUploadUsage: 'social.mediaUploadUsage', generatePostMediaUploadUrl: 'social.generatePostMediaUploadUrl', registerPostMediaUpload: 'social.registerPostMediaUpload', discardPostMediaUpload: 'social.discardPostMediaUpload' },
     reports: { create: 'reports.create' },
   },
 }))
@@ -559,5 +559,77 @@ describe('Circle workspace', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('JPEG, PNG, or WebP')
     fireEvent.click(screen.getByRole('button', { name: 'Remove icon' }))
     await waitFor(() => expect(removeImage).toHaveBeenCalledWith({ circleId: 'circle-1', kind: 'icon' }))
+  })
+
+  it('adds media to the Circle composer preview', () => {
+    const originalCreateObjectURL = URL.createObjectURL
+    URL.createObjectURL = vi.fn(() => 'blob:media') as unknown as typeof URL.createObjectURL
+    try {
+      mocks.query.mockImplementation((fn) => {
+        if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'member', canRead: true, canWrite: true }
+        if (fn === 'social.mediaUploadUsage') return { used: 0, remaining: 5, limit: 5 }
+        if (fn === 'circleEvents.list') return []
+        return undefined
+      })
+      mocks.mutation.mockReturnValue(vi.fn())
+
+      const { container } = render(<CircleWorkspacePage circleId="circle-1" />)
+      const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+      fireEvent.change(input, { target: { files: [new File(['a'], 'one.png', { type: 'image/png' })] } })
+
+      expect(container.querySelector('.social-media-preview-grid')?.getAttribute('data-count')).toBe('1')
+      expect(screen.getByRole('button', { name: 'Remove media' })).toBeTruthy()
+    } finally {
+      URL.createObjectURL = originalCreateObjectURL
+    }
+  })
+
+  it('caps Circle composer media at three items and blocks a fourth selection', () => {
+    const originalCreateObjectURL = URL.createObjectURL
+    URL.createObjectURL = vi.fn(() => 'blob:media') as unknown as typeof URL.createObjectURL
+    try {
+      mocks.query.mockImplementation((fn) => {
+        if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'member', canRead: true, canWrite: true }
+        if (fn === 'social.mediaUploadUsage') return { used: 0, remaining: 5, limit: 5 }
+        if (fn === 'circleEvents.list') return []
+        return undefined
+      })
+      mocks.mutation.mockReturnValue(vi.fn())
+
+      const { container } = render(<CircleWorkspacePage circleId="circle-1" />)
+      const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+      fireEvent.change(input, {
+        target: {
+          files: [
+            new File(['a'], 'one.png', { type: 'image/png' }),
+            new File(['b'], 'two.png', { type: 'image/png' }),
+            new File(['c'], 'three.png', { type: 'image/png' }),
+          ],
+        },
+      })
+      expect(container.querySelector('.social-media-preview-grid')?.getAttribute('data-count')).toBe('3')
+
+      fireEvent.change(input, { target: { files: [new File(['d'], 'four.png', { type: 'image/png' })] } })
+      expect(container.querySelector('.social-media-preview-grid')?.getAttribute('data-count')).toBe('3')
+      expect(screen.getByRole('alert').textContent).toContain('Circle posts can include up to 3 media uploads.')
+    } finally {
+      URL.createObjectURL = originalCreateObjectURL
+    }
+  })
+
+  it('renders PostMediaGrid for a Circle post with media', () => {
+    const mediaPost = { ...post, media: [{ storageId: 'media-1', kind: 'image' as const, contentType: 'image/png', size: 10, url: 'https://example.invalid/photo.png' }] }
+    mocks.paginated.mockReturnValue({ results: [mediaPost], status: 'Exhausted', loadMore: vi.fn() })
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'member', canRead: true, canWrite: true }
+      if (fn === 'social.commentsForPost') return []
+      return undefined
+    })
+    mocks.mutation.mockReturnValue(vi.fn())
+
+    const { container } = render(<CircleWorkspacePage circleId="circle-1" />)
+    const grid = container.querySelector('.social-media-grid')
+    expect(grid?.getAttribute('data-count')).toBe('1')
+    expect(container.querySelector('.social-media-grid img')?.getAttribute('src')).toBe('https://example.invalid/photo.png')
   })
 })

@@ -72,6 +72,44 @@ async function insertCompanion(t: ReturnType<typeof convexTest>, userId: any, st
   })
 }
 
+async function insertRegisteredMediaUploads(t: ReturnType<typeof convexTest>, userId: any, count: number) {
+  return await t.run(async (ctx) => {
+    const ids: any[] = []
+    for (let index = 0; index < count; index += 1) {
+      const storageId = await ctx.storage.store(new Blob([`media-${index}`], { type: 'image/png' }))
+      ids.push(await ctx.db.insert('postMediaUploads', {
+        userId,
+        storageId,
+        kind: 'image',
+        contentType: 'image/png',
+        size: 7,
+        createdAt: Date.now() + index,
+        registeredAt: Date.now() + index,
+      }))
+    }
+    return ids
+  })
+}
+
+async function insertCircle(t: ReturnType<typeof convexTest>, hostUserId: any) {
+  return await t.run(async (ctx) => {
+    const now = Date.now()
+    return await ctx.db.insert('circles', {
+      slug: `media-circle-${now}`,
+      name: 'Media Circle',
+      purpose: 'Share media safely.',
+      category: 'Media',
+      rules: ['Be kind.'],
+      mode: 'online',
+      state: 'active',
+      hostUserId,
+      createdByUserId: hostUserId,
+      createdAt: now,
+      updatedAt: now,
+    })
+  })
+}
+
 describe('social feed behavior', () => {
   it('rejects anonymous reads so signed-out visitors cannot view the feed', async () => {
     const t = createTest()
@@ -956,6 +994,37 @@ describe('post media attachment guard', () => {
     expect((await t.run(async (ctx) => ctx.db.get(grant2.uploadId)))?.storageId).toBeUndefined()
     expect((await t.run(async (ctx) => ctx.db.get(grant2.uploadId)))?.registeredAt).toBeUndefined()
     void postId
+  })
+})
+
+describe('post media per-post limits', () => {
+  it('allows up to 5 media uploads on a feed post and rejects a sixth', async () => {
+    const t = createTest()
+    const ownerId = await insertUser(t, 'feed-media-owner')
+    const owner = t.withIdentity({ subject: 'feed-media-owner' })
+    const uploads = await insertRegisteredMediaUploads(t, ownerId, 6)
+
+    const postId = await owner.mutation(api.social.createPost, { body: 'Five media', mediaUploadIds: uploads.slice(0, 5) })
+    expect((await t.run(async (ctx) => ctx.db.get(postId)))?.media).toHaveLength(5)
+
+    await expect(owner.mutation(api.social.createPost, { body: 'Six media', mediaUploadIds: uploads })).rejects.toThrow('up to 5 media uploads')
+  })
+
+  it('caps Circle posts at 3 media uploads', async () => {
+    const t = createTest()
+    const ownerId = await insertUser(t, 'circle-media-owner')
+    const owner = t.withIdentity({ subject: 'circle-media-owner' })
+    const circleId = await insertCircle(t, ownerId)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert('circleMemberships', { circleId, userId: ownerId, state: 'active', role: 'member', rulesAcceptedAt: now, createdAt: now, updatedAt: now })
+    })
+    const uploads = await insertRegisteredMediaUploads(t, ownerId, 4)
+
+    const postId = await owner.mutation(api.social.createPost, { body: 'Three media', circleId, mediaUploadIds: uploads.slice(0, 3) })
+    expect((await t.run(async (ctx) => ctx.db.get(postId)))?.media).toHaveLength(3)
+
+    await expect(owner.mutation(api.social.createPost, { body: 'Four media', circleId, mediaUploadIds: uploads })).rejects.toThrow('up to 3 media uploads')
   })
 })
 

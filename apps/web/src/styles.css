@@ -95,18 +95,24 @@
 }
 
 .circle-marker {
+  display: grid;
   flex: 0 0 auto;
   width: 2.5rem;
   height: 2.5rem;
+  place-items: center;
   border: 1px solid var(--border-strong);
   border-radius: 50%;
   background: var(--surface);
-  box-shadow: inset 0 0 0 0.42rem var(--surface), inset 0 0 0 0.5rem var(--text-soft);
 }
 
 .circle-marker[data-member="true"] {
   border-color: var(--accent-social-line);
-  box-shadow: inset 0 0 0 0.38rem var(--surface), inset 0 0 0 0.55rem var(--accent-social);
+}
+
+.circle-marker-logo {
+  width: 68%;
+  height: 68%;
+  object-fit: contain;
 }
 
 .circle-marker-large { width: 3.75rem; height: 3.75rem; }
@@ -236,7 +242,8 @@
 .circle-composer { display: grid; gap: 0.75rem; border: 1px solid var(--border); background: var(--surface); padding: 1rem; }
 .circle-composer > label:first-child { font-family: "Bricolage Grotesque Variable", Inter, sans-serif; font-weight: 650; }
 .circle-composer textarea { min-height: 7rem; resize: vertical; }
-.circle-composer > div { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.circle-composer-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+.circle-composer-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; }
 .circle-post-list { display: grid; gap: 1rem; margin-top: 1rem; }
 .circle-post-card { scroll-margin-top: 6rem; }
 .circle-post-card:focus { outline: 2px solid var(--accent-social); outline-offset: 3px; }
