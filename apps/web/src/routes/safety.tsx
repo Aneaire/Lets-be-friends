@@ -24,7 +24,7 @@ const safetySteps = [
   {
     title: 'You choose what to share',
     body: 'Public profiles use a city or broad area. Exact meeting details stay private until a Companion accepts the booking.',
-    detail: 'Nearby search uses rounded locations and never reveals a Companion pin or saved approximate area.',
+    detail: 'Nearby search shows only the rounded approximate area and approximate distance. It never shows an exact address or live location.',
   },
   {
     title: 'Money follows the plan',
@@ -38,7 +38,7 @@ const safetySteps = [
   },
 ] as const
 
-function SafetyPage() {
+export function SafetyPage() {
   return (
     <main className="marketing-page-wide safety-page">
       <section className="safety-hero">
@@ -46,6 +46,11 @@ function SafetyPage() {
           <h1 className="text-display mt-4">
             Know what happens before you meet.
           </h1>
+          <p className="lede mt-4">
+            Let&apos;s Be Friends is for adults 18 and older. Identity checks, Companion review,
+            approximate locations, in-app payment, and reporting stay visible before you meet.
+          </p>
+          <p className="text-meta mt-2">Verification is required before booking. Reporting never requires evidence.</p>
           <div className="safety-hero-actions">
             <Link to="/nearby" className="btn btn-social">Find a Companion</Link>
             <Link to="/become-companion" className="btn btn-self">Become a Companion</Link>
@@ -88,8 +93,81 @@ function SafetyPage() {
 
       <section className="safety-control-grid" aria-label="Your controls">
         <article><span>01</span><h3>Your boundaries stay visible</h3><p>Read what a Companion offers and what they do not offer before you request a time.</p></article>
-        <article><span>02</span><h3>Your location stays broad</h3><p>Nearby results can show approximate distance without revealing someone’s saved pin.</p></article>
+        <article><span>02</span><h3>Your location stays broad</h3><p>Nearby results can show approximate distance without revealing an exact address or live location.</p></article>
         <article><span>03</span><h3>You can report without evidence</h3><p>A private check-in photo is optional and is never required to raise a safety concern.</p></article>
+      </section>
+
+      <section className="safety-fraud" id="fraud-signals" aria-labelledby="fraud-signals-title">
+        <header className="section-heading-row">
+          <div>
+            <p className="eyebrow">Fraud prevention</p>
+            <h2 id="fraud-signals-title" className="text-display section-display">Stop fraud before it starts.</h2>
+            <p className="lede mt-4">
+              Most scams follow the same pattern. Keep payment, agreements, and messages inside
+              Let&apos;s Be Friends so review, reports, and payment protection can apply.
+            </p>
+          </div>
+        </header>
+        <ul className="safety-fraud-list">
+          <li>
+            <strong>Keep payment in the app.</strong>
+            <span>Never pay by cash, transfer, gift card, or outside link. The member total, including the service fee, is shown before sending, and funds are reserved only when the Companion accepts.</span>
+          </li>
+          <li>
+            <strong>Keep agreements in writing.</strong>
+            <span>Confirm task, time, place, duration, price, boundaries, and what counts as complete in booking chat. Do not accept changes sent only by text, call, or social message.</span>
+          </li>
+          <li>
+            <strong>Check identity and approval signals.</strong>
+            <span>Book only approved Companions with verified identity, visible Strengths, boundaries, categories, ratings, and reviews. Be cautious with blank profiles, urgent pressure, or rates far below similar listings.</span>
+          </li>
+          <li>
+            <strong>Keep contact details private until trust is earned.</strong>
+            <span>Do not share your exact address, home location, ID photos, or financial details in chat. Meet in a bright public place when possible and arrange your own transport.</span>
+          </li>
+          <li>
+            <strong>Pause on urgency or secrecy.</strong>
+            <span>End the conversation if someone asks for secrecy, off-app payment, advance fees, personal favors, romantic or adult activity, or unlicensed regulated work. These are never allowed.</span>
+          </li>
+          <li>
+            <strong>Tell someone your plan.</strong>
+            <span>Share the agreed time, public place, and expected return with a trusted person. Consent can be withdrawn at any time. Stop if the situation becomes unsafe.</span>
+          </li>
+        </ul>
+        <div className="notice notice-danger mt-6" role="alert">
+          <span className="notice-icon">!</span>
+          <span>
+            <strong>In an emergency, leave first.</strong> Contact local emergency services after reaching
+            safety. Reporting to Let&apos;s Be Friends comes after you are safe and never replaces emergency help.
+          </span>
+        </div>
+      </section>
+
+      <section className="safety-report" id="how-reporting-works" aria-labelledby="reporting-title">
+        <header className="section-heading-row">
+          <div>
+            <p className="eyebrow">Reporting</p>
+            <h2 id="reporting-title" className="text-display section-display">Report in seconds. No evidence required.</h2>
+            <p className="lede mt-4">
+              Profiles, posts, messages, bookings, and reviews can all be reported from the item itself.
+              A participant booking report pauses unsettled funds for safety review.
+            </p>
+          </div>
+        </header>
+        <ol className="safety-report-steps">
+          <li>
+            <strong>Send the report from the profile, post, message, booking, or review.</strong>
+            <span>Describe what happened in your own words. Private check-in photos are optional.</span>
+          </li>
+          <li>
+            <strong>A reviewer triages the report.</strong>
+            <span>Reviewers can check context, hide content, suspend profiles for policy violations, and leave internal notes. Every decision is audit logged.</span>
+          </li>
+          <li>
+            <strong>Money and evidence stay protected during review.</strong>
+            <span>Unsettled booking funds stay paused until a full admin records a resolution. Private evidence can be retrieved only while a linked report is active, and access is audited.</span>
+          </li>
+        </ol>
       </section>
 
       <details className="safety-technical">

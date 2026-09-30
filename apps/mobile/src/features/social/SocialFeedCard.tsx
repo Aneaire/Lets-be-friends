@@ -4,7 +4,6 @@ import { router } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { useState } from 'react'
 import { Alert, Pressable, Share, StyleSheet, View } from 'react-native'
-import { api as generatedApi } from '../../../../web/convex/_generated/api'
 
 import { mobileApi, type PostId } from '@/backend/client'
 import { formatMessageTimestamp } from '@/data/messageViewModels'
@@ -29,7 +28,7 @@ import { openMemberProfile } from './socialNavigation'
 import { CompanionRecommendationCard, GuidanceFeedCard } from './SocialFeedRecommendations'
 import { ReviewFeedCard } from './ReviewFeedCard'
 
-type FeedItem = FunctionReturnType<typeof generatedApi.social.feedPage>['page'][number]
+type FeedItem = FunctionReturnType<typeof mobileApi.social.feedPage>['page'][number]
 type FeedAction = 'open_companion' | 'open_guidance' | 'open_review' | 'comment' | 'like' | 'save' | 'share' | 'follow' | 'report' | 'report_comment'
 
 export function SocialFeedCard({ item, signedIn, following, followBusy = false, onToggleFollow, onAction }: {

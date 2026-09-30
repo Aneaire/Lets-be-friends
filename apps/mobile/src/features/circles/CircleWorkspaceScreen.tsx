@@ -20,6 +20,8 @@ import { PollCard } from '@/features/social/PollCard'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { canRequestCircleMembership, circleAccessPresentation, circleActionError, circleJoinLabel, circleMembershipMessage, circlePreviewSections, circlePrivacySummary, previewDiscussionItems, resolveCirclePrivacySettings, shouldQueryRemovedCircleContent } from './circlePresentation'
+import { CircleEventsSection } from './CircleEventsSection'
+import { CirclePinnedPostsSection } from './CirclePinnedPostsSection'
 
 type CircleDetail = Exclude<NonNullable<FunctionReturnType<typeof generatedApi.circles.detail>>, { unavailable: true }>
 type CirclePost = FunctionReturnType<typeof generatedApi.social.circleFeed>['page'][number]
@@ -65,6 +67,7 @@ function CirclePreview({ detail, circleId }: { detail: CircleDetail; circleId: C
     {detail.membershipState === 'requested' ? <ActionButton label="Cancel request" intent="neutral" secondary loading={busy === 'cancel'} onPress={() => void run('cancel', () => cancelJoin({ circleId }))} /> : null}
     {detail.membershipState !== 'banned' ? <ActionButton label="Report Circle" intent="danger" secondary loading={busy === 'report'} onPress={() => Alert.alert('Report this Circle?', 'A platform safety reviewer will inspect the Circle.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Report Circle', style: 'destructive', onPress: () => void run('report', () => report({ targetType: 'circle', targetId: String(circleId), reason: 'Circle needs safety review' })) }])} /> : null}
     {sections.showDiscussions ? <PreviewDiscussions circleId={circleId} /> : null}
+    {sections.showDiscussions ? <CircleEventsSection circleId={circleId} canModerate={false} circleState={detail.circleState} readOnly /> : null}
     {sections.showMembers ? <PreviewMembers circleId={circleId} /> : null}
   </Screen>
 }
@@ -115,17 +118,19 @@ function MemberCircle({ detail, circleId, initialPostId }: { detail: CircleDetai
     {detail.pendingTransferForViewer ? <InlineNotice title="Host invitation" tone="neutral">You have been invited to host this Circle.<ActionButton label="Accept ownership" intent="neutral" compact onPress={() => Alert.alert('Accept Circle ownership?', 'You will become responsible for membership, rules, and moderation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Accept ownership', onPress: () => void run(() => acceptTransfer({ circleId })) }])} /></InlineNotice> : null}
     <View style={styles.row}><ActionButton compact label={detail.muted ? 'Unmute' : 'Mute'} intent="neutral" secondary loading={busy} onPress={() => void run(() => setMuted({ circleId, muted: !detail.muted }))} />{!detail.isCanonicalHost ? <ActionButton compact label="Leave Circle" intent="danger" secondary disabled={busy} onPress={() => Alert.alert('Leave this Circle?', 'You will lose access to discussions and the member list.', [{ text: 'Stay', style: 'cancel' }, { text: 'Leave Circle', style: 'destructive', onPress: () => void run(() => leave({ circleId })) }])} /> : null}</View>
     <SegmentedControl label="Circle sections" options={options} value={tab} onChange={setTab} tone={tab === 'manage' ? 'self' : 'social'} />
-    {tab === 'discussions' ? <CircleDiscussions circleId={circleId} canWrite={detail.canWrite} canModerate={detail.canModerate} initialPostId={initialPostId} /> : null}
+    {tab === 'discussions' ? <CircleDiscussions circleId={circleId} canWrite={detail.canWrite} canModerate={detail.canModerate} circleState={detail.circleState} pinnedPostIds={detail.pinnedPostIds} initialPostId={initialPostId} /> : null}
     {tab === 'about' ? <CircleAbout detail={detail} circleId={circleId} /> : null}
     {tab === 'members' ? <CircleMembers circleId={circleId} canModerate={detail.canModerate} /> : null}
     {tab === 'manage' && detail.isCanonicalHost ? <CircleManage circleId={circleId} /> : null}
   </Screen>
 }
 
-function CircleDiscussions({ circleId, canWrite, canModerate, initialPostId }: { circleId: CircleId; canWrite: boolean; canModerate: boolean; initialPostId?: string }) {
+function CircleDiscussions({ circleId, canWrite, canModerate, circleState, pinnedPostIds, initialPostId }: { circleId: CircleId; canWrite: boolean; canModerate: boolean; circleState: 'active' | 'archived' | 'suspended'; pinnedPostIds: string[]; initialPostId?: string }) {
   const theme = useAppTheme()
   const feed = usePaginatedQuery(mobileApi.social.circleFeed, { circleId }, { initialNumItems: 20 })
   const createPost = useMutation(mobileApi.social.createPost)
+  const pinPost = useMutation(mobileApi.circles.pinPost)
+  const unpinPost = useMutation(mobileApi.circles.unpinPost)
   const [body, setBody] = useState('')
   const [announcement, setAnnouncement] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -139,15 +144,27 @@ function CircleDiscussions({ circleId, canWrite, canModerate, initialPostId }: {
     try { await createPost({ body, circleId, circleKind: announcement ? 'announcement' : 'discussion' }); setBody('') } catch (cause) { setError(cause instanceof Error ? cause.message : 'The post could not be published.') } finally { setBusy(false) }
   }
 
+  async function togglePin(postId: PostId, pinned: boolean) {
+    setError('')
+    try {
+      if (pinned) await unpinPost({ circleId, postId })
+      else await pinPost({ circleId, postId })
+    } catch (cause) {
+      setError(circleActionError(cause, pinned ? 'The post could not be unpinned.' : 'The post could not be pinned.'))
+    }
+  }
+
   return <View style={styles.section}>
+    <CircleEventsSection circleId={circleId} canModerate={canModerate} circleState={circleState} />
+    <CirclePinnedPostsSection circleId={circleId} canModerate={canModerate} circleState={circleState} />
     {canWrite ? <View style={[styles.panel, { borderColor: theme.colors.border }]}><AppText variant="heading">Start a discussion</AppText><TextField multiline value={body} maxLength={1000} placeholder="Share something with this Circle" onChangeText={setBody} />{canModerate ? <Checkbox label="Post as an announcement" checked={announcement} onChange={setAnnouncement} /> : null}<ActionButton label="Publish" intent="social" loading={busy} disabled={!body.trim()} onPress={() => void publish()} /></View> : <InlineNotice title="Read-only Circle" tone="neutral">Posts, comments, reactions, and saves are unavailable while this Circle is archived.</InlineNotice>}
     {error ? <InlineNotice title="Post action failed" tone="danger">{error}</InlineNotice> : null}
-    {feed.status === 'LoadingFirstPage' ? <StateView embedded loading title="Loading discussions" /> : feed.results.length === 0 ? <StateView embedded title="No discussions yet" detail={canWrite ? 'Start the first conversation.' : 'This Circle has no visible posts.'} /> : <View style={styles.list}>{feed.results.map((post) => <CirclePostCard key={post._id} post={post} canWrite={canWrite} canModerate={canModerate} expanded={selectedPost === String(post._id)} onToggleComments={() => setSelectedPost((current) => current === String(post._id) ? null : String(post._id))} />)}</View>}
+    {feed.status === 'LoadingFirstPage' ? <StateView embedded loading title="Loading discussions" /> : feed.results.length === 0 ? <StateView embedded title="No discussions yet" detail={canWrite ? 'Start the first conversation.' : 'This Circle has no visible posts.'} /> : <View style={styles.list}>{feed.results.map((post) => <CirclePostCard key={post._id} post={post} canWrite={canWrite} canModerate={canModerate} pinned={pinnedPostIds.some((id) => id === String(post._id))} onTogglePin={() => void togglePin(post._id as PostId, pinnedPostIds.some((id) => id === String(post._id)))} expanded={selectedPost === String(post._id)} onToggleComments={() => setSelectedPost((current) => current === String(post._id) ? null : String(post._id))} />)}</View>}
     {feed.status === 'CanLoadMore' ? <ActionButton label="Load more discussions" intent="social" secondary onPress={() => feed.loadMore(20)} /> : null}
   </View>
 }
 
-function CirclePostCard({ post, canWrite, canModerate, expanded, onToggleComments }: { post: CirclePost; canWrite: boolean; canModerate: boolean; expanded: boolean; onToggleComments: () => void }) {
+function CirclePostCard({ post, canWrite, canModerate, pinned, onTogglePin, expanded, onToggleComments }: { post: CirclePost; canWrite: boolean; canModerate: boolean; pinned: boolean; onTogglePin: () => void; expanded: boolean; onToggleComments: () => void }) {
   const theme = useAppTheme()
   const toggleLike = useMutation(mobileApi.social.toggleLike)
   const toggleSave = useMutation(mobileApi.social.toggleSavePost)
@@ -156,7 +173,8 @@ function CirclePostCard({ post, canWrite, canModerate, expanded, onToggleComment
   const report = useMutation(mobileApi.reports.create)
   const [error, setError] = useState('')
   const date = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(post.createdAt)
-  return <View><PostCard author={post.authorDisplayName} username={post.authorUsername} imageUrl={post.authorProfileImageUrl} timestamp={date} meta={post.circleKind === 'announcement' ? <AppText variant="caption" color={theme.colors.socialText}>Announcement</AppText> : null} headerAction={canModerate ? <ActionButton label="Moderate post" compact intent="danger" secondary onPress={() => Alert.alert('Remove this post?', 'Members will no longer see it. The moderation queue can restore it.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove post', style: 'destructive', onPress: () => void remove({ postId: post._id as PostId, removed: true }).catch(() => setError('The post could not be removed.')) }])} /> : !post.ownPost ? <ActionButton label="Report post" compact intent="danger" secondary onPress={() => void report({ targetType: 'post', targetId: String(post._id), reason: 'Circle post needs safety review' }).catch(() => setError('The report could not be sent.'))} /> : null} footer={<PostActionBar liked={post.liked} likeCount={post.likeCount} saved={post.saved} commentCount={post.commentCount} disabled={!canWrite} commentLabel="View comments" onLike={() => { if (canWrite) void toggleLike({ postId: post._id as PostId }).catch(() => setError('The reaction could not be updated.')) }} onSave={() => { if (canWrite) void toggleSave({ postId: post._id as PostId }).catch(() => setError('The saved post could not be updated.')) }} onComment={onToggleComments} />}><AppText>{post.body}</AppText>{post.poll ? <PollCard poll={post.poll} disabled={!canWrite} onVote={async (optionId) => { await voteOnPoll({ postId: post._id as PostId, optionId }) }} /> : null}</PostCard>{error ? <InlineNotice title="Post action failed" tone="danger">{error}</InlineNotice> : null}{expanded ? <CircleComments postId={post._id as PostId} canWrite={canWrite} canModerate={canModerate} /> : null}</View>
+  const meta = <>{post.circleKind === 'announcement' ? <AppText variant="caption" color={theme.colors.socialText}>Announcement</AppText> : null}{pinned ? <AppText variant="caption" color={theme.colors.socialText}>Pinned</AppText> : null}</>
+  return <View><PostCard author={post.authorDisplayName} username={post.authorUsername} imageUrl={post.authorProfileImageUrl} timestamp={date} meta={meta} headerAction={canModerate ? <View style={styles.row}><ActionButton label={pinned ? 'Unpin post' : 'Pin post'} compact intent="neutral" secondary onPress={onTogglePin} /><ActionButton label="Moderate post" compact intent="danger" secondary onPress={() => Alert.alert('Remove this post?', 'Members will no longer see it. The moderation queue can restore it.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove post', style: 'destructive', onPress: () => void remove({ postId: post._id as PostId, removed: true }).catch(() => setError('The post could not be removed.')) }])} /></View> : !post.ownPost ? <ActionButton label="Report post" compact intent="danger" secondary onPress={() => void report({ targetType: 'post', targetId: String(post._id), reason: 'Circle post needs safety review' }).catch(() => setError('The report could not be sent.'))} /> : null} footer={<PostActionBar liked={post.liked} likeCount={post.likeCount} saved={post.saved} commentCount={post.commentCount} disabled={!canWrite} commentLabel="View comments" onLike={() => { if (canWrite) void toggleLike({ postId: post._id as PostId }).catch(() => setError('The reaction could not be updated.')) }} onSave={() => { if (canWrite) void toggleSave({ postId: post._id as PostId }).catch(() => setError('The saved post could not be updated.')) }} onComment={onToggleComments} />}><AppText>{post.body}</AppText>{post.poll ? <PollCard poll={post.poll} disabled={!canWrite} onVote={async (optionId) => { await voteOnPoll({ postId: post._id as PostId, optionId }) }} /> : null}</PostCard>{error ? <InlineNotice title="Post action failed" tone="danger">{error}</InlineNotice> : null}{expanded ? <CircleComments postId={post._id as PostId} canWrite={canWrite} canModerate={canModerate} /> : null}</View>
 }
 
 function CircleComments({ postId, canWrite, canModerate }: { postId: PostId; canWrite: boolean; canModerate: boolean }) {

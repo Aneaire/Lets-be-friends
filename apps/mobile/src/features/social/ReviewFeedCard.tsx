@@ -4,8 +4,6 @@ import { router } from 'expo-router'
 import { useState } from 'react'
 import { Share } from 'react-native'
 
-import { api as generatedApi } from '../../../../web/convex/_generated/api'
-
 import { mobileApi, type ReviewId } from '@/backend/client'
 import { formatMessageTimestamp } from '@/data/messageViewModels'
 import { showAppToast } from '@/design-system/molecules/AppToast'
@@ -15,7 +13,7 @@ import { ShareSheet } from './ShareSheet'
 import { reviewShareUrl } from './shareLinks'
 import { openMemberProfile } from './socialNavigation'
 
-type FeedItem = FunctionReturnType<typeof generatedApi.social.feedPage>['page'][number]
+type FeedItem = FunctionReturnType<typeof mobileApi.social.feedPage>['page'][number]
 type FeedReviewItem = Extract<FeedItem, { kind: 'review' }>
 type FeedAction = 'open_companion' | 'open_guidance' | 'open_review' | 'comment' | 'like' | 'save' | 'share' | 'follow' | 'report' | 'report_comment'
 

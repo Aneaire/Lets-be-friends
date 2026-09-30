@@ -14,6 +14,7 @@ import { Screen } from '@/design-system/templates/Screen'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { CircleCard } from './CircleCard'
+import { CirclePreviewCard } from './CirclePreviewCard'
 import { circleIndexPresentation } from './circlePresentation'
 
 const pilotRules = [
@@ -84,7 +85,7 @@ export function CircleIndexScreen() {
       ) : null}
 
       {!loading ? <CircleSection title="My circles" empty="You have not joined a Circle yet." circles={index.mine} /> : null}
-      {!loading ? <CircleSection title="Discover circles" empty="No new Circles right now." circles={index.available} /> : null}
+      {!loading ? <DiscoverSection circles={index.available} /> : null}
     </Screen>
   )
 }
@@ -95,7 +96,12 @@ function LabeledField({ label, children }: { label: string; children: React.Reac
 
 function CircleSection({ title, empty, circles }: { title: string; empty: string; circles: Array<Parameters<typeof CircleCard>[0]['circle']> }) {
   const theme = useAppTheme()
-  return <View style={styles.section}><View style={styles.sectionTitle}><AppText variant="heading">{title}</AppText><AppText color={theme.colors.textMuted}>{circles.length}</AppText></View>{circles.length ? <View style={styles.list}>{circles.map((circle) => <CircleCard key={circle._id} circle={{ ...circle, _id: String(circle._id) }} />)}</View> : <StateView embedded title={empty} detail={title === 'My circles' ? 'Browse active Circles and request a place in one that fits.' : 'Your joined Circles are listed above.'} />}</View>
+  return <View style={styles.section}><View style={styles.sectionTitle}><AppText variant="heading">{title}</AppText><AppText color={theme.colors.textMuted}>{circles.length}</AppText></View>{circles.length ? <View style={styles.list}>{circles.map((circle) => <CircleCard key={circle._id} circle={{ ...circle, _id: String(circle._id) }} />)}</View> : <StateView embedded title={empty} detail="Browse active Circles and request a place in one that fits." />}</View>
+}
+
+function DiscoverSection({ circles }: { circles: Array<{ _id: string; name: string; purpose: string; category: string; memberCount: number; mode: 'online' | 'in_person' | 'both'; approximateArea?: string; joinPolicy?: 'approval_required' | 'open'; host?: { displayName: string } | null }> }) {
+  const theme = useAppTheme()
+  return <View style={styles.section}><View style={styles.sectionTitle}><AppText variant="heading">Discover circles</AppText><AppText color={theme.colors.textMuted}>{circles.length}</AppText></View><AppText color={theme.colors.textMuted}>Preview a Circle before joining. Open one to read its rules and request a place.</AppText>{circles.length ? <View style={styles.list}>{circles.map((circle) => <CirclePreviewCard key={String(circle._id)} circle={{ _id: String(circle._id), name: circle.name, purpose: circle.purpose, category: circle.category, memberCount: circle.memberCount, mode: circle.mode, approximateArea: circle.approximateArea, hostDisplayName: circle.host?.displayName ?? null, joinPolicy: circle.joinPolicy ?? null }} />)}</View> : <StateView embedded title="No new Circles right now." detail="Your joined Circles are listed above." />}</View>
 }
 
 const styles = StyleSheet.create({

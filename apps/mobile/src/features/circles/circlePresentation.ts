@@ -113,3 +113,122 @@ export function shouldQueryRemovedCircleContent(state: 'active' | 'archived' | '
 export function circleActionError(cause: unknown, fallback: string) {
   return cause instanceof Error && cause.message ? cause.message : fallback
 }
+
+export type CircleEventMode = 'online' | 'in_person' | 'both'
+export type CircleEventState = 'scheduled' | 'cancelled'
+
+export type CircleEventItem = {
+  _id: string
+  title: string
+  details: string
+  startsAt: number
+  location?: string
+  mode?: CircleEventMode
+  state: CircleEventState
+  thumbnailUrl?: string
+  organizerDisplayName: string
+}
+
+export const MAX_CIRCLE_EVENT_TITLE_LENGTH = 120
+export const MAX_CIRCLE_EVENT_DETAILS_LENGTH = 2000
+export const MAX_CIRCLE_EVENT_LOCATION_LENGTH = 120
+export const MAX_CIRCLE_EVENT_THUMBNAIL_BYTES = 5 * 1024 * 1024
+export const supportedCircleEventThumbnailTypes = ['image/jpeg', 'image/png', 'image/webp'] as const
+
+export function circleEventModeLabel(mode: CircleEventMode | undefined | null) {
+  if (mode === 'online') return 'Online'
+  if (mode === 'in_person') return 'In person'
+  if (mode === 'both') return 'Online and in person'
+  return null
+}
+
+export function formatCircleEventWhen(startsAt: number) {
+  return new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(startsAt)
+}
+
+export function circleEventLocationLine(event: Pick<CircleEventItem, 'location' | 'mode'>) {
+  return [event.location, circleEventModeLabel(event.mode)].filter(Boolean).join(' · ') || undefined
+}
+
+export function validateCircleEventDraft(input: { title: string; details: string; startsAt: number | null | undefined; location?: string }) {
+  const title = input.title.trim()
+  const details = input.details.trim()
+  const location = input.location?.trim() || undefined
+  if (!title || !details) return 'Event title and details are required.'
+  if (title.length > MAX_CIRCLE_EVENT_TITLE_LENGTH || details.length > MAX_CIRCLE_EVENT_DETAILS_LENGTH) return 'Event details are too long.'
+  if (location && (location.length > MAX_CIRCLE_EVENT_LOCATION_LENGTH || /[\r\n]/.test(location))) return 'Use a short, single-line event location.'
+  if (!Number.isFinite(input.startsAt) || (input.startsAt as number) <= Date.now()) return 'Event date and time must be in the future.'
+  return null
+}
+
+export function canManageCircleEvents(input: { canModerate?: boolean; circleState?: 'active' | 'archived' | 'suspended' }) {
+  return input.canModerate === true && input.circleState !== 'archived' && input.circleState !== 'suspended'
+}
+
+export function shouldQueryCircleEvents(canReadDiscussion?: boolean | null) {
+  return canReadDiscussion === true
+}
+
+export function groupCircleEventsByDay<TEvent extends { _id: string; startsAt: number }>(events: TEvent[]) {
+  const ordered = [...events].sort((left, right) => left.startsAt - right.startsAt)
+  const groups: Array<{ key: string; label: string; events: TEvent[] }> = []
+  for (const event of ordered) {
+    const date = new Date(event.startsAt)
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    const label = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' }).format(date)
+    const group = groups.find((row) => row.key === key)
+    if (group) group.events.push(event)
+    else groups.push({ key, label, events: [event] })
+  }
+  return groups
+}
+
+export function validateCircleEventThumbnailAsset(asset: { type?: string | null; mimeType?: string | null; fileName?: string | null; uri?: string; fileSize?: number }) {
+  if (asset.type && asset.type !== 'image') {
+    return { ok: false as const, message: 'Choose a still image for the event thumbnail.' }
+  }
+  const normalized = asset.mimeType?.trim().toLowerCase()
+  const extension = (asset.fileName || asset.uri || '').split(/[?#]/)[0].split('.').pop()?.toLowerCase()
+  const contentType = normalized && (supportedCircleEventThumbnailTypes as readonly string[]).includes(normalized)
+    ? normalized
+    : extension === 'jpg' || extension === 'jpeg' ? 'image/jpeg' : extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : null
+  if (!contentType) {
+    return { ok: false as const, message: 'Event thumbnails must be JPEG, PNG, or WebP still images.' }
+  }
+  if (asset.fileSize !== undefined && (!Number.isSafeInteger(asset.fileSize) || asset.fileSize <= 0 || asset.fileSize > MAX_CIRCLE_EVENT_THUMBNAIL_BYTES)) {
+    return { ok: false as const, message: 'Event thumbnails must be 5 MB or smaller.' }
+  }
+  return { ok: true as const, contentType }
+}
+
+export type CirclePreviewCardView = {
+  _id: string
+  name: string
+  purpose: string
+  category: string
+  memberCount: number
+  mode: 'online' | 'in_person' | 'both'
+  approximateArea?: string
+  hostDisplayName?: string | null
+  joinPolicy?: 'approval_required' | 'open' | null
+  circleState?: string | null
+}
+
+export function circlePreviewCardSummary(circle: CirclePreviewCardView) {
+  const location = circle.approximateArea ?? (circle.mode === 'online' ? 'Online' : 'Area shared in Circle')
+  return {
+    location,
+    meta: `${circle.category} · ${circle.memberCount} ${circle.memberCount === 1 ? 'member' : 'members'} · ${location}`,
+    hostLine: `Hosted by ${circle.hostDisplayName ?? 'Circle host'}`,
+    openJoin: circle.joinPolicy === 'open',
+    archived: circle.circleState === 'archived',
+  }
+}
+
+export function pinnedPostItems<TPost extends { _id: string }>(posts: TPost[]) {
+  return [...posts]
+}
+
+export function canModeratePinnedPosts(input: { canModerate?: boolean; circleState?: 'active' | 'archived' | 'suspended' }) {
+  return input.canModerate === true && input.circleState !== 'suspended'
+}

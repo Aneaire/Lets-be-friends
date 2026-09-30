@@ -11,6 +11,7 @@ import { BookingCompletionAction } from '@/features/booking/BookingCompletionAct
 import { BookingEvidencePanel } from '@/design-system/organisms/BookingEvidencePanel'
 import { BookingLifecycleDetails } from '@/design-system/organisms/BookingLifecycleDetails'
 import { BookingMessagesButton } from '@/features/booking/BookingMessagesButton'
+import { BookingThread } from '@/features/booking/BookingThread'
 import { PlanThread } from '@/features/booking/PlanThread'
 import { BookingSafetyActions } from '@/features/booking/BookingSafetyActions'
 import { Screen } from '@/design-system/templates/Screen'
@@ -88,6 +89,13 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
       </View>
       {booking.notes ? <View style={styles.notes}><AppText variant="heading">Your notes</AppText><AppText color={theme.colors.textMuted}>{booking.notes}</AppText></View> : null}
       <PlanThread status={booking.status} requestedAt={booking.requestedAt} memberCompletedAt={booking.memberCompletedAt} companionCompletedAt={booking.companionCompletedAt} />
+      <BookingThread
+        bookingId={booking._id as BookingId}
+        status={booking.status}
+        memberCompletedAt={booking.memberCompletedAt}
+        companionCompletedAt={booking.companionCompletedAt}
+        otherName={booking.companionDisplayName}
+      />
       <BookingLifecycleDetails
         status={booking.status}
         viewerRole="member"

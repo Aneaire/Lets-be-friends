@@ -32,7 +32,13 @@ describe('post media layout styles', () => {
       /\.social-video-button\.social-video-play\s*\{[^}]*background:\s*oklch\(0% 0 0 \/ 55%\);/s,
     )
     expect(styles).toMatch(
-      /\.social-video-scrub\s*\{[^}]*width:\s*calc\(100% \+ 1\.25rem\);[^}]*accent-color:\s*oklch\(100% 0 0\);/s,
+      /\.social-video-scrub\s*\{[^}]*width:\s*calc\(100% \+ 1\.25rem\);/s,
+    )
+    expect(styles).toMatch(
+      /\.social-video-scrub-track\s*\{[^}]*background:\s*rgb\(255 255 255 \/ 35%\);/s,
+    )
+    expect(styles).toMatch(
+      /\.social-video-scrub-fill\s*\{[^}]*background:\s*oklch\(100% 0 0\);/s,
     )
   })
 

@@ -4,9 +4,9 @@ import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-rout
 import * as Linking from 'expo-linking'
 import { BlurTargetView } from 'expo-blur'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Image, Pressable, Share, StyleSheet, View } from 'react-native'
+import { Alert, Image, Pressable, Share, StyleSheet, View } from 'react-native'
 
-import { mobileApi, type CompanionProfileId, type ReviewId, type UserId } from '@/backend/client'
+import { mobileApi, type CompanionProfileId, type ReviewCommentId, type ReviewId, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
@@ -219,6 +219,7 @@ function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, on
   const toggleSave = useMutation(mobileApi.reviews.toggleSave)
   const toggleLike = useMutation(mobileApi.reviews.toggleLike)
   const createComment = useMutation(mobileApi.reviews.createComment)
+  const deleteReviewComment = useMutation(mobileApi.reviews.deleteComment)
   const createPost = useMutation(mobileApi.social.createPost)
   const [savedOverrides, setSavedOverrides] = useState<Record<string, boolean>>({})
   const [likeOverrides, setLikeOverrides] = useState<Record<string, { liked: boolean; likeCount: number }>>({})
@@ -322,6 +323,21 @@ function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, on
     }
   }
 
+  function confirmDeleteReviewComment(commentId: string) {
+    Alert.alert('Delete this comment?', 'This action cannot be undone.', [
+      { text: 'Keep comment', style: 'cancel' },
+      {
+        text: 'Delete comment',
+        style: 'destructive',
+        onPress: () => {
+          void deleteReviewComment({ commentId: commentId as ReviewCommentId }).catch(() => {
+            setError('This comment could not be deleted. Please try again.')
+          })
+        },
+      },
+    ])
+  }
+
   const shareUrl = shareReview ? reviewShareUrl(companionProfileId, String(shareReview._id)) : undefined
 
   async function shareReviewLink() {
@@ -365,6 +381,7 @@ function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, on
           })}
           onChangeCommentDraft={(value) => { setCommentDrafts((current) => ({ ...current, [key]: value })); setError('') }}
           onSubmitComment={() => void submitComment(review)}
+          onDeleteComment={(commentId) => confirmDeleteReviewComment(commentId)}
           onOpenImage={() => review.imageUrl ? onOpenImage({ url: review.imageUrl, index: 0, total: 1 }) : undefined}
         />
       })}
@@ -381,7 +398,7 @@ function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, on
   )
 }
 
-function ReviewCard({ review, signedIn, focused = false, saved, liked, likeCount, commentsOpen, commentBusy, commentDraft, onToggleSave, onToggleLike, onShare, onToggleComments, onChangeCommentDraft, onSubmitComment, onOpenImage }: {
+function ReviewCard({ review, signedIn, focused = false, saved, liked, likeCount, commentsOpen, commentBusy, commentDraft, onToggleSave, onToggleLike, onShare, onToggleComments, onChangeCommentDraft, onSubmitComment, onDeleteComment, onOpenImage }: {
   review: Review
   signedIn: boolean
   focused?: boolean
@@ -397,6 +414,7 @@ function ReviewCard({ review, signedIn, focused = false, saved, liked, likeCount
   onToggleComments: () => void
   onChangeCommentDraft: (value: string) => void
   onSubmitComment: () => void
+  onDeleteComment: (commentId: string) => void
   onOpenImage: () => void
 }) {
   const theme = useAppTheme()
@@ -450,6 +468,17 @@ function ReviewCard({ review, signedIn, focused = false, saved, liked, likeCount
             <View style={styles.reviewCommentCopy}>
               <AppText variant="bodyStrong" numberOfLines={1}>{comment.authorDisplayName}</AppText>
               <AppText variant="body">{comment.body}</AppText>
+              {comment.ownComment ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${comment.authorDisplayName}'s comment`}
+                  onPress={() => onDeleteComment(String(comment._id))}
+                  hitSlop={8}
+                  style={styles.reviewCommentDelete}
+                >
+                  <AppText variant="caption" color={theme.colors.danger}>Delete</AppText>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         ))}
@@ -582,6 +611,7 @@ const styles = StyleSheet.create({
   reviewComments: { gap: density.cardGap, paddingTop: 2 },
   reviewComment: { flexDirection: 'row', alignItems: 'flex-start', gap: density.cardGap },
   reviewCommentCopy: { flex: 1, minWidth: 0, gap: 1 },
+  reviewCommentDelete: { alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' },
   reviewCommentForm: { gap: density.textStackGap },
   reviewCommentInput: { minHeight: 64, maxHeight: 100 },
   textCount: { alignSelf: 'flex-end' },

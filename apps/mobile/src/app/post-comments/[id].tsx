@@ -27,7 +27,7 @@ import { openMemberProfile } from '@/features/social/socialNavigation'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 type RequestedPost = NonNullable<FunctionReturnType<typeof mobileApi.social.requestedPost>>
-type PostComment = NonNullable<FunctionReturnType<typeof mobileApi.social.commentsForPost>>[number]
+type PostComment = FunctionReturnType<typeof mobileApi.social.commentPage>['page'][number]
 
 export default function PostCommentsScreen() {
   const params = useLocalSearchParams<{ id?: string }>()
@@ -46,6 +46,7 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
   const { results: comments, status, loadMore } = usePaginatedQuery(mobileApi.social.commentPage, { postId }, { initialNumItems: 20 })
   const createComment = useMutation(mobileApi.social.createComment)
   const editComment = useMutation(mobileApi.social.editComment)
+  const deletePostComment = useMutation(mobileApi.social.deleteComment)
   const toggleCommentLike = useMutation(mobileApi.social.toggleCommentLike)
   const blurTarget = useRef<View>(null)
   const [viewerImage, setViewerImage] = useState<PostViewerImage | null>(null)
@@ -179,6 +180,7 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
                   onReply={(nextBody) => createComment({ postId, parentCommentId: comment._id as CommentId, body: nextBody })}
                   onLike={() => toggleCommentLike({ commentId: comment._id as CommentId })}
                   onEdit={(nextBody) => editComment({ commentId: comment._id as CommentId, body: nextBody })}
+                  onDelete={() => deletePostComment({ commentId: comment._id as CommentId })}
                 />
               )}
               ListFooterComponent={status === 'LoadingMore' ? <AppText variant="caption" color={theme.colors.textMuted}>Loading more comments.</AppText> : null}
@@ -191,13 +193,14 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
   )
 }
 
-function CommentThreadRow({ comment, threadPosition, isLastReply, onReply, onLike, onEdit }: {
+function CommentThreadRow({ comment, threadPosition, isLastReply, onReply, onLike, onEdit, onDelete }: {
   comment: PostComment
   threadPosition: CommentThreadPosition
   isLastReply: boolean
   onReply: (body: string) => Promise<unknown>
   onLike: () => Promise<unknown>
   onEdit: (body: string) => Promise<unknown>
+  onDelete: () => Promise<unknown>
 }) {
   const theme = useAppTheme()
   const [replying, setReplying] = useState(false)
@@ -278,6 +281,7 @@ function CommentThreadRow({ comment, threadPosition, isLastReply, onReply, onLik
           commentId={String(comment._id)}
           body={comment.body}
           onEdit={onEdit}
+          onDelete={onDelete}
         />
       )}
     >

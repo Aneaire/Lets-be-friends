@@ -4,6 +4,8 @@ import type { Id } from '../../../web/convex/_generated/dataModel'
 export const mobileApi = {
   companions: {
     listExploreDirectory: generatedApi.companions.listExploreDirectory,
+    listExploreDirectoryPage: generatedApi.companions.listExploreDirectoryPage,
+    searchDirectory: generatedApi.companions.searchDirectory,
     listApproved: generatedApi.companions.listApproved,
     getPublic: generatedApi.companions.getPublic,
     toggleSaveProfile: generatedApi.companions.toggleSaveProfile,
@@ -31,6 +33,8 @@ export const mobileApi = {
     companionDecision: generatedApi.bookings.companionDecision,
     cancel: generatedApi.bookings.cancel,
     markCompleted: generatedApi.bookings.markCompleted,
+    messages: generatedApi.bookings.messages,
+    sendMessage: generatedApi.bookings.sendMessage,
   },
   bookingEvidence: {
     status: generatedApi.bookingEvidence.status,
@@ -59,6 +63,11 @@ export const mobileApi = {
     creationEligibility: generatedApi.circles.creationEligibility,
     mine: generatedApi.circles.mine,
     detail: generatedApi.circles.detail,
+    preview: generatedApi.circles.preview,
+    myAccess: generatedApi.circles.myAccess,
+    pinnedPosts: generatedApi.circles.pinnedPosts,
+    pinPost: generatedApi.circles.pinPost,
+    unpinPost: generatedApi.circles.unpinPost,
     hostManagement: generatedApi.circles.hostManagement,
     members: generatedApi.circles.members,
     joinRequests: generatedApi.circles.joinRequests,
@@ -67,6 +76,7 @@ export const mobileApi = {
     edit: generatedApi.circles.edit,
     updateSettings: generatedApi.circles.updateSettings,
     generateCircleImageUploadUrl: generatedApi.circles.generateCircleImageUploadUrl,
+    generateCreateImageUploadUrl: generatedApi.circles.generateCreateImageUploadUrl,
     setCircleImage: generatedApi.circles.setCircleImage,
     removeCircleImage: generatedApi.circles.removeCircleImage,
     requestToJoin: generatedApi.circles.requestToJoin,
@@ -84,6 +94,14 @@ export const mobileApi = {
     setCommentRemoved: generatedApi.circles.setCommentRemoved,
     setState: generatedApi.circles.setState,
   },
+  circleEvents: {
+    list: generatedApi.circleEvents.list,
+    create: generatedApi.circleEvents.create,
+    update: generatedApi.circleEvents.update,
+    setState: generatedApi.circleEvents.setState,
+    generateThumbnailUploadUrl: generatedApi.circleEvents.generateThumbnailUploadUrl,
+    removeThumbnail: generatedApi.circleEvents.removeThumbnail,
+  },
   safety: {
     relationship: generatedApi.safety.relationship,
     mine: generatedApi.safety.mine,
@@ -97,12 +115,13 @@ export const mobileApi = {
     submit: generatedApi.reviews.submit,
     toggleLike: generatedApi.reviews.toggleLike,
     createComment: generatedApi.reviews.createComment,
+    deleteComment: generatedApi.reviews.deleteComment,
     generateImageUploadUrl: generatedApi.reviews.generateImageUploadUrl,
     registerImageUpload: generatedApi.reviews.registerImageUpload,
     discardImageUpload: generatedApi.reviews.discardImageUpload,
   },
   social: {
-    feed: generatedApi.social.feed,
+    feedPage: generatedApi.social.feedPage,
     circleFeed: generatedApi.social.circleFeed,
     requestedPost: generatedApi.social.requestedPost,
     byUser: generatedApi.social.byUser,
@@ -118,6 +137,7 @@ export const mobileApi = {
     deletePost: generatedApi.social.deletePost,
     createComment: generatedApi.social.createComment,
     editComment: generatedApi.social.editComment,
+    deleteComment: generatedApi.social.deleteComment,
     toggleCommentLike: generatedApi.social.toggleCommentLike,
     toggleSavePost: generatedApi.social.toggleSavePost,
     toggleLike: generatedApi.social.toggleLike,
@@ -149,21 +169,28 @@ export const mobileApi = {
     start: generatedApi.conversations.start,
     sendMessage: generatedApi.conversations.sendMessage,
     markRead: generatedApi.conversations.markRead,
+    generateAttachmentUploadUrl: generatedApi.conversations.generateAttachmentUploadUrl,
+    registerAttachmentUpload: generatedApi.conversations.registerAttachmentUpload,
+    discardAttachmentUpload: generatedApi.conversations.discardAttachmentUpload,
   },
 } as const
 
 export type CompanionProfileId = Id<'companionProfiles'>
 export type BookingId = Id<'bookings'>
+export type BookingMessageId = Id<'messages'>
 export type ConversationId = Id<'directConversations'>
 export type MessageId = Id<'directMessages'>
+export type DirectMessageUploadId = Id<'directMessageUploads'>
 export type PostId = Id<'posts'>
 export type PostMediaUploadId = Id<'postMediaUploads'>
 export type CommentId = Id<'postComments'>
 export type ReviewId = Id<'reviews'>
+export type ReviewCommentId = Id<'reviewComments'>
 export type ReviewMediaUploadId = Id<'reviewMediaUploads'>
 export type StorageId = Id<'_storage'>
 export type UserId = Id<'users'>
 export type CircleId = Id<'circles'>
 export type CircleMembershipId = Id<'circleMemberships'>
+export type CircleEventId = Id<'circleEvents'>
 export type PaymongoTopUpId = Id<'paymongoTopUps'>
 export type WithdrawalId = Id<'withdrawals'>

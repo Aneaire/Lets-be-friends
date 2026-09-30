@@ -1,4 +1,4 @@
-import { useQuery } from 'convex/react'
+import { usePaginatedQuery, useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
 import { useMemo, useState } from 'react'
 import { FlatList, Pressable, StyleSheet, View } from 'react-native'
@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { mobileApi } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Chip } from '@/design-system/atoms/Chip'
 import { IconButton } from '@/design-system/atoms/IconButton'
 import { CompanionCard } from '@/design-system/organisms/CompanionCard'
@@ -19,8 +20,10 @@ import {
   activeDiscoveryFilterCount,
   defaultDiscoveryFilters,
   discoveryCategoryOptions,
+  exploreSearchActive,
   filterDiscoveryCompanions,
   includeUnavailableCompanions,
+  resolveExploreSource,
   type DiscoveryFilters,
 } from '@/data/discovery'
 import { mapApprovedCompanion, type ApprovedCompanionRecord } from '@/data/companionViewModels'
@@ -36,14 +39,63 @@ export default function ExploreScreen() {
 }
 
 function ConnectedExploreScreen() {
-  const result = useQuery(mobileApi.companions.listExploreDirectory, {})
-  if (result === undefined) return <PageSkeleton variant="explore" />
-  return <DiscoveryList sourceCompanions={(result as ApprovedCompanionRecord[]).map(mapApprovedCompanion)} />
+  const {
+    results: directoryResults,
+    status: directoryStatus,
+    loadMore: loadMoreDirectory,
+  } = usePaginatedQuery(mobileApi.companions.listExploreDirectoryPage, {}, { initialNumItems: 50 })
+  if (directoryStatus === 'LoadingFirstPage') return <PageSkeleton variant="explore" />
+  return (
+    <DirectoryExplore
+      directoryEntries={(directoryResults ?? []) as ApprovedCompanionRecord[]}
+      directoryStatus={directoryStatus}
+      onLoadMore={() => loadMoreDirectory(50)}
+    />
+  )
 }
 
-function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<typeof mapApprovedCompanion>[] }) {
-  const theme = useAppTheme()
+function DirectoryExplore({ directoryEntries, directoryStatus, onLoadMore }: {
+  directoryEntries: ApprovedCompanionRecord[]
+  directoryStatus: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted'
+  onLoadMore: () => void
+}) {
   const [query, setQuery] = useState('')
+  const searching = exploreSearchActive(query)
+  const searchResults = useQuery(
+    mobileApi.companions.searchDirectory,
+    searching ? { search: query.trim() } : 'skip',
+  )
+  const sourceCompanions = useMemo(() => {
+    const resolved = resolveExploreSource(
+      directoryEntries,
+      (searchResults ?? undefined) as ApprovedCompanionRecord[] | undefined,
+      query,
+    )
+    return resolved.entries.map(mapApprovedCompanion)
+  }, [directoryEntries, searchResults, query])
+  return (
+    <DiscoveryList
+      sourceCompanions={sourceCompanions}
+      query={query}
+      onQueryChange={setQuery}
+      searching={searching && searchResults === undefined}
+      canLoadMore={directoryStatus === 'CanLoadMore'}
+      loadingMore={directoryStatus === 'LoadingMore'}
+      onLoadMore={onLoadMore}
+    />
+  )
+}
+
+function DiscoveryList({ sourceCompanions, query, onQueryChange, searching, canLoadMore, loadingMore, onLoadMore }: {
+  sourceCompanions: ReturnType<typeof mapApprovedCompanion>[]
+  query: string
+  onQueryChange: (value: string) => void
+  searching: boolean
+  canLoadMore: boolean
+  loadingMore: boolean
+  onLoadMore: () => void
+}) {
+  const theme = useAppTheme()
   const [filters, setFilters] = useState<DiscoveryFilters>(() => includeUnavailableCompanions(defaultDiscoveryFilters))
   const [filterSheet, setFilterSheet] = useState(false)
   const companions = useMemo(() => filterDiscoveryCompanions(sourceCompanions, query, filters), [filters, query, sourceCompanions])
@@ -53,7 +105,7 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
   const canIncludeUnavailable = filters.bookableOnly && companions.length === 0 && unavailableMatches.length > 0
 
   function clearFilters() {
-    setQuery('')
+    onQueryChange('')
     setFilters(includeUnavailableCompanions(defaultDiscoveryFilters))
   }
 
@@ -83,7 +135,7 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
               />
             </View>
             <DiscoverCirclesEntry />
-            <SearchField label="Search people" value={query} onChange={setQuery} placeholder="Search names, Strengths, or interests" />
+            <SearchField label="Search people" value={query} onChange={onQueryChange} placeholder="Search names, Strengths, or interests" />
             <View style={styles.quickFilters}>
               <Chip label={filters.bookableOnly ? 'Bookable only' : 'Include unavailable'} selected={filters.bookableOnly} onPress={() => setFilters((current) => ({ ...current, bookableOnly: !current.bookableOnly }))} />
               <Chip label={`Filters ${activeDiscoveryFilterCount(filters)}`} selected={Boolean(filters.category || filters.strength || filters.mode !== 'all')} onPress={() => setFilterSheet(true)} />
@@ -97,13 +149,24 @@ function DiscoveryList({ sourceCompanions }: { sourceCompanions: ReturnType<type
           </View>
         }
         ListEmptyComponent={
-          <StateView
-            embedded
-            title={liveCount === 0 ? 'No members yet' : 'No matches for these filters'}
-            detail={liveCount === 0 ? 'No member profiles are available yet. Check back soon.' : canIncludeUnavailable ? 'Some matching Companions are not accepting booking requests right now.' : 'Try another category, Strength, or session format.'}
-            actionLabel={liveCount === 0 ? undefined : canIncludeUnavailable ? 'Include unavailable Companions' : 'Clear filters'}
-            onAction={liveCount === 0 ? undefined : canIncludeUnavailable ? () => setFilters((current) => includeUnavailableCompanions(current)) : clearFilters}
-          />
+          searching ? (
+            <StateView embedded title="Searching people..." detail="Looking up names across the directory." loading />
+          ) : (
+            <StateView
+              embedded
+              title={liveCount === 0 ? 'No members yet' : 'No matches for these filters'}
+              detail={liveCount === 0 ? 'No member profiles are available yet. Check back soon.' : canIncludeUnavailable ? 'Some matching Companions are not accepting booking requests right now.' : 'Try another category, Strength, or session format.'}
+              actionLabel={liveCount === 0 ? undefined : canIncludeUnavailable ? 'Include unavailable Companions' : 'Clear filters'}
+              onAction={liveCount === 0 ? undefined : canIncludeUnavailable ? () => setFilters((current) => includeUnavailableCompanions(current)) : clearFilters}
+            />
+          )
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footerStatus}><AppText variant="caption" color={theme.colors.textMuted}>Loading more people.</AppText></View>
+          ) : canLoadMore ? (
+            <View style={styles.footerStatus}><ActionButton label="Load more people" onPress={onLoadMore} secondary /></View>
+          ) : null
         }
       />
       <DiscoveryFilterSheet visible={filterSheet} filters={filters} categories={categories} onChange={setFilters} onClose={() => setFilterSheet(false)} />
@@ -131,4 +194,5 @@ const styles = StyleSheet.create({
   resultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   clearButton: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
   gap: { height: 6 },
+  footerStatus: { paddingTop: 16, alignItems: 'center' },
 })

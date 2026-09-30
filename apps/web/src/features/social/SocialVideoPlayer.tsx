@@ -59,7 +59,10 @@ export function SocialVideoPlayer({
 }) {
   const stageRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const fillRef = useRef<HTMLDivElement>(null)
+  const thumbRef = useRef<HTMLDivElement>(null)
   const hideControlsTimer = useRef<number | null>(null)
+  const progressRafRef = useRef<number | null>(null)
   const userPausedRef = useRef(false)
   const [playing, setPlaying] = useState(false)
   const [duration, setDuration] = useState(0)
@@ -83,7 +86,41 @@ export function SocialVideoPlayer({
 
   useEffect(() => () => {
     if (hideControlsTimer.current !== null) window.clearTimeout(hideControlsTimer.current)
+    if (progressRafRef.current !== null) window.cancelAnimationFrame(progressRafRef.current)
   }, [])
+
+  // The bar paints every animation frame while playing so it glides instead
+  // of jumping between timeupdate events. Direct DOM writes avoid re-renders.
+  const paintProgress = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    const extent = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0
+    const percent = extent > 0 ? Math.min(100, Math.max(0, (video.currentTime / extent) * 100)) : 0
+    if (fillRef.current) fillRef.current.style.width = `${percent}%`
+    if (thumbRef.current) thumbRef.current.style.left = `${percent}%`
+  }, [])
+
+  useEffect(() => {
+    if (!playing) {
+      if (progressRafRef.current !== null) {
+        window.cancelAnimationFrame(progressRafRef.current)
+        progressRafRef.current = null
+      }
+      paintProgress()
+      return
+    }
+    const tick = () => {
+      paintProgress()
+      progressRafRef.current = window.requestAnimationFrame(tick)
+    }
+    progressRafRef.current = window.requestAnimationFrame(tick)
+    return () => {
+      if (progressRafRef.current !== null) {
+        window.cancelAnimationFrame(progressRafRef.current)
+        progressRafRef.current = null
+      }
+    }
+  }, [paintProgress, playing])
 
   useEffect(() => {
     if (playing) scheduleHideControls()
@@ -154,6 +191,7 @@ export function SocialVideoPlayer({
     if (!video) return
     video.currentTime = next
     setCurrentTime(next)
+    paintProgress()
     showControls()
   }
 
@@ -172,6 +210,7 @@ export function SocialVideoPlayer({
 
   const seekMax = Number.isFinite(duration) && duration > 0 ? duration : 0
   const seekValue = Math.min(currentTime, seekMax)
+  const seekPercent = seekMax > 0 ? Math.min(100, Math.max(0, (seekValue / seekMax) * 100)) : 0
 
   function handleSurfaceClick() {
     if (onSurfaceClick) {
@@ -206,6 +245,7 @@ export function SocialVideoPlayer({
         onTimeUpdate={(event) => {
           const next = event.currentTarget.currentTime
           setCurrentTime(next)
+          paintProgress()
           onCurrentTimeChange?.(next)
         }}
         onPlay={() => setPlaying(true)}
@@ -258,16 +298,22 @@ export function SocialVideoPlayer({
             </button>
           )}
         </div>
-        <input
-          type="range"
-          className="social-video-scrub"
-          aria-label={`Seek ${label}`}
-          min={0}
-          max={seekMax}
-          step={0.1}
-          value={seekValue}
-          onChange={(event) => seekTo(Number(event.currentTarget.value))}
-        />
+        <div className="social-video-scrub">
+          <div className="social-video-scrub-track" aria-hidden="true">
+            <div ref={fillRef} className="social-video-scrub-fill" style={{ width: `${seekPercent}%` }} />
+            <div ref={thumbRef} className="social-video-scrub-thumb" style={{ left: `${seekPercent}%` }} />
+          </div>
+          <input
+            type="range"
+            className="social-video-scrub-input"
+            aria-label={`Seek ${label}`}
+            min={0}
+            max={seekMax}
+            step={0.1}
+            value={seekValue}
+            onChange={(event) => seekTo(Number(event.currentTarget.value))}
+          />
+        </div>
       </div>
     </div>
   )

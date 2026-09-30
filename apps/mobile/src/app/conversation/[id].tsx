@@ -1,12 +1,13 @@
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { router, useFocusEffect, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
+import * as ImagePicker from 'expo-image-picker'
 import * as Linking from 'expo-linking'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { AppState, FlatList, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { mobileApi, type ConversationId } from '@/backend/client'
+import { mobileApi, type ConversationId, type DirectMessageUploadId, type StorageId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { BookingCard } from '@/design-system/organisms/BookingCard'
 import { AttachmentMetaRow } from '@/design-system/molecules/AttachmentMetaRow'
@@ -19,6 +20,17 @@ import { CompactComposer } from '@/features/messaging/CompactComposer'
 import { BookingMessageShell, ConversationThreadHeader } from '@/features/messaging/ConversationThreadPresentation'
 import { MessageBubble } from '@/features/messaging/MessageBubble'
 import { bookingDestinationForViewer } from '@/data/bookingActions'
+import {
+  attachmentSelectionError,
+  canSubmitConversationMessage,
+  chatAttachmentKind,
+  describeChatAttachment,
+  MAX_CHAT_ATTACHMENTS,
+  needsCompressionBeforeSend,
+  normalizeAttachmentFileName,
+  validateChatAttachment,
+} from '@/data/chatAttachments'
+import { prepareChatUpload, uploadChatAttachment } from '@/features/messaging/chatAttachmentUpload'
 import {
   formatFileSize,
   formatMessageTimestamp,
@@ -52,9 +64,14 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
   )
   const markRead = useMutation(mobileApi.conversations.markRead)
   const sendMessage = useMutation(mobileApi.conversations.sendMessage)
+  const generateUpload = useMutation(mobileApi.conversations.generateAttachmentUploadUrl)
+  const registerUpload = useMutation(mobileApi.conversations.registerAttachmentUpload)
+  const discardUpload = useMutation(mobileApi.conversations.discardAttachmentUpload)
   const relationship = useQuery(mobileApi.safety.relationship, conversation ? { userId: conversation.otherUserId } : 'skip')
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
+  const [picking, setPicking] = useState(false)
+  const [attachments, setAttachments] = useState<PendingChatAttachment[]>([])
   const [error, setError] = useState('')
   useAppToastMessage(error)
   const sendingRef = useRef(false)
@@ -72,25 +89,132 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
     return () => subscription.remove()
   }, [canRead, conversation, id, markRead, messagePage.results.length]))
 
+  const readyAttachments = attachments.filter((attachment) => attachment.status === 'ready')
+  const hasAttachmentErrors = attachments.some((attachment) => attachment.status === 'error')
+
+  async function chooseFiles() {
+    if (sendingRef.current || sending) return
+    setError('')
+    const limitError = attachmentSelectionError({ currentCount: attachments.length, selectedCount: 1 })
+    if (limitError && attachments.length >= MAX_CHAT_ATTACHMENTS) {
+      setError(limitError)
+      return
+    }
+    setPicking(true)
+    try {
+      if (Platform.OS !== 'web') {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(false)
+        if (!permission.granted) {
+          setError('Photo access is needed only to choose message attachments from your library.')
+          return
+        }
+      }
+      const selectionLimit = Math.max(1, MAX_CHAT_ATTACHMENTS - attachments.length)
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos'],
+        allowsEditing: false,
+        allowsMultipleSelection: true,
+        selectionLimit,
+        quality: 0.8,
+      })
+      const selected = result.canceled ? [] : result.assets.slice(0, selectionLimit)
+      if (selected.length === 0) return
+      const overflow = attachmentSelectionError({ currentCount: attachments.length, selectedCount: selected.length })
+      if (overflow && selected.length > selectionLimit) {
+        setError(overflow)
+      }
+      const next: PendingChatAttachment[] = []
+      for (const asset of selected) {
+        const mimeType = asset.mimeType ?? 'image/jpeg'
+        const fileName = asset.fileName ?? asset.uri.split('/').pop() ?? 'attachment'
+        const fileSize = asset.fileSize ?? 0
+        const invalid = validateChatAttachment({ mimeType, fileSize, fileName })
+        if (invalid) {
+          next.push({ id: `${Date.now()}-${next.length}`, uri: asset.uri, mimeType, fileName, fileSize, status: 'error', error: invalid, compressionPercent: 0, originalSize: fileSize })
+          continue
+        }
+        const kind = chatAttachmentKind(mimeType)
+        if (needsCompressionBeforeSend(kind, fileSize)) {
+          next.push({
+            id: `${Date.now()}-${next.length}`,
+            uri: asset.uri,
+            mimeType,
+            fileName,
+            fileSize,
+            status: 'error',
+            error: 'Large media needs compression before sending. Choose a smaller photo or video under 3 MB on this device.',
+            compressionPercent: 0,
+            originalSize: fileSize,
+          })
+          continue
+        }
+        next.push({ id: `${Date.now()}-${next.length}`, uri: asset.uri, mimeType, fileName, fileSize, status: 'ready', compressionPercent: 0, originalSize: fileSize })
+      }
+      const failed = next.find((attachment) => attachment.status === 'error')
+      if (failed?.error) setError(failed.error)
+      setAttachments((current) => [...current, ...next].slice(0, MAX_CHAT_ATTACHMENTS))
+    } catch {
+      setError('Your media library could not be opened. Please try again.')
+    } finally {
+      setPicking(false)
+    }
+  }
+
+  function removeAttachment(attachmentId: string) {
+    if (sendingRef.current) return
+    setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId))
+  }
+
   async function send() {
     if (sendingRef.current || !canRead || conversation?.otherUserSuspended || relationship?.blocked || relationship?.blockedByOther) return
-    const validatedMessage = validateMessageBody(body)
-    if (!validatedMessage.ok) {
-      setError(validatedMessage.message)
+    const trimmed = body.trim()
+    if (!trimmed && readyAttachments.length === 0) {
+      setError('Write a message or attach a file before sending.')
+      return
+    }
+    if (trimmed) {
+      const validatedMessage = validateMessageBody(body)
+      if (!validatedMessage.ok) {
+        setError(validatedMessage.message)
+        return
+      }
+    }
+    if (hasAttachmentErrors) {
+      setError('Remove the file that could not be prepared before sending.')
       return
     }
 
     sendingRef.current = true
     setSending(true)
     setError('')
+    const grants: Array<{ uploadId: DirectMessageUploadId; storageId?: StorageId; claimed: boolean }> = []
     try {
+      for (const attachment of readyAttachments) {
+        const prepared = await prepareChatUpload({ uri: attachment.uri, mimeType: attachment.mimeType })
+        const grant = await generateUpload({})
+        const tracked = { uploadId: grant.uploadId as DirectMessageUploadId, storageId: undefined as StorageId | undefined, claimed: false }
+        grants.push(tracked)
+        const storageId = await uploadChatAttachment(grant.uploadUrl, prepared) as StorageId
+        tracked.storageId = storageId
+        await registerUpload({
+          uploadId: tracked.uploadId,
+          storageId,
+          fileName: normalizeAttachmentFileName(attachment.fileName),
+          originalSize: attachment.originalSize,
+          compressionPercent: 0,
+        })
+      }
       await sendMessage({
         conversationId: id as ConversationId,
-        body: validatedMessage.body,
+        body: trimmed,
+        attachmentUploadIds: grants.length ? grants.map((grant) => grant.uploadId) : undefined,
       })
+      grants.forEach((grant) => { grant.claimed = true })
+      setAttachments([])
       setBody('')
-    } catch {
-      setError('Your message could not be sent. Please try again.')
+    } catch (caught) {
+      await Promise.allSettled(grants.filter((grant) => !grant.claimed).map((grant) => discardUpload({ uploadId: grant.uploadId, storageId: grant.storageId }).catch(() => undefined)))
+      setError(caught instanceof Error ? caught.message : 'Your message could not be sent. Please try again.')
     } finally {
       sendingRef.current = false
       setSending(false)
@@ -99,6 +223,14 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
 
   if (!canRead) return <ThreadState title="This conversation is unavailable" action="Return to Messages" onPress={() => router.replace('/messages')} />
   if (conversation === undefined || messagePage.status === 'LoadingFirstPage') return <PageSkeleton variant="conversation" />
+
+  const canSubmit = canSubmitConversationMessage({
+    body,
+    readyAttachmentCount: readyAttachments.length,
+    preparing: picking,
+    hasErrors: hasAttachmentErrors,
+    sending,
+  })
 
   return (
     <ThreadView
@@ -109,8 +241,13 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
       body={body}
       setBody={(value) => { setBody(value); setError('') }}
       sending={sending}
+      picking={picking}
+      attachments={attachments}
+      canSubmit={canSubmit}
       error={error}
       onSend={() => void send()}
+      onAttach={() => void chooseFiles()}
+      onRemoveAttachment={removeAttachment}
       listRef={listRef}
       viewerId={viewerId}
       contactUnavailable={Boolean(relationship?.blocked || relationship?.blockedByOther)}
@@ -118,7 +255,19 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
   )
 }
 
-function ThreadView({ conversation, messages, paginationStatus, loadMore, body, setBody, sending, error, onSend, listRef, viewerId, contactUnavailable }: {
+type PendingChatAttachment = {
+  id: string
+  uri: string
+  mimeType: string
+  fileName: string
+  fileSize: number
+  status: 'ready' | 'error'
+  error?: string
+  compressionPercent: number
+  originalSize: number
+}
+
+function ThreadView({ conversation, messages, paginationStatus, loadMore, body, setBody, sending, picking, attachments, canSubmit, error, onSend, onAttach, onRemoveAttachment, listRef, viewerId, contactUnavailable }: {
   conversation: Conversation
   messages: Message[]
   paginationStatus: 'CanLoadMore' | 'LoadingMore' | 'Exhausted'
@@ -126,8 +275,13 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   body: string
   setBody: (value: string) => void
   sending: boolean
+  picking: boolean
+  attachments: PendingChatAttachment[]
+  canSubmit: boolean
   error: string
   onSend: () => void
+  onAttach: () => void
+  onRemoveAttachment: (attachmentId: string) => void
   listRef: React.RefObject<FlatList<Message> | null>
   viewerId: string
   contactUnavailable: boolean
@@ -171,7 +325,37 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
         {suspended || contactUnavailable ? <View style={[styles.suspended, { borderTopColor: theme.colors.border }]}><AppText color={theme.colors.textMuted}>{contactUnavailable ? 'New contact is stopped for this member connection. Existing messages and booking records remain available.' : 'This conversation is paused and cannot receive new messages.'}</AppText></View> : (
           <View style={[styles.composer, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
             <AppText variant="caption" color={theme.colors.textMuted}>Use messages to keep plans and important context together.</AppText>
-            <CompactComposer value={body} onChange={setBody} onSubmit={onSend} maxLength={2_100} sending={sending} disabled={counter.overLimit} />
+            <CompactComposer
+              value={body}
+              onChange={setBody}
+              onSubmit={onSend}
+              maxLength={2_100}
+              sending={sending}
+              disabled={counter.overLimit}
+              canSubmit={canSubmit && !counter.overLimit}
+              preparing={picking}
+              showAttach
+              attachDisabled={attachments.length >= MAX_CHAT_ATTACHMENTS}
+              attachLoading={picking}
+              onAttachPress={onAttach}
+              hint="Photos and videos under 3 MB send in original quality. Larger media needs a smaller copy first."
+              attachments={attachments.length ? (
+                <>
+                  {attachments.map((attachment) => (
+                    <AttachmentMetaRow
+                      key={attachment.id}
+                      name={attachment.fileName}
+                      detail={attachment.status === 'error'
+                        ? attachment.error ?? 'This file could not be prepared.'
+                        : `${formatFileSize(attachment.fileSize)} · ${describeChatAttachment({ fileSize: attachment.fileSize, originalSize: attachment.originalSize, compressionPercent: attachment.compressionPercent })}`}
+                      state={attachment.status === 'error' ? 'danger' : 'success'}
+                      actionLabel={`Remove ${attachment.fileName}`}
+                      onAction={() => onRemoveAttachment(attachment.id)}
+                    />
+                  ))}
+                </>
+              ) : undefined}
+            />
             <AppText variant="caption" color={counter.overLimit ? theme.colors.danger : theme.colors.textMuted}>{counter.count.toLocaleString()}/2,000 characters</AppText>
           </View>
         )}

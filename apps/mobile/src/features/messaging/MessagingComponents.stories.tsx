@@ -206,6 +206,40 @@ export const ComposerSendingLocksDraft: Story = {
   },
 }
 
+export const ComposerWithAttachmentTray: Story = {
+  render: () => {
+    const [value, setValue] = useState('Here is the park map')
+
+    return (
+      <CompactComposer
+        value={value}
+        maxLength={2_100}
+        canSubmit
+        showAttach
+        onAttachPress={() => undefined}
+        hint="Photos and videos under 3 MB send in original quality."
+        onChange={setValue}
+        onSubmit={() => undefined}
+        attachments={(
+          <AttachmentMetaRow
+            name="park-map.jpg"
+            detail="512.0 KiB · Original quality, no compression applied"
+            state="success"
+            actionLabel="Remove park-map.jpg"
+            onAction={() => undefined}
+          />
+        )}
+      />
+    )
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('button', { name: 'Attach files' })).toBeVisible()
+    await expect(canvas.getByLabelText('Selected files')).toBeVisible()
+    await expect(canvas.getByText('park-map.jpg')).toBeVisible()
+  },
+}
+
 export const ComposerOverLimitAllowsCorrection: Story = {
   render: () => <OverLimitComposerStory />,
   play: async ({ canvasElement }) => {

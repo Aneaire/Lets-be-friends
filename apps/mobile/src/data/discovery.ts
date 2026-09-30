@@ -39,6 +39,30 @@ export function dedupeFeedItems<T extends { itemKey: string }>(items: T[]) {
   return [...new Map(items.map((item) => [item.itemKey, item])).values()]
 }
 
+export function dedupeDirectoryEntries<T extends { _id: string }>(entries: T[]) {
+  return [...new Map(entries.map((entry) => [String(entry._id), entry])).values()]
+}
+
+export function exploreSearchActive(query: string) {
+  return query.trim().length > 0
+}
+
+export function resolveExploreSource<T extends { _id: string }>(
+  directoryEntries: T[],
+  searchEntries: T[] | undefined,
+  query: string,
+) {
+  // Server search matches names and usernames beyond the loaded directory
+  // pages. The directory pages already in memory still carry Strength,
+  // category, and intro matches for the same query, so searching merges both
+  // pools before the client filters run. Without an active query, or while
+  // search is still loading, the paged directory is the source.
+  if (exploreSearchActive(query) && searchEntries !== undefined) {
+    return { source: 'search' as const, entries: dedupeDirectoryEntries([...directoryEntries, ...searchEntries]) }
+  }
+  return { source: 'directory' as const, entries: dedupeDirectoryEntries(directoryEntries) }
+}
+
 export const discoveryModes: ReadonlyArray<{ id: DiscoveryFilters['mode']; label: string }> = [
   { id: 'all', label: 'Any format' },
   { id: 'in_person', label: 'In person' },

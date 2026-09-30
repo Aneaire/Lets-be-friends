@@ -2,7 +2,7 @@ import type { FunctionReturnType } from 'convex/server'
 import { withoutLeadingReplyMention } from '@lets-be-friends/shared'
 import { Pressable, StyleSheet, View } from 'react-native'
 
-import { api as generatedApi } from '../../../../web/convex/_generated/api'
+import { mobileApi } from '@/backend/client'
 
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -13,7 +13,7 @@ import { featuredCommentActionLabel } from './featuredCommentPresentation'
 import { MentionBody } from './MentionBody'
 import { openMemberProfile } from './socialNavigation'
 
-type FeedItem = FunctionReturnType<typeof generatedApi.social.feedPage>['page'][number]
+type FeedItem = FunctionReturnType<typeof mobileApi.social.feedPage>['page'][number]
 type FeedPost = Extract<FeedItem, { kind: 'post' }>['post']
 
 export type FeaturedComment = NonNullable<FeedPost['featuredComment']>

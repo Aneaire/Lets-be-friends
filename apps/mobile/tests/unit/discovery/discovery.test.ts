@@ -1,5 +1,5 @@
 import type { DiscoveryCompanionViewModel } from '@/data/companionViewModels'
-import { dedupeFeedItems, defaultDiscoveryFilters, discoveryCategoryOptions, filterDiscoveryCompanions, includeUnavailableCompanions, nearbySearchOptionsLabel, postMediaValidationError, type DiscoveryFilters } from '@/data/discovery'
+import { dedupeDirectoryEntries, dedupeFeedItems, defaultDiscoveryFilters, discoveryCategoryOptions, exploreSearchActive, filterDiscoveryCompanions, includeUnavailableCompanions, nearbySearchOptionsLabel, postMediaValidationError, resolveExploreSource, type DiscoveryFilters } from '@/data/discovery'
 
 const liveCompanions: DiscoveryCompanionViewModel[] = [
   {
@@ -123,5 +123,44 @@ describe('Companion discovery', () => {
   it('ignores surrounding whitespace and casing while excluding demo sources', () => {
     expect(byId('  GOOD LISTENER  ', { bookableOnly: false })).toEqual(['mika', 'sam', 'ines'])
     expect(byId('should never appear', { bookableOnly: false })).toEqual([])
+  })
+
+  it('treats blank search as directory browsing and other text as server search', () => {
+    expect(exploreSearchActive('')).toBe(false)
+    expect(exploreSearchActive('   ')).toBe(false)
+    expect(exploreSearchActive('mika')).toBe(true)
+  })
+
+  it('keeps the paged directory while server search is still loading', () => {
+    const directory = [{ _id: 'mika' }, { _id: 'paolo' }]
+    expect(resolveExploreSource(directory, undefined, 'mika')).toEqual({
+      source: 'directory',
+      entries: directory,
+    })
+    expect(resolveExploreSource(directory, [{ _id: 'sam' }], '')).toEqual({
+      source: 'directory',
+      entries: directory,
+    })
+  })
+
+  it('merges server name matches with loaded directory pages without duplicates', () => {
+    const resolved = resolveExploreSource(
+      [{ _id: 'mika' }, { _id: 'paolo' }],
+      [{ _id: 'paolo' }, { _id: 'sam' }],
+      'pa',
+    )
+    expect(resolved.source).toBe('search')
+    expect(resolved.entries.map((entry) => entry._id)).toEqual(['mika', 'paolo', 'sam'])
+  })
+
+  it('deduplicates directory entries by id keeping the newest copy', () => {
+    expect(dedupeDirectoryEntries([
+      { _id: 'mika', name: 'old' },
+      { _id: 'paolo', name: 'paolo' },
+      { _id: 'mika', name: 'new' },
+    ])).toEqual([
+      { _id: 'mika', name: 'new' },
+      { _id: 'paolo', name: 'paolo' },
+    ])
   })
 })

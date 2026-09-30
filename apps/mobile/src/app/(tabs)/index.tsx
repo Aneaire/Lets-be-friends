@@ -4,7 +4,6 @@ import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-rout
 import * as ImagePicker from 'expo-image-picker'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, Platform, Pressable, StyleSheet, View } from 'react-native'
-import { api as generatedApi } from '../../../../web/convex/_generated/api'
 import { activeMentionQuery } from '@lets-be-friends/shared'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
@@ -31,7 +30,7 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 import { MyCirclesModule } from '@/features/circles/CircleEntryPoints'
 
 type FeedFilter = 'for_you' | 'following' | 'saved'
-type FeedItem = FunctionReturnType<typeof generatedApi.social.feedPage>['page'][number]
+type FeedItem = FunctionReturnType<typeof mobileApi.social.feedPage>['page'][number]
 
 const feedFilterOptions = [
   { value: 'for_you', label: 'For you' },
@@ -59,7 +58,7 @@ function ConnectedHome() {
   const accountPresentation = homeAccountPresentation(auth.status, member.status)
   const accountLoading = accountPresentation === 'account_loading'
   const canQuery = filter === 'for_you' || signedIn
-  const feedPage = usePaginatedQuery(generatedApi.social.feedPage, canQuery ? { filter } : 'skip', { initialNumItems: 20 })
+  const feedPage = usePaginatedQuery(mobileApi.social.feedPage, canQuery ? { filter } : 'skip', { initialNumItems: 20 })
   const feedItems = useMemo(() => dedupeFeedItems(feedPage.results), [feedPage.results])
   const requestedPost = useQuery(mobileApi.social.requestedPost, requestedPostId ? { postId: requestedPostId } : 'skip')
   const unread = useQuery(mobileApi.notifications.unreadCount, signedIn ? {} : 'skip') ?? 0

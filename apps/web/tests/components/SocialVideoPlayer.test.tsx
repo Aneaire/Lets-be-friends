@@ -84,14 +84,46 @@ describe('SocialVideoPlayer', () => {
   })
 
   it('seeks through the bottom progress bar', () => {
-    const { video } = renderPlayer()
+    const { container, video } = renderPlayer()
     const seek = screen.getByRole('slider', { name: 'Seek Video 1 shared in this post' }) as HTMLInputElement
 
     fireEvent.loadedMetadata(video)
     expect(seek.max).toBe('76')
+    expect(container.querySelector('.social-video-scrub-track')).toBeTruthy()
 
     fireEvent.change(seek, { target: { value: '30' } })
     expect(video.currentTime).toBe(30)
+  })
+
+  it('paints the progress bar on animation frames while playing', () => {
+    let frameCallback: FrameRequestCallback = () => undefined
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frameCallback = callback
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    try {
+      const { container, video } = renderPlayer()
+      fireEvent.loadedMetadata(video)
+      Object.defineProperty(video, 'currentTime', { configurable: true, value: 19 })
+      fireEvent.play(video)
+      frameCallback(0)
+      expect(container.querySelector<HTMLElement>('.social-video-scrub-fill')?.style.width).toBe('25%')
+      expect(container.querySelector<HTMLElement>('.social-video-scrub-thumb')?.style.left).toBe('25%')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('fills the progress bar and moves the thumb with playback', () => {
+    const { container, video } = renderPlayer()
+
+    fireEvent.loadedMetadata(video)
+    Object.defineProperty(video, 'currentTime', { configurable: true, value: 38 })
+    fireEvent.timeUpdate(video)
+
+    expect(container.querySelector<HTMLElement>('.social-video-scrub-fill')?.style.width).toBe('50%')
+    expect(container.querySelector<HTMLElement>('.social-video-scrub-thumb')?.style.left).toBe('50%')
   })
 
   it('toggles sound from the top-left mute button', () => {
