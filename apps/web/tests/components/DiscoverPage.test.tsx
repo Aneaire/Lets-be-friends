@@ -10,6 +10,8 @@ const directory = vi.hoisted(() => ({
   loadMore: vi.fn(),
 }))
 
+const sentinel = vi.hoisted(() => ({ inView: false }))
+
 const baseResults = [
   {
     _id: 'reviewed-companion',
@@ -88,6 +90,10 @@ vi.mock('../../src/design-system/organisms/CompanionListItem', () => ({
 
 vi.mock('../../src/features/discovery/CategoryFilterDialog', () => ({ CategoryFilterDialog: () => null }))
 
+vi.mock('react-intersection-observer', () => ({
+  useInView: () => ({ ref: vi.fn(), inView: sentinel.inView }),
+}))
+
 import { DiscoverPage } from '../../src/routes/discover'
 
 afterEach(cleanup)
@@ -96,6 +102,7 @@ beforeEach(() => {
   directory.status = 'Exhausted'
   directory.results = baseResults
   directory.loadMore.mockClear()
+  sentinel.inView = false
 })
 
 describe('Explore destinations', () => {
@@ -153,11 +160,22 @@ describe('Explore destinations', () => {
     expect(screen.getByRole('link', { name: 'People' }).getAttribute('aria-current')).toBe('page')
   })
 
-  it('loads the next page from the design-system button', () => {
+  it('loads the next page automatically when the sentinel scrolls into view', () => {
     directory.status = 'CanLoadMore'
+    sentinel.inView = true
     render(<DiscoverPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Load more people' }))
+    expect(screen.queryByRole('button', { name: 'Load more people' })).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('Loading more people...')
     expect(directory.loadMore).toHaveBeenCalledWith(50)
+  })
+
+  it('shows loading feedback without a button while the next page loads', () => {
+    directory.status = 'LoadingMore'
+    render(<DiscoverPage />)
+
+    expect(screen.queryByRole('button', { name: 'Load more people' })).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('Loading more people...')
+    expect(directory.loadMore).not.toHaveBeenCalled()
   })
 })

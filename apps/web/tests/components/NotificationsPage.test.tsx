@@ -23,6 +23,8 @@ const state = vi.hoisted(() => ({
   loadMore: vi.fn(),
 }))
 
+const sentinel = vi.hoisted(() => ({ inView: false }))
+
 vi.mock('../../convex/_generated/api', () => ({
   api: {
     notifications: {
@@ -56,6 +58,10 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
 }))
 
+vi.mock('react-intersection-observer', () => ({
+  useInView: () => ({ ref: vi.fn(), inView: sentinel.inView }),
+}))
+
 import { NotificationsPage } from '../../src/routes/notifications'
 
 afterEach(cleanup)
@@ -69,6 +75,7 @@ beforeEach(() => {
   state.markUnread.mockReset()
   state.markAllRead.mockReset()
   state.loadMore.mockReset()
+  sentinel.inView = false
 })
 
 describe('notifications route', () => {
@@ -100,14 +107,15 @@ describe('notifications route', () => {
     expect(screen.getByText('New booking request')).toBeTruthy()
   })
 
-  it('loads more notifications while a page is available', async () => {
+  it('loads more notifications automatically when the sentinel scrolls into view', async () => {
+    sentinel.inView = true
     state.status = 'CanLoadMore'
     state.results = [
       { id: 'n2', title: 'Identity approved', createdAt: Date.now(), priority: 'standard', readAt: Date.now() },
     ]
     render(<NotificationsPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
     await waitFor(() => expect(state.loadMore).toHaveBeenCalledWith(30))
   })
 })

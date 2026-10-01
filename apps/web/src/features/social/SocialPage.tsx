@@ -10,6 +10,7 @@ import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { Avatar } from '../../design-system/atoms/Avatar'
 import { ConfirmationDialog } from '../../design-system/molecules/Dialog'
+import { InfiniteScrollTrigger } from '../../design-system/molecules/InfiniteScrollTrigger'
 import { CommentActionsMenu } from './CommentActionsMenu'
 import { CommentBubble } from './CommentBubble'
 import { FeaturedComment } from './FeaturedComment'
@@ -463,16 +464,12 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
             })}
           </div>
         )}
-        {feedStatus === 'CanLoadMore' && (
-          <div className="social-feed-load-more">
-            <button type="button" className="btn btn-neutral btn-sm" onClick={() => loadMoreFeed(20)}>
-              Load more posts
-            </button>
-          </div>
-        )}
-        {feedStatus === 'LoadingMore' && (
-          <p className="text-meta tabular mt-3" role="status">Loading more posts...</p>
-        )}
+        <InfiniteScrollTrigger
+          status={feedStatus}
+          onLoadMore={() => loadMoreFeed(20)}
+          loadingLabel="Loading more posts..."
+          className="social-feed-load-more"
+        />
       </section>
       <aside className="frienday-rail frienday-rail-right" aria-label="Frienday safety">
         <FriendaySafetyRail />

@@ -5,6 +5,7 @@ import { Bell, CheckCheck } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { Button } from '../design-system/atoms/Button'
+import { InfiniteScrollTrigger } from '../design-system/molecules/InfiniteScrollTrigger'
 import { NotificationRow } from '../design-system/molecules/NotificationRow'
 import { formatNotificationTime, notificationSection, webDestination, type NotificationDestination } from '../lib/notifications'
 
@@ -65,7 +66,12 @@ export function NotificationsPage() {
               : markRead({ notificationId: notification.id as Id<'notifications'> })}
           />
         ))}</div></section>
-      })}<div className="notifications-load-more">{notificationPage.status === 'CanLoadMore' ? <Button intent="neutral" onClick={() => notificationPage.loadMore(30)}>Load more</Button> : notificationPage.status === 'LoadingMore' ? <span role="status" className="text-meta">Loading more notifications...</span> : <span className="text-meta">All loaded notifications are shown.</span>}</div></>}
+      })}<InfiniteScrollTrigger
+          status={notificationPage.status}
+          onLoadMore={() => notificationPage.loadMore(30)}
+          loadingLabel="Loading more notifications..."
+          className="notifications-load-more"
+        /></>}
     </main>
   )
 }

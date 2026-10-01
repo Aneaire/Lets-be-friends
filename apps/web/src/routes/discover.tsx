@@ -8,6 +8,7 @@ import { api } from '../../convex/_generated/api'
 import { Button } from '../design-system/atoms/Button'
 import { Checkbox } from '../design-system/atoms/Field'
 import { EmptyState } from '../design-system/molecules/FeedbackState'
+import { InfiniteScrollTrigger } from '../design-system/molecules/InfiniteScrollTrigger'
 import { SearchField } from '../design-system/molecules/SearchField'
 import { SegmentedControl } from '../design-system/molecules/SegmentedControl'
 import { CompanionListItem, type DiscoveryCompanion } from '../design-system/organisms/CompanionListItem'
@@ -190,7 +191,7 @@ export function DiscoverPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             title="No matches in the people loaded so far."
-            description="Load more people or clear the filters to see everyone loaded."
+            description="Keep scrolling to load more people, or clear the filters to see everyone loaded."
           />
         ) : (
           <div className="panel discover-results-panel">
@@ -213,16 +214,12 @@ export function DiscoverPage() {
             </div>
           </div>
         )}
-        {directoryStatus === 'CanLoadMore' && (
-          <div className="discover-load-more">
-            <Button intent="neutral" size="small" onClick={() => loadMoreDirectory(50)}>
-              Load more people
-            </Button>
-          </div>
-        )}
-        {directoryStatus === 'LoadingMore' && (
-          <p className="text-meta tabular mt-3" role="status">Loading more people...</p>
-        )}
+        <InfiniteScrollTrigger
+          status={directoryStatus}
+          onLoadMore={() => loadMoreDirectory(50)}
+          loadingLabel="Loading more people..."
+          className="discover-load-more"
+        />
       </section>
 
       <CategoryFilterDialog

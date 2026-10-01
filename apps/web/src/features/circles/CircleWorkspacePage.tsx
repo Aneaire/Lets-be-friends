@@ -11,6 +11,7 @@ import { Avatar } from '../../design-system/atoms/Avatar'
 import { BrandLogo } from '../../design-system/atoms/BrandLogo'
 import { ActionMenu } from '../../design-system/molecules/ActionMenu'
 import { ConfirmationDialog } from '../../design-system/molecules/Dialog'
+import { InfiniteScrollTrigger } from '../../design-system/molecules/InfiniteScrollTrigger'
 import { Calendar } from '../../design-system/organisms/Calendar'
 import { PostCard } from '../social/PostCard'
 import { PostActionBar } from '../social/PostActionBar'
@@ -212,7 +213,12 @@ function CirclePreviewDiscussions({ circleId }: { circleId: Id<'circles'> }) {
           <article key={post._id} className="circle-state-card"><strong>{post.authorDisplayName}</strong><p className="circle-post-body">{post.body}</p><span className="text-meta tabular">{formatTime(post.createdAt)}</span></article>
         ))}</div>
       )}
-      {status === 'CanLoadMore' && <button className="btn btn-neutral circle-load-more" onClick={() => loadMore(10)}>Load more discussions</button>}
+      <InfiniteScrollTrigger
+        status={status}
+        onLoadMore={() => loadMore(10)}
+        loadingLabel="Loading more discussions..."
+        className="circle-load-more"
+      />
     </section>
   )
 }
@@ -663,8 +669,12 @@ function CircleDiscussions({ detail, circleId, postId, commentId }: { detail: Ex
       {detail.canWrite && <CircleComposer circleId={circleId} canModerate={detail.canModerate} />}
       {error && <p className="notice notice-danger" role="alert">{error}</p>}
       {status === 'LoadingFirstPage' ? <div className="circle-state-card" role="status">Loading discussions...</div> : posts.length === 0 ? <div className="circle-state-card"><strong>No discussions yet.</strong><p>Start with a question that gives people an easy way in.</p></div> : <div className="circle-post-list">{posts.map((post) => <CirclePostCard key={post._id} post={post} focused={String(post._id) === postId} focusCommentId={String(post._id) === postId ? commentId : undefined} canWrite={detail.canWrite} canModerate={detail.canModerate} pinned={detail.pinnedPostIds.some((id) => id === post._id)} onPin={() => detail.pinnedPostIds.some((id) => id === post._id) ? unpinPost({ circleId, postId: post._id }) : pinPost({ circleId, postId: post._id })} onRemove={() => setPostRemoved({ postId: post._id, removed: true })} />)}</div>}
-      {status === 'CanLoadMore' && <button className="btn btn-neutral circle-load-more" onClick={() => loadMore(15)}>Load more discussions</button>}
-      {status === 'LoadingMore' && <p role="status" className="text-meta">Loading more discussions...</p>}
+      <InfiniteScrollTrigger
+        status={status}
+        onLoadMore={() => loadMore(15)}
+        loadingLabel="Loading more discussions..."
+        className="circle-load-more"
+      />
     </div>
     {detail.canModerate && <CircleSideRail circleId={circleId} onModerationAction={discussionAction} />}
     </div>
