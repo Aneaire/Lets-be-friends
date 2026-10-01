@@ -238,6 +238,25 @@ describe('Circle authorization foundation', () => {
     expect(snapshot.audits.filter((row) => row.action === 'circle.created')).toHaveLength(4)
   })
 
+  it('limits a member to five Circle creations per day without partial writes', async () => {
+    const t = convexTest(schema, convexModules)
+    const hostId = await insertUser(t, 'daily-host', { verified: true })
+    for (let index = 0; index < 5; index += 1) {
+      await expect(createCircle(t, 'daily-host', hostId, `daily-circle-${index}`)).resolves.toBeTruthy()
+    }
+    const before = await t.run(async (ctx) => ({
+      circles: (await ctx.db.query('circles').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+    }))
+    await expect(createCircle(t, 'daily-host', hostId, 'daily-circle-6')).rejects.toThrow('up to 5 Circles per day')
+    const after = await t.run(async (ctx) => ({
+      circles: (await ctx.db.query('circles').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+    }))
+    expect(before).toMatchObject({ circles: 5, audits: 5 })
+    expect(after).toEqual(before)
+  })
+
   it('keeps full-admin recovery available after an admin host identity approval expires', async () => {
     const t = convexTest(schema, convexModules)
     const adminId = await insertUser(t, 'admin-host', { role: 'admin', verified: true })
@@ -683,6 +702,108 @@ describe('Circle authorization foundation', () => {
     expect((await member.query(api.social.circleFeed, { circleId, paginationOpts: { cursor: null, numItems: 10 } })).page).toEqual([])
   })
 
+  it('holds member posts for leader approval and publishes them on approval', async () => {
+    const t = convexTest(schema, convexModules)
+    await insertUser(t, 'admin', { role: 'admin' })
+    const hostId = await insertUser(t, 'host', { verified: true })
+    const memberId = await insertUser(t, 'member', { verified: true })
+    const otherId = await insertUser(t, 'other', { verified: true })
+    const circleId = await createCircle(t, 'admin', hostId)
+    await insertMembership(t, circleId, memberId, 'active')
+    await insertMembership(t, circleId, otherId, 'active')
+    await t.withIdentity({ subject: 'host' }).mutation(api.circles.updateSettings, {
+      circleId, discoverability: 'listed', discussionVisibility: 'members_only', memberListVisibility: 'members_only',
+      joinPolicy: 'approval_required', postApproval: 'approval_required',
+    })
+    const member = t.withIdentity({ subject: 'member' })
+    const other = t.withIdentity({ subject: 'other' })
+    const host = t.withIdentity({ subject: 'host' })
+
+    const postId = await member.mutation(api.social.createPost, { body: 'Please approve me', circleId })
+    expect((await t.run(async (ctx) => ctx.db.get(postId)))?.approvalState).toBe('pending')
+
+    expect((await other.query(api.social.circleFeed, { circleId, paginationOpts: { cursor: null, numItems: 10 } })).page).toEqual([])
+    expect(await other.query(api.social.requestedPost, { postId: String(postId) })).toBeNull()
+    const authorFeed = await member.query(api.social.circleFeed, { circleId, paginationOpts: { cursor: null, numItems: 10 } })
+    expect(authorFeed.page).toHaveLength(1)
+    expect(authorFeed.page[0]).toMatchObject({ _id: postId, approvalState: 'pending' })
+
+    const pending = await host.query(api.circles.pendingCirclePosts, { circleId })
+    expect(pending).toHaveLength(1)
+    expect(pending[0]).toMatchObject({ _id: postId, body: 'Please approve me', authorDisplayName: 'member' })
+
+    await expect(member.mutation(api.social.createComment, { postId, body: 'Early reply' })).rejects.toThrow('waiting for leader approval')
+    await expect(member.mutation(api.social.toggleLike, { postId })).rejects.toThrow('waiting for leader approval')
+    await expect(member.mutation(api.social.toggleSavePost, { postId })).rejects.toThrow('waiting for leader approval')
+
+    await host.mutation(api.circles.approveCirclePost, { postId })
+    const approved = await t.run(async (ctx) => ctx.db.get(postId))
+    expect(approved?.approvalState).toBe('approved')
+    expect(approved?.createdAt).toBeGreaterThanOrEqual(approved?.updatedAt ?? 0)
+    const publishedFeed = await other.query(api.social.circleFeed, { circleId, paginationOpts: { cursor: null, numItems: 10 } })
+    expect(publishedFeed.page).toHaveLength(1)
+    expect(publishedFeed.page[0]).toMatchObject({ _id: postId, approvalState: 'approved' })
+
+    const notifications = await t.run(async (ctx) => ctx.db.query('notifications').collect())
+    expect(notifications.map((row) => row.kind)).toContain('circle_post_review_requested')
+    expect(notifications.map((row) => row.kind)).toContain('circle_post_approved')
+    const audits = await t.run(async (ctx) => ctx.db.query('auditLogs').collect())
+    expect(audits.map((row) => row.action)).toContain('circle.post_approved')
+  })
+
+  it('rejects pending posts without publishing them', async () => {
+    const t = convexTest(schema, convexModules)
+    await insertUser(t, 'admin', { role: 'admin' })
+    const hostId = await insertUser(t, 'host', { verified: true })
+    const memberId = await insertUser(t, 'member', { verified: true })
+    const otherId = await insertUser(t, 'other', { verified: true })
+    const circleId = await createCircle(t, 'admin', hostId)
+    await insertMembership(t, circleId, memberId, 'active')
+    await insertMembership(t, circleId, otherId, 'active')
+    await t.withIdentity({ subject: 'host' }).mutation(api.circles.updateSettings, {
+      circleId, discoverability: 'listed', discussionVisibility: 'members_only', memberListVisibility: 'members_only',
+      joinPolicy: 'approval_required', postApproval: 'approval_required',
+    })
+    const member = t.withIdentity({ subject: 'member' })
+    const other = t.withIdentity({ subject: 'other' })
+    const host = t.withIdentity({ subject: 'host' })
+
+    const postId = await member.mutation(api.social.createPost, { body: 'Please reject me', circleId })
+    await host.mutation(api.circles.rejectCirclePost, { postId })
+    expect((await t.run(async (ctx) => ctx.db.get(postId)))?.approvalState).toBe('rejected')
+    expect((await other.query(api.social.circleFeed, { circleId, paginationOpts: { cursor: null, numItems: 10 } })).page).toEqual([])
+    expect(await other.query(api.social.requestedPost, { postId: String(postId) })).toBeNull()
+    await expect(member.query(api.social.requestedPost, { postId: String(postId) })).resolves.toMatchObject({ _id: postId, approvalState: 'rejected' })
+    await expect(member.mutation(api.social.createComment, { postId, body: 'Late reply' })).rejects.toThrow('was not approved')
+    await expect(host.mutation(api.circles.approveCirclePost, { postId })).rejects.toThrow('does not need approval')
+
+    const notifications = await t.run(async (ctx) => ctx.db.query('notifications').collect())
+    expect(notifications.map((row) => row.kind)).toContain('circle_post_rejected')
+  })
+
+  it('publishes leader posts immediately when approval is required', async () => {
+    const t = convexTest(schema, convexModules)
+    await insertUser(t, 'admin', { role: 'admin' })
+    const hostId = await insertUser(t, 'host', { verified: true })
+    const moderatorId = await insertUser(t, 'moderator', { verified: true })
+    const memberId = await insertUser(t, 'member', { verified: true })
+    const circleId = await createCircle(t, 'admin', hostId)
+    await insertMembership(t, circleId, memberId, 'active')
+    const moderatorMembershipId = await insertMembership(t, circleId, moderatorId, 'active')
+    await t.withIdentity({ subject: 'host' }).mutation(api.circles.setModerator, { membershipId: moderatorMembershipId, moderator: true })
+    await t.withIdentity({ subject: 'host' }).mutation(api.circles.updateSettings, {
+      circleId, discoverability: 'listed', discussionVisibility: 'members_only', memberListVisibility: 'members_only',
+      joinPolicy: 'approval_required', postApproval: 'approval_required',
+    })
+
+    const hostPostId = await t.withIdentity({ subject: 'host' }).mutation(api.social.createPost, { body: 'Host update', circleId })
+    const moderatorPostId = await t.withIdentity({ subject: 'moderator' }).mutation(api.social.createPost, { body: 'Moderator update', circleId })
+    expect((await t.run(async (ctx) => ctx.db.get(hostPostId)))?.approvalState).toBeUndefined()
+    const feed = await t.withIdentity({ subject: 'member' }).query(api.social.circleFeed, { circleId, paginationOpts: { cursor: null, numItems: 10 } })
+    expect(feed.page.map((row) => row._id)).toEqual(expect.arrayContaining([hostPostId, moderatorPostId]))
+    expect(await t.withIdentity({ subject: 'host' }).query(api.circles.pendingCirclePosts, { circleId })).toEqual([])
+  })
+
   it('hides blocked members mutually and rejects their Circle interactions and mentions', async () => {
     const t = convexTest(schema, convexModules)
     await insertUser(t, 'admin', { role: 'admin' })
@@ -852,7 +973,7 @@ describe('Circle authorization foundation', () => {
     const unlistedId = await createCircle(t, 'admin', hostId, 'unlisted-circle')
     await t.withIdentity({ subject: 'host' }).mutation(api.circles.updateSettings, {
       circleId: unlistedId, discoverability: 'unlisted', discussionVisibility: 'members_only',
-      memberListVisibility: 'members_only', joinPolicy: 'approval_required',
+      memberListVisibility: 'members_only', joinPolicy: 'approval_required', postApproval: 'off',
     })
 
     const discover = await t.withIdentity({ subject: 'outsider' }).query(api.circles.discover, {})
@@ -875,7 +996,7 @@ describe('Circle authorization foundation', () => {
     const commentId = await t.withIdentity({ subject: 'member' }).mutation(api.social.createComment, { postId, body: 'Public reply' })
     await t.withIdentity({ subject: 'host' }).mutation(api.circles.updateSettings, {
       circleId, discoverability: 'listed', discussionVisibility: 'signed_in',
-      memberListVisibility: 'members_only', joinPolicy: 'approval_required',
+      memberListVisibility: 'members_only', joinPolicy: 'approval_required', postApproval: 'off',
     })
     const outsider = t.withIdentity({ subject: 'outsider' })
 
@@ -933,7 +1054,7 @@ describe('Circle authorization foundation', () => {
     const postId = await t.withIdentity({ subject: 'member' }).mutation(api.social.createPost, { body: 'Blocked discussion', circleId })
     await t.withIdentity({ subject: 'host' }).mutation(api.circles.updateSettings, {
       circleId, discoverability: 'listed', discussionVisibility: 'signed_in',
-      memberListVisibility: 'members_only', joinPolicy: 'approval_required',
+      memberListVisibility: 'members_only', joinPolicy: 'approval_required', postApproval: 'off',
     })
     await t.withIdentity({ subject: 'outsider' }).mutation(api.safety.setBlocked, { userId: memberId, blocked: true })
 
@@ -961,7 +1082,7 @@ describe('Circle authorization foundation', () => {
     await insertMembership(t, circleId, bannedId, 'banned')
     await t.withIdentity({ subject: 'host' }).mutation(api.circles.updateSettings, {
       circleId, discoverability: 'listed', discussionVisibility: 'members_only',
-      memberListVisibility: 'signed_in', joinPolicy: 'approval_required',
+      memberListVisibility: 'signed_in', joinPolicy: 'approval_required', postApproval: 'off',
     })
 
     const rows = await t.withIdentity({ subject: 'outsider' }).query(api.circles.members, { circleId })
@@ -980,7 +1101,7 @@ describe('Circle authorization foundation', () => {
     const circleId = await createCircle(t, 'admin', hostId, 'open-circle')
     await t.withIdentity({ subject: 'host' }).mutation(api.circles.updateSettings, {
       circleId, discoverability: 'listed', discussionVisibility: 'members_only',
-      memberListVisibility: 'members_only', joinPolicy: 'open',
+      memberListVisibility: 'members_only', joinPolicy: 'open', postApproval: 'off',
     })
     const joiner = t.withIdentity({ subject: 'joiner' })
 
@@ -1016,7 +1137,7 @@ describe('Circle authorization foundation', () => {
     await insertMembership(t, circleId, moderatorId, 'active', 'moderator')
     const settings = {
       circleId, discoverability: 'unlisted' as const, discussionVisibility: 'signed_in' as const,
-      memberListVisibility: 'signed_in' as const, joinPolicy: 'open' as const,
+      memberListVisibility: 'signed_in' as const, joinPolicy: 'open' as const, postApproval: 'off' as const,
     }
 
     await expect(t.withIdentity({ subject: 'moderator' }).mutation(api.circles.updateSettings, settings))
@@ -1088,7 +1209,7 @@ describe('Circle authorization foundation', () => {
     const circleId = await createCircle(t, 'admin', hostId, 'admin-privacy')
     await t.withIdentity({ subject: 'host' }).mutation(api.circles.updateSettings, {
       circleId, discoverability: 'unlisted', discussionVisibility: 'signed_in',
-      memberListVisibility: 'signed_in', joinPolicy: 'open',
+      memberListVisibility: 'signed_in', joinPolicy: 'open', postApproval: 'off',
     })
     const iconId = await t.run(async (ctx) => {
       const storageId = await ctx.storage.store(new Blob(['icon'], { type: 'image/png' }))
@@ -1103,12 +1224,12 @@ describe('Circle authorization foundation', () => {
     await expect(admin.query(api.circles.adminList, { state: 'all' }))
       .resolves.toEqual([expect.objectContaining({
         _id: circleId,
-        settings: { discoverability: 'unlisted', discussionVisibility: 'signed_in', memberListVisibility: 'signed_in', joinPolicy: 'open' },
+        settings: { discoverability: 'unlisted', discussionVisibility: 'signed_in', memberListVisibility: 'signed_in', joinPolicy: 'open', postApproval: 'off' },
         hasIcon: true, hasCover: false,
       })])
     await expect(admin.query(api.circles.adminDetail, { circleId })).resolves.toMatchObject({
       circle: expect.objectContaining({
-        settings: { discoverability: 'unlisted', discussionVisibility: 'signed_in', memberListVisibility: 'signed_in', joinPolicy: 'open' },
+        settings: { discoverability: 'unlisted', discussionVisibility: 'signed_in', memberListVisibility: 'signed_in', joinPolicy: 'open', postApproval: 'off' },
         iconUrl: expect.any(String),
       }),
     })

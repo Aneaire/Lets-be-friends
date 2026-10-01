@@ -21,6 +21,7 @@ export type CirclePrivacySettings = {
   discussionVisibility: 'members_only' | 'signed_in'
   memberListVisibility: 'members_only' | 'signed_in'
   joinPolicy: 'approval_required' | 'open'
+  postApproval: 'off' | 'approval_required'
 }
 
 export function resolveCirclePrivacySettings(settings?: Partial<CirclePrivacySettings> | null): CirclePrivacySettings {
@@ -29,6 +30,7 @@ export function resolveCirclePrivacySettings(settings?: Partial<CirclePrivacySet
     discussionVisibility: settings?.discussionVisibility ?? 'members_only',
     memberListVisibility: settings?.memberListVisibility ?? 'members_only',
     joinPolicy: settings?.joinPolicy ?? 'approval_required',
+    postApproval: settings?.postApproval ?? 'off',
   }
 }
 

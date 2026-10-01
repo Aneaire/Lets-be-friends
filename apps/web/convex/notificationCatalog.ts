@@ -125,6 +125,18 @@ export const notificationCatalog = {
     family: 'circle', status: 'active', triggers: ['circles.decideJoinRequest'], recipient: 'Circle applicant', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per rejected request attempt', push: { mode: 'generic', body: 'You have a Circle update.' },
     inAppCopy: systemCopy('Circle request not approved', 'Your request to join a Circle was not approved.', 'danger'),
   },
+  circle_post_review_requested: {
+    family: 'circle', status: 'active', triggers: ['social.createPost'], recipient: 'Circle leaders', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per pending post and leader', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('New post needs approval', 'A member submitted a Circle post that needs leader approval before it appears.', 'social'),
+  },
+  circle_post_approved: {
+    family: 'circle', status: 'active', triggers: ['circles.approveCirclePost'], recipient: 'Circle post author', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per approved post', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('Post approved', 'Your Circle post was approved and is now visible.', 'self'),
+  },
+  circle_post_rejected: {
+    family: 'circle', status: 'active', triggers: ['circles.rejectCirclePost'], recipient: 'Circle post author', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per rejected post', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: systemCopy('Post not approved', 'Your Circle post was not approved.', 'danger'),
+  },
   circle_reply: {
     family: 'circle', status: 'active', triggers: ['social.createComment'], recipient: 'Circle discussion participant', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: true, dedupe: 'One notification per Circle reply and recipient', push: { mode: 'generic', body: 'You have a Circle update.' },
     inAppCopy: actorCopy('New Circle reply', 'replied in your Circle'),

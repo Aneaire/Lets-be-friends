@@ -11,7 +11,7 @@ vi.mock('../../convex/_generated/api', () => ({
     circles: {
       detail: 'circles.detail', requestToJoin: 'circles.requestToJoin', cancelJoinRequest: 'circles.cancelJoinRequest', leave: 'circles.leave', setMuted: 'circles.setMuted',
       members: 'circles.members', joinRequests: 'circles.joinRequests', decideJoinRequest: 'circles.decideJoinRequest', moderateMember: 'circles.moderateMember',
-      removedContent: 'circles.removedContent', setPostRemoved: 'circles.setPostRemoved', setCommentRemoved: 'circles.setCommentRemoved', pinPost: 'circles.pinPost', unpinPost: 'circles.unpinPost',
+      removedContent: 'circles.removedContent', setPostRemoved: 'circles.setPostRemoved', setCommentRemoved: 'circles.setCommentRemoved', pinPost: 'circles.pinPost', unpinPost: 'circles.unpinPost', pendingCirclePosts: 'circles.pendingCirclePosts', approveCirclePost: 'circles.approveCirclePost', rejectCirclePost: 'circles.rejectCirclePost',
       hostManagement: 'circles.hostManagement', edit: 'circles.edit', updateSettings: 'circles.updateSettings', generateCircleImageUploadUrl: 'circles.generateCircleImageUploadUrl', setCircleImage: 'circles.setCircleImage', removeCircleImage: 'circles.removeCircleImage', setModerator: 'circles.setModerator', unbanMember: 'circles.unbanMember', initiateHostTransfer: 'circles.initiateHostTransfer', cancelHostTransfer: 'circles.cancelHostTransfer', acceptHostTransfer: 'circles.acceptHostTransfer', setState: 'circles.setState', pinnedPosts: 'circles.pinnedPosts',
     },
     circleEvents: {
@@ -172,7 +172,7 @@ describe('Circle workspace', () => {
     expect(screen.getByRole('menuitem', { name: 'Unpin post' })).toBeTruthy()
   })
 
-  it('offers event planning to leaders while keeping removed content reachable', () => {
+  it('offers event planning to leaders while keeping removed content in its own tab', () => {
     mocks.query.mockImplementation((fn) => {
       if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'moderator', canRead: true, canWrite: true, canModerate: true }
       if (fn === 'circles.pinnedPosts') return []
@@ -188,8 +188,34 @@ describe('Circle workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Plan event' }))
     expect(screen.getByRole('form', { name: 'Plan event' })).toBeTruthy()
     expect(screen.getByLabelText('Event title')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Removed content' })).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: 'Removed' }))
     expect(screen.getByRole('heading', { name: 'Removed content' })).toBeTruthy()
     expect(screen.getByText('Nothing is waiting to be restored.')).toBeTruthy()
+  })
+
+  it('restores removed posts and comments from the Removed tab', async () => {
+    const setPostRemoved = vi.fn().mockResolvedValue(undefined)
+    const setCommentRemoved = vi.fn().mockResolvedValue(undefined)
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'moderator', canRead: true, canWrite: true, canModerate: true }
+      if (fn === 'circles.removedContent') return [
+        { kind: 'post', id: 'post-9', body: 'Removed post' },
+        { kind: 'comment', id: 'comment-9', body: 'Removed comment' },
+      ]
+      return undefined
+    })
+    mocks.mutation.mockImplementation((fn) => fn === 'circles.setPostRemoved' ? setPostRemoved : fn === 'circles.setCommentRemoved' ? setCommentRemoved : vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Removed' }))
+    expect(screen.getByText('Removed post')).toBeTruthy()
+    expect(screen.getByText('Removed comment')).toBeTruthy()
+    const restoreButtons = screen.getAllByRole('button', { name: 'Restore' })
+    fireEvent.click(restoreButtons[0])
+    await waitFor(() => expect(setPostRemoved).toHaveBeenCalledWith({ postId: 'post-9', removed: false }))
+    fireEvent.click(restoreButtons[1])
+    await waitFor(() => expect(setCommentRemoved).toHaveBeenCalledWith({ commentId: 'comment-9', removed: false }))
   })
 
   it('shows upcoming events read-only to visitors of a public Circle', () => {
@@ -232,6 +258,7 @@ describe('Circle workspace', () => {
       discussionVisibility: 'signed_in',
       memberListVisibility: 'signed_in',
       joinPolicy: 'approval_required',
+      postApproval: 'off',
     }))
   })
 
@@ -253,6 +280,7 @@ describe('Circle workspace', () => {
     mocks.mutation.mockReturnValue(vi.fn())
 
     render(<CircleWorkspacePage circleId="circle-1" />)
+    expect(screen.queryByRole('tab', { name: 'Removed' })).toBeNull()
     const discussions = screen.getByRole('tab', { name: 'Discussions' })
     fireEvent.keyDown(discussions, { key: 'ArrowRight' })
     expect(screen.getByRole('tab', { name: 'About' }).getAttribute('aria-selected')).toBe('true')
@@ -532,6 +560,7 @@ describe('Circle workspace', () => {
       discussionVisibility: 'members_only',
       memberListVisibility: 'members_only',
       joinPolicy: 'open',
+      postApproval: 'off',
     }))
   })
 
@@ -617,6 +646,66 @@ describe('Circle workspace', () => {
     }
   })
 
+  it('shows the Pending tab only to leaders and decides queued posts', async () => {
+    const approve = vi.fn().mockResolvedValue(undefined)
+    const reject = vi.fn().mockResolvedValue(undefined)
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'moderator', canRead: true, canWrite: true, canModerate: true }
+      if (fn === 'circles.pendingCirclePosts') return [{ _id: 'post-9', body: 'Awaiting review', media: [], poll: null, createdAt: Date.now(), authorId: 'member-2', authorDisplayName: 'Alex', authorUsername: 'alex', authorProfileImageUrl: undefined }]
+      return undefined
+    })
+    mocks.mutation.mockImplementation((fn) => fn === 'circles.approveCirclePost' ? approve : fn === 'circles.rejectCirclePost' ? reject : vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Pending' }))
+    expect(screen.getByText('Awaiting review')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() => expect(approve).toHaveBeenCalledWith({ postId: 'post-9' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    await waitFor(() => expect(reject).toHaveBeenCalledWith({ postId: 'post-9' }))
+
+    cleanup()
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'member', canRead: true, canWrite: true }
+      return undefined
+    })
+    mocks.mutation.mockReturnValue(vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    expect(screen.queryByRole('tab', { name: 'Pending' })).toBeNull()
+  })
+
+  it('tells members when new posts need leader approval', () => {
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'member', canRead: true, canWrite: true, settings: { ...preview.settings, postApproval: 'approval_required' } }
+      if (fn === 'circleEvents.list') return []
+      return undefined
+    })
+    mocks.mutation.mockReturnValue(vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    expect(screen.getByText('New posts need leader approval before they appear in the Circle.')).toBeTruthy()
+  })
+
+  it('marks Circle posts waiting for approval or rejected', () => {
+    mocks.paginated.mockReturnValue({ results: [{ ...post, approvalState: 'pending' }], status: 'Exhausted', loadMore: vi.fn() })
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'member', canRead: true, canWrite: true }
+      if (fn === 'social.commentsForPost') return []
+      return undefined
+    })
+    mocks.mutation.mockReturnValue(vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    expect(screen.getByText('Waiting for leader approval')).toBeTruthy()
+
+    cleanup()
+    mocks.paginated.mockReturnValue({ results: [{ ...post, approvalState: 'rejected' }], status: 'Exhausted', loadMore: vi.fn() })
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    expect(screen.getByText('Not approved')).toBeTruthy()
+  })
+
   it('renders PostMediaGrid for a Circle post with media', () => {
     const mediaPost = { ...post, media: [{ storageId: 'media-1', kind: 'image' as const, contentType: 'image/png', size: 10, url: 'https://example.invalid/photo.png' }] }
     mocks.paginated.mockReturnValue({ results: [mediaPost], status: 'Exhausted', loadMore: vi.fn() })
@@ -631,5 +720,85 @@ describe('Circle workspace', () => {
     const grid = container.querySelector('.social-media-grid')
     expect(grid?.getAttribute('data-count')).toBe('1')
     expect(container.querySelector('.social-media-grid img')?.getAttribute('src')).toBe('https://example.invalid/photo.png')
+  })
+
+  it('shows an enriched About host card without an inline report button', () => {
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return {
+        ...preview,
+        host: { userId: 'host-1', displayName: 'Candel', username: 'candel', profileImageUrl: 'https://example.invalid/host.png' },
+        membershipState: 'active',
+        role: 'member',
+        canRead: true,
+        canWrite: true,
+      }
+      return undefined
+    })
+    mocks.mutation.mockReturnValue(vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    fireEvent.click(screen.getByRole('tab', { name: 'About' }))
+
+    const profile = screen.getByRole('link', { name: "View Candel's profile" })
+    expect(profile.getAttribute('href')).toBe('/member-profile')
+    expect(profile.textContent).toContain('Candel')
+    expect(profile.textContent).toContain('@candel')
+    expect(profile.textContent).toContain('Host')
+    expect(screen.queryByRole('button', { name: 'Report Circle' })).toBeNull()
+  })
+
+  it('consolidates report, mute, and leave actions in the Circle options menu', async () => {
+    const setMuted = vi.fn().mockResolvedValue(undefined)
+    const reportCreate = vi.fn().mockResolvedValue(undefined)
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'member', muted: false, canRead: true, canWrite: true }
+      if (fn === 'circleEvents.list') return []
+      return undefined
+    })
+    mocks.mutation.mockImplementation((fn) => fn === 'circles.setMuted' ? setMuted : fn === 'reports.create' ? reportCreate : vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    expect(screen.queryByRole('button', { name: 'Mute' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Leave' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Circle options' }))
+    expect(screen.getByRole('menuitem', { name: 'Report Circle' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Mute' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Leave' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Report Circle' }))
+    await waitFor(() => expect(reportCreate).toHaveBeenCalledWith({ targetType: 'circle', targetId: 'circle-1', reason: 'Circle needs safety review' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Circle options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Mute' }))
+    await waitFor(() => expect(setMuted).toHaveBeenCalledWith({ circleId: 'circle-1', muted: true }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Circle options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Leave' }))
+    expect(screen.getByRole('dialog').textContent).toContain('Leave this Circle?')
+
+    cleanup()
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'member', muted: true, canRead: true, canWrite: true }
+      return undefined
+    })
+    mocks.mutation.mockImplementation((fn) => fn === 'circles.setMuted' ? setMuted : vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Circle options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unmute' }))
+    await waitFor(() => expect(setMuted).toHaveBeenCalledWith({ circleId: 'circle-1', muted: false }))
+
+    cleanup()
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', role: 'host', canRead: true, canWrite: true, canModerate: true, isCanonicalHost: true, pendingTransferForViewer: false }
+      return undefined
+    })
+    mocks.mutation.mockReturnValue(vi.fn())
+
+    render(<CircleWorkspacePage circleId="circle-1" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Circle options' }))
+    expect(screen.getByRole('menuitem', { name: 'Report Circle' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Mute' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'Leave' })).toBeNull()
   })
 })

@@ -88,6 +88,7 @@ describe('mobile Circle privacy presentation', () => {
       discussionVisibility: 'members_only',
       memberListVisibility: 'members_only',
       joinPolicy: 'approval_required',
+      postApproval: 'off',
     })
     expect(resolveCirclePrivacySettings({ joinPolicy: 'open' }).discoverability).toBe('listed')
   })

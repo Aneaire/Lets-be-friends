@@ -11,14 +11,16 @@ export type CircleSettings = {
   discussionVisibility: 'members_only' | 'signed_in'
   memberListVisibility: 'members_only' | 'signed_in'
   joinPolicy: 'approval_required' | 'open'
+  postApproval: 'off' | 'approval_required'
 }
 
-export function resolveCircleSettings(circle: Pick<Doc<'circles'>, 'discoverability' | 'discussionVisibility' | 'memberListVisibility' | 'joinPolicy'>): CircleSettings {
+export function resolveCircleSettings(circle: Pick<Doc<'circles'>, 'discoverability' | 'discussionVisibility' | 'memberListVisibility' | 'joinPolicy' | 'postApproval'>): CircleSettings {
   return {
     discoverability: circle.discoverability ?? 'listed',
     discussionVisibility: circle.discussionVisibility ?? 'members_only',
     memberListVisibility: circle.memberListVisibility ?? 'members_only',
     joinPolicy: circle.joinPolicy ?? 'approval_required',
+    postApproval: circle.postApproval ?? 'off',
   }
 }
 

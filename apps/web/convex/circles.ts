@@ -8,6 +8,7 @@ import { adjustCounter } from './counters'
 import { createNotification } from './notifications'
 import { isHiddenByPreference } from './safety'
 import { hasCurrentIdentityApproval } from './identityVerification'
+import { consumeRateLimit } from './rateLimit'
 
 const normalizeSlug = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
@@ -15,6 +16,7 @@ const discoverabilityValidator = v.union(v.literal('listed'), v.literal('unliste
 const discussionVisibilityValidator = v.union(v.literal('members_only'), v.literal('signed_in'))
 const memberListVisibilityValidator = v.union(v.literal('members_only'), v.literal('signed_in'))
 const joinPolicyValidator = v.union(v.literal('approval_required'), v.literal('open'))
+const postApprovalValidator = v.union(v.literal('off'), v.literal('approval_required'))
 
 const MAX_CIRCLE_IMAGE_SIZE = 5 * 1024 * 1024
 const CIRCLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
@@ -25,11 +27,13 @@ function parseCircleSettings(input: Partial<CircleSettings>): CircleSettings {
     discussionVisibility: input.discussionVisibility ?? 'members_only',
     memberListVisibility: input.memberListVisibility ?? 'members_only',
     joinPolicy: input.joinPolicy ?? 'approval_required',
+    postApproval: input.postApproval ?? 'off',
   }
   if (!['listed', 'unlisted'].includes(settings.discoverability)) throw new Error('Unknown Circle discoverability')
   if (!['members_only', 'signed_in'].includes(settings.discussionVisibility)) throw new Error('Unknown Circle discussion visibility')
   if (!['members_only', 'signed_in'].includes(settings.memberListVisibility)) throw new Error('Unknown Circle member-list visibility')
   if (!['approval_required', 'open'].includes(settings.joinPolicy)) throw new Error('Unknown Circle join policy')
+  if (!['off', 'approval_required'].includes(settings.postApproval)) throw new Error('Unknown Circle post approval')
   return settings
 }
 
@@ -480,6 +484,9 @@ export const create = mutation({
     const settings = parseCircleSettings(args)
     if (args.iconStorageId) await requireCircleImageStorage(ctx, args.iconStorageId)
     if (args.coverStorageId) await requireCircleImageStorage(ctx, args.coverStorageId)
+    // Throttle creation before any write so a rejected attempt leaves no Circle,
+    // membership, or audit record behind.
+    await consumeRateLimit(ctx, creator._id, 'create_circle')
     const now = Date.now()
     // Convex commits the Circle and its sole initial host membership as one
     // ownership unit, so a creator can never be left with a hostless Circle.
@@ -521,6 +528,7 @@ export const updateSettings = mutation({
     discussionVisibility: discussionVisibilityValidator,
     memberListVisibility: memberListVisibilityValidator,
     joinPolicy: joinPolicyValidator,
+    postApproval: postApprovalValidator,
   },
   handler: async (ctx, args) => {
     const access = await requireHostOrFullAdmin(ctx, args.circleId)
@@ -806,6 +814,7 @@ export const pinPost = mutation({
     const access = await requireCircleModerator(ctx, args.circleId)
     const post = await ctx.db.get(args.postId)
     if (!post || post.circleId !== args.circleId || post.hidden || post.deletedAt || post.circleRemovedAt) throw new Error('Circle post not found')
+    if (post.approvalState === 'pending' || post.approvalState === 'rejected') throw new Error('Approve this post before pinning it')
     const existing = await ctx.db.query('circlePins').withIndex('by_circle_post', (q) => q.eq('circleId', args.circleId).eq('postId', args.postId)).unique()
     if (existing) throw new Error('Circle post is already pinned')
     const current = await ctx.db.query('circlePins').withIndex('by_circle', (q) => q.eq('circleId', args.circleId)).collect()
@@ -826,6 +835,7 @@ export const pinnedPosts = query({
     for (const pin of ordered) {
       const post = await ctx.db.get(pin.postId)
       if (!post || post.circleId !== args.circleId || post.hidden || post.deletedAt || post.circleRemovedAt) continue
+      if (post.approvalState === 'pending' || post.approvalState === 'rejected') continue
       const author = await ctx.db.get(post.authorId)
       visible.push({
         _id: post._id,
@@ -873,6 +883,78 @@ export const setCommentRemoved = mutation({
     await ctx.db.patch(comment._id, { circleRemovedAt: args.removed ? Date.now() : undefined, circleRemovedByUserId: args.removed ? access.viewer._id : undefined, updatedAt: Date.now() })
     await ctx.db.patch(post._id, { commentCount: adjustCounter(post.commentCount, args.removed ? -1 : 1) })
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: `circle.comment_${args.removed ? 'removed' : 'restored'}`, targetType: 'comment', targetId: String(comment._id) })
+  },
+})
+
+export const pendingCirclePosts = query({
+  args: { circleId: v.id('circles') },
+  handler: async (ctx, args) => {
+    const access = await requireCircleModerator(ctx, args.circleId)
+    const posts = await ctx.db.query('posts').withIndex('by_circle_created_at', (q) => q.eq('circleId', args.circleId)).order('desc').take(100)
+    const pending = posts.filter((post) => post.approvalState === 'pending' && !post.hidden && !post.deletedAt && !post.circleRemovedAt)
+    return (await Promise.all(pending.map(async (post) => {
+      const author = await ctx.db.get(post.authorId)
+      if (!author || author.suspended) return null
+      if (author._id !== access.viewer._id && await isHiddenByPreference(ctx, access.viewer._id, author._id)) return null
+      const media = await Promise.all((post.media ?? []).map(async (item) => ({ ...item, url: await ctx.storage.getUrl(item.storageId) })))
+      return {
+        _id: post._id,
+        body: post.body,
+        media,
+        poll: post.poll ?? null,
+        createdAt: post.createdAt,
+        authorId: author._id,
+        authorDisplayName: author.displayName,
+        authorUsername: author.username,
+        authorProfileImageUrl: author.profileImageUrl,
+      }
+    }))).flatMap((post) => post ? [post] : [])
+  },
+})
+
+export const approveCirclePost = mutation({
+  args: { postId: v.id('posts') },
+  handler: async (ctx, args) => {
+    const post = await ctx.db.get(args.postId)
+    if (!post?.circleId) throw new Error('Circle post not found')
+    const access = await requireCircleModerator(ctx, post.circleId)
+    if (access.circle.state !== 'active') throw new Error('Active Circle required')
+    if (post.approvalState !== 'pending') throw new Error('This post does not need approval')
+    // Publishing bumps the post to the top of the Circle feed immediately.
+    const now = Date.now()
+    await ctx.db.patch(post._id, { approvalState: 'approved', approvedByUserId: access.viewer._id, approvalDecidedAt: now, createdAt: now, updatedAt: now })
+    await Promise.all((post.mentions ?? []).map((mention) => createNotification(ctx, {
+      recipientUserId: mention.userId,
+      actorUserId: post.authorId,
+      kind: 'circle_mention',
+      priority: 'standard',
+      postId: post._id,
+      circleId: post.circleId,
+      dedupeKey: `post-mention:${post._id}:${mention.userId}`,
+    })))
+    await createNotification(ctx, {
+      recipientUserId: post.authorId, actorUserId: access.viewer._id, kind: 'circle_post_approved', priority: 'standard',
+      circleId: post.circleId, postId: post._id, dedupeKey: `circle-post-approved:${post._id}`,
+    })
+    await writeAudit(ctx, { actorUserId: access.viewer._id, action: 'circle.post_approved', targetType: 'post', targetId: String(post._id) })
+  },
+})
+
+export const rejectCirclePost = mutation({
+  args: { postId: v.id('posts') },
+  handler: async (ctx, args) => {
+    const post = await ctx.db.get(args.postId)
+    if (!post?.circleId) throw new Error('Circle post not found')
+    const access = await requireCircleModerator(ctx, post.circleId)
+    if (access.circle.state !== 'active') throw new Error('Active Circle required')
+    if (post.approvalState !== 'pending') throw new Error('This post does not need approval')
+    const now = Date.now()
+    await ctx.db.patch(post._id, { approvalState: 'rejected', approvedByUserId: access.viewer._id, approvalDecidedAt: now, updatedAt: now })
+    await createNotification(ctx, {
+      recipientUserId: post.authorId, actorUserId: access.viewer._id, kind: 'circle_post_rejected', priority: 'attention',
+      circleId: post.circleId, postId: post._id, dedupeKey: `circle-post-rejected:${post._id}`,
+    })
+    await writeAudit(ctx, { actorUserId: access.viewer._id, action: 'circle.post_rejected', targetType: 'post', targetId: String(post._id) })
   },
 })
 

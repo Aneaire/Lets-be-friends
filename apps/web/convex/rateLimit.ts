@@ -8,6 +8,7 @@ export const RATE_LIMIT_FAMILIES = {
   create_comment: { limit: 30, windowMs: 60 * 1_000 },
   toggle_reaction: { limit: 120, windowMs: 60 * 1_000 },
   vote_poll: { limit: 60, windowMs: 60 * 1_000 },
+  create_circle: { limit: 5, windowMs: 24 * 60 * 60 * 1_000 },
 } as const
 
 export type RateLimitFamily = keyof typeof RATE_LIMIT_FAMILIES
@@ -17,6 +18,7 @@ const RATE_LIMIT_MESSAGES: Record<RateLimitFamily, string> = {
   create_comment: 'You are commenting too quickly. Please slow down.',
   toggle_reaction: 'Slow down a little before reacting again.',
   vote_poll: 'Slow down a little before voting again.',
+  create_circle: 'You can create up to 5 Circles per day. Please try again later.',
 }
 
 // Keep roughly two windows so a bucket that stops being used ages out promptly.

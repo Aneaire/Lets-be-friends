@@ -2,7 +2,7 @@ import { pollValidationError } from '@lets-be-friends/shared'
 import { Link } from '@tanstack/react-router'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import type { FunctionReturnType } from 'convex/server'
-import { BellOff, Check, ChevronLeft, ChevronRight, Heart, ImagePlus, MapPin, MessageCircle, Pin, Plus, Shield, UserMinus, Users } from 'lucide-react'
+import { Bell, BellOff, Check, ChevronLeft, ChevronRight, Flag, Heart, ImagePlus, LogOut, MapPin, MessageCircle, Pin, Plus, Shield, UserMinus, Users } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
 import { api } from '../../../convex/_generated/api'
@@ -20,7 +20,7 @@ import { PollComposer, emptyPollDraft, type PollDraft } from '../social/PollComp
 import { SocialLightbox } from '../social/SocialLightbox'
 import { discardRegisteredUploads, mediaKind, uploadPostMedia, type SelectedMedia } from '../social/postMediaUpload'
 
-type CircleTab = 'discussions' | 'about' | 'members' | 'manage'
+type CircleTab = 'discussions' | 'about' | 'members' | 'manage' | 'removed' | 'pending'
 type CirclePost = NonNullable<FunctionReturnType<typeof api.social.circleFeed>>['page'][number]
 type CircleComment = NonNullable<FunctionReturnType<typeof api.social.commentsForPost>>[number]
 
@@ -83,7 +83,35 @@ export function CircleWorkspacePage({ circleId, postId, commentId }: { circleId:
         : membershipState === 'removed'
           ? 'Your membership ended. You can request to join again.'
           : null
-  const tabs = detail.isCanonicalHost ? [...memberTabs, { id: 'manage' as const, label: 'Manage' }] : memberTabs
+  const tabs = [
+    ...memberTabs,
+    ...(detail.canModerate ? [{ id: 'pending' as const, label: 'Pending' }] : []),
+    ...(detail.canModerate ? [{ id: 'removed' as const, label: 'Removed' }] : []),
+    ...(detail.isCanonicalHost ? [{ id: 'manage' as const, label: 'Manage' }] : []),
+  ]
+  const circleOptions = [
+    ...(detail.circleState === 'active'
+      ? [{
+        label: 'Report Circle',
+        icon: <Flag size={15} aria-hidden="true" />,
+        tone: 'danger' as const,
+        onSelect: () => void run('report-circle', () => report({ targetType: 'circle', targetId: id, reason: 'Circle needs safety review' }), 'Circle report sent to safety review.'),
+      }]
+      : []),
+    {
+      label: detail.muted ? 'Unmute' : 'Mute',
+      icon: detail.muted ? <Bell size={15} aria-hidden="true" /> : <BellOff size={15} aria-hidden="true" />,
+      onSelect: () => void run('mute', () => setMuted({ circleId: id, muted: !detail.muted }), detail.muted ? 'Circle notifications turned on.' : 'Circle muted.'),
+    },
+    ...(!detail.isCanonicalHost
+      ? [{
+        label: 'Leave',
+        icon: <LogOut size={15} aria-hidden="true" />,
+        tone: 'danger' as const,
+        onSelect: () => setConfirmLeave(true),
+      }]
+      : []),
+  ]
 
   function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -151,14 +179,20 @@ export function CircleWorkspacePage({ circleId, postId, commentId }: { circleId:
               {tabs.map((item, index) => <button key={item.id} ref={(node) => { tabRefs.current[index] = node }} type="button" role="tab" id={`circle-tab-${item.id}`} aria-controls={`circle-panel-${item.id}`} aria-selected={tab === item.id} tabIndex={tab === item.id ? 0 : -1} onKeyDown={(event) => onTabKeyDown(event, index)} onClick={() => setTab(item.id)}>{item.label}</button>)}
             </div>
             <div className="circle-member-actions">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => void run('mute', () => setMuted({ circleId: id, muted: !detail.muted }), detail.muted ? 'Circle notifications turned on.' : 'Circle muted.')}><BellOff size={15} aria-hidden="true" /> {detail.muted ? 'Unmute' : 'Mute'}</button>
-              {!detail.isCanonicalHost && <button type="button" className="btn btn-danger-quiet btn-sm" onClick={() => setConfirmLeave(true)}>Leave</button>}
+              <ActionMenu label="Circle options" items={circleOptions} />
             </div>
           </div>
           <section id={`circle-panel-${tab}`} role="tabpanel" aria-labelledby={`circle-tab-${tab}`}>
             {tab === 'discussions' && <CircleDiscussions detail={detail} circleId={id} postId={postId} commentId={commentId} />}
-            {tab === 'about' && <CircleAbout detail={detail} onReport={() => run('report-circle', () => report({ targetType: 'circle', targetId: id, reason: 'Circle needs safety review' }), 'Circle report sent to safety review.')} />}
+            {tab === 'about' && <CircleAbout detail={detail} />}
             {tab === 'members' && <CircleMembers circleId={id} canModerate={detail.canModerate} />}
+            {tab === 'pending' && detail.canModerate && <CirclePendingPosts circleId={id} />}
+            {tab === 'removed' && detail.canModerate && (
+              <div className="circle-removed-panel">
+                <p className="text-meta">Removed posts and comments stay hidden from members until a leader restores them.</p>
+                <CircleRemovedContent circleId={id} onModerationAction={(callback, success) => run('restore', callback, success ?? 'Content restored.')} />
+              </div>
+            )}
             {tab === 'manage' && detail.isCanonicalHost && <CircleManage circleId={id} />}
           </section>
         </>
@@ -202,8 +236,28 @@ function CirclePreviewMembers({ circleId }: { circleId: Id<'circles'> }) {
   )
 }
 
-function CircleAbout({ detail, onReport }: { detail: Exclude<NonNullable<ReturnType<typeof useQuery<typeof api.circles.detail>>>, { unavailable: true }>; onReport: () => Promise<void> }) {
-  return <div className="circle-about-grid"><article><h2>Purpose</h2><p>{detail.purpose}</p><h2>Circle rules</h2><ol className="circle-rule-list">{detail.rules.map((rule, index) => <li key={`${index}-${rule}`}>{rule}</li>)}</ol></article><aside><h2>Host</h2><p>{detail.host?.displayName ?? 'Circle host'}</p>{detail.circleState === 'active' && <button type="button" className="btn btn-neutral btn-sm" onClick={() => void onReport()}>Report Circle</button>}</aside></div>
+function CircleAbout({ detail }: { detail: Exclude<NonNullable<ReturnType<typeof useQuery<typeof api.circles.detail>>>, { unavailable: true }> }) {
+  const host = detail.host
+  return (
+    <div className="circle-about-grid">
+      <article><h2>Purpose</h2><p>{detail.purpose}</p><h2>Circle rules</h2><ol className="circle-rule-list">{detail.rules.map((rule, index) => <li key={`${index}-${rule}`}>{rule}</li>)}</ol></article>
+      <aside className="circle-host-card" aria-labelledby="circle-host-title">
+        <h2 id="circle-host-title">Host</h2>
+        {host ? (
+          <Link to="/member-profile" search={{ userId: host.userId }} className="circle-host-link" aria-label={`View ${host.displayName}'s profile`}>
+            <Avatar name={host.displayName} src={host.profileImageUrl} size="large" decorative />
+            <span className="circle-host-copy">
+              <strong>{host.displayName}</strong>
+              <span>{host.username ? `@${host.username}` : 'Circle host'}</span>
+            </span>
+            <span className="status-pill" data-tone="social">Host</span>
+          </Link>
+        ) : (
+          <p className="text-meta">Circle host</p>
+        )}
+      </aside>
+    </div>
+  )
 }
 
 type ManageConfirmation =
@@ -339,6 +393,7 @@ type CirclePrivacySettings = {
   discussionVisibility: 'members_only' | 'signed_in'
   memberListVisibility: 'members_only' | 'signed_in'
   joinPolicy: 'approval_required' | 'open'
+  postApproval: 'off' | 'approval_required'
 }
 
 function CirclePrivacyForm({ circleId, settings, onSave }: {
@@ -359,6 +414,7 @@ function CirclePrivacyForm({ circleId, settings, onSave }: {
         discussionVisibility,
         memberListVisibility,
         joinPolicy: String(data.get('joinPolicy') ?? 'approval_required') as 'approval_required' | 'open',
+        postApproval: String(data.get('postApproval') ?? 'off') as 'off' | 'approval_required',
       })
     }}>
       <div className="circle-form-grid">
@@ -375,6 +431,7 @@ function CirclePrivacyForm({ circleId, settings, onSave }: {
           : 'Private Circles show only purpose, host, and rules until someone joins.'}</small></label>
         <label><span>Discoverability</span><select className="field" name="discoverability" defaultValue={settings.discoverability}><option value="listed">Listed in Discover</option><option value="unlisted">Unlisted, direct link only</option></select><small>Listed Circles appear in Discover for signed-in members. Unlisted Circles stay reachable by direct link but never appear in Discover.</small></label>
         <label><span>Join policy</span><select className="field" name="joinPolicy" defaultValue={settings.joinPolicy}><option value="approval_required">Approval required</option><option value="open">Open, instant join</option></select><small>Approval keeps the request and host decision flow. Open admits an eligible member instantly after they acknowledge the rules. Banned members stay blocked either way, and archived Circles accept no new joins.</small></label>
+        <label><span>Post approval</span><select className="field" name="postApproval" defaultValue={settings.postApproval ?? 'off'}><option value="off">Off, posts appear immediately</option><option value="approval_required">Leader approval required</option></select><small>When required, member posts stay hidden until a leader approves them. Approval posts them to the Circle immediately.</small></label>
         <label><span>Discussion visibility</span><select className="field" name="discussionVisibility" value={discussionVisibility} onChange={(event) => setDiscussionVisibility(event.currentTarget.value as 'members_only' | 'signed_in')}><option value="members_only">Active members only</option><option value="signed_in">Visible to signed-in members</option></select><small>Signed-in lets eligible members read discussions before joining. Only active members can post, react, comment, or moderate. Removed content stays hidden from everyone except moderators.</small></label>
         <label><span>Member list visibility</span><select className="field" name="memberListVisibility" value={memberListVisibility} onChange={(event) => setMemberListVisibility(event.currentTarget.value as 'members_only' | 'signed_in')}><option value="members_only">Active members only</option><option value="signed_in">Visible to signed-in members</option></select><small>Signed-in shows active member profiles and roles only. Requests, past members, bans, and moderation records are never shown in the member list.</small></label>
       </div>
@@ -582,7 +639,6 @@ function CircleDiscussions({ detail, circleId, postId, commentId }: { detail: Ex
   const setPostRemoved = useMutation(api.circles.setPostRemoved)
   const pinPost = useMutation(api.circles.pinPost)
   const unpinPost = useMutation(api.circles.unpinPost)
-  const [error, setError] = useState('')
   const posts = useMemo(() => requested && !results.some((post) => post._id === requested._id) ? [requested, ...results] : results, [requested, results])
 
   useEffect(() => {
@@ -701,7 +757,7 @@ function CircleComposer({ circleId, canModerate }: { circleId: Id<'circles'>; ca
       setPollOpen(false)
       setPollDraft(emptyPollDraft())
       clearSelectedMedia()
-      toast.success(announcement ? 'Announcement posted.' : 'Discussion posted.')
+      toast.success(approvalNotice ? 'Sent for leader approval.' : announcement ? 'Announcement posted.' : 'Discussion posted.')
     } catch (cause) {
       await discardRegisteredUploads(mediaUploadIds, discardPostMediaUpload)
       setError(cause instanceof Error ? cause.message : 'The post could not be created.')
@@ -714,6 +770,7 @@ function CircleComposer({ circleId, canModerate }: { circleId: Id<'circles'>; ca
     <label htmlFor="circle-post-body">Start a conversation</label>
     <textarea id="circle-post-body" className="field" maxLength={1000} value={body} onChange={(event) => setBody(event.currentTarget.value)} placeholder="Share a thought or ask the Circle a question" />
     {canModerate && <label className="circle-rules-check"><input type="checkbox" checked={announcement} onChange={(event) => { setAnnouncement(event.currentTarget.checked); if (event.currentTarget.checked) setPollOpen(false) }} /><span>Post as an announcement</span></label>}
+    {approvalNotice && <p className="text-meta">New posts need leader approval before they appear in the Circle.</p>}
     {selectedMedia.length > 0 && <PostMediaGrid mode="preview" media={selectedMedia} onRemove={removeSelectedMedia} />}
     {pollOpen && <PollComposer value={pollDraft} onChange={setPollDraft} disabled={posting} />}
     <div className="circle-composer-toolbar">
@@ -744,14 +801,6 @@ function eventModeLabel(mode: CircleEventItem['mode']) {
   return null
 }
 
-function CircleSideRail({ circleId, onModerationAction }: { circleId: Id<'circles'>; onModerationAction: (callback: () => Promise<unknown>, success?: string) => Promise<void> }) {
-  return (
-    <aside className="circle-side-rail" aria-label="Circle moderation">
-      <CircleRemovedContent circleId={circleId} onModerationAction={onModerationAction} />
-    </aside>
-  )
-}
-
 function CircleRemovedContent({ circleId, onModerationAction }: { circleId: Id<'circles'>; onModerationAction: (callback: () => Promise<unknown>, success?: string) => Promise<void> }) {
   const removed = useQuery(api.circles.removedContent, { circleId })
   const setPostRemoved = useMutation(api.circles.setPostRemoved)
@@ -771,6 +820,48 @@ function CircleRemovedContent({ circleId, onModerationAction }: { circleId: Id<'
             </article>
           ))}
     </section>
+  )
+}
+
+function CirclePendingPosts({ circleId }: { circleId: Id<'circles'> }) {
+  const pending = useQuery(api.circles.pendingCirclePosts, { circleId })
+  const approve = useMutation(api.circles.approveCirclePost)
+  const reject = useMutation(api.circles.rejectCirclePost)
+  const [error, setError] = useState('')
+
+  async function decide(kind: 'approve' | 'reject', postId: Id<'posts'>) {
+    try {
+      setError('')
+      if (kind === 'approve') {
+        await approve({ postId })
+        toast.success('Post approved.')
+      } else {
+        await reject({ postId })
+        toast.success('Post not approved.')
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'The decision could not be saved.')
+    }
+  }
+
+  if (pending === undefined) return <div className="circle-state-card" role="status">Loading posts waiting for approval...</div>
+  return (
+    <div className="circle-removed-panel">
+      <div className="circle-section-heading"><h2>Pending posts</h2><span>{pending.length}</span></div>
+      <p className="text-meta">New member posts stay hidden until a leader approves them. Approval posts them to the Circle immediately.</p>
+      {error && <p className="notice notice-danger" role="alert">{error}</p>}
+      {pending.length === 0 ? <div className="circle-state-card">No posts waiting for approval.</div> : (
+        <div className="circle-post-list">{pending.map((post) => (
+          <PostCard key={post._id} author={post.authorDisplayName} imageUrl={post.authorProfileImageUrl} timestamp={formatTime(post.createdAt)} dateTime={new Date(post.createdAt).toISOString()} className="circle-post-card"
+            avatarAction={<Link to="/member-profile" search={{ userId: post.authorId }} className="social-post-avatar-link" aria-label={`View ${post.authorDisplayName}'s profile`}><Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="large" decorative /></Link>}
+            actions={<div className="circle-post-tools"><button className="btn btn-social btn-sm" onClick={() => void decide('approve', post._id)}>Approve</button><button className="btn btn-danger-quiet btn-sm" onClick={() => void decide('reject', post._id)}>Reject</button></div>}>
+            <p className="circle-post-body">{post.body}</p>
+            {post.media.length > 0 && <PostMediaGrid media={post.media} />}
+            {post.poll && <div className="circle-pending-poll"><strong>{post.poll.question}</strong><ul>{post.poll.options.map((option) => <li key={option.id}>{option.label}</li>)}</ul></div>}
+          </PostCard>
+        ))}</div>
+      )}
+    </div>
   )
 }
 
@@ -1021,5 +1112,5 @@ function CirclePostCard({ post, focused, focusCommentId, canWrite, canModerate, 
       return false
     }
   }
-  return <><ConfirmationDialog open={removeTarget !== null} onClose={() => setRemoveTarget(null)} onConfirm={async () => { if (!removeTarget) return; const completed = await postAction(removeTarget.kind === 'post' ? onRemove : () => setCommentRemoved({ commentId: removeTarget.commentId, removed: true }), removeTarget.kind === 'post' ? 'Post removed.' : 'Comment removed.'); if (completed) setRemoveTarget(null) }} title={removeTarget?.kind === 'comment' ? `Remove ${removeTarget.displayName}'s comment?` : `Remove ${removeTarget?.displayName ?? 'this member'}'s post?`} description={removeTarget?.kind === 'comment' ? 'The comment will disappear from the discussion. A moderator can restore it from removed content.' : 'The post will disappear from the discussion. A moderator can restore it from removed content.'} confirmLabel={removeTarget?.kind === 'comment' ? 'Remove comment' : 'Remove post'} /><PostCard id={`circle-post-${post._id}`} tabIndex={focused ? -1 : undefined} avatarAction={<Link to="/member-profile" search={{ userId: post.authorId }} className="social-post-avatar-link" aria-label={`View ${post.authorDisplayName}'s profile`}><Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="large" decorative /></Link>} author={post.authorDisplayName} imageUrl={post.authorProfileImageUrl} timestamp={formatTime(post.createdAt)} dateTime={new Date(post.createdAt).toISOString()} className="circle-post-card" meta={<>{post.circleKind === 'announcement' && <span className="circle-announcement-label"><Check size={12} aria-hidden="true" /> Announcement</span>}{pinnedMeta}</>} actions={<div className="circle-post-tools">{canModerate && <ActionMenu label="Post options" items={[{ label: pinned ? 'Unpin post' : 'Pin post', icon: <Pin size={15} aria-hidden="true" />, onSelect: () => void postAction(onPin, pinned ? 'Post unpinned.' : 'Post pinned.') }, { label: 'Remove post', tone: 'danger', onSelect: () => setRemoveTarget({ kind: 'post', displayName: post.authorDisplayName }) }]} />} {!post.ownPost && <button className="icon-button" type="button" aria-label="Report post" onClick={() => void postAction(() => report({ targetType: 'post', targetId: post._id, reason: 'Post needs safety review' }), 'Post report sent to safety review.')}><Shield size={16} /></button>}</div>}><p className="circle-post-body">{post.body}</p>{post.media.length > 0 && <PostMediaGrid media={post.media} onOpenAt={setLightboxIndex} />}{post.poll && <PollCard poll={post.poll} disabled={!canWrite} onVote={async (optionId) => { await postAction(() => voteOnPoll({ postId: post._id, optionId })) }} />}{actionError && <p className="notice notice-danger" role="alert">{actionError}</p>}<PostActionBar liked={post.liked} likeCount={post.likeCount} commentCount={post.commentCount} saved={post.saved} commentsOpen={commentsOpen} likeDisabled={!canWrite} showSave={canWrite} onLike={() => void postAction(() => toggleLike({ postId: post._id }))} onToggleComments={() => setCommentsOpen((open) => !open)} onSave={() => void postAction(() => toggleSave({ postId: post._id }))} />{commentsOpen && <div className="circle-comments">{canWrite && <form onSubmit={(event) => { event.preventDefault(); const body = commentBody.trim(); if (!body) return; void postAction(() => createComment({ postId: post._id, body, parentCommentId: replyTo }).then(() => { setCommentBody(''); setReplyTo(undefined) })) }}><input className="field" aria-label={replyTo ? 'Write a reply' : 'Write a comment'} placeholder={replyTo ? 'Write a reply' : 'Add to the discussion'} value={commentBody} onChange={(event) => setCommentBody(event.currentTarget.value)} maxLength={500} /><button className="btn btn-social btn-sm">{replyTo ? 'Reply' : 'Comment'}</button></form>}{comments === undefined ? <p role="status" className="text-meta">Loading comments...</p> : comments.length === 0 ? <p className="text-meta">No comments yet.</p> : <div className="circle-comment-list">{comments.map((comment) => <article key={comment._id} id={`circle-comment-${comment._id}`} tabIndex={String(comment._id) === focusCommentId ? -1 : undefined} data-reply={Boolean(comment.parentCommentId)}><Link to="/member-profile" search={{ userId: comment.authorId }} className="social-comment-avatar-link" aria-label={`View ${comment.authorDisplayName}'s profile`}><Avatar name={comment.authorDisplayName} src={comment.authorProfileImageUrl} size="small" /></Link><div><strong>{comment.authorDisplayName}</strong><p>{comment.body}</p><div>{canWrite && <button className="circle-text-action" onClick={() => void postAction(() => toggleCommentLike({ commentId: comment._id }))}><Heart size={13} fill={comment.liked ? 'currentColor' : 'none'} /> {comment.likeCount || 'Like'}</button>}{canWrite && <button className="circle-text-action" onClick={() => { setReplyTo(comment._id); setCommentBody('') }}><MessageCircle size={13} /> Reply</button>}{!comment.ownComment && <button className="circle-text-action" onClick={() => void postAction(() => report({ targetType: 'comment', targetId: comment._id, reason: 'Comment needs safety review' }), 'Comment report sent to safety review.')}>Report</button>}{canModerate && <button className="circle-text-action circle-danger-action" onClick={() => setRemoveTarget({ kind: 'comment', commentId: comment._id, displayName: comment.authorDisplayName })}>Remove</button>}</div></div></article>)}</div>}</div>}</PostCard>{lightboxIndex !== null && post.media.length > 0 && <SocialLightbox open onClose={() => setLightboxIndex(null)} title={`Post by ${post.authorDisplayName}`} media={post.media.map((item, index) => ({ kind: item.kind, url: item.url, alt: `Image ${index + 1} shared in this post` }))} initialIndex={lightboxIndex} details={<div className="social-lightbox-post"><div className="social-lightbox-author"><Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="large" decorative /><div className="min-w-0"><div className="social-lightbox-author-name"><strong>{post.authorDisplayName}</strong></div><time className="text-meta" dateTime={new Date(post.createdAt).toISOString()}>{formatTime(post.createdAt)}</time></div></div>{post.body ? <p className="ds-post-copy">{post.body}</p> : null}{post.poll && <PollCard poll={post.poll} disabled={!canWrite} onVote={async (optionId) => { await postAction(() => voteOnPoll({ postId: post._id, optionId })) }} />}</div>} />}</>
+  return <><ConfirmationDialog open={removeTarget !== null} onClose={() => setRemoveTarget(null)} onConfirm={async () => { if (!removeTarget) return; const completed = await postAction(removeTarget.kind === 'post' ? onRemove : () => setCommentRemoved({ commentId: removeTarget.commentId, removed: true }), removeTarget.kind === 'post' ? 'Post removed.' : 'Comment removed.'); if (completed) setRemoveTarget(null) }} title={removeTarget?.kind === 'comment' ? `Remove ${removeTarget.displayName}'s comment?` : `Remove ${removeTarget?.displayName ?? 'this member'}'s post?`} description={removeTarget?.kind === 'comment' ? 'The comment will disappear from the discussion. A moderator can restore it from removed content.' : 'The post will disappear from the discussion. A moderator can restore it from removed content.'} confirmLabel={removeTarget?.kind === 'comment' ? 'Remove comment' : 'Remove post'} /><PostCard id={`circle-post-${post._id}`} tabIndex={focused ? -1 : undefined} avatarAction={<Link to="/member-profile" search={{ userId: post.authorId }} className="social-post-avatar-link" aria-label={`View ${post.authorDisplayName}'s profile`}><Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="large" decorative /></Link>} author={post.authorDisplayName} imageUrl={post.authorProfileImageUrl} timestamp={formatTime(post.createdAt)} dateTime={new Date(post.createdAt).toISOString()} className="circle-post-card" meta={<>{post.circleKind === 'announcement' && <span className="circle-announcement-label"><Check size={12} aria-hidden="true" /> Announcement</span>}{post.approvalState === 'pending' && <span className="status-pill">Waiting for leader approval</span>}{post.approvalState === 'rejected' && <span className="status-pill" data-tone="danger">Not approved</span>}{pinnedMeta}</>} actions={<div className="circle-post-tools">{canModerate && <ActionMenu label="Post options" items={[{ label: pinned ? 'Unpin post' : 'Pin post', icon: <Pin size={15} aria-hidden="true" />, onSelect: () => void postAction(onPin, pinned ? 'Post unpinned.' : 'Post pinned.') }, { label: 'Remove post', tone: 'danger', onSelect: () => setRemoveTarget({ kind: 'post', displayName: post.authorDisplayName }) }]} />} {!post.ownPost && <button className="icon-button" type="button" aria-label="Report post" onClick={() => void postAction(() => report({ targetType: 'post', targetId: post._id, reason: 'Post needs safety review' }), 'Post report sent to safety review.')}><Shield size={16} /></button>}</div>}><p className="circle-post-body">{post.body}</p>{post.media.length > 0 && <PostMediaGrid media={post.media} onOpenAt={setLightboxIndex} />}{post.poll && <PollCard poll={post.poll} disabled={!canWrite} onVote={async (optionId) => { await postAction(() => voteOnPoll({ postId: post._id, optionId })) }} />}{actionError && <p className="notice notice-danger" role="alert">{actionError}</p>}<PostActionBar liked={post.liked} likeCount={post.likeCount} commentCount={post.commentCount} saved={post.saved} commentsOpen={commentsOpen} likeDisabled={!canWrite} showSave={canWrite} onLike={() => void postAction(() => toggleLike({ postId: post._id }))} onToggleComments={() => setCommentsOpen((open) => !open)} onSave={() => void postAction(() => toggleSave({ postId: post._id }))} />{commentsOpen && <div className="circle-comments">{canWrite && <form onSubmit={(event) => { event.preventDefault(); const body = commentBody.trim(); if (!body) return; void postAction(() => createComment({ postId: post._id, body, parentCommentId: replyTo }).then(() => { setCommentBody(''); setReplyTo(undefined) })) }}><input className="field" aria-label={replyTo ? 'Write a reply' : 'Write a comment'} placeholder={replyTo ? 'Write a reply' : 'Add to the discussion'} value={commentBody} onChange={(event) => setCommentBody(event.currentTarget.value)} maxLength={500} /><button className="btn btn-social btn-sm">{replyTo ? 'Reply' : 'Comment'}</button></form>}{comments === undefined ? <p role="status" className="text-meta">Loading comments...</p> : comments.length === 0 ? <p className="text-meta">No comments yet.</p> : <div className="circle-comment-list">{comments.map((comment) => <article key={comment._id} id={`circle-comment-${comment._id}`} tabIndex={String(comment._id) === focusCommentId ? -1 : undefined} data-reply={Boolean(comment.parentCommentId)}><Link to="/member-profile" search={{ userId: comment.authorId }} className="social-comment-avatar-link" aria-label={`View ${comment.authorDisplayName}'s profile`}><Avatar name={comment.authorDisplayName} src={comment.authorProfileImageUrl} size="small" /></Link><div><strong>{comment.authorDisplayName}</strong><p>{comment.body}</p><div>{canWrite && <button className="circle-text-action" onClick={() => void postAction(() => toggleCommentLike({ commentId: comment._id }))}><Heart size={13} fill={comment.liked ? 'currentColor' : 'none'} /> {comment.likeCount || 'Like'}</button>}{canWrite && <button className="circle-text-action" onClick={() => { setReplyTo(comment._id); setCommentBody('') }}><MessageCircle size={13} /> Reply</button>}{!comment.ownComment && <button className="circle-text-action" onClick={() => void postAction(() => report({ targetType: 'comment', targetId: comment._id, reason: 'Comment needs safety review' }), 'Comment report sent to safety review.')}>Report</button>}{canModerate && <button className="circle-text-action circle-danger-action" onClick={() => setRemoveTarget({ kind: 'comment', commentId: comment._id, displayName: comment.authorDisplayName })}>Remove</button>}</div></div></article>)}</div>}</div>}</PostCard>{lightboxIndex !== null && post.media.length > 0 && <SocialLightbox open onClose={() => setLightboxIndex(null)} title={`Post by ${post.authorDisplayName}`} media={post.media.map((item, index) => ({ kind: item.kind, url: item.url, alt: `Image ${index + 1} shared in this post` }))} initialIndex={lightboxIndex} details={<div className="social-lightbox-post"><div className="social-lightbox-author"><Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="large" decorative /><div className="min-w-0"><div className="social-lightbox-author-name"><strong>{post.authorDisplayName}</strong></div><time className="text-meta" dateTime={new Date(post.createdAt).toISOString()}>{formatTime(post.createdAt)}</time></div></div>{post.body ? <p className="ds-post-copy">{post.body}</p> : null}{post.poll && <PollCard poll={post.poll} disabled={!canWrite} onVote={async (optionId) => { await postAction(() => voteOnPoll({ postId: post._id, optionId })) }} />}</div>} />}</>
 }

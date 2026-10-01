@@ -170,6 +170,7 @@ describe('Circle events', () => {
       discussionVisibility: 'signed_in',
       memberListVisibility: 'signed_in',
       joinPolicy: 'approval_required',
+      postApproval: 'off',
     })
     const events = await outsider.query(api.circleEvents.list, { circleId })
     expect(events).toHaveLength(1)

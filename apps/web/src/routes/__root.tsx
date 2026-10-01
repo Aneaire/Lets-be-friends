@@ -74,7 +74,7 @@ function RootNotFound() {
   )
 }
 
-function RootError({ reset }: { error: Error; reset: () => void }) {
+function RootError({ reset }: { error: unknown; reset: () => void }) {
   const router = useRouter()
   return (
     <main className="marketing-page">

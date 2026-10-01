@@ -354,12 +354,15 @@ export const circleFeed = query({
     const result = await ctx.db.query('posts').withIndex('by_circle_created_at', (q) => q.eq('circleId', args.circleId)).order('desc').paginate(args.paginationOpts)
     const page = (await Promise.all(result.page.map(async (post) => {
       if (!isModerationVisible(post) || post.deletedAt || post.circleRemovedAt) return null
+      // Posts waiting for leader approval stay out of the feed for everyone
+      // except their author. Leaders review them from the Pending queue.
+      if ((post.approvalState === 'pending' || post.approvalState === 'rejected') && post.authorId !== access.viewer._id) return null
       const author = await ctx.db.get(post.authorId)
       if (!author || author.suspended) return null
       if (post.authorId !== access.viewer._id && await isHiddenByPreference(ctx, access.viewer._id, post.authorId)) return null
       // Audience and block checks run before enrichment can issue media or
       // profile-image URLs for this private post.
-      return await enrichPost(ctx, post, access.viewer)
+      return { ...(await enrichPost(ctx, post, access.viewer)), approvalState: post.approvalState ?? null }
     }))).flatMap((post) => post ? [post] : [])
     return { ...result, page }
   },
@@ -380,12 +383,14 @@ export const requestedPost = query({
     if (post.circleRemovedAt) return null
     if (post.circleId) {
       if (!viewer) throw new Error('Active Circle membership required')
-      await requirePostAudienceRead(ctx, post)
+      const readAccess = await requirePostAudienceRead(ctx, post)
+      if ((post.approvalState === 'pending' || post.approvalState === 'rejected')
+        && viewer._id !== post.authorId && !readAccess?.canModerate) return null
     }
     if (viewer && viewer._id !== post.authorId && await isHiddenByPreference(ctx, viewer._id, post.authorId)) return null
     const author = await ctx.db.get(post.authorId)
     if (!author || author.suspended) return null
-    return await enrichPost(ctx, post, viewer)
+    return { ...(await enrichPost(ctx, post, viewer)), approvalState: post.approvalState ?? null }
   },
 })
 
@@ -399,6 +404,7 @@ export const commentsForPost = query({
     const post = await ctx.db.get(args.postId)
     if (!post || !isModerationVisible(post)) return []
     if (post.circleRemovedAt) return []
+    if (post.circleId && (post.approvalState === 'pending' || post.approvalState === 'rejected')) return []
     if (post.circleId) await requirePostAudienceRead(ctx, post)
     if (post.circleId) {
       const author = await ctx.db.get(post.authorId)
@@ -426,6 +432,7 @@ export const commentPage = query({
     const post = await ctx.db.get(args.postId)
     if (!post || !isModerationVisible(post)) return { page: [], isDone: true, continueCursor: '' }
     if (post.circleRemovedAt) return { page: [], isDone: true, continueCursor: '' }
+    if (post.circleId && (post.approvalState === 'pending' || post.approvalState === 'rejected')) return { page: [], isDone: true, continueCursor: '' }
     if (post.circleId) await requirePostAudienceRead(ctx, post)
     if (post.circleId) {
       const author = await ctx.db.get(post.authorId)
@@ -501,6 +508,12 @@ export const mentionLookup = query({
   },
 })
 
+function assertCirclePostInteractionAllowed(post: Pick<Doc<'posts'>, 'circleId' | 'approvalState'>) {
+  if (!post.circleId) return
+  if (post.approvalState === 'pending') throw new Error('This post is waiting for leader approval')
+  if (post.approvalState === 'rejected') throw new Error('This post was not approved')
+}
+
 export const createPost = mutation({
   args: {
     body: v.string(),
@@ -545,16 +558,26 @@ export const createPost = mutation({
       if (pollArg) throw new Error('Shared posts cannot include a poll')
       if (args.experienceBookingId) throw new Error('Shared posts cannot be experience posts')
     }
-    if (args.circleId) {
-      if (args.experienceBookingId) throw new Error('Circle posts cannot be experience posts')
-      if (pollArg && (args.circleKind ?? 'discussion') === 'announcement') {
-        throw new Error('Announcements cannot include a poll')
-      }
-      if ((args.circleKind ?? 'discussion') === 'announcement') await requireCircleModerator(ctx, args.circleId)
-      else await requireCircleWrite(ctx, args.circleId)
-    } else if (args.circleKind) {
+    const circleAccess = args.circleId
+      ? await (async () => {
+        if (args.experienceBookingId) throw new Error('Circle posts cannot be experience posts')
+        if (pollArg && (args.circleKind ?? 'discussion') === 'announcement') {
+          throw new Error('Announcements cannot include a poll')
+        }
+        if ((args.circleKind ?? 'discussion') === 'announcement') return await requireCircleModerator(ctx, args.circleId!)
+        return await requireCircleWrite(ctx, args.circleId!)
+      })()
+      : null
+    if (!args.circleId && args.circleKind) {
       throw new Error('Circle post kind requires a Circle')
     }
+    // Leaders bypass review. Member discussions in approval-required Circles
+    // start pending and stay hidden until a leader approves them.
+    const requiresApproval = Boolean(
+      args.circleId && !isShare && (args.circleKind ?? 'discussion') === 'discussion'
+      && circleAccess && circleAccess.settings.postApproval === 'approval_required'
+      && !circleAccess.canModerate,
+    )
     if (pollArg) {
       if (mediaUploadIds.length > 0) throw new Error('Polls cannot include photos or video')
       if (args.experienceBookingId) throw new Error('Experience posts cannot include a poll')
@@ -604,6 +627,7 @@ export const createPost = mutation({
       authorId: viewer._id,
       circleId: args.circleId,
       circleKind: args.circleId ? args.circleKind ?? 'discussion' : undefined,
+      approvalState: requiresApproval ? 'pending' : undefined,
       body,
       media,
       mentions: mentions.length > 0 ? mentions : undefined,
@@ -620,15 +644,33 @@ export const createPost = mutation({
       updatedAt: now,
     })
     await Promise.all(mediaUploadIds.map((uploadId) => ctx.db.patch(uploadId, { postId })))
-    await Promise.all(mentions.map((mention) => createNotification(ctx, {
-      recipientUserId: mention.userId,
-      actorUserId: viewer._id,
-      kind: args.circleId ? 'circle_mention' : 'mention',
-      priority: 'standard',
-      postId,
-      circleId: args.circleId,
-      dedupeKey: `post-mention:${postId}:${mention.userId}`,
-    })))
+    // Mention notifications wait for approval so pending posts never leak
+    // their content to mentioned members before a leader reviews them.
+    if (!requiresApproval) {
+      await Promise.all(mentions.map((mention) => createNotification(ctx, {
+        recipientUserId: mention.userId,
+        actorUserId: viewer._id,
+        kind: args.circleId ? 'circle_mention' : 'mention',
+        priority: 'standard',
+        postId,
+        circleId: args.circleId,
+        dedupeKey: `post-mention:${postId}:${mention.userId}`,
+      })))
+    }
+    if (requiresApproval) {
+      const leaders = await ctx.db.query('circleMemberships').withIndex('by_circle_state', (q) => q.eq('circleId', args.circleId!).eq('state', 'active')).collect()
+      await Promise.all(leaders
+        .filter((row) => row.role === 'moderator' || row.role === 'host')
+        .map((row) => createNotification(ctx, {
+          recipientUserId: row.userId,
+          actorUserId: viewer._id,
+          kind: 'circle_post_review_requested',
+          priority: 'attention',
+          circleId: args.circleId,
+          postId,
+          dedupeKey: `circle-post-review:${postId}:${row.userId}`,
+        })))
+    }
     if (args.circleId && (args.circleKind ?? 'discussion') === 'announcement') {
       const members = await ctx.db.query('circleMemberships').withIndex('by_circle_state', (q) => q.eq('circleId', args.circleId!).eq('state', 'active')).collect()
       await Promise.all(members.map((row) => createNotification(ctx, {
@@ -649,6 +691,7 @@ export const editPost = mutation({
     if (!post || post.authorId !== viewer._id || post.deletedAt) throw new Error('Only the author can edit this post')
     await requirePostAudienceWrite(ctx, post)
     if (post.circleRemovedAt) throw new Error('Post is unavailable')
+    if (post.circleId && post.approvalState === 'rejected') throw new Error('This post was not approved')
     const body = args.body.trim()
     if (!body && (post.media?.length ?? 0) === 0 && !post.poll) throw new Error('Post cannot be empty')
     if (body.length > 1000) throw new Error('Post is too long')
@@ -689,6 +732,7 @@ export const createComment = mutation({
     if (!post || post.hidden) throw new Error('Post not found')
     await requirePostAudienceWrite(ctx, post)
     if (post.circleRemovedAt) throw new Error('Post not found')
+    assertCirclePostInteractionAllowed(post)
     await requireNotBlocked(ctx, viewer._id, post.authorId)
     const parentComment = args.parentCommentId ? await ctx.db.get(args.parentCommentId) : null
     if (args.parentCommentId && (!parentComment || parentComment.hidden || parentComment.postId !== args.postId)) {
@@ -759,6 +803,7 @@ export const editComment = mutation({
     const post = await ctx.db.get(comment.postId)
     if (!post || post.hidden || post.deletedAt) throw new Error('Post not found')
     await requirePostAudienceWrite(ctx, post)
+    assertCirclePostInteractionAllowed(post)
     const body = args.body.trim()
     if (body.length < 1) throw new Error('Comment cannot be empty')
     if (body.length > 500) throw new Error('Comment is too long')
@@ -797,6 +842,7 @@ export const deleteComment = mutation({
     const post = await ctx.db.get(comment.postId)
     if (!post || post.hidden || post.deletedAt) throw new Error('Post not found')
     await requirePostAudienceWrite(ctx, post)
+    assertCirclePostInteractionAllowed(post)
     if (post.circleRemovedAt || comment.circleRemovedAt) throw new Error('Post not found')
     await ctx.db.patch(args.commentId, { hidden: true, updatedAt: Date.now() })
     await ctx.db.patch(post._id, { commentCount: adjustCounter(post.commentCount, -1) })
@@ -818,6 +864,7 @@ export const toggleCommentLike = mutation({
     const post = await ctx.db.get(comment.postId)
     if (!post || post.hidden || post.deletedAt) throw new Error('Comment not found')
     await requirePostAudienceWrite(ctx, post)
+    assertCirclePostInteractionAllowed(post)
     if (post.circleRemovedAt || comment.circleRemovedAt) throw new Error('Comment not found')
     if (post.authorId !== viewer._id) await requireNotBlocked(ctx, viewer._id, post.authorId)
     if (comment.authorId !== viewer._id) await requireNotBlocked(ctx, viewer._id, comment.authorId)
@@ -939,6 +986,7 @@ export const toggleSavePost = mutation({
     if (!post || post.hidden) throw new Error('Post not found')
     await requirePostAudienceWrite(ctx, post)
     if (post.circleRemovedAt) throw new Error('Post not found')
+    assertCirclePostInteractionAllowed(post)
     await requireNotBlocked(ctx, viewer._id, post.authorId)
     const existing = await ctx.db.query('savedPosts').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', args.postId)).first()
     if (existing) {
@@ -962,6 +1010,7 @@ export const toggleLike = mutation({
     if (!post || post.hidden) throw new Error('Post not found')
     await requirePostAudienceWrite(ctx, post)
     if (post.circleRemovedAt) throw new Error('Post not found')
+    assertCirclePostInteractionAllowed(post)
     await requireNotBlocked(ctx, viewer._id, post.authorId)
     await consumeRateLimit(ctx, viewer._id, 'toggle_reaction')
     const existing = await ctx.db.query('postReactions').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', args.postId)).first()
@@ -993,6 +1042,7 @@ export const voteOnPoll = mutation({
     if (!post || post.hidden || post.deletedAt) throw new Error('Post not found')
     await requirePostAudienceWrite(ctx, post)
     if (post.circleRemovedAt) throw new Error('Post not found')
+    assertCirclePostInteractionAllowed(post)
     await requireNotBlocked(ctx, viewer._id, post.authorId)
     const poll = post.poll
     if (!poll) throw new Error('This post does not have a poll')

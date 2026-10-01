@@ -9,7 +9,7 @@ import {
 
 describe('notification catalog', () => {
   it('tracks every notification kind with complete active configuration', () => {
-    expect(notificationKinds).toHaveLength(34)
+    expect(notificationKinds).toHaveLength(37)
     expect(new Set(notificationKinds).size).toBe(notificationKinds.length)
     expect(notificationKinds.slice().sort()).toEqual(Object.keys(notificationCatalog).sort())
 
