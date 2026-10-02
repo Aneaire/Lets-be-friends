@@ -2892,7 +2892,7 @@ body {
     min-height: 3.25rem;
   }
 
-  .mobile-auth-guarded-content {
+  .mobile-auth-gate-root[data-gate="blocking"] .mobile-auth-guarded-content {
     display: none;
   }
 }
@@ -11120,7 +11120,7 @@ textarea.field {
 }
 
 @media (max-width: 420px) {
-  .web-app-shell .brand-link span {
+  .web-app-shell .app-header[data-member] .brand-link span {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -13986,7 +13986,7 @@ textarea.field {
       width: 3.75rem;
     }
 
-    .web-app-shell .brand-link > span {
+    .web-app-shell .app-header[data-member] .brand-link > span {
       position: absolute;
       width: 1px;
       height: 1px;
@@ -14254,7 +14254,7 @@ textarea.field {
   }
 
   @media (max-width: 420px) {
-    .web-app-shell .brand-link > span {
+    .web-app-shell .app-header[data-member] .brand-link > span {
       position: absolute;
       width: 1px;
       height: 1px;

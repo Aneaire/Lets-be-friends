@@ -112,7 +112,7 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
 
   return (
     <>
-      <header className="app-header">
+      <header className="app-header" data-member="true">
         <div className="app-header-inner">
           <Link to="/" className="brand-link" aria-label="Let's Be Friends home">
             <BrandLogo className="h-8 w-7" />
