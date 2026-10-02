@@ -10,6 +10,7 @@
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit",
     "convex:dev": "node --env-file=../../.env.local --env-file-if-exists=.env.local ./node_modules/convex/bin/main.js dev",
+    "convex:deploy": "node ./node_modules/convex/bin/main.js deploy",
     "convex:codegen": "convex codegen",
     "seed:pampanga": "node --env-file=../../.env.local --env-file-if-exists=.env.local ./node_modules/convex/bin/main.js run seeds:seedPampangaCompanions",
     "seed:philippines": "node --env-file=../../.env.local --env-file-if-exists=.env.local ./node_modules/convex/bin/main.js run seeds:seedPhilippinesDevelopment '{\"confirm\":\"development\"}'"

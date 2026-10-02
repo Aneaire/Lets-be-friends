@@ -10,7 +10,7 @@ import type { Id } from '../../../convex/_generated/dataModel'
 import { Avatar } from '../../design-system/atoms/Avatar'
 import { BrandLogo } from '../../design-system/atoms/BrandLogo'
 import { ActionMenu } from '../../design-system/molecules/ActionMenu'
-import { ConfirmationDialog } from '../../design-system/molecules/Dialog'
+import { ConfirmationDialog, Dialog } from '../../design-system/molecules/Dialog'
 import { InfiniteScrollTrigger } from '../../design-system/molecules/InfiniteScrollTrigger'
 import { Calendar } from '../../design-system/organisms/Calendar'
 import { PostCard } from '../social/PostCard'
@@ -652,36 +652,24 @@ function CircleDiscussions({ detail, circleId, postId, commentId }: { detail: Ex
     requestAnimationFrame(() => document.getElementById(`circle-post-${postId}`)?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }))
   }, [postId, posts])
 
-  async function discussionAction(callback: () => Promise<unknown>, success?: string) {
-    try {
-      setError('')
-      await callback()
-      if (success) toast.success(success)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The Circle action could not be completed.')
-    }
-  }
-
   return <div className="circle-discussion-stack">
     <CircleEventsCarousel circleId={circleId} canLead={detail.canModerate} />
-    <div className={detail.canModerate ? 'circle-discussion-layout' : 'circle-discussion-layout circle-discussion-layout-single'}>
-    <div className="circle-discussion-main">
-      {detail.canWrite && <CircleComposer circleId={circleId} canModerate={detail.canModerate} />}
-      {error && <p className="notice notice-danger" role="alert">{error}</p>}
-      {status === 'LoadingFirstPage' ? <div className="circle-state-card" role="status">Loading discussions...</div> : posts.length === 0 ? <div className="circle-state-card"><strong>No discussions yet.</strong><p>Start with a question that gives people an easy way in.</p></div> : <div className="circle-post-list">{posts.map((post) => <CirclePostCard key={post._id} post={post} focused={String(post._id) === postId} focusCommentId={String(post._id) === postId ? commentId : undefined} canWrite={detail.canWrite} canModerate={detail.canModerate} pinned={detail.pinnedPostIds.some((id) => id === post._id)} onPin={() => detail.pinnedPostIds.some((id) => id === post._id) ? unpinPost({ circleId, postId: post._id }) : pinPost({ circleId, postId: post._id })} onRemove={() => setPostRemoved({ postId: post._id, removed: true })} />)}</div>}
-      <InfiniteScrollTrigger
-        status={status}
-        onLoadMore={() => loadMore(15)}
-        loadingLabel="Loading more discussions..."
-        className="circle-load-more"
-      />
-    </div>
-    {detail.canModerate && <CircleSideRail circleId={circleId} onModerationAction={discussionAction} />}
+    <div className="circle-discussion-layout circle-discussion-layout-single">
+      <div className="circle-discussion-main">
+        {detail.canWrite && <CircleComposer circleId={circleId} canModerate={detail.canModerate} approvalNotice={detail.settings.postApproval === 'approval_required' && !detail.canModerate} />}
+        {status === 'LoadingFirstPage' ? <div className="circle-state-card" role="status">Loading discussions...</div> : posts.length === 0 ? <div className="circle-state-card"><strong>No discussions yet.</strong><p>Start with a question that gives people an easy way in.</p></div> : <div className="circle-post-list">{posts.map((post) => <CirclePostCard key={post._id} post={post} focused={String(post._id) === postId} focusCommentId={String(post._id) === postId ? commentId : undefined} canWrite={detail.canWrite} canModerate={detail.canModerate} pinned={detail.pinnedPostIds.some((id) => id === post._id)} onPin={() => detail.pinnedPostIds.some((id) => id === post._id) ? unpinPost({ circleId, postId: post._id }) : pinPost({ circleId, postId: post._id })} onRemove={() => setPostRemoved({ postId: post._id, removed: true })} />)}</div>}
+        <InfiniteScrollTrigger
+          status={status}
+          onLoadMore={() => loadMore(15)}
+          loadingLabel="Loading more discussions..."
+          className="circle-load-more"
+        />
+      </div>
     </div>
   </div>
 }
 
-function CircleComposer({ circleId, canModerate }: { circleId: Id<'circles'>; canModerate: boolean }) {
+function CircleComposer({ circleId, canModerate, approvalNotice }: { circleId: Id<'circles'>; canModerate: boolean; approvalNotice: boolean }) {
   const createPost = useMutation(api.social.createPost)
   const mediaUsage = useQuery(api.social.mediaUploadUsage)
   const generatePostMediaUploadUrl = useMutation(api.social.generatePostMediaUploadUrl)
@@ -1053,9 +1041,23 @@ function CircleEventForm({ circleId, initial, onClose, onSaved }: {
     }
   }
 
+  const canSave = !busy && Boolean(title.trim()) && Boolean(details.trim()) && Boolean(day) && Boolean(time)
   return (
-    <form className="circle-event-form" aria-label={initial ? 'Edit event' : 'Plan event'} onSubmit={(event) => void onSubmit(event)}>
-      <h3>{initial ? 'Edit event' : 'Plan event'}</h3>
+    <Dialog
+      open
+      onClose={onClose}
+      title={initial ? 'Edit event' : 'Plan event'}
+      description={initial ? 'Update the plan, date, or meeting point.' : 'Share the plan, date, and meeting point.'}
+      busy={busy}
+      size="large"
+      footer={(
+        <>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={onClose}>Cancel</button>
+          <button type="submit" form="circle-event-form" className="btn btn-social btn-sm" disabled={!canSave}>{busy ? 'Saving...' : initial ? 'Save event' : 'Create event'}</button>
+        </>
+      )}
+    >
+    <form id="circle-event-form" className="circle-event-form" aria-label={initial ? 'Edit event' : 'Plan event'} onSubmit={(event) => void onSubmit(event)}>
       {error && <p className="notice notice-danger" role="alert">{error}</p>}
       <label><span>Event title</span><input className="field" value={title} required maxLength={120} onChange={(event) => setTitle(event.currentTarget.value)} placeholder="Coffee crawl in Cebu City" /></label>
       <label><span>Event details</span><textarea className="field" value={details} required maxLength={2000} onChange={(event) => setDetails(event.currentTarget.value)} placeholder="Share the plan, what to bring, and how to find the group." /><small>Useful context helps members decide to come.</small></label>
@@ -1081,11 +1083,8 @@ function CircleEventForm({ circleId, initial, onClose, onSaved }: {
         )}
         {thumbnailRemoved && <p className="text-meta">The thumbnail will be removed when you save.</p>}
       </div>
-      <div className="circle-form-actions">
-        <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={onClose}>Cancel</button>
-        <button className="btn btn-social btn-sm" disabled={busy || !title.trim() || !details.trim() || !day || !time}>{busy ? 'Saving...' : initial ? 'Save event' : 'Create event'}</button>
-      </div>
     </form>
+    </Dialog>
   )
 }
 

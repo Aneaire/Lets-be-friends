@@ -26,6 +26,11 @@
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_CONVEX_URL": "https://wry-avocet-549.convex.cloud",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsubGV0c2JlZnJpZW5kcy5zcGFjZSQ",
+        "EXPO_PUBLIC_WEB_APP_URL": "https://www.letsbefriends.space"
       }
     }
   }

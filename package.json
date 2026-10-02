@@ -25,6 +25,7 @@
     "test": "node scripts/run-with-node-options.mjs pnpm --filter @lets-be-friends/shared --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile test",
     "typecheck": "pnpm --filter @lets-be-friends/shared --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile typecheck",
     "convex:dev": "pnpm --filter @lets-be-friends/web convex:dev",
+    "convex:deploy": "pnpm --filter @lets-be-friends/web convex:deploy",
     "convex:codegen": "pnpm --filter @lets-be-friends/web convex:codegen",
     "seed:pampanga": "pnpm --filter @lets-be-friends/web seed:pampanga",
     "seed:philippines": "pnpm --filter @lets-be-friends/web seed:philippines"
