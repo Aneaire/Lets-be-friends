@@ -158,13 +158,14 @@ export function OnboardingCompanionApplicationStep({
       </label>
 
       <label className="field-row">
-        <span className="label">Tell members about yourself <span className="label-aux">optional, up to 500 characters</span></span>
+        <span className="label">Tell members about yourself <span className="label-aux">required, up to 500 characters</span></span>
         <textarea
+          required
           maxLength={onboardingApplicationDefaults.bioMaxLength}
           className="field min-h-24"
           value={values.bio}
           onChange={(event) => setValues((current) => ({ ...current, bio: event.currentTarget.value }))}
-          placeholder="Something personal about your hobbies, family, or work."
+          placeholder="For example: I can help you practice a new language, and I make everyday errands more fun."
         />
       </label>
 

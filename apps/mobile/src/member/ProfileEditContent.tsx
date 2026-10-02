@@ -74,8 +74,8 @@ export function ProfileEditContent({
         <TextField accessibilityLabel="Display name" value={displayName} onChangeText={onChangeName} maxLength={PROFILE_NAME_MAX + 1} autoCapitalize="words" />
       </FormField>
 
-      <FormField label="Bio" optional hint={bioHint} error={bioError}>
-        <TextField accessibilityLabel="Bio" value={bio} onChangeText={onChangeBio} maxLength={PROFILE_BIO_MAX + 1} placeholder="A short introduction for your member profile" multiline style={styles.bio} />
+      <FormField label="Bio" hint={bioHint} error={bioError}>
+        <TextField accessibilityLabel="Bio" value={bio} onChangeText={onChangeBio} maxLength={PROFILE_BIO_MAX + 1} placeholder="For example: I can help you practice a new language, and I make everyday errands more fun." multiline style={styles.bio} />
       </FormField>
 
       <ActionButton label={busy ? 'Saving profile' : 'Save profile'} onPress={onSave} intent="self" disabled={!canSave} />

@@ -9,19 +9,21 @@ export function profileEditFieldCopy(displayName: string, bio: string) {
     : nameLength > PROFILE_NAME_MAX
       ? `Display name must be ${PROFILE_NAME_MAX} characters or fewer.`
       : undefined
-  const bioError = bioLength > PROFILE_BIO_MAX
-    ? `Bio must be ${PROFILE_BIO_MAX} characters or fewer.`
-    : undefined
+  const bioError = bioLength === 0
+    ? 'Bio is required.'
+    : bioLength > PROFILE_BIO_MAX
+      ? `Bio must be ${PROFILE_BIO_MAX} characters or fewer.`
+      : undefined
   return {
     nameLength,
     bioLength,
     nameHint: `${nameLength}/${PROFILE_NAME_MAX} characters. Shown to other members.`,
     nameError,
-    bioHint: `${bioLength}/${PROFILE_BIO_MAX} characters. A short introduction for your member profile.`,
+    bioHint: `${bioLength}/${PROFILE_BIO_MAX} characters. Describe a talent or everyday skill you can share.`,
     bioError,
   }
 }
 
 export function canSaveProfileEdit(nameLength: number, bioLength: number, busy: boolean) {
-  return nameLength > 0 && nameLength <= PROFILE_NAME_MAX && bioLength <= PROFILE_BIO_MAX && !busy
+  return nameLength > 0 && nameLength <= PROFILE_NAME_MAX && bioLength > 0 && bioLength <= PROFILE_BIO_MAX && !busy
 }

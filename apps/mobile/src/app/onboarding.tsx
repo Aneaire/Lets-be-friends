@@ -537,7 +537,7 @@ function ConnectedOnboarding({
                 placeholderTextColor={theme.colors.textMuted}
                 style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
               />
-              <AppText variant="caption" color={theme.colors.textMuted}>Optional, up to 500 characters. Shown on your public profile.</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>Required, up to 500 characters. Shown on your public profile.</AppText>
             </View>
             <View style={styles.fieldGroup}>
               <AppText variant="bodyStrong">Strengths</AppText>

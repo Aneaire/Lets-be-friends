@@ -43,13 +43,14 @@ describe('Companion mobile models and validation', () => {
     expect(validateCompanionApplication({ ...validForm, boundaries: '  ' })).toMatchObject({ ok: false, message: 'Add at least one clear boundary.' })
     expect(validateCompanionApplication({ ...validForm, earningMotivation: 'Too short' })).toMatchObject({ ok: false })
     expect(validateCompanionApplication({ ...validForm, earningMotivation: '  ' })).toMatchObject({ ok: false })
+    expect(validateCompanionApplication({ ...validForm, bio: '  ' })).toMatchObject({ ok: false })
     expect(validateCompanionApplication({ ...validForm, bio: 'x'.repeat(501) })).toMatchObject({ ok: false })
     expect(validateHourlyRate('99.99')).toEqual({ ok: false, message: 'Set an hourly rate from PHP 100 to PHP 10,000.' })
     expect(validateHourlyRate('10000')).toEqual({ ok: true, hourlyRateCentavos: 1_000_000 })
   })
 
-  it('uses the required bio placeholder for the member bio field', () => {
-    expect(COMPANION_BIO_PLACEHOLDER).toBe('Something personal about your hobbies, family, or work.')
+  it('uses the descriptive bio placeholder for the member bio field', () => {
+    expect(COMPANION_BIO_PLACEHOLDER).toBe('For example: I can help you practice a new language, and I make everyday errands more fun.')
   })
 
   it('hydrates an existing application without creating location fields', () => {

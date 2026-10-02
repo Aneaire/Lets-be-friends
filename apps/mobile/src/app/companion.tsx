@@ -194,7 +194,7 @@ function ReadyCompanionScreen() {
           <AppText variant="caption" color={theme.colors.textMuted}>Describe the everyday help, activity, or company members can expect.</AppText>
           <ModePicker value={form.mode} onChange={(mode) => editForm((current) => ({ ...current, mode }))} disabled={busy !== null} />
           <FormField label="How can you help or spend the time?" value={form.intro} onChange={(intro) => editForm((current) => ({ ...current, intro }))} theme={theme} multiline maxLength={500} hint={`${form.intro.length}/500 characters, minimum 40`} />
-          <FormField label="Tell me about yourself" value={form.bio} onChange={(bio) => editForm((current) => ({ ...current, bio }))} theme={theme} multiline maxLength={500} placeholder={COMPANION_BIO_PLACEHOLDER} hint="Your member profile bio. Shown on your public profile." />
+          <FormField label="Tell me about yourself" value={form.bio} onChange={(bio) => editForm((current) => ({ ...current, bio }))} theme={theme} multiline maxLength={500} placeholder={COMPANION_BIO_PLACEHOLDER} hint="Required. Your member profile bio, shown on your public profile." />
           <FormField label={form.mode === 'online' ? 'Timezone or broad region, optional' : 'City'} value={form.city} onChange={(city) => editForm((current) => ({ ...current, city }))} theme={theme} />
         </> : null}
         {setupStep === 1 ? <>

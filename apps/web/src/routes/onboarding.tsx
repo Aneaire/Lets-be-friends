@@ -181,6 +181,10 @@ export function OnboardingPage() {
       setError('Choose at least one category you would like to offer.')
       return
     }
+    if (!bio.trim()) {
+      setError('Add a short bio about the skills, talents, or everyday help you can share.')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
@@ -188,7 +192,7 @@ export function OnboardingPage() {
         displayName: `${cleanFirstName} ${cleanLastName}`,
         firstName: cleanFirstName,
         lastName: cleanLastName,
-        bio: bio.trim() || undefined,
+        bio: bio.trim(),
         onboardingCategories: selectedGoal === 'companion' ? selectedCategories : undefined,
       })
       setStep(4)
@@ -493,8 +497,8 @@ export function OnboardingPage() {
                 </FormField>
               </div>
               <label className="field-row">
-                <span className="label">Bio <span className="label-aux">optional</span></span>
-                <Textarea className="min-h-28" value={bio} maxLength={500} onChange={(event) => setBio(event.currentTarget.value)} placeholder="I can join you for your grocery trip and make it more fun." />
+                <span className="label">Bio <span className="label-aux">required</span></span>
+                <Textarea required className="min-h-28" value={bio} maxLength={500} onChange={(event) => setBio(event.currentTarget.value)} placeholder="For example: I can help you practice a new language, and I make everyday errands more fun." />
               </label>
               {selectedGoal === 'companion' && (
                 <fieldset className="onboarding-category-field">

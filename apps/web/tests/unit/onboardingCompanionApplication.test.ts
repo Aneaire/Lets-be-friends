@@ -45,6 +45,10 @@ describe('onboarding Companion application validation', () => {
     expect(validateOnboardingApplication({ ...validValues, intro: 'Too short' }).ok).toBe(false)
   })
 
+  it('requires a personal note about skills or everyday help', () => {
+    expect(validateOnboardingApplication({ ...validValues, bio: '   ' }).ok).toBe(false)
+  })
+
   it('requires a city for in-person availability but not for online only', () => {
     expect(validateOnboardingApplication({ ...validValues, city: '  ' }).ok).toBe(false)
     expect(validateOnboardingApplication({ ...validValues, city: '', mode: 'online' })).toEqual({ ok: true })
@@ -92,9 +96,9 @@ describe('onboarding Companion application payload', () => {
     expect(payload.strengths).toEqual([])
   })
 
-  it('omits an empty personal note', () => {
-    const payload = buildOnboardingApplicationPayload({ ...validValues, bio: '   ' })
-    expect(payload.bio).toBeUndefined()
+  it('carries the personal note into the payload', () => {
+    const payload = buildOnboardingApplicationPayload({ ...validValues, bio: `  ${validValues.bio}  ` })
+    expect(payload.bio).toBe(validValues.bio)
   })
 
   it('throws the validation message for invalid input', () => {

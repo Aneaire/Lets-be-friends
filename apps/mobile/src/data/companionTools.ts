@@ -10,7 +10,7 @@ import {
 export type CompanionMode = 'online' | 'in_person' | 'both'
 
 export const COMPANION_BIO_MAX_LENGTH = 500
-export const COMPANION_BIO_PLACEHOLDER = 'Something personal about your hobbies, family, or work.'
+export const COMPANION_BIO_PLACEHOLDER = 'For example: I can help you practice a new language, and I make everyday errands more fun.'
 export const EARNING_MOTIVATION_MIN_LENGTH = 20
 export const EARNING_MOTIVATION_MAX_LENGTH = 1000
 
@@ -84,11 +84,12 @@ export function validateCompanionApplication(form: CompanionApplicationForm): { 
   const hourlyRatePesos = Number(form.hourlyRatePesos.trim())
   const hourlyRateCentavos = Math.round(hourlyRatePesos * 100)
   const boundaries = form.boundaries.split('\n').map((item) => item.trim()).filter(Boolean)
-  const bio = form.bio.trim() || undefined
+  const bio = form.bio.trim()
   const earningMotivation = form.earningMotivation.trim()
 
   if (intro.length < 40 || intro.length > 500) return { ok: false, message: 'Describe the experience in 40 to 500 characters.' }
-  if (bio !== undefined && bio.length > COMPANION_BIO_MAX_LENGTH) return { ok: false, message: `Tell me about yourself must be ${COMPANION_BIO_MAX_LENGTH} characters or fewer.` }
+  if (bio.length === 0) return { ok: false, message: 'Add a short bio about the skills, talents, or everyday help you can share.' }
+  if (bio.length > COMPANION_BIO_MAX_LENGTH) return { ok: false, message: `Tell me about yourself must be ${COMPANION_BIO_MAX_LENGTH} characters or fewer.` }
   if (earningMotivation.length < EARNING_MOTIVATION_MIN_LENGTH) return { ok: false, message: 'Tell the review team why you want to earn with Let\u2019s Be Friends (at least 20 characters).' }
   if (earningMotivation.length > EARNING_MOTIVATION_MAX_LENGTH) return { ok: false, message: `Earning motivation must be ${EARNING_MOTIVATION_MAX_LENGTH} characters or fewer.` }
   if (form.mode !== 'online' && !city) return { ok: false, message: 'Add a city for an in-person session.' }

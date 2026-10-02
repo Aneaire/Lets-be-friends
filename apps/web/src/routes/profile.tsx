@@ -237,7 +237,7 @@ function ProfilePage() {
                   await updateProfile({
                     displayName: String(form.get('displayName') || fallbackName),
                     profileImageStorageId,
-                    bio: String(form.get('bio') || '') || undefined,
+                    bio: String(form.get('bio') || ''),
                   })
                   setNotice('Profile saved.')
                   closeEdit()
@@ -294,13 +294,14 @@ function ProfilePage() {
                   <input name="displayName" required defaultValue={displayName} className="field" />
                 </label>
                 <label className="field-row">
-                  <span className="label">Bio <span className="label-aux">optional</span></span>
+                  <span className="label">Bio <span className="label-aux">required</span></span>
                   <textarea
                     name="bio"
+                    required
                     defaultValue={bio}
                     className="field min-h-32"
                     maxLength={500}
-                    placeholder="A short profile bio members can recognize across posts and companion details."
+                    placeholder="For example: I can help you practice a new language, and I make everyday errands more fun."
                   />
                 </label>
               </div>

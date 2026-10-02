@@ -146,6 +146,7 @@ describe('onboarding route', () => {
     await waitFor(() => expect((saveUsername as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(saveUsername)
     fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'I can help you practice a new language.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
 
     await waitFor(() => expect(state.updateProfile).toHaveBeenCalledOnce())

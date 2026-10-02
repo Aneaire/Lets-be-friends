@@ -86,6 +86,12 @@ export function validateOnboardingApplication(
     }
   }
   const bio = values.bio.trim()
+  if (bio.length === 0) {
+    return {
+      ok: false,
+      message: 'Add a short bio about the skills, talents, or everyday help you can share.',
+    }
+  }
   if (bio.length > onboardingApplicationDefaults.bioMaxLength) {
     return { ok: false, message: `Keep your personal note to ${onboardingApplicationDefaults.bioMaxLength} characters or fewer.` }
   }
@@ -121,7 +127,7 @@ export function buildOnboardingApplicationPayload(
     boundaries: [],
     mode: values.mode,
     hourlyRateCentavos: Math.round(Number(values.hourlyRatePesos) * 100),
-    ...(bio ? { bio } : {}),
+    bio,
     earningMotivation: values.earningMotivation.trim(),
   }
 }

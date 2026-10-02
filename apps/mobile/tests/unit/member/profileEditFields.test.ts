@@ -6,7 +6,7 @@ describe('profile edit field copy', () => {
     expect(result.nameLength).toBe(11)
     expect(result.bioLength).toBe(17)
     expect(result.nameHint).toBe(`11/${PROFILE_NAME_MAX} characters. Shown to other members.`)
-    expect(result.bioHint).toBe(`17/${PROFILE_BIO_MAX} characters. A short introduction for your member profile.`)
+    expect(result.bioHint).toBe(`17/${PROFILE_BIO_MAX} characters. Describe a talent or everyday skill you can share.`)
   })
 
   it('requires a display name', () => {
@@ -24,6 +24,13 @@ describe('profile edit field copy', () => {
     expect(canSaveProfileEdit(result.nameLength, result.bioLength, false)).toBe(false)
   })
 
+  it('requires a bio', () => {
+    const result = profileEditFieldCopy('Alex', '   ')
+    expect(result.bioError).toBe('Bio is required.')
+    expect(result.bioLength).toBe(0)
+    expect(canSaveProfileEdit(result.nameLength, result.bioLength, false)).toBe(false)
+  })
+
   it('rejects a bio past the maximum', () => {
     const result = profileEditFieldCopy('Alex', 'b'.repeat(PROFILE_BIO_MAX + 1))
     expect(result.bioError).toBe(`Bio must be ${PROFILE_BIO_MAX} characters or fewer.`)
@@ -33,7 +40,7 @@ describe('profile edit field copy', () => {
 
 describe('can save profile edit', () => {
   it('allows a valid name and bio when not busy', () => {
-    expect(canSaveProfileEdit(1, 0, false)).toBe(true)
+    expect(canSaveProfileEdit(1, 1, false)).toBe(true)
     expect(canSaveProfileEdit(80, 500, false)).toBe(true)
   })
 
@@ -41,5 +48,6 @@ describe('can save profile edit', () => {
     expect(canSaveProfileEdit(11, 0, true)).toBe(false)
     expect(canSaveProfileEdit(0, 0, false)).toBe(false)
     expect(canSaveProfileEdit(81, 0, false)).toBe(false)
+    expect(canSaveProfileEdit(11, 0, false)).toBe(false)
   })
 })

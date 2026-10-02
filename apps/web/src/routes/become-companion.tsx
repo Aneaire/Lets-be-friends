@@ -394,7 +394,7 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
               mode,
               hourlyRateCentavos: Math.round(Number(hourlyRatePesos) * 100),
               applicationNote: undefined,
-              bio: bio.trim() || undefined,
+              bio: bio.trim(),
               earningMotivation: earningMotivation.trim(),
             })
             setSavedRequiresReview(result.requiresReview)
@@ -488,13 +488,14 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
             </span>
           </label>
           <label className="field-row">
-            <span className="label">Tell me about yourself (Bio) <span className="label-aux">optional, up to 500 characters</span></span>
+            <span className="label">Tell me about yourself (Bio) <span className="label-aux">required, up to 500 characters</span></span>
             <Textarea
+              required
               maxLength={500}
               value={bio}
               onChange={(event) => setBio(event.currentTarget.value)}
               className="min-h-24"
-              placeholder="Something personal about your hobbies, family, or work."
+              placeholder="For example: I can help you practice a new language, and I make everyday errands more fun."
               aria-describedby="companion-bio-help companion-bio-count"
             />
             <span className="companion-field-help-row">
