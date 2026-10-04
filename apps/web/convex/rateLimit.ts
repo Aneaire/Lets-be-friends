@@ -9,6 +9,11 @@ export const RATE_LIMIT_FAMILIES = {
   toggle_reaction: { limit: 120, windowMs: 60 * 1_000 },
   vote_poll: { limit: 60, windowMs: 60 * 1_000 },
   create_circle: { limit: 5, windowMs: 24 * 60 * 60 * 1_000 },
+  send_message: { limit: 60, windowMs: 60 * 1_000 },
+  create_report: { limit: 10, windowMs: 60 * 60 * 1_000 },
+  start_identity: { limit: 10, windowMs: 24 * 60 * 60 * 1_000 },
+  create_topup: { limit: 15, windowMs: 60 * 60 * 1_000 },
+  create_booking: { limit: 20, windowMs: 60 * 60 * 1_000 },
 } as const
 
 export type RateLimitFamily = keyof typeof RATE_LIMIT_FAMILIES
@@ -19,6 +24,11 @@ const RATE_LIMIT_MESSAGES: Record<RateLimitFamily, string> = {
   toggle_reaction: 'Slow down a little before reacting again.',
   vote_poll: 'Slow down a little before voting again.',
   create_circle: 'You can create up to 5 Circles per day. Please try again later.',
+  send_message: 'You are sending messages too quickly. Please slow down.',
+  create_report: 'You have reached the hourly limit for submitting reports',
+  start_identity: 'You have reached the daily limit for starting an identity check. Please try again later.',
+  create_topup: 'You have reached the hourly limit for starting top-ups. Please try again later.',
+  create_booking: 'You have reached the hourly limit for booking requests. Please try again later.',
 }
 
 // Keep roughly two windows so a bucket that stops being used ages out promptly.

@@ -20,13 +20,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-import maplibregl from 'maplibre-gl'
+import { Map as MapLibreMap, Marker, type MapMouseEvent, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { circleCoordinates, type Coordinates } from '../../lib/geo'
 
-const MapContext = createContext<maplibregl.Map | null>(null)
+const MapContext = createContext<MapLibreMap | null>(null)
 
 export function useMap() {
   return useContext(MapContext)
@@ -54,7 +54,7 @@ export function Map({
   const containerRef = useRef<HTMLDivElement>(null)
   const onInitialLoadErrorRef = useRef(onInitialLoadError)
   const onClickRef = useRef(onClick)
-  const [map, setMap] = useState<maplibregl.Map | null>(null)
+  const [map, setMap] = useState<MapLibreMap | null>(null)
 
   useEffect(() => {
     onInitialLoadErrorRef.current = onInitialLoadError
@@ -77,12 +77,12 @@ export function Map({
     if (!container) return
 
     setMap(null)
-    let instance: maplibregl.Map
+    let instance: MapLibreMap
     let didLoad = false
     let didReportError = false
 
     try {
-      instance = new maplibregl.Map({
+      instance = new MapLibreMap({
         container,
         style: styleUrl,
         center,
@@ -122,7 +122,7 @@ export function Map({
       onInitialLoadErrorRef.current?.()
     }
 
-    const handleClick = (event: maplibregl.MapMouseEvent) => {
+    const handleClick = (event: MapMouseEvent) => {
       onClickRef.current?.({ latitude: event.lngLat.lat, longitude: event.lngLat.lng })
     }
 
@@ -190,7 +190,7 @@ export function MapMarker({
   useEffect(() => {
     if (!map || !markerElementRef.current) return
 
-    const marker = new maplibregl.Marker({
+    const marker = new Marker({
       element: markerElementRef.current,
       anchor: 'center',
       draggable,
@@ -264,7 +264,7 @@ export function MapRadius({ center, radiusKm, color }: { center: Coordinates; ra
 
   useEffect(() => {
     if (!map || !map.getStyle()) return
-    const source = map.getSource(sourceId) as maplibregl.GeoJSONSource | undefined
+    const source = map.getSource(sourceId) as GeoJSONSource | undefined
     source?.setData(geometryRef.current)
   }, [center.latitude, center.longitude, map, radiusKm, sourceId])
 

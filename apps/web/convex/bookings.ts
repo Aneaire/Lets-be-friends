@@ -17,6 +17,7 @@ import { ensureConversationBetween, sendBookingMessage } from './conversations'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { createNotification } from './notifications'
 import { requireNotBlocked } from './safety'
+import { consumeRateLimit } from './rateLimit'
 import {
   allocateCompletedBookingFunds,
   availableMemberBookingBalance,
@@ -99,6 +100,7 @@ export const createDraft = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
+    await consumeRateLimit(ctx, viewer._id, 'create_booking')
     if (!hasCurrentIdentityApproval(viewer)) {
       throw new Error('A current identity check and safety review are required before you can request a booking.')
     }
@@ -564,6 +566,7 @@ export const sendMessage = mutation({
   args: { bookingId: v.id('bookings'), body: v.string() },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
+    await consumeRateLimit(ctx, viewer._id, 'send_message')
     const booking = await ctx.db.get(args.bookingId)
     if (!booking) throw new Error('Booking not found')
     const companion = await ctx.db.get(booking.companionProfileId)

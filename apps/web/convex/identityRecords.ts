@@ -6,6 +6,7 @@ import { hasCurrentIdentityApproval, parseIdentityDate, validateIdentityFields }
 import { requireViewer, writeAudit } from './lib'
 import { syncUserCompanionLocation } from './companionLocations'
 import { createNotification } from './notifications'
+import { consumeRateLimit } from './rateLimit'
 
 const DAY_MS = 24 * 60 * 60 * 1_000
 const ACCESS_MS = 5 * 60 * 1_000
@@ -138,6 +139,7 @@ export const start = mutation({
     }
 
     const now = Date.now()
+    await consumeRateLimit(ctx, viewer._id, 'start_identity')
     const earlier = await ctx.db.query('verificationRequests').withIndex('by_user', (q) => q.eq('userId', viewer._id)).collect()
     // A stale Persona attempt or a historical booking attempt can be replaced
     // by a fresh in-app attempt. The newest active request wins; everything

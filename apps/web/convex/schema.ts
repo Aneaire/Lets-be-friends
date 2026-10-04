@@ -966,7 +966,7 @@ export default defineSchema({
   }).index('by_dedupe_key', ['dedupeKey']).index('by_user_session', ['userId', 'sessionId']).index('by_created_at', ['createdAt']).index('by_user_item_event_created_at', ['userId', 'itemType', 'eventType', 'createdAt']),
   rateLimits: defineTable({
     userId: v.id('users'),
-    actionFamily: v.union(v.literal('create_post'), v.literal('create_comment'), v.literal('toggle_reaction'), v.literal('vote_poll'), v.literal('create_circle')),
+    actionFamily: v.union(v.literal('create_post'), v.literal('create_comment'), v.literal('toggle_reaction'), v.literal('vote_poll'), v.literal('create_circle'), v.literal('send_message'), v.literal('create_report'), v.literal('start_identity'), v.literal('create_topup'), v.literal('create_booking')),
     bucketStart: v.number(),
     count: v.number(),
     expiresAt: v.number(),
