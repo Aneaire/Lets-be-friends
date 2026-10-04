@@ -11,8 +11,8 @@
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
         { "key": "X-DNS-Prefetch-Control", "value": "off" },
         {
-          "key": "Content-Security-Policy-Report-Only",
-          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.letsbefriends.space; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.letsbefriends.space https://challenges.cloudflare.com; worker-src 'self' blob:; frame-src 'self' blob: https://*.clerk.accounts.dev https://*.clerk.com https://clerk.letsbefriends.space https://challenges.cloudflare.com; connect-src 'self' blob: wss: https:; media-src 'self' blob: https:; manifest-src 'self'"
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.clerk.accounts.dev https://*.clerk.com https://clerk.letsbefriends.space https://*.convex.cloud https://*.convex.site https://tiles.openfreemap.org; font-src 'self' data:; style-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.letsbefriends.space; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.letsbefriends.space https://challenges.cloudflare.com; worker-src 'self' blob:; frame-src 'self' blob: https://*.clerk.accounts.dev https://*.clerk.com https://clerk.letsbefriends.space https://challenges.cloudflare.com; connect-src 'self' blob: wss://*.convex.cloud https://*.convex.cloud https://*.convex.site https://*.clerk.accounts.dev https://*.clerk.com https://clerk.letsbefriends.space https://challenges.cloudflare.com https://tiles.openfreemap.org; media-src 'self' blob: https://*.convex.cloud https://*.convex.site; manifest-src 'self'"
         }
       ]
     },
