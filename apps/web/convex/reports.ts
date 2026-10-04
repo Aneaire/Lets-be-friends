@@ -5,6 +5,7 @@ import { v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
 import { requireCirclePreview, requirePostAudienceRead } from './circleAuthorization'
 import { isHiddenByPreference } from './safety'
+import { consumeRateLimit } from './rateLimit'
 
 export const create = mutation({
   args: {
@@ -14,6 +15,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
+    await consumeRateLimit(ctx, viewer._id, 'create_report')
     const reason = args.reason.trim()
     if (!reason) throw new Error('Report reason is required')
     if (reason.length > 2_000) throw new Error('Report reason must be 2000 characters or fewer')

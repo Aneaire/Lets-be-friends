@@ -5,6 +5,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { memberWalletV2Enabled, settleTopUpInTransaction } from './finance'
 import { writeAudit } from './lib'
+import { consumeRateLimit } from './rateLimit'
 
 const PAYMONGO_API_BASE_URL = 'https://api.paymongo.com'
 const PAYMONGO_TIMEOUT_MS = 10_000
@@ -94,6 +95,9 @@ export const refreshMemberTopUp = action({
 async function createTopUpForPurpose(ctx: any, requestedAmountCentavos: number, purpose: TopUpPurpose): Promise<TopUpResult> {
   const identity = await ctx.auth.getUserIdentity()
   if (!identity) throw new Error('Authentication required')
+  const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q: any) => q.eq('clerkUserId', identity.subject)).unique()
+  if (!viewer) throw new Error('Profile sync required')
+  await consumeRateLimit(ctx, viewer._id, 'create_topup')
   const amountCentavos = validateTopUpCentavos(requestedAmountCentavos)
   const config = paymongoConfig()
   const prepared = await ctx.runMutation(internal.paymongo.prepareTopUp, {

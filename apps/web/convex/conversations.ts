@@ -5,6 +5,7 @@ import { mutation, query } from './_generated/server'
 import { requireViewer, writeAudit } from './lib'
 import { createNotification } from './notifications'
 import { requireNotBlocked } from './safety'
+import { consumeRateLimit } from './rateLimit'
 
 const MAX_MESSAGE_LENGTH = 2_000
 const MAX_ATTACHMENTS_PER_MESSAGE = 4
@@ -218,6 +219,7 @@ export const sendMessage = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
+    await consumeRateLimit(ctx, viewer._id, 'send_message')
     const conversation = await requireParticipant(ctx, args.conversationId, viewer._id)
     const otherUserId = conversation.participantOneId === viewer._id
       ? conversation.participantTwoId
