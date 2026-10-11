@@ -31,7 +31,16 @@ describe('Become Companion layout styles', () => {
     expect(styles).toMatch(/\.companion-editor-step \.label\s*\{[\s\S]*font-size:\s*0\.9375rem;[\s\S]*font-weight:\s*680;/s)
     expect(styles).toMatch(/\.companion-editor-step \.label-aux\s*\{[\s\S]*font-size:\s*0\.8125rem;/s)
     expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-mode-options\s*\{\s*grid-template-columns:\s*1fr;/s)
-    expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-editor-aside\s*\{\s*display:\s*block;/s)
+    expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-editor-step \.label-aux\s*\{\s*display:\s*block;[\s\S]*margin-top:\s*0\.15rem;/s)
+    expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-editor-actions\s*\{\s*position:\s*static;\s*display:\s*grid;\s*grid-template-columns:\s*minmax\(5\.5rem, auto\) minmax\(0, 1fr\);/s)
+    expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-editor-actions > :only-child\s*\{[\s\S]*grid-column:\s*1 \/ -1;[\s\S]*margin-left:\s*0;/s)
+    expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-editor-aside\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\);/s)
+    expect(styles).not.toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-editor-actions\s*\{[^}]*position:\s*sticky;/s)
+  })
+
+  it('does not reserve an empty action slot on the first editor step', () => {
+    expect(route).toMatch(/currentStep > 1[\s\S]*?<Button intent="neutral"[\s\S]*?\) : null}/)
+    expect(route).not.toContain(') : <span />}')
   })
 
   it('identifies the public profile description as the bio field', () => {

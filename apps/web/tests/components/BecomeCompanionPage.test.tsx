@@ -79,7 +79,7 @@ beforeEach(() => {
 
 describe('become-companion route', () => {
   it('renders the editor with design-system inputs bound to controlled state', () => {
-    render(<BecomeCompanionPage />)
+    const { container } = render(<BecomeCompanionPage />)
 
     const rate = screen.getByLabelText(/Listed hourly rate/) as HTMLInputElement
     expect(rate.value).toBe('500')
@@ -89,7 +89,21 @@ describe('become-companion route', () => {
     fireEvent.change(intro, { target: { value: 'I can help with a calm grocery run and explain everyday technology.' } })
     expect(intro.value).toBe('I can help with a calm grocery run and explain everyday technology.')
 
-    expect((screen.getByLabelText(/Why do you want to earn/) as HTMLTextAreaElement).required).toBe(true)
+    const motivation = screen.getByLabelText(/Why do you want to earn/) as HTMLTextAreaElement
+    expect(motivation.required).toBe(true)
+
+    const actions = container.querySelector('.companion-editor-actions')
+    expect(actions?.children).toHaveLength(1)
+    expect(actions?.querySelector(':scope > span')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save and continue' })).toBeTruthy()
+
+    fireEvent.change(motivation, { target: { value: 'I want to earn while helping members feel supported.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+
+    expect(actions?.children).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Back' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Save and continue' })).toBeTruthy()
   })
 
   it('keeps the bespoke session-format pressed-state contract', () => {

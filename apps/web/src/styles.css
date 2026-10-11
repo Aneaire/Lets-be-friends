@@ -15572,6 +15572,10 @@ textarea.field {
   background: var(--surface-sunk);
 }
 
+.companion-editor-actions > :only-child {
+  margin-left: auto;
+}
+
 .companion-editor-aside {
   display: grid;
   gap: 1rem;
@@ -15890,6 +15894,11 @@ button.companion-preview-avatar {
     margin-bottom: -0.25rem;
   }
 
+  .companion-editor-step .label-aux {
+    display: block;
+    margin-top: 0.15rem;
+  }
+
   .companion-mode-options {
     grid-template-columns: 1fr;
   }
@@ -15901,17 +15910,22 @@ button.companion-preview-avatar {
   }
 
   .companion-editor-actions {
-    position: sticky;
-    bottom: calc(4rem + env(safe-area-inset-bottom));
-    z-index: 3;
+    position: static;
+    display: grid;
+    grid-template-columns: minmax(5.5rem, auto) minmax(0, 1fr);
   }
 
   .companion-editor-actions .btn {
-    flex: 1;
+    width: 100%;
+  }
+
+  .companion-editor-actions > :only-child {
+    grid-column: 1 / -1;
+    margin-left: 0;
   }
 
   .companion-editor-aside {
-    display: block;
+    grid-template-columns: minmax(0, 1fr);
   }
 
 }

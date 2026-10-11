@@ -573,7 +573,7 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
         <div className="companion-editor-actions">
           {currentStep > 1 ? (
             <Button intent="neutral" onClick={() => changeStep(currentStep - 1)}>Back</Button>
-          ) : <span />}
+          ) : null}
           {currentStep < companionEditorSteps.length ? (
             <Button
               intent="self"
