@@ -10,6 +10,7 @@ import {
   readIdentityVerificationDraft,
   writeIdentityVerificationDraft,
 } from './identityVerificationDraft'
+import { IdentityRetentionTerms } from './IdentityRetentionTerms'
 
 export type IdentityIntent = 'member' | 'companion_application'
 export type IdentityReturnTo = '/app' | '/profile' | '/onboarding' | '/become-companion' | '/get-verified'
@@ -456,15 +457,26 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
                     <IdentityReviewItem label="Nationality" value={fields.nationality} />
                   </dl>
                   <button type="button" className="identity-edit-details" onClick={() => setDetailStep(3)}>Edit these details</button>
+                  <IdentityRetentionTerms />
                   <label className="identity-consent-row">
                     <input type="checkbox" checked={reviewConsent} onChange={(event) => setReviewConsent(event.currentTarget.checked)} />
-                    <span><strong>Allow safety review and retention</strong><small>I consent to storing these identity records for up to 730 days and allowing authorized reviewers to access them for verification or an active incident. A legal hold may extend retention.</small></span>
+                    <span><strong>Allow safety review and retention</strong><small>I have read the ID image storage terms for safety and future transactions. I consent to storing these identity records for up to 730 days and allowing authorized reviewers to access them for verification or an active incident. A legal hold may extend retention.</small></span>
                   </label>
                   <button type="button" className="btn btn-self btn-lg identity-primary-action" onClick={() => void submitForReview()} disabled={working || !reviewConsent}>{working ? 'Sending for review...' : 'Send for safety review'}</button>
                 </>
               )}
 
-              {submitted && <div className="identity-submitted"><span><Check size={24} aria-hidden="true" /></span><h3 className="text-h2">{approved ? 'Identity approved' : 'Submitted securely'}</h3><p className="text-body muted">{approved ? 'Your current identity approval is active. You can renew it before it expires.' : 'A safety reviewer will make the final decision. Your booking access stays locked until approval.'}</p>{approved && <button type="button" className="btn btn-secondary btn-lg" onClick={() => void startRenewal()} disabled={working}>{working ? 'Starting a renewal...' : 'Renew identity check'}</button>}<button type="button" className="btn btn-self btn-lg" onClick={leavePage}>Return to your account</button></div>}
+              {submitted && (
+                <div className="identity-submitted">
+                  <span><Check size={24} aria-hidden="true" /></span>
+                  <h3 className="text-h2">{approved ? 'Identity approved' : 'Submitted securely'}</h3>
+                  <p className="text-body muted">{approved ? 'Your current identity approval is active. You can renew it before it expires.' : 'A safety reviewer will make the final decision. Your booking access stays locked until approval.'}</p>
+                  <p className="text-meta">ID images are kept under the ID image storage terms for up to 730 days to support safety review and the security of future transactions.</p>
+                  <IdentityRetentionTerms />
+                  {approved && <button type="button" className="btn btn-secondary btn-lg" onClick={() => void startRenewal()} disabled={working}>{working ? 'Starting a renewal...' : 'Renew identity check'}</button>}
+                  <button type="button" className="btn btn-self btn-lg" onClick={leavePage}>Return to your account</button>
+                </div>
+              )}
               {localError && <div className="notice notice-danger" role="alert">{localError}</div>}
             </div>
           </section>

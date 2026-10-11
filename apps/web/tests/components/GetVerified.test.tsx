@@ -189,6 +189,48 @@ describe('get verified page', () => {
     expect(screen.getByRole('link', { name: 'Manage in settings' }).getAttribute('href')).toBe('/settings')
     expect(screen.queryByTitle('Submit your identity check first')).toBeNull()
   })
+
+  it('shows Review your submission once the identity is submitted for safety review', () => {
+    queryState.viewer = { verificationStatus: 'pending', identityEligible: false }
+    queryState.latest = {
+      adminStatus: 'pending',
+      verificationSource: 'in_app',
+      identityStage: 'ready_for_review',
+      isCurrent: true,
+      reason: 'member',
+    }
+    queryState.application = null
+    render(<GetVerifiedPage />)
+
+    expect(screen.getByText('Your identity submission is complete. Every identity is reviewed by the safety team before access is approved.')).toBeTruthy()
+    const reviewLink = screen.getByRole('link', { name: /Review your submission/ })
+    expect(reviewLink.getAttribute('href')).toContain('/verify-identity')
+    expect(screen.queryByRole('link', { name: /^Verify identity/ })).toBeNull()
+  })
+
+  it('shows Continue identity check for an incomplete submission', () => {
+    queryState.viewer = { verificationStatus: 'pending', identityEligible: false }
+    queryState.latest = {
+      adminStatus: 'not_ready',
+      verificationSource: 'in_app',
+      identityStage: 'confirmation_required',
+      isCurrent: true,
+      reason: 'member',
+    }
+    queryState.application = null
+    render(<GetVerifiedPage />)
+
+    expect(screen.getByRole('link', { name: /Continue identity check/ })).toBeTruthy()
+  })
+
+  it('shows Verify identity before anything has started', () => {
+    queryState.viewer = { verificationStatus: 'not_started', identityEligible: false }
+    queryState.latest = null
+    queryState.application = null
+    render(<GetVerifiedPage />)
+
+    expect(screen.getByRole('link', { name: /Verify identity/ })).toBeTruthy()
+  })
 })
 
 describe('VerificationStep', () => {

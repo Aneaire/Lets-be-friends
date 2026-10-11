@@ -106,6 +106,20 @@ describe('Frienday clickable cards fill the Home feed side space', () => {
     expect(friendayPromise.length).toBeGreaterThan(5)
   })
 
+  it('shows a safe public plan photo in the right rail', () => {
+    const { container } = render(<FriendaySafetyRail />)
+
+    const photo = screen.getByAltText(
+      'Two Filipino friends smiling at each other over a picnic in a sunny public park',
+    ) as HTMLImageElement
+    expect(photo).toBeTruthy()
+    expect(photo.getAttribute('src')).toContain('frienday-park-picnic')
+    expect(photo.getAttribute('loading')).toBe('lazy')
+    expect(screen.getByText('Time together in a public place')).toBeTruthy()
+    const stack = container.querySelector('.frienday-rail-stack')
+    expect(stack?.firstElementChild?.className).toContain('frienday-rail-photo')
+  })
+
   it('uses booking intent for actions: profile setup stays self, discovery stays social', () => {
     const { container } = render(<StartCard defaultOpen />)
 

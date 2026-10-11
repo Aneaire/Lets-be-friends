@@ -358,9 +358,36 @@ export function FriendayHowItWorksRail() {
   )
 }
 
+export function FriendayMomentPhotoCard() {
+  return (
+    <section className="frienday-rail-card frienday-rail-photo" aria-label="Example of a safe public plan">
+      <img
+        src="/images/rail/frienday-park-picnic-1024.webp"
+        srcSet="/images/rail/frienday-park-picnic-768.webp 768w, /images/rail/frienday-park-picnic-1024.webp 1024w"
+        sizes="(max-width: 1500px) 19rem, 21rem"
+        alt="Two Filipino friends smiling at each other over a picnic in a sunny public park"
+        loading="lazy"
+        decoding="async"
+        width={1024}
+        height={768}
+        className="frienday-rail-photo-img"
+      />
+      <div className="frienday-rail-photo-copy">
+        <p className="eyebrow">In-person session idea</p>
+        <p className="text-h3 frienday-rail-title">Time together in a public place</p>
+        <p className="text-meta frienday-rail-intro">
+          A daytime picnic in a public park with a Companion. A simple shared plan with clear
+          time, place, and company.
+        </p>
+      </div>
+    </section>
+  )
+}
+
 export function FriendaySafetyRail() {
   return (
     <div className="frienday-rail-stack">
+      <FriendayMomentPhotoCard />
       <SafetyCard defaultOpen />
       <StartCard />
     </div>

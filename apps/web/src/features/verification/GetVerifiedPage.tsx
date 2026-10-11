@@ -4,7 +4,7 @@ import { useQuery } from 'convex/react'
 import { ArrowRight, BadgeDollarSign, ShieldCheck, UserRound } from 'lucide-react'
 import { api } from '../../../convex/_generated/api'
 import { BrandLogo } from '../../design-system/atoms/BrandLogo'
-import { identityEntitlementStatus, memberVerificationPresentation, canOpenCompanionProfile } from '../../lib/memberVerification'
+import { identityEntitlementStatus, memberVerificationPresentation, canOpenCompanionProfile, type MemberVerificationPresentation } from '../../lib/memberVerification'
 import { companionSetupState } from '../../lib/verificationNudge'
 import { VerificationStep } from './VerificationStep'
 
@@ -84,7 +84,7 @@ export function GetVerifiedPage() {
                   search={{ intent: 'member', returnTo: '/get-verified' }}
                   className="btn btn-self mt-4"
                 >
-                  Verify identity <ArrowRight size={16} aria-hidden="true" />
+                  {identityActionLabel(verification)} <ArrowRight size={16} aria-hidden="true" />
                 </Link>
               </>
             )}
@@ -199,4 +199,20 @@ export function GetVerifiedPage() {
       </div>
     </main>
   )
+}
+
+function identityActionLabel(verification: MemberVerificationPresentation) {
+  if (verification.state === 'admin_pending' || verification.state === 'provider_declined') {
+    return 'Review your submission'
+  }
+  if (verification.action === 'continue') {
+    return 'Continue identity check'
+  }
+  if (verification.action === 'retry') {
+    return 'Start a new identity check'
+  }
+  if (verification.action === 'none') {
+    return 'Check identity status'
+  }
+  return 'Verify identity'
 }
