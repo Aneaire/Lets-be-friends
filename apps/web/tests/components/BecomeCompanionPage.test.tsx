@@ -84,6 +84,8 @@ describe('become-companion route', () => {
     const rate = screen.getByLabelText(/Listed hourly rate/) as HTMLInputElement
     expect(rate.value).toBe('500')
     expect(rate.type).toBe('number')
+    expect(rate.min).toBe('30')
+    expect(rate.max).toBe('10000')
 
     const intro = screen.getByLabelText(/How would you like to spend time with members/) as HTMLTextAreaElement
     fireEvent.change(intro, { target: { value: 'I can help with a calm grocery run and explain everyday technology.' } })

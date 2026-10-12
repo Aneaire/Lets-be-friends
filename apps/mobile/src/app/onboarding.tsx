@@ -668,7 +668,7 @@ function ConnectedOnboarding({
                 placeholderTextColor={theme.colors.textMuted}
                 style={[styles.input, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
               />
-              <AppText variant="caption" color={theme.colors.textMuted}>From PHP 100 to PHP 10,000 per hour.</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>From PHP 30 to PHP 10,000 per hour.</AppText>
             </View>
             {applicationError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{applicationError}</AppText> : null}
             <AppText variant="caption" color={theme.colors.textMuted}>{onboardingCompanionReviewNotice}</AppText>

@@ -414,7 +414,7 @@ function FinancePanel({
           >
             <label className="field-row flex-1 min-w-56">
               <span className="label">Listed hourly rate <span className="label-aux">PHP</span></span>
-              <input name="hourlyRatePesos" type="number" min="100" max="10000" step="0.01" defaultValue={(application.hourlyRateCentavos ?? 50_000) / 100} required className="field" disabled={busy} />
+              <input name="hourlyRatePesos" type="number" min="30" max="10000" step="0.01" defaultValue={(application.hourlyRateCentavos ?? 50_000) / 100} required className="field" disabled={busy} />
             </label>
             <button className="btn btn-self" disabled={busy}>Update rate</button>
           </form>

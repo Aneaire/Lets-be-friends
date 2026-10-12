@@ -98,7 +98,7 @@ export function validateCompanionApplication(form: CompanionApplicationForm): { 
     || !Number.isSafeInteger(hourlyRateCentavos)
     || hourlyRateCentavos < MIN_COMPANION_HOURLY_RATE_CENTAVOS
     || hourlyRateCentavos > MAX_COMPANION_HOURLY_RATE_CENTAVOS
-  ) return { ok: false, message: 'Set an hourly rate from PHP 100 to PHP 10,000.' }
+  ) return { ok: false, message: 'Set an hourly rate from PHP 30 to PHP 10,000.' }
   if (form.strengths.length === 0) return { ok: false, message: 'Choose at least one Strength.' }
   if (form.strengths.some((value) => !(friendStrengths as readonly string[]).includes(value))) return { ok: false, message: 'Review the selected Strengths.' }
   if (form.categories.length === 0) return { ok: false, message: 'Choose at least one activity.' }
@@ -131,6 +131,6 @@ export function validateHourlyRate(value: string) {
     || !Number.isSafeInteger(centavos)
     || centavos < MIN_COMPANION_HOURLY_RATE_CENTAVOS
     || centavos > MAX_COMPANION_HOURLY_RATE_CENTAVOS
-  ) return { ok: false as const, message: 'Set an hourly rate from PHP 100 to PHP 10,000.' }
+  ) return { ok: false as const, message: 'Set an hourly rate from PHP 30 to PHP 10,000.' }
   return { ok: true as const, hourlyRateCentavos: centavos }
 }

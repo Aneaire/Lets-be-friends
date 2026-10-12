@@ -3,7 +3,7 @@ export const COMPANION_COMMISSION_BPS = 1_000
 export const MEMBER_WALLET_PRICING_MODEL = 'member_wallet_v2' as const
 export const MEMBER_BOOKING_FEE_BPS = 1_500
 export const MEMBER_WALLET_SETTLEMENT_DELAY_MS = 24 * 60 * 60 * 1_000
-export const MIN_COMPANION_HOURLY_RATE_CENTAVOS = 10_000
+export const MIN_COMPANION_HOURLY_RATE_CENTAVOS = 3_000
 export const MAX_COMPANION_HOURLY_RATE_CENTAVOS = 1_000_000
 export const MIN_BOOKING_DURATION_MINUTES = 15
 export const MAX_BOOKING_DURATION_MINUTES = 12 * 60
@@ -16,7 +16,7 @@ export const PAYMONGO_TRANSFER_FEE_CENTAVOS = 1_000
 export function validateCompanionHourlyRateCentavos(value: number) {
   if (!Number.isSafeInteger(value)) throw new Error('Hourly rate must be a whole number of centavos')
   if (value < MIN_COMPANION_HOURLY_RATE_CENTAVOS || value > MAX_COMPANION_HOURLY_RATE_CENTAVOS) {
-    throw new Error('Hourly rate must be between ₱100 and ₱10,000')
+    throw new Error('Hourly rate must be between ₱30 and ₱10,000')
   }
   return value
 }

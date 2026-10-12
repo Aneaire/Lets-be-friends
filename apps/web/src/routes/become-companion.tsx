@@ -461,7 +461,7 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
             <span className="label">Listed hourly rate <span className="label-aux">PHP</span></span>
             <Input
               type="number"
-              min="100"
+              min="30"
               max="10000"
               step="0.01"
               required

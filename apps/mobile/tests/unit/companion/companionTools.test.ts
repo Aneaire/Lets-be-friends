@@ -45,8 +45,10 @@ describe('Companion mobile models and validation', () => {
     expect(validateCompanionApplication({ ...validForm, earningMotivation: '  ' })).toMatchObject({ ok: false })
     expect(validateCompanionApplication({ ...validForm, bio: '  ' })).toMatchObject({ ok: false })
     expect(validateCompanionApplication({ ...validForm, bio: 'x'.repeat(501) })).toMatchObject({ ok: false })
-    expect(validateHourlyRate('99.99')).toEqual({ ok: false, message: 'Set an hourly rate from PHP 100 to PHP 10,000.' })
+    expect(validateHourlyRate('30')).toEqual({ ok: true, hourlyRateCentavos: 3_000 })
+    expect(validateHourlyRate('29.99')).toEqual({ ok: false, message: 'Set an hourly rate from PHP 30 to PHP 10,000.' })
     expect(validateHourlyRate('10000')).toEqual({ ok: true, hourlyRateCentavos: 1_000_000 })
+    expect(validateHourlyRate('10000.01')).toEqual({ ok: false, message: 'Set an hourly rate from PHP 30 to PHP 10,000.' })
   })
 
   it('uses the descriptive bio placeholder for the member bio field', () => {

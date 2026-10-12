@@ -106,11 +106,15 @@ describe('Mobile onboarding Companion application step', () => {
         earningMotivation: form.earningMotivation,
       },
     })
+    expect(validateCompanionApplication({ ...form, hourlyRatePesos: '30' })).toMatchObject({
+      ok: true,
+      value: { hourlyRateCentavos: 3_000 },
+    })
   })
 
   it('rejects incomplete applications with the same boundaries as the Companion screen', () => {
     const base = {
-      ...defaultOnboardingCompanionForm({ categories: ['Coffee and meals'] }),
+      ...defaultOnboardingCompanionForm({ bio: 'Something personal about hobbies, family, and work.', categories: ['Coffee and meals'] }),
       intro: 'I join relaxed public coffee chats and thoughtful city walks with clear plans.',
       city: 'Cebu City',
       earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
@@ -120,7 +124,10 @@ describe('Mobile onboarding Companion application step', () => {
     expect(validateCompanionApplication({ ...base, categories: [] })).toMatchObject({ ok: false })
     expect(validateCompanionApplication({ ...base, boundaries: '  ' })).toMatchObject({ ok: false })
     expect(validateCompanionApplication({ ...base, earningMotivation: 'Too short' })).toMatchObject({ ok: false })
-    expect(validateCompanionApplication({ ...base, hourlyRatePesos: '50' })).toMatchObject({ ok: false })
+    expect(validateCompanionApplication({ ...base, hourlyRatePesos: '29.99' })).toEqual({
+      ok: false,
+      message: 'Set an hourly rate from PHP 30 to PHP 10,000.',
+    })
     expect(validateCompanionApplication({ ...base, mode: 'in_person' as const, city: '  ' })).toMatchObject({ ok: false })
   })
 

@@ -740,15 +740,30 @@ describe('companion profile edits after approval', () => {
 
     const result = await t.withIdentity({ subject: 'rate-editor' }).mutation(api.companions.submitApplication, {
       ...baseApplication,
-      hourlyRateCentavos: 75_000,
+      hourlyRateCentavos: 3_000,
     })
 
     expect(result.requiresReview).toBe(false)
     const companion = await t.run(async (ctx) => ctx.db.query('companionProfiles').first())
-    expect(companion).toMatchObject({ status: 'approved', hourlyRateCentavos: 75_000 })
+    expect(companion).toMatchObject({ status: 'approved', hourlyRateCentavos: 3_000 })
     const audits: any[] = await t.run(async (ctx) => ctx.db.query('auditLogs').collect())
     expect(audits.some((entry) => entry.action === 'companion_profile.updated')).toBe(true)
     expect(audits.some((entry) => entry.action === 'companion_application.submitted')).toBe(false)
+  })
+
+  it('rejects an hourly rate below PHP 30 without changing the approved Companion', async () => {
+    const t = createTest()
+    await insertEditableCompanion(t)
+    const before = await t.run(async (ctx) => ctx.db.query('companionProfiles').first())
+
+    await expect(t.withIdentity({ subject: 'rate-editor' }).mutation(api.companions.submitApplication, {
+      ...baseApplication,
+      hourlyRateCentavos: 2_999,
+    })).rejects.toThrow('Hourly rate must be between ₱30 and ₱10,000')
+
+    const companion = await t.run(async (ctx) => ctx.db.query('companionProfiles').first())
+    expect(companion).toMatchObject({ status: 'approved' })
+    expect(companion?.hourlyRateCentavos).toBe(before?.hourlyRateCentavos)
   })
 
   it('sends an approved Companion back to review when review-sensitive content changes', async () => {

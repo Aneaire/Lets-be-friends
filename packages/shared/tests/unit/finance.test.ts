@@ -21,7 +21,10 @@ describe('booking finance rules', () => {
   })
 
   it('rejects unsafe or out-of-range hourly rates', () => {
-    expect(() => validateCompanionHourlyRateCentavos(9_999)).toThrow('between ₱100 and ₱10,000')
+    expect(validateCompanionHourlyRateCentavos(3_000)).toBe(3_000)
+    expect(validateCompanionHourlyRateCentavos(1_000_000)).toBe(1_000_000)
+    expect(() => validateCompanionHourlyRateCentavos(2_999)).toThrow('between ₱30 and ₱10,000')
+    expect(() => validateCompanionHourlyRateCentavos(1_000_001)).toThrow('between ₱30 and ₱10,000')
     expect(() => validateCompanionHourlyRateCentavos(10_000.5)).toThrow('whole number of centavos')
   })
 

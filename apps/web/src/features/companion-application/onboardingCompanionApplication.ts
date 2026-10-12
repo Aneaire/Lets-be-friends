@@ -36,7 +36,7 @@ export const onboardingApplicationDefaults = {
   bioMaxLength: 500,
   earningMotivationMinLength: 20,
   earningMotivationMaxLength: 1000,
-  rateMinPesos: 100,
+  rateMinPesos: 30,
   rateMaxPesos: 10000,
   defaultRatePesos: '500',
 } as const

@@ -59,8 +59,13 @@ describe('onboarding Companion application validation', () => {
   })
 
   it('requires an hourly rate inside the supported range', () => {
-    expect(validateOnboardingApplication({ ...validValues, hourlyRatePesos: '50' }).ok).toBe(false)
-    expect(validateOnboardingApplication({ ...validValues, hourlyRatePesos: '20000' }).ok).toBe(false)
+    expect(validateOnboardingApplication({ ...validValues, hourlyRatePesos: '30' })).toEqual({ ok: true })
+    expect(validateOnboardingApplication({ ...validValues, hourlyRatePesos: '10000' })).toEqual({ ok: true })
+    expect(validateOnboardingApplication({ ...validValues, hourlyRatePesos: '29.99' })).toEqual({
+      ok: false,
+      message: 'Set an hourly rate between 30 and 10000 PHP.',
+    })
+    expect(validateOnboardingApplication({ ...validValues, hourlyRatePesos: '10000.01' }).ok).toBe(false)
     expect(validateOnboardingApplication({ ...validValues, hourlyRatePesos: 'not a number' }).ok).toBe(false)
   })
 
