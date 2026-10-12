@@ -34,6 +34,7 @@
 .circle-create-panel { margin-top: 1.5rem; border: 1px solid var(--accent-self-line); background: var(--surface); padding: clamp(1rem, 3vw, 2rem); }
 .circle-create-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
 .circle-create-heading h2 { margin: 0.2rem 0 0; font-family: "Bricolage Grotesque Variable", Inter, sans-serif; font-size: 1.65rem; letter-spacing: -0.035em; }
+.circle-create-draft-note { margin: 0.75rem 0 0; color: var(--text-muted); font-size: 0.86rem; line-height: 1.5; }
 .circle-create-panel > form, .circle-manage-form { display: grid; gap: 1.25rem; margin-top: 1.25rem; }
 .circle-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .circle-form-grid label { display: grid; align-content: start; gap: 0.35rem; color: var(--text-muted); font-size: 0.8rem; font-weight: 650; }
@@ -48,6 +49,10 @@
 .circle-rule-picker li > input { width: calc(100% - 6rem); }
 .circle-rule-picker li > .btn { margin-left: 0.5rem; }
 .circle-rule-add { justify-self: start; }
+.circle-create-readiness { display: grid; gap: 0.2rem; border: 1px solid var(--border); border-left: 3px solid var(--border-strong); padding: 0.8rem 0.95rem; }
+.circle-create-readiness[data-ready="true"] { border-left-color: var(--accent-self); }
+.circle-create-readiness strong { font-size: 0.88rem; }
+.circle-create-readiness p { margin: 0; color: var(--text-muted); font-size: 0.84rem; line-height: 1.5; }
 .circle-form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 .circle-create-images { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .circle-create-image { display: grid; gap: 0.6rem; align-content: start; }
