@@ -156,16 +156,22 @@ export function SafetyPage() {
         </header>
         <ol className="safety-report-steps">
           <li>
-            <strong>Send the report from the profile, post, message, booking, or review.</strong>
-            <span>Describe what happened in your own words. Private check-in photos are optional.</span>
+            <div>
+              <strong>Send the report from the profile, post, message, booking, or review.</strong>
+              <span>Describe what happened in your own words. Private check-in photos are optional.</span>
+            </div>
           </li>
           <li>
-            <strong>A reviewer triages the report.</strong>
-            <span>Reviewers can check context, hide content, suspend profiles for policy violations, and leave internal notes. Every decision is audit logged.</span>
+            <div>
+              <strong>A reviewer triages the report.</strong>
+              <span>Reviewers can check context, hide content, suspend profiles for policy violations, and leave internal notes. Every decision is audit logged.</span>
+            </div>
           </li>
           <li>
-            <strong>Money and evidence stay protected during review.</strong>
-            <span>Unsettled booking funds stay paused until a full admin records a resolution. Private evidence can be retrieved only while a linked report is active, and access is audited.</span>
+            <div>
+              <strong>Money and evidence stay protected during review.</strong>
+              <span>Unsettled booking funds stay paused until a full admin records a resolution. Private evidence can be retrieved only while a linked report is active, and access is audited.</span>
+            </div>
           </li>
         </ol>
       </section>

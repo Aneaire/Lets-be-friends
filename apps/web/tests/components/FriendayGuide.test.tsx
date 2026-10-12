@@ -45,7 +45,7 @@ describe('Frienday clickable cards fill the Home feed side space', () => {
 
     expect(screen.getByText('What is a Frienday')).toBeTruthy()
     expect(screen.getByText('How a Frienday works')).toBeTruthy()
-    expect(screen.getByText('Three Friend Selfies')).toBeTruthy()
+    expect(screen.getByText('Two optional check-in photos')).toBeTruthy()
     for (const step of friendaySteps.slice(0, 2)) {
       expect(screen.getByText(step.title)).toBeTruthy()
     }
@@ -77,11 +77,25 @@ describe('Frienday clickable cards fill the Home feed side space', () => {
   it('lets users tap check-in moments to see each purpose', () => {
     render(<CheckinsCard defaultOpen />)
 
-    expect(screen.getByText('First Friend Selfie')).toBeTruthy()
-    fireEvent.click(screen.getByText('Around the midpoint'))
-    expect(screen.getByText('Second Friend Selfie')).toBeTruthy()
-    expect(screen.getByText(/continuing as agreed/)).toBeTruthy()
-    expect(friendayCheckins).toHaveLength(3)
+    expect(screen.getByText('Start photo (Companion)')).toBeTruthy()
+    fireEvent.click(screen.getByText('At the end'))
+    expect(screen.getByText('End photo (member)')).toBeTruthy()
+    expect(screen.getByText(/no midpoint photo/i)).toBeTruthy()
+    expect(friendayCheckins).toHaveLength(2)
+  })
+
+  it('states the truthful evidence contract without midpoint or camera promises', () => {
+    render(<CheckinsCard defaultOpen />)
+
+    expect(screen.getByText(/explicitly skip after reading the warning/i)).toBeTruthy()
+    expect(screen.queryByText(/Second Friend Selfie/)).toBeNull()
+    expect(screen.queryByText(/Third Friend Selfie/)).toBeNull()
+    for (const step of friendaySteps) {
+      expect(step.body).not.toMatch(/Friender|Friends respond/i)
+    }
+    expect(friendaySteps.map((step) => step.body).join(' ')).toMatch(/Companion decides a start photo/i)
+    expect(friendaySteps.map((step) => step.body).join(' ')).toMatch(/member decides an end photo/i)
+    expect(friendaySteps.map((step) => step.body).join(' ')).not.toMatch(/midpoint.*selfie|First Friend Selfie/i)
   })
 
   it('switches safety moments with Before, During, and Emergency tabs', () => {
@@ -133,9 +147,9 @@ describe('Frienday clickable cards fill the Home feed side space', () => {
     render(<FriendayMobileSummary />)
 
     expect(
-      screen.getByText('How a Frienday works: 9 steps, 3 check-ins, safety rules'),
+      screen.getByText('How a Frienday works: 9 steps, 2 optional photos, safety rules'),
     ).toBeTruthy()
-    fireEvent.click(screen.getByText('How a Frienday works: 9 steps, 3 check-ins, safety rules'))
+    fireEvent.click(screen.getByText('How a Frienday works: 9 steps, 2 optional photos, safety rules'))
     fireEvent.click(screen.getByText('How a Frienday works'))
     expect(screen.getByText('Set up your profile')).toBeTruthy()
     expect(screen.getByText('Read the full Frienday guide')).toBeTruthy()

@@ -13,35 +13,35 @@ import { useId, useState, type ReactNode } from 'react'
 export const friendaySteps = [
   {
     title: 'Set up your profile',
-    body: 'Use your real identity. Friends list only services they can safely and legally perform.',
+    body: 'Use your real identity. Companions list only services they can safely and legally perform.',
   },
   {
     title: 'Find the right match',
-    body: 'Frienders browse profiles or post a task. Friends respond only when the task fits their skills and comfort.',
+    body: 'Members browse Companion profiles. Companions respond only when the request fits their skills and comfort.',
   },
   {
     title: 'Chat and agree in writing',
-    body: 'Agree on task, date, meeting place, duration, price, materials, boundaries, and what counts as complete.',
+    body: 'Agree on activity, date, meeting place, duration, price, materials, boundaries, and what counts as complete.',
   },
   {
     title: 'Confirm and fund the booking',
-    body: 'The Friender confirms and loads the amount. Payment stays reserved until completion. Keep payment in the app.',
+    body: 'The member confirms and the total is reserved. Payment stays reserved until completion. Keep payment in the app.',
   },
   {
-    title: 'Meet and take the first selfie',
-    body: 'Meet in a well lit public place when possible. Both people take the First Friend Selfie in the app.',
+    title: 'Meet as agreed',
+    body: 'Meet in a well lit public place when possible. Confirm the person matches the profile before continuing.',
   },
   {
-    title: 'Take the mid session check-in',
-    body: 'Around halfway, both people take the Second Friend Selfie. Approve changes to task, time, or price in the app.',
+    title: 'Decide on optional check-in photos',
+    body: 'For member wallet bookings, the Companion decides a start photo and the member decides an end photo. Each may upload one private image or explicitly skip after reading the warning. There is no midpoint photo.',
   },
   {
-    title: 'Take the final check-in',
-    body: 'At the end, both people take the Third Friend Selfie before separating. The Friender reviews completion.',
+    title: 'Confirm completion together',
+    body: 'At the end, both the Companion and the member confirm completion before separating. Pending requests can still be edited, but accepted sessions have no in-app amendment flow.',
   },
   {
-    title: 'Payment is released',
-    body: 'Reserved payment moves to the Friend after confirmation or after the stated window ends with no dispute.',
+    title: 'Payment stays pending first',
+    body: 'After both people confirm completion, funds stay pending before settlement can continue. A booking report pauses unsettled funds for review.',
   },
   {
     title: 'Leave an honest review',
@@ -51,19 +51,14 @@ export const friendaySteps = [
 
 export const friendayCheckins = [
   {
-    title: 'First Friend Selfie',
+    title: 'Start photo (Companion)',
     when: 'At the start',
-    purpose: 'Confirms both people met and the Frienday began.',
+    purpose: 'The Companion may upload one private start image, or explicitly skip after reading the warning.',
   },
   {
-    title: 'Second Friend Selfie',
-    when: 'Around the midpoint',
-    purpose: 'Confirms the Frienday is continuing as agreed.',
-  },
-  {
-    title: 'Third Friend Selfie',
+    title: 'End photo (member)',
     when: 'At the end',
-    purpose: 'Records the end before completion and payment review.',
+    purpose: 'The member may upload one private end image, or explicitly skip after reading the warning. There is no midpoint photo.',
   },
 ] as const
 
@@ -114,7 +109,7 @@ export const friendayPromise = [
   'Be honest about identity, needs, skills, and qualifications.',
   'Keep important agreements in the app.',
   'Respect consent, privacy, time, property, and boundaries.',
-  'Follow the three check-ins when they apply.',
+  'Complete your own optional check-in photo, or explicitly skip after reading the warning.',
   'Keep payment on the platform.',
   'Follow local laws and platform rules.',
   'Leave and report the booking if it becomes unsafe.',
@@ -205,8 +200,8 @@ export function WhatIsFriendayCard({ defaultOpen = true }: { defaultOpen?: boole
       defaultOpen={defaultOpen}
     >
       <p className="text-meta frienday-rail-intro">
-        A Frienday is the agreed time when a Friend and a Friender meet and complete a booked
-        activity. Friend is the Companion offering help. Friender is the member booking help.
+        A Frienday is the agreed time when a Companion and a member meet and complete a booked
+        activity. The Companion offers help and the member books help.
       </p>
       <Link to="/safety" hash="frienday" className="frienday-rail-link">
         Read the full Frienday guide
@@ -248,13 +243,14 @@ export function CheckinsCard({ defaultOpen = false }: { defaultOpen?: boolean })
     <FlipCard
       icon={Camera}
       eyebrow="Check-ins"
-      title="Three Friend Selfies"
-      previewLabel="3 selfies inside, tap to open"
+      title="Two optional check-in photos"
+      previewLabel="2 optional photos inside, tap to open"
       defaultOpen={defaultOpen}
     >
       <p className="text-meta frienday-rail-intro">
-        Selfies support check-in and safety steps. They do not prove all work was complete and do
-        not replace emergency services.
+        Check-in photos are optional and support safety review. They do not prove all work was
+        complete and do not replace emergency services. Each photo is chosen from the library as a
+        private image, never as a required camera selfie.
       </p>
       <div className="frienday-checkin-dots" role="tablist" aria-label="Check-in moments">
         {friendayCheckins.map((checkin, index) => (
@@ -397,12 +393,12 @@ export function FriendaySafetyRail() {
 export function FriendayMobileSummary() {
   return (
     <details className="frienday-mobile-summary">
-      <summary>How a Frienday works: 9 steps, 3 check-ins, safety rules</summary>
+      <summary>How a Frienday works: 9 steps, 2 optional photos, safety rules</summary>
       <div className="frienday-mobile-body">
         <p className="text-meta">
-          A Frienday is the agreed time when a Friend and a Friender meet and complete a booked
-          activity. Friend is the Companion offering help. Friender is the member booking help. Tap a card to open it. Keep chat, booking, and payment in the app, take three
-          check-in selfies, and follow the agreed plan.
+          A Frienday is the agreed time when a Companion and a member meet and complete a booked
+          activity. The Companion offers help and the member books help. Tap a card to open it. Keep chat, booking, and payment in the app, decide on your own optional
+          check-in photo or explicitly skip it, and follow the agreed plan.
         </p>
         <WhatIsFriendayCard defaultOpen={false} />
         <StepsCard defaultOpen={false} />

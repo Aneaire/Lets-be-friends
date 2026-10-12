@@ -59,6 +59,19 @@ describe('SafetyPage fraud and trust guidance', () => {
     expect(screen.getAllByText(/Private check-in photos are optional/).length).toBeGreaterThan(0)
   })
 
+  it('keeps each reporting step body in a single grid cell beside the step number', () => {
+    const { container } = render(<SafetyPage />)
+
+    const steps = container.querySelectorAll('.safety-report-steps > li')
+    expect(steps.length).toBe(3)
+    for (const step of steps) {
+      const body = step.querySelector(':scope > div')
+      expect(body).toBeTruthy()
+      expect(body?.querySelector('strong')).toBeTruthy()
+      expect(body?.querySelector('span')).toBeTruthy()
+    }
+  })
+
   it('keeps discovery and profile actions on the correct accent intent', () => {
     const { container } = render(<SafetyPage />)
 
