@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Star, User } from 'lucide-react'
 import { productMapInitialView, productMapStyleUrl, productMapZoomForRadius } from '@lets-be-friends/shared'
@@ -45,6 +45,10 @@ export default function ApproximateLocationMapClient({
 }) {
   const [theme, setTheme] = useState<ThemeChoice>(currentTheme)
   const [mapUnavailable, setMapUnavailable] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  // Child map effects flush before this component's effects on mount, so a
+  // synchronous load failure must survive the initial reset below.
+  const didMount = useRef(false)
 
   useEffect(() => {
     const root = document.documentElement
@@ -54,11 +58,19 @@ export default function ApproximateLocationMapClient({
   }, [])
 
   useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true
+      return
+    }
     setMapUnavailable(false)
-  }, [location?.latitude, location?.longitude, radiusKm, theme])
+  }, [location?.latitude, location?.longitude, radiusKm, theme, retryCount])
 
   const handleInitialLoadError = useCallback(() => {
     setMapUnavailable(true)
+  }, [])
+
+  const handleRetry = useCallback(() => {
+    setRetryCount((count) => count + 1)
   }, [])
 
   const updateLocation = useCallback((next: Coordinates) => {
@@ -68,7 +80,10 @@ export default function ApproximateLocationMapClient({
   if (mapUnavailable) {
     return (
       <div className="approx-location-map-error" role="status">
-        Map unavailable. You can still use your device location or try again later.
+        <p>Map unavailable. You can still use your device location or try again later.</p>
+        <button type="button" className="btn btn-neutral btn-sm" onClick={handleRetry}>
+          Try again
+        </button>
       </div>
     )
   }

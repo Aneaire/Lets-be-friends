@@ -116,8 +116,13 @@ export function Map({
       window.clearTimeout(loadTimeout)
     }
 
-    const handleError = () => {
+    const handleError = (event: unknown) => {
       if (didLoad || didReportError) return
+      // A single failed tile must not fail the whole map: MapLibre keeps
+      // loading and still reaches `load` when other tiles succeed. Only
+      // failures without tile context (style document, sprite, glyph, or a
+      // whole tile source such as TileJSON) prevent the map from rendering.
+      if (isRecoverableTileError(event)) return
       didReportError = true
       onInitialLoadErrorRef.current?.()
     }
@@ -159,6 +164,19 @@ export function Map({
       {map && children}
     </MapContext.Provider>
   )
+}
+
+/*
+ * MapLibre reports a failed tile fetch on the map error event with the failing
+ * tile attached (`tile_manager.ts` fires `ErrorEvent(err, {tile})`, bubbled up
+ * with the source id). Errored tiles count as settled for `load`, so these
+ * events are recoverable and must not fail the whole map. Events without tile
+ * context (style document, sprite, glyph, or TileJSON source failures) mean the
+ * map cannot render and stay fatal.
+ */
+function isRecoverableTileError(event: unknown): boolean {
+  if (typeof event !== 'object' || event === null) return false
+  return (event as { tile?: unknown }).tile != null
 }
 
 export function MapMarker({
