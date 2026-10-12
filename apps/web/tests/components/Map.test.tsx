@@ -13,6 +13,7 @@ const mapHarness = vi.hoisted(() => ({
     handlers: Map<string, Set<MapHandler>>
     fire: (type: string, event?: unknown) => void
   }>,
+  workerUrls: [] as string[],
 }))
 
 vi.mock('maplibre-gl', () => {
@@ -54,7 +55,13 @@ vi.mock('maplibre-gl', () => {
 
   class FakeMarker {}
 
-  return { Map: FakeMap, Marker: FakeMarker }
+  return {
+    Map: FakeMap,
+    Marker: FakeMarker,
+    setWorkerUrl: (url: string) => {
+      mapHarness.workerUrls.push(url)
+    },
+  }
 })
 
 beforeEach(() => {
@@ -82,6 +89,10 @@ function lastMap() {
 }
 
 describe('Map initial load errors', () => {
+  it('points maplibre at the vendored worker bundle', () => {
+    expect(mapHarness.workerUrls).toContain('/maplibre/maplibre-gl-worker.mjs')
+  })
+
   it('ignores a single failed tile and stays silent when the map loads', () => {
     const onInitialLoadError = vi.fn()
     render(

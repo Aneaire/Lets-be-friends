@@ -20,11 +20,21 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-import { Map as MapLibreMap, Marker, type MapMouseEvent, type GeoJSONSource } from 'maplibre-gl'
+import { Map as MapLibreMap, Marker, setWorkerUrl, type MapMouseEvent, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { circleCoordinates, type Coordinates } from '../../lib/geo'
+
+/*
+ * MapLibre locates its web worker as a sibling of the bundled module
+ * (`./maplibre-gl-worker.mjs` next to the importing chunk). Bundlers cannot
+ * resolve that dynamic URL, so production builds 404 the worker and the map
+ * never loads. The worker pair is vendored under `public/maplibre` (kept in
+ * sync with the installed maplibre-gl version by `mapWorkerAssets.test.ts`)
+ * and pointed at here.
+ */
+setWorkerUrl('/maplibre/maplibre-gl-worker.mjs')
 
 const MapContext = createContext<MapLibreMap | null>(null)
 
