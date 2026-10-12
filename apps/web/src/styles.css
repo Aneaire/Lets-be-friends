@@ -12614,11 +12614,18 @@ textarea.field {
     font-size: 0.85rem;
     font-weight: 720;
     font-variant-numeric: tabular-nums;
+    line-height: 1.6;
+  }
+
+  .safety-report-steps li > div {
+    grid-column: 2;
+    min-width: 0;
   }
 
   .safety-report-steps strong {
     display: block;
     font-size: 1rem;
+    line-height: 1.5;
   }
 
   .safety-report-steps span {
@@ -15474,8 +15481,7 @@ textarea.field {
   margin-bottom: 0.85rem;
 }
 
-.category-picker-selected,
-.category-picker-options {
+.category-picker-selected {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -15493,51 +15499,125 @@ textarea.field {
   gap: 0.35rem;
 }
 
-.category-picker-search {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.65rem;
-  min-height: 2.85rem;
-  margin-bottom: 0.85rem;
-  padding: 0 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-sunk);
-  color: var(--text-soft);
+.category-picker-selected .chip svg {
+  flex: 0 0 auto;
 }
 
-.category-picker-search:focus-within {
-  border-color: var(--accent-self);
-  box-shadow: 0 0 0 3px var(--accent-self-soft);
+.category-picker-summary-empty {
+  margin: 0 0 0.85rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.category-browser-dialog {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(100%, 42rem);
+  max-height: min(90vh, 48rem);
+}
+
+.category-browser-dialog-body {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.category-browser-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.category-browser-scroll {
+  min-height: 0;
+  max-height: min(52vh, 28rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.15rem 0.2rem 0.25rem 0;
+  scrollbar-gutter: stable;
+}
+
+.category-browser-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.category-browser-option {
+  display: flex;
+  min-width: 0;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.category-browser-option:hover:not(:disabled) {
+  border-color: var(--accent-self-line);
+  background: var(--surface-sunk);
+  color: var(--text);
+}
+
+.category-browser-option:focus-visible {
+  outline: 2px solid var(--accent-self);
+  outline-offset: 2px;
+}
+
+.category-browser-option[data-selected="true"] {
+  border-color: var(--accent-self-line);
+  background: var(--accent-self-soft);
+  color: var(--text);
+}
+
+.category-browser-option[data-selected="true"] svg {
+  flex: 0 0 auto;
   color: var(--accent-self);
 }
 
-.category-picker-search input {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 0.9rem;
+.category-browser-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
-.category-picker-search input::placeholder {
-  color: var(--text-soft);
-}
-
-.category-picker-more {
+.category-browser-more {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.65rem;
   margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--rule);
 }
 
-.category-picker-more .text-meta {
+.category-browser-more .text-meta {
   margin-left: auto;
+}
+
+.category-browser-sentinel {
+  position: absolute;
+  top: -1px;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.category-browser-count {
+  margin: 0.85rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--rule);
+  text-align: right;
 }
 
 .category-picker-empty {
@@ -15552,6 +15632,32 @@ textarea.field {
 
 .category-picker-empty strong {
   color: var(--text);
+}
+
+@media (max-width: 520px) {
+  .category-browser-search,
+  .category-browser-options {
+    grid-template-columns: 1fr;
+  }
+
+  .category-browser-search {
+    gap: 0.35rem;
+  }
+
+  .category-browser-more .text-meta {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+@media (max-height: 620px) {
+  .category-browser-dialog-body {
+    gap: 0.5rem;
+  }
+
+  .category-browser-scroll {
+    max-height: 44vh;
+  }
 }
 
 .companion-preview-rate span {
