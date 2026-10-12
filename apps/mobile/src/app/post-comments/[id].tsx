@@ -2,7 +2,6 @@ import { activeMentionQuery, arrangeCommentThreads, withoutLeadingReplyMention, 
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { BlurTargetView } from 'expo-blur'
-import * as Linking from 'expo-linking'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import { useMemo, useRef, useState } from 'react'
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
@@ -23,6 +22,7 @@ import { MentionBody } from '@/features/social/MentionBody'
 import { PostCard } from '@/features/social/PostCard'
 import { PostContent } from '@/features/social/PostContent'
 import { PostImageViewer, type PostViewerImage } from '@/features/social/PostImageViewer'
+import { NativeVideoViewer } from '@/features/media/NativeVideoViewer'
 import { openMemberProfile } from '@/features/social/socialNavigation'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -50,6 +50,7 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
   const toggleCommentLike = useMutation(mobileApi.social.toggleCommentLike)
   const blurTarget = useRef<View>(null)
   const [viewerImage, setViewerImage] = useState<PostViewerImage | null>(null)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [body, setBody] = useState('')
   const [mentionCaret, setMentionCaret] = useState(0)
   const mentionToken = activeMentionQuery(body, mentionCaret)
@@ -58,13 +59,9 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
   const [error, setError] = useState('')
   const threadedComments = useMemo(() => arrangeCommentThreads(comments), [comments])
 
-  async function openVideo(url: string) {
+  function openVideo(url: string) {
     setError('')
-    try {
-      await Linking.openURL(url)
-    } catch {
-      setError('This post video could not be opened safely.')
-    }
+    setVideoUrl(url)
   }
 
   function insertMention(username: string) {
@@ -163,7 +160,7 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
                     <CommentsPost
                       post={post}
                       onOpenImage={setViewerImage}
-                      onOpenVideo={(url) => void openVideo(url)}
+                      onOpenVideo={(url) => openVideo(url)}
                     />
                   )}
                   <AppText variant="bodyStrong">Comments</AppText>
@@ -189,6 +186,7 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
         </BlurTargetView>
       </KeyboardAvoidingView>
       <PostImageViewer image={viewerImage} blurTarget={blurTarget} onClose={() => setViewerImage(null)} />
+      <NativeVideoViewer url={videoUrl} onClose={() => setVideoUrl(null)} />
     </View>
   )
 }

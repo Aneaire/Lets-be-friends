@@ -19,6 +19,7 @@ import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
+import { MemberProfilePosts } from '@/member/MemberProfilePosts'
 import { memberSafetyDisclosure } from '@/member/memberProfilePresentation'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
@@ -38,6 +39,7 @@ function ConnectedMemberProfile({ id }: { id: string }) {
   const auth = useMobileAuth()
   const member = useMobileMember()
   const profile = useQuery(mobileApi.users.publicProfile, { userId: id as UserId })
+  const posts = useQuery(mobileApi.social.byUser, profile ? { userId: profile._id } : 'skip')
   const toggleFollow = useMutation(mobileApi.social.toggleFollow)
   const startConversation = useMutation(mobileApi.conversations.start)
   const [following, setFollowing] = useState<boolean | null>(null)
@@ -111,6 +113,21 @@ function ConnectedMemberProfile({ id }: { id: string }) {
       <Section>
         <AppText variant="heading">Interested in</AppText>
         {userProfile.onboardingCategories.length ? <View style={styles.chips}>{userProfile.onboardingCategories.map((category) => <Chip key={category} label={category} />)}</View> : <AppText color={theme.colors.textMuted}>No interests have been added yet.</AppText>}
+      </Section>
+
+      {ownProfile ? (
+        <Section>
+          <ActionButton label="View my posts and reviews" onPress={() => router.push('/my-posts')} intent="self" secondary style={styles.action} />
+        </Section>
+      ) : null}
+
+      <Section>
+        <MemberProfilePosts
+          ownerName={userProfile.displayName}
+          posts={posts as never}
+          signedIn={signedIn}
+          emptyDescription={ownProfile ? 'Share a post from Home when you are ready.' : 'This member has not shared a post yet.'}
+        />
       </Section>
 
       {signedIn && !ownProfile ? <Section style={styles.safety}>

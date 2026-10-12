@@ -42,6 +42,7 @@ const meta = {
     openingVerification: false,
     signingOut: false,
     pushNotifications: null,
+    appearanceSettings: null,
     onEditProfile: fn(),
     onFinishWelcomeGuide: fn(),
     onOpenVerification: fn(),
@@ -52,6 +53,7 @@ const meta = {
     onOpenIncomingBookings: fn(),
     onOpenCompanionFinance: fn(),
     onOpenSafety: fn(),
+    onOpenMyPosts: fn(),
     onSignOut: fn(),
   },
 } satisfies Meta<typeof SignedInProfileContent>
@@ -93,5 +95,13 @@ export const SignOutRedirects: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Sign out' }))
     await expect(args.onSignOut).toHaveBeenCalledOnce()
+  },
+}
+
+export const OwnContentLink: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'My posts and reviews' }))
+    await expect(args.onOpenMyPosts).toHaveBeenCalledOnce()
   },
 }

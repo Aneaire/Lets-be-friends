@@ -8,6 +8,7 @@ import { useMobileAuth } from '@/auth/MobileAuth'
 import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/backend/config'
 import { mobileApi } from '@/backend/client'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { AppearanceSettings } from '@/features/settings/AppearanceSettings'
 import { PushNotificationSettings } from '@/features/settings/PushNotificationSettings'
 import { SignedInProfileContent } from '@/member/ProfileContent'
 import { useMobileMember } from '@/member/MobileMember'
@@ -103,10 +104,12 @@ function SignedInProfile({ profile, bio, role, signOut }: {
       openingVerification={openingVerification}
       signingOut={signingOut}
       pushNotifications={<PushNotificationSettings />}
+      appearanceSettings={<AppearanceSettings />}
       onEditProfile={() => router.push('/profile-edit' as never)}
       onFinishWelcomeGuide={() => router.push('/onboarding')}
       onOpenVerification={() => void openVerification()}
       onOpenNotificationCenter={() => router.push('/notifications')}
+      onOpenMyPosts={() => router.push('/my-posts' as never)}
       onOpenBookings={() => router.push('/bookings' as never)}
       onOpenWallet={() => router.push('/wallet')}
       onOpenCompanion={() => router.push('/companion')}

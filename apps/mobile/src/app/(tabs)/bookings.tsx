@@ -17,48 +17,71 @@ import { EmptyState } from '@/design-system/molecules/FeedbackState'
 import { BookingsCalendarView } from '@/features/booking/BookingsCalendarView'
 import type { BookingsViewMode } from '@/data/bookingCalendar'
 import { useMobileMember } from '@/member/MobileMember'
+import {
+  bookingDetailRoute,
+  calendarParticipantName,
+  combineCalendarBookings,
+  filterMemberBookings,
+  type CombinedCalendarBooking,
+  type MemberBookingFilter,
+} from '@/member/combinedBookings'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-type Booking = FunctionReturnType<typeof mobileApi.bookings.mine>[number]
-type Filter = 'active' | 'requests' | 'past'
+type MemberBooking = FunctionReturnType<typeof mobileApi.bookings.mine>[number]
+type CompanionBooking = FunctionReturnType<typeof mobileApi.bookings.forCompanion>[number]
 
 export default function BookingHistoryScreen() {
   const member = useMobileMember()
-  const bookings = useQuery(mobileApi.bookings.mine, member.status === 'ready' ? {} : 'skip')
+  const memberBookings = useQuery(mobileApi.bookings.mine, member.status === 'ready' ? {} : 'skip')
+  const companionBookings = useQuery(mobileApi.bookings.forCompanion, member.status === 'ready' ? {} : 'skip')
 
   if (member.status === 'signed_out') return <BookingState title="Sign in to see your bookings" action="Sign in" onPress={() => router.push('/auth')} />
   if (member.status === 'unconfigured') return <BookingState title="Bookings need account services" detail="Connect your account to view booking activity." />
   if (member.status === 'unavailable' || member.status === 'error') return <BookingState title="Bookings are unavailable" detail={member.message} />
-  if (member.status !== 'ready' || bookings === undefined) return <PageSkeleton variant="bookings" />
+  if (member.status !== 'ready' || memberBookings === undefined || companionBookings === undefined) return <PageSkeleton variant="bookings" />
 
-  return <BookingsList bookings={bookings} />
+  return <BookingsList memberBookings={memberBookings} companionBookings={companionBookings} />
 }
 
-function BookingsList({ bookings }: { bookings: Booking[] }) {
+function BookingsList({ memberBookings, companionBookings }: { memberBookings: MemberBooking[]; companionBookings: CompanionBooking[] }) {
   const theme = useAppTheme()
   const [view, setView] = useState<BookingsViewMode>('calendar')
-  const [filter, setFilter] = useState<Filter>('active')
-  const grouped = useMemo(() => ({
-    requests: bookings.filter((booking) => ['draft', 'verification_required', 'pending_admin_review', 'request_sent'].includes(booking.status)),
-    active: bookings.filter((booking) => booking.status === 'accepted'),
-    past: bookings.filter((booking) => ['declined', 'cancelled', 'completed', 'review_window', 'closed'].includes(booking.status)),
-  }), [bookings])
-  const visible = grouped[filter]
-  const renderBooking = (booking: Booking) => (
-    <BookingCard
-      booking={{
-        id: booking._id,
-        participantName: booking.companionDisplayName,
-        category: booking.category,
-        mode: booking.mode,
-        requestedAt: booking.requestedAt,
-        durationMinutes: booking.durationMinutes,
-        status: booking.status,
-        memberTotalCentavos: booking.memberTotalCentavos,
-      }}
-      onPress={() => router.push({ pathname: '/booking/[id]', params: { id: String(booking._id) } })}
-    />
+  const [filter, setFilter] = useState<MemberBookingFilter>('active')
+  const combined = useMemo(
+    () => combineCalendarBookings(memberBookings as never, companionBookings as never),
+    [companionBookings, memberBookings],
   )
+  const grouped = useMemo(() => ({
+    requests: filterMemberBookings(memberBookings as never, 'requests'),
+    active: filterMemberBookings(memberBookings as never, 'active'),
+    past: filterMemberBookings(memberBookings as never, 'past'),
+  }), [memberBookings])
+  const companionActive = useMemo(
+    () => combined.filter((booking) => booking.perspective === 'companion'),
+    [combined],
+  )
+  const visible = grouped[filter]
+  const renderBooking = (booking: CombinedCalendarBooking) => {
+    const route = bookingDetailRoute(booking)
+    const participantName = calendarParticipantName(booking)
+    const record = booking as unknown as MemberBooking & Partial<CompanionBooking>
+    return (
+      <BookingCard
+        booking={{
+          id: String(booking._id),
+          participantName,
+          participantPreposition: booking.perspective === 'companion' ? 'from' : undefined,
+          category: record.category,
+          mode: record.mode,
+          requestedAt: booking.requestedAt,
+          durationMinutes: record.durationMinutes,
+          status: booking.status as MemberBooking['status'],
+          memberTotalCentavos: record.memberTotalCentavos,
+        }}
+        onPress={() => router.push(route as never)}
+      />
+    )
+  }
 
   return (
     <Screen contentStyle={styles.content}>
@@ -78,7 +101,7 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
         ]}
       />
       {view === 'calendar' ? (
-        <BookingsCalendarView bookings={bookings} renderBooking={renderBooking} />
+        <BookingsCalendarView bookings={combined} renderBooking={renderBooking} />
       ) : (
         <>
           <SegmentedControl
@@ -94,7 +117,7 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
             ]}
           />
           {visible.length ? <View style={styles.list}>{visible.map((booking) => (
-            <View key={booking._id}>{renderBooking(booking)}</View>
+            <View key={`member-${String(booking._id)}`}>{renderBooking({ ...booking, perspective: 'member' } as CombinedCalendarBooking)}</View>
           ))}</View> : (
             <EmptyState
               icon={<AppIcon name="calendar-outline" color={theme.colors.textMuted} size={26} />}
@@ -103,6 +126,21 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
               action={filter === 'past' ? undefined : <ActionButton label="Explore Companions" onPress={() => router.push('/nearby')} secondary />}
             />
           )}
+          <View style={styles.companionSection}>
+            <AppText variant="heading">Bookings as Companion</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted}>
+              {companionActive.length === 0
+                ? 'Incoming Companion requests appear here without leaving this calendar.'
+                : `${companionActive.length} ${companionActive.length === 1 ? 'booking' : 'bookings'} for your Companion profile.`}
+            </AppText>
+            {companionActive.length ? (
+              <View style={styles.list}>
+                {companionActive.map((booking) => (
+                  <View key={`companion-${String(booking._id)}`}>{renderBooking(booking)}</View>
+                ))}
+              </View>
+            ) : null}
+          </View>
         </>
       )}
       <Pressable accessibilityRole="button" accessibilityLabel="Open Companion incoming bookings" onPress={() => router.push('/companion-bookings')} style={styles.companionLink}>
@@ -126,5 +164,6 @@ const styles = StyleSheet.create({
   header: { paddingTop: 16, gap: 5, marginBottom: 16 },
   filters: { marginBottom: 16 },
   list: { gap: 10 },
+  companionSection: { gap: 8, marginTop: 20 },
   companionLink: { minHeight: 48, justifyContent: 'center', alignItems: 'center', marginTop: 18 },
 })

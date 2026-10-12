@@ -16,6 +16,7 @@ export function SignedInProfileContent({
   openingVerification,
   signingOut,
   pushNotifications,
+  appearanceSettings,
   onEditProfile,
   onFinishWelcomeGuide,
   onOpenVerification,
@@ -26,6 +27,7 @@ export function SignedInProfileContent({
   onOpenIncomingBookings,
   onOpenCompanionFinance,
   onOpenSafety,
+  onOpenMyPosts,
   onSignOut,
 }: {
   profile: ProfileViewModel
@@ -35,6 +37,7 @@ export function SignedInProfileContent({
   openingVerification: boolean
   signingOut: boolean
   pushNotifications?: ReactNode
+  appearanceSettings?: ReactNode
   onEditProfile: () => void
   onFinishWelcomeGuide: () => void
   onOpenVerification: () => void
@@ -45,6 +48,7 @@ export function SignedInProfileContent({
   onOpenIncomingBookings: () => void
   onOpenCompanionFinance: () => void
   onOpenSafety: () => void
+  onOpenMyPosts: () => void
   onSignOut: () => void
 }) {
   const theme = useAppTheme()
@@ -87,6 +91,11 @@ export function SignedInProfileContent({
         {!profile.verificationApproved ? <SettingsRow icon="shield-checkmark-outline" label={openingVerification ? 'Opening identity verification' : 'Identity verification'} detail="Continue to secure identity verification" onPress={onOpenVerification} /> : <SettingsRow icon="shield-checkmark" label="Identity verification" detail="Current approval is active" value="Approved" />}
         <SettingsRow icon="notifications-outline" label="Notification center" detail="Booking, social, account, and safety updates" onPress={onOpenNotificationCenter} />
         {pushNotifications ? <View style={styles.pushSettings}>{pushNotifications}</View> : null}
+        {appearanceSettings ? <View style={styles.pushSettings}>{appearanceSettings}</View> : null}
+      </SettingsGroup>
+
+      <SettingsGroup title="Your content">
+        <SettingsRow icon="document-text-outline" label="My posts and reviews" detail="View your public posts and Companion reviews" onPress={onOpenMyPosts} />
       </SettingsGroup>
 
       <SettingsGroup title="Bookings and money">
