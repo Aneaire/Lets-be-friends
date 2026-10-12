@@ -15445,7 +15445,12 @@ textarea.field {
   padding: 1rem;
   border: 1px solid var(--accent-self-line);
   border-radius: 12px;
-  background: var(--accent-self-soft);
+  background: var(--surface);
+}
+
+.companion-location-action .btn-self {
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--accent-self-line);
 }
 
 .companion-location-action > div {
