@@ -1,5 +1,6 @@
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
+import { BlurTargetView } from 'expo-blur'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -17,8 +18,12 @@ import { Brand } from '@/design-system/atoms/Brand'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { Screen } from '@/design-system/templates/Screen'
 import { PostComposer } from '@/features/social/PostComposer'
+import { emptyPollDraft } from '@/features/social/PollComposer'
+import { canPublishFeedPost, feedComposerValidationError, feedPostPollPayload, mediaPickerSelectionLimit } from '@/features/social/feedComposer'
+import { homeFeedQueryArgs, feedLoadMoreKey, shouldRequestFeedLoadMore, syncFeedPageRequestState, type FeedPageRequestState } from '@/features/social/feedPagination'
 import { HomeFeedLoadingScreen } from '@/features/social/HomeFeedLoadingScreen'
 import { SocialFeedCard } from '@/features/social/SocialFeedCard'
+import { PostImageViewer, type PostViewerImage } from '@/features/social/PostImageViewer'
 import { homeAccountPresentation } from '@/features/social/homePresentation'
 import { preparePostMedia, uploadPostMedia } from '@/features/social/postMediaUpload'
 import { StateView } from '@/design-system/molecules/StateView'
@@ -27,7 +32,8 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { dedupeFeedItems, maximumPostMediaItems, postMediaValidationError } from '@/data/discovery'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
-import { MyCirclesModule } from '@/features/circles/CircleEntryPoints'
+import { CurrentCircleContextCard } from '@/features/guidance/CurrentCircleContextCard'
+import { FriendayGuideCard } from '@/features/guidance/FriendayGuideCard'
 
 type FeedFilter = 'for_you' | 'following' | 'saved'
 type FeedItem = FunctionReturnType<typeof mobileApi.social.feedPage>['page'][number]
@@ -58,7 +64,7 @@ function ConnectedHome() {
   const accountPresentation = homeAccountPresentation(auth.status, member.status)
   const accountLoading = accountPresentation === 'account_loading'
   const canQuery = signedIn
-  const feedPage = usePaginatedQuery(mobileApi.social.feedPage, canQuery ? { filter } : 'skip', { initialNumItems: 20 })
+  const feedPage = usePaginatedQuery(mobileApi.social.feedPage, homeFeedQueryArgs(filter, signedIn), { initialNumItems: 20 })
   const feedItems = useMemo(() => dedupeFeedItems(feedPage.results), [feedPage.results])
   const requestedPost = useQuery(mobileApi.social.requestedPost, requestedPostId ? { postId: requestedPostId } : 'skip')
   const unread = useQuery(mobileApi.notifications.unreadCount, signedIn ? {} : 'skip') ?? 0
@@ -78,15 +84,30 @@ function ConnectedHome() {
   useAppToastMessage(postError)
   const [composerOpen, setComposerOpen] = useState(false)
   const [mediaAssets, setMediaAssets] = useState<ImagePicker.ImagePickerAsset[]>([])
+  const [pollOpen, setPollOpen] = useState(false)
+  const [pollDraft, setPollDraft] = useState(emptyPollDraft)
+  const blurTarget = useRef<View>(null)
+  const [viewerImage, setViewerImage] = useState<PostViewerImage | null>(null)
   const [mentionCaret, setMentionCaret] = useState(0)
   const mentionToken = activeMentionQuery(postBody, mentionCaret)
   const mentionSuggestions = useQuery(mobileApi.social.mentionLookup, mentionToken ? { query: mentionToken } : 'skip')
   const [authorFollowBusy, setAuthorFollowBusy] = useState<Record<string, boolean>>({})
   const followRequests = useRef(new Set<string>())
+  const feedQueryKey = `${filter}:${member.status === 'ready' ? String(member.viewer._id) : 'signed-out'}`
+  const feedPageRequest = useRef<FeedPageRequestState>({ queryKey: feedQueryKey, inFlightKey: null, observedLoading: false })
+  const feedScrollStarted = useRef(false)
 
   useEffect(() => {
     impressionKey.current = ''
-  }, [filter])
+    feedScrollStarted.current = false
+  }, [feedQueryKey])
+
+  useEffect(() => {
+    feedPageRequest.current = syncFeedPageRequestState(feedPageRequest.current, {
+      queryKey: feedQueryKey,
+      status: feedPage.status,
+    })
+  }, [feedPage.status, feedQueryKey])
 
   useEffect(() => {
     if (!signedIn || !feedItems.length) return
@@ -97,13 +118,37 @@ function ConnectedHome() {
     void recordImpressions({ sessionId: sessionId.current, surface: filter, items }).catch(() => undefined)
   }, [feedItems, filter, recordImpressions, signedIn])
 
+  function togglePoll() {
+    if (creating) return
+    setPostError('')
+    // Polls are text-only, so opening a poll discards staged media just like
+    // the website composer clears its selection when a poll is added.
+    if (!pollOpen) setMediaAssets([])
+    setPollOpen(!pollOpen)
+  }
+
   async function publish() {
     const body = postBody.trim()
-    if ((!body && mediaAssets.length === 0) || body.length > 1_000 || creating) return
+    const draft = { body: postBody, mediaCount: mediaAssets.length, pollOpen, pollDraft }
+    const composerError = feedComposerValidationError(draft)
+    if (creating || !canPublishFeedPost(draft, creating)) {
+      if (composerError) setPostError(composerError)
+      return
+    }
     setCreating(true)
     setPostError('')
     const grantedUploads: Array<{ uploadId: PostMediaUploadId; storageId?: StorageId }> = []
     try {
+      if (pollOpen) {
+        // Poll-only publishing: no media uploads are granted, so a poll post
+        // can never carry photos or video.
+        await createPost({ body, poll: feedPostPollPayload(draft) })
+        setPostBody('')
+        setPollDraft(emptyPollDraft())
+        setPollOpen(false)
+        setComposerOpen(false)
+        return
+      }
       if (mediaAssets.length > (mediaUsage?.remaining ?? 0)) throw new Error('Daily media quota reached')
       const preparedAssets = await Promise.all(mediaAssets.map(async (asset) => {
         const prepared = await preparePostMedia(asset)
@@ -114,7 +159,7 @@ function ConnectedHome() {
       const uploadIds: PostMediaUploadId[] = []
       for (const prepared of preparedAssets) {
         const grant = await generateMediaUpload({})
-        const granted = { uploadId: grant.uploadId as PostMediaUploadId, storageId: undefined as StorageId | undefined }
+        const granted = { uploadId: grant.uploadId, storageId: undefined as StorageId | undefined }
         grantedUploads.push(granted)
         const storageId = await uploadPostMedia(grant.uploadUrl, prepared) as StorageId
         granted.storageId = storageId
@@ -139,15 +184,25 @@ function ConnectedHome() {
   async function chooseMedia() {
     if (creating) return
     setPostError('')
+    if (pollOpen) {
+      setPostError('Polls cannot include photos or video. Remove the poll to add media.')
+      return
+    }
     try {
       const remainingQuota = mediaUsage?.remaining
       if (remainingQuota === undefined) {
         setPostError('Checking your remaining community media allowance. Please try again in a moment.')
         return
       }
-      const selectionLimit = Math.min(maximumPostMediaItems - mediaAssets.length, remainingQuota)
+      const selectionLimit = mediaPickerSelectionLimit({ selected: mediaAssets.length, remaining: remainingQuota, limit: maximumPostMediaItems })
       if (selectionLimit <= 0) {
-        setPostError(mediaAssets.length >= maximumPostMediaItems ? 'Posts can include up to 5 photos or videos.' : 'Your daily community media allowance is used. You can still publish a text post.')
+        setPostError(mediaAssets.length > 0 && mediaAssets.length === remainingQuota
+            ? 'You have selected all media available in your daily allowance. You can publish this selection or remove an item to choose another.'
+            : mediaAssets.length > remainingQuota
+              ? 'Your remaining media allowance changed. Remove media until the selection fits before publishing.'
+              : mediaAssets.length >= maximumPostMediaItems
+                ? 'Posts can include up to 5 photos or videos.'
+                : 'Your daily community media allowance is used. You can still publish a text post.')
         return
       }
       if (Platform.OS !== 'web') {
@@ -181,18 +236,19 @@ function ConnectedHome() {
     setMentionCaret(before.length)
   }
 
-  async function updateFollowing(authorId: string) {
-    if (followRequests.current.has(authorId)) return undefined
-    followRequests.current.add(authorId)
-    setAuthorFollowBusy((state) => ({ ...state, [authorId]: true }))
+  async function updateFollowing(authorId: UserId) {
+    const requestKey = String(authorId)
+    if (followRequests.current.has(requestKey)) return undefined
+    followRequests.current.add(requestKey)
+    setAuthorFollowBusy((state) => ({ ...state, [requestKey]: true }))
     try {
-      return await toggleFollow({ userId: authorId as UserId })
+      return await toggleFollow({ userId: authorId })
     } finally {
-      followRequests.current.delete(authorId)
+      followRequests.current.delete(requestKey)
       setAuthorFollowBusy((state) => {
-        if (!state[authorId]) return state
+        if (!state[requestKey]) return state
         const next = { ...state }
-        delete next[authorId]
+        delete next[requestKey]
         return next
       })
     }
@@ -228,20 +284,45 @@ function ConnectedHome() {
 
   if (accountLoading) return <HomeFeedLoadingScreen />
 
+  function loadMoreFeed(source: 'viewport' | 'manual') {
+    if (source === 'viewport' && (!feedScrollStarted.current || feedPageRequest.current.queryKey !== feedQueryKey)) return
+    const loadMoreKey = feedLoadMoreKey(filter, feedItems.length)
+    const requestState = syncFeedPageRequestState(feedPageRequest.current, { queryKey: feedQueryKey, status: feedPage.status })
+    feedPageRequest.current = requestState
+    if (!shouldRequestFeedLoadMore({
+      status: feedPage.status,
+      canQuery,
+      loadMoreKey,
+      lastRequestedKey: requestState.inFlightKey,
+    })) return
+    feedPageRequest.current = { ...requestState, inFlightKey: loadMoreKey, observedLoading: false }
+    feedPage.loadMore(20)
+  }
+
   return (
-    <Screen scroll={false} contentStyle={styles.listScreen}>
-      <FlatList
-        data={visibleFeedItems}
-        keyExtractor={(item) => item.itemKey}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        renderItem={({ item }) => {
-          const authorId = item.kind === 'post' ? String(item.post.authorId) : undefined
-          const following = item.kind === 'post' ? item.post.followingAuthor : undefined
-          return <SocialFeedCard item={item} signedIn={signedIn} following={following} followBusy={authorId ? Boolean(authorFollowBusy[authorId]) : false} onToggleFollow={authorId && following !== undefined ? () => updateFollowing(authorId) : undefined} onAction={(action) => instrument(item, action)} />
-        }}
+    <View style={styles.route}>
+      <BlurTargetView
+        ref={blurTarget}
+        importantForAccessibility={viewerImage ? 'no-hide-descendants' : 'auto'}
+        style={styles.blurTarget}
+      >
+        <Screen scroll={false} contentStyle={styles.listScreen}>
+          <FlatList
+            data={visibleFeedItems}
+            keyExtractor={(item) => item.itemKey}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            onScrollBeginDrag={() => { feedScrollStarted.current = true }}
+            onEndReached={() => loadMoreFeed('viewport')}
+            onEndReachedThreshold={0.5}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            renderItem={({ item }) => {
+              const authorId = item.kind === 'post' ? item.post.authorId : undefined
+              const following = item.kind === 'post' ? item.post.followingAuthor : undefined
+              const authorKey = authorId ? String(authorId) : undefined
+              return <SocialFeedCard item={item} signedIn={signedIn} following={following} followBusy={authorKey ? Boolean(authorFollowBusy[authorKey]) : false} onToggleFollow={authorId && following !== undefined ? () => updateFollowing(authorId) : undefined} onOpenImage={setViewerImage} onAction={(action) => instrument(item, action)} />
+            }}
         ListHeaderComponent={<>
       <View style={styles.topBar}>
         <View style={styles.titleCopy}><Brand compact /><AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>Everyday help, useful ideas, and real connections</AppText></View>
@@ -264,6 +345,13 @@ function ConnectedHome() {
           mediaLimit={maximumPostMediaItems}
           remainingUploads={mediaUsage?.remaining}
           mentionSuggestions={mentionToken ? mentionSuggestions ?? [] : []}
+          pollOpen={pollOpen}
+          pollDraft={pollDraft}
+          onPollChange={(next) => {
+            setPollDraft(next)
+            setPostError('')
+          }}
+          onTogglePoll={togglePoll}
           onExpand={() => setComposerOpen(true)}
           onBodyChange={(value) => {
             setPostBody(value)
@@ -279,7 +367,9 @@ function ConnectedHome() {
         <View style={[styles.signInCard, { borderColor: theme.colors.border }]}><AppText variant="bodyStrong">Join the conversation</AppText><AppText variant="caption" color={theme.colors.textMuted}>{auth.status === 'unconfigured' ? 'Account services are not configured in this build. Public For You activity remains read only.' : 'Sign in to post, follow, save, comment, and shape your feed.'}</AppText>{auth.status === 'signed_out' ? <ActionButton label="Sign in" onPress={() => router.push('/auth')} secondary /> : null}</View>
       )}
 
-      {signedIn ? <MyCirclesModule /> : null}
+      <FriendayGuideCard />
+
+      {signedIn ? <CurrentCircleContextCard /> : null}
 
       <SegmentedControl
         label="Community feed"
@@ -295,9 +385,12 @@ function ConnectedHome() {
           : feedPage.status === 'LoadingFirstPage'
             ? <View style={styles.skeletonList}><FeedSkeleton /><FeedSkeleton /><FeedSkeleton /></View>
             : <StateView embedded title={filter === 'following' ? 'No posts from followed members yet' : filter === 'saved' ? 'No saved posts yet' : 'No community posts yet'} detail={filter === 'for_you' ? 'Approved Companion recommendations and guidance appear when available.' : 'Use For You and Explore to find people and posts that matter to you.'} />}
-        ListFooterComponent={feedPage.status === 'CanLoadMore' ? <View style={styles.loadMore}><ActionButton label="Load more updates" onPress={() => feedPage.loadMore(20)} intent="social" secondary /></View> : feedPage.status === 'LoadingMore' ? <View style={styles.loadMore}><AppText variant="caption" color={theme.colors.textMuted}>Loading more updates.</AppText></View> : null}
-      />
-    </Screen>
+        ListFooterComponent={feedPage.status === 'CanLoadMore' ? <View style={styles.loadMore}><ActionButton label="Load more updates" onPress={() => loadMoreFeed('manual')} intent="social" secondary /></View> : feedPage.status === 'LoadingMore' ? <View style={styles.loadMore}><AppText variant="caption" color={theme.colors.textMuted}>Loading more updates.</AppText></View> : feedPage.status === 'Exhausted' && visibleFeedItems.length > 0 ? <View style={styles.loadMore}><AppText variant="caption" color={theme.colors.textMuted}>You are caught up.</AppText></View> : null}
+          />
+        </Screen>
+      </BlurTargetView>
+      <PostImageViewer image={viewerImage} blurTarget={blurTarget} onClose={() => setViewerImage(null)} />
+    </View>
   )
 }
 
@@ -310,6 +403,8 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const styles = StyleSheet.create({
+  route: { flex: 1 },
+  blurTarget: { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 32 },
   listScreen: { paddingHorizontal: 0, paddingBottom: 0 },
   listContent: { paddingHorizontal: 14, paddingBottom: 32 },

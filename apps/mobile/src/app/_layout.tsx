@@ -1,7 +1,6 @@
 import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider, usePathname } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect } from 'react'
-import { useColorScheme } from 'react-native'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { canAccessMemberRoutes } from '@/auth/routeAccess'
@@ -9,29 +8,35 @@ import { MobileBackendProvider } from '@/backend/MobileBackendProvider'
 import { SafeAreaRoot } from '@/design-system/templates/SafeAreaRoot'
 import { useMobileMember } from '@/member/MobileMember'
 import { onboardingDecision } from '@/member/onboarding'
-import { AppThemeProvider } from '@/theme/ThemeProvider'
+import { AppThemeProvider, useAppTheme } from '@/theme/ThemeProvider'
 import { useReducedMotion } from '@/utils/accessibility'
 import { AppToastHost } from '@/design-system/molecules/AppToast'
 import { ConnectivityBanner } from '@/design-system/molecules/ConnectivityBanner'
 
 export default function RootLayout() {
-  const scheme = useColorScheme()
-  const reduceMotion = useReducedMotion()
-  const dark = scheme === 'dark'
-
   return (
     <AppThemeProvider>
       <SafeAreaRoot>
         <MobileBackendProvider>
-          <ThemeProvider value={dark ? DarkTheme : DefaultTheme}>
-            <StatusBar style={dark ? 'light' : 'dark'} />
-            <ConnectivityBanner />
-            <AuthenticatedNavigator reduceMotion={reduceMotion} />
-            <AppToastHost />
-          </ThemeProvider>
+          <ThemedNavigation />
         </MobileBackendProvider>
       </SafeAreaRoot>
     </AppThemeProvider>
+  )
+}
+
+function ThemedNavigation() {
+  const theme = useAppTheme()
+  const reduceMotion = useReducedMotion()
+  const dark = theme.scheme === 'dark'
+
+  return (
+    <ThemeProvider value={dark ? DarkTheme : DefaultTheme}>
+      <StatusBar style={dark ? 'light' : 'dark'} />
+      <ConnectivityBanner />
+      <AuthenticatedNavigator reduceMotion={reduceMotion} />
+      <AppToastHost />
+    </ThemeProvider>
   )
 }
 
@@ -66,6 +71,7 @@ function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
           <Stack.Screen name="circles/index" />
           <Stack.Screen name="circles/[id]" />
           <Stack.Screen name="post-comments/[id]" />
+          <Stack.Screen name="my-posts" />
           <Stack.Screen name="wallet" />
           <Stack.Screen name="safety" />
         </Stack.Protected>

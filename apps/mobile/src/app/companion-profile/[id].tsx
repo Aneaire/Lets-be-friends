@@ -1,7 +1,6 @@
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
-import * as Linking from 'expo-linking'
 import { BlurTargetView } from 'expo-blur'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Image, Pressable, Share, StyleSheet, View } from 'react-native'
@@ -25,6 +24,7 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { PostCard } from '@/features/social/PostCard'
 import { PostContent } from '@/features/social/PostContent'
 import { PostImageViewer, type PostViewerImage } from '@/features/social/PostImageViewer'
+import { NativeVideoViewer } from '@/features/media/NativeVideoViewer'
 import { ReviewContent } from '@/features/social/ReviewContent'
 import { ShareSheet } from '@/features/social/ShareSheet'
 import { reviewShareUrl } from '@/features/social/shareLinks'
@@ -511,19 +511,17 @@ function TextCount({ count, limit }: { count: number; limit: number }) {
 function ProfilePost({ post, companionName, imageUrl }: { post: Post; companionName: string; imageUrl?: string }) {
   const theme = useAppTheme()
   const [mediaError, setMediaError] = useState('')
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
 
-  async function openVideo(url: string) {
+  function openVideo(url: string) {
     setMediaError('')
-    try {
-      await Linking.openURL(url)
-    } catch {
-      setMediaError('This post video could not be opened safely.')
-    }
+    setVideoUrl(url)
   }
 
   return <PostCard author={companionName} imageUrl={imageUrl} timestamp={formatMessageTimestamp(post.createdAt)} meta={<AppText variant="caption" color={theme.colors.textMuted}>· {post.likeCount} likes · {post.commentCount} comments</AppText>}>
-    <PostContent body={post.body} media={post.media} onOpenVideo={(url) => void openVideo(url)} />
+    <PostContent body={post.body} media={post.media} onOpenVideo={(url) => openVideo(url)} />
     {mediaError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{mediaError}</AppText> : null}
+    <NativeVideoViewer url={videoUrl} onClose={() => setVideoUrl(null)} />
   </PostCard>
 }
 
