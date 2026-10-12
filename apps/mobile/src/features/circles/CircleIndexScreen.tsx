@@ -15,7 +15,7 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { CircleCard } from './CircleCard'
 import { CirclePreviewCard } from './CirclePreviewCard'
-import { circleIndexPresentation } from './circlePresentation'
+import { circleActionError, circleIndexPresentation } from './circlePresentation'
 
 const pilotRules = [
   'Treat every member with respect.',
@@ -53,7 +53,7 @@ export function CircleIndexScreen() {
       })
       router.replace({ pathname: '/circles/[id]', params: { id: circleId } } as never)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The Circle could not be created.')
+      setError(circleActionError(cause, 'The Circle could not be created.'))
     } finally {
       setBusy(false)
     }

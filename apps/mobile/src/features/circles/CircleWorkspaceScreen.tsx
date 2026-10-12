@@ -1,11 +1,12 @@
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
+import { BlurTargetView } from 'expo-blur'
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useState } from 'react'
-import { Alert, Image, Pressable, StyleSheet, View } from 'react-native'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, Image, Pressable, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import { api as generatedApi } from '../../../../web/convex/_generated/api'
 
-import { mobileApi, type CircleId, type CircleMembershipId, type CommentId, type PostId, type UserId } from '@/backend/client'
+import { mobileApi, type CircleId, type CircleMembershipId, type PostId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Checkbox, TextField } from '@/design-system/atoms/Field'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -14,18 +15,32 @@ import { InlineNotice } from '@/design-system/molecules/FeedbackState'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { StateView } from '@/design-system/molecules/StateView'
 import { Screen } from '@/design-system/templates/Screen'
-import { PostActionBar } from '@/features/social/PostActionBar'
-import { PostCard } from '@/features/social/PostCard'
-import { PollCard } from '@/features/social/PollCard'
+import { ModalPostImageViewer } from '@/features/media/ModalPostImageViewer'
+import { NativeVideoViewer } from '@/features/media/NativeVideoViewer'
+import { PostMediaGrid } from '@/features/social/PostMediaGrid'
+import type { PostViewerImage } from '@/features/social/PostImageViewer'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-import { canRequestCircleMembership, circleAccessPresentation, circleActionError, circleJoinLabel, circleMembershipMessage, circlePreviewSections, circlePrivacySummary, previewDiscussionItems, resolveCirclePrivacySettings, shouldQueryRemovedCircleContent } from './circlePresentation'
+import { canAccessCirclePendingQueue, canRequestCircleMembership, circleAccessPresentation, circleActionError, circleComposerApprovalNotice, circleFeedPageRequestKey, circleJoinLabel, circleMembershipMessage, circlePreviewSections, circlePrivacySummary, circleWorkspaceTabs, dedupeCirclePosts, isNearCircleFeedEnd, mergeCircleRequestedPost, previewDiscussionItems, registerCircleFeedScrollHandler, resolveCirclePrivacySettings, shouldRequestCircleFeedPage, syncCircleFeedRequestState, type CircleFeedRequestState, type CircleWorkspaceTab } from './circlePresentation'
+import { CircleComposer } from './CircleComposer'
 import { CircleEventsSection } from './CircleEventsSection'
+import { CircleFeedFooter } from './CircleFeedFooter'
+import { CircleImageManage } from './CircleImageManage'
+import { CirclePendingQueue } from './CirclePendingQueue'
 import { CirclePinnedPostsSection } from './CirclePinnedPostsSection'
+import { CirclePostCard } from './CirclePostCard'
+import { CircleRemovedContent } from './CircleRemovedContent'
 
 type CircleDetail = Exclude<NonNullable<FunctionReturnType<typeof generatedApi.circles.detail>>, { unavailable: true }>
-type CirclePost = FunctionReturnType<typeof generatedApi.social.circleFeed>['page'][number]
-type WorkspaceTab = 'discussions' | 'about' | 'members' | 'manage'
+
+const workspaceTabLabels: Record<CircleWorkspaceTab, string> = {
+  discussions: 'Posts',
+  about: 'About',
+  members: 'Members',
+  pending: 'Pending',
+  removed: 'Removed',
+  manage: 'Manage',
+}
 
 export function CircleWorkspaceScreen() {
   const params = useLocalSearchParams<{ id: string; postId?: string; commentId?: string }>()
@@ -34,7 +49,7 @@ export function CircleWorkspaceScreen() {
   if (detail === undefined) return <CircleState loading title="Loading Circle" />
   if (detail.unavailable) return <CircleState title="Circle unavailable" detail="This Circle is not open to members right now." />
   const access = circleAccessPresentation({ unavailable: false, membershipState: detail.membershipState, circleState: detail.circleState, canWrite: detail.canWrite })
-  return access === 'preview' ? <CirclePreview detail={detail} circleId={circleId} /> : <MemberCircle detail={detail} circleId={circleId} initialPostId={params.postId} />
+  return access === 'preview' ? <CirclePreview detail={detail} circleId={circleId} /> : <MemberCircle detail={detail} circleId={circleId} initialPostId={params.postId} focusCommentId={params.commentId} />
 }
 
 function CirclePreview({ detail, circleId }: { detail: CircleDetail; circleId: CircleId }) {
@@ -45,16 +60,21 @@ function CirclePreview({ detail, circleId }: { detail: CircleDetail; circleId: C
   const [acknowledged, setAcknowledged] = useState(false)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
+  const feedScrollHandler = useRef<((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | null>(null)
+  const handleFeedScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => feedScrollHandler.current?.(event), [])
+  const registerFeedScroll = useCallback((handler: ((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | null) => {
+    registerCircleFeedScrollHandler(feedScrollHandler, handler)
+  }, [])
   const canRequest = canRequestCircleMembership(detail.membershipState)
 
   async function run(key: string, action: () => Promise<unknown>) {
     setBusy(key); setError('')
-    try { await action() } catch (cause) { setError(cause instanceof Error ? cause.message : 'The action could not be completed.') } finally { setBusy('') }
+    try { await action() } catch (cause) { setError(circleActionError(cause, 'The action could not be completed.')) } finally { setBusy('') }
   }
 
   const privacy = circlePrivacySummary(detail.settings ?? detail)
   const sections = circlePreviewSections(detail)
-  return <Screen contentStyle={styles.screen}>
+  return <Screen contentStyle={styles.screen} onScroll={handleFeedScroll} scrollEventThrottle={160}>
     <AppHeader back title={detail.name} subtitle={`${detail.category} · ${detail.memberCount} members`} />
     {detail.coverUrl ? <Image source={{ uri: detail.coverUrl }} style={styles.cover} accessibilityLabel={`${detail.name} Circle cover`} /> : null}
     <View style={styles.hero}>{detail.iconUrl ? <Image source={{ uri: detail.iconUrl }} style={styles.icon} accessibilityLabel={`${detail.name} Circle icon`} /> : null}<AppText variant="title">{detail.name}</AppText><AppText color={theme.colors.textMuted}>{detail.purpose}</AppText><AppText variant="caption" color={theme.colors.textMuted}>Hosted by {detail.host?.displayName ?? 'Circle host'}</AppText></View>
@@ -66,21 +86,47 @@ function CirclePreview({ detail, circleId }: { detail: CircleDetail; circleId: C
     {canRequest ? <ActionButton label={circleJoinLabel(detail.joinPolicy, detail.membershipState)} intent="social" loading={busy === 'join'} disabled={!acknowledged || Boolean(busy)} onPress={() => void run('join', () => requestJoin({ circleId, rulesAcknowledged: acknowledged }))} /> : null}
     {detail.membershipState === 'requested' ? <ActionButton label="Cancel request" intent="neutral" secondary loading={busy === 'cancel'} onPress={() => void run('cancel', () => cancelJoin({ circleId }))} /> : null}
     {detail.membershipState !== 'banned' ? <ActionButton label="Report Circle" intent="danger" secondary loading={busy === 'report'} onPress={() => Alert.alert('Report this Circle?', 'A platform safety reviewer will inspect the Circle.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Report Circle', style: 'destructive', onPress: () => void run('report', () => report({ targetType: 'circle', targetId: String(circleId), reason: 'Circle needs safety review' })) }])} /> : null}
-    {sections.showDiscussions ? <PreviewDiscussions circleId={circleId} /> : null}
+    {sections.showDiscussions ? <PreviewDiscussions circleId={circleId} onScrollReady={registerFeedScroll} /> : null}
     {sections.showDiscussions ? <CircleEventsSection circleId={circleId} canModerate={false} circleState={detail.circleState} readOnly /> : null}
     {sections.showMembers ? <PreviewMembers circleId={circleId} /> : null}
   </Screen>
 }
 
-function PreviewDiscussions({ circleId }: { circleId: CircleId }) {
+function PreviewDiscussions({ circleId, onScrollReady }: {
+  circleId: CircleId
+  onScrollReady: (handler: ((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | null) => void
+}) {
   const theme = useAppTheme()
   const feed = usePaginatedQuery(mobileApi.social.circleFeed, { circleId }, { initialNumItems: 10 })
-  return <View style={styles.section}>
-    <AppText variant="heading">Recent discussions</AppText>
-    <AppText color={theme.colors.textMuted}>Visible to signed-in members. Join this Circle to post, react, or comment.</AppText>
-    {feed.status === 'LoadingFirstPage' ? <StateView embedded loading title="Loading discussions" /> : feed.results.length === 0 ? <StateView embedded title="No discussions yet" /> : <View style={styles.list}>{previewDiscussionItems(feed.results).map((post) => <View key={post._id} style={[styles.panel, { borderColor: theme.colors.border }]}><AppText variant="bodyStrong">{post.authorDisplayName}</AppText><AppText>{post.body}</AppText></View>)}</View>}
-    {feed.status === 'CanLoadMore' ? <ActionButton label="Load more discussions" intent="social" secondary onPress={() => feed.loadMore(10)} /> : null}
-  </View>
+  const blurTarget = useRef<View>(null)
+  const [viewerImage, setViewerImage] = useState<PostViewerImage | null>(null)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [videoError, setVideoError] = useState('')
+  const requestNextPage = useCircleFeedPagination({
+    circleId,
+    status: feed.status,
+    resultLength: feed.results.length,
+    pageSize: 10,
+    loadMore: feed.loadMore,
+    onScrollReady,
+  })
+
+  function openVideo(url: string) {
+    setVideoError('')
+    setVideoUrl(url)
+  }
+
+  return <>
+    <BlurTargetView ref={blurTarget} importantForAccessibility={viewerImage ? 'no-hide-descendants' : 'auto'} style={styles.section}>
+      <AppText variant="heading">Recent discussions</AppText>
+      <AppText color={theme.colors.textMuted}>Visible to signed-in members. Join this Circle to post, react, or comment.</AppText>
+      {videoError ? <InlineNotice title="Media could not be opened" tone="danger">{videoError}</InlineNotice> : null}
+      {feed.status === 'LoadingFirstPage' ? <StateView embedded loading title="Loading discussions" /> : feed.results.length === 0 ? <StateView embedded title="No discussions yet" /> : <View style={styles.list}>{previewDiscussionItems(feed.results).map((post) => <View key={post._id} style={[styles.panel, { borderColor: theme.colors.border }]}><AppText variant="bodyStrong">{post.authorDisplayName}</AppText><AppText>{post.body}</AppText>{post.media.length > 0 ? <PostMediaGrid media={post.media} onOpenImage={(item, index, total) => setViewerImage({ url: item.url, index, total })} onOpenVideo={(url) => openVideo(url)} /> : null}{post.poll ? <AppText variant="caption" color={theme.colors.textMuted}>Poll: {post.poll.question}</AppText> : null}</View>)}</View>}
+      <CircleFeedFooter status={feed.status} loadLabel="Load more discussions" onLoadMore={requestNextPage} />
+    </BlurTargetView>
+    <ModalPostImageViewer image={viewerImage} blurTarget={blurTarget} onClose={() => setViewerImage(null)} />
+    <NativeVideoViewer url={videoUrl} onClose={() => setVideoUrl(null)} />
+  </>
 }
 
 function PreviewMembers({ circleId }: { circleId: CircleId }) {
@@ -93,24 +139,71 @@ function PreviewMembers({ circleId }: { circleId: CircleId }) {
   </View>
 }
 
-function MemberCircle({ detail, circleId, initialPostId }: { detail: CircleDetail; circleId: CircleId; initialPostId?: string }) {
+function useCircleFeedPagination({ circleId, status, resultLength, pageSize, loadMore, onScrollReady }: {
+  circleId: CircleId
+  status: string
+  resultLength: number
+  pageSize: number
+  loadMore: (count: number) => void
+  onScrollReady?: (handler: ((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | null) => void
+}) {
+  const requestState = useRef<CircleFeedRequestState>({
+    circleId: String(circleId),
+    inFlightKey: null,
+    observedLoading: false,
+  })
+
+  useEffect(() => {
+    requestState.current = syncCircleFeedRequestState(requestState.current, { circleId: String(circleId), status })
+  }, [circleId, status])
+
+  const requestPage = useCallback((nearEnd: boolean) => {
+    const requestKey = circleFeedPageRequestKey({ circleId: String(circleId), pageLength: resultLength })
+    const state = syncCircleFeedRequestState(requestState.current, { circleId: String(circleId), status })
+    requestState.current = state
+    if (!shouldRequestCircleFeedPage({ status, nearEnd, requestKey, inFlightKey: state.inFlightKey })) return
+    requestState.current = { ...state, inFlightKey: requestKey, observedLoading: false }
+    loadMore(pageSize)
+  }, [circleId, loadMore, pageSize, resultLength, status])
+
+  const handleNearEndScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent
+    requestPage(isNearCircleFeedEnd({
+      layoutHeight: layoutMeasurement.height,
+      contentHeight: contentSize.height,
+      offsetY: contentOffset.y,
+    }))
+  }, [requestPage])
+
+  useEffect(() => {
+    onScrollReady?.(handleNearEndScroll)
+    return () => onScrollReady?.(null)
+  }, [handleNearEndScroll, onScrollReady])
+
+  return useCallback(() => requestPage(true), [requestPage])
+}
+
+function MemberCircle({ detail, circleId, initialPostId, focusCommentId }: { detail: CircleDetail; circleId: CircleId; initialPostId?: string; focusCommentId?: string }) {
   const theme = useAppTheme()
-  const [tab, setTab] = useState<WorkspaceTab>('discussions')
+  const [tab, setTab] = useState<CircleWorkspaceTab>('discussions')
   const setMuted = useMutation(mobileApi.circles.setMuted)
   const leave = useMutation(mobileApi.circles.leave)
   const acceptTransfer = useMutation(mobileApi.circles.acceptHostTransfer)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const options = [
-    { value: 'discussions' as const, label: 'Posts' },
-    { value: 'about' as const, label: 'About' },
-    { value: 'members' as const, label: 'Members' },
-    ...(detail.isCanonicalHost ? [{ value: 'manage' as const, label: 'Manage' }] : []),
-  ]
+  const tabs = circleWorkspaceTabs({ canModerate: detail.canModerate, isCanonicalHost: detail.isCanonicalHost })
+  const options = tabs.map((value) => ({ value, label: workspaceTabLabels[value] }))
 
-  async function run(action: () => Promise<unknown>) { setBusy(true); setError(''); try { await action() } catch (cause) { setError(cause instanceof Error ? cause.message : 'The Circle action could not be completed.') } finally { setBusy(false) } }
+  async function run(action: () => Promise<unknown>) { setBusy(true); setError(''); try { await action() } catch (cause) { setError(circleActionError(cause, 'The Circle action could not be completed.')) } finally { setBusy(false) } }
+  const feedScrollHandler = useRef<((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | null>(null)
+  const handleFeedScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => feedScrollHandler.current?.(event), [])
+  const registerFeedScroll = useCallback((handler: ((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | null) => {
+    registerCircleFeedScrollHandler(feedScrollHandler, handler)
+  }, [])
 
-  return <Screen contentStyle={styles.screen}>
+  const showPendingQueue = tab === 'pending' && canAccessCirclePendingQueue({ canModerate: detail.canModerate, circleState: detail.circleState })
+
+  return <Screen contentStyle={styles.screen} onScroll={handleFeedScroll} scrollEventThrottle={160}>
     <AppHeader back title={detail.name} subtitle={`${detail.category} · ${detail.memberCount} members`} />
     {detail.coverUrl ? <Image source={{ uri: detail.coverUrl }} style={styles.cover} accessibilityLabel={`${detail.name} Circle cover`} /> : null}
     <View style={styles.hero}>{detail.iconUrl ? <Image source={{ uri: detail.iconUrl }} style={styles.icon} accessibilityLabel={`${detail.name} Circle icon`} /> : null}<AppText color={theme.colors.textMuted}>{detail.purpose}</AppText><View style={styles.row}>{detail.circleState === 'archived' ? <AppText variant="caption" color={theme.colors.warning}>Archived, read-only</AppText> : null}{detail.role !== 'member' ? <AppText variant="caption" color={theme.colors.socialText}>{detail.role}</AppText> : null}{detail.joinPolicy === 'open' ? <AppText variant="caption" color={theme.colors.socialText}>Open join</AppText> : null}</View></View>
@@ -118,31 +211,47 @@ function MemberCircle({ detail, circleId, initialPostId }: { detail: CircleDetai
     {detail.pendingTransferForViewer ? <InlineNotice title="Host invitation" tone="neutral">You have been invited to host this Circle.<ActionButton label="Accept ownership" intent="neutral" compact onPress={() => Alert.alert('Accept Circle ownership?', 'You will become responsible for membership, rules, and moderation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Accept ownership', onPress: () => void run(() => acceptTransfer({ circleId })) }])} /></InlineNotice> : null}
     <View style={styles.row}><ActionButton compact label={detail.muted ? 'Unmute' : 'Mute'} intent="neutral" secondary loading={busy} onPress={() => void run(() => setMuted({ circleId, muted: !detail.muted }))} />{!detail.isCanonicalHost ? <ActionButton compact label="Leave Circle" intent="danger" secondary disabled={busy} onPress={() => Alert.alert('Leave this Circle?', 'You will lose access to discussions and the member list.', [{ text: 'Stay', style: 'cancel' }, { text: 'Leave Circle', style: 'destructive', onPress: () => void run(() => leave({ circleId })) }])} /> : null}</View>
     <SegmentedControl label="Circle sections" options={options} value={tab} onChange={setTab} tone={tab === 'manage' ? 'self' : 'social'} />
-    {tab === 'discussions' ? <CircleDiscussions circleId={circleId} canWrite={detail.canWrite} canModerate={detail.canModerate} circleState={detail.circleState} pinnedPostIds={detail.pinnedPostIds} initialPostId={initialPostId} /> : null}
+    {tab === 'discussions' ? <CircleDiscussions circleId={circleId} canWrite={detail.canWrite} canModerate={detail.canModerate} circleState={detail.circleState} pinnedPostIds={detail.pinnedPostIds} postApproval={detail.settings?.postApproval} initialPostId={initialPostId} focusCommentId={focusCommentId} onScrollReady={registerFeedScroll} /> : null}
     {tab === 'about' ? <CircleAbout detail={detail} circleId={circleId} /> : null}
     {tab === 'members' ? <CircleMembers circleId={circleId} canModerate={detail.canModerate} /> : null}
+    {showPendingQueue ? <CirclePendingQueue circleId={circleId} /> : null}
+    {tab === 'removed' && detail.canModerate ? <CircleRemovedContent circleId={circleId} circleState={detail.circleState} /> : null}
     {tab === 'manage' && detail.isCanonicalHost ? <CircleManage circleId={circleId} /> : null}
   </Screen>
 }
 
-function CircleDiscussions({ circleId, canWrite, canModerate, circleState, pinnedPostIds, initialPostId }: { circleId: CircleId; canWrite: boolean; canModerate: boolean; circleState: 'active' | 'archived' | 'suspended'; pinnedPostIds: string[]; initialPostId?: string }) {
-  const theme = useAppTheme()
-  const feed = usePaginatedQuery(mobileApi.social.circleFeed, { circleId }, { initialNumItems: 20 })
-  const createPost = useMutation(mobileApi.social.createPost)
+function CircleDiscussions({ circleId, canWrite, canModerate, circleState, pinnedPostIds, postApproval, initialPostId, focusCommentId, onScrollReady }: {
+  circleId: CircleId
+  canWrite: boolean
+  canModerate: boolean
+  circleState: 'active' | 'archived' | 'suspended'
+  pinnedPostIds: string[]
+  postApproval?: 'off' | 'approval_required'
+  initialPostId?: string
+  focusCommentId?: string
+  onScrollReady?: (handler: ((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | null) => void
+}) {
+  const feed = usePaginatedQuery(mobileApi.social.circleFeed, { circleId }, { initialNumItems: 15 })
+  const requested = useQuery(mobileApi.social.requestedPost, initialPostId ? { postId: initialPostId } : 'skip')
   const pinPost = useMutation(mobileApi.circles.pinPost)
   const unpinPost = useMutation(mobileApi.circles.unpinPost)
-  const [body, setBody] = useState('')
-  const [announcement, setAnnouncement] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [selectedPost, setSelectedPost] = useState<string | null>(initialPostId ?? null)
-  useEffect(() => { if (initialPostId && feed.results.some((post) => String(post._id) === initialPostId)) setSelectedPost(initialPostId) }, [feed.results, initialPostId])
-
-  async function publish() {
-    if (!body.trim() || busy || !canWrite) return
-    setBusy(true); setError('')
-    try { await createPost({ body, circleId, circleKind: announcement ? 'announcement' : 'discussion' }); setBody('') } catch (cause) { setError(cause instanceof Error ? cause.message : 'The post could not be published.') } finally { setBusy(false) }
-  }
+  const posts = useMemo(
+    () => dedupeCirclePosts(mergeCircleRequestedPost(feed.results, requested === null ? undefined : requested, String(circleId))),
+    [feed.results, requested, circleId],
+  )
+  useEffect(() => {
+    if (initialPostId && posts.some((post) => String(post._id) === initialPostId)) setSelectedPost(initialPostId)
+  }, [posts, initialPostId])
+  const requestNextPage = useCircleFeedPagination({
+    circleId,
+    status: feed.status,
+    resultLength: feed.results.length,
+    pageSize: 15,
+    loadMore: feed.loadMore,
+    onScrollReady,
+  })
 
   async function togglePin(postId: PostId, pinned: boolean) {
     setError('')
@@ -157,35 +266,17 @@ function CircleDiscussions({ circleId, canWrite, canModerate, circleState, pinne
   return <View style={styles.section}>
     <CircleEventsSection circleId={circleId} canModerate={canModerate} circleState={circleState} />
     <CirclePinnedPostsSection circleId={circleId} canModerate={canModerate} circleState={circleState} />
-    {canWrite ? <View style={[styles.panel, { borderColor: theme.colors.border }]}><AppText variant="heading">Start a discussion</AppText><TextField multiline value={body} maxLength={1000} placeholder="Share something with this Circle" onChangeText={setBody} />{canModerate ? <Checkbox label="Post as an announcement" checked={announcement} onChange={setAnnouncement} /> : null}<ActionButton label="Publish" intent="social" loading={busy} disabled={!body.trim()} onPress={() => void publish()} /></View> : <InlineNotice title="Read-only Circle" tone="neutral">Posts, comments, reactions, and saves are unavailable while this Circle is archived.</InlineNotice>}
+    <CircleComposer
+      circleId={circleId}
+      canModerate={canModerate}
+      approvalNotice={circleComposerApprovalNotice({ postApproval, canModerate })}
+      disabled={!canWrite}
+    />
     {error ? <InlineNotice title="Post action failed" tone="danger">{error}</InlineNotice> : null}
-    {feed.status === 'LoadingFirstPage' ? <StateView embedded loading title="Loading discussions" /> : feed.results.length === 0 ? <StateView embedded title="No discussions yet" detail={canWrite ? 'Start the first conversation.' : 'This Circle has no visible posts.'} /> : <View style={styles.list}>{feed.results.map((post) => <CirclePostCard key={post._id} post={post} canWrite={canWrite} canModerate={canModerate} pinned={pinnedPostIds.some((id) => id === String(post._id))} onTogglePin={() => void togglePin(post._id as PostId, pinnedPostIds.some((id) => id === String(post._id)))} expanded={selectedPost === String(post._id)} onToggleComments={() => setSelectedPost((current) => current === String(post._id) ? null : String(post._id))} />)}</View>}
-    {feed.status === 'CanLoadMore' ? <ActionButton label="Load more discussions" intent="social" secondary onPress={() => feed.loadMore(20)} /> : null}
+    {initialPostId && requested === null ? <InlineNotice title="Requested post unavailable" tone="neutral">That post is no longer visible. It may have been removed or not approved.</InlineNotice> : null}
+    {feed.status === 'LoadingFirstPage' ? <StateView embedded loading title="Loading discussions" /> : posts.length === 0 ? <StateView embedded title="No discussions yet" detail={canWrite ? 'Start the first conversation.' : 'This Circle has no visible posts.'} /> : <View style={styles.list}>{posts.map((post) => <CirclePostCard key={post._id} post={post} canWrite={canWrite} canModerate={canModerate} pinned={pinnedPostIds.some((id) => id === String(post._id))} onTogglePin={() => void togglePin(post._id as PostId, pinnedPostIds.some((id) => id === String(post._id)))} expanded={selectedPost === String(post._id)} focusCommentId={selectedPost === String(post._id) && String(post._id) === initialPostId ? focusCommentId : undefined} onToggleComments={() => setSelectedPost((current) => current === String(post._id) ? null : String(post._id))} />)}</View>}
+    <CircleFeedFooter status={feed.status} loadLabel="Load more discussions" onLoadMore={requestNextPage} />
   </View>
-}
-
-function CirclePostCard({ post, canWrite, canModerate, pinned, onTogglePin, expanded, onToggleComments }: { post: CirclePost; canWrite: boolean; canModerate: boolean; pinned: boolean; onTogglePin: () => void; expanded: boolean; onToggleComments: () => void }) {
-  const theme = useAppTheme()
-  const toggleLike = useMutation(mobileApi.social.toggleLike)
-  const toggleSave = useMutation(mobileApi.social.toggleSavePost)
-  const voteOnPoll = useMutation(mobileApi.social.voteOnPoll)
-  const remove = useMutation(mobileApi.circles.setPostRemoved)
-  const report = useMutation(mobileApi.reports.create)
-  const [error, setError] = useState('')
-  const date = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(post.createdAt)
-  const meta = <>{post.circleKind === 'announcement' ? <AppText variant="caption" color={theme.colors.socialText}>Announcement</AppText> : null}{pinned ? <AppText variant="caption" color={theme.colors.socialText}>Pinned</AppText> : null}</>
-  return <View><PostCard author={post.authorDisplayName} username={post.authorUsername} imageUrl={post.authorProfileImageUrl} timestamp={date} meta={meta} headerAction={canModerate ? <View style={styles.row}><ActionButton label={pinned ? 'Unpin post' : 'Pin post'} compact intent="neutral" secondary onPress={onTogglePin} /><ActionButton label="Moderate post" compact intent="danger" secondary onPress={() => Alert.alert('Remove this post?', 'Members will no longer see it. The moderation queue can restore it.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove post', style: 'destructive', onPress: () => void remove({ postId: post._id as PostId, removed: true }).catch(() => setError('The post could not be removed.')) }])} /></View> : !post.ownPost ? <ActionButton label="Report post" compact intent="danger" secondary onPress={() => void report({ targetType: 'post', targetId: String(post._id), reason: 'Circle post needs safety review' }).catch(() => setError('The report could not be sent.'))} /> : null} footer={<PostActionBar liked={post.liked} likeCount={post.likeCount} saved={post.saved} commentCount={post.commentCount} disabled={!canWrite} commentLabel="View comments" onLike={() => { if (canWrite) void toggleLike({ postId: post._id as PostId }).catch(() => setError('The reaction could not be updated.')) }} onSave={() => { if (canWrite) void toggleSave({ postId: post._id as PostId }).catch(() => setError('The saved post could not be updated.')) }} onComment={onToggleComments} />}><AppText>{post.body}</AppText>{post.poll ? <PollCard poll={post.poll} disabled={!canWrite} onVote={async (optionId) => { await voteOnPoll({ postId: post._id as PostId, optionId }) }} /> : null}</PostCard>{error ? <InlineNotice title="Post action failed" tone="danger">{error}</InlineNotice> : null}{expanded ? <CircleComments postId={post._id as PostId} canWrite={canWrite} canModerate={canModerate} /> : null}</View>
-}
-
-function CircleComments({ postId, canWrite, canModerate }: { postId: PostId; canWrite: boolean; canModerate: boolean }) {
-  const theme = useAppTheme()
-  const comments = useQuery(mobileApi.social.commentsForPost, { postId })
-  const create = useMutation(mobileApi.social.createComment)
-  const remove = useMutation(mobileApi.circles.setCommentRemoved)
-  const report = useMutation(mobileApi.reports.create)
-  const [body, setBody] = useState('')
-  const [error, setError] = useState('')
-  return <View style={[styles.comments, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>{comments === undefined ? <AppText>Loading comments...</AppText> : comments.length === 0 ? <AppText color={theme.colors.textMuted}>No comments yet.</AppText> : comments.map((comment) => <View key={comment._id} style={styles.comment}><View style={styles.sectionTitle}><AppText variant="bodyStrong">{comment.authorDisplayName}</AppText>{canModerate ? <ActionButton compact label={`Remove ${comment.authorDisplayName}'s comment`} intent="danger" secondary onPress={() => Alert.alert('Remove this comment?', 'Members will no longer see it.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove comment', style: 'destructive', onPress: () => void remove({ commentId: comment._id as CommentId, removed: true }).catch(() => setError('The comment could not be removed.')) }])} /> : !comment.ownComment ? <ActionButton compact label="Report comment" intent="danger" secondary onPress={() => void report({ targetType: 'comment', targetId: String(comment._id), reason: 'Circle comment needs safety review' }).catch(() => setError('The report could not be sent.'))} /> : null}</View><AppText>{comment.body}</AppText></View>)}{canWrite ? <View style={styles.row}><TextField style={styles.flex} value={body} maxLength={500} placeholder="Write a comment" onChangeText={setBody} /><ActionButton compact label="Comment" intent="social" disabled={!body.trim()} onPress={() => void create({ postId, body }).then(() => setBody('')).catch(() => setError('The comment could not be posted.'))} /></View> : null}{error ? <AppText color={theme.colors.danger}>{error}</AppText> : null}</View>
 }
 
 function CircleAbout({ detail, circleId }: { detail: CircleDetail; circleId: CircleId }) {
@@ -217,7 +308,7 @@ function CircleMembers({ circleId, canModerate }: { circleId: CircleId; canModer
       setError(circleActionError(cause, 'The member action could not be completed.'))
     }
   }
-  return <View style={styles.section}>{error ? <InlineNotice title="Member action failed" tone="danger">{error}</InlineNotice> : null}{canModerate ? <><AppText variant="heading">Join requests</AppText>{requests === undefined ? <AppText>Loading requests...</AppText> : requests.length === 0 ? <AppText color={theme.colors.textMuted}>No pending requests.</AppText> : requests.map((request) => <MemberRow key={request.membershipId} name={request.displayName} detail={request.username ? `@${request.username}` : 'Member'} actions={<View style={styles.row}><ActionButton compact label={`Approve ${request.displayName}`} intent="neutral" onPress={() => void run(() => decide({ membershipId: request.membershipId as CircleMembershipId, decision: 'approve' }))} /><ActionButton compact label={`Reject ${request.displayName}`} intent="danger" secondary onPress={() => Alert.alert(`Reject ${request.displayName}?`, 'They can request to join again later.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Reject request', style: 'destructive', onPress: () => void run(() => decide({ membershipId: request.membershipId as CircleMembershipId, decision: 'reject' })) }])} /></View>} />)}</> : null}<AppText variant="heading">Members</AppText>{members === undefined ? <AppText>Loading members...</AppText> : members.map((member) => <MemberRow key={member.membershipId} name={member.displayName} detail={`${member.username ? `@${member.username} · ` : ''}${member.role}`} actions={canModerate && member.role === 'member' ? <View style={styles.row}><ActionButton compact label={`Remove ${member.displayName}`} intent="danger" secondary onPress={() => Alert.alert(`Remove ${member.displayName}?`, 'They lose access but can request to join again.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove member', style: 'destructive', onPress: () => void run(() => moderate({ membershipId: member.membershipId as CircleMembershipId, action: 'remove' })) }])} /><ActionButton compact label={`Ban ${member.displayName}`} intent="danger" secondary onPress={() => Alert.alert(`Ban ${member.displayName}?`, 'They lose access and cannot request to join until the host unbans them.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Ban member', style: 'destructive', onPress: () => void run(() => moderate({ membershipId: member.membershipId as CircleMembershipId, action: 'ban' })) }])} /></View> : undefined} />)}</View>
+  return <View style={styles.section}>{error ? <InlineNotice title="Member action failed" tone="danger">{error}</InlineNotice> : null}{canModerate ? <><AppText variant="heading">Join requests</AppText>{requests === undefined ? <AppText>Loading requests...</AppText> : requests.length === 0 ? <AppText color={theme.colors.textMuted}>No pending requests.</AppText> : requests.map((request) => <MemberRow key={request.membershipId} name={request.displayName} detail={request.username ? `@${request.username}` : 'Member'} actions={<View style={styles.row}><ActionButton compact label={`Approve ${request.displayName}`} intent="neutral" onPress={() => void run(() => decide({ membershipId: request.membershipId as CircleMembershipId, decision: 'approve' }))} /><ActionButton compact label={`Reject ${request.displayName}`} intent="danger" secondary onPress={() => Alert.alert(`Reject ${request.displayName}?`, 'They can request to join again later.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Reject request', style: 'destructive', onPress: () => void run(() => decide({ membershipId: request.membershipId as CircleMembershipId, decision: 'reject' })) }])} /></View>} />)}</> : null}<AppText variant="heading">Members</AppText>{members === undefined ? <AppText>Loading members...</AppText> : members.map((member) => <MemberRow key={member.membershipId} name={member.displayName} detail={`${member.username ? `@${member.username} · ` : ''}${member.role}`} actions={canModerate && member.role === 'member' ? <View style={styles.row}><ActionButton compact label={`Remove ${member.displayName}`} intent="danger" secondary onPress={() => Alert.alert(`Remove ${member.displayName}?`, 'They lose access but can request to join again.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove member', style: 'destructive', onPress: () => void run(() => moderate({ membershipId: member.membershipId as CircleMembershipId, action: 'remove' })) }])} /><ActionButton compact label={`Ban ${member.displayName}`} intent="danger" onPress={() => Alert.alert(`Ban ${member.displayName}?`, 'They lose access and cannot request to rejoin.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Ban member', style: 'destructive', onPress: () => void run(() => moderate({ membershipId: member.membershipId as CircleMembershipId, action: 'ban' })) }])} /></View> : undefined} />)}</View>
 }
 
 function MemberRow({ name, detail, actions }: { name: string; detail: string; actions?: React.ReactNode }) { const theme = useAppTheme(); return <View style={[styles.member, { borderColor: theme.colors.border }]}><View style={styles.flex}><AppText variant="bodyStrong">{name}</AppText><AppText variant="caption" color={theme.colors.textMuted}>{detail}</AppText></View>{actions}</View> }
@@ -232,21 +323,17 @@ function CircleManage({ circleId }: { circleId: CircleId }) {
   const transfer = useMutation(mobileApi.circles.initiateHostTransfer)
   const cancelTransfer = useMutation(mobileApi.circles.cancelHostTransfer)
   const setState = useMutation(mobileApi.circles.setState)
-  const removed = useQuery(mobileApi.circles.removedContent, shouldQueryRemovedCircleContent(management?.circle.state) ? { circleId } : 'skip')
-  const restorePost = useMutation(mobileApi.circles.setPostRemoved)
-  const restoreComment = useMutation(mobileApi.circles.setCommentRemoved)
   const [form, setForm] = useState<{ name: string; purpose: string; category: string; rules: string; mode: 'online' | 'in_person' | 'both'; approximateArea: string } | null>(null)
   const [error, setError] = useState('')
   useEffect(() => { if (management && !form) setForm({ ...management.circle, rules: management.circle.rules.join('\n'), approximateArea: management.circle.approximateArea ?? '' }) }, [form, management])
   if (management === undefined || !form) return <StateView embedded loading title="Loading Circle management" />
-  const act = (action: Promise<unknown>) => void action.catch((cause) => setError(cause instanceof Error ? cause.message : 'The setting could not be updated.'))
+  const act = (action: Promise<unknown>) => void action.catch((cause) => setError(circleActionError(cause, 'The setting could not be updated.')))
   const privacy = resolveCirclePrivacySettings(management.circle.settings)
-  return <View style={styles.section}>{error ? <InlineNotice title="Management action failed" tone="danger">{error}</InlineNotice> : null}<View style={[styles.panel, { borderColor: theme.colors.border }]}><AppText variant="heading">Privacy settings</AppText><AppText color={theme.colors.textMuted}>Listed Circles appear in Discover. Unlisted Circles stay reachable by direct link. Signed-in visibility lets eligible members read before joining. Only active members can post or moderate.</AppText><PrivacyChoice label="Discoverability" options={[{ value: 'listed', label: 'Listed' }, { value: 'unlisted', label: 'Unlisted' }]} value={privacy.discoverability} disabled={management.circle.state !== 'active'} onChange={(discoverability) => act(updateSettings({ circleId, discoverability, discussionVisibility: privacy.discussionVisibility, memberListVisibility: privacy.memberListVisibility, joinPolicy: privacy.joinPolicy, postApproval: privacy.postApproval }))} /><PrivacyChoice label="Discussions" options={[{ value: 'members_only', label: 'Members only' }, { value: 'signed_in', label: 'Signed-in' }]} value={privacy.discussionVisibility} disabled={management.circle.state !== 'active'} onChange={(discussionVisibility) => act(updateSettings({ circleId, discoverability: privacy.discoverability, discussionVisibility, memberListVisibility: privacy.memberListVisibility, joinPolicy: privacy.joinPolicy, postApproval: privacy.postApproval }))} /><PrivacyChoice label="Member list" options={[{ value: 'members_only', label: 'Members only' }, { value: 'signed_in', label: 'Signed-in' }]} value={privacy.memberListVisibility} disabled={management.circle.state !== 'active'} onChange={(memberListVisibility) => act(updateSettings({ circleId, discoverability: privacy.discoverability, discussionVisibility: privacy.discussionVisibility, memberListVisibility, joinPolicy: privacy.joinPolicy, postApproval: privacy.postApproval }))} /><PrivacyChoice label="Join policy" options={[{ value: 'approval_required', label: 'Approval' }, { value: 'open', label: 'Open' }]} value={privacy.joinPolicy} disabled={management.circle.state !== 'active'} onChange={(joinPolicy) => act(updateSettings({ circleId, discoverability: privacy.discoverability, discussionVisibility: privacy.discussionVisibility, memberListVisibility: privacy.memberListVisibility, joinPolicy, postApproval: privacy.postApproval }))} /><PrivacyChoice label="Post approval" options={[{ value: 'off', label: 'Off' }, { value: 'approval_required', label: 'Approval' }]} value={privacy.postApproval} disabled={management.circle.state !== 'active'} onChange={(postApproval) => act(updateSettings({ circleId, discoverability: privacy.discoverability, discussionVisibility: privacy.discussionVisibility, memberListVisibility: privacy.memberListVisibility, joinPolicy: privacy.joinPolicy, postApproval }))} /></View>
-    <View style={[styles.panel, { borderColor: theme.colors.border }]}><AppText variant="heading">Circle images</AppText>{management.circle.iconUrl || management.circle.coverUrl ? <AppText color={theme.colors.textMuted}>This Circle has custom images.</AppText> : <AppText color={theme.colors.textMuted}>No custom images yet.</AppText>}<AppText color={theme.colors.textMuted}>Circle icon and cover editing is available on web only.</AppText></View>
+  return <View style={styles.section}>{error ? <InlineNotice title="Management action failed" tone="danger">{error}</InlineNotice> : null}<View style={[styles.panel, { borderColor: theme.colors.border }]}><AppText variant="heading">Privacy settings</AppText><AppText color={theme.colors.textMuted}>Listed Circles appear in Discover. Unlisted Circles stay reachable by direct link. Signed-in visibility lets eligible members read before joining. Only active members can post or moderate.</AppText><PrivacyChoice label="Discoverability" options={[{ value: 'listed', label: 'Listed' }, { value: 'unlisted', label: 'Unlisted' }]} value={privacy.discoverability} disabled={management.circle.state !== 'active'} onChange={(discoverability) => act(updateSettings({ circleId, discoverability, discussionVisibility: privacy.discussionVisibility, memberListVisibility: privacy.memberListVisibility, joinPolicy: privacy.joinPolicy, postApproval: privacy.postApproval }))} /><PrivacyChoice label="Discussions" options={[{ value: 'members_only', label: 'Members only' }, { value: 'signed_in', label: 'Signed-in' }]} value={privacy.discussionVisibility} disabled={management.circle.state !== 'active'} onChange={(discussionVisibility) => act(updateSettings({ circleId, discoverability: privacy.discoverability, discussionVisibility, memberListVisibility: privacy.memberListVisibility, joinPolicy: privacy.joinPolicy, postApproval: privacy.postApproval }))} /><PrivacyChoice label="Member list" options={[{ value: 'members_only', label: 'Members only' }, { value: 'signed_in', label: 'Signed-in' }]} value={privacy.memberListVisibility} disabled={management.circle.state !== 'active'} onChange={(memberListVisibility) => act(updateSettings({ circleId, discoverability: privacy.discoverability, discussionVisibility: privacy.discussionVisibility, memberListVisibility, joinPolicy: privacy.joinPolicy, postApproval: privacy.postApproval }))} /><PrivacyChoice label="Join policy" options={[{ value: 'approval_required', label: 'Approval required' }, { value: 'open', label: 'Open' }]} value={privacy.joinPolicy} disabled={management.circle.state !== 'active'} onChange={(joinPolicy) => act(updateSettings({ circleId, discoverability: privacy.discoverability, discussionVisibility: privacy.discussionVisibility, memberListVisibility: privacy.memberListVisibility, joinPolicy, postApproval: privacy.postApproval }))} /><PrivacyChoice label="Post approval" options={[{ value: 'off', label: 'Off' }, { value: 'approval_required', label: 'Approval required' }]} value={privacy.postApproval} disabled={management.circle.state !== 'active'} onChange={(postApproval) => act(updateSettings({ circleId, discoverability: privacy.discoverability, discussionVisibility: privacy.discussionVisibility, memberListVisibility: privacy.memberListVisibility, joinPolicy: privacy.joinPolicy, postApproval }))} /></View>
+    <CircleImageManage circleId={circleId} iconUrl={management.circle.iconUrl} coverUrl={management.circle.coverUrl} active={management.circle.state === 'active'} />
     <View style={[styles.panel, { borderColor: theme.colors.border }]}><AppText variant="heading">Circle settings</AppText><LabeledField label="Name"><TextField value={form.name} maxLength={80} onChangeText={(name) => setForm({ ...form, name })} /></LabeledField><LabeledField label="Purpose"><TextField multiline value={form.purpose} maxLength={500} onChangeText={(purpose) => setForm({ ...form, purpose })} /></LabeledField><LabeledField label="Category"><TextField value={form.category} maxLength={60} onChangeText={(category) => setForm({ ...form, category })} /></LabeledField><LabeledField label="Approximate area"><TextField value={form.approximateArea} maxLength={80} onChangeText={(approximateArea) => setForm({ ...form, approximateArea })} /></LabeledField><LabeledField label="Rules"><TextField multiline value={form.rules} onChangeText={(rules) => setForm({ ...form, rules })} /></LabeledField><View style={styles.row}>{(['online', 'in_person', 'both'] as const).map((mode) => <ActionButton key={mode} compact label={mode === 'in_person' ? 'In person' : mode === 'both' ? 'Both' : 'Online'} intent="self" secondary={form.mode !== mode} onPress={() => setForm({ ...form, mode })} />)}</View><ActionButton label="Save settings" intent="self" disabled={management.circle.state !== 'active'} onPress={() => act(edit({ circleId, ...form, approximateArea: form.approximateArea.trim() || undefined, rules: form.rules.split('\n').map((rule) => rule.trim()).filter(Boolean) }))} /></View>
-    <AppText variant="heading">Roles and ownership</AppText>{management.pendingTransfer ? <InlineNotice title="Ownership transfer pending" tone="neutral">Offered to {management.pendingTransfer.displayName}.<ActionButton compact label="Cancel ownership transfer" intent="neutral" disabled={management.circle.state !== 'active'} onPress={() => Alert.alert('Cancel ownership transfer?', 'The recipient will no longer be able to accept it.', [{ text: 'Keep transfer', style: 'cancel' }, { text: 'Cancel transfer', onPress: () => act(cancelTransfer({ circleId })) }])} /></InlineNotice> : null}{management.activeMembers.filter((member) => member.role !== 'host').map((member) => <MemberRow key={member.membershipId} name={member.displayName} detail={`${member.username ? `@${member.username} · ` : ''}${member.role}`} actions={<View style={styles.row}>{member.role === 'moderator' ? <ActionButton compact label={`Remove ${member.displayName} as moderator`} intent="neutral" secondary disabled={management.circle.state !== 'active'} onPress={() => Alert.alert(`Remove ${member.displayName} as moderator?`, 'They keep Circle membership but lose moderation access.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove moderator', onPress: () => act(setModerator({ membershipId: member.membershipId as CircleMembershipId, moderator: false })) }])} /> : <ActionButton compact label={`Make ${member.displayName} a moderator`} intent="neutral" disabled={!member.trustedRoleEligible || management.circle.state !== 'active'} onPress={() => act(setModerator({ membershipId: member.membershipId as CircleMembershipId, moderator: true }))} />}{member.trustedRoleEligible && !management.pendingTransfer && management.circle.state === 'active' ? <ActionButton compact label={`Offer ownership to ${member.displayName}`} intent="neutral" secondary onPress={() => Alert.alert(`Offer ownership to ${member.displayName}?`, 'They must accept before your host role changes.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Offer ownership', onPress: () => act(transfer({ circleId, recipientUserId: member.userId as UserId })) }])} /> : null}</View>} />)}
+    <AppText variant="heading">Roles and ownership</AppText>{management.pendingTransfer ? <InlineNotice title="Ownership transfer pending" tone="neutral">Offered to {management.pendingTransfer.displayName}.<ActionButton compact label="Cancel ownership transfer" intent="neutral" disabled={management.circle.state !== 'active'} onPress={() => Alert.alert('Cancel ownership transfer?', 'The recipient will no longer be able to accept it.', [{ text: 'Keep transfer', style: 'cancel' }, { text: 'Cancel transfer', onPress: () => act(cancelTransfer({ circleId })) }])} /></InlineNotice> : null}{management.activeMembers.filter((member) => member.role !== 'host').map((member) => <MemberRow key={member.membershipId} name={member.displayName} detail={`${member.username ? `@${member.username} · ` : ''}${member.role}`} actions={<View style={styles.row}>{member.role === 'moderator' ? <ActionButton compact label={`Remove ${member.displayName} as moderator`} intent="neutral" secondary disabled={management.circle.state !== 'active'} onPress={() => Alert.alert(`Remove ${member.displayName} as moderator?`, 'They keep Circle membership but lose moderation access.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove moderator', onPress: () => act(setModerator({ membershipId: member.membershipId as CircleMembershipId, moderator: false })) }])} /> : <ActionButton compact label={`Make ${member.displayName} a moderator`} intent="neutral" disabled={!member.trustedRoleEligible || management.circle.state !== 'active'} onPress={() => act(setModerator({ membershipId: member.membershipId as CircleMembershipId, moderator: true }))} />}{member.trustedRoleEligible && !management.pendingTransfer && management.circle.state === 'active' ? <ActionButton compact label={`Offer ownership to ${member.displayName}`} intent="neutral" secondary onPress={() => Alert.alert(`Offer ownership to ${member.displayName}?`, 'They must accept before your host role changes.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Offer ownership', onPress: () => act(transfer({ circleId, recipientUserId: member.userId })) }])} /> : null}</View>} />)}
     <AppText variant="heading">Banned members</AppText>{management.bannedMembers.length === 0 ? <AppText color={theme.colors.textMuted}>No banned members.</AppText> : management.bannedMembers.map((member) => <MemberRow key={member.membershipId} name={member.displayName} detail={member.username ? `@${member.username}` : 'Member'} actions={<ActionButton compact label={`Unban ${member.displayName}`} intent="neutral" disabled={management.circle.state !== 'active'} onPress={() => Alert.alert(`Unban ${member.displayName}?`, 'They can request to join again.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Unban member', onPress: () => act(unban({ membershipId: member.membershipId as CircleMembershipId })) }])} />} />)}
-    <AppText variant="heading">Removed content</AppText>{management.circle.state !== 'active' ? <AppText color={theme.colors.textMuted}>Reactivate this Circle to review and restore removed content.</AppText> : removed === undefined ? <AppText>Loading removed content...</AppText> : removed.length === 0 ? <AppText color={theme.colors.textMuted}>No removed content.</AppText> : removed.map((item) => <MemberRow key={`${item.kind}-${item.id}`} name={item.kind === 'post' ? 'Removed post' : 'Removed comment'} detail={item.body} actions={<ActionButton compact label={`Restore ${item.kind}`} intent="neutral" onPress={() => act(item.kind === 'post' ? restorePost({ postId: item.id as PostId, removed: false }) : restoreComment({ commentId: item.id as CommentId, removed: false }))} />} />)}
     <AppText variant="heading">Circle lifecycle</AppText><ActionButton label={management.circle.state === 'archived' ? 'Reactivate Circle' : 'Archive Circle'} intent={management.circle.state === 'archived' ? 'self' : 'danger'} secondary={management.circle.state !== 'archived'} onPress={() => { const state = management.circle.state === 'archived' ? 'active' : 'archived'; Alert.alert(state === 'archived' ? 'Archive this Circle?' : 'Reactivate this Circle?', state === 'archived' ? 'Members keep read-only access until you reactivate it.' : 'Members can post and manage requests again.', [{ text: 'Cancel', style: 'cancel' }, { text: state === 'archived' ? 'Archive Circle' : 'Reactivate Circle', style: state === 'archived' ? 'destructive' : 'default', onPress: () => act(setState({ circleId, state })) }]) }} />
   </View>
 }
