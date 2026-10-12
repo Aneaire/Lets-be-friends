@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-native-web-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { useState } from 'react'
 
+import { emptyPollDraft, type PollDraft } from './PollComposer'
 import { PostComposer, type PostComposerMention } from './PostComposer'
 import type { PreviewPostMediaItem } from './PostMediaGrid'
 
@@ -27,18 +28,24 @@ function ComposerStory({
   initialExpanded = true,
   initialBody = '',
   initialMedia = [],
+  initialPollOpen = false,
+  initialPoll,
   busy = false,
   suggestions = [],
 }: {
   initialExpanded?: boolean
   initialBody?: string
   initialMedia?: PreviewPostMediaItem[]
+  initialPollOpen?: boolean
+  initialPoll?: PollDraft
   busy?: boolean
   suggestions?: PostComposerMention[]
 }) {
   const [expanded, setExpanded] = useState(initialExpanded)
   const [body, setBody] = useState(initialBody)
   const [media, setMedia] = useState(initialMedia)
+  const [pollOpen, setPollOpen] = useState(initialPollOpen)
+  const [pollDraft, setPollDraft] = useState<PollDraft>(initialPoll ?? emptyPollDraft())
 
   return (
     <PostComposer
@@ -48,6 +55,15 @@ function ComposerStory({
       media={media}
       remainingUploads={12}
       mentionSuggestions={suggestions}
+      pollOpen={pollOpen}
+      pollDraft={pollDraft}
+      onPollChange={setPollDraft}
+      onTogglePoll={() => {
+        setPollOpen((open) => {
+          if (!open) setMedia([])
+          return !open
+        })
+      }}
       onExpand={() => setExpanded(true)}
       onBodyChange={setBody}
       onCaretChange={() => undefined}
@@ -123,6 +139,46 @@ export const OverCharacterLimit: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('alert')).toHaveTextContent('1001/1,000. Shorten the post to publish.')
     await expect(canvas.getByRole('button', { name: 'Post' })).toBeDisabled()
+  },
+}
+
+export const PollOnlyPost: Story = {
+  render: () => (
+    <ComposerStory
+      initialPollOpen
+      initialPoll={{ question: 'Which time works better?', options: ['Saturday morning', 'Sunday afternoon'] }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('textbox', { name: 'Poll question' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Add photos or videos' })).toBeDisabled()
+    const postButton = canvas.getByRole('button', { name: 'Post' })
+    await expect(postButton).toBeEnabled()
+    await userEvent.click(postButton)
+    await expect(publish).toHaveBeenCalledTimes(1)
+  },
+}
+
+export const PollToggleClearsMedia: Story = {
+  render: () => (
+    <ComposerStory
+      initialMedia={[
+        {
+          key: 'selected-photo',
+          kind: 'image',
+          previewUrl: previewPhoto,
+        },
+      ]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('button', { name: 'Remove selected media 1' })).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Add a poll' }))
+    await expect(canvas.getByRole('textbox', { name: 'Poll question' })).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Remove selected media 1' })).not.toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: 'Add photos or videos' })).toBeDisabled()
   },
 }
 

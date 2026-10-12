@@ -8,7 +8,9 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
 
+import { PollComposer, emptyPollDraft, type PollDraft } from './PollComposer'
 import { PostMediaGrid, type PreviewPostMediaItem } from './PostMediaGrid'
+import { mediaPickerSelectionLimit } from './feedComposer'
 
 export type PostComposerMention = {
   userId: string
@@ -24,6 +26,18 @@ export type PostComposerProps = {
   mediaLimit?: number
   remainingUploads?: number
   mentionSuggestions?: PostComposerMention[]
+  /**
+   * Optional poll state. When `pollOpen` is true the composer shows the
+   * shared {@link PollComposer} and disables media selection, because polls
+   * are text-only. Circle discussions can pass the same props to reuse this
+   * composer: control `pollOpen` and `pollDraft` from the parent, keep media
+   * and poll mutually exclusive, and submit `pollDraft` through
+   * `feedPostPollPayload` (see `feedComposer`).
+   */
+  pollOpen?: boolean
+  pollDraft?: PollDraft
+  onPollChange?: (next: PollDraft) => void
+  onTogglePoll?: () => void
   onExpand: () => void
   onBodyChange: (value: string) => void
   onCaretChange: (index: number) => void
@@ -42,6 +56,10 @@ export function PostComposer({
   mediaLimit = 5,
   remainingUploads,
   mentionSuggestions = [],
+  pollOpen = false,
+  pollDraft,
+  onPollChange,
+  onTogglePoll,
   onExpand,
   onBodyChange,
   onCaretChange,
@@ -53,8 +71,10 @@ export function PostComposer({
 }: PostComposerProps) {
   const theme = useAppTheme()
   const tooLong = body.length > 1_000
-  const mediaDisabled = busy || media.length >= mediaLimit || remainingUploads === 0
-  const publishDisabled = busy || tooLong || (!body.trim() && media.length === 0)
+  const remainingSelections = mediaPickerSelectionLimit({ selected: media.length, remaining: remainingUploads, limit: mediaLimit })
+  const mediaDisabled = busy || pollOpen || remainingSelections <= 0
+  const publishDisabled = busy || tooLong || (!body.trim() && media.length === 0 && !pollOpen)
+  const draft = pollDraft ?? emptyPollDraft()
 
   return (
     <View
@@ -90,8 +110,8 @@ export function PostComposer({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Add photos or videos"
-            accessibilityState={{ disabled: busy || remainingUploads === 0 }}
-            disabled={busy || remainingUploads === 0}
+            accessibilityState={{ disabled: mediaDisabled }}
+            disabled={mediaDisabled}
             onPress={() => {
               onExpand()
               onChooseMedia()
@@ -99,7 +119,7 @@ export function PostComposer({
             style={({ pressed }) => [
               styles.compactMediaButton,
               { borderColor: theme.colors.border },
-              (busy || remainingUploads === 0) && styles.disabled,
+              mediaDisabled && styles.disabled,
               pressed && styles.pressed,
             ]}
           >
@@ -150,6 +170,10 @@ export function PostComposer({
 
           <PostMediaGrid mode="preview" media={media} onRemove={onRemoveMedia} />
 
+          {pollOpen && onPollChange ? (
+            <PollComposer value={draft} onChange={onPollChange} disabled={busy} />
+          ) : null}
+
           <View style={styles.publishRow}>
             <Pressable
               accessibilityRole="button"
@@ -168,6 +192,25 @@ export function PostComposer({
                 Photos or videos
               </AppText>
             </Pressable>
+            {onTogglePoll ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={pollOpen ? 'Remove poll' : 'Add a poll'}
+                accessibilityState={{ disabled: busy, selected: pollOpen }}
+                disabled={busy}
+                onPress={onTogglePoll}
+                style={({ pressed }) => [
+                  styles.mediaButton,
+                  busy && styles.disabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <AppIcon name="bar-chart-outline" color={theme.colors.socialText} />
+                <AppText variant="caption" color={theme.colors.socialText}>
+                  {pollOpen ? 'Remove poll' : 'Poll'}
+                </AppText>
+              </Pressable>
+            ) : null}
             <AppText
               accessibilityRole={tooLong ? 'alert' : undefined}
               variant="caption"
@@ -189,7 +232,7 @@ export function PostComposer({
 
           {remainingUploads !== undefined ? (
             <AppText variant="caption" color={theme.colors.textMuted}>
-              {media.length}/{mediaLimit} selected, {remainingUploads} media uploads remaining today
+              {media.length}/{mediaLimit} selected, {remainingSelections} more available today
             </AppText>
           ) : null}
         </View>

@@ -4,6 +4,9 @@ import { expect, fn, userEvent, within } from 'storybook/test'
 import { SocialFeedCard } from './SocialFeedCard'
 
 const recordAction = fn()
+const openImage = fn()
+
+const photo = 'data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="600"%3E%3Crect width="800" height="600" fill="%231093ED"/%3E%3Ccircle cx="400" cy="300" r="120" fill="white" fill-opacity=".82"/%3E%3C/svg%3E'
 
 const postItem = {
   kind: 'post',
@@ -63,6 +66,31 @@ export const ProductionPostComposition: Story = {
     await expect(canvas.getAllByRole('button', { name: "View Alex Rivera's profile" })).toHaveLength(2)
     await userEvent.click(canvas.getByRole('button', { name: 'Comment on post' }))
     await expect(recordAction).toHaveBeenCalledWith('comment')
+  },
+}
+
+const photoPost = postItem as unknown as Record<string, unknown>
+const photoPostBody = photoPost['post'] as Record<string, unknown>
+
+export const FeedPhotoOpensLightbox: Story = {
+  args: {
+    item: {
+      ...photoPost,
+      itemKey: 'post:story-photo',
+      post: {
+        ...photoPostBody,
+        _id: 'story-photo',
+        body: 'Sunset walk photos from the weekend group.',
+        media: [{ storageId: 'story-photo-one', kind: 'image', url: photo }],
+        poll: undefined,
+      },
+    } as never,
+    onOpenImage: openImage,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Open post image 1 of 1 full screen' }))
+    await expect(openImage).toHaveBeenCalledWith({ url: photo, index: 0, total: 1 })
   },
 }
 

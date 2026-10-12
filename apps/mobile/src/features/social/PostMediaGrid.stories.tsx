@@ -37,6 +37,7 @@ function PreviewStory() {
 }
 
 const openVideo = fn()
+const openImage = fn()
 
 const meta = {
   title: 'Mobile/Organisms/Post media grid',
@@ -51,7 +52,12 @@ export const SinglePhoto: Story = {
 }
 
 export const PhotoGrid: Story = {
-  render: () => <PostMediaGrid media={photos} onOpenVideo={() => undefined} />,
+  render: () => <PostMediaGrid media={photos} onOpenVideo={() => undefined} onOpenImage={openImage} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Open post image 1 of 2 full screen' }))
+    await expect(openImage).toHaveBeenCalledWith(photos[0], 0, 2)
+  },
 }
 
 export const PhotoAndVideo: Story = {

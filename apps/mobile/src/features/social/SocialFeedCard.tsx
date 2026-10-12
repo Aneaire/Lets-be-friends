@@ -1,7 +1,6 @@
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation } from 'convex/react'
 import { router } from 'expo-router'
-import * as Linking from 'expo-linking'
 import { useState } from 'react'
 import { Alert, Pressable, Share, StyleSheet, View } from 'react-native'
 
@@ -18,9 +17,11 @@ import { ReportAction } from '@/features/safety/ReportAction'
 import { AppText } from '@/design-system/atoms/Typography'
 
 import { EditPostSheet } from './EditPostSheet'
+import { NativeVideoViewer } from '@/features/media/NativeVideoViewer'
 import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
 import { PostContent } from './PostContent'
+import type { PostViewerImage } from './PostImageViewer'
 import { PostFollowAction } from './PostFollowAction'
 import { ShareSheet } from './ShareSheet'
 import { postShareUrl } from './shareLinks'
@@ -31,18 +32,24 @@ import { ReviewFeedCard } from './ReviewFeedCard'
 type FeedItem = FunctionReturnType<typeof mobileApi.social.feedPage>['page'][number]
 type FeedAction = 'open_companion' | 'open_guidance' | 'open_review' | 'comment' | 'like' | 'save' | 'share' | 'follow' | 'report' | 'report_comment'
 
-export function SocialFeedCard({ item, signedIn, following, followBusy = false, onToggleFollow, onAction }: {
+export function SocialFeedCard({ item, signedIn, following, followBusy = false, onToggleFollow, onOpenImage, onAction }: {
   item: FeedItem
   signedIn: boolean
   following?: boolean
   followBusy?: boolean
   onToggleFollow?: (authorId: string) => Promise<boolean | undefined>
+  /**
+   * Direct photo viewer handler. Home passes its feed-level lightbox so feed
+   * photo taps open full screen without leaving the feed. When omitted, taps
+   * fall back to opening the post comments thread.
+   */
+  onOpenImage?: (image: PostViewerImage) => void
   onAction: (action: FeedAction) => void
 }) {
   if (item.kind === 'companion') return <CompanionRecommendation item={item} onAction={onAction} />
   if (item.kind === 'guidance') return <GuidanceCard item={item} onAction={onAction} />
   if (item.kind === 'review') return <ReviewFeedCard item={item} signedIn={signedIn} onAction={onAction} />
-  return <ConnectedPostCard item={item} signedIn={signedIn} following={following ?? item.post.followingAuthor} followBusy={followBusy} onToggleFollow={onToggleFollow} onAction={onAction} />
+  return <ConnectedPostCard item={item} signedIn={signedIn} following={following ?? item.post.followingAuthor} followBusy={followBusy} onToggleFollow={onToggleFollow} onOpenImage={onOpenImage} onAction={onAction} />
 }
 
 function CompanionRecommendation({ item, onAction }: { item: Extract<FeedItem, { kind: 'companion' }>; onAction: (action: FeedAction) => void }) {
@@ -59,12 +66,13 @@ function GuidanceCard({ item, onAction }: { item: Extract<FeedItem, { kind: 'gui
   return <GuidanceFeedCard reason={item.reason} title={item.title} body={item.body} actionLabel={item.actionLabel} onPress={() => { onAction('open_guidance'); router.push('/nearby') }} />
 }
 
-function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFollow, onAction }: {
+function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFollow, onOpenImage, onAction }: {
   item: Extract<FeedItem, { kind: 'post' }>
   signedIn: boolean
   following: boolean
   followBusy: boolean
   onToggleFollow?: (authorId: string) => Promise<boolean | undefined>
+  onOpenImage?: (image: PostViewerImage) => void
   onAction: (action: FeedAction) => void
 }) {
   const theme = useAppTheme()
@@ -81,6 +89,7 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
   const [editBody, setEditBody] = useState(post.body)
   const [busy, setBusy] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [error, setError] = useState('')
   useAppToastMessage(error)
 
@@ -123,13 +132,9 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
     }
   }
 
-  async function openVideo(url: string) {
+  function openVideo(url: string) {
     setError('')
-    try {
-      await Linking.openURL(url)
-    } catch {
-      setError('This post video could not be opened safely.')
-    }
+    setVideoUrl(url)
   }
 
   async function saveEdit() {
@@ -282,8 +287,14 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
           featuredComment={post.featuredComment}
           disabled={!signedIn || busy}
           imagePressContext="feed"
-          onOpenImage={() => router.push(postCommentsRoute(post._id as PostId))}
-          onOpenVideo={(url) => void openVideo(url)}
+          onOpenImage={(media, index, total) => {
+            if (onOpenImage) {
+              onOpenImage({ url: media.url, index, total })
+              return
+            }
+            router.push(postCommentsRoute(post._id as PostId))
+          }}
+          onOpenVideo={(url) => openVideo(url)}
           onVote={async (optionId) => {
             await voteOnPoll({ postId: post._id as PostId, optionId })
           }}
@@ -317,6 +328,7 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
           onShareLink={sharePostLink}
           onClose={() => setShareOpen(false)}
         />
+        <NativeVideoViewer url={videoUrl} onClose={() => setVideoUrl(null)} />
       </View>
     </PostCard>
   )

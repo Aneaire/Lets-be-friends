@@ -5,8 +5,10 @@ export const postMediaSingleFallbackAspect = 4 / 3
 
 export function postImagePressLabel(context: PostImagePressContext, index: number, total: number) {
   const position = `image ${index + 1} of ${total}`
+  // Feed taps open the photo directly in the feed lightbox; comments taps
+  // open the same viewer scoped to the thread.
   return context === 'feed'
-    ? `Open post and comments for ${position}`
+    ? `Open post ${position} full screen`
     : `View post ${position} full screen`
 }
 

@@ -119,7 +119,7 @@ function DisplayMediaGrid({ media, onOpenVideo, onOpenImage, imagePressContext =
             >
               <AppIcon name="play-circle-outline" color={theme.colors.socialText} size={24} />
               <AppText variant="bodyStrong" color={theme.colors.socialText}>Open video</AppText>
-              {!compact ? <AppText variant="caption" color={theme.colors.textMuted}>Opens in your device's supported video app</AppText> : null}
+              {!compact ? <AppText variant="caption" color={theme.colors.textMuted}>Plays in the app video viewer</AppText> : null}
             </Pressable>
           )}
         </View>
