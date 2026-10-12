@@ -6,6 +6,7 @@ const expoRouterMock = fileURLToPath(new URL('./mocks/expo-router.tsx', import.m
 const expoLinkingMock = fileURLToPath(new URL('./mocks/expo-linking.ts', import.meta.url))
 const convexReactMock = fileURLToPath(new URL('./mocks/convex-react.ts', import.meta.url))
 const backendClientMock = fileURLToPath(new URL('./mocks/backend-client.ts', import.meta.url))
+const expoImagePickerMock = fileURLToPath(new URL('./mocks/expo-image-picker.ts', import.meta.url))
 
 const config: StorybookConfig = {
   stories: ['../src/**/*.stories.@(ts|tsx)'],
@@ -22,6 +23,7 @@ const config: StorybookConfig = {
       ioniconsAlias,
       { find: 'expo-router', replacement: expoRouterMock },
       { find: 'expo-linking', replacement: expoLinkingMock },
+      { find: 'expo-image-picker', replacement: expoImagePickerMock },
       { find: 'convex/react', replacement: convexReactMock },
       { find: '@/backend/client', replacement: backendClientMock },
     ]
@@ -41,7 +43,7 @@ const config: StorybookConfig = {
         ...viteConfig.resolve,
         alias: Array.isArray(existingAlias)
           ? [...storyAliases, ...existingAlias]
-          : { ...existingAlias, '@expo/vector-icons/Ionicons': ioniconsMock, 'expo-router': expoRouterMock, 'expo-linking': expoLinkingMock, 'convex/react': convexReactMock, '@/backend/client': backendClientMock },
+          : { ...existingAlias, '@expo/vector-icons/Ionicons': ioniconsMock, 'expo-router': expoRouterMock, 'expo-linking': expoLinkingMock, 'expo-image-picker': expoImagePickerMock, 'convex/react': convexReactMock, '@/backend/client': backendClientMock },
       },
     }
   },
