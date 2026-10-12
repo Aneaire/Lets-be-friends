@@ -81,9 +81,10 @@ Authenticated booking, finance, companion, evidence, and conversation APIs are s
 
 ### Message attachments
 
-- Existing attachments remain metadata-only. The mobile app shows the saved name and size but does not open or download attachment contents.
-- Mobile file sending is not released because the current storage upload response can be lost before the file is durably associated with its grant. The backend needs atomic association or stale-object cleanup before this private upload path can be enabled safely.
-- Text messages continue to send in real time with the existing 2,000 character limit.
+- Members can select images and videos from the native photo library and send them with or without message text, up to 4 files per message. Unclaimed upload grants are discarded when sending fails.
+- Selection limits are enforced before upload: images must be 80 MB or smaller, videos 250 MB or smaller, and animated GIFs over 3 MB are rejected. Images and videos of 3 MB or larger are held client side with guidance to choose a smaller copy under 3 MB, because this client does not re-encode large media before sending.
+- Received attachments render the saved name and size. A private attachment opens externally through the system link handler when the backend supplies a URL; otherwise the row reports that the secure link is unavailable. Files are not downloaded or stored inside the app.
+- Text messages continue to send in real time with the existing 2,000 character limit. Attachment behavior above is covered by unit tests; library permission prompts, real uploads, and external link opening have not been verified on an installed device by this worker.
 
 ### Unread and push state
 
@@ -121,6 +122,8 @@ Install the development APK from the authorized EAS build result. Ordinary TypeS
 
 Push notifications require a physical iOS or Android development build. Expo Go and the web export intentionally report push as unavailable. After installing `expo-notifications`, `expo-device`, or `expo-crypto`, or after changing the notification config plugin, create and install a fresh native development build before testing.
 
+Post video playback uses `expo-video` (`features/media/NativeVideoViewer`). After adding or changing this native dependency, create and install a fresh native development build before testing video; restarting Metro or using Fast Refresh is not sufficient for the first run with the new native module. Installed-device video playback and live-provider checks remain unverified.
+
 The app config contains the Expo project ID, the Android Firebase client configuration, and the official monochrome notification icon. The matching FCM V1 service account credential must also be provisioned through the authorized Expo/EAS project before real Android delivery can work. The app uses the versioned `account-updates-v2` Android channel so installed copies receive the intended high-importance channel instead of retaining the earlier default-importance setting.
 
 Set these values only in the Convex deployment environment:
@@ -137,6 +140,15 @@ Push delivery work has a seven-day absolute age limit. Old nonterminal rows are 
 
 No credential creation, EAS build, deployment, or publication is performed by repository checks.
 
+### Frienday guidance and Circle context
+
+- `FriendayGuideCard` (`features/guidance`) is a concise, Home-integrated summary of the truthful booking contract: the Companion decides a start photo, the member decides an end photo, each photo is optional with an explicitly acknowledged skip, and there is no midpoint photo or camera requirement. It renders at the top of Home for every visitor.
+- `CurrentCircleContextCard` (`features/guidance`) renders the current-Circle module on Home for signed-in members from the existing `circles.mine` query: the most recent active membership first, up to three more below it, and a See all entry. It replaces the earlier `MyCirclesModule` on Home so Circle context appears exactly once.
+- Home feed pagination dedupes repeated end-of-list events per filter and page (`feedLoadMoreKey`/`shouldRequestFeedLoadMore`), so automatic loading fires once per page even before Convex status updates. The manual Load more button stays as the recovery path.
+- The root navigator and status bar follow the resolved appearance choice (`useAppTheme` inside `AppThemeProvider`), not the raw OS scheme. Appearance choices persist per device; when saving fails, the choice still applies until the app restarts.
+- My posts (`/my-posts`, protected) shows the signed-in member's public posts plus their Companion reviews. Reviews settle without waiting on the skipped query for members without an approved Companion profile, and each owned review reuses the shared review card, so like, save, share, comment, and profile navigation match the feed.
+- Website share paths (`/social?postId`, `/companion-profile?companionProfileId&reviewId`, `/circles...`) normalize to native routes through the allowlisted `normalizeWebSharePath` helper wired into `+native-intent`, preserving Google OAuth callbacks and rejecting foreign hosts, malformed input, and unknown routes. This is path normalization only and does not claim universal-link or app-link domain association. Installed-device link handling has not been verified by this worker.
+
 ## Explicit exclusions
 
-This implementation does not add native identity capture, camera capture, mobile message attachment uploads, attachment downloads, background uploads, marketing notifications, web push, direct FCM/APNs integration, deployment, publishing, credential creation, or EAS cloud builds. Completion uses the existing server-authoritative schedule and evidence rules; the mobile client does not bypass them.
+This implementation does not add native identity capture, camera capture, in-app attachment downloads or storage, background uploads, marketing notifications, web push, direct FCM/APNs integration, deployment, publishing, credential creation, or EAS cloud builds. Completion uses the existing server-authoritative schedule and evidence rules; the mobile client does not bypass them.
