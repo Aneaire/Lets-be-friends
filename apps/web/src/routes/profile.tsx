@@ -182,7 +182,7 @@ function ProfilePage() {
               <span className="status-pill" data-tone={companionStatusTone(companionStatus)}>{companionStatusLabel(companionStatus)}</span>
             </div>
             <p className="text-body muted">
-              Your Companion profile uses this name, then adds the Strengths, availability, boundaries, location, and everyday help or activities you want to offer.
+              Your Companion profile uses this name, then adds the Strengths, availability, boundaries, location, and everyday help or activities you want to offer. Profiles save live. Identity verification is the only review, and your profile appears in discovery once identity is approved.
             </p>
             <Link to="/become-companion" className="btn btn-neutral btn-sm">
               {application ? 'Edit Companion profile' : 'Become a Companion'}
@@ -348,7 +348,11 @@ function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: strin
 }
 
 function companionStatusLabel(status: string) {
-  if (status === 'pending_review') return 'Pending review'
+  if (status === 'approved') return 'Profile saved'
+  // Legacy rows saved under the previous review model.
+  if (status === 'pending_review') return 'Saved'
+  if (status === 'rejected') return 'Needs changes'
+  if (status === 'suspended') return 'Suspended'
   if (status === 'not started') return 'Not started'
   return status.charAt(0).toUpperCase() + status.slice(1).replaceAll('_', ' ')
 }

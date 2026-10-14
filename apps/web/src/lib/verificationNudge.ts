@@ -1,5 +1,9 @@
 import type { MemberVerificationPresentation } from './memberVerification'
 
+// Companion profiles save live, so identity verification is the only review
+// step. Legacy profile statuses (pending_review, rejected, suspended) stay
+// mapped without implying an active profile review queue.
+
 export type CompanionSetupState = 'none' | 'draft' | 'pending_review' | 'approved' | 'rejected' | 'suspended'
 
 export type VerificationNudge = {

@@ -5,21 +5,24 @@ import { describe, expect, it } from 'vitest'
 const settings = readFileSync(fileURLToPath(new URL('../../src/routes/settings.tsx', import.meta.url)), 'utf8')
 
 describe('settings Companion section', () => {
-  it('moves rate and profile editing into settings', () => {
+  it('describes the live profile model with identity as the only review', () => {
     expect(settings).toContain('companion-heading')
-    expect(settings).toContain('Verified profiles are locked. Change your price and profile details here.')
+    expect(settings).toContain('Your profile saves live. Identity verification is the only review, and your profile appears in discovery once identity is approved.')
     expect(settings).toContain('Hourly rate')
     expect(settings).toContain('Companion profile details')
     expect(settings).toContain('Verification status')
+    expect(settings).toContain('Review your identity verification. It is the only review step.')
+    expect(settings).not.toContain('Verified profiles are locked')
+    expect(settings).not.toContain('track its review')
   })
 
-  it('opens the locked editor in explicit edit mode', () => {
+  it('links directly to the always-open profile editor', () => {
     expect(settings).toContain('to="/become-companion"')
-    expect(settings).toContain('search={{ edit: true }}')
+    expect(settings).not.toContain('edit: true')
   })
 
   it('keeps the get started path for members without a profile', () => {
-    expect(settings).toContain('Become a Companion')
-    expect(settings).toContain('to="/companion"')
+    expect(settings).toContain('Start earning as a Companion')
+    expect(settings).toContain('to="/become-companion"')
   })
 })

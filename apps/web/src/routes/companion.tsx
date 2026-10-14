@@ -96,7 +96,7 @@ function CompanionWorkspacePage() {
         <span className="workspace-status-item">
           <span>Companion profile</span>
           <span className="status-pill" data-tone={application ? statusTone(application.status) : 'self'}>
-            {application?.status ?? 'Not started'}
+            {application ? companionProfileStatusLabel(application.status) : 'Not started'}
           </span>
         </span>
       }
@@ -156,13 +156,13 @@ function CompanionWorkspacePage() {
       <section id="profile" className="mb-10">
         <header className="flex items-baseline justify-between gap-3 mb-3">
           <h2 className="text-h2">Profile status</h2>
-          {application && <span className="status-pill" data-tone={statusTone(application.status)}>{application.status}</span>}
+          {application && <span className="status-pill" data-tone={statusTone(application.status)}>{companionProfileStatusLabel(application.status)}</span>}
         </header>
         {!viewer && <div className="empty-state">Loading your profile…</div>}
         {viewer && !application && (
           <div className="empty-state">
             <p className="empty-state-title">Your Companion profile is ready to begin.</p>
-            <p className="text-meta max-w-[44ch]">Share the everyday help and Strengths you can offer, set your boundaries, and send the profile for review.</p>
+            <p className="text-meta max-w-[44ch]">Share the everyday help and Strengths you can offer and set your boundaries. Your profile saves live, and it appears in discovery once identity is approved.</p>
             <Link to="/become-companion" className="btn btn-self btn-sm mt-3">Create Companion profile</Link>
           </div>
         )}
@@ -485,6 +485,16 @@ function statusTone(status: string): 'self' | 'success' | 'warning' | 'danger' {
   if (status === 'rejected' || status === 'suspended') return 'danger'
   if (status === 'pending_review') return 'warning'
   return 'self'
+}
+
+// New profiles always save as approved. Legacy rows saved under the previous
+// review model keep a readable label without implying an active review queue.
+function companionProfileStatusLabel(status: string) {
+  if (status === 'approved') return 'Profile saved'
+  if (status === 'pending_review') return 'Saved'
+  if (status === 'rejected') return 'Needs changes'
+  if (status === 'suspended') return 'Suspended'
+  return status.charAt(0).toUpperCase() + status.slice(1).replaceAll('_', ' ')
 }
 
 function formatMode(mode: string) {

@@ -72,21 +72,21 @@ describe('settings route', () => {
   it('routes members without a profile to the Companion start path', () => {
     render(<SettingsPage />)
 
-    const companion = screen.getByRole('link', { name: /Become a Companion/ })
-    expect(companion.getAttribute('href')).toBe('/companion')
+    const companion = screen.getByRole('link', { name: /Start earning as a Companion/ })
+    expect(companion.getAttribute('href')).toBe('/become-companion')
     expect(screen.getByRole('link', { name: /Personal profile/ }).getAttribute('href')).toBe('/profile')
     expect(screen.getByText('maya@example.com', { exact: false })).toBeTruthy()
   })
 
-  it('links verified Companions to settings edit mode for their live rate', () => {
+  it('links Companions to the always-open profile editor for their live rate', () => {
     state.application = { _id: 'app-1', status: 'approved', hourlyRateCentavos: 50_000 }
     render(<SettingsPage />)
 
     expect(screen.getByRole('region', { name: 'Companion' })).toBeTruthy()
     const rate = screen.getByRole('link', { name: /Hourly rate/ })
-    expect(rate.getAttribute('href')).toBe('/become-companion?edit=true')
+    expect(rate.getAttribute('href')).toBe('/become-companion')
     expect(screen.getByText('₱500.00', { exact: false })).toBeTruthy()
-    expect(screen.getByRole('link', { name: /Companion profile details/ }).getAttribute('href')).toBe('/become-companion?edit=true')
+    expect(screen.getByRole('link', { name: /Companion profile details/ }).getAttribute('href')).toBe('/become-companion')
     expect(screen.getByRole('link', { name: /Verification status/ }).getAttribute('href')).toBe('/get-verified')
   })
 })

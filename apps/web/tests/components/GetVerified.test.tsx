@@ -83,7 +83,7 @@ describe('get verified page', () => {
     expect(screen.getByRole('heading', { name: 'Sign in to check your verification.' })).toBeTruthy()
   })
 
-  it('locks both Companion CTAs until identity is submitted for safety review', () => {
+  it('locks both Companion CTAs until identity is approved for safety review', () => {
     queryState.viewer = { verificationStatus: 'not_started', identityEligible: false }
     queryState.latest = {
       adminStatus: 'not_ready',
@@ -95,7 +95,7 @@ describe('get verified page', () => {
     queryState.application = null
     render(<GetVerifiedPage />)
 
-    expect(screen.getAllByText('Submit your identity check for safety review first. Your Companion profile unlocks after your identity is submitted for review.')).toHaveLength(2)
+    expect(screen.getAllByText('Submit your identity check for safety review first. Your profile stays hidden from discovery until your identity check is approved.')).toHaveLength(2)
     const lockedButtons = screen.getAllByTitle('Submit your identity check first')
     expect(lockedButtons).toHaveLength(2)
     for (const button of lockedButtons) {
@@ -104,7 +104,7 @@ describe('get verified page', () => {
     expect(screen.queryAllByRole('link', { name: /Companion profile/ })).toEqual([])
   })
 
-  it('keeps a saved pending Companion profile locked without implying it was lost', () => {
+  it('keeps a saved legacy Companion profile locked on identity without implying a profile review', () => {
     queryState.viewer = { verificationStatus: 'not_started', identityEligible: false }
     queryState.latest = {
       adminStatus: 'not_ready',
@@ -116,7 +116,7 @@ describe('get verified page', () => {
     queryState.application = { status: 'pending_review' }
     render(<GetVerifiedPage />)
 
-    expect(screen.getAllByText('Your Companion profile is saved. Its review cannot proceed until your identity is submitted for safety review.')).toHaveLength(2)
+    expect(screen.getAllByText('Submit your identity check for safety review first. Your profile stays hidden from discovery until your identity check is approved.')).toHaveLength(2)
     const lockedButtons = screen.getAllByTitle('Submit your identity check first')
     expect(lockedButtons).toHaveLength(2)
     for (const button of lockedButtons) {
@@ -125,7 +125,7 @@ describe('get verified page', () => {
     expect(screen.queryAllByRole('link', { name: /Companion profile/ })).toEqual([])
   })
 
-  it('describes the Companion step with current profile fields', () => {
+  it('describes the Companion step with current profile fields that save live', () => {
     queryState.viewer = { verificationStatus: 'not_started', identityEligible: false }
     queryState.latest = {
       adminStatus: 'not_ready',
@@ -137,7 +137,7 @@ describe('get verified page', () => {
     queryState.application = null
     render(<GetVerifiedPage />)
 
-    expect(screen.getByText('Share your activities, session format, availability, and profile details.')).toBeTruthy()
+    expect(screen.getByText('Share your activities, session format, availability, and profile details. Profiles save live.')).toBeTruthy()
   })
 
   it('unlocks Companion CTAs when identity is ready for safety review', () => {
@@ -152,6 +152,7 @@ describe('get verified page', () => {
     queryState.application = null
     render(<GetVerifiedPage />)
 
+    expect(screen.getByText('Save your profile now. Identity verification is the only review step, and your profile appears in discovery once identity is approved.')).toBeTruthy()
     const links = screen.getAllByRole('link', { name: /Companion profile/ })
     expect(links.length).toBeGreaterThanOrEqual(2)
     expect(screen.queryByTitle('Submit your identity check first')).toBeNull()
@@ -173,7 +174,7 @@ describe('get verified page', () => {
     expect(links.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('locks the approved Companion step and points edits to settings', () => {
+  it('shows the saved Companion step with a direct edit link once approved', () => {
     queryState.viewer = { verificationStatus: 'approved', identityEligible: true }
     queryState.latest = {
       adminStatus: 'approved',
@@ -185,9 +186,19 @@ describe('get verified page', () => {
     queryState.application = { status: 'approved' }
     render(<GetVerifiedPage />)
 
-    expect(screen.getByText('Your Companion profile is approved and visible to members.')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Manage in settings' }).getAttribute('href')).toBe('/settings')
+    expect(screen.getByText('Your Companion profile is saved and appears in discovery.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Edit Companion profile' }).getAttribute('href')).toBe('/become-companion')
     expect(screen.queryByTitle('Submit your identity check first')).toBeNull()
+  })
+
+  it('holds a saved Companion profile in discovery until identity is approved', () => {
+    queryState.viewer = { verificationStatus: 'not_started', identityEligible: false }
+    queryState.latest = null
+    queryState.application = { status: 'approved' }
+    render(<GetVerifiedPage />)
+
+    expect(screen.getByText('Your Companion profile is saved. It appears in discovery once identity is approved.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Edit Companion profile' }).getAttribute('href')).toBe('/become-companion')
   })
 
   it('shows Review your submission once the identity is submitted for safety review', () => {

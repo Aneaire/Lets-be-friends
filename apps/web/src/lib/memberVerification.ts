@@ -43,14 +43,9 @@ export function canOpenCompanionProfile(identityEligible: boolean, latest?: Comp
   return false
 }
 
-// An approved Companion profile is read-only in the public editor. Editing is
-// only unlocked through the explicit Settings edit mode, which routes back here
-// with editMode so the approved profile can be revised without exposing the
-// form by default.
-export function companionProfileEditorLocked(status: string | undefined | null, editMode?: boolean) {
-  return status === 'approved' && !editMode
-}
-
+// Companion profiles save live and are always editable from the public
+// editor once the member is identity-eligible. Identity verification is the
+// only review step.
 export function identityEntitlementStatus(status: MemberVerificationStatus, identityEligible: boolean) {
   if (identityEligible) return 'approved' as const
   return status === 'approved' ? 'not_started' as const : status

@@ -103,7 +103,7 @@ function CompanionProfilePage() {
           </div>
 
           <aside className="companion-profile-decision" aria-label={`Plan with ${companion.displayName}`}>
-            <p className="companion-profile-trust">Identity checked and Companion profile reviewed.</p>
+            <p className="companion-profile-trust">Identity checked and approved.</p>
             {companion.hourlyRateCentavos !== undefined ? (
               <p className="companion-profile-rate">
                 <span className="companion-profile-rate-label">Hourly rate</span>

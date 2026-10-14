@@ -91,41 +91,39 @@ export function SettingsPage() {
           headingId="companion-heading"
           title="Companion"
           description={application
-            ? application.status === 'approved'
-              ? 'Verified profiles are locked. Change your price and profile details here.'
-              : 'Manage your Companion profile and track its review.'
-            : 'Share your everyday Strengths with members.'}
+            ? 'Your profile saves live. Identity verification is the only review, and your profile appears in discovery once identity is approved.'
+            : 'Create your Companion profile when you are ready to earn.'}
         >
           {application ? (
             <>
               <SettingsLinkRow
-                link={<Link to="/become-companion" search={{ edit: true }} />}
+                link={<Link to="/become-companion" />}
                 icon={<BadgeDollarSign size={19} aria-hidden="true" className="settings-row-icon" />}
                 title="Hourly rate"
                 description={<>Currently {formatPhp(application.hourlyRateCentavos ?? 0)} per hour. Rate changes go live right away.</>}
                 actionLabel="Change"
               />
               <SettingsLinkRow
-                link={<Link to="/become-companion" search={{ edit: true }} />}
+                link={<Link to="/become-companion" />}
                 icon={<UserRoundCog size={19} aria-hidden="true" className="settings-row-icon" />}
                 title="Companion profile details"
-                description="Activities, session format, intro, and location. Changes the review team checks go back to review."
+                description="Session format, rate, bio, work or skills, area, and activities. Changes save right away."
                 actionLabel="Edit"
               />
               <SettingsLinkRow
                 link={<Link to="/get-verified" />}
                 icon={<ShieldCheck size={19} aria-hidden="true" className="settings-row-icon" />}
                 title="Verification status"
-                description="Review your identity and Companion approval."
+                description="Review your identity verification. It is the only review step."
                 actionLabel="View"
               />
             </>
           ) : (
             <SettingsLinkRow
-              link={<Link to="/companion" />}
+              link={<Link to="/become-companion" />}
               icon={<UserRoundCog size={19} aria-hidden="true" className="settings-row-icon" />}
-              title="Become a Companion"
-              description="Create a profile to share experiences with members."
+              title="Start earning as a Companion"
+              description="Add your rate, session format, and activities when you are ready to earn."
               actionLabel="Get started"
             />
           )}

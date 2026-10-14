@@ -38,27 +38,27 @@ export const AccountAndCompanionSections: Story = {
         <SettingsSection
           headingId="story-companion-heading"
           title="Companion"
-          description="Verified profiles are locked. Change your price and profile details here."
+          description="Your profile saves live. Identity verification is the only review, and your profile appears in discovery once identity is approved."
         >
           <SettingsLinkRow
-            link={<a href="/become-companion?edit=true" />}
+            link={<a href="/become-companion" />}
             icon={<BadgeDollarSign size={19} aria-hidden="true" className="settings-row-icon" />}
             title="Hourly rate"
             description="Currently ₱500.00 per hour. Rate changes go live right away."
             actionLabel="Change"
           />
           <SettingsLinkRow
-            link={<a href="/become-companion?edit=true" />}
+            link={<a href="/become-companion" />}
             icon={<UserRoundCog size={19} aria-hidden="true" className="settings-row-icon" />}
             title="Companion profile details"
-            description="Activities, session format, intro, and location. Changes the review team checks go back to review."
+            description="Session format, rate, bio, work or skills, area, and activities. Changes save right away."
             actionLabel="Edit"
           />
           <SettingsLinkRow
             link={<a href="/get-verified" />}
             icon={<ShieldCheck size={19} aria-hidden="true" className="settings-row-icon" />}
             title="Verification status"
-            description="Review your identity and Companion approval."
+            description="Review your identity verification. It is the only review step."
             actionLabel="View"
           />
         </SettingsSection>
@@ -72,7 +72,7 @@ export const AccountAndCompanionSections: Story = {
     const personal = canvas.getByRole('link', { name: /Personal profile/ })
     await expect(personal).toHaveAttribute('href', '/profile')
     const rate = canvas.getByRole('link', { name: /Hourly rate/ })
-    await expect(rate).toHaveAttribute('href', '/become-companion?edit=true')
+    await expect(rate).toHaveAttribute('href', '/become-companion')
     await expect(canvas.getByText('Verification status')).toBeVisible()
   },
 }
@@ -90,13 +90,13 @@ export const NarrowMobile: Story = {
         <SettingsSection
           headingId="story-narrow-heading"
           title="Companion"
-          description="Verified profiles are locked. Change your price and profile details here."
+          description="Your profile saves live. Identity verification is the only review, and your profile appears in discovery once identity is approved."
         >
           <SettingsLinkRow
-            link={<a href="/become-companion?edit=true" />}
+            link={<a href="/become-companion" />}
             icon={<UserRoundCog size={19} aria-hidden="true" className="settings-row-icon" />}
             title="Companion profile details"
-            description="Activities, session format, intro, and location. Changes the review team checks go back to review."
+            description="Session format, rate, bio, work or skills, area, and activities. Changes save right away."
             actionLabel="Edit"
           />
         </SettingsSection>

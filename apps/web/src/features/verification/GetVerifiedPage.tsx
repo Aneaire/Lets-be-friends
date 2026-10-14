@@ -107,9 +107,9 @@ export function GetVerifiedPage() {
                 {application === undefined
                   ? 'Loading...'
                   : companion === 'approved'
-                    ? 'Approved'
+                    ? 'Profile saved'
                     : companion === 'pending_review'
-                      ? 'In review'
+                      ? 'Saved'
                       : companion === 'rejected'
                         ? 'Needs changes'
                         : companion === 'suspended'
@@ -118,28 +118,17 @@ export function GetVerifiedPage() {
               </span>
             }
           >
-            <p className="text-body muted">Share your activities, session format, availability, and profile details.</p>
+            <p className="text-body muted">Share your activities, session format, availability, and profile details. Profiles save live.</p>
             {application === undefined && (
               <div className="verification-status-loading" role="status">
                 <span className="ds-spinner" aria-hidden="true" />
                 <span>Loading Companion profile...</span>
               </div>
             )}
-            {application !== undefined && !companionDone && !companionUnlocked && companion === 'pending_review' && (
+            {application !== undefined && !companionDone && !companionUnlocked && (
               <>
                 <p className="verification-guidance verification-lock-note">
-                  Your Companion profile is saved. Its review cannot proceed until your identity is submitted for safety review.
-                </p>
-                <button type="button" className="btn btn-self mt-4" disabled aria-disabled="true" title="Submit your identity check first">
-                  Continue application
-                  <ArrowRight size={16} aria-hidden="true" />
-                </button>
-              </>
-            )}
-            {application !== undefined && !companionDone && !companionUnlocked && companion !== 'pending_review' && (
-              <>
-                <p className="verification-guidance verification-lock-note">
-                  Submit your identity check for safety review first. Your Companion profile unlocks after your identity is submitted for review.
+                  Submit your identity check for safety review first. Your profile stays hidden from discovery until your identity check is approved.
                 </p>
                 <button type="button" className="btn btn-self mt-4" disabled aria-disabled="true" title="Submit your identity check first">
                   {companion === 'none' || companion === 'draft' ? 'Create Companion profile' : 'Continue application'}
@@ -150,20 +139,22 @@ export function GetVerifiedPage() {
             {application !== undefined && !companionDone && companionUnlocked && (
               <>
                 <p className="verification-guidance">
-                  {companion === 'pending_review'
-                    ? 'Your application is with the review team. Approval makes your profile visible to members.'
-                    : 'Create your profile and send it to the safety team for review.'}
+                  Save your profile now. Identity verification is the only review step, and your profile appears in discovery once identity is approved.
                 </p>
                 <Link to="/become-companion" className="btn btn-self mt-4">
-                  {companion === 'none' || companion === 'draft' ? 'Create Companion profile' : 'Continue application'}
+                  {companion === 'none' || companion === 'draft' ? 'Create Companion profile' : 'Edit Companion profile'}
                   <ArrowRight size={16} aria-hidden="true" />
                 </Link>
               </>
             )}
             {application !== undefined && companionDone && (
               <>
-                <p className="verification-complete-copy">Your Companion profile is approved and visible to members.</p>
-                <Link to="/settings" className="btn btn-neutral mt-4">Manage in settings</Link>
+                <p className="verification-complete-copy">
+                  {identityDone
+                    ? 'Your Companion profile is saved and appears in discovery.'
+                    : 'Your Companion profile is saved. It appears in discovery once identity is approved.'}
+                </p>
+                <Link to="/become-companion" className="btn btn-neutral mt-4">Edit Companion profile</Link>
               </>
             )}
           </VerificationStep>
@@ -181,9 +172,7 @@ export function GetVerifiedPage() {
           {!companionDone && !companionUnlocked && (
             <>
               <p className="text-meta verification-lock-note">
-                {companion === 'pending_review'
-                  ? 'Your Companion profile is saved. Its review cannot proceed until your identity is submitted for safety review.'
-                  : 'Submit your identity check for safety review first. Your Companion profile unlocks after your identity is submitted for review.'}
+                Submit your identity check for safety review first. Your profile stays hidden from discovery until your identity check is approved.
               </p>
               <button type="button" className="btn btn-social mt-5" disabled aria-disabled="true" title="Submit your identity check first">
                 Start your Companion profile <ArrowRight size={16} aria-hidden="true" />
