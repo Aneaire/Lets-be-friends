@@ -12,7 +12,7 @@ import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
-import { hasCurrentIdentityApproval, isIdentityReadyForAdminReview, isIdentityVerificationReason } from './identityVerification'
+import { hasCurrentIdentityApproval, isIdentityVerificationReason } from './identityVerification'
 import { findNearbyCompanionLocations, syncCompanionLocation } from './companionLocations'
 import { isHiddenByPreference, requireNotBlocked } from './safety'
 
@@ -291,7 +291,7 @@ export const myApplication = query({
 })
 
 const BIO_MAX_LENGTH = 500
-const EARNING_MOTIVATION_MIN_LENGTH = 20
+const INTRO_MAX_LENGTH = 500
 const EARNING_MOTIVATION_MAX_LENGTH = 1000
 
 export const submitApplication = mutation({
@@ -318,29 +318,12 @@ export const submitApplication = mutation({
       throw new Error(`Tell me about yourself must be ${BIO_MAX_LENGTH} characters or fewer`)
     }
     const earningMotivation = args.earningMotivation?.trim() ? args.earningMotivation.trim() : undefined
-    if (!earningMotivation || earningMotivation.length < EARNING_MOTIVATION_MIN_LENGTH) {
-      throw new Error('Tell the review team why you want to earn with Let\u2019s Be Friends (at least 20 characters)')
-    }
-    if (earningMotivation.length > EARNING_MOTIVATION_MAX_LENGTH) {
+    if (earningMotivation !== undefined && earningMotivation.length > EARNING_MOTIVATION_MAX_LENGTH) {
       throw new Error(`Earning motivation must be ${EARNING_MOTIVATION_MAX_LENGTH} characters or fewer`)
     }
-    // Identity-before-Companion gate. A profile may be submitted or resubmitted
-    // only with a current approved identity or a current attempt that is ready
-    // for admin review. This check runs before any writes so a rejected
-    // submission leaves no Companion profile or audit entry.
-    if (!hasCurrentIdentityApproval(viewer)) {
-      const identityRequests = await ctx.db.query('verificationRequests').withIndex('by_user', (q) => q.eq('userId', viewer._id)).collect()
-      const currentIdentity = identityRequests
-        .filter((request) => isIdentityVerificationReason(request.reason))
-        .sort((a, b) => {
-          if (a.isCurrent === true && b.isCurrent !== true) return -1
-          if (b.isCurrent === true && a.isCurrent !== true) return 1
-          return b.updatedAt - a.updatedAt
-        })[0]
-      if (!currentIdentity || !isIdentityReadyForAdminReview(currentIdentity)) {
-        throw new Error('Submit your identity check for safety review first. You can send a Companion profile after your identity is submitted for review.')
-      }
-    }
+    const intro = args.intro.trim()
+    if (intro.length === 0) throw new Error('Add what work or skills you could share')
+    if (intro.length > INTRO_MAX_LENGTH) throw new Error(`Your work or skills note must be ${INTRO_MAX_LENGTH} characters or fewer`)
     const existing = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
     const sourceLatitude = viewer.approximateLatitude ?? existing?.approximateLatitude
     const sourceLongitude = viewer.approximateLongitude ?? existing?.approximateLongitude
@@ -352,29 +335,18 @@ export const submitApplication = mutation({
       throw new Error('Accept the current location consent and Terms and Conditions before applying as a Companion')
     }
     const { bio: _bio, ...applicationArgs } = args
-    // An approved Companion stays live when the edit only touches review-neutral
-    // details such as the hourly rate or bio. Review-sensitive fields still send
-    // the updated profile back for safety review.
-    const requiresReview = !existing
-      || existing.status !== 'approved'
-      || companionApplicationNeedsReview(existing, {
-        intro: args.intro,
-        city: args.city,
-        strengths: args.strengths,
-        categories: categoryResult.value,
-        boundaries: args.boundaries,
-        mode: args.mode,
-        earningMotivation,
-      })
+    // New Companion profiles skip profile review. Identity and safety review is
+    // the only review step, and discovery stays hidden until identity is approved.
     const patch = {
       ...applicationArgs,
+      intro,
       earningMotivation,
       categories: categoryResult.value,
       displayName: viewer.displayName,
       approximateArea: undefined,
       approximateLatitude: roundCoordinate(sourceLatitude),
       approximateLongitude: roundCoordinate(sourceLongitude),
-      status: requiresReview ? 'pending_review' as const : 'approved' as const,
+      status: 'approved' as const,
       rating: existing?.rating ?? 0,
       reviewCount: existing?.reviewCount ?? 0,
       updatedAt: now,
@@ -392,12 +364,12 @@ export const submitApplication = mutation({
 
     await writeAudit(ctx, {
       actorUserId: viewer._id,
-      action: requiresReview ? 'companion_application.submitted' : 'companion_profile.updated',
+      action: existing ? 'companion_profile.updated' : 'companion_profile.created',
       targetType: 'companionProfile',
       targetId: String(companionProfileId),
-      after: { status: requiresReview ? 'pending_review' : 'approved', identityApproved: hasCurrentIdentityApproval(viewer), requiresReview },
+      after: { status: 'approved', identityApproved: hasCurrentIdentityApproval(viewer) },
     })
-    return { companionProfileId, requiresReview }
+    return { companionProfileId, requiresReview: false }
   },
 })
 
@@ -420,34 +392,6 @@ export const updateHourlyRate = mutation({
     return hourlyRateCentavos
   },
 })
-
-function companionApplicationNeedsReview(
-  existing: Doc<'companionProfiles'>,
-  next: {
-    intro: string
-    city: string
-    strengths: string[]
-    categories: string[]
-    boundaries: string[]
-    mode: 'online' | 'in_person' | 'both'
-    earningMotivation: string
-  },
-) {
-  return (existing.intro ?? '').trim() !== next.intro.trim()
-    || (existing.city ?? '').trim() !== next.city.trim()
-    || existing.mode !== next.mode
-    || (existing.earningMotivation ?? '').trim() !== next.earningMotivation.trim()
-    || !sameStringMembers(existing.strengths, next.strengths)
-    || !sameStringMembers(existing.boundaries, next.boundaries)
-    || !sameStringMembers(existing.categories, next.categories)
-}
-
-function sameStringMembers(left: string[], right: string[]) {
-  if (left.length !== right.length) return false
-  const leftSorted = [...left].sort()
-  const rightSorted = [...right].sort()
-  return leftSorted.every((value, index) => value === rightSorted[index])
-}
 
 function validateNearbyOrigin(args: { latitude?: number; longitude?: number; radiusKm?: number }) {
   if (args.radiusKm !== undefined && !nearbyRadiusOptions.includes(args.radiusKm as typeof nearbyRadiusOptions[number])) {

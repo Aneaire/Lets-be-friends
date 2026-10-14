@@ -308,7 +308,7 @@ describe('nearby companion discovery privacy', () => {
       approximateLatitude: 10.32,
       approximateLongitude: 123.89,
       categories: ['Board game nights', 'Coffee and meals'],
-      status: 'pending_review',
+      status: 'approved',
     })
     expect(companion?.approximateArea).toBeUndefined()
 
@@ -464,19 +464,14 @@ describe('companion application bio and earning motivation', () => {
     expect(mine).toMatchObject({ bio: 'Something personal about hobbies, family, and work.', earningMotivation: validApplication.earningMotivation })
   })
 
-  it('requires a meaningful earning motivation and limits bio length', async () => {
+  it('requires a work or skills note and limits bio and motivation length', async () => {
     const t = createTest()
     await insertApplicant(t, 'motivation-applicant')
 
     await expect(t.withIdentity({ subject: 'motivation-applicant' }).mutation(api.companions.submitApplication, {
       ...validApplication,
-      earningMotivation: undefined,
-    })).rejects.toThrow('why you want to earn')
-
-    await expect(t.withIdentity({ subject: 'motivation-applicant' }).mutation(api.companions.submitApplication, {
-      ...validApplication,
-      earningMotivation: 'Too short',
-    })).rejects.toThrow('at least 20 characters')
+      intro: '   ',
+    })).rejects.toThrow('Add what work or skills you could share')
 
     await expect(t.withIdentity({ subject: 'motivation-applicant' }).mutation(api.companions.submitApplication, {
       ...validApplication,
@@ -507,205 +502,18 @@ describe('companion application bio and earning motivation', () => {
     expect(stored).not.toHaveProperty('earningMotivation')
   })
 
-  it('exposes bio and motivation to admin reviewers', async () => {
+  it('creates new Companion profiles live with an approved status', async () => {
     const t = createTest()
-    const now = Date.now()
-    await t.run(async (ctx) => {
-      await ctx.db.insert('users', {
-        clerkUserId: 'review-admin',
-        displayName: 'Review Admin',
-        role: 'admin',
-        verificationStatus: 'not_started',
-        suspended: false,
-        createdAt: now,
-        updatedAt: now,
-      })
-    })
     await insertApplicant(t, 'admin-visible-applicant', 'Member bio for admin review.')
     await t.withIdentity({ subject: 'admin-visible-applicant' }).mutation(api.companions.submitApplication, {
       ...validApplication,
       bio: 'Member bio for admin review.',
     })
 
-    const rows: any[] = await t.withIdentity({ subject: 'review-admin' }).query(api.admin.companionApplications, { status: 'pending_review' })
-    expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({
-      applicantBio: 'Member bio for admin review.',
-      earningMotivation: validApplication.earningMotivation,
-    })
-  })
-})
-
-describe('companion application identity gate', () => {
-  const gatedApplication = {
-    intro: 'A safe and friendly companion application with enough detail to review.',
-    city: 'Cebu City',
-    strengths: ['Good listener'],
-    categories: ['Coffee or meal companion'],
-    boundaries: ['Public places only'],
-    mode: 'both' as const,
-    hourlyRateCentavos: 50_000,
-    earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
-  }
-
-  async function insertGatedUser(
-    t: ReturnType<typeof convexTest>,
-    subject: string,
-    identity: { status: 'not_started' | 'pending' | 'approved' | 'rejected'; source?: 'in_app' | 'persona'; verified?: boolean },
-    request?: { adminStatus: 'not_ready' | 'pending' | 'approved' | 'rejected'; source?: 'in_app' | 'persona' | 'legacy_manual'; stage?: 'draft' | 'confirmation_required' | 'ready_for_review' | 'failed' | 'rejected'; isCurrent?: boolean; reason?: 'member' | 'booking' | 'companion_application' | 'reverification'; decision?: 'unknown' | 'passed' | 'needs_review' | 'declined' },
-  ) {
-    const now = Date.now()
-    const userId = await t.run(async (ctx) => {
-      const id = await ctx.db.insert('users', {
-        clerkUserId: subject,
-        username: subject,
-        displayName: 'Gated Applicant',
-        approximateLatitude: 10.31,
-        approximateLongitude: 123.89,
-        approximateLocationConsentedAt: now,
-        termsAcceptedAt: now,
-        termsVersion: '2026-08-13',
-        role: 'member',
-        verificationStatus: identity.status,
-        verificationSource: identity.source,
-        identityVerifiedAt: identity.verified ? now : undefined,
-        identityExpiresAt: identity.verified ? now + 86_400_000 : undefined,
-        suspended: false,
-        createdAt: now,
-        updatedAt: now,
-      })
-      if (request) {
-        await ctx.db.insert('verificationRequests', {
-          userId: id,
-          reason: request.reason ?? 'member',
-          personaStatus: 'not_started',
-          personaDecision: request.decision ?? 'unknown',
-          verificationSource: request.source ?? 'in_app',
-          identityStage: request.stage ?? 'ready_for_review',
-          adminStatus: request.adminStatus,
-          isCurrent: request.isCurrent ?? true,
-          attempt: 1,
-          createdAt: now,
-          updatedAt: now,
-        })
-      }
-      return id
-    })
-    return userId
-  }
-
-  async function expectNoWrites(t: ReturnType<typeof convexTest>) {
-    const state = await t.run(async (ctx) => ({
-      companions: await ctx.db.query('companionProfiles').collect(),
-      audits: await ctx.db.query('auditLogs').collect(),
-    }))
-    expect(state.companions).toEqual([])
-    expect(state.audits).toEqual([])
-  }
-
-  it('rejects a Companion submission before identity is submitted for review', async () => {
-    const t = createTest()
-    await insertGatedUser(t, 'gate-not-started', { status: 'not_started' })
-
-    await expect(t.withIdentity({ subject: 'gate-not-started' }).mutation(api.companions.submitApplication, gatedApplication))
-      .rejects.toThrow('Submit your identity check for safety review first')
-    await expectNoWrites(t)
-  })
-
-  it('locks incomplete, processing, expired, and rejected identity attempts', async () => {
-    const t = createTest()
-    await insertGatedUser(t, 'gate-incomplete', { status: 'pending' }, {
-      adminStatus: 'not_ready',
-      source: 'in_app',
-      stage: 'confirmation_required',
-    })
-    await insertGatedUser(t, 'gate-processing', { status: 'pending' }, {
-      adminStatus: 'not_ready',
-      source: 'in_app',
-      stage: 'draft',
-    })
-    await insertGatedUser(t, 'gate-expired', { status: 'pending' }, {
-      adminStatus: 'not_ready',
-      source: 'in_app',
-      stage: 'failed',
-    })
-    await insertGatedUser(t, 'gate-rejected', { status: 'rejected' }, {
-      adminStatus: 'rejected',
-      source: 'in_app',
-      stage: 'rejected',
-    })
-
-    for (const subject of ['gate-incomplete', 'gate-processing', 'gate-expired', 'gate-rejected']) {
-      await expect(t.withIdentity({ subject }).mutation(api.companions.submitApplication, gatedApplication))
-        .rejects.toThrow('Submit your identity check for safety review first')
-    }
-    await expectNoWrites(t)
-  })
-
-  it('locks dormant provider and booking-linked attempts even when marked pending', async () => {
-    const t = createTest()
-    await insertGatedUser(t, 'gate-persona', { status: 'pending' }, {
-      adminStatus: 'pending',
-      source: 'persona',
-      stage: 'ready_for_review',
-    })
-    await insertGatedUser(t, 'gate-booking', { status: 'pending' }, {
-      adminStatus: 'pending',
-      source: 'in_app',
-      stage: 'ready_for_review',
-      reason: 'booking',
-    })
-    await insertGatedUser(t, 'gate-stale', { status: 'pending' }, {
-      adminStatus: 'pending',
-      source: 'in_app',
-      stage: 'ready_for_review',
-      isCurrent: false,
-    })
-
-    for (const subject of ['gate-persona', 'gate-booking', 'gate-stale']) {
-      await expect(t.withIdentity({ subject }).mutation(api.companions.submitApplication, gatedApplication))
-        .rejects.toThrow('Submit your identity check for safety review first')
-    }
-    await expectNoWrites(t)
-  })
-
-  it('accepts a current identity submitted for safety review, including a provider-declined attempt', async () => {
-    const t = createTest()
-    await insertGatedUser(t, 'gate-ready', { status: 'pending' }, {
-      adminStatus: 'pending',
-      source: 'in_app',
-      stage: 'ready_for_review',
-      decision: 'unknown',
-    })
-    await insertGatedUser(t, 'gate-declined-ready', { status: 'pending' }, {
-      adminStatus: 'pending',
-      source: 'in_app',
-      stage: 'ready_for_review',
-      decision: 'declined',
-    })
-
-    for (const subject of ['gate-ready', 'gate-declined-ready']) {
-      await t.withIdentity({ subject }).mutation(api.companions.submitApplication, gatedApplication)
-    }
-
-    const companions = await t.run(async (ctx) => ctx.db.query('companionProfiles').collect())
-    expect(companions).toHaveLength(2)
-    expect(companions.every((companion) => companion.status === 'pending_review')).toBe(true)
-  })
-
-  it('accepts a resubmission with a current approved identity', async () => {
-    const t = createTest()
-    await insertGatedUser(t, 'gate-approved', { status: 'approved', source: 'in_app', verified: true })
-
-    await t.withIdentity({ subject: 'gate-approved' }).mutation(api.companions.submitApplication, gatedApplication)
-    await t.withIdentity({ subject: 'gate-approved' }).mutation(api.companions.submitApplication, {
-      ...gatedApplication,
-      city: 'Mandaue City',
-    })
-
-    const companions = await t.run(async (ctx) => ctx.db.query('companionProfiles').collect())
-    expect(companions).toHaveLength(1)
-    expect(companions[0]).toMatchObject({ city: 'Mandaue City', status: 'pending_review' })
+    const companion = await t.run(async (ctx) => ctx.db.query('companionProfiles').first())
+    expect(companion).toMatchObject({ status: 'approved' })
+    const user = await t.run(async (ctx) => ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', 'admin-visible-applicant')).unique())
+    expect(user?.bio).toBe('Member bio for admin review.')
   })
 })
 
@@ -718,7 +526,6 @@ describe('companion profile edits after approval', () => {
     boundaries: ['Public places only'],
     mode: 'in_person' as const,
     hourlyRateCentavos: 50_000,
-    earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
   }
 
   async function insertEditableCompanion(t: ReturnType<typeof convexTest>) {
@@ -730,7 +537,7 @@ describe('companion profile edits after approval', () => {
         termsAcceptedAt: now,
         termsVersion: '2026-08-13',
       })
-      await ctx.db.patch(companionProfileId, { earningMotivation: baseApplication.earningMotivation })
+      await ctx.db.patch(companionProfileId, { status: 'approved' as const })
     })
   }
 
@@ -766,17 +573,17 @@ describe('companion profile edits after approval', () => {
     expect(companion?.hourlyRateCentavos).toBe(before?.hourlyRateCentavos)
   })
 
-  it('sends an approved Companion back to review when review-sensitive content changes', async () => {
+  it('keeps an approved Companion live when profile content changes', async () => {
     const t = createTest()
     await insertEditableCompanion(t)
 
     const result = await t.withIdentity({ subject: 'rate-editor' }).mutation(api.companions.submitApplication, {
       ...baseApplication,
-      intro: 'A revised safe and friendly companion application with enough detail to review.',
+      intro: 'A revised work and skills note for members with enough detail to read.',
     })
 
-    expect(result.requiresReview).toBe(true)
+    expect(result.requiresReview).toBe(false)
     const companion = await t.run(async (ctx) => ctx.db.query('companionProfiles').first())
-    expect(companion).toMatchObject({ status: 'pending_review' })
+    expect(companion).toMatchObject({ status: 'approved' })
   })
 })
