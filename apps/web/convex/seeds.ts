@@ -1006,7 +1006,7 @@ export const seedPhilippinesPeopleBatch = internalMutation({
         boundaries: ['Public places only', 'No dating or romantic expectations'],
         mode: item.seed.mode,
         hourlyRateCentavos: item.seed.hourlyRateCentavos,
-        status: isApplicant ? 'pending_review' as const : 'approved' as const,
+        status: 'approved' as const,
         applicationNote: isApplicant
           ? 'Development seed awaiting admin review.'
           : 'Development seed for Philippines discovery testing.',

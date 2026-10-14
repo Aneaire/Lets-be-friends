@@ -165,7 +165,6 @@ describe('cross-user authorization boundaries', () => {
 
     await expect(verifier.query(api.admin.overview, {})).rejects.toThrow('Admin role required')
     await expect(verifier.query(api.admin.queues, {})).rejects.toThrow('Admin role required')
-    await expect(verifier.query(api.admin.companionApplications, {})).rejects.toThrow('Admin role required')
     await expect(verifier.query(api.admin.memberVerifications, {})).rejects.toThrow('Admin role required')
     await expect(verifier.query(api.admin.reports, {})).rejects.toThrow('Admin role required')
     await expect(verifier.query(api.admin.posts, {})).rejects.toThrow('Admin role required')

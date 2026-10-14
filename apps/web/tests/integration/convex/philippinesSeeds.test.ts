@@ -61,8 +61,8 @@ describe('Philippines development seed', () => {
     const expectedCounts = {
       users: 135,
       profiles: 96,
-      approvedProfiles: 88,
-      pendingProfiles: 8,
+      approvedProfiles: 96,
+      pendingProfiles: 0,
       posts: 176,
       bookings: 360,
       reviews: 272,
@@ -149,8 +149,8 @@ describe('Philippines development seed', () => {
     })
     const admin = t.withIdentity({ subject: 'seed:philippines:test-admin' })
     const overview = await admin.query(api.admin.overview, {})
+    expect(overview.counts).not.toHaveProperty('companionApplicationsPending')
     expect(overview.counts).toMatchObject({
-      companionApplicationsPending: 8,
       memberVerificationsPending: 8,
       reportsOpen: 3,
       usersSuspended: 4,
@@ -158,7 +158,7 @@ describe('Philippines development seed', () => {
       reviewsHidden: 4,
     })
     const queues = await admin.query(api.admin.queues, {})
-    expect(queues.companionApplications).toHaveLength(8)
+    expect(queues).not.toHaveProperty('companionApplications')
     expect(queues.memberVerifications).toHaveLength(8)
     expect(queues.memberVerifications.every((request) => request.identityStage === 'ready_for_review')).toBe(true)
     expect(queues.reports).toHaveLength(3)

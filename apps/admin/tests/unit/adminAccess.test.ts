@@ -15,7 +15,7 @@ describe('admin access helpers', () => {
     expect(reviewerRoutes).not.toContain('/circles')
     expect(reviewerRoutes).not.toContain('/audit-logs')
     expect(reviewerRoutes).not.toContain('/settings')
-    expect(reviewerRoutes).toContain('/companion-applications')
+    expect(reviewerRoutes).not.toContain('/companion-applications')
     expect(reviewerRoutes).toContain('/booking-verification')
     expect(reviewerRoutes).toContain('/posts')
     expect(reviewerRoutes).toContain('/profile')

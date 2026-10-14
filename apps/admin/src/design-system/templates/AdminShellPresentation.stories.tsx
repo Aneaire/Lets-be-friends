@@ -1,4 +1,4 @@
-import { ArrowRight, ClipboardCheck, Flag, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Flag, ShieldCheck } from 'lucide-react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { ReactNode } from 'react'
 import { expect, fn, userEvent, within } from 'storybook/test'
@@ -6,7 +6,6 @@ import { expect, fn, userEvent, within } from 'storybook/test'
 import { AdminShellPresentation } from './AdminShellPresentation'
 
 const counts = {
-  companionApplicationsPending: 8,
   memberVerificationsPending: 3,
   reportsOpen: 5,
 }
@@ -27,7 +26,6 @@ function OverviewContent() {
           <p className="text-meta">Select a queue to start reviewing.</p>
         </div>
         <div className="admin-stat-grid">
-          <StoryQueueCard icon={<ClipboardCheck size={18} />} label="Companion profiles" value={8} />
           <StoryQueueCard icon={<ShieldCheck size={18} />} label="Identity checks" value={3} />
           <StoryQueueCard icon={<Flag size={18} />} label="Safety reports" value={5} />
         </div>
@@ -69,7 +67,7 @@ export const Admin: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page')
-    await expect(canvas.getByText('8', { selector: '.rail-link-count' })).toBeVisible()
+    await expect(canvas.getByText('3', { selector: '.rail-link-count' })).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Sign out' }))
     await expect(args.onSignOut).toHaveBeenCalledOnce()
   },
@@ -94,6 +92,6 @@ export const Narrow: Story = {
   args: {
     viewerRole: 'reviewer',
     displayName: 'Alex Kim',
-    pathname: '/companion-applications',
+    pathname: '/booking-verification',
   },
 }

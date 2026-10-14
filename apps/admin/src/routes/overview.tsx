@@ -1,4 +1,4 @@
-import { ArrowRight, ClipboardCheck, Flag, ShieldCheck, UsersRound } from 'lucide-react'
+import { ArrowRight, Flag, ShieldCheck, UsersRound } from 'lucide-react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useQuery } from 'convex/react'
 import type { ReactNode } from 'react'
@@ -29,7 +29,6 @@ function OverviewPage() {
           <p className="text-meta">Select a queue to start reviewing.</p>
         </div>
         <div className="admin-stat-grid">
-          <QueueCard icon={<ClipboardCheck size={18} />} label="Companion profiles" value={counts?.companionApplicationsPending} to="/companion-applications" />
           <QueueCard icon={<ShieldCheck size={18} />} label="Identity checks" value={counts?.memberVerificationsPending} to="/booking-verification" />
           <QueueCard icon={<Flag size={18} />} label="Safety reports" value={counts?.reportsOpen} to="/reports" />
           {overview?.viewerRole === 'admin' ? <QueueCard icon={<UsersRound size={18} />} label="Suspended users" value={counts?.usersSuspended} to="/users" /> : null}
@@ -81,7 +80,7 @@ function OverviewPage() {
   )
 }
 
-function QueueCard({ icon, label, value, to }: { icon: ReactNode; label: string; value: number | undefined; to: '/companion-applications' | '/booking-verification' | '/reports' | '/users' }) {
+function QueueCard({ icon, label, value, to }: { icon: ReactNode; label: string; value: number | undefined; to: '/booking-verification' | '/reports' | '/users' }) {
   return (
     <Link className="admin-stat admin-queue-card" to={to}>
       <span className="admin-stat-icon" aria-hidden="true">{icon}</span>

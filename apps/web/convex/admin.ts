@@ -2,7 +2,7 @@ import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
-import { canAdminApproveIdentity, hasCurrentIdentityApproval, identityApprovalExpiresAt, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason } from './identityVerification'
+import { canAdminApproveIdentity, identityApprovalExpiresAt, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason } from './identityVerification'
 import { syncUserCompanionLocation } from './companionLocations'
 import { syncCompanionLocation } from './companionLocations'
 import { resolveBlockedBookingFunds as applyBlockedBookingResolution } from './finance'
@@ -10,7 +10,6 @@ import { createNotification } from './notifications'
 
 const roleOrAll = v.union(v.literal('member'), v.literal('companion'), v.literal('reviewer'), v.literal('admin'), v.literal('all'))
 const verificationStatusOrAll = v.union(v.literal('not_ready'), v.literal('pending'), v.literal('approved'), v.literal('rejected'), v.literal('not_started'), v.literal('all'))
-const companionStatusOrAll = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'), v.literal('all'))
 const reportStatus = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'))
 const reportStatusOrAll = v.union(v.literal('open'), v.literal('reviewing'), v.literal('resolved'), v.literal('dismissed'), v.literal('all'))
 const reportTargetTypeOrAll = v.union(v.literal('profile'), v.literal('booking'), v.literal('message'), v.literal('review'), v.literal('post'), v.literal('comment'), v.literal('user'), v.literal('circle'), v.literal('all'))
@@ -40,8 +39,7 @@ export const overview = query({
   args: {},
   handler: async (ctx) => {
     const viewer = await requireAdmin(ctx)
-    const [companionApplications, verificationRequests, reports, users, posts, reviews, auditLogs] = await Promise.all([
-      ctx.db.query('companionProfiles').collect(),
+    const [verificationRequests, reports, users, posts, reviews, auditLogs] = await Promise.all([
       ctx.db.query('verificationRequests').collect(),
       ctx.db.query('reports').collect(),
       ctx.db.query('users').collect(),
@@ -53,7 +51,6 @@ export const overview = query({
     return {
       viewerRole: publicRole(viewer.role),
       counts: {
-        companionApplicationsPending: companionApplications.filter((companion) => companion.status === 'pending_review').length,
         memberVerificationsPending: verificationRequests.filter((request) => isIdentityVerificationReason(request.reason) && isIdentityReadyForAdminReview(request)).length,
         reportsOpen: reports.filter((report) => report.status === 'open').length,
         usersTotal: users.length,
@@ -70,40 +67,10 @@ export const queues = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx)
-    const companionApplications = await ctx.db.query('companionProfiles').withIndex('by_status', (q) => q.eq('status', 'pending_review')).collect()
     const memberVerifications = await memberVerificationRequestsByStatus(ctx, 'pending')
     const reports = await ctx.db.query('reports').withIndex('by_status', (q) => q.eq('status', 'open')).collect()
     const auditLogs = await ctx.db.query('auditLogs').withIndex('by_created_at').order('desc').take(20)
-    return { companionApplications, memberVerifications, reports, auditLogs }
-  },
-})
-
-export const companionApplications = query({
-  args: { status: v.optional(companionStatusOrAll) },
-  handler: async (ctx, args) => {
-    await requireAdmin(ctx)
-    const status = args.status ?? 'pending_review'
-    const companions = status === 'all'
-      ? await ctx.db.query('companionProfiles').collect()
-      : await ctx.db.query('companionProfiles').withIndex('by_status', (q) => q.eq('status', status)).collect()
-    return await Promise.all(companions.sort((a, b) => b.updatedAt - a.updatedAt).map(async (companion) => {
-      const user = await ctx.db.get(companion.userId)
-      const verification = await currentIdentityVerificationForUser(ctx, companion.userId)
-      return {
-        ...companion,
-        applicantDisplayName: user?.displayName ?? companion.displayName,
-        applicantBio: user?.bio,
-        applicantVerificationStatus: user?.verificationStatus ?? 'not_started',
-        applicantIdentityEligible: user ? hasCurrentIdentityApproval(user) : false,
-        applicantSuspended: user?.suspended ?? false,
-        verificationRequestId: verification?._id,
-        verificationAdminStatus: verification?.adminStatus,
-        verificationPersonaStatus: verification?.personaStatus,
-        verificationPersonaDecision: verification?.personaDecision,
-        verificationSource: verification?.verificationSource,
-        personaInquiryId: verification?.personaInquiryId,
-      }
-    }))
+    return { memberVerifications, reports, auditLogs }
   },
 })
 
@@ -279,39 +246,6 @@ export const auditLogs = query({
     const limit = Math.min(Math.max(args.limit ?? 50, 1), 100)
     const logs = await ctx.db.query('auditLogs').withIndex('by_created_at').order('desc').take(limit)
     return await enrichAuditLogs(ctx, logs)
-  },
-})
-
-export const reviewCompanionApplication = mutation({
-  args: { companionProfileId: v.id('companionProfiles'), decision: v.union(v.literal('approved'), v.literal('rejected')), note: v.optional(v.string()) },
-  handler: async (ctx, args) => {
-    const admin = await requireAdmin(ctx)
-    const companion = await ctx.db.get(args.companionProfileId)
-    if (!companion) throw new Error('Companion profile not found')
-    if (companion.status !== 'pending_review') throw new Error('This Companion application has already been reviewed')
-    const user = await ctx.db.get(companion.userId)
-    if (!user) throw new Error('Applicant account not found')
-    if (args.decision === 'approved' && user.suspended) throw new Error('A suspended member cannot be approved as a Companion')
-    if (args.decision === 'approved' && !hasCurrentIdentityApproval(user)) {
-      throw new Error('Identity verification must be approved before the Companion application can be approved')
-    }
-
-    const note = args.decision === 'rejected' ? requireNote(args.note, 'Rejecting a companion application') : normalizeNote(args.note)
-    const now = Date.now()
-    const after = { ...companion, status: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now }
-    await ctx.db.patch(args.companionProfileId, { status: args.decision, reviewerUserId: admin._id, reviewerNote: note, updatedAt: now })
-    if (args.decision === 'approved' && user.role === 'member') {
-      await ctx.db.patch(companion.userId, { role: 'companion', updatedAt: now })
-    }
-    await syncCompanionLocation(ctx, after, user)
-    await writeAudit(ctx, { actorUserId: admin._id, action: `companion_application.${args.decision}`, targetType: 'companionProfile', targetId: String(args.companionProfileId), before: companion, after, note })
-    await createNotification(ctx, {
-      recipientUserId: companion.userId,
-      kind: args.decision === 'approved' ? 'companion_application_approved' : 'companion_application_rejected',
-      priority: 'attention',
-      companionProfileId: companion._id,
-      dedupeKey: `companion-application:${companion._id}:${args.decision}`,
-    })
   },
 })
 
@@ -633,17 +567,6 @@ async function memberVerificationRequestsByStatus(
   ))
   const requests = groups.flat() as Array<Doc<'verificationRequests'>>
   return status === 'pending' ? requests.filter(isIdentityReadyForAdminReview) : requests
-}
-
-async function currentIdentityVerificationForUser(ctx: any, userId: any) {
-  const requests = await ctx.db.query('verificationRequests').withIndex('by_user', (q: any) => q.eq('userId', userId)).collect()
-  return requests
-    .filter((request: Doc<'verificationRequests'>) => isIdentityVerificationReason(request.reason))
-    .sort((a: Doc<'verificationRequests'>, b: Doc<'verificationRequests'>) => {
-      if (a.isCurrent === true && b.isCurrent !== true) return -1
-      if (b.isCurrent === true && a.isCurrent !== true) return 1
-      return b.updatedAt - a.updatedAt
-    })[0]
 }
 
 function identityExpiry(now: number, expirationDate?: string) {

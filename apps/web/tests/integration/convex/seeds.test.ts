@@ -242,7 +242,9 @@ describe('Pampanga development seed', () => {
       hourlyRateCentavos: 50_000,
       earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
     })
-    expect((await t.query(api.companions.listApproved, nearbyArgs)).map((companion: { displayName: string }) => companion.displayName)).not.toContain('Alyssa')
+    expect((await t.query(api.companions.listApproved, nearbyArgs)).map((companion: { displayName: string }) => companion.displayName)).toContain('Alyssa')
+    const resubmitted = await t.run(async (ctx) => ctx.db.query('companionProfiles').first())
+    expect(resubmitted).toMatchObject({ status: 'approved' })
     expect(await t.mutation(internal.migrations.backfillCompanionLocationIndex, {})).toMatchObject({ removed: 0 })
   })
 })

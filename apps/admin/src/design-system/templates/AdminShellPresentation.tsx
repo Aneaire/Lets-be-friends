@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  ClipboardCheck,
   CircleDot,
   FileText,
   Flag,
@@ -21,7 +20,6 @@ import { ThemeToggle } from '../atoms/ThemeToggle'
 
 const iconByRoute: Record<string, ReactNode> = {
   '/overview': <BarChart3 size={16} />,
-  '/companion-applications': <ClipboardCheck size={16} />,
   '/booking-verification': <ShieldCheck size={16} />,
   '/reports': <Flag size={16} />,
   '/users': <UsersRound size={16} />,
