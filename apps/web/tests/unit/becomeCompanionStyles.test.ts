@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 const styles = readFileSync(fileURLToPath(new URL('../../src/styles.css', import.meta.url)), 'utf8')
 const route = readFileSync(fileURLToPath(new URL('../../src/routes/become-companion.tsx', import.meta.url)), 'utf8')
+const fields = readFileSync(fileURLToPath(new URL('../../src/features/companion-application/CompanionProfileFields.tsx', import.meta.url)), 'utf8')
 
 describe('Become Companion layout styles', () => {
   it('styles the signed-out invitation and signed-in editor', () => {
@@ -38,30 +39,31 @@ describe('Become Companion layout styles', () => {
     expect(styles).not.toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-editor-actions\s*\{[^}]*position:\s*sticky;/s)
   })
 
-  it('does not reserve an empty action slot on the first editor step', () => {
-    expect(route).toMatch(/currentStep > 1[\s\S]*?<Button intent="neutral"[\s\S]*?\) : null}/)
+  it('renders the shared Companion profile fields in a single section', () => {
+    expect(route).toContain('CompanionProfileFields')
+    expect(route).toContain('companion-editor-actions')
     expect(route).not.toContain(') : <span />}')
+    expect(route).not.toContain('companionEditorSteps')
   })
 
   it('identifies the public profile description as the bio field', () => {
-    expect(route).toContain('Tell me about yourself (Bio)')
+    expect(fields).toContain('Tell me about yourself (Bio)')
+    expect(fields).toContain('What work or skills could you share?')
   })
 
-  it('replaces the submitted form with clear review, live-update, and identity actions', () => {
-    expect(route).toContain('Your Companion profile is back in review')
-    expect(route).toContain('sent for safety review')
-    expect(route).toContain('stays hidden from discovery until the review is complete')
-    expect(route).toContain('Your changes are live')
-    expect(route).toContain('No review needed')
+  it('replaces the saved form with a clear saved state and identity actions', () => {
+    expect(route).toContain('Your Companion profile is saved')
+    expect(route).toContain('hidden from discovery until your identity check is approved')
+    expect(route).toContain('Identity and safety review is the only review step')
     expect(route).toContain('View verification status')
     expect(route).toContain('to="/get-verified"')
     expect(route).toContain('to="/"')
     expect(route).toContain('Go to home')
     expect(route).toContain('isSignedIn && !submitted')
     expect(route).toContain('onSubmitted()')
+    expect(route).not.toContain('back in review')
     expect(route).not.toContain('Verify your identity next')
     expect(route).not.toContain('Verify my identity')
-    expect(route).not.toContain('Profile sent for review. Identity and the Companion profile are reviewed separately.')
   })
 
   it('styles the identity locked card', () => {
@@ -88,12 +90,24 @@ describe('Become Companion layout styles', () => {
     expect(route).toMatch(/const companionUnlocked = viewer[\s\S]*canOpenCompanionProfile\(viewer\.identityEligible/)
   })
 
-  it('locks the approved profile editor and routes edits through settings', () => {
-    expect(route).toContain('companionProfileEditorLocked')
-    expect(route).toContain('Your Companion profile is locked')
-    expect(route).toContain('Manage in settings')
-    expect(route).toContain('validateSearch')
-    expect(route).toContain("search.edit === 'true'")
+  it('keeps the editor open for saved profiles without a settings lock', () => {
+    expect(route).toContain('canOpenCompanionProfile')
+    expect(route).toContain('isSignedIn && !submitted && companionUnlocked')
+    expect(route).toContain('Companion profile saved')
+    expect(route).toContain('Identity and safety review')
+    expect(route).toContain('Visible in discovery')
+    expect(route).not.toContain('companionProfileEditorLocked')
+    expect(route).not.toContain('Your Companion profile is locked')
+    expect(route).not.toContain('Manage in settings')
+    expect(route).not.toContain('validateSearch')
+    expect(route).not.toContain('search.edit')
+    expect(route).not.toContain('edit: true')
+  })
+
+  it('covers legacy review rows without presenting them as the expected path', () => {
+    expect(route).toContain('previous review step')
+    expect(route).not.toContain('Your profile is with the review team')
+    expect(route).not.toContain('Companion profile review')
   })
 
   it('marks the locked card with a neutral identity icon', () => {

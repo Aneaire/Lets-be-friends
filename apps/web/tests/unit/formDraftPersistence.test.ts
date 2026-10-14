@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   clearCompanionApplicationDraft,
-  companionLocationReady,
   companionApplicationDraftKey,
   readCompanionApplicationDraft,
-  restoreCompanionEditorStep,
   writeCompanionApplicationDraft,
   type CompanionApplicationDraft,
 } from '../../src/features/companion-application/companionApplicationDraft'
@@ -25,21 +23,15 @@ function memoryStorage() {
 }
 
 describe('form draft persistence', () => {
-  it('stores, scopes, and clears a Companion application draft', () => {
+  it('stores, scopes, and clears a Companion profile draft', () => {
     const storage = memoryStorage()
     const draft: CompanionApplicationDraft = {
-      currentStep: 3,
-      editorStepCount: 4,
       mode: 'both',
       city: 'Bacolor',
       hourlyRatePesos: '650',
       intro: 'I enjoy helping members with errands and local activities.',
       bio: 'Weekend cyclist.',
-      earningMotivation: 'I want flexible work that helps people nearby.',
       selectedCategories: ['Good company', 'Grocery shopping'],
-      approximateLocation: { latitude: 15.03, longitude: 120.69 },
-      locationConfirmed: true,
-      locationConsent: true,
     }
 
     writeCompanionApplicationDraft(storage, 'member-a', draft)
@@ -51,28 +43,13 @@ describe('form draft persistence', () => {
     expect(readCompanionApplicationDraft(storage, 'member-a')).toBeNull()
   })
 
-  it('ignores malformed Companion application drafts', () => {
+  it('ignores malformed Companion profile drafts', () => {
     const storage = memoryStorage()
     storage.setItem(companionApplicationDraftKey('member-a'), '{bad json')
     expect(readCompanionApplicationDraft(storage, 'member-a')).toBeNull()
-  })
 
-  it('maps older drafts into the three-step editor', () => {
-    expect(restoreCompanionEditorStep(1, undefined, 3)).toBe(1)
-    expect(restoreCompanionEditorStep(2, undefined, 3)).toBe(2)
-    expect(restoreCompanionEditorStep(3, undefined, 3)).toBe(2)
-    expect(restoreCompanionEditorStep(4, 5, 3)).toBe(3)
-    expect(restoreCompanionEditorStep(5, 5, 3)).toBe(3)
-    expect(restoreCompanionEditorStep(3, 4, 3)).toBe(3)
-    expect(restoreCompanionEditorStep(2, 3, 3)).toBe(2)
-  })
-
-  it('requires a confirmed approximate location and consent', () => {
-    const location = { latitude: 15.03, longitude: 120.69 }
-    expect(companionLocationReady(location, true, true)).toBe(true)
-    expect(companionLocationReady(null, true, true)).toBe(false)
-    expect(companionLocationReady(location, false, true)).toBe(false)
-    expect(companionLocationReady(location, true, false)).toBe(false)
+    storage.setItem(companionApplicationDraftKey('member-a'), JSON.stringify({ mode: 'sometimes' }))
+    expect(readCompanionApplicationDraft(storage, 'member-a')).toBeNull()
   })
 
   it('stores identity text by member and verification record without files', () => {

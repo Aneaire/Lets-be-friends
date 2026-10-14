@@ -21,8 +21,8 @@ function CompanionEditorLayoutFixture({ showBack = false }: { showBack?: boolean
                   <Textarea defaultValue="I make everyday errands easier and enjoy helping members learn new things." className="min-h-24" />
                 </label>
                 <label className="field-row">
-                  <span className="label">Why do you want to earn with Let&apos;s Be Friends? <span className="label-aux">private, at least 20 characters</span></span>
-                  <Textarea aria-label="Earning motivation" defaultValue="I want to earn while helping members feel supported." className="min-h-24" />
+                  <span className="label">What work or skills could you share? <span className="label-aux">required, 40 to 500 characters</span></span>
+                  <Textarea aria-label="Work or skills" defaultValue="I can help with everyday technology and enjoy unhurried conversations." className="min-h-28" />
                 </label>
               </div>
             </section>
@@ -50,14 +50,14 @@ function CompanionEditorLayoutFixture({ showBack = false }: { showBack?: boolean
 async function verifyMobileLayout(canvasElement: HTMLElement, showBack: boolean) {
   const canvas = within(canvasElement)
   const form = canvas.getByRole('form', { name: 'Companion profile layout preview' })
-  const motivation = canvas.getByRole('textbox', { name: 'Earning motivation' })
+  const work = canvas.getByRole('textbox', { name: 'Work or skills' })
   const actions = canvas.getByRole('group', { name: 'Profile step actions' })
   const preview = canvas.getByRole('complementary', { name: 'Member profile preview' })
   const review = canvas.getByRole('complementary', { name: 'Review status preview' })
   const save = canvas.getByRole('button', { name: 'Save and continue' })
-  const auxiliaryLabel = canvas.getByText('private, at least 20 characters')
+  const auxiliaryLabel = canvas.getByText('required, 40 to 500 characters')
 
-  const motivationBox = motivation.getBoundingClientRect()
+  const workBox = work.getBoundingClientRect()
   const actionsBox = actions.getBoundingClientRect()
   const formBox = form.getBoundingClientRect()
   const previewBox = preview.getBoundingClientRect()
@@ -66,7 +66,7 @@ async function verifyMobileLayout(canvasElement: HTMLElement, showBack: boolean)
 
   await expect(getComputedStyle(actions).position).toBe('static')
   await expect(getComputedStyle(auxiliaryLabel).display).toBe('block')
-  await expect(actionsBox.top).toBeGreaterThanOrEqual(motivationBox.bottom)
+  await expect(actionsBox.top).toBeGreaterThanOrEqual(workBox.bottom)
   await expect(Math.abs(formBox.bottom - actionsBox.bottom)).toBeLessThanOrEqual(2)
   await expect(previewBox.top - formBox.bottom).toBeGreaterThanOrEqual(20)
   await expect(previewBox.top - formBox.bottom).toBeLessThanOrEqual(28)

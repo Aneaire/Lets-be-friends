@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   updateProfile: vi.fn(async () => undefined),
   claimUsername: vi.fn(async () => 'maya'),
   saveLocation: vi.fn(async () => undefined),
+  submitCompanionProfile: vi.fn(async () => undefined),
   completeOnboarding: vi.fn(async () => undefined),
   navigate: vi.fn(async () => undefined),
 }))
@@ -28,7 +29,7 @@ vi.mock('../../convex/_generated/api', () => ({
       saveOnboardingLocationAndConsent: 'users.saveOnboardingLocationAndConsent',
       completeOnboarding: 'users.completeOnboarding',
     },
-    companions: { myApplication: 'companions.myApplication' },
+    companions: { myApplication: 'companions.myApplication', submitApplication: 'companions.submitApplication' },
   },
 }))
 
@@ -44,6 +45,7 @@ vi.mock('convex/react', () => ({
     if (mutation === 'users.updateProfile') return state.updateProfile
     if (mutation === 'users.claimUsername') return state.claimUsername
     if (mutation === 'users.saveOnboardingLocationAndConsent') return state.saveLocation
+    if (mutation === 'companions.submitApplication') return state.submitCompanionProfile
     if (mutation === 'users.completeOnboarding') return state.completeOnboarding
     return vi.fn(async () => undefined)
   },
@@ -61,10 +63,6 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('../../src/features/identity/IdentityVerificationFlow', () => ({
   useIdentityVerification: () => ({ begin: vi.fn(async () => ({ mode: 'return' })), busy: false, message: '', error: '' }),
-}))
-
-vi.mock('../../src/features/companion-application/OnboardingCompanionApplicationStep', () => ({
-  OnboardingCompanionApplicationStep: () => <div>Companion application step</div>,
 }))
 
 vi.mock('../../src/design-system/organisms/ApproximateLocationMap', () => ({
@@ -98,6 +96,7 @@ beforeEach(() => {
   state.availability = undefined
   state.updateProfile.mockClear()
   state.saveLocation.mockClear()
+  state.submitCompanionProfile.mockClear()
 })
 
 describe('onboarding route', () => {
@@ -151,5 +150,40 @@ describe('onboarding route', () => {
 
     await waitFor(() => expect(state.updateProfile).toHaveBeenCalledOnce())
     expect(await screen.findByText('What happens before you meet.')).toBeTruthy()
+  })
+
+  it('collects the full Companion profile on the Companion step and submits it before identity', async () => {
+    state.viewer = { ...state.viewer, onboardingGoal: 'companion', onboardingCategories: ['Good company'] }
+    render(<OnboardingPage />)
+
+    const saveUsername = screen.getByRole('button', { name: 'Save and continue' })
+    await waitFor(() => expect((saveUsername as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(saveUsername)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+
+    expect(screen.queryByLabelText(/Bio/)).toBeNull()
+    expect(screen.queryByText(/What would you like to offer/)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+
+    const bio = await screen.findByLabelText(/Tell me about yourself/) as HTMLTextAreaElement
+    fireEvent.change(bio, { target: { value: 'I like helping neighbors.' } })
+    const skills = await screen.findByLabelText(/What work or skills could you share/) as HTMLTextAreaElement
+    fireEvent.change(skills, { target: { value: 'I can teach guitar and help with everyday errands.' } })
+    fireEvent.change(screen.getByLabelText(/City/), { target: { value: 'Bacolor' } })
+    expect(skills.value).toBe('I can teach guitar and help with everyday errands.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save and verify identity' }))
+
+    await waitFor(() => expect(state.submitCompanionProfile).toHaveBeenCalledWith(expect.objectContaining({
+      intro: 'I can teach guitar and help with everyday errands.',
+      city: 'Bacolor',
+      bio: 'I like helping neighbors.',
+      categories: ['Good company'],
+      mode: 'both',
+      hourlyRateCentavos: 50_000,
+    })))
+    await waitFor(() => expect(state.completeOnboarding).toHaveBeenCalledWith({ goal: 'companion' }))
   })
 })

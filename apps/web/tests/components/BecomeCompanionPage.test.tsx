@@ -78,8 +78,8 @@ beforeEach(() => {
 })
 
 describe('become-companion route', () => {
-  it('renders the editor with design-system inputs bound to controlled state', () => {
-    const { container } = render(<BecomeCompanionPage />)
+  it('renders the single Companion profile form bound to controlled state', () => {
+    render(<BecomeCompanionPage />)
 
     const rate = screen.getByLabelText(/Listed hourly rate/) as HTMLInputElement
     expect(rate.value).toBe('500')
@@ -87,25 +87,76 @@ describe('become-companion route', () => {
     expect(rate.min).toBe('30')
     expect(rate.max).toBe('10000')
 
-    const intro = screen.getByLabelText(/How would you like to spend time with members/) as HTMLTextAreaElement
-    fireEvent.change(intro, { target: { value: 'I can help with a calm grocery run and explain everyday technology.' } })
-    expect(intro.value).toBe('I can help with a calm grocery run and explain everyday technology.')
+    const skills = screen.getByLabelText(/What work or skills could you share/) as HTMLTextAreaElement
+    fireEvent.change(skills, { target: { value: 'I can help with a calm grocery run and explain everyday technology.' } })
+    expect(skills.value).toBe('I can help with a calm grocery run and explain everyday technology.')
+    expect(document.querySelector('.companion-preview-intro')?.textContent).toBe('I can help with a calm grocery run and explain everyday technology.')
 
-    const motivation = screen.getByLabelText(/Why do you want to earn/) as HTMLTextAreaElement
-    expect(motivation.required).toBe(true)
+    const bio = screen.getByLabelText(/Tell me about yourself/) as HTMLTextAreaElement
+    fireEvent.change(bio, { target: { value: 'Weekend cyclist who likes slow coffees.' } })
+    expect(bio.value).toBe('Weekend cyclist who likes slow coffees.')
 
-    const actions = container.querySelector('.companion-editor-actions')
-    expect(actions?.children).toHaveLength(1)
-    expect(actions?.querySelector(':scope > span')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Save and continue' })).toBeTruthy()
+    expect(screen.queryByLabelText(/Why do you want to earn/)).toBeNull()
+    expect(screen.getByLabelText(/City/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Save profile' })).toBeTruthy()
+  })
 
-    fireEvent.change(motivation, { target: { value: 'I want to earn while helping members feel supported.' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+  it('prefills the form from an existing Companion profile', () => {
+    state.application = {
+      _id: 'app-1',
+      status: 'pending_review',
+      displayName: 'Maya Santos',
+      mode: 'online',
+      city: 'Cebu City',
+      hourlyRateCentavos: 75_000,
+      intro: 'I teach guitar and help with everyday errands.',
+      bio: 'Member bio.',
+      categories: ['Good company'],
+    }
+    render(<BecomeCompanionPage />)
 
-    expect(actions?.children).toHaveLength(2)
-    expect(screen.getByRole('button', { name: 'Back' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Save and continue' })).toBeTruthy()
+    const skills = screen.getByLabelText(/What work or skills could you share/) as HTMLTextAreaElement
+    expect(skills.value).toBe('I teach guitar and help with everyday errands.')
+    expect((screen.getByLabelText(/Listed hourly rate/) as HTMLInputElement).value).toBe('750')
+  })
+
+  it('keeps the editor open for a saved approved profile', () => {
+    state.application = {
+      _id: 'app-1',
+      status: 'approved',
+      displayName: 'Maya Santos',
+      mode: 'both',
+      city: 'Cebu City',
+      hourlyRateCentavos: 50_000,
+      intro: 'I teach guitar and help with everyday errands.',
+      bio: 'Member bio.',
+      categories: ['Good company'],
+    }
+    render(<BecomeCompanionPage />)
+
+    expect(screen.queryByText('Your Companion profile is locked')).toBeNull()
+    expect(screen.queryByText('Manage in settings')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeTruthy()
+    expect(screen.getAllByText('Live in Explore').length).toBeGreaterThan(0)
+  })
+
+  it('renders legacy review statuses in the editor without crashing', () => {
+    state.application = {
+      _id: 'app-1',
+      status: 'pending_review',
+      displayName: 'Maya Santos',
+      mode: 'online',
+      city: 'Cebu City',
+      hourlyRateCentavos: 75_000,
+      intro: 'I teach guitar and help with everyday errands.',
+      bio: 'Member bio.',
+      categories: ['Good company'],
+    }
+    render(<BecomeCompanionPage />)
+
+    expect(screen.queryByText('Your Companion profile is locked')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeTruthy()
+    expect(screen.getAllByText('Saved').length).toBeGreaterThan(0)
   })
 
   it('keeps the bespoke session-format pressed-state contract', () => {

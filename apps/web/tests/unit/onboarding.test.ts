@@ -80,7 +80,7 @@ describe('onboarding gate decisions', () => {
 describe('onboarding destinations', () => {
   it('uses the goal-specific destination', () => {
     expect(onboardingDestination('member')).toBe('/nearby')
-    expect(onboardingDestination('companion')).toBe('/become-companion')
+    expect(onboardingDestination('companion')).toBe('/companion')
   })
 
   it('defaults skip to member while preserving a companion choice', () => {

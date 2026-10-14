@@ -4,12 +4,8 @@ import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
 import {
-  activityCategoryOptions,
-  maximumActivityCategoryLength,
-  maximumOnboardingActivityCategories,
   normalizeUsername,
   usernameValidationError,
-  validateActivityCategories,
 } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { Button } from '../design-system/atoms/Button'
@@ -20,8 +16,14 @@ import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLo
 import { roundCoordinates, type Coordinates } from '../lib/geo'
 import { currentTermsVersion, deviceLocationErrorMessage, goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
-import { OnboardingCompanionApplicationStep } from '../features/companion-application/OnboardingCompanionApplicationStep'
-import { companionApplicationSkipDestination } from '../features/companion-application/onboardingCompanionApplication'
+import { CompanionProfileFields } from '../features/companion-application/CompanionProfileFields'
+import {
+  buildCompanionProfilePayload,
+  companionProfileDefaults,
+  validateCompanionProfile,
+  type CompanionProfileMode,
+  type CompanionProfileValues,
+} from '../features/companion-application/companionProfileForm'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 
 export const Route = createFileRoute('/onboarding')({ component: OnboardingPage })
@@ -37,8 +39,8 @@ const memberJourney = [
 ] as const
 
 const companionJourney = [
-  ['Complete your Companion profile', 'Describe the everyday help, Strengths, session formats, and boundaries you can offer.'],
-  ['Complete identity and safety review', 'Your application is reviewed before it can appear publicly.'],
+  ['Set up your Companion profile', 'Describe the work or skills you can offer, your session format, activities, and rate.'],
+  ['Complete identity and safety review', 'Identity is the only review step. Your profile stays hidden until it is approved.'],
   ['Receive approval for public discovery', 'Approval makes your Companion profile visible to members.'],
   ['Help, earn, and connect', 'Accept or decline booking requests, coordinate safely, and earn from completed experiences. You can still book other Companions.'],
 ] as const
@@ -50,10 +52,10 @@ export function OnboardingPage() {
   const updateProfile = useMutation(api.users.updateProfile)
   const claimUsername = useMutation(api.users.claimUsername)
   const saveOnboardingLocationAndConsent = useMutation(api.users.saveOnboardingLocationAndConsent)
+  const submitCompanionProfile = useMutation(api.companions.submitApplication)
   const completeOnboarding = useMutation(api.users.completeOnboarding)
   const identityFlow = useIdentityVerification('member')
   const companionIdentityFlow = useIdentityVerification('companion_application')
-  const companionApplication = useQuery(api.companions.myApplication, isSignedIn && viewer ? {} : 'skip')
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [username, setUsername] = useState('')
@@ -61,9 +63,11 @@ export function OnboardingPage() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [customCategory, setCustomCategory] = useState('')
-  const [categoryError, setCategoryError] = useState('')
   const [bio, setBio] = useState('')
+  const [companionMode, setCompanionMode] = useState<CompanionProfileMode>('both')
+  const [companionRate, setCompanionRate] = useState<string>(companionProfileDefaults.defaultRatePesos)
+  const [companionCity, setCompanionCity] = useState('')
+  const [companionIntro, setCompanionIntro] = useState('')
   const [approxLocation, setApproxLocation] = useState<Coordinates | null>(null)
   const [pendingDeviceLocation, setPendingDeviceLocation] = useState<Coordinates | null>(null)
   const [locationConsent, setLocationConsent] = useState(false)
@@ -177,11 +181,7 @@ export function OnboardingPage() {
       setError('Enter your first and last name.')
       return
     }
-    if (selectedGoal === 'companion' && selectedCategories.length === 0) {
-      setError('Choose at least one category you would like to offer.')
-      return
-    }
-    if (!bio.trim()) {
+    if (selectedGoal !== 'companion' && !bio.trim()) {
       setError('Add a short bio about the skills, talents, or everyday help you can share.')
       return
     }
@@ -201,20 +201,6 @@ export function OnboardingPage() {
     } finally {
       setSubmitting(false)
     }
-  }
-
-  const addCustomCategory = () => {
-    const result = validateActivityCategories(
-      [...selectedCategories, customCategory],
-      maximumOnboardingActivityCategories,
-    )
-    if (!result.ok) {
-      setCategoryError(result.message)
-      return
-    }
-    setSelectedCategories(result.value)
-    setCustomCategory('')
-    setCategoryError('')
   }
 
   const verification = memberVerificationPresentation(
@@ -251,13 +237,32 @@ export function OnboardingPage() {
           ? 'Start a new identity check'
           : 'Verify identity'
 
-  const hasCompanionApplication = Boolean(companionApplication)
+  const companionValues: CompanionProfileValues = {
+    mode: companionMode,
+    hourlyRatePesos: companionRate,
+    city: companionCity,
+    bio,
+    intro: companionIntro,
+  }
+  const updateCompanionValues = (patch: Partial<CompanionProfileValues>) => {
+    if (patch.mode !== undefined) setCompanionMode(patch.mode)
+    if (patch.hourlyRatePesos !== undefined) setCompanionRate(patch.hourlyRatePesos)
+    if (patch.city !== undefined) setCompanionCity(patch.city)
+    if (patch.bio !== undefined) setBio(patch.bio)
+    if (patch.intro !== undefined) setCompanionIntro(patch.intro)
+  }
 
   const finishCompanionWithIdentityReview = async () => {
-    if (submitting || companionIdentityFlow.busy || !hasCompanionApplication) return
+    if (submitting || companionIdentityFlow.busy) return
+    const validation = validateCompanionProfile(companionValues, selectedCategories)
+    if (!validation.ok) {
+      setError(validation.message)
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
+      await submitCompanionProfile(buildCompanionProfilePayload(companionValues, selectedCategories))
       await completeOnboarding({ goal: 'companion' })
       if (verification.state === 'approved' || verification.action === 'none') {
         await navigate({ to: onboardingDestination('companion') })
@@ -266,21 +271,15 @@ export function OnboardingPage() {
       const result = await companionIdentityFlow.begin()
       if (result?.mode !== 'launch') await navigate({ to: onboardingDestination('companion') })
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Identity verification could not be started.')
+      setError(submitError instanceof Error ? submitError.message : 'Your welcome guide could not be completed. Please try again.')
     } finally {
       setSubmitting(false)
     }
   }
 
-  const companionIdentityActionLabel = verification.state === 'approved'
-    ? 'Open Companion profile'
-    : verification.action === 'none'
-      ? 'View verification status'
-      : verification.action === 'continue'
-        ? 'Continue identity check'
-        : verification.action === 'retry'
-          ? 'Start a new identity check'
-          : 'Verify identity'
+  const companionIdentityActionLabel = verification.state === 'approved' || verification.action === 'none'
+    ? 'Save Companion profile'
+    : 'Save and verify identity'
 
   return (
     <main className="onboarding-page">
@@ -485,8 +484,10 @@ export function OnboardingPage() {
         {step === 3 && (
           <div>
             <p className="eyebrow">Step 3</p>
-            <h2 className="text-h1 mt-2">Confirm your public profile.</h2>
-            <p className="text-body muted mt-2">Add the name and short introduction you want members to see. A profile photo can be added later from Profile.</p>
+            <h2 className="text-h1 mt-2">{selectedGoal === 'companion' ? 'Confirm your name.' : 'Confirm your public profile.'}</h2>
+            <p className="text-body muted mt-2">{selectedGoal === 'companion'
+              ? 'Add the name members will see. You will add your introduction and activities in the Companion profile step.'
+              : 'Add the name and short introduction you want members to see. A profile photo can be added later from Profile.'}</p>
             <div className="onboarding-fields mt-6">
               <div className="onboarding-name-fields">
                 <FormField label="First name">
@@ -496,61 +497,11 @@ export function OnboardingPage() {
                   <Input autoComplete="family-name" value={lastName} maxLength={40} onChange={(event) => setLastName(event.currentTarget.value)} />
                 </FormField>
               </div>
+              {selectedGoal !== 'companion' && (
               <label className="field-row">
                 <span className="label">Bio <span className="label-aux">required</span></span>
                 <Textarea required className="min-h-28" value={bio} maxLength={500} onChange={(event) => setBio(event.currentTarget.value)} placeholder="For example: I can help you practice a new language, and I make everyday errands more fun." />
               </label>
-              {selectedGoal === 'companion' && (
-                <fieldset className="onboarding-category-field">
-                  <legend className="label">What would you like to offer? <span className="label-aux">choose up to 6</span></legend>
-                  <p className="field-row-help">Choose the everyday help and activities you feel comfortable offering. You can refine these before submitting your Companion profile.</p>
-                  <div className="onboarding-category-grid mt-3">
-                    {activityCategoryOptions(selectedCategories).map((category) => {
-                      const selected = selectedCategories.includes(category)
-                      return (
-                        <label key={category} data-selected={selected}>
-                          <input
-                            type="checkbox"
-                            checked={selected}
-                            disabled={!selected && selectedCategories.length >= maximumOnboardingActivityCategories}
-                            onChange={() => setSelectedCategories((current) => selected
-                              ? current.filter((value) => value !== category)
-                              : [...current, category])}
-                          />
-                          <span>{category}</span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                  <div className="category-custom-entry mt-3">
-                    <FormField label="Add your own category">
-                      <Input
-                        value={customCategory}
-                        maxLength={maximumActivityCategoryLength}
-                        disabled={selectedCategories.length >= maximumOnboardingActivityCategories}
-                        onChange={(event) => {
-                          setCustomCategory(event.currentTarget.value)
-                          setCategoryError('')
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key !== 'Enter') return
-                          event.preventDefault()
-                          addCustomCategory()
-                        }}
-                        placeholder="For example, museum visits"
-                      />
-                    </FormField>
-                    <Button
-                      intent="self"
-                      size="small"
-                      disabled={selectedCategories.length >= maximumOnboardingActivityCategories}
-                      onClick={addCustomCategory}
-                    >
-                      Add category
-                    </Button>
-                  </div>
-                  {categoryError && <p className="field-row-help category-custom-error" role="alert">{categoryError}</p>}
-                </fieldset>
               )}
             </div>
           </div>
@@ -594,36 +545,27 @@ export function OnboardingPage() {
             <span className="onboarding-complete-mark" aria-hidden="true"><Check size={22} strokeWidth={2.25} /></span>
             <div>
               <p className="eyebrow">Step 5</p>
-              <h2 className="text-h1 mt-2">Submit your Companion application.</h2>
+              <h2 className="text-h1 mt-2">Set up your Companion profile.</h2>
               <p className="lede mt-3">
-                Complete and submit your Companion profile below. Applying starts review, and it does not guarantee approval. After submitting, continue to identity verification.
+                Choose how you meet, set your amount, and describe the work or skills you can share. Your details save right away, and identity verification is the only review step.
               </p>
               {viewer.onboardingCompletedAt && <p className="onboarding-complete-note mt-4">Your welcome guide is already complete. Finishing again keeps your account setup intact.</p>}
-              <OnboardingCompanionApplicationStep
-                application={companionApplication === undefined
-                  ? undefined
-                  : companionApplication === null
-                    ? null
-                    : { status: companionApplication.status, updatedAt: companionApplication.updatedAt }}
-                viewerBio={viewer.bio}
-                viewerCategories={viewer.onboardingCategories}
-                onSubmitted={() => setError('')}
-              />
-              {hasCompanionApplication && (
-                <div className="onboarding-identity-after-application mt-6">
-                  <h3 className="text-h3">Next: identity verification</h3>
-                  <p className="text-body muted mt-2">
-                    {verification.state === 'approved'
-                      ? 'Your identity check is approved. Continue to your Companion profile when you are ready.'
-                      : 'Complete a private government ID check and current selfie capture now. Every submission is reviewed by the safety team.'}
-                  </p>
-                </div>
-              )}
-              {!hasCompanionApplication && companionApplication !== undefined && (
-                <p className="text-meta mt-4">
-                  Prefer to apply later? Use Skip for now to finish setup. You can submit your application from {companionApplicationSkipDestination()} at any time.
+              <div className="onboarding-fields mt-6">
+                <CompanionProfileFields
+                  values={companionValues}
+                  onChange={updateCompanionValues}
+                  selectedCategories={selectedCategories}
+                  onCategoriesChange={setSelectedCategories}
+                />
+              </div>
+              <div className="onboarding-identity-after-application mt-6">
+                <h3 className="text-h3">Next: identity verification</h3>
+                <p className="text-body muted mt-2">
+                  {verification.state === 'approved'
+                    ? 'Your identity check is approved. Continue to your Companion profile when you are ready.'
+                    : 'Complete a private government ID check and current selfie capture now. Every submission is reviewed by the safety team.'}
                 </p>
-              )}
+              </div>
             </div>
           </div>
         )}
@@ -646,8 +588,7 @@ export function OnboardingPage() {
             {step === 5 && selectedGoal === 'companion' && (
               <Button
                 intent="self"
-                disabled={submitting || companionIdentityFlow.busy || !hasCompanionApplication}
-                title={hasCompanionApplication ? undefined : 'Submit your Companion application above before continuing.'}
+                disabled={submitting || companionIdentityFlow.busy}
                 onClick={() => void finishCompanionWithIdentityReview()}
               >
                 {submitting || companionIdentityFlow.busy ? 'Opening identity check...' : companionIdentityActionLabel}

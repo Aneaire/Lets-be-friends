@@ -4,65 +4,50 @@ import { useMutation, useQuery } from 'convex/react'
 import { ShieldCheck } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
-import {
-  activityCategories,
-  maximumCompanionActivityCategories,
-} from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { Button } from '../design-system/atoms/Button'
-import { Input, Textarea } from '../design-system/atoms/Field'
 import { EmptyState, InlineNotice } from '../design-system/molecules/FeedbackState'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
-import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
-import { ActivityCategoryPicker } from '../features/companion-application/ActivityCategoryPicker'
+import { CompanionProfileFields } from '../features/companion-application/CompanionProfileFields'
 import {
   clearCompanionApplicationDraft,
-  companionLocationReady,
   readCompanionApplicationDraft,
-  restoreCompanionEditorStep,
   writeCompanionApplicationDraft,
 } from '../features/companion-application/companionApplicationDraft'
+import {
+  buildCompanionProfilePayload,
+  defaultCompanionProfileValues,
+  formatPhpFromPesos,
+  validateCompanionProfile,
+  type CompanionProfileValues,
+} from '../features/companion-application/companionProfileForm'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
-import { identityEntitlementStatus, memberVerificationPresentation, canOpenCompanionProfile, companionProfileEditorLocked, type MemberVerificationPresentation } from '../lib/memberVerification'
-import { geolocationErrorMessage, roundCoordinates, type Coordinates } from '../lib/geo'
-import { currentTermsVersion } from '../lib/onboarding'
+import { identityEntitlementStatus, memberVerificationPresentation, canOpenCompanionProfile, type MemberVerificationPresentation } from '../lib/memberVerification'
 
 export const Route = createFileRoute('/become-companion')({
-  validateSearch: (search: Record<string, unknown>): { edit?: true } => ({
-    edit: search.edit === true || search.edit === 'true' ? true : undefined,
-  }),
   component: BecomeCompanionPage,
 })
 
-const companionEditorSteps = [
-  { id: 1, label: 'What you offer' },
-  { id: 2, label: 'Activities' },
-  { id: 3, label: 'Location' },
-] as const
-
 export function BecomeCompanionPage() {
   const { isSignedIn } = useAuth()
-  const { edit } = Route.useSearch()
   const [submitted, setSubmitted] = useState(false)
   const viewer = useQuery(api.users.viewer, isSignedIn ? {} : 'skip')
   const latestIdentityVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
-  const application = useQuery(api.companions.myApplication, isSignedIn ? {} : 'skip')
   // Gate the signed-in intro on the same identity eligibility as the editor.
-  // While eligibility is loading the gate stays locked so the editor anchor
-  // never points at a locked editor.
+  // While eligibility is loading the gate stays closed so the editor anchor
+  // never points at a hidden editor.
   const companionUnlocked = viewer
     ? canOpenCompanionProfile(viewer.identityEligible ?? false, latestIdentityVerification ?? null)
     : false
-  const profileLocked = companionProfileEditorLocked(application?.status, edit)
 
   return (
     <main className="marketing-page-wide companion-page" data-editor={isSignedIn ? 'true' : 'false'}>
-      {isSignedIn && !submitted && companionUnlocked && !profileLocked ? (
+      {isSignedIn && !submitted && companionUnlocked ? (
         <header className="companion-editor-intro">
           <div>
             <p className="eyebrow">Companion profile</p>
             <h1 className="text-display">Share what you can offer. Earn on your terms.</h1>
-            <p className="text-body muted">Three focused steps. Your existing details stay in place until you save and send changes for review.</p>
+            <p className="text-body muted">One focused form. Your existing details stay in place until you save changes.</p>
           </div>
           <a href="#companion-profile-editor" className="btn btn-self">Open profile editor</a>
         </header>
@@ -91,7 +76,7 @@ export function BecomeCompanionPage() {
           <section className="companion-benefit-grid" aria-label="What you control">
             <article><span>01</span><h2>Offer what you already enjoy</h2><p>Choose the everyday help and activities that feel natural to you.</p></article>
             <article><span>02</span><h2>Choose how you meet</h2><p>Decide between online and in-person sessions, then set your rate.</p></article>
-            <article><span>03</span><h2>Get reviewed before going live</h2><p>Identity and profile review happen before members can find you or send a booking request.</p></article>
+            <article><span>03</span><h2>Verify your identity once</h2><p>Identity and safety review is the only review step, and members only find you after it is approved.</p></article>
           </section>
           <section className="companion-ideas" aria-labelledby="companion-ideas-title">
             <div>
@@ -116,31 +101,15 @@ export function BecomeCompanionPage() {
 
 function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
   const { isSignedIn, userId } = useAuth()
-  const { edit } = Route.useSearch()
-  const formRef = useRef<HTMLFormElement>(null)
   const hydratedDraftKeyRef = useRef<string | null>(null)
   const viewer = useQuery(api.users.viewer)
   const application = useQuery(api.companions.myApplication)
   const latestIdentityVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
-  const submit = useMutation(api.companions.submitApplication)
-  const saveLocation = useMutation(api.users.saveOnboardingLocationAndConsent)
+  const sendApplication = useMutation(api.companions.submitApplication)
   const identityFlow = useIdentityVerification('companion_application')
+  const [values, setValues] = useState<CompanionProfileValues>(() => defaultCompanionProfileValues())
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [currentStep, setCurrentStep] = useState(1)
-  const [stepError, setStepError] = useState('')
-  const [mode, setMode] = useState<'online' | 'in_person' | 'both'>('both')
-  const [city, setCity] = useState('')
-  const [hourlyRatePesos, setHourlyRatePesos] = useState('500')
-  const [intro, setIntro] = useState('')
-  const [bio, setBio] = useState('')
-  const [earningMotivation, setEarningMotivation] = useState('')
-  const [approximateLocation, setApproximateLocation] = useState<Coordinates | null>(null)
-  const [locationConfirmed, setLocationConfirmed] = useState(false)
-  const [locationConsent, setLocationConsent] = useState(false)
-  const [locationStatus, setLocationStatus] = useState('')
-  const [savingLocation, setSavingLocation] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [savedRequiresReview, setSavedRequiresReview] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -149,34 +118,29 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
     if (hydratedDraftKeyRef.current === userId) return
 
     if (application) {
-      setMode(application.mode)
-      setCity(application.city)
-      setHourlyRatePesos(String((application.hourlyRateCentavos ?? 50_000) / 100))
-      setIntro(application.intro)
-      setBio(application.bio ?? viewer?.bio ?? '')
-      setEarningMotivation(application.earningMotivation ?? '')
+      setValues(defaultCompanionProfileValues({
+        mode: application.mode,
+        city: application.city,
+        hourlyRatePesos: String((application.hourlyRateCentavos ?? 50_000) / 100),
+        bio: application.bio ?? viewer?.bio ?? '',
+        intro: application.intro,
+      }))
       setSelectedCategories(application.categories)
     } else {
-      if (viewer?.bio) setBio(viewer.bio)
+      setValues(defaultCompanionProfileValues({ bio: viewer?.bio ?? '' }))
       if (viewer?.onboardingCategories?.length) setSelectedCategories(viewer.onboardingCategories)
-    }
-    if (typeof viewer?.approximateLatitude === 'number' && typeof viewer?.approximateLongitude === 'number') {
-      setApproximateLocation({ latitude: viewer.approximateLatitude, longitude: viewer.approximateLongitude })
     }
 
     const draft = readCompanionApplicationDraft(window.localStorage, userId)
     if (draft) {
-      setCurrentStep(restoreCompanionEditorStep(draft.currentStep, draft.editorStepCount, companionEditorSteps.length))
-      setMode(draft.mode)
-      setCity(draft.city)
-      setHourlyRatePesos(draft.hourlyRatePesos)
-      setIntro(draft.intro)
-      setBio(draft.bio)
-      setEarningMotivation(draft.earningMotivation)
+      setValues(defaultCompanionProfileValues({
+        mode: draft.mode,
+        city: draft.city,
+        hourlyRatePesos: draft.hourlyRatePesos,
+        bio: draft.bio,
+        intro: draft.intro,
+      }))
       setSelectedCategories(draft.selectedCategories)
-      setApproximateLocation(draft.approximateLocation ?? null)
-      setLocationConfirmed(draft.locationConfirmed ?? false)
-      setLocationConsent(draft.locationConsent ?? false)
     }
     hydratedDraftKeyRef.current = userId
   }, [application, userId, viewer])
@@ -184,20 +148,17 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
   useEffect(() => {
     if (!userId || hydratedDraftKeyRef.current !== userId || saved) return
     writeCompanionApplicationDraft(window.localStorage, userId, {
-      currentStep,
-      editorStepCount: companionEditorSteps.length,
-      mode,
-      city,
-      hourlyRatePesos,
-      intro,
-      bio,
-      earningMotivation,
+      mode: values.mode,
+      city: values.city,
+      hourlyRatePesos: values.hourlyRatePesos,
+      bio: values.bio,
+      intro: values.intro,
       selectedCategories,
-      approximateLocation,
-      locationConfirmed,
-      locationConsent,
     })
-  }, [approximateLocation, bio, city, currentStep, earningMotivation, hourlyRatePesos, intro, locationConfirmed, locationConsent, mode, saved, selectedCategories, userId])
+  }, [saved, selectedCategories, userId, values])
+
+  const updateValues = (patch: Partial<CompanionProfileValues>) =>
+    setValues((current) => ({ ...current, ...patch }))
 
   if (!isSignedIn) {
     return (
@@ -221,42 +182,22 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
     identityEntitlementStatus(viewer?.verificationStatus ?? 'not_started', viewer?.identityEligible ?? false),
     latestIdentityVerification,
   )
-  const profileLocked = companionProfileEditorLocked(status, edit)
 
   if (saved) {
-    return savedRequiresReview ? (
+    return (
       <section className="companion-submission-card" aria-labelledby="companion-submission-title">
         <div className="companion-submission-mark" aria-hidden="true">✓</div>
-        <p className="eyebrow">Changes sent</p>
-        <h2 id="companion-submission-title" className="text-h1">Your Companion profile is back in review</h2>
+        <p className="eyebrow">Profile saved</p>
+        <h2 id="companion-submission-title" className="text-h1">Your Companion profile is saved</h2>
         <p className="text-body muted">
-          You changed details the review team checks, so your updated profile has been sent for safety review. Your identity approval is not affected.
+          Your details save right away. Your profile stays hidden from discovery until your identity check is approved.
         </p>
         <div className="companion-submission-next">
-          <strong>Companion profile review in progress</strong>
-          <span>Your profile stays hidden from discovery until the review is complete.</span>
+          <strong>Next: identity verification</strong>
+          <span>Identity and safety review is the only review step.</span>
         </div>
         <div className="companion-submission-actions">
           <Link to="/get-verified" className="btn btn-self btn-lg">View verification status</Link>
-          <Link to="/" className="btn btn-neutral btn-lg">Go to home</Link>
-        </div>
-      </section>
-    ) : (
-      <section className="companion-submission-card" aria-labelledby="companion-submission-title">
-        <div className="companion-submission-mark" aria-hidden="true">✓</div>
-        <p className="eyebrow">Profile updated</p>
-        <h2 id="companion-submission-title" className="text-h1">Your changes are live</h2>
-        <p className="text-body muted">
-          You changed details that do not need another review, like your rate or bio. Your Companion profile stays live in Explore.
-        </p>
-        <div className="companion-submission-next">
-          <strong>No review needed</strong>
-          <span>Your identity and Companion approval are unchanged.</span>
-        </div>
-        <div className="companion-submission-actions">
-          {application?.status === 'approved' && (
-            <Link to="/companion-profile" search={{ companionProfileId: application._id }} className="btn btn-self btn-lg">View live profile</Link>
-          )}
           <Link to="/" className="btn btn-neutral btn-lg">Go to home</Link>
         </div>
       </section>
@@ -295,109 +236,23 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
     )
   }
 
-  if (profileLocked) {
-    return (
-      <section className="companion-locked-card" aria-labelledby="companion-editor-locked-title">
-        <div className="companion-submission-mark" aria-hidden="true"><ShieldCheck size={28} aria-hidden="true" /></div>
-        <p className="eyebrow">Companion profile verified</p>
-        <h2 id="companion-editor-locked-title" className="text-h1">Your Companion profile is locked</h2>
-        <p className="text-body muted">
-          Your profile is approved and visible to members. To keep verified details safe, changing your price or profile now happens in Settings.
-        </p>
-        <p className="text-meta companion-locked-guidance">{verification.guidance}</p>
-        <div className="companion-locked-actions">
-          <Link to="/settings" className="btn btn-self btn-lg">Manage in settings</Link>
-          {application && (
-            <Link to="/companion-profile" search={{ companionProfileId: application._id }} className="btn btn-neutral btn-lg">View live profile</Link>
-          )}
-        </div>
-      </section>
-    )
-  }
-
-  const changeStep = (nextStep: number) => {
-    setCurrentStep(Math.max(1, Math.min(companionEditorSteps.length, nextStep)))
-    setStepError('')
-    requestAnimationFrame(() => {
-      document.getElementById('companion-profile-editor')?.scrollIntoView({ block: 'start' })
-    })
-  }
-
-  const validateCurrentStep = () => {
-    const activeSection = formRef.current?.querySelector<HTMLElement>(`[data-companion-step="${currentStep}"]`)
-    const invalidField = activeSection?.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(':invalid')
-    if (invalidField) {
-      invalidField.reportValidity()
-      invalidField.focus()
-      return false
-    }
-    if (currentStep === 2 && selectedCategories.length === 0) {
-      setStepError('Choose at least one activity before continuing.')
-      return false
-    }
-    if (currentStep === 3 && !companionLocationReady(approximateLocation, locationConfirmed, locationConsent)) {
-      setStepError('Use your current location and confirm the location consent before continuing.')
-      return false
-    }
-    setStepError('')
-    return true
-  }
-
-  const useCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setLocationStatus('Location is not available in this browser. Use a browser or device with location access.')
-      return
-    }
-    setLocationConfirmed(false)
-    setLocationStatus('Waiting for location permission...')
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setApproximateLocation(roundCoordinates({ latitude: position.coords.latitude, longitude: position.coords.longitude }))
-        setLocationConfirmed(true)
-        setLocationStatus('Current location found. Review the approximate point and confirm the consent below.')
-        setStepError('')
-      },
-      (locationError) => {
-        setLocationConfirmed(false)
-        setLocationStatus(geolocationErrorMessage(locationError.code).replace(' You can also place a pin on the map.', ''))
-      },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 0 },
-    )
-  }
-
   return (
     <div className="drawer-companion" id="companion-profile-editor">
       <form
-        ref={formRef}
         className="companion-editor-form"
         onSubmit={async (event) => {
           event.preventDefault()
-          if (currentStep !== companionEditorSteps.length || !validateCurrentStep() || !approximateLocation) return
+          if (saving) return
+          const validation = validateCompanionProfile(values, selectedCategories)
+          if (!validation.ok) {
+            setError(validation.message)
+            return
+          }
           setSaving(true)
-          setSavingLocation(true)
           setSaved(false)
           setError('')
           try {
-            await saveLocation({
-              latitude: approximateLocation.latitude,
-              longitude: approximateLocation.longitude,
-              locationConsent: true,
-              termsAccepted: Boolean(viewer?.termsAcceptedAt && viewer.termsVersion === currentTermsVersion),
-              termsVersion: currentTermsVersion,
-            })
-            const result = await submit({
-              intro: intro.trim(),
-              city: city.trim(),
-              strengths: [],
-              categories: selectedCategories,
-              boundaries: [],
-              mode,
-              hourlyRateCentavos: Math.round(Number(hourlyRatePesos) * 100),
-              applicationNote: undefined,
-              bio: bio.trim(),
-              earningMotivation: earningMotivation.trim(),
-            })
-            setSavedRequiresReview(result.requiresReview)
+            await sendApplication(buildCompanionProfilePayload(values, selectedCategories))
             if (userId) clearCompanionApplicationDraft(window.localStorage, userId)
             setSaved(true)
             onSubmitted()
@@ -405,7 +260,6 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
             setError(submitError instanceof Error ? submitError.message : 'Your Companion profile could not be saved.')
           } finally {
             setSaving(false)
-            setSavingLocation(false)
           }
         }}
       >
@@ -416,7 +270,7 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
               {status && <span className="status-pill" data-tone={statusTone(status)}>{companionStatusLabel(status, verification.state === 'approved')}</span>}
             </div>
             <h2 className="text-h1">{status ? 'Your Companion profile' : 'Create your Companion profile'}</h2>
-            <p className="text-meta">Only the final step saves your changes. Rate and bio updates go live right away; other edits are sent for review.</p>
+            <p className="text-meta">Your details save right away. Identity and safety review is the only review step.</p>
           </div>
           {application?.status === 'approved' && (
             <Link to="/companion-profile" search={{ companionProfileId: application._id }} className="btn btn-neutral btn-sm">
@@ -425,170 +279,30 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
           )}
         </header>
 
-        <div className="companion-editor-progress" aria-live="polite">
-          <span>Step {currentStep} of {companionEditorSteps.length}</span>
-          <strong>{companionEditorSteps[currentStep - 1].label}</strong>
-          <progress max={companionEditorSteps.length} value={currentStep} aria-label={`Step ${currentStep} of ${companionEditorSteps.length}`} />
-        </div>
-
         {identityFlow.message && (
           <InlineNotice tone="success">{identityFlow.message}</InlineNotice>
         )}
         {(error || identityFlow.error) && (
           <InlineNotice tone="danger">{identityFlow.error || error}</InlineNotice>
         )}
-        {stepError && <p className="companion-step-error" role="alert">{stepError}</p>}
 
-        <NumberedSection
-          n={1}
-          active={currentStep === 1}
-          title="What you offer"
-          rationale="Choose how you want to meet, describe how you can help, and set the amount you receive."
-        >
-          <fieldset className="companion-mode-fieldset">
-            <legend className="label">Session format</legend>
-            <div className="companion-mode-options">
-              {([
-                ['both', 'Online and in-person'],
-                ['online', 'Online only'],
-                ['in_person', 'In-person only'],
-              ] as const).map(([value, label]) => (
-                <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)}>{label}</button>
-              ))}
-            </div>
-          </fieldset>
-          <label className="field-row">
-            <span className="label">Listed hourly rate <span className="label-aux">PHP</span></span>
-            <Input
-              type="number"
-              min="30"
-              max="10000"
-              step="0.01"
-              required
-              value={hourlyRatePesos}
-              onChange={(event) => setHourlyRatePesos(event.currentTarget.value)}
-            />
-            <span className="field-row-help">You receive {formatPhpFromPesos(hourlyRatePesos)} for each completed hour. The member's final booking total includes the service fee.</span>
-          </label>
-          <label className="field-row">
-            <span className="label">How would you like to spend time with members? <span className="label-aux">40 to 500 characters</span></span>
-            <Textarea
-              required
-              minLength={40}
-              maxLength={500}
-              value={intro}
-              onChange={(event) => setIntro(event.currentTarget.value)}
-              className="min-h-28"
-              placeholder="For example: I can help with a shopping trip, explain everyday technology, share local knowledge, or offer an unhurried conversation."
-              aria-describedby="companion-intro-help companion-intro-count"
-            />
-            <span className="companion-field-help-row">
-              <span id="companion-intro-help" className="field-row-help">Keep it specific. Avoid romantic, dating, or transactional framing.</span>
-              <span id="companion-intro-count" className="field-row-help tabular">{intro.length}/500</span>
-            </span>
-          </label>
-          <label className="field-row">
-            <span className="label">Tell me about yourself (Bio) <span className="label-aux">required, up to 500 characters</span></span>
-            <Textarea
-              required
-              maxLength={500}
-              value={bio}
-              onChange={(event) => setBio(event.currentTarget.value)}
-              className="min-h-24"
-              placeholder="For example: I can help you practice a new language, and I make everyday errands more fun."
-              aria-describedby="companion-bio-help companion-bio-count"
-            />
-            <span className="companion-field-help-row">
-              <span id="companion-bio-help" className="field-row-help">This updates your member profile bio and appears on your public profile.</span>
-              <span id="companion-bio-count" className="field-row-help tabular">{bio.length}/500</span>
-            </span>
-          </label>
-          <label className="field-row">
-            <span className="label">Why do you want to earn with Let&apos;s Be Friends? <span className="label-aux">private, at least 20 characters</span></span>
-            <Textarea
-              required
-              minLength={20}
-              maxLength={1000}
-              value={earningMotivation}
-              onChange={(event) => setEarningMotivation(event.currentTarget.value)}
-              className="min-h-24"
-              placeholder="Share why you want to earn as a Companion. Only the review team reads this."
-            />
-          </label>
-        </NumberedSection>
-
-        <NumberedSection
-          n={2}
-          active={currentStep === 2}
-          title="Everyday help and activities"
-          rationale="Choose what you feel comfortable offering. Every category is reviewed before it appears on your profile."
-        >
-          <ActivityCategoryPicker
-            values={activityCategories}
-            selected={selectedCategories}
-            setSelected={setSelectedCategories}
-            maximum={maximumCompanionActivityCategories}
+        <section className="companion-editor-step">
+          <header>
+            <h2 className="text-h2">What you offer</h2>
+            <p className="numbered-section-rationale mt-1">Choose how you want to meet, describe the work or skills you can share, and set the amount you receive.</p>
+          </header>
+          <CompanionProfileFields
+            values={values}
+            onChange={updateValues}
+            selectedCategories={selectedCategories}
+            onCategoriesChange={setSelectedCategories}
           />
-        </NumberedSection>
-
-        <NumberedSection
-          n={3}
-          active={currentStep === 3}
-          title="Where you are available"
-          rationale="Confirm your current location for nearby discovery. The map shows the rounded approximate point that will be saved."
-        >
-          <label className="field-row">
-            <span className="label">{mode === 'online' ? 'Timezone or broad region' : 'City'} <span className="label-aux">{mode === 'online' ? 'optional' : 'required'}</span></span>
-            <Input
-              required={mode !== 'online'}
-              value={city}
-              onChange={(event) => setCity(event.currentTarget.value)}
-              placeholder={mode === 'online' ? 'For example, Philippines, GMT+8' : 'For example, Bacolor'}
-            />
-          </label>
-
-          <div className="companion-location-capture">
-            <div className="companion-location-action">
-              <div>
-                <strong>Current location required</strong>
-                <span>Your browser will ask for permission. We immediately round the result to two decimal places before saving it.</span>
-              </div>
-              <Button intent="self" onClick={useCurrentLocation}>
-                {locationConfirmed ? 'Refresh my location' : 'Use my current location'}
-              </Button>
-            </div>
-            <ApproximateLocationMap
-              location={approximateLocation}
-              title={locationConfirmed ? 'Your approximate discovery location' : 'Location preview'}
-              description={locationConfirmed ? 'This rounded point is what members will see for nearby discovery.' : 'Use your current location to place your approximate point on the map.'}
-            />
-            {locationStatus && <p className="text-meta" role="status" aria-live="polite">{locationStatus}</p>}
-            <label className="identity-consent-row">
-              <input type="checkbox" checked={locationConsent} disabled={!locationConfirmed} onChange={(event) => setLocationConsent(event.currentTarget.checked)} />
-              <span><strong>Confirm approximate location use</strong><small>I consent to storing and using this rounded location for nearby discovery. My exact address is not saved.</small></span>
-            </label>
-          </div>
-        </NumberedSection>
+        </section>
 
         <div className="companion-editor-actions">
-          {currentStep > 1 ? (
-            <Button intent="neutral" onClick={() => changeStep(currentStep - 1)}>Back</Button>
-          ) : null}
-          {currentStep < companionEditorSteps.length ? (
-            <Button
-              intent="self"
-              onClick={() => {
-                if (validateCurrentStep()) changeStep(currentStep + 1)
-              }}
-              disabled={savingLocation}
-            >
-              {savingLocation ? 'Saving location...' : 'Save and continue'}
-            </Button>
-          ) : (
-            <Button type="submit" intent="self" disabled={saving || !companionLocationReady(approximateLocation, locationConfirmed, locationConsent)}>
-              {saving ? 'Saving...' : status ? 'Save changes' : 'Send profile for review'}
-            </Button>
-          )}
+          <Button type="submit" intent="self" disabled={saving}>
+            {saving ? 'Saving...' : status ? 'Save changes' : 'Save profile'}
+          </Button>
         </div>
       </form>
 
@@ -596,10 +310,10 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
         <CompanionProfilePreview
           displayName={application?.displayName ?? viewer?.displayName}
           profileImageUrl={application?.profileImageUrl}
-          mode={mode}
-          city={city}
-          intro={intro}
-          hourlyRatePesos={hourlyRatePesos}
+          mode={values.mode}
+          city={values.city}
+          intro={values.intro}
+          hourlyRatePesos={values.hourlyRatePesos}
           categories={selectedCategories}
         />
         <ReviewStatusPanel
@@ -628,26 +342,25 @@ function ReviewStatusPanel({
   onStartIdentity: () => void
 }) {
   const identityApproved = verification.state === 'approved'
+  // New profiles always save as approved. The pending_review and rejected
+  // branches below only cover legacy rows saved under the previous model.
   const statusGuidance = status === 'approved' && identityApproved
-    ? 'Your profile is live in Explore. Rate and bio changes save right away; other edits go back to review.'
+    ? 'Your profile is live in Explore. Changes save right away.'
     : status === 'approved'
-      ? 'Your profile is approved. Complete identity verification before it can appear in Explore.'
-      : status === 'pending_review'
-        ? 'Your profile is with the review team. Identity verification is tracked separately.'
-        : status === 'rejected'
-          ? 'The review team needs changes before this profile can appear in Explore.'
-          : 'Complete the five steps and send your profile to begin review.'
+      ? 'Your profile is saved. Complete identity verification before it can appear in Explore.'
+      : status === 'pending_review' || status === 'rejected'
+        ? 'This profile was saved under a previous review step. Your details save right away, and identity verification is the only review step.'
+        : 'Fill in your profile and save it. Identity verification is the only review step.'
   const steps = [
-    { id: 'submit', label: 'Application submitted', done: !!status },
+    { id: 'submit', label: 'Companion profile saved', done: !!status },
     { id: 'identity', label: 'Identity and safety review', done: identityApproved, active: !!status && !identityApproved },
-    { id: 'review', label: 'Companion profile review', done: status === 'approved' || status === 'rejected', active: status === 'pending_review' && identityApproved },
     { id: 'live', label: 'Visible in discovery', done: status === 'approved' && identityApproved },
   ]
 
   return (
     <aside className="drawer">
       <div className="drawer-header">
-        <h2 className="text-h3">Review status</h2>
+        <h2 className="text-h3">Profile status</h2>
         {status && <span className="status-pill" data-tone={statusTone(status)}>{companionStatusLabel(status, identityApproved)}</span>}
       </div>
       <div className="drawer-body">
@@ -693,9 +406,10 @@ function statusTone(status: string): 'self' | 'success' | 'warning' | 'danger' {
 
 function companionStatusLabel(status: string, identityApproved: boolean) {
   if (status === 'approved' && identityApproved) return 'Live in Explore'
-  if (status === 'approved') return 'Profile approved'
-  if (status === 'pending_review') return 'In review'
-  if (status === 'rejected') return 'Changes requested'
+  if (status === 'approved') return 'Profile saved'
+  // Legacy rows saved under the previous review model.
+  if (status === 'pending_review') return 'Saved'
+  if (status === 'rejected') return 'Needs changes'
   return status.replaceAll('_', ' ')
 }
 
@@ -703,15 +417,6 @@ function formatModeLabel(mode: 'online' | 'in_person' | 'both') {
   if (mode === 'online') return 'Online'
   if (mode === 'in_person') return 'In-person'
   return 'Online and in-person'
-}
-
-function formatPhpFromPesos(value: string) {
-  const amount = Number(value)
-  return new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP',
-    minimumFractionDigits: 2,
-  }).format(Number.isFinite(amount) ? amount : 0)
 }
 
 function CompanionProfilePreview({
@@ -768,32 +473,5 @@ function CompanionProfilePreview({
         <strong>{formatPhpFromPesos(hourlyRatePesos)} <small>per hour</small></strong>
       </div>
     </aside>
-  )
-}
-
-function NumberedSection({
-  n,
-  active,
-  title,
-  rationale,
-  children,
-}: {
-  n: number
-  active: boolean
-  title: string
-  rationale: string
-  children: React.ReactNode
-}) {
-  return (
-    <section className="numbered-section companion-editor-step" data-companion-step={n} hidden={!active}>
-      <span className="numbered-section-marker tabular">{n}</span>
-      <div className="numbered-section-body">
-        <header>
-          <h2 className="text-h2">{title}</h2>
-          <p className="numbered-section-rationale mt-1">{rationale}</p>
-        </header>
-        {children}
-      </div>
-    </section>
   )
 }
