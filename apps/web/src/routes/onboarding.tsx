@@ -69,7 +69,6 @@ export function OnboardingPage() {
   const [companionCity, setCompanionCity] = useState('')
   const [companionIntro, setCompanionIntro] = useState('')
   const [approxLocation, setApproxLocation] = useState<Coordinates | null>(null)
-  const [pendingDeviceLocation, setPendingDeviceLocation] = useState<Coordinates | null>(null)
   const [locationConsent, setLocationConsent] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [locationStatus, setLocationStatus] = useState('')
@@ -387,8 +386,8 @@ export function OnboardingPage() {
                     setLocationStatus('Asking for your device location...')
                     navigator.geolocation.getCurrentPosition(
                       (position) => {
-                        setPendingDeviceLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude })
-                        setLocationStatus('Device locations can be exact. Review the warning before applying the rounded result.')
+                        setApproxLocation(roundCoordinates({ latitude: position.coords.latitude, longitude: position.coords.longitude }))
+                        setLocationStatus('Device location applied. Only the two-decimal rounded result is saved.')
                       },
                       (locationError) => setLocationStatus(deviceLocationErrorMessage(locationError.code)),
                       { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
@@ -398,22 +397,6 @@ export function OnboardingPage() {
                   Use device location
                 </Button>
               </div>
-              {pendingDeviceLocation && (
-                <div className="notice notice-warning mt-3" role="alert">
-                  <span className="notice-icon">!</span>
-                  <span>
-                    <strong>Your device location may be exact.</strong> Only the two-decimal rounded result will be saved.
-                    <span className="flex gap-2 flex-wrap mt-2">
-                      <Button intent="self" size="small" onClick={() => {
-                        setApproxLocation(roundCoordinates(pendingDeviceLocation))
-                        setPendingDeviceLocation(null)
-                        setLocationStatus('Rounded device location applied.')
-                      }}>Apply rounded location</Button>
-                      <Button intent="neutral" size="small" onClick={() => setPendingDeviceLocation(null)}>Do not apply</Button>
-                    </span>
-                  </span>
-                </div>
-              )}
               <div>
                 <ApproximateLocationMap
                   location={approxLocation}

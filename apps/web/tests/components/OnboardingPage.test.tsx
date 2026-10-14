@@ -71,7 +71,10 @@ vi.mock('../../src/design-system/organisms/ApproximateLocationMap', () => ({
 
 import { OnboardingPage } from '../../src/routes/onboarding'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  Reflect.deleteProperty(window.navigator, 'geolocation')
+})
 
 beforeEach(() => {
   state.viewer = {
@@ -100,6 +103,24 @@ beforeEach(() => {
 })
 
 describe('onboarding route', () => {
+  it('applies the rounded device location immediately without a confirmation step', async () => {
+    const getCurrentPosition = vi.fn((success: (position: { coords: { latitude: number; longitude: number } }) => void) => {
+      success({ coords: { latitude: 15.1456789, longitude: 120.5851234 } })
+    })
+    Object.defineProperty(window.navigator, 'geolocation', {
+      configurable: true,
+      value: { getCurrentPosition },
+    })
+
+    render(<OnboardingPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Use device location' }))
+
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText('Device location applied. Only the two-decimal rounded result is saved.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Apply rounded location' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Do not apply' })).toBeNull()
+  })
+
   it('uses design-system fields with controlled values on the profile step', async () => {
     render(<OnboardingPage />)
 
