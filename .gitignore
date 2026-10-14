@@ -19,3 +19,4 @@ apps/*/.env
 apps/*/.env.*
 storybook-static/
 storybook-static-mobile/
+.playwright-mcp/
