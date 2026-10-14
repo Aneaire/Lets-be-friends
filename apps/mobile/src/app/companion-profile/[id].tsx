@@ -146,7 +146,7 @@ function CompanionDetail({ companion, reviewId }: { companion: CompanionDetailVi
           <AppText color={theme.colors.textMuted}>{companion.location}</AppText>
           {companion.distanceLabel ? <AppText variant="caption" color={theme.colors.textMuted}>{companion.distanceLabel} approximate</AppText> : null}
           <View style={styles.identityMeta}><AppText variant="caption">{companion.reviewCount ? `★ ${companion.rating?.toFixed(1)} from ${companion.reviewCount}` : 'New Companion'}</AppText><AppText variant="caption">{modeLabels.join(' + ')}</AppText></View>
-          <AppText variant="caption" color={theme.colors.textMuted}>{companion.verified ? 'Identity verified · Companion profile approved' : 'Companion profile in review'}</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>{companion.verified ? 'Identity verified · Companion profile approved' : 'Identity verification pending'}</AppText>
         </View>
       </View>
       <AppText style={styles.profileIntro}>{companion.intro}</AppText>

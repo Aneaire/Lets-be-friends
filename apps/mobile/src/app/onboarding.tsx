@@ -243,7 +243,7 @@ function ConnectedOnboarding({
     try {
       await submitApplication(validated.value)
       setApplicationSubmitted(true)
-      setMessage('Companion profile sent for review. Complete the welcome guide to continue.')
+      setMessage('Companion profile saved. Complete the welcome guide to continue.')
     } catch {
       setApplicationError('Your Companion profile could not be saved. Review the details and try again.')
     } finally {
@@ -474,7 +474,7 @@ function ConnectedOnboarding({
         <View style={styles.sectionHeader}>
           <AppText variant="heading">Submit your Companion profile</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            Applying starts review, and it does not guarantee approval.
+            Saving creates your profile right away. It stays hidden until identity verification is approved.
           </AppText>
         </View>
         {applicationLoading ? (
@@ -629,29 +629,14 @@ function ConnectedOnboarding({
               <AppText variant="caption" color={theme.colors.textMuted}>Clear boundaries help both people plan a comfortable experience.</AppText>
             </View>
             <View style={styles.fieldGroup}>
-              <AppText variant="bodyStrong">Why do you want to earn with this community?</AppText>
+              <AppText variant="bodyStrong">Additional note, optional</AppText>
               <TextInput
-                accessibilityLabel="Why do you want to earn with this community"
-                value={applicationForm.earningMotivation}
-                onChangeText={(earningMotivation) => editApplicationForm((current) => ({ ...current, earningMotivation }))}
-                multiline
-                maxLength={1000}
-                editable={!applicationBusy && !submitting && !submitted}
-                placeholder="Share why you want to earn as a Companion. Only the review team reads this."
-                placeholderTextColor={theme.colors.textMuted}
-                style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
-              />
-              <AppText variant="caption" color={theme.colors.textMuted}>Private for the review team. At least 20 characters.</AppText>
-            </View>
-            <View style={styles.fieldGroup}>
-              <AppText variant="bodyStrong">Note for the reviewer, optional</AppText>
-              <TextInput
-                accessibilityLabel="Note for the reviewer, optional"
+                accessibilityLabel="Additional note, optional"
                 value={applicationForm.applicationNote}
                 onChangeText={(applicationNote) => editApplicationForm((current) => ({ ...current, applicationNote }))}
                 multiline
                 editable={!applicationBusy && !submitting && !submitted}
-                placeholder="Anything the review team should know."
+                placeholder="Anything else to share about your offer."
                 placeholderTextColor={theme.colors.textMuted}
                 style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
               />
@@ -673,7 +658,7 @@ function ConnectedOnboarding({
             {applicationError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{applicationError}</AppText> : null}
             <AppText variant="caption" color={theme.colors.textMuted}>{onboardingCompanionReviewNotice}</AppText>
             <ActionButton
-              label={applicationBusy ? 'Sending for review' : 'Send profile for review'}
+              label={applicationBusy ? 'Saving profile' : 'Save profile'}
               onPress={() => void submitOnboardingApplication()}
               intent="self"
               icon="send-outline"

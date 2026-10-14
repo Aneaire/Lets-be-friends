@@ -90,9 +90,9 @@ function ReadyCompanionScreen() {
       setBusy(action)
       setMessage('')
       try {
-        const result = await submitApplication(validated.value)
+        await submitApplication(validated.value)
         formDirtyRef.current = false
-        setMessage(result.requiresReview ? 'Companion profile sent for review.' : 'Profile updated. Your changes are live.')
+        setMessage('Companion profile saved. Your changes are live.')
       } catch {
         setMessage('Your Companion profile could not be saved. Review the details and try again.')
       } finally {
@@ -210,8 +210,7 @@ function ReadyCompanionScreen() {
         {setupStep === 2 ? <>
           <AppText variant="caption" color={theme.colors.textMuted}>Clear boundaries help both people plan a comfortable experience.</AppText>
           <FormField label="Boundaries, one per line" value={form.boundaries} onChange={(boundaries) => editForm((current) => ({ ...current, boundaries }))} theme={theme} multiline />
-          <FormField label="Why do you want to earn with Let’s Be Friends?" value={form.earningMotivation} onChange={(earningMotivation) => editForm((current) => ({ ...current, earningMotivation }))} theme={theme} multiline maxLength={1000} hint="Private for the review team. At least 20 characters." />
-          <FormField label="Note for the reviewer, optional" value={form.applicationNote} onChange={(applicationNote) => editForm((current) => ({ ...current, applicationNote }))} theme={theme} multiline />
+          <FormField label="Additional note, optional" value={form.applicationNote} onChange={(applicationNote) => editForm((current) => ({ ...current, applicationNote }))} theme={theme} multiline />
         </> : null}
         {setupStep === 3 ? <>
           <AppText variant="caption" color={theme.colors.textMuted}>Set your rate, then review your details before sending them.</AppText>
@@ -220,7 +219,7 @@ function ReadyCompanionScreen() {
         </> : null}
         <View style={styles.stepActions}>
           {setupStep === 3
-            ? <ActionButton label={busy === 'application' ? 'Sending for review' : application ? 'Save and send for review' : 'Send profile for review'} onPress={() => void run('application')} intent="self" disabled={busy !== null} icon="send-outline" />
+            ? <ActionButton label={busy === 'application' ? 'Saving profile' : application ? 'Save changes' : 'Save profile'} onPress={() => void run('application')} intent="self" disabled={busy !== null} icon="send-outline" />
             : <ActionButton label="Continue" onPress={() => setSetupStep((current) => Math.min(3, current + 1))} intent="self" icon="arrow-forward" disabled={busy !== null || (setupStep === 0 && (form.intro.trim().length < 40 || (form.mode !== 'online' && !form.city.trim()))) || (setupStep === 1 && (!form.strengths.length || !form.categories.length))} />}
           {setupStep > 0 ? <ActionButton label="Back" onPress={() => setSetupStep((current) => Math.max(0, current - 1))} intent="self" secondary disabled={busy !== null} /> : null}
         </View>

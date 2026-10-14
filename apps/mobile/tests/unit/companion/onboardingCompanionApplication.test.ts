@@ -37,10 +37,10 @@ describe('Mobile onboarding Companion application step', () => {
     expect(hasSubmittedCompanionApplication(null, true)).toBe(true)
   })
 
-  it('presents submitted status with review-team ownership and web identity follow-up', () => {
+  it('presents submitted status with saved profile framing and web identity follow-up', () => {
     const pending = onboardingCompanionStatusPresentation({ status: 'pending_review' }, false)
     expect(pending.label).toBe('Pending review')
-    expect(pending.guidance).toContain('Approval stays with the review team')
+    expect(pending.guidance).toContain('Only identity verification is reviewed')
     expect(pending.guidance).toContain('identity verification on web')
 
     const approved = onboardingCompanionStatusPresentation({ status: 'approved' }, false)
@@ -50,13 +50,14 @@ describe('Mobile onboarding Companion application step', () => {
     const rejected = onboardingCompanionStatusPresentation({ status: 'rejected' }, false)
     expect(rejected.label).toBe('Needs changes')
     expect(rejected.guidance).toContain('Companion screen')
+    expect(rejected.guidance).not.toContain('review team')
 
     const justSubmitted = onboardingCompanionStatusPresentation(null, true)
-    expect(justSubmitted.label).toBe('Pending review')
+    expect(justSubmitted.label).toBe('Approved')
   })
 
-  it('falls back to pending review for unknown statuses instead of crashing', () => {
-    expect(onboardingCompanionStatusPresentation({ status: 'something_new' }, false).label).toBe('Pending review')
+  it('falls back to approved for unknown statuses instead of crashing', () => {
+    expect(onboardingCompanionStatusPresentation({ status: 'something_new' }, false).label).toBe('Approved')
   })
 
   it('prefills the application form from onboarding state while keeping Companion defaults', () => {
@@ -91,7 +92,6 @@ describe('Mobile onboarding Companion application step', () => {
       ...defaultOnboardingCompanionForm({ bio: 'Something personal about hobbies, family, and work.', categories: ['Coffee and meals'] }),
       intro: 'I join relaxed public coffee chats and thoughtful city walks with clear plans.',
       city: 'Cebu City',
-      earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
     }
     const validated = validateCompanionApplication(form)
     expect(validated).toMatchObject({
@@ -103,9 +103,10 @@ describe('Mobile onboarding Companion application step', () => {
         hourlyRateCentavos: 50_000,
         strengths: ['Good listener'],
         categories: ['Coffee and meals'],
-        earningMotivation: form.earningMotivation,
       },
     })
+    expect(validated).toMatchObject({ ok: true })
+    if (validated.ok) expect(Object.keys(validated.value)).not.toContain('earningMotivation')
     expect(validateCompanionApplication({ ...form, hourlyRatePesos: '30' })).toMatchObject({
       ok: true,
       value: { hourlyRateCentavos: 3_000 },
@@ -117,13 +118,11 @@ describe('Mobile onboarding Companion application step', () => {
       ...defaultOnboardingCompanionForm({ bio: 'Something personal about hobbies, family, and work.', categories: ['Coffee and meals'] }),
       intro: 'I join relaxed public coffee chats and thoughtful city walks with clear plans.',
       city: 'Cebu City',
-      earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
     }
     expect(validateCompanionApplication({ ...base, intro: 'Too short' })).toMatchObject({ ok: false })
     expect(validateCompanionApplication({ ...base, strengths: [] })).toMatchObject({ ok: false })
     expect(validateCompanionApplication({ ...base, categories: [] })).toMatchObject({ ok: false })
     expect(validateCompanionApplication({ ...base, boundaries: '  ' })).toMatchObject({ ok: false })
-    expect(validateCompanionApplication({ ...base, earningMotivation: 'Too short' })).toMatchObject({ ok: false })
     expect(validateCompanionApplication({ ...base, hourlyRatePesos: '29.99' })).toEqual({
       ok: false,
       message: 'Set an hourly rate from PHP 30 to PHP 10,000.',
@@ -142,7 +141,7 @@ describe('Mobile onboarding Companion application step', () => {
       expect(copy).not.toContain('—')
     }
     expect(onboardingCompanionSkipCopy).toContain('Companion screen')
-    expect(onboardingCompanionReviewNotice).toContain('Admin review stays required')
+    expect(onboardingCompanionReviewNotice).toContain('Only identity is reviewed')
     expect(onboardingCompanionIdentityFollowupCopy).toContain('on web')
   })
 })

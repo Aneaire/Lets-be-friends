@@ -41,11 +41,11 @@ export function onboardingCompanionStatusPresentation(
   application: OnboardingCompanionApplicationRecord,
   justSubmitted: boolean,
 ): OnboardingCompanionStatusPresentation {
-  const rawStatus = application?.status ?? (justSubmitted ? 'pending_review' : 'pending_review')
+  const rawStatus = application?.status ?? 'approved'
   const status: CompanionApplicationStatus =
     rawStatus in companionApplicationStatusCopy
       ? (rawStatus as CompanionApplicationStatus)
-      : 'pending_review'
+      : 'approved'
   const copy = companionApplicationStatusCopy[status]
   return {
     label: copy.label,
@@ -59,9 +59,9 @@ function onboardingCompanionStatusGuidance(status: CompanionApplicationStatus): 
     return 'Your Companion profile is approved. Finish the welcome guide, then continue identity verification on web from the Companion screen if it is still pending.'
   }
   if (status === 'rejected') {
-    return 'The review team requested changes. Finish the welcome guide if you prefer, then update the profile from the Companion screen and send it again.'
+    return 'Changes were requested on your Companion profile. Finish the welcome guide if you prefer, then update the profile from the Companion screen and save it again.'
   }
-  return 'Your Companion profile is with the review team. Approval stays with the review team. Finish the welcome guide, then continue identity verification on web from the Companion screen.'
+  return 'Your Companion profile is saved. Only identity verification is reviewed. Finish the welcome guide, then continue identity verification on web from the Companion screen.'
 }
 
 export function defaultOnboardingCompanionForm(input: {
@@ -86,7 +86,7 @@ export function mergeOnboardingCategoriesIntoForm(
 }
 
 export const onboardingCompanionReviewNotice =
-  'Sending starts profile review. It does not guarantee approval. Admin review stays required before a profile can appear publicly.'
+  'Saving creates your Companion profile right away. It stays hidden from discovery until identity verification is approved. Only identity is reviewed.'
 
 export const onboardingCompanionSkipCopy =
   'Prefer to apply later? Complete the welcome guide now and submit your profile from the Companion screen at any time.'
@@ -97,4 +97,4 @@ export const onboardingCompanionIdentityFollowupCopy =
 export const onboardingCompanionHeroTitle = 'Share your profile.'
 
 export const onboardingCompanionHeroCopy =
-  'Send your Companion profile for review. Approval stays with the review team.'
+  'Save your Companion profile. Only identity verification is reviewed.'
