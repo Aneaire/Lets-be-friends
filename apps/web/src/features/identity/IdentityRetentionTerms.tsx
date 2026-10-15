@@ -34,7 +34,8 @@ export function IdentityRetentionTerms() {
         </p>
         <p>
           <strong>How we limit use.</strong> ID images are stored privately. Only the ID image is
-          sent to the secure field reader with storage disabled for that request (applicable
+          sent to the secure field reader, which reads the printed fields and scores how legible
+          and genuine the document appears. Storage is disabled for those requests (applicable
           safety logs may still apply). The selfie stays in private storage and is never sent to
           the field reader. Selfies are not used as biometric proof. Every completed submission
           receives an explicit safety team decision.

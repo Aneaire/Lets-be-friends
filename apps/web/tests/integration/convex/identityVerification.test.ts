@@ -7,7 +7,9 @@ import {
   hasCurrentPersonaApproval,
   identityApprovalExpiresAt,
   identityApprovalTtlDays,
+  identityAssessmentThreshold,
   isExpiringIdType,
+  isIdentityAssessmentFlagged,
   isIdentityExpired,
   isIdentityReadyForAdminReview,
   isRealPersonaInquiryId,
@@ -204,5 +206,67 @@ describe('identity policy field validation', () => {
       if (previous === undefined) delete process.env.IDENTITY_APPROVAL_TTL_DAYS
       else process.env.IDENTITY_APPROVAL_TTL_DAYS = previous
     }
+  })
+})
+
+describe('identity reviewer signal thresholds', () => {
+  const healthy = {
+    fullLegalNameLegible: 0.95,
+    dateOfBirthLegible: 0.95,
+    expirationDateLegible: 0.95,
+    looksGenuine: 0.95,
+    fullLegalNameMatches: 0.95,
+    dateOfBirthMatches: 0.95,
+    refusals: [] as string[],
+  }
+
+  function withThreshold(value: string | undefined, run: () => void) {
+    const previous = process.env.IDENTITY_ASSESSMENT_THRESHOLD
+    try {
+      if (value === undefined) delete process.env.IDENTITY_ASSESSMENT_THRESHOLD
+      else process.env.IDENTITY_ASSESSMENT_THRESHOLD = value
+      run()
+    } finally {
+      if (previous === undefined) delete process.env.IDENTITY_ASSESSMENT_THRESHOLD
+      else process.env.IDENTITY_ASSESSMENT_THRESHOLD = previous
+    }
+  }
+
+  it('resolves the review threshold with a bounded override', () => {
+    withThreshold(undefined, () => {
+      expect(identityAssessmentThreshold()).toBe(0.7)
+    })
+    withThreshold('0.85', () => {
+      expect(identityAssessmentThreshold()).toBe(0.85)
+    })
+    for (const invalid of ['0', '1', '-0.2', '1.5', 'not-a-number']) {
+      withThreshold(invalid, () => {
+        expect(identityAssessmentThreshold()).toBe(0.7)
+      })
+    }
+  })
+
+  it('flags only signals at or below the threshold, and never an absent assessment', () => {
+    expect(isIdentityAssessmentFlagged(undefined, 'national_id')).toBe(false)
+    expect(isIdentityAssessmentFlagged(null, 'national_id')).toBe(false)
+    expect(isIdentityAssessmentFlagged(healthy, 'national_id')).toBe(false)
+    expect(isIdentityAssessmentFlagged({ ...healthy, looksGenuine: 0.7 }, 'national_id')).toBe(false)
+    expect(isIdentityAssessmentFlagged({ ...healthy, looksGenuine: 0.69 }, 'national_id')).toBe(true)
+    // A question that was asked but not returned cannot be trusted.
+    expect(isIdentityAssessmentFlagged({ ...healthy, fullLegalNameMatches: undefined }, 'national_id')).toBe(true)
+  })
+
+  it('always flags a refused question', () => {
+    expect(isIdentityAssessmentFlagged({ ...healthy, refusals: ['looksGenuine'] }, 'national_id')).toBe(true)
+  })
+
+  it('only applies the expiration signal to ID types that print one', () => {
+    const noExpiration = { ...healthy, expirationDateLegible: 0.02 }
+    expect(isIdentityAssessmentFlagged(noExpiration, 'national_id')).toBe(false)
+    expect(isIdentityAssessmentFlagged(noExpiration, 'other_government_id')).toBe(false)
+    expect(isIdentityAssessmentFlagged(noExpiration, undefined)).toBe(false)
+    expect(isIdentityAssessmentFlagged(noExpiration, 'passport')).toBe(true)
+    expect(isIdentityAssessmentFlagged(noExpiration, 'drivers_license')).toBe(true)
+    expect(isIdentityAssessmentFlagged(noExpiration, 'residence_permit')).toBe(true)
   })
 })

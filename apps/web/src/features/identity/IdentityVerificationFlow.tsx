@@ -4,12 +4,14 @@ import { useAction, useMutation, useQuery } from 'convex/react'
 import { ArrowLeft, Camera, Check, ClipboardCheck, FileText, LockKeyhole, RefreshCw, ShieldCheck, Upload } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
+import { extractConvexErrorMessage } from '../../lib/convexErrors'
 import {
   clearIdentityVerificationDraft,
   identityVerificationDraftKey,
   readIdentityVerificationDraft,
   writeIdentityVerificationDraft,
 } from './identityVerificationDraft'
+import { identityReadFailureMessage } from './identityReadFailure'
 import { IdentityRetentionTerms } from './IdentityRetentionTerms'
 
 export type IdentityIntent = 'member' | 'companion_application'
@@ -138,7 +140,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
   }
 
   const fail = (error: unknown) => {
-    setLocalError(error instanceof Error ? error.message : 'Identity verification could not continue.')
+    setLocalError(extractConvexErrorMessage(error, 'Identity verification could not continue.'))
   }
 
   const openCamera = async (target: CameraTarget) => {
@@ -372,7 +374,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
             <div className="identity-work-body">
               {showUpload && (
                 <>
-                  {stage === 'failed' && <div className="notice notice-danger" role="alert">We could not read the previous image. Choose a clearer photo and try again.</div>}
+                  {stage === 'failed' && <div className="notice notice-danger" role="alert">{identityReadFailureMessage(current?.extractionFailureReason)}</div>}
                   <label className="field-row">
                     <span className="label">Government ID type</span>
                     <select className="field" value={selectedIdType} onChange={(event) => setSelectedIdType(event.currentTarget.value as DocumentType)}>

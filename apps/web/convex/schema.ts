@@ -52,6 +52,20 @@ const identityDocumentType = v.union(
   v.literal('other_government_id'),
 )
 const identityFieldSignal = v.union(v.literal('high'), v.literal('medium'), v.literal('low'), v.literal('needs_review'))
+// Why the last ID read failed, in member-facing terms. Derived from the failure
+// code plus a Decisions API read of the image, so the member is told the real
+// reason instead of one generic sentence.
+const identityReadFailureReason = v.union(
+  v.literal('service_unavailable'),
+  v.literal('blur'),
+  v.literal('glare'),
+  v.literal('cropped'),
+  v.literal('wrong_side'),
+  v.literal('not_a_document'),
+  v.literal('unreadable'),
+  v.literal('retryable'),
+  v.literal('unknown'),
+)
 const companionStatus = v.union(v.literal('draft'), v.literal('pending_review'), v.literal('approved'), v.literal('rejected'), v.literal('suspended'))
 const bookingStatus = v.union(v.literal('draft'), v.literal('verification_required'), v.literal('pending_admin_review'), v.literal('request_sent'), v.literal('accepted'), v.literal('declined'), v.literal('cancelled'), v.literal('completed'), v.literal('review_window'), v.literal('closed'))
 const mode = v.union(v.literal('online'), v.literal('in_person'), v.literal('both'))
@@ -262,6 +276,21 @@ export default defineSchema({
       }),
       needsReview: v.boolean(),
     })),
+    // Calibrated probabilities from the Decisions API. They score how legible
+    // and genuine the ID image looks and whether it matches the confirmed
+    // details. They are reviewer signals only and never gate the member flow.
+    assessment: v.optional(v.object({
+      fullLegalNameLegible: v.optional(v.number()),
+      dateOfBirthLegible: v.optional(v.number()),
+      expirationDateLegible: v.optional(v.number()),
+      looksGenuine: v.optional(v.number()),
+      fullLegalNameMatches: v.optional(v.number()),
+      dateOfBirthMatches: v.optional(v.number()),
+      refusals: v.array(v.string()),
+      model: v.string(),
+      assessedAt: v.optional(v.number()),
+    })),
+    assessmentFailureCode: v.optional(v.string()),
     fullLegalName: v.optional(v.string()),
     dateOfBirth: v.optional(v.string()),
     idType: v.optional(identityDocumentType),
@@ -271,6 +300,7 @@ export default defineSchema({
     extractionStartedAt: v.optional(v.number()),
     extractionCompletedAt: v.optional(v.number()),
     extractionFailureCode: v.optional(v.string()),
+    extractionFailureReason: v.optional(identityReadFailureReason),
     fieldsConfirmedAt: v.optional(v.number()),
     thirdPartyProcessingConsentedAt: v.optional(v.number()),
     reviewConsentedAt: v.optional(v.number()),

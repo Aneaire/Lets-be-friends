@@ -182,6 +182,48 @@ export function canAdminApproveIdentity(
   return false
 }
 
+// A predicate probability below this value means a reviewer should confirm the
+// signal by hand. Override per deployment with IDENTITY_ASSESSMENT_THRESHOLD.
+export function identityAssessmentThreshold(): number {
+  const configured = Number(process.env.IDENTITY_ASSESSMENT_THRESHOLD)
+  if (Number.isFinite(configured) && configured > 0 && configured < 1) return configured
+  return 0.7
+}
+
+// The structural shape of the stored Decisions API assessment. The Convex
+// document type satisfies it, so this stays free of generated types.
+export type IdentityAssessmentSignals = {
+  fullLegalNameLegible?: number
+  dateOfBirthLegible?: number
+  expirationDateLegible?: number
+  looksGenuine?: number
+  fullLegalNameMatches?: number
+  dateOfBirthMatches?: number
+  refusals: ReadonlyArray<string>
+}
+
+// Flags an assessment for reviewer attention. A signal that was asked for but
+// not returned counts as flagged, because the answer cannot be trusted. The
+// expiration signal only applies to ID types that print an expiration date, so a
+// national ID is never flagged for a missing one.
+export function isIdentityAssessmentFlagged(
+  assessment: IdentityAssessmentSignals | undefined | null,
+  idType: IdentityDocumentType | undefined,
+): boolean {
+  if (!assessment) return false
+  if (assessment.refusals.length > 0) return true
+  const threshold = identityAssessmentThreshold()
+  const signals: Array<number | undefined> = [
+    assessment.fullLegalNameLegible,
+    assessment.dateOfBirthLegible,
+    assessment.looksGenuine,
+    assessment.fullLegalNameMatches,
+    assessment.dateOfBirthMatches,
+    ...(idType !== undefined && isExpiringIdType(idType) ? [assessment.expirationDateLegible] : []),
+  ]
+  return signals.some((value) => typeof value !== 'number' || value < threshold)
+}
+
 export function hasCurrentPersonaApproval(
   user: Pick<Doc<'users'>, 'verificationStatus' | 'verificationSource' | 'identityVerifiedAt' | 'identityExpiresAt'>,
   now = Date.now(),

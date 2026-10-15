@@ -2,7 +2,7 @@ import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
-import { canAdminApproveIdentity, identityApprovalExpiresAt, identityVerificationReasons, isIdentityReadyForAdminReview, isIdentityVerificationReason } from './identityVerification'
+import { canAdminApproveIdentity, identityApprovalExpiresAt, identityVerificationReasons, isIdentityAssessmentFlagged, isIdentityReadyForAdminReview, isIdentityVerificationReason } from './identityVerification'
 import { syncUserCompanionLocation } from './companionLocations'
 import { syncCompanionLocation } from './companionLocations'
 import { resolveBlockedBookingFunds as applyBlockedBookingResolution } from './finance'
@@ -107,6 +107,9 @@ export const memberVerifications = query({
           expirationDate: identityRecord.expirationDate,
           nationality: identityRecord.nationality,
           extractionNeedsReview: identityRecord.extraction?.needsReview ?? false,
+          assessment: identityRecord.assessment,
+          assessmentFlagged: isIdentityAssessmentFlagged(identityRecord.assessment, identityRecord.idType),
+          assessmentFailureCode: identityRecord.assessmentFailureCode,
           legalHoldActive: Boolean(identityRecord.legalHoldSetAt && (!identityRecord.legalHoldReleasedAt || identityRecord.legalHoldReleasedAt < identityRecord.legalHoldSetAt)),
         } : undefined,
         memberDisplayName: user?.displayName ?? 'Member',

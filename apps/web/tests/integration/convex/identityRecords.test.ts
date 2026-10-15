@@ -1,9 +1,9 @@
 import { convexTest } from 'convex-test'
 import geospatialTest from '@convex-dev/geospatial/test'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { api, internal } from '../../../convex/_generated/api'
 import schema from '../../../convex/schema'
-import { buildOpenAiIdentityRequest, parseOpenAiIdentityResponse } from '../../../convex/identityRecords'
+import { buildIdentityAssessmentRequest, buildImageQualityRequest, buildOpenAiIdentityRequest, extractionFailureReasonFor, parseOpenAiDecisionResponse, parseOpenAiIdentityResponse } from '../../../convex/identityRecords'
 import { convexModules } from '../../helpers/convex'
 
 const modules = convexModules
@@ -40,6 +40,90 @@ const extraction = {
   },
   needsReview: false,
 } as const
+
+// Builds a record that already has confirmed details plus both images, so submit
+// can succeed without driving the extraction action.
+async function insertSubmittableRecord(t: ReturnType<typeof createTest>, clerkUserId: string, idType: 'national_id' | 'passport' = 'national_id') {
+  const user = await t.run(async (ctx) => ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique())
+  return await t.run(async (ctx) => {
+    const now = Date.now()
+    const recordId = await ctx.db.insert('identityRecords', {
+      userId: user!._id, reason: 'member', source: 'in_app', stage: 'confirmation_required', selectedIdType: idType,
+      fullLegalName: 'Example Member', dateOfBirth: '1990-01-02', idType,
+      expirationDate: idType === 'passport' ? '2035-01-01' : undefined,
+      fieldsConfirmedAt: now, thirdPartyProcessingConsentedAt: now,
+      createdAt: now, updatedAt: now,
+    })
+    const requestId = await ctx.db.insert('verificationRequests', {
+      userId: user!._id, reason: 'member', personaStatus: 'not_started', personaDecision: 'unknown', verificationSource: 'in_app',
+      identityRecordId: recordId, identityStage: 'confirmation_required', adminStatus: 'not_ready', isCurrent: true, attempt: 1,
+      createdAt: now, updatedAt: now,
+    })
+    await ctx.db.patch(recordId, { verificationRequestId: requestId })
+    for (const kind of ['id_front', 'selfie'] as const) {
+      const storageId = await ctx.storage.store(new Blob([`${kind}-bytes`], { type: 'image/jpeg' }))
+      await ctx.db.insert('identityRecordImages', {
+        identityRecordId: recordId, userId: user!._id, kind, storageId, contentType: 'image/jpeg',
+        size: 12, createdAt: now, retentionDueAt: now + 86_400_000, purgeAfter: now + 86_400_000,
+      })
+    }
+    return { userId: user!._id, recordId, requestId }
+  })
+}
+
+function decisionAnswers(probabilities: Record<string, number>) {
+  return {
+    model: 'gpt-6-luna',
+    answers: Object.entries(probabilities).map(([name, probability]) => ({ type: 'predicate', name, probability })),
+    usage: { input_tokens: 1200, output_tokens: 0 },
+  }
+}
+
+// A record ready for extraction: draft stage with the front image already stored.
+async function insertDraftRecord(t: ReturnType<typeof createTest>, clerkUserId: string) {
+  const user = await t.run(async (ctx) => ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique())
+  return await t.run(async (ctx) => {
+    const now = Date.now()
+    const recordId = await ctx.db.insert('identityRecords', {
+      userId: user!._id, reason: 'member', source: 'in_app', stage: 'draft', selectedIdType: 'national_id',
+      createdAt: now, updatedAt: now,
+    })
+    const requestId = await ctx.db.insert('verificationRequests', {
+      userId: user!._id, reason: 'member', personaStatus: 'not_started', personaDecision: 'unknown', verificationSource: 'in_app',
+      identityRecordId: recordId, identityStage: 'draft', adminStatus: 'not_ready', isCurrent: true, attempt: 1,
+      createdAt: now, updatedAt: now,
+    })
+    await ctx.db.patch(recordId, { verificationRequestId: requestId })
+    const storageId = await ctx.storage.store(new Blob(['id-front-bytes'], { type: 'image/jpeg' }))
+    await ctx.db.insert('identityRecordImages', {
+      identityRecordId: recordId, userId: user!._id, kind: 'id_front', storageId, contentType: 'image/jpeg',
+      size: 14, createdAt: now, retentionDueAt: now + 86_400_000, purgeAfter: now + 86_400_000,
+    })
+    return { userId: user!._id, recordId, requestId }
+  })
+}
+
+// The submission schedules the reviewer-signal action, which convex-test only
+// starts on a timer tick, so scheduled work is driven with fake timers.
+async function submitAndRunScheduledWork(t: ReturnType<typeof createTest>, clerkUserId: string, recordId: any) {
+  vi.useFakeTimers()
+  try {
+    await t.withIdentity({ subject: clerkUserId }).mutation(api.identityRecords.submit, { identityRecordId: recordId, reviewConsent: true })
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+  } finally {
+    vi.useRealTimers()
+  }
+}
+
+function withProviderEnv<T>(apiKey: string | undefined, run: () => Promise<T>): Promise<T> {
+  const previous = process.env.OPENAI_API_KEY
+  if (apiKey === undefined) delete process.env.OPENAI_API_KEY
+  else process.env.OPENAI_API_KEY = apiKey
+  return run().finally(() => {
+    if (previous === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = previous
+  })
+}
 
 describe('in-app identity records', () => {
   it('starts a private in-app attempt without approving the member', async () => {
@@ -468,5 +552,348 @@ describe('identity approval expiry maintenance', () => {
     expect(deduped.thirty?._id).toBe(rows.thirtyNotifications?._id)
     expect(deduped.seven?._id).toBe(rows.sevenNotifications?._id)
     expect(deduped.expired?._id).toBe(rows.expiredNotifications?._id)
+  })
+})
+
+describe('identity reviewer signals', () => {
+  const confirmed = { fullLegalName: 'Example Member', dateOfBirth: '1990-01-02' }
+  const image = { bytes: new Uint8Array([1, 2, 3]).buffer, contentType: 'image/jpeg' }
+
+  it('asks bounded Decisions questions with the ID image only', () => {
+    const request = buildIdentityAssessmentRequest(image, confirmed)
+    expect(request.questions.map((question) => question.name)).toEqual([
+      'fullLegalNameLegible', 'dateOfBirthLegible', 'expirationDateLegible', 'looksGenuine', 'fullLegalNameMatches', 'dateOfBirthMatches',
+    ])
+    expect(request.questions.every((question) => question.type === 'predicate')).toBe(true)
+    expect(JSON.stringify(request)).toContain('data:image/jpeg;base64,AQID')
+    expect(JSON.stringify(request)).toContain('Example Member')
+    expect(JSON.stringify(request).toLowerCase()).not.toContain('selfie')
+    expect(JSON.stringify(request)).toContain('untrusted data')
+  })
+
+  it('defaults to the beta Decisions model and honours a deployment override', () => {
+    const previous = process.env.OPENAI_DECISION_MODEL
+    try {
+      delete process.env.OPENAI_DECISION_MODEL
+      expect(buildIdentityAssessmentRequest(image, confirmed).model).toBe('gpt-6-luna')
+      process.env.OPENAI_DECISION_MODEL = 'gpt-6-luna-preview'
+      expect(buildIdentityAssessmentRequest(image, confirmed).model).toBe('gpt-6-luna-preview')
+    } finally {
+      if (previous === undefined) delete process.env.OPENAI_DECISION_MODEL
+      else process.env.OPENAI_DECISION_MODEL = previous
+    }
+  })
+
+  it('reads predicate probabilities, clamps out of range values, and keeps refusals', () => {
+    const answers = parseOpenAiDecisionResponse({
+      model: 'gpt-6-luna',
+      answers: [
+        { type: 'predicate', name: 'fullLegalNameLegible', probability: 0.93 },
+        { type: 'predicate', name: 'looksGenuine', probability: 1.4 },
+        { type: 'predicate', name: 'dateOfBirthMatches', probability: -0.2 },
+        { type: 'refusal', name: 'expirationDateLegible' },
+      ],
+      usage: { input_tokens: 1200, output_tokens: 0 },
+    })
+    expect(answers.probabilities).toEqual({ fullLegalNameLegible: 0.93, looksGenuine: 1, dateOfBirthMatches: 0 })
+    expect(answers.refusals).toEqual(['expirationDateLegible'])
+  })
+
+  it('rejects a malformed or empty Decisions response', () => {
+    expect(() => parseOpenAiDecisionResponse(null)).toThrow(/invalid_response/)
+    expect(() => parseOpenAiDecisionResponse({ answers: [] })).toThrow(/missing_output/)
+    expect(() => parseOpenAiDecisionResponse({ answers: [{ type: 'choice', name: 'document', choice: 'passport' }] })).not.toThrow()
+  })
+
+  it('reads score and choice answers alongside predicates', () => {
+    const answers = parseOpenAiDecisionResponse({
+      model: 'gpt-6-luna',
+      answers: [
+        { type: 'score', name: 'readability', score: 1.1, probabilities: [{ value: 1, label: 'mostly_unreadable', probability: 0.7 }], confidence: 0.8 },
+        { type: 'choice', name: 'defect', choice: 'glare', probabilities: [{ value: 'glare', probability: 0.9 }], confidence: 0.9 },
+        { type: 'refusal', name: 'authenticity' },
+      ],
+    })
+    expect(answers.scores).toEqual({ readability: 1.1 })
+    expect(answers.choices).toEqual({ defect: 'glare' })
+    expect(answers.probabilities).toEqual({})
+    expect(answers.refusals).toEqual(['authenticity'])
+  })
+
+  it('records calibrated signals after submission and flags them for the reviewer', async () => {
+    const t = createTest()
+    await insertUser(t, 'assessed-member')
+    await insertUser(t, 'assessed-admin', 'admin')
+    const { recordId } = await insertSubmittableRecord(t, 'assessed-member')
+    const bodies: Array<Record<string, unknown>> = []
+    const urls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: unknown, init: { body: string }) => {
+      urls.push(String(url))
+      bodies.push(JSON.parse(init.body))
+      return {
+        ok: true,
+        json: async () => decisionAnswers({
+          fullLegalNameLegible: 0.97, dateOfBirthLegible: 0.81, expirationDateLegible: 0.12,
+          looksGenuine: 0.64, fullLegalNameMatches: 0.99, dateOfBirthMatches: 0.55,
+        }),
+      } as unknown as Response
+    }))
+    try {
+      await withProviderEnv('test-key', () => submitAndRunScheduledWork(t, 'assessed-member', recordId))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+
+    expect(urls).toEqual([expect.stringContaining('/decisions')])
+    expect(JSON.stringify(bodies[0]).toLowerCase()).not.toContain('selfie')
+    const record = await t.run(async (ctx) => ctx.db.get(recordId))
+    expect(record?.stage).toBe('ready_for_review')
+    expect(record?.assessment).toMatchObject({
+      fullLegalNameLegible: 0.97, dateOfBirthLegible: 0.81, expirationDateLegible: 0.12,
+      looksGenuine: 0.64, fullLegalNameMatches: 0.99, dateOfBirthMatches: 0.55,
+      refusals: [], model: 'gpt-6-luna',
+    })
+    expect(typeof record?.assessment?.assessedAt).toBe('number')
+    expect(record?.assessmentFailureCode).toBeUndefined()
+
+    const rows = await t.withIdentity({ subject: 'assessed-admin' }).query(api.admin.memberVerifications, { status: 'pending' })
+    expect(rows[0]?.identityRecord?.assessmentFlagged).toBe(true)
+    const audits = await t.run(async (ctx) => ctx.db.query('auditLogs').collect())
+    expect(audits.some((audit) => audit.action === 'identity_record.assessment_completed')).toBe(true)
+    expect(audits.some((audit) => audit.action === 'identity_record.assessment_failed')).toBe(false)
+  })
+
+  it('leaves a national ID unflagged when only the expiration signal is low', async () => {
+    const t = createTest()
+    await insertUser(t, 'national-id-member')
+    await insertUser(t, 'national-id-admin', 'admin')
+    const { recordId } = await insertSubmittableRecord(t, 'national-id-member', 'national_id')
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => decisionAnswers({
+        fullLegalNameLegible: 0.95, dateOfBirthLegible: 0.95, expirationDateLegible: 0.02,
+        looksGenuine: 0.95, fullLegalNameMatches: 0.98, dateOfBirthMatches: 0.97,
+      }),
+    } as unknown as Response)))
+    try {
+      await withProviderEnv('test-key', () => submitAndRunScheduledWork(t, 'national-id-member', recordId))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    const rows = await t.withIdentity({ subject: 'national-id-admin' }).query(api.admin.memberVerifications, { status: 'pending' })
+    expect(rows[0]?.identityRecord?.assessmentFlagged).toBe(false)
+  })
+
+  it('records a refusal and flags it for the reviewer', async () => {
+    const t = createTest()
+    await insertUser(t, 'refusal-member')
+    await insertUser(t, 'refusal-admin', 'admin')
+    const { recordId } = await insertSubmittableRecord(t, 'refusal-member')
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        model: 'gpt-6-luna',
+        answers: [
+          { type: 'predicate', name: 'fullLegalNameLegible', probability: 0.96 },
+          { type: 'predicate', name: 'dateOfBirthLegible', probability: 0.94 },
+          { type: 'refusal', name: 'expirationDateLegible' },
+          { type: 'predicate', name: 'looksGenuine', probability: 0.93 },
+          { type: 'predicate', name: 'fullLegalNameMatches', probability: 0.97 },
+          { type: 'predicate', name: 'dateOfBirthMatches', probability: 0.95 },
+        ],
+      }),
+    } as unknown as Response)))
+    try {
+      await withProviderEnv('test-key', () => submitAndRunScheduledWork(t, 'refusal-member', recordId))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    const record = await t.run(async (ctx) => ctx.db.get(recordId))
+    expect(record?.assessment?.refusals).toEqual(['expirationDateLegible'])
+    expect(record?.assessment?.expirationDateLegible).toBeUndefined()
+    const rows = await t.withIdentity({ subject: 'refusal-admin' }).query(api.admin.memberVerifications, { status: 'pending' })
+    expect(rows[0]?.identityRecord?.assessmentFlagged).toBe(true)
+  })
+
+  it('keeps the submission and records a failure code when the signal provider fails', async () => {
+    const t = createTest()
+    await insertUser(t, 'signal-failure-member')
+    const { recordId, userId } = await insertSubmittableRecord(t, 'signal-failure-member')
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 503, json: async () => ({}) } as unknown as Response)))
+    try {
+      await withProviderEnv('test-key', () => submitAndRunScheduledWork(t, 'signal-failure-member', recordId))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    const state = await t.run(async (ctx) => ({
+      record: await ctx.db.get(recordId),
+      request: await ctx.db.query('verificationRequests').withIndex('by_user_current', (q) => q.eq('userId', userId).eq('isCurrent', true)).unique(),
+      audits: await ctx.db.query('auditLogs').collect(),
+    }))
+    expect(state.record?.stage).toBe('ready_for_review')
+    expect(state.record?.assessment).toBeUndefined()
+    expect(state.record?.assessmentFailureCode).toBe('provider_error')
+    expect(state.request?.adminStatus).toBe('pending')
+    expect(state.audits.some((audit) => audit.action === 'identity_record.assessment_failed')).toBe(true)
+  })
+
+  it('records a missing provider key as unavailable without touching the submission', async () => {
+    const t = createTest()
+    await insertUser(t, 'signal-unavailable-member')
+    const { recordId } = await insertSubmittableRecord(t, 'signal-unavailable-member')
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    try {
+      await withProviderEnv(undefined, () => submitAndRunScheduledWork(t, 'signal-unavailable-member', recordId))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    const record = await t.run(async (ctx) => ctx.db.get(recordId))
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(record?.stage).toBe('ready_for_review')
+    expect(record?.assessmentFailureCode).toBe('provider_unavailable')
+  })
+
+  it('stays best effort when the attempt is superseded before the failure is recorded', async () => {
+    const t = createTest()
+    await insertUser(t, 'signal-superseded-member')
+    const { recordId, requestId, userId } = await insertSubmittableRecord(t, 'signal-superseded-member')
+    await t.run(async (ctx) => ctx.db.patch(recordId, { stage: 'ready_for_review' }))
+    // Supersede the attempt, exactly as a fresh start would, so every recorder
+    // rejects when the scheduled action runs.
+    await t.run(async (ctx) => ctx.db.patch(requestId, { isCurrent: false, supersededAt: Date.now(), updatedAt: Date.now() }))
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) } as unknown as Response)))
+    try {
+      const result = await withProviderEnv('test-key', () => t.action(internal.identityRecords.assessConfirmedDetails, { userId, identityRecordId: recordId }))
+      expect(result).toEqual({ assessed: false })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    const record = await t.run(async (ctx) => ctx.db.get(recordId))
+    expect(record?.assessmentFailureCode).toBeUndefined()
+  })
+})
+
+describe('identity read failure reasons', () => {
+  const image = { bytes: new Uint8Array([1, 2, 3]).buffer, contentType: 'image/jpeg' }
+
+  function qualityAnswers(readability: number | undefined, defect: string | undefined) {
+    return {
+      model: 'gpt-6-luna',
+      answers: [
+        ...(readability === undefined ? [{ type: 'refusal', name: 'readability' }] : [{ type: 'score', name: 'readability', score: readability }]),
+        ...(defect === undefined ? [] : [{ type: 'choice', name: 'defect', choice: defect }]),
+      ],
+      usage: { input_tokens: 1200, output_tokens: 0 },
+    }
+  }
+
+  it('asks only two narrow questions about the photo', () => {
+    const request = buildImageQualityRequest(image)
+    expect(request.questions.map((question) => question.name)).toEqual(['readability', 'defect'])
+    expect(request.questions.map((question) => question.type)).toEqual(['score', 'choice'])
+    const readability = request.questions[0] as { levels: Array<{ label: string }> }
+    expect(readability.levels.map((level) => level.label)).toEqual(['unreadable', 'mostly_unreadable', 'usable', 'clear'])
+    expect(JSON.stringify(request)).toContain('data:image/jpeg;base64,AQID')
+    expect(JSON.stringify(request).toLowerCase()).not.toContain('selfie')
+  })
+
+  it('never blames the photo when the provider itself was unavailable', () => {
+    expect(extractionFailureReasonFor('provider_unavailable', undefined)).toBe('service_unavailable')
+    expect(extractionFailureReasonFor('provider_unavailable', { readability: 0.1, defect: 'blur' })).toBe('service_unavailable')
+  })
+
+  it('names a structural problem even when the photo is perfectly readable', () => {
+    // A readable back of an ID is still the wrong photo, so the readability score
+    // must not override it.
+    expect(extractionFailureReasonFor('provider_error', { readability: 3, defect: 'wrong_side' })).toBe('wrong_side')
+    expect(extractionFailureReasonFor('provider_error', { readability: 3, defect: 'cropped' })).toBe('cropped')
+    expect(extractionFailureReasonFor('provider_error', { readability: 3, defect: 'not_a_document' })).toBe('not_a_document')
+  })
+
+  it('names the blur or glare when the photo is below the usable score', () => {
+    expect(extractionFailureReasonFor('provider_error', { readability: 0.4, defect: 'blur' })).toBe('blur')
+    expect(extractionFailureReasonFor('provider_error', { readability: 1.4, defect: 'glare' })).toBe('glare')
+    expect(extractionFailureReasonFor('provider_error', { readability: 0.4, defect: 'none' })).toBe('unreadable')
+    expect(extractionFailureReasonFor('provider_error', { readability: 0.4 })).toBe('unreadable')
+  })
+
+  it('treats a readable photo as our problem rather than the member\u2019s', () => {
+    expect(extractionFailureReasonFor('extraction_failed', { readability: 1.5, defect: 'none' })).toBe('retryable')
+    expect(extractionFailureReasonFor('extraction_failed', { readability: 3, defect: 'none' })).toBe('retryable')
+  })
+
+  it('falls back to unknown when there is no verdict to trust', () => {
+    expect(extractionFailureReasonFor('provider_error', undefined)).toBe('unknown')
+    expect(extractionFailureReasonFor('invalid_extraction', {})).toBe('unknown')
+  })
+
+  it('records the named reason and a clean message when the read fails and the photo is blurred', async () => {
+    const t = createTest()
+    await insertUser(t, 'blurred-read-member')
+    const { recordId } = await insertDraftRecord(t, 'blurred-read-member')
+    const urls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: unknown) => {
+      urls.push(String(url))
+      if (String(url).includes('/decisions')) {
+        return { ok: true, json: async () => qualityAnswers(0.3, 'blur') } as unknown as Response
+      }
+      return { ok: false, status: 500, json: async () => ({}) } as unknown as Response
+    }))
+    try {
+      await withProviderEnv('test-key', async () => {
+        await expect(t.withIdentity({ subject: 'blurred-read-member' }).action(api.identityRecords.extract, { identityRecordId: recordId, thirdPartyProcessingConsent: true }))
+          .rejects.toThrow('We could not read that ID.')
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    expect(urls.filter((url) => url.includes('/decisions'))).toHaveLength(1)
+    const state = await t.run(async (ctx) => ({ record: await ctx.db.get(recordId), audits: await ctx.db.query('auditLogs').collect() }))
+    expect(state.record?.stage).toBe('failed')
+    expect(state.record?.extractionFailureCode).toBe('provider_error')
+    expect(state.record?.extractionFailureReason).toBe('blur')
+    expect(state.audits.some((audit) => audit.action === 'identity_record.extraction_failed' && audit.note === 'provider_error:blur')).toBe(true)
+    // The member's failed attempt is resumable and carries the reason the card shows.
+    const current = await t.withIdentity({ subject: 'blurred-read-member' }).query(api.identityRecords.current, {})
+    expect(current).toMatchObject({ stage: 'failed', extractionFailureReason: 'blur' })
+  })
+
+  it('does not call the photo check when the provider key is missing', async () => {
+    const t = createTest()
+    await insertUser(t, 'no-key-read-member')
+    const { recordId } = await insertDraftRecord(t, 'no-key-read-member')
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    try {
+      await withProviderEnv(undefined, async () => {
+        await expect(t.withIdentity({ subject: 'no-key-read-member' }).action(api.identityRecords.extract, { identityRecordId: recordId, thirdPartyProcessingConsent: true }))
+          .rejects.toThrow('We could not read that ID.')
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    expect(fetchSpy).not.toHaveBeenCalled()
+    const record = await t.run(async (ctx) => ctx.db.get(recordId))
+    expect(record?.extractionFailureCode).toBe('provider_unavailable')
+    expect(record?.extractionFailureReason).toBe('service_unavailable')
+  })
+
+  it('keeps the unknown reason when the photo check also fails', async () => {
+    const t = createTest()
+    await insertUser(t, 'no-verdict-read-member')
+    const { recordId } = await insertDraftRecord(t, 'no-verdict-read-member')
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) } as unknown as Response)))
+    try {
+      await withProviderEnv('test-key', async () => {
+        await expect(t.withIdentity({ subject: 'no-verdict-read-member' }).action(api.identityRecords.extract, { identityRecordId: recordId, thirdPartyProcessingConsent: true }))
+          .rejects.toThrow('We could not read that ID.')
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    const record = await t.run(async (ctx) => ctx.db.get(recordId))
+    expect(record?.extractionFailureCode).toBe('provider_error')
+    expect(record?.extractionFailureReason).toBe('unknown')
   })
 })

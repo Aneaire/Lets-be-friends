@@ -2,6 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { useEffect, useState } from 'react'
 import { api } from '../../../web/convex/_generated/api'
+import type { IdentityAssessmentSignals } from '../../../web/convex/identityVerification'
+import { identitySignalLines } from '../lib/identitySignals'
 import { ActionNote } from '../design-system/molecules/ActionNote'
 import { AdminWorklistPagePresentation } from '../design-system/templates/AdminWorklistPagePresentation'
 
@@ -117,6 +119,9 @@ function BookingVerificationPage() {
               <p className="text-meta">ID: {formatStatus(verification.identityRecord.idType ?? 'unknown')}{verification.identityRecord.idNumberLast4 ? ` ending ${verification.identityRecord.idNumberLast4}` : ''}</p>
               <p className="text-meta">Expiration: {verification.identityRecord.expirationDate ?? 'Not provided'} · Nationality: {verification.identityRecord.nationality ?? 'Not provided'}</p>
               {verification.identityRecord.extractionNeedsReview && <p className="text-meta">The AI marked one or more extracted fields for careful review.</p>}
+              {verification.identityRecord.assessment && <IdentitySignalSummary assessment={verification.identityRecord.assessment} />}
+              {verification.identityRecord.assessmentFlagged && <p className="text-meta">One or more image signals fall below the review threshold. Compare the document against the confirmed details before approving.</p>}
+              {verification.identityRecord.assessmentFailureCode && <p className="text-meta">Image signals were not captured for this attempt ({formatStatus(verification.identityRecord.assessmentFailureCode)}).</p>}
               {verification.adminStatus === 'pending' && <IdentityImageReview verificationRequestId={verification._id} />}
             </div>
           )}
@@ -132,6 +137,12 @@ function BookingVerificationPage() {
       )}
     />
   )
+}
+
+// The summary lines are built by a pure function so the probability formatting
+// stays testable without rendering the admin route.
+function IdentitySignalSummary({ assessment }: { assessment: IdentityAssessmentSignals }) {
+  return <>{identitySignalLines(assessment).map((line) => <p key={line} className="text-meta">{line}</p>)}</>
 }
 
 function IdentityImageReview({ verificationRequestId }: { verificationRequestId: any }) {
