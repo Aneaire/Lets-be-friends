@@ -24,6 +24,12 @@ describe('shared post card styles', () => {
     expect(styles).not.toContain('.profile-post-media')
     expect(styles).not.toContain('.social-post-copy')
   })
+
+  it('keeps the post card surface steady instead of darkening on hover', () => {
+    expect(styles).not.toMatch(/\.ds-post-card:hover\s*\{/)
+    expect(styles).not.toMatch(/\.social-post:hover\s*\{/)
+    expect(styles).not.toMatch(/\.profile-post-card:hover\s*\{/)
+  })
 })
 
 describe('post video open control styles', () => {
