@@ -2930,6 +2930,19 @@ body {
   }
 }
 
+/* Clerk anchors its modal card to the top of the viewport. Auto vertical margins
+   centre it instead, and unlike align-items: center they keep the top of a tall
+   form reachable, because the backdrop is the scroll container. These rules live
+   outside @layer on purpose: Clerk injects its own styles unlayered, and a
+   layered rule would lose to them no matter how specific it is. */
+.cl-modalBackdrop {
+  padding-block: 1.5rem;
+}
+
+.cl-modalBackdrop .cl-modalContent {
+  margin-block: auto;
+}
+
 button,
 input,
 textarea,
