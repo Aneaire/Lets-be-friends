@@ -2,7 +2,7 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useState } from 'react'
-import { Check } from 'lucide-react'
+import { ArrowLeft, Check } from 'lucide-react'
 import {
   normalizeUsername,
   usernameValidationError,
@@ -557,13 +557,19 @@ export function OnboardingPage() {
         {(error || identityFlow.error || companionIdentityFlow.error) && <div className="mt-6"><InlineNotice tone="danger">{companionIdentityFlow.error || identityFlow.error || error}</InlineNotice></div>}
 
         <footer className="onboarding-actions">
-          {step > 1
-            ? <Button intent="ghost" disabled={submitting} onClick={() => void finish(goalForSkip(goal))}>
-                {submitting ? 'Saving…' : 'Skip for now'}
+          <div className="onboarding-actions-row">
+            {step > 1 && (
+              <Button
+                intent="neutral"
+                className="onboarding-back"
+                aria-label="Back to the previous step"
+                title="Back"
+                disabled={submitting}
+                onClick={() => { setError(''); setStep((current) => current - 1) }}
+              >
+                <ArrowLeft size={18} aria-hidden="true" />
               </Button>
-            : <span />}
-          <div className="flex items-center gap-2">
-            {step > 1 && <Button intent="neutral" disabled={submitting} onClick={() => { setError(''); setStep((current) => current - 1) }}>Back</Button>}
+            )}
             {step === 1 && <Button intent="self" disabled={submitting || !approxLocation || !locationConsent || !termsAccepted || (!viewer.username && (Boolean(localUsernameError) || usernameAvailability === undefined || !usernameAvailability.available))} onClick={() => void saveUsernameAndContinue()}>{submitting ? 'Saving...' : viewer.username ? 'Save and continue' : 'Save setup and continue'}</Button>}
             {step === 2 && <Button intent="self" onClick={() => setStep(3)}>Continue</Button>}
             {step === 3 && <Button intent="self" disabled={submitting} onClick={() => void saveProfileAndContinue()}>{submitting ? 'Saving…' : 'Save and continue'}</Button>}
@@ -583,6 +589,13 @@ export function OnboardingPage() {
               </Button>
             )}
           </div>
+          {step > 1 && (
+            <div className="onboarding-skip-row">
+              <button type="button" className="onboarding-skip" disabled={submitting} onClick={() => void finish(goalForSkip(goal))}>
+                {submitting ? 'Saving…' : 'Skip for now'}
+              </button>
+            </div>
+          )}
         </footer>
       </section>
     </main>

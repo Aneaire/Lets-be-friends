@@ -103,6 +103,41 @@ beforeEach(() => {
 })
 
 describe('onboarding route', () => {
+  it('keeps Back and Continue on one row with a text Skip at the very bottom', async () => {
+    render(<OnboardingPage />)
+
+    const saveUsername = screen.getByRole('button', { name: 'Save and continue' })
+    await waitFor(() => expect((saveUsername as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(saveUsername)
+    await screen.findByText('What would you like to do here?')
+
+    const row = document.querySelector('.onboarding-actions-row')
+    const back = screen.getByRole('button', { name: 'Back to the previous step' })
+    const primary = screen.getByRole('button', { name: 'Continue' })
+    const skip = screen.getByRole('button', { name: 'Skip for now' })
+
+    expect(row).toBeTruthy()
+    // Back carries an accessible name but no visible label, so it stays compact.
+    expect(back.textContent).toBe('')
+    expect(back.classList.contains('onboarding-back')).toBe(true)
+    expect(back.getAttribute('title')).toBe('Back')
+    expect(row!.contains(back)).toBe(true)
+    expect(row!.contains(primary)).toBe(true)
+
+    // Skip is a text control in its own trailing row, not a row button or a link.
+    expect(row!.contains(skip)).toBe(false)
+    expect(skip.tagName).toBe('BUTTON')
+    expect(skip.parentElement?.classList.contains('onboarding-skip-row')).toBe(true)
+    expect(skip.compareDocumentPosition(primary) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Skip for now' })).toBeNull()
+  })
+
+  it('shows no back or skip control on the first step', () => {
+    render(<OnboardingPage />)
+    expect(screen.queryByRole('button', { name: 'Back to the previous step' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Skip for now' })).toBeNull()
+  })
+
   it('applies the rounded device location immediately without a confirmation step', async () => {
     const getCurrentPosition = vi.fn((success: (position: { coords: { latitude: number; longitude: number } }) => void) => {
       success({ coords: { latitude: 15.1456789, longitude: 120.5851234 } })

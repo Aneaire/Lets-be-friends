@@ -9262,19 +9262,68 @@ textarea.field {
   line-height: 1.55;
 }
 
+/* The action pair shares one row so the footer stays short on small screens.
+   Continue leads and takes the remaining width; Back is a compact icon only. */
 .onboarding-actions {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.75rem;
   margin-top: 2.5rem;
   padding-top: 1.25rem;
   border-top: 1px solid var(--rule);
 }
 
-.onboarding-actions > div {
-  flex-wrap: wrap;
+.onboarding-actions-row {
+  display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* min-width:0 lets the pair shrink instead of overflowing the row, and normal
+   wrapping keeps a long label readable rather than clipped or pushed off-screen. */
+.onboarding-actions-row > .btn {
+  min-width: 0;
+}
+
+.onboarding-actions-row .btn > span {
+  white-space: normal;
+  line-height: 1.25;
+}
+
+/* A square touch target for the icon, sized from the shared density token. The
+   second class is needed to outrank the .btn padding from compact.css. */
+.onboarding-actions-row .onboarding-back {
+  flex: 0 0 auto;
+  width: var(--density-touch);
+  padding-inline: 0;
+}
+
+/* Skip stays a tertiary escape hatch: small muted text at the very bottom
+   rather than a button competing with Continue. The font size sits on the
+   wrapper because an unlayered `button { font: inherit }` rule wins over any
+   layered font-size on the button itself. */
+.onboarding-skip-row {
+  display: flex;
+  justify-content: center;
+  font-size: 0.8125rem;
+}
+
+.onboarding-skip {
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  font-weight: 500;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.onboarding-skip:hover:not(:disabled) {
+  color: var(--text);
 }
 
 .onboarding-actions .btn:disabled {
@@ -9315,15 +9364,8 @@ textarea.field {
     min-height: 0;
   }
 
-  .onboarding-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .onboarding-actions > .btn,
-  .onboarding-actions > div,
-  .onboarding-actions > div .btn {
-    width: 100%;
+  .onboarding-actions-row > .btn:not(.onboarding-back) {
+    flex: 1 1 auto;
   }
 }
 
