@@ -270,7 +270,9 @@ export default defineSchema({
         fullLegalName: identityFieldSignal,
         dateOfBirth: identityFieldSignal,
         idType: identityFieldSignal,
-        idNumberLast4: identityFieldSignal,
+        // Legacy: the last-4 ID characters are no longer collected. Optional so
+        // records written earlier stay valid without a migration.
+        idNumberLast4: v.optional(identityFieldSignal),
         expirationDate: identityFieldSignal,
         nationality: identityFieldSignal,
       }),
@@ -294,6 +296,7 @@ export default defineSchema({
     fullLegalName: v.optional(v.string()),
     dateOfBirth: v.optional(v.string()),
     idType: v.optional(identityDocumentType),
+    // Legacy: no longer collected or displayed. The stored ID image covers it.
     idNumberLast4: v.optional(v.string()),
     expirationDate: v.optional(v.string()),
     nationality: v.optional(v.string()),
@@ -333,7 +336,7 @@ export default defineSchema({
     retentionDueAt: v.number(),
     purgeAfter: v.number(),
     purgedAt: v.optional(v.number()),
-    purgeReason: v.optional(v.union(v.literal('retention_expired'), v.literal('storage_missing'))),
+    purgeReason: v.optional(v.union(v.literal('retention_expired'), v.literal('storage_missing'), v.literal('member_restarted'))),
   })
     .index('by_record_kind', ['identityRecordId', 'kind'])
     .index('by_user_created_at', ['userId', 'createdAt'])

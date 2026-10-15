@@ -5,7 +5,6 @@ export type IdentityVerificationDraft = {
     fullLegalName?: string
     dateOfBirth?: string
     idType?: 'passport' | 'drivers_license' | 'national_id' | 'residence_permit' | 'other_government_id'
-    idNumberLast4?: string
     expirationDate?: string
     nationality?: string
   }

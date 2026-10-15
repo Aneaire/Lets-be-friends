@@ -116,7 +116,7 @@ function BookingVerificationPage() {
             <div className="panel mt-3">
               <p className="text-meta">Confirmed name: {verification.identityRecord.fullLegalName ?? 'Not provided'}</p>
               <p className="text-meta">Date of birth: {verification.identityRecord.dateOfBirth ?? 'Not provided'}</p>
-              <p className="text-meta">ID: {formatStatus(verification.identityRecord.idType ?? 'unknown')}{verification.identityRecord.idNumberLast4 ? ` ending ${verification.identityRecord.idNumberLast4}` : ''}</p>
+              <p className="text-meta">ID: {formatStatus(verification.identityRecord.idType ?? 'unknown')}</p>
               <p className="text-meta">Expiration: {verification.identityRecord.expirationDate ?? 'Not provided'} · Nationality: {verification.identityRecord.nationality ?? 'Not provided'}</p>
               {verification.identityRecord.extractionNeedsReview && <p className="text-meta">The AI marked one or more extracted fields for careful review.</p>}
               {verification.identityRecord.assessment && <IdentitySignalSummary assessment={verification.identityRecord.assessment} />}

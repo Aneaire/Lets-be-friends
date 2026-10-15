@@ -32,11 +32,10 @@ const extraction = {
   fullLegalName: 'Example Member',
   dateOfBirth: '1990-01-02',
   idType: 'national_id',
-  idNumberLast4: '6789',
   expirationDate: undefined,
   nationality: 'PH',
   signals: {
-    fullLegalName: 'high', dateOfBirth: 'high', idType: 'high', idNumberLast4: 'high', expirationDate: 'high', nationality: 'high',
+    fullLegalName: 'high', dateOfBirth: 'high', idType: 'high', expirationDate: 'high', nationality: 'high',
   },
   needsReview: false,
 } as const
@@ -151,7 +150,7 @@ describe('in-app identity records', () => {
     expect(request.text.format.strict).toBe(true)
   })
 
-  it('retains only the last four ID characters from provider output', () => {
+  it('never stores an ID number fragment, even when the provider returns one', () => {
     const extraction = parseOpenAiIdentityResponse({
       status: 'completed',
       output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({
@@ -159,8 +158,16 @@ describe('in-app identity records', () => {
         signals: { fullLegalName: 'high', dateOfBirth: 'high', idType: 'high', idNumberLast4: 'medium', expirationDate: 'needs_review', nationality: 'high' }, needsReview: true,
       }) }] }],
     })
-    expect(extraction.idNumberLast4).toBe('6789')
+    expect(extraction).not.toHaveProperty('idNumberLast4')
+    expect(extraction.signals).not.toHaveProperty('idNumberLast4')
     expect(JSON.stringify(extraction)).not.toContain('123456789')
+  })
+
+  it('does not ask the provider for an ID number', () => {
+    const request = buildOpenAiIdentityRequest(new Uint8Array([1, 2, 3]).buffer, 'image/jpeg', 'passport')
+    const schema = JSON.stringify(request.text.format.schema)
+    expect(schema).not.toContain('idNumberLast4')
+    expect(schema).not.toContain('final four')
   })
 
   it('requires a human admin decision before an in-app attempt becomes approved', async () => {
@@ -212,6 +219,8 @@ describe('in-app identity records', () => {
       nationality: 'PH',
     })).rejects.toThrow(/at least 18 years old/)
 
+    // A published client still sends this legacy field, so it must stay accepted
+    // and simply be ignored.
     await member.mutation(api.identityRecords.confirmFields, {
       identityRecordId,
       fullLegalName: 'Example Member',
@@ -220,6 +229,9 @@ describe('in-app identity records', () => {
       idNumberLast4: '6789',
       nationality: 'PH',
     })
+    const confirmed = await t.run(async (ctx) => ctx.db.get(identityRecordId))
+    expect(confirmed?.fullLegalName).toBe('Example Member')
+    expect(confirmed?.idNumberLast4).toBeUndefined()
     const { token } = await member.mutation(api.identityRecords.issueSelfieCaptureToken, { identityRecordId })
     await member.action(api.identityRecords.uploadImage, { identityRecordId, kind: 'selfie', bytes: imageBytes, contentType: 'image/jpeg', cameraCaptureToken: token })
 
@@ -555,6 +567,111 @@ describe('identity approval expiry maintenance', () => {
   })
 })
 
+describe('identity attempt restart', () => {
+  it('returns an unsubmitted attempt to draft and purges its stored images', async () => {
+    const t = createTest()
+    await insertUser(t, 'restart-member')
+    const member = t.withIdentity({ subject: 'restart-member' })
+    const started = await member.mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'drivers_license' })
+    if (started.mode !== 'started') throw new Error('Expected a started attempt')
+    const identityRecordId = started.identityRecordId
+    await member.action(api.identityRecords.uploadImage, { identityRecordId, kind: 'id_front', bytes: imageBytes, contentType: 'image/jpeg' })
+    await t.mutation(internal.identityRecords.prepareExtraction, { clerkUserId: 'restart-member', identityRecordId })
+    await t.mutation(internal.identityRecords.completeExtraction, { clerkUserId: 'restart-member', identityRecordId, extraction: { ...extraction } as any })
+    await member.mutation(api.identityRecords.confirmFields, {
+      identityRecordId,
+      fullLegalName: 'Restart Member',
+      dateOfBirth: extraction.dateOfBirth,
+      idType: 'national_id',
+      nationality: 'PH',
+    })
+
+    const before = await t.run(async (ctx) => {
+      const image = await ctx.db.query('identityRecordImages').withIndex('by_record_kind', (q) => q.eq('identityRecordId', identityRecordId).eq('kind', 'id_front')).unique()
+      return { storageId: image?.storageId, purgedAt: image?.purgedAt ?? null }
+    })
+    expect(before.storageId).toBeTruthy()
+
+    const result = await member.mutation(api.identityRecords.restartAttempt, { identityRecordId })
+    expect(result).toEqual({ mode: 'restarted' })
+
+    const state = await t.run(async (ctx) => {
+      const record = await ctx.db.get(identityRecordId)
+      const image = await ctx.db.query('identityRecordImages').withIndex('by_record_kind', (q) => q.eq('identityRecordId', identityRecordId).eq('kind', 'id_front')).unique()
+      const request = await ctx.db.query('verificationRequests').withIndex('by_user_current', (q) => q.eq('userId', record!.userId).eq('isCurrent', true)).unique()
+      return { record, image, request, audits: await ctx.db.query('auditLogs').collect() }
+    })
+    // Back to the upload step, as if nothing had been uploaded.
+    expect(state.record?.stage).toBe('draft')
+    expect(state.record?.extraction).toBeUndefined()
+    expect(state.record?.fullLegalName).toBeUndefined()
+    expect(state.record?.dateOfBirth).toBeUndefined()
+    expect(state.record?.fieldsConfirmedAt).toBeUndefined()
+    expect(state.record?.thirdPartyProcessingConsentedAt).toBeUndefined()
+    expect(state.record?.selectedIdType).toBe('drivers_license')
+    // The bytes are gone but the row survives so the daily upload allowance counts it.
+    expect(state.image?.storageId).toBeUndefined()
+    expect(state.image?.purgeReason).toBe('member_restarted')
+    expect(state.request?.identityStage).toBe('draft')
+    expect(state.audits.some((audit) => audit.action === 'identity_record.restarted')).toBe(true)
+  })
+
+  it('lets the member replace the front image after a restart', async () => {
+    const t = createTest()
+    await insertUser(t, 'restart-reupload-member')
+    const member = t.withIdentity({ subject: 'restart-reupload-member' })
+    const started = await member.mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' })
+    if (started.mode !== 'started') throw new Error('Expected a started attempt')
+    const identityRecordId = started.identityRecordId
+    await member.action(api.identityRecords.uploadImage, { identityRecordId, kind: 'id_front', bytes: imageBytes, contentType: 'image/jpeg' })
+    await t.mutation(internal.identityRecords.prepareExtraction, { clerkUserId: 'restart-reupload-member', identityRecordId })
+    await t.mutation(internal.identityRecords.completeExtraction, { clerkUserId: 'restart-reupload-member', identityRecordId, extraction: { ...extraction } as any })
+    await member.mutation(api.identityRecords.restartAttempt, { identityRecordId })
+
+    // Before the restart this would have failed with "already been uploaded".
+    await member.action(api.identityRecords.uploadImage, { identityRecordId, kind: 'id_front', bytes: imageBytes, contentType: 'image/jpeg' })
+    await t.mutation(internal.identityRecords.prepareExtraction, { clerkUserId: 'restart-reupload-member', identityRecordId })
+    await t.mutation(internal.identityRecords.completeExtraction, { clerkUserId: 'restart-reupload-member', identityRecordId, extraction: { ...extraction } as any })
+    const record = await t.run(async (ctx) => ctx.db.get(identityRecordId))
+    expect(record?.stage).toBe('confirmation_required')
+  })
+
+  it('refuses to restart an attempt that is already queued for safety review', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'restart-submitted-member')
+    const member = t.withIdentity({ subject: 'restart-submitted-member' })
+    const now = Date.now()
+    const recordId = await t.run(async (ctx) => {
+      const recordId = await ctx.db.insert('identityRecords', {
+        userId, reason: 'member', source: 'in_app', stage: 'ready_for_review', selectedIdType: 'passport',
+        fullLegalName: 'Submitted Member', dateOfBirth: '1990-01-01', idType: 'passport', expirationDate: '2035-01-01',
+        fieldsConfirmedAt: now, thirdPartyProcessingConsentedAt: now, reviewConsentedAt: now, submittedAt: now,
+        createdAt: now, updatedAt: now,
+      })
+      const requestId = await ctx.db.insert('verificationRequests', {
+        userId, reason: 'member', personaStatus: 'not_started', personaDecision: 'unknown', verificationSource: 'in_app',
+        identityRecordId: recordId, identityStage: 'ready_for_review', adminStatus: 'pending', isCurrent: true, attempt: 1,
+        createdAt: now, updatedAt: now,
+      })
+      await ctx.db.patch(recordId, { verificationRequestId: requestId })
+      return recordId
+    })
+    await expect(member.mutation(api.identityRecords.restartAttempt, { identityRecordId: recordId }))
+      .rejects.toThrow(/not been sent for safety review/)
+  })
+
+  it('refuses to restart another member attempt', async () => {
+    const t = createTest()
+    await insertUser(t, 'restart-owner')
+    await insertUser(t, 'restart-outsider')
+    const owner = t.withIdentity({ subject: 'restart-owner' })
+    const started = await owner.mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' })
+    if (started.mode !== 'started') throw new Error('Expected a started attempt')
+    await expect(t.withIdentity({ subject: 'restart-outsider' }).mutation(api.identityRecords.restartAttempt, { identityRecordId: started.identityRecordId }))
+      .rejects.toThrow(/not found/)
+  })
+})
+
 describe('identity reviewer signals', () => {
   const confirmed = { fullLegalName: 'Example Member', dateOfBirth: '1990-01-02' }
   const image = { bytes: new Uint8Array([1, 2, 3]).buffer, contentType: 'image/jpeg' }
@@ -877,6 +994,72 @@ describe('identity read failure reasons', () => {
     const record = await t.run(async (ctx) => ctx.db.get(recordId))
     expect(record?.extractionFailureCode).toBe('provider_unavailable')
     expect(record?.extractionFailureReason).toBe('service_unavailable')
+  })
+
+  it('treats a provider response with no usable fields as a failed read', async () => {
+    const t = createTest()
+    await insertUser(t, 'empty-read-member')
+    const { recordId } = await insertDraftRecord(t, 'empty-read-member')
+    vi.stubGlobal('fetch', vi.fn(async (url: unknown) => {
+      if (String(url).includes('/decisions')) {
+        return { ok: true, json: async () => ({ answers: [{ type: 'score', name: 'readability', score: 0.2 }, { type: 'choice', name: 'defect', choice: 'blur' }] }) } as unknown as Response
+      }
+      // A structurally valid extraction that contains nothing at all.
+      return {
+        ok: true,
+        json: async () => ({
+          status: 'completed',
+          output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({
+            fullLegalName: null, dateOfBirth: null, idType: null, expirationDate: null, nationality: null,
+            signals: { fullLegalName: 'needs_review', dateOfBirth: 'needs_review', idType: 'needs_review', expirationDate: 'needs_review', nationality: 'needs_review' },
+            needsReview: true,
+          }) }] }],
+        }),
+      } as unknown as Response
+    }))
+    try {
+      await withProviderEnv('test-key', async () => {
+        await expect(t.withIdentity({ subject: 'empty-read-member' }).action(api.identityRecords.extract, { identityRecordId: recordId, thirdPartyProcessingConsent: true }))
+          .rejects.toThrow('We could not read that ID.')
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    const state = await t.run(async (ctx) => ({ record: await ctx.db.get(recordId), audits: await ctx.db.query('auditLogs').collect() }))
+    // Not confirmation_required: the member goes back to the upload step instead
+    // of facing a blank details form with no way back.
+    expect(state.record?.stage).toBe('failed')
+    expect(state.record?.extractionFailureCode).toBe('empty_extraction')
+    expect(state.record?.extractionFailureReason).toBe('blur')
+    expect(state.record?.extraction).toBeUndefined()
+    expect(state.audits.some((audit) => audit.action === 'identity_record.extraction_failed' && audit.note === 'empty_extraction:blur')).toBe(true)
+  })
+
+  it('still accepts a read that finds only one of the two required fields', async () => {
+    const t = createTest()
+    await insertUser(t, 'partial-read-member')
+    const { recordId } = await insertDraftRecord(t, 'partial-read-member')
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        status: 'completed',
+        output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({
+          fullLegalName: 'Partial Member', dateOfBirth: null, idType: 'national_id', expirationDate: null, nationality: 'PH',
+          signals: { fullLegalName: 'high', dateOfBirth: 'needs_review', idType: 'high', expirationDate: 'needs_review', nationality: 'high' },
+          needsReview: true,
+        }) }] }],
+      }),
+    } as unknown as Response)))
+    try {
+      await withProviderEnv('test-key', async () => {
+        const result = await t.withIdentity({ subject: 'partial-read-member' }).action(api.identityRecords.extract, { identityRecordId: recordId, thirdPartyProcessingConsent: true })
+        expect(result.fullLegalName).toBe('Partial Member')
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    const record = await t.run(async (ctx) => ctx.db.get(recordId))
+    expect(record?.stage).toBe('confirmation_required')
   })
 
   it('keeps the unknown reason when the photo check also fails', async () => {

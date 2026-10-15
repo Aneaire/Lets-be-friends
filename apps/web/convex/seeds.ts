@@ -1236,7 +1236,6 @@ export const seedPhilippinesAdminFixtures = internalMutation({
         fullLegalName: `Seed Applicant ${index + 1}`,
         dateOfBirth: `199${index}-01-15`,
         idType: 'national_id' as const,
-        idNumberLast4: `${4100 + index}`,
         nationality: 'Filipino',
         fieldsConfirmedAt: args.referenceTime - dayMs,
         thirdPartyProcessingConsentedAt: args.referenceTime - dayMs,

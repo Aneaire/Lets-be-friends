@@ -32,6 +32,8 @@ const extractionValidator = v.object({
   fullLegalName: v.optional(v.string()),
   dateOfBirth: v.optional(v.string()),
   idType: v.optional(documentType),
+  // Legacy: no longer collected. Kept optional so records written before the
+  // last-4 field was retired stay valid without a migration.
   idNumberLast4: v.optional(v.string()),
   expirationDate: v.optional(v.string()),
   nationality: v.optional(v.string()),
@@ -39,7 +41,7 @@ const extractionValidator = v.object({
     fullLegalName: signal,
     dateOfBirth: signal,
     idType: signal,
-    idNumberLast4: signal,
+    idNumberLast4: v.optional(signal),
     expirationDate: signal,
     nationality: signal,
   }),
@@ -53,10 +55,9 @@ type Extraction = {
   fullLegalName?: string
   dateOfBirth?: string
   idType?: DocumentType
-  idNumberLast4?: string
   expirationDate?: string
   nationality?: string
-  signals: Record<'fullLegalName' | 'dateOfBirth' | 'idType' | 'idNumberLast4' | 'expirationDate' | 'nationality', Signal>
+  signals: Record<'fullLegalName' | 'dateOfBirth' | 'idType' | 'expirationDate' | 'nationality', Signal>
   needsReview: boolean
 }
 type IdentityAssessment = {
@@ -125,7 +126,6 @@ export const current = query({
         fullLegalName: record.fullLegalName,
         dateOfBirth: record.dateOfBirth,
         idType: record.idType,
-        idNumberLast4: record.idNumberLast4,
         expirationDate: record.expirationDate,
         nationality: record.nationality,
       } : undefined,
@@ -315,6 +315,10 @@ export const extract = action({
       }
       const body = buildOpenAiIdentityRequest(frontImage.bytes, frontImage.contentType, prepared.selectedIdType, backImage)
       const extraction = await requestOpenAiExtraction(body)
+      // A response that yields neither of the two required fields is a failed
+      // read, not a success: the member would otherwise land on a blank details
+      // form with no way back to the upload step.
+      if (!extraction.fullLegalName && !extraction.dateOfBirth) throw new Error('empty_extraction')
       await ctx.runMutation(internal.identityRecords.completeExtraction, { clerkUserId: identity.subject, identityRecordId: args.identityRecordId, extraction })
       return extraction
     } catch (error) {
@@ -373,6 +377,9 @@ export const failExtraction = internalMutation({
 export const confirmFields = mutation({
   args: {
     identityRecordId: v.id('identityRecords'), fullLegalName: v.string(), dateOfBirth: v.string(), idType: documentType,
+    // Legacy argument. The last-4 ID characters are no longer collected, but a
+    // published client still sends this field, so it stays accepted and ignored
+    // until every client is updated.
     idNumberLast4: v.optional(v.string()), expirationDate: v.optional(v.string()), nationality: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -384,16 +391,64 @@ export const confirmFields = mutation({
     const expirationDate = args.expirationDate?.trim() || undefined
     const policy = validateIdentityFields({ dateOfBirth, idType: args.idType, expirationDate })
     if (!policy.ok) throw new Error(policy.error)
-    const idNumberLast4 = normalizeLast4(args.idNumberLast4)
     const nationality = normalizeOptionalText(args.nationality, 80)
     const now = Date.now()
-    await ctx.db.patch(record._id, { fullLegalName, dateOfBirth, idType: args.idType, idNumberLast4, expirationDate, nationality, fieldsConfirmedAt: now, updatedAt: now })
+    await ctx.db.patch(record._id, { fullLegalName, dateOfBirth, idType: args.idType, expirationDate, nationality, fieldsConfirmedAt: now, updatedAt: now })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'identity_record.fields_confirmed', targetType: 'identityRecord', targetId: String(record._id) })
   },
 })
 
-export const issueSelfieCaptureToken = mutation({
+// Lets a member go back to the upload step on an attempt that has not been sent
+// for review, so a bad photo or an unreadable document is never a dead end. The
+// attempt returns to draft, everything the reader produced is cleared, and the
+// stored images are purged so this behaves as if nothing had been uploaded.
+export const restartAttempt = mutation({
   args: { identityRecordId: v.id('identityRecords') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
+    if (!['confirmation_required', 'failed'].includes(record.stage)) {
+      throw new Error('Only an identity attempt that has not been sent for safety review can be restarted')
+    }
+    // Counts against the same daily allowance as starting a check, so restarting
+    // cannot be used to cycle provider calls without limit.
+    await consumeRateLimit(ctx, viewer._id, 'start_identity')
+    const now = Date.now()
+    const images = await ctx.db.query('identityRecordImages').withIndex('by_record_kind', (q) => q.eq('identityRecordId', record._id)).collect()
+    for (const image of images) {
+      if (image.storageId) await ctx.storage.delete(image.storageId)
+      // The row is kept rather than deleted so the daily upload allowance still
+      // counts it. Only the stored bytes go away.
+      await ctx.db.patch(image._id, { storageId: undefined, purgedAt: now, purgeAfter: TERMINAL_PURGE_AFTER, purgeReason: 'member_restarted' })
+    }
+    await ctx.db.patch(record._id, {
+      stage: 'draft',
+      extraction: undefined,
+      extractionStartedAt: undefined,
+      extractionCompletedAt: undefined,
+      extractionFailureCode: undefined,
+      extractionFailureReason: undefined,
+      thirdPartyProcessingConsentedAt: undefined,
+      fullLegalName: undefined,
+      dateOfBirth: undefined,
+      idType: undefined,
+      expirationDate: undefined,
+      nationality: undefined,
+      fieldsConfirmedAt: undefined,
+      selfieCaptureToken: undefined,
+      selfieCaptureExpiresAt: undefined,
+      selfieCaptureUsedAt: undefined,
+      updatedAt: now,
+    })
+    if (record.verificationRequestId) {
+      await ctx.db.patch(record.verificationRequestId, { identityStage: 'draft', extractionNeedsReview: undefined, providerFailureCode: undefined, updatedAt: now })
+    }
+    await writeAudit(ctx, { actorUserId: viewer._id, action: 'identity_record.restarted', targetType: 'identityRecord', targetId: String(record._id), before: { stage: record.stage, imagesPurged: images.length } })
+    return { mode: 'restarted' as const }
+  },
+})
+
+export const issueSelfieCaptureToken = mutation({  args: { identityRecordId: v.id('identityRecords') },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
@@ -874,12 +929,11 @@ const extractionJsonSchema = {
   properties: {
     fullLegalName: { type: ['string', 'null'] }, dateOfBirth: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
     idType: { type: ['string', 'null'], enum: ['passport', 'drivers_license', 'national_id', 'residence_permit', 'other_government_id', null] },
-    idNumberLast4: { type: ['string', 'null'], description: 'Only the final four characters, never the full ID number' },
     expirationDate: { type: ['string', 'null'], description: 'YYYY-MM-DD' }, nationality: { type: ['string', 'null'] },
-    signals: { type: 'object', additionalProperties: false, properties: Object.fromEntries(['fullLegalName', 'dateOfBirth', 'idType', 'idNumberLast4', 'expirationDate', 'nationality'].map((key) => [key, { type: 'string', enum: ['high', 'medium', 'low', 'needs_review'] }])), required: ['fullLegalName', 'dateOfBirth', 'idType', 'idNumberLast4', 'expirationDate', 'nationality'] },
+    signals: { type: 'object', additionalProperties: false, properties: Object.fromEntries(['fullLegalName', 'dateOfBirth', 'idType', 'expirationDate', 'nationality'].map((key) => [key, { type: 'string', enum: ['high', 'medium', 'low', 'needs_review'] }])), required: ['fullLegalName', 'dateOfBirth', 'idType', 'expirationDate', 'nationality'] },
     needsReview: { type: 'boolean' },
   },
-  required: ['fullLegalName', 'dateOfBirth', 'idType', 'idNumberLast4', 'expirationDate', 'nationality', 'signals', 'needsReview'],
+  required: ['fullLegalName', 'dateOfBirth', 'idType', 'expirationDate', 'nationality', 'signals', 'needsReview'],
 }
 
 async function requestOpenAiExtraction(body: ReturnType<typeof buildOpenAiIdentityRequest>) {
@@ -931,12 +985,13 @@ function sanitizeExtraction(input: any): Extraction {
   const validSignals = new Set<Signal>(['high', 'medium', 'low', 'needs_review'])
   const readSignal = (key: string): Signal => validSignals.has(values.signals?.[key]) ? values.signals[key] : 'needs_review'
   const idType = ['passport', 'drivers_license', 'national_id', 'residence_permit', 'other_government_id'].includes(values.idType) ? values.idType as DocumentType : undefined
-  const last4 = normalizeLast4(typeof values.idNumberLast4 === 'string' ? values.idNumberLast4 : undefined)
+  // Any ID number fragment in the provider output is deliberately discarded: the
+  // last-4 field was retired and a full or partial number must never be stored.
   const result: Extraction = {
     fullLegalName: normalizeOptionalText(values.fullLegalName, 120),
-    dateOfBirth: safeDate(values.dateOfBirth), idType, idNumberLast4: last4,
+    dateOfBirth: safeDate(values.dateOfBirth), idType,
     expirationDate: safeDate(values.expirationDate), nationality: normalizeOptionalText(values.nationality, 80),
-    signals: { fullLegalName: readSignal('fullLegalName'), dateOfBirth: readSignal('dateOfBirth'), idType: readSignal('idType'), idNumberLast4: readSignal('idNumberLast4'), expirationDate: readSignal('expirationDate'), nationality: readSignal('nationality') },
+    signals: { fullLegalName: readSignal('fullLegalName'), dateOfBirth: readSignal('dateOfBirth'), idType: readSignal('idType'), expirationDate: readSignal('expirationDate'), nationality: readSignal('nationality') },
     needsReview: Boolean(values.needsReview),
   }
   result.needsReview ||= Object.values(result.signals).some((value) => value !== 'high') || !result.fullLegalName || !result.dateOfBirth
@@ -1001,10 +1056,9 @@ function imageDataUrl(bytes: ArrayBuffer, contentType: string) { return `data:${
 function retentionMs() { const configured = Number(process.env.IDENTITY_RECORD_RETENTION_DAYS); return (Number.isFinite(configured) && configured > 0 ? configured : 730) * DAY_MS }
 function normalizeRequiredText(value: string, min: number, max: number, label: string) { const normalized = value.trim().replace(/\s+/g, ' '); if (normalized.length < min || normalized.length > max) throw new Error(`${label} must be ${min} to ${max} characters`); return normalized }
 function normalizeOptionalText(value: unknown, max: number) { if (typeof value !== 'string') return undefined; const normalized = value.trim().replace(/\s+/g, ' ').slice(0, max); return normalized || undefined }
-function normalizeLast4(value: string | undefined) { if (!value) return undefined; const normalized = value.replace(/[^a-zA-Z0-9]/g, '').slice(-4); return normalized.length <= 4 && normalized.length > 0 ? normalized : undefined }
 function safeDate(value: unknown) { if (typeof value !== 'string') return undefined; const parsed = parseIdentityDate(value.trim()); return parsed ? value.trim() : undefined }
 function arrayBufferToBase64(buffer: ArrayBuffer) { const bytes = new Uint8Array(buffer); let binary = ''; for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000)); return btoa(binary) }
-function publicFailureCode(error: unknown) { const message = error instanceof Error ? error.message : ''; if (message === 'provider_unavailable') return 'provider_unavailable'; if (message.startsWith('provider_')) return 'provider_error'; if (message === 'invalid_response' || message === 'missing_output' || message === 'incomplete_response') return 'invalid_extraction'; return 'extraction_failed' }
+function publicFailureCode(error: unknown) { const message = error instanceof Error ? error.message : ''; if (message === 'provider_unavailable') return 'provider_unavailable'; if (message === 'empty_extraction') return 'empty_extraction'; if (message.startsWith('provider_')) return 'provider_error'; if (message === 'invalid_response' || message === 'missing_output' || message === 'incomplete_response') return 'invalid_extraction'; return 'extraction_failed' }
 function hasLegalHold(record: Doc<'identityRecords'>) { return Boolean(record.legalHoldSetAt && (!record.legalHoldReleasedAt || record.legalHoldReleasedAt < record.legalHoldSetAt)) }
 async function hasActiveIncident(ctx: { db: any }, userId: Id<'users'>) {
   const reports = await ctx.db.query('reports').collect() as Doc<'reports'>[]

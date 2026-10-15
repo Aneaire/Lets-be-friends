@@ -24,7 +24,6 @@ type ExtractedFields = {
   fullLegalName?: string
   dateOfBirth?: string
   idType?: DocumentType
-  idNumberLast4?: string
   expirationDate?: string
   nationality?: string
 }
@@ -58,6 +57,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
   const uploadImage = useAction(api.identityRecords.uploadImage)
   const extract = useAction(api.identityRecords.extract)
   const confirmFields = useMutation(api.identityRecords.confirmFields)
+  const restartIdentityAttempt = useMutation(api.identityRecords.restartAttempt)
   const issueSelfieCaptureToken = useMutation(api.identityRecords.issueSelfieCaptureToken)
   const submit = useMutation(api.identityRecords.submit)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -97,7 +97,6 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
       fullLegalName: values.fullLegalName,
       dateOfBirth: values.dateOfBirth,
       idType: values.idType,
-      idNumberLast4: values.idNumberLast4,
       expirationDate: values.expirationDate,
       nationality: values.nationality,
     } : {}
@@ -232,7 +231,6 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
         fullLegalName: fields.fullLegalName ?? '',
         dateOfBirth: fields.dateOfBirth ?? '',
         idType: fields.idType ?? selectedIdType,
-        idNumberLast4: emptyToUndefined(fields.idNumberLast4),
         expirationDate: emptyToUndefined(fields.expirationDate),
         nationality: emptyToUndefined(fields.nationality),
       })
@@ -250,8 +248,28 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
     }
   }
 
-  const submitForReview = async () => {
-    if (!current) return
+  // Clears the extracted details and stored images for this attempt and returns
+  // to the upload step, so a poor read is never a dead end.
+  const restartWithNewPhoto = async () => {
+    if (!current || working) return
+    setWorking(true)
+    setLocalError('')
+    try {
+      await restartIdentityAttempt({ identityRecordId: current._id })
+      setFront(null)
+      setBack(null)
+      setFields({})
+      setDetailStep(null)
+      setSelfieBlob(null)
+      setSelfieSaved(false)
+    } catch (error) {
+      fail(error)
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  const submitForReview = async () => {    if (!current) return
     setWorking(true)
     setLocalError('')
     try {
@@ -436,15 +454,15 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
 
               {showForm && (
                 <>
-                  <div className="identity-review-callout"><FileText size={18} aria-hidden="true" /><span>Some fields were filled from your ID. Complete any blanks and correct anything the reader missed.</span></div>
+                  <div className="identity-review-callout"><FileText size={18} aria-hidden="true" /><span>Some fields were filled from your ID. Complete any blanks and correct anything the reader missed. If the photo did not read well, use a different one.</span></div>
                   <div className="identity-fields-grid">
                     <IdentityField label="Full legal name" value={fields.fullLegalName} wide onChange={(value) => setFields((currentFields) => ({ ...currentFields, fullLegalName: value }))} />
                     <IdentityField label="Date of birth" type="date" value={fields.dateOfBirth} onChange={(value) => setFields((currentFields) => ({ ...currentFields, dateOfBirth: value }))} />
-                    <IdentityField label="Last 4 ID characters" value={fields.idNumberLast4} maxLength={4} optional onChange={(value) => setFields((currentFields) => ({ ...currentFields, idNumberLast4: value }))} />
                     <IdentityField label="Expiration date" type="date" value={fields.expirationDate} required={requiresExpirationDate(fields.idType ?? selectedIdType)} optional={!requiresExpirationDate(fields.idType ?? selectedIdType)} onChange={(value) => setFields((currentFields) => ({ ...currentFields, expirationDate: value }))} />
                     <IdentityField label="Nationality" value={fields.nationality} optional onChange={(value) => setFields((currentFields) => ({ ...currentFields, nationality: value }))} />
                   </div>
                   <button type="button" className="btn btn-self btn-lg identity-primary-action" onClick={() => void saveFieldsForReview()} disabled={working}>{working ? 'Saving your details...' : 'Save and check details'}</button>
+                  <button type="button" className="identity-edit-details" onClick={() => void restartWithNewPhoto()} disabled={working}>{working ? 'Starting over...' : 'Use a different photo'}</button>
                 </>
               )}
 
@@ -454,7 +472,6 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
                     <IdentityReviewItem label="Full legal name" value={fields.fullLegalName} wide />
                     <IdentityReviewItem label="Date of birth" value={fields.dateOfBirth} />
                     <IdentityReviewItem label="ID type" value={documentTypeLabel(fields.idType ?? selectedIdType)} />
-                    <IdentityReviewItem label="Last 4 ID characters" value={fields.idNumberLast4} />
                     <IdentityReviewItem label="Expiration date" value={fields.expirationDate} />
                     <IdentityReviewItem label="Nationality" value={fields.nationality} />
                   </dl>
@@ -575,8 +592,8 @@ function IdentityCamera({ target, videoRef, working, onCapture, onCancel }: { ta
   )
 }
 
-function IdentityField({ label, value, onChange, type = 'text', maxLength, optional, required, wide }: { label: string; value?: string; onChange: (value: string) => void; type?: string; maxLength?: number; optional?: boolean; required?: boolean; wide?: boolean }) {
-  return <label className="field-row" data-wide={wide || undefined}><span className="label">{label}{optional && <span className="label-aux">Optional</span>}{required && <span className="label-aux">Required</span>}</span><input className="field" type={type} value={value ?? ''} maxLength={maxLength} onChange={(event) => onChange(event.currentTarget.value)} /></label>
+function IdentityField({ label, value, onChange, type = 'text', optional, required, wide }: { label: string; value?: string; onChange: (value: string) => void; type?: string; optional?: boolean; required?: boolean; wide?: boolean }) {
+  return <label className="field-row" data-wide={wide || undefined}><span className="label">{label}{optional && <span className="label-aux">Optional</span>}{required && <span className="label-aux">Required</span>}</span><input className="field" type={type} value={value ?? ''} onChange={(event) => onChange(event.currentTarget.value)} /></label>
 }
 
 function IdentityReviewItem({ label, value, wide }: { label: string; value?: string; wide?: boolean }) {

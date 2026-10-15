@@ -103,7 +103,6 @@ export const memberVerifications = query({
           fullLegalName: identityRecord.fullLegalName,
           dateOfBirth: identityRecord.dateOfBirth,
           idType: identityRecord.idType,
-          idNumberLast4: identityRecord.idNumberLast4,
           expirationDate: identityRecord.expirationDate,
           nationality: identityRecord.nationality,
           extractionNeedsReview: identityRecord.extraction?.needsReview ?? false,

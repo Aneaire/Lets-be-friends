@@ -11,8 +11,7 @@ export function IdentityRetentionTerms() {
         <p>
           <strong>What we store.</strong> We store the front of the government ID, the back of
           the ID when provided, the current camera selfie, and the confirmed details (full legal
-          name, date of birth, ID type, last 4 ID characters, expiration date, and nationality
-          when provided).
+          name, date of birth, ID type, expiration date, and nationality when provided).
         </p>
         <p>
           <strong>Why we store it.</strong> We store these records to complete safety review, to
