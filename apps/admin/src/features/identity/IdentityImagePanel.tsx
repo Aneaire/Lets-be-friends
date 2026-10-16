@@ -114,11 +114,17 @@ export function IdentityImageLightbox({ label, url, onClose }: { label: string; 
   )
 }
 
+// Every kind the app can store, used when the caller does not know which images
+// exist yet. That happens between a frontend deploy and the backend deploy that
+// adds the retained-kinds field, and trying all three degrades safely: a kind
+// that is not retained comes back as an unavailable thumbnail.
+const allImageKinds: IdentityImageKind[] = ['id_front', 'id_back', 'selfie']
+
 // Fetches every retained image for one submission as soon as the review dialog
 // opens, so a reviewer never has to click to see the evidence. Image bytes stay
 // in this tab as object URLs and are released on unmount, on reload, and when the
 // access grant expires.
-export function IdentityImagePanel({ verificationRequestId, imageKinds }: { verificationRequestId: any; imageKinds: IdentityImageKind[] }) {
+export function IdentityImagePanel({ verificationRequestId, imageKinds }: { verificationRequestId: any; imageKinds?: IdentityImageKind[] }) {
   const readImage = useAction(api.identityRecords.readReviewImage)
   const readImageRef = useRef(readImage)
   readImageRef.current = readImage
@@ -129,7 +135,7 @@ export function IdentityImagePanel({ verificationRequestId, imageKinds }: { veri
   const [expiresAt, setExpiresAt] = useState<number | null>(null)
   const [expired, setExpired] = useState(false)
   const objectUrls = useRef<string[]>([])
-  const kindKey = imageKinds.join(',')
+  const kindKey = (imageKinds ?? allImageKinds).join(',')
 
   const releaseImages = useCallback(() => {
     for (const url of objectUrls.current) URL.revokeObjectURL(url)
@@ -183,7 +189,7 @@ export function IdentityImagePanel({ verificationRequestId, imageKinds }: { veri
 
   const closeExpanded = useCallback(() => setExpanded(null), [])
 
-  if (imageKinds.length === 0) {
+  if (kindKey === '') {
     return <p className="text-meta mt-3">No identity images are retained for this attempt.</p>
   }
 

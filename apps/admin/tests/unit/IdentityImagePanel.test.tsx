@@ -115,4 +115,12 @@ describe('identity image panel', () => {
     expect(screen.getByText('No identity images are retained for this attempt.')).toBeTruthy()
     expect(state.readReviewImage).not.toHaveBeenCalled()
   })
+  it('asks for every kind when the caller does not know which are retained', async () => {
+    // This is the state between a frontend deploy and the backend deploy that
+    // adds the retained-kinds field: it must not crash or show nothing.
+    render(<IdentityImagePanel verificationRequestId="req-1" />)
+
+    await waitFor(() => expectImageRendered('Front of ID'))
+    expect(state.readReviewImage).toHaveBeenCalledTimes(3)
+  })
 })
