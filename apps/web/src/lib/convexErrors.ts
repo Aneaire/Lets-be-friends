@@ -1,6 +1,9 @@
 const UNCAUGHT_MARKERS = ['Uncaught ConvexError:', 'Uncaught Error:'] as const
 const CONVEX_ENVELOPE_PREFIX = '[CONVEX'
 const SERVER_ERROR_MARKER = 'Server Error '
+const SERVER_ERROR_BARE = 'Server Error'
+const REDACTED_ENVELOPE = /Server Error\b/
+const CLIENT_SUFFIX = 'Called by client'
 
 function stackTailStart(text: string) {
   return text.search(/\s+at\s|\s+Called by client|\r?\n/)
@@ -9,6 +12,14 @@ function stackTailStart(text: string) {
 function stripStackTail(text: string) {
   const start = stackTailStart(text)
   return (start === -1 ? text : text.slice(0, start)).trim()
+}
+
+function stripUncaughtMarker(text: string) {
+  for (const marker of UNCAUGHT_MARKERS) {
+    const index = text.lastIndexOf(marker)
+    if (index !== -1) return text.slice(index + marker.length).trim()
+  }
+  return null
 }
 
 function rawErrorMessage(error: unknown) {
@@ -23,15 +34,26 @@ function rawErrorMessage(error: unknown) {
 
 export function compactConvexError(message: string) {
   const text = message.trim()
-  for (const marker of UNCAUGHT_MARKERS) {
-    const index = text.lastIndexOf(marker)
-    if (index !== -1) return stripStackTail(text.slice(index + marker.length).trim())
-  }
+  const direct = stripUncaughtMarker(text)
+  if (direct !== null) return stripStackTail(direct)
+
   if (text.startsWith(CONVEX_ENVELOPE_PREFIX)) {
-    const serverError = text.indexOf(SERVER_ERROR_MARKER)
-    if (serverError !== -1) {
-      return stripStackTail(text.slice(serverError + SERVER_ERROR_MARKER.length).trim())
+    const withSpace = text.indexOf(SERVER_ERROR_MARKER)
+    const redacted = text.search(REDACTED_ENVELOPE)
+    let remainder: string | null = null
+    if (withSpace !== -1) {
+      remainder = text.slice(withSpace + SERVER_ERROR_MARKER.length).trim()
+    } else if (redacted !== -1) {
+      remainder = text.slice(redacted + SERVER_ERROR_BARE.length).replace(/^[:\s]+/, '').trim()
     }
+    if (remainder === null) return text
+
+    const inner = stripUncaughtMarker(remainder)
+    const value = stripStackTail(inner ?? remainder)
+    // Convex redacts a plain server Error's message in production, so the envelope
+    // can arrive with nothing after "Server Error" but the client suffix. Returning
+    // empty lets the caller's own fallback show instead of the raw envelope.
+    return value === CLIENT_SUFFIX ? '' : value
   }
   return text
 }

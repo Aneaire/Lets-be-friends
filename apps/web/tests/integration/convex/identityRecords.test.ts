@@ -891,6 +891,35 @@ describe('identity reviewer signals', () => {
   })
 })
 
+describe('identity rejections reach the member', () => {
+  it('raises ConvexError so the message survives production redaction', async () => {
+    const t = createTest()
+    await insertUser(t, 'convex-error-member')
+    const member = t.withIdentity({ subject: 'convex-error-member' })
+    const started = await member.mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'passport' })
+    if (started.mode !== 'started') throw new Error('Expected a started attempt')
+    const identityRecordId = started.identityRecordId
+    await member.action(api.identityRecords.uploadImage, { identityRecordId, kind: 'id_front', bytes: imageBytes, contentType: 'image/jpeg' })
+    await t.mutation(internal.identityRecords.prepareExtraction, { clerkUserId: 'convex-error-member', identityRecordId })
+    await t.mutation(internal.identityRecords.completeExtraction, { clerkUserId: 'convex-error-member', identityRecordId, extraction: { ...extraction, idType: 'passport' } as any })
+
+    // An expired ID is the exact case a member hit in production and could not read.
+    const failure = await member.mutation(api.identityRecords.confirmFields, {
+      identityRecordId,
+      fullLegalName: 'Example Member',
+      dateOfBirth: extraction.dateOfBirth,
+      idType: 'passport',
+      expirationDate: '2020-01-01',
+    }).then(() => null, (error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(Error)
+    expect((failure as Error).message).toBe('This ID is expired. Use a current government ID.')
+    // Convex forwards only ConvexError data to the client, which is what makes the
+    // sentence above readable on the member's screen.
+    expect((failure as { data?: unknown }).data).toBe('This ID is expired. Use a current government ID.')
+  })
+})
+
 describe('identity read failure reasons', () => {
   const image = { bytes: new Uint8Array([1, 2, 3]).buffer, contentType: 'image/jpeg' }
 

@@ -1,4 +1,5 @@
 import { canBookingChat } from '@lets-be-friends/shared'
+import { ConvexError } from 'convex/values'
 import type { Id } from './_generated/dataModel'
 
 export async function getViewer(ctx: { auth: { getUserIdentity: () => Promise<{ subject: string } | null> }; db: any }) {
@@ -9,8 +10,10 @@ export async function getViewer(ctx: { auth: { getUserIdentity: () => Promise<{ 
 
 export async function requireViewer(ctx: { auth: { getUserIdentity: () => Promise<{ subject: string } | null> }; db: any }) {
   const viewer = await getViewer(ctx)
-  if (!viewer) throw new Error('Profile sync required')
-  if (viewer.suspended) throw new Error('Account is suspended')
+  // ConvexError is required for the client to receive the message: Convex redacts
+  // a plain Error's text in production and sends only the envelope.
+  if (!viewer) throw new ConvexError('Profile sync required')
+  if (viewer.suspended) throw new ConvexError('Account is suspended')
   return viewer
 }
 

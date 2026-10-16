@@ -1,7 +1,7 @@
 import { action, internalAction, internalMutation, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { hasCurrentIdentityApproval, parseIdentityDate, validateIdentityFields } from './identityVerification'
 import { requireViewer, writeAudit } from './lib'
 import { syncUserCompanionLocation } from './companionLocations'
@@ -143,14 +143,14 @@ export const start = mutation({
   args: { reason, selectedIdType: documentType },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (args.reason === 'booking') throw new Error('Booking-linked identity verification is no longer available')
+    if (args.reason === 'booking') throw new ConvexError('Booking-linked identity verification is no longer available')
     // A still-valid approval can be renewed pre-expiry. While the renewal is in
     // progress the prior entitlement stays active and is never downgraded.
     const renewing = hasCurrentIdentityApproval(viewer)
     if (args.reason === 'companion_application') {
       if (renewing) return { mode: 'approved' as const }
       const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
-      if (!companion) throw new Error('Save the Companion application before starting identity verification')
+      if (!companion) throw new ConvexError('Save the Companion application before starting identity verification')
     }
     const currentRequests = await ctx.db.query('verificationRequests').withIndex('by_user_current', (q) => q.eq('userId', viewer._id).eq('isCurrent', true)).collect()
     // Historical booking attempts are never resumed and are superseded below
@@ -223,7 +223,7 @@ export const uploadImage = action({
   args: { identityRecordId: v.id('identityRecords'), kind: imageKind, bytes: v.bytes(), contentType: v.string(), cameraCaptureToken: v.optional(v.string()) },
   handler: async (ctx, args): Promise<{ imageId: Id<'identityRecordImages'> }> => {
     const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error('Authentication required')
+    if (!identity) throw new ConvexError('Authentication required')
     const contentType = normalizeImageType(args.contentType)
     validateImageSize(args.bytes.byteLength)
     const storageId = await ctx.storage.store(new Blob([args.bytes], { type: contentType }))
@@ -249,22 +249,22 @@ export const claimStoredImage = internalMutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewerBySubject(ctx, args.clerkUserId)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
-    if (!['draft', 'confirmation_required', 'failed'].includes(record.stage)) throw new Error('This identity attempt cannot accept another image')
+    if (!['draft', 'confirmation_required', 'failed'].includes(record.stage)) throw new ConvexError('This identity attempt cannot accept another image')
     if (args.kind === 'selfie') {
-      if (!record.fieldsConfirmedAt) throw new Error('Confirm the ID details before taking a selfie')
+      if (!record.fieldsConfirmedAt) throw new ConvexError('Confirm the ID details before taking a selfie')
       if (!args.cameraCaptureToken || args.cameraCaptureToken !== record.selfieCaptureToken || !record.selfieCaptureExpiresAt || record.selfieCaptureExpiresAt < Date.now() || record.selfieCaptureUsedAt) {
-        throw new Error('The selfie camera session expired. Open the camera again.')
+        throw new ConvexError('The selfie camera session expired. Open the camera again.')
       }
     }
     const existing = await ctx.db.query('identityRecordImages').withIndex('by_record_kind', (q) => q.eq('identityRecordId', record._id).eq('kind', args.kind)).unique()
-    if (existing?.storageId && !existing.purgedAt && record.stage !== 'failed') throw new Error('This image has already been uploaded for the current attempt')
+    if (existing?.storageId && !existing.purgedAt && record.stage !== 'failed') throw new ConvexError('This image has already been uploaded for the current attempt')
     const metadata = await ctx.db.system.get('_storage', args.storageId)
-    if (!metadata) throw new Error('Stored identity image was not found')
+    if (!metadata) throw new ConvexError('Stored identity image was not found')
     const contentType = normalizeImageType(metadata.contentType ?? args.contentType)
     validateImageSize(metadata.size)
     const now = Date.now()
     const recent = await ctx.db.query('identityRecordImages').withIndex('by_user_created_at', (q) => q.eq('userId', viewer._id).gte('createdAt', now - DAY_MS)).collect()
-    if (recent.length >= MAX_UPLOADS_PER_DAY) throw new Error('Daily identity image upload limit reached')
+    if (recent.length >= MAX_UPLOADS_PER_DAY) throw new ConvexError('Daily identity image upload limit reached')
     let imageId: Id<'identityRecordImages'>
     if (existing) {
       if (existing.storageId) await ctx.storage.delete(existing.storageId)
@@ -293,8 +293,8 @@ export const extract = action({
   args: { identityRecordId: v.id('identityRecords'), thirdPartyProcessingConsent: v.boolean() },
   handler: async (ctx, args): Promise<Extraction> => {
     const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error('Authentication required')
-    if (!args.thirdPartyProcessingConsent) throw new Error('Consent is required before the ID image can be processed')
+    if (!identity) throw new ConvexError('Authentication required')
+    if (!args.thirdPartyProcessingConsent) throw new ConvexError('Consent is required before the ID image can be processed')
     const prepared: { storageId: Id<'_storage'>; contentType: string; backStorageId?: Id<'_storage'>; backContentType?: string; selectedIdType: DocumentType } = await ctx.runMutation(internal.identityRecords.prepareExtraction, {
       clerkUserId: identity.subject,
       identityRecordId: args.identityRecordId,
@@ -302,7 +302,7 @@ export const extract = action({
     let frontImage: { bytes: ArrayBuffer; contentType: string } | undefined
     try {
       const blob = await ctx.storage.get(prepared.storageId)
-      if (!blob) throw new Error('The ID image is unavailable')
+      if (!blob) throw new ConvexError('The ID image is unavailable')
       validateImageSize(blob.size)
       frontImage = { bytes: await blob.arrayBuffer(), contentType: prepared.contentType }
       let backImage: { bytes: ArrayBuffer; contentType: string } | undefined
@@ -318,7 +318,7 @@ export const extract = action({
       // A response that yields neither of the two required fields is a failed
       // read, not a success: the member would otherwise land on a blank details
       // form with no way back to the upload step.
-      if (!extraction.fullLegalName && !extraction.dateOfBirth) throw new Error('empty_extraction')
+      if (!extraction.fullLegalName && !extraction.dateOfBirth) throw new ConvexError('empty_extraction')
       await ctx.runMutation(internal.identityRecords.completeExtraction, { clerkUserId: identity.subject, identityRecordId: args.identityRecordId, extraction })
       return extraction
     } catch (error) {
@@ -329,7 +329,7 @@ export const extract = action({
       const quality = failureCode === 'provider_unavailable' ? undefined : await assessImageQuality(frontImage)
       const reason = extractionFailureReasonFor(failureCode, quality)
       await ctx.runMutation(internal.identityRecords.failExtraction, { clerkUserId: identity.subject, identityRecordId: args.identityRecordId, failureCode, reason })
-      throw new Error('We could not read that ID.')
+      throw new ConvexError('We could not read that ID.')
     }
   },
 })
@@ -339,10 +339,10 @@ export const prepareExtraction = internalMutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewerBySubject(ctx, args.clerkUserId)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
-    if (!['draft', 'failed'].includes(record.stage)) throw new Error('This identity attempt is not ready for extraction')
+    if (!['draft', 'failed'].includes(record.stage)) throw new ConvexError('This identity attempt is not ready for extraction')
     const image = await activeImage(ctx, record._id, 'id_front')
     const backImage = await activeImage(ctx, record._id, 'id_back')
-    if (!image?.storageId) throw new Error('Upload the front of the ID first')
+    if (!image?.storageId) throw new ConvexError('Upload the front of the ID first')
     const now = Date.now()
     await ctx.db.patch(record._id, { stage: 'extracting', extractionStartedAt: now, extractionFailureCode: undefined, extractionFailureReason: undefined, thirdPartyProcessingConsentedAt: now, updatedAt: now })
     if (record.verificationRequestId) await ctx.db.patch(record.verificationRequestId, { identityStage: 'extracting', updatedAt: now })
@@ -355,7 +355,7 @@ export const completeExtraction = internalMutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewerBySubject(ctx, args.clerkUserId)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
-    if (record.stage !== 'extracting') throw new Error('This extraction is no longer active')
+    if (record.stage !== 'extracting') throw new ConvexError('This extraction is no longer active')
     const now = Date.now()
     await ctx.db.patch(record._id, { stage: 'confirmation_required', extraction: args.extraction, extractionCompletedAt: now, updatedAt: now })
     if (record.verificationRequestId) await ctx.db.patch(record.verificationRequestId, { identityStage: 'confirmation_required', extractionNeedsReview: args.extraction.needsReview, updatedAt: now })
@@ -385,12 +385,12 @@ export const confirmFields = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
-    if (record.stage !== 'confirmation_required') throw new Error('The extracted details are not ready for confirmation')
+    if (record.stage !== 'confirmation_required') throw new ConvexError('The extracted details are not ready for confirmation')
     const fullLegalName = normalizeRequiredText(args.fullLegalName, 2, 120, 'Full legal name')
     const dateOfBirth = args.dateOfBirth.trim()
     const expirationDate = args.expirationDate?.trim() || undefined
     const policy = validateIdentityFields({ dateOfBirth, idType: args.idType, expirationDate })
-    if (!policy.ok) throw new Error(policy.error)
+    if (!policy.ok) throw new ConvexError(policy.error)
     const nationality = normalizeOptionalText(args.nationality, 80)
     const now = Date.now()
     await ctx.db.patch(record._id, { fullLegalName, dateOfBirth, idType: args.idType, expirationDate, nationality, fieldsConfirmedAt: now, updatedAt: now })
@@ -408,7 +408,7 @@ export const restartAttempt = mutation({
     const viewer = await requireViewer(ctx)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     if (!['confirmation_required', 'failed'].includes(record.stage)) {
-      throw new Error('Only an identity attempt that has not been sent for safety review can be restarted')
+      throw new ConvexError('Only an identity attempt that has not been sent for safety review can be restarted')
     }
     // Counts against the same daily allowance as starting a check, so restarting
     // cannot be used to cycle provider calls without limit.
@@ -452,7 +452,7 @@ export const issueSelfieCaptureToken = mutation({  args: { identityRecordId: v.i
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
-    if (record.stage !== 'confirmation_required' || !record.fieldsConfirmedAt) throw new Error('Confirm the ID details before opening the camera')
+    if (record.stage !== 'confirmation_required' || !record.fieldsConfirmedAt) throw new ConvexError('Confirm the ID details before opening the camera')
     const token = crypto.randomUUID()
     const expiresAt = Date.now() + CAPTURE_TOKEN_MS
     await ctx.db.patch(record._id, { selfieCaptureToken: token, selfieCaptureExpiresAt: expiresAt, selfieCaptureUsedAt: undefined, updatedAt: Date.now() })
@@ -465,13 +465,13 @@ export const submit = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
-    if (!args.reviewConsent) throw new Error('Consent is required before submitting these records for safety review')
-    if (record.stage !== 'confirmation_required' || !record.fieldsConfirmedAt || !record.thirdPartyProcessingConsentedAt) throw new Error('Complete and confirm the ID details first')
-    if (!record.dateOfBirth || !record.idType) throw new Error('Complete and confirm the ID details first')
+    if (!args.reviewConsent) throw new ConvexError('Consent is required before submitting these records for safety review')
+    if (record.stage !== 'confirmation_required' || !record.fieldsConfirmedAt || !record.thirdPartyProcessingConsentedAt) throw new ConvexError('Complete and confirm the ID details first')
+    if (!record.dateOfBirth || !record.idType) throw new ConvexError('Complete and confirm the ID details first')
     const policy = validateIdentityFields({ dateOfBirth: record.dateOfBirth, idType: record.idType, expirationDate: record.expirationDate })
-    if (!policy.ok) throw new Error(policy.error)
-    if (!(await activeImage(ctx, record._id, 'id_front')) || !(await activeImage(ctx, record._id, 'selfie'))) throw new Error('An ID image and current camera selfie are required')
-    if (!record.verificationRequestId) throw new Error('Identity verification request is unavailable')
+    if (!policy.ok) throw new ConvexError(policy.error)
+    if (!(await activeImage(ctx, record._id, 'id_front')) || !(await activeImage(ctx, record._id, 'selfie'))) throw new ConvexError('An ID image and current camera selfie are required')
+    if (!record.verificationRequestId) throw new ConvexError('Identity verification request is unavailable')
     const now = Date.now()
     await ctx.db.patch(record._id, { stage: 'ready_for_review', reviewConsentedAt: now, submittedAt: now, updatedAt: now })
     await ctx.db.patch(record.verificationRequestId, { identityStage: 'ready_for_review', adminStatus: 'pending', providerCompletedAt: now, adminQueuedAt: now, updatedAt: now })
@@ -499,7 +499,7 @@ export const assessConfirmedDetails = internalAction({
     try {
       const prepared = await ctx.runMutation(internal.identityRecords.prepareConfirmedDetailsAssessment, { userId: args.userId, identityRecordId: args.identityRecordId })
       const blob = await ctx.storage.get(prepared.storageId)
-      if (!blob) throw new Error('The ID image is unavailable')
+      if (!blob) throw new ConvexError('The ID image is unavailable')
       validateImageSize(blob.size)
       const answers = await requestOpenAiDecision(buildIdentityAssessmentRequest(
         { bytes: await blob.arrayBuffer(), contentType: prepared.contentType },
@@ -535,9 +535,9 @@ export const prepareConfirmedDetailsAssessment = internalMutation({
   handler: async (ctx, args) => {
     const viewer = await requireActiveUser(ctx, args.userId)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
-    if (!record.fieldsConfirmedAt || !record.fullLegalName || !record.dateOfBirth) throw new Error('Confirmed details are required before assessment')
+    if (!record.fieldsConfirmedAt || !record.fullLegalName || !record.dateOfBirth) throw new ConvexError('Confirmed details are required before assessment')
     const image = await activeImage(ctx, record._id, 'id_front')
-    if (!image?.storageId) throw new Error('Upload the front of the ID first')
+    if (!image?.storageId) throw new ConvexError('Upload the front of the ID first')
     return { storageId: image.storageId, contentType: image.contentType, fullLegalName: record.fullLegalName, dateOfBirth: record.dateOfBirth }
   },
 })
@@ -584,10 +584,10 @@ export const readReviewImage = action({
   args: { verificationRequestId: v.id('verificationRequests'), kind: imageKind },
   handler: async (ctx, args): Promise<{ bytes: ArrayBuffer; contentType: string; displayUntil: number }> => {
     const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error('Authentication required')
+    if (!identity) throw new ConvexError('Authentication required')
     const access: { storageId: Id<'_storage'>; contentType: string; displayUntil: number } = await ctx.runMutation(internal.identityRecords.authorizeReviewImageRead, { clerkUserId: identity.subject, ...args })
     const blob = await ctx.storage.get(access.storageId)
-    if (!blob) throw new Error('Identity image is no longer retained')
+    if (!blob) throw new ConvexError('Identity image is no longer retained')
     validateImageSize(blob.size)
     return { bytes: await blob.arrayBuffer(), contentType: access.contentType, displayUntil: access.displayUntil }
   },
@@ -597,13 +597,13 @@ export const authorizeReviewImageRead = internalMutation({
   args: { clerkUserId: v.string(), verificationRequestId: v.id('verificationRequests'), kind: imageKind },
   handler: async (ctx, args) => {
     const reviewer = await requireViewerBySubject(ctx, args.clerkUserId)
-    if (!['reviewer', 'admin', 'owner'].includes(reviewer.role)) throw new Error('Reviewer or admin role required')
+    if (!['reviewer', 'admin', 'owner'].includes(reviewer.role)) throw new ConvexError('Reviewer or admin role required')
     const request = await ctx.db.get(args.verificationRequestId)
-    if (!request || request.verificationSource !== 'in_app' || request.adminStatus !== 'pending' || request.identityStage !== 'ready_for_review' || request.isCurrent !== true || !request.identityRecordId) throw new Error('This identity record is not available for review')
+    if (!request || request.verificationSource !== 'in_app' || request.adminStatus !== 'pending' || request.identityStage !== 'ready_for_review' || request.isCurrent !== true || !request.identityRecordId) throw new ConvexError('This identity record is not available for review')
     const record = await ctx.db.get(request.identityRecordId)
-    if (!record || record.stage !== 'ready_for_review') throw new Error('This identity record is not available for review')
+    if (!record || record.stage !== 'ready_for_review') throw new ConvexError('This identity record is not available for review')
     const image = await activeImage(ctx, record._id, args.kind)
-    if (!image?.storageId) throw new Error('This identity image is not retained')
+    if (!image?.storageId) throw new ConvexError('This identity image is not retained')
     const displayUntil = Date.now() + ACCESS_MS
     const grantId = await ctx.db.insert('identityRecordAccessGrants', { identityRecordId: record._id, imageId: image._id, reviewerUserId: reviewer._id, verificationRequestId: request._id, expiresAt: displayUntil, createdAt: Date.now() })
     await writeAudit(ctx, { actorUserId: reviewer._id, action: 'identity_record.image_accessed', targetType: 'identityRecord', targetId: String(record._id), after: { kind: args.kind, grantId: String(grantId), displayUntil } })
@@ -615,10 +615,10 @@ export const readIncidentImage = action({
   args: { reportId: v.id('reports'), identityRecordId: v.id('identityRecords'), kind: imageKind },
   handler: async (ctx, args): Promise<{ bytes: ArrayBuffer; contentType: string; displayUntil: number }> => {
     const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error('Authentication required')
+    if (!identity) throw new ConvexError('Authentication required')
     const access: { storageId: Id<'_storage'>; contentType: string; displayUntil: number } = await ctx.runMutation(internal.identityRecords.authorizeIncidentImageRead, { clerkUserId: identity.subject, ...args })
     const blob = await ctx.storage.get(access.storageId)
-    if (!blob) throw new Error('Identity image is no longer retained')
+    if (!blob) throw new ConvexError('Identity image is no longer retained')
     validateImageSize(blob.size)
     return { bytes: await blob.arrayBuffer(), contentType: access.contentType, displayUntil: access.displayUntil }
   },
@@ -628,15 +628,15 @@ export const authorizeIncidentImageRead = internalMutation({
   args: { clerkUserId: v.string(), reportId: v.id('reports'), identityRecordId: v.id('identityRecords'), kind: imageKind },
   handler: async (ctx, args) => {
     const admin = await requireViewerBySubject(ctx, args.clerkUserId)
-    if (admin.role !== 'admin' && admin.role !== 'owner') throw new Error('Full admin role required')
+    if (admin.role !== 'admin' && admin.role !== 'owner') throw new ConvexError('Full admin role required')
     const report = await ctx.db.get(args.reportId)
     const record = await ctx.db.get(args.identityRecordId)
     if (!report || !record || (report.status !== 'open' && report.status !== 'reviewing') || !await reportConcernsUser(ctx, report, record.userId)) {
-      throw new Error('Identity access requires an active report about this member')
+      throw new ConvexError('Identity access requires an active report about this member')
     }
-    if (record.userId === admin._id || report.reporterId === admin._id) throw new Error('An involved admin cannot access identity incident records')
+    if (record.userId === admin._id || report.reporterId === admin._id) throw new ConvexError('An involved admin cannot access identity incident records')
     const image = await activeImage(ctx, record._id, args.kind)
-    if (!image?.storageId) throw new Error('This identity image is not retained')
+    if (!image?.storageId) throw new ConvexError('This identity image is not retained')
     const displayUntil = Date.now() + ACCESS_MS
     const grantId = await ctx.db.insert('identityRecordAccessGrants', { identityRecordId: record._id, imageId: image._id, reviewerUserId: admin._id, reportId: report._id, expiresAt: displayUntil, createdAt: Date.now() })
     await writeAudit(ctx, { actorUserId: admin._id, action: 'identity_record.incident_image_accessed', targetType: 'identityRecord', targetId: String(record._id), after: { kind: args.kind, reportId: String(report._id), grantId: String(grantId), displayUntil } })
@@ -648,9 +648,9 @@ export const setLegalHold = mutation({
   args: { identityRecordId: v.id('identityRecords'), held: v.boolean(), note: v.string() },
   handler: async (ctx, args) => {
     const admin = await requireViewer(ctx)
-    if (admin.role !== 'admin' && admin.role !== 'owner') throw new Error('Full admin role required')
+    if (admin.role !== 'admin' && admin.role !== 'owner') throw new ConvexError('Full admin role required')
     const record = await ctx.db.get(args.identityRecordId)
-    if (!record) throw new Error('Identity record not found')
+    if (!record) throw new ConvexError('Identity record not found')
     const note = normalizeRequiredText(args.note, 5, 500, 'Legal hold note')
     const now = Date.now()
     await ctx.db.patch(record._id, args.held
@@ -810,9 +810,9 @@ export function buildIdentityAssessmentRequest(
 // refusal while the others still answer, so refusals are collected rather than
 // thrown. Probabilities outside 0..1 are clamped.
 export function parseOpenAiDecisionResponse(payload: unknown): DecisionAnswers {
-  if (!payload || typeof payload !== 'object') throw new Error('invalid_response')
+  if (!payload || typeof payload !== 'object') throw new ConvexError('invalid_response')
   const answers = (payload as { answers?: unknown }).answers
-  if (!Array.isArray(answers)) throw new Error('missing_output')
+  if (!Array.isArray(answers)) throw new ConvexError('missing_output')
   const probabilities: Record<string, number> = {}
   const scores: Record<string, number> = {}
   const choices: Record<string, string> = {}
@@ -834,7 +834,7 @@ export function parseOpenAiDecisionResponse(payload: unknown): DecisionAnswers {
       choices[entry.name] = entry.choice
     }
   }
-  if (Object.keys(probabilities).length === 0 && Object.keys(scores).length === 0 && Object.keys(choices).length === 0 && refusals.length === 0) throw new Error('missing_output')
+  if (Object.keys(probabilities).length === 0 && Object.keys(scores).length === 0 && Object.keys(choices).length === 0 && refusals.length === 0) throw new ConvexError('missing_output')
   return { probabilities, scores, choices, refusals }
 }
 
@@ -916,11 +916,11 @@ async function assessImageQuality(image: { bytes: ArrayBuffer; contentType: stri
 }
 
 export function parseOpenAiIdentityResponse(payload: unknown): Extraction {
-  if (!payload || typeof payload !== 'object') throw new Error('invalid_response')
+  if (!payload || typeof payload !== 'object') throw new ConvexError('invalid_response')
   const response = payload as { status?: string; output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> }
-  if (response.status === 'incomplete') throw new Error('incomplete_response')
+  if (response.status === 'incomplete') throw new ConvexError('incomplete_response')
   const text = response.output?.flatMap((item) => item.content ?? []).find((item) => item.type === 'output_text')?.text
-  if (!text) throw new Error('missing_output')
+  if (!text) throw new ConvexError('missing_output')
   return sanitizeExtraction(JSON.parse(text))
 }
 
@@ -938,12 +938,12 @@ const extractionJsonSchema = {
 
 async function requestOpenAiExtraction(body: ReturnType<typeof buildOpenAiIdentityRequest>) {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
-  if (!apiKey) throw new Error('provider_unavailable')
+  if (!apiKey) throw new ConvexError('provider_unavailable')
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), EXTRACTION_TIMEOUT_MS)
   try {
     const response = await fetch(`${openAiBaseUrl()}/responses`, { method: 'POST', headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal })
-    if (!response.ok) throw new Error(`provider_${response.status}`)
+    if (!response.ok) throw new ConvexError(`provider_${response.status}`)
     return parseOpenAiIdentityResponse(await response.json())
   } finally {
     clearTimeout(timeout)
@@ -952,12 +952,12 @@ async function requestOpenAiExtraction(body: ReturnType<typeof buildOpenAiIdenti
 
 async function requestOpenAiDecision(body: ReturnType<typeof buildIdentityAssessmentRequest>): Promise<DecisionAnswers> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
-  if (!apiKey) throw new Error('provider_unavailable')
+  if (!apiKey) throw new ConvexError('provider_unavailable')
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), DECISION_TIMEOUT_MS)
   try {
     const response = await fetch(`${openAiBaseUrl()}/decisions`, { method: 'POST', headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal })
-    if (!response.ok) throw new Error(`provider_${response.status}`)
+    if (!response.ok) throw new ConvexError(`provider_${response.status}`)
     return parseOpenAiDecisionResponse(await response.json())
   } finally {
     clearTimeout(timeout)
@@ -1000,8 +1000,8 @@ function sanitizeExtraction(input: any): Extraction {
 
 async function requireViewerBySubject(ctx: { db: any }, subject: string) {
   const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q: any) => q.eq('clerkUserId', subject)).unique() as Doc<'users'> | null
-  if (!viewer) throw new Error('Profile sync required')
-  if (viewer.suspended) throw new Error('Account is suspended')
+  if (!viewer) throw new ConvexError('Profile sync required')
+  if (viewer.suspended) throw new ConvexError('Account is suspended')
   return viewer
 }
 
@@ -1009,16 +1009,16 @@ async function requireViewerBySubject(ctx: { db: any }, subject: string) {
 // member by id and applies the same suspension guard.
 async function requireActiveUser(ctx: { db: any }, userId: Id<'users'>) {
   const viewer = await ctx.db.get(userId) as Doc<'users'> | null
-  if (!viewer) throw new Error('Member profile not found')
-  if (viewer.suspended) throw new Error('Account is suspended')
+  if (!viewer) throw new ConvexError('Member profile not found')
+  if (viewer.suspended) throw new ConvexError('Account is suspended')
   return viewer
 }
 
 async function requireCurrentLinkedInAppRecord(ctx: { db: any }, recordId: Id<'identityRecords'>, userId: Id<'users'>) {
   const record = await ctx.db.get(recordId) as Doc<'identityRecords'> | null
-  if (!record || record.userId !== userId) throw new Error('Identity record not found')
-  if (record.reason === 'booking') throw new Error('This booking identity attempt is no longer active. Start a new attempt.')
-  if (!record.verificationRequestId) throw new Error('This identity record is not part of a current identity attempt')
+  if (!record || record.userId !== userId) throw new ConvexError('Identity record not found')
+  if (record.reason === 'booking') throw new ConvexError('This booking identity attempt is no longer active. Start a new attempt.')
+  if (!record.verificationRequestId) throw new ConvexError('This identity record is not part of a current identity attempt')
   const request = await ctx.db.get(record.verificationRequestId) as Doc<'verificationRequests'> | null
   if (
     !request
@@ -1028,16 +1028,16 @@ async function requireCurrentLinkedInAppRecord(ctx: { db: any }, recordId: Id<'i
     || request.isCurrent !== true
     || request.verificationSource !== 'in_app'
   ) {
-    throw new Error('This identity attempt has been superseded. Start a new attempt.')
+    throw new ConvexError('This identity attempt has been superseded. Start a new attempt.')
   }
-  if (request.reason === 'booking') throw new Error('This booking identity attempt is no longer active. Start a new attempt.')
+  if (request.reason === 'booking') throw new ConvexError('This booking identity attempt is no longer active. Start a new attempt.')
   const currentRequests = await ctx.db.query('verificationRequests')
     .withIndex('by_user_current', (q: any) => q.eq('userId', userId).eq('isCurrent', true))
     .collect() as Doc<'verificationRequests'>[]
   const newestCurrent = currentRequests
     .sort((a, b) => (b.attempt ?? 0) - (a.attempt ?? 0) || b.updatedAt - a.updatedAt)[0]
   if (newestCurrent?._id !== request._id) {
-    throw new Error('This identity attempt has been superseded. Start a new attempt.')
+    throw new ConvexError('This identity attempt has been superseded. Start a new attempt.')
   }
   return record
 }
@@ -1047,14 +1047,14 @@ async function activeImage(ctx: { db: any }, recordId: Id<'identityRecords'>, ki
   return image?.storageId && !image.purgedAt ? image : null
 }
 
-function normalizeImageType(contentType: string) { const value = contentType.trim().toLowerCase(); if (!allowedImageTypes.has(value)) throw new Error('Use a JPEG, PNG, or WebP image'); return value }
-function validateImageSize(size: number) { if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_IMAGE_BYTES) throw new Error('Identity images must be 10 MB or smaller') }
+function normalizeImageType(contentType: string) { const value = contentType.trim().toLowerCase(); if (!allowedImageTypes.has(value)) throw new ConvexError('Use a JPEG, PNG, or WebP image'); return value }
+function validateImageSize(size: number) { if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_IMAGE_BYTES) throw new ConvexError('Identity images must be 10 MB or smaller') }
 function extractionModel() { return process.env.OPENAI_IDENTITY_MODEL?.trim() || 'gpt-5.6-luna' }
 function decisionModel() { return process.env.OPENAI_DECISION_MODEL?.trim() || 'gpt-6-luna' }
 function openAiBaseUrl() { return (process.env.OPENAI_API_BASE_URL?.trim() || 'https://api.openai.com/v1').replace(/\/$/, '') }
 function imageDataUrl(bytes: ArrayBuffer, contentType: string) { return `data:${normalizeImageType(contentType)};base64,${arrayBufferToBase64(bytes)}` }
 function retentionMs() { const configured = Number(process.env.IDENTITY_RECORD_RETENTION_DAYS); return (Number.isFinite(configured) && configured > 0 ? configured : 730) * DAY_MS }
-function normalizeRequiredText(value: string, min: number, max: number, label: string) { const normalized = value.trim().replace(/\s+/g, ' '); if (normalized.length < min || normalized.length > max) throw new Error(`${label} must be ${min} to ${max} characters`); return normalized }
+function normalizeRequiredText(value: string, min: number, max: number, label: string) { const normalized = value.trim().replace(/\s+/g, ' '); if (normalized.length < min || normalized.length > max) throw new ConvexError(`${label} must be ${min} to ${max} characters`); return normalized }
 function normalizeOptionalText(value: unknown, max: number) { if (typeof value !== 'string') return undefined; const normalized = value.trim().replace(/\s+/g, ' ').slice(0, max); return normalized || undefined }
 function safeDate(value: unknown) { if (typeof value !== 'string') return undefined; const parsed = parseIdentityDate(value.trim()); return parsed ? value.trim() : undefined }
 function arrayBufferToBase64(buffer: ArrayBuffer) { const bytes = new Uint8Array(buffer); let binary = ''; for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000)); return btoa(binary) }

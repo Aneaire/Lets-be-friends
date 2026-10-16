@@ -44,4 +44,29 @@ describe('extractConvexErrorMessage', () => {
     expect(extractConvexErrorMessage({}, 'fallback')).toBe('fallback')
     expect(compactConvexError('   ')).toBe('')
   })
+
+  it('uses the fallback for a production-redacted envelope instead of showing it raw', () => {
+    // Convex redacts a plain server Error's message in production and sends only
+    // the envelope, so there is nothing to extract and the raw text must not leak.
+    const error = new Error(
+      '[CONVEX M(identityRecords:confirmFields)] [Request ID: 1cd6e46989c2d569] Server Error\n  Called by client',
+    )
+    expect(extractConvexErrorMessage(error, 'Identity verification could not continue.'))
+      .toBe('Identity verification could not continue.')
+  })
+
+  it('extracts a message that follows Server Error on the next line', () => {
+    const error = new Error(
+      '[CONVEX M(identityRecords:confirmFields)] [Request ID: 1] Server Error\nUncaught Error: This ID is expired. Use a current government ID.\n  Called by client',
+    )
+    expect(extractConvexErrorMessage(error, 'fallback'))
+      .toBe('This ID is expired. Use a current government ID.')
+  })
+
+  it('prefers the message carried on a ConvexError payload', () => {
+    // This is the channel the identity flow relies on: ConvexError data is
+    // forwarded to the client while a plain Error message is redacted.
+    expect(extractConvexErrorMessage({ data: 'This ID is expired. Use a current government ID.', message: '[CONVEX M(x)] [Request ID: 1] Server Error' }, 'fallback'))
+      .toBe('This ID is expired. Use a current government ID.')
+  })
 })
