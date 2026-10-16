@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { action, internalMutation } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { hasCurrentIdentityApproval, isPersonaTerminal, isRealPersonaInquiryId, personaEventTransition, personaLifecycleRank } from './identityVerification'
@@ -29,7 +29,7 @@ export const startInquiry = action({
   > => {
     void ctx
     void args
-    throw new Error('Persona identity verification is no longer available. Use the in-app identity check instead.')
+    throw new ConvexError('Persona identity verification is no longer available. Use the in-app identity check instead.')
   },
 })
 
@@ -40,15 +40,15 @@ export const prepareInquiry = internalMutation({
   },
   handler: async (ctx, args) => {
     const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId)).unique()
-    if (!user) throw new Error('Account setup is not complete')
-    if (user.suspended) throw new Error('Account is suspended')
+    if (!user) throw new ConvexError('Account setup is not complete')
+    if (user.suspended) throw new ConvexError('Account is suspended')
     if (hasCurrentIdentityApproval(user)) return { mode: 'approved' as const }
 
     const companionProfile = args.intent === 'companion_application'
       ? await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).first()
       : null
     if (args.intent === 'companion_application' && !companionProfile) {
-      throw new Error('Save the Companion application before starting identity verification')
+      throw new ConvexError('Save the Companion application before starting identity verification')
     }
 
     const requests = await ctx.db.query('verificationRequests').withIndex('by_user', (q) => q.eq('userId', user._id)).collect()
@@ -134,13 +134,13 @@ export const attachInquiry = internalMutation({
   },
   handler: async (ctx, args) => {
     const request = await ctx.db.get(args.requestId)
-    if (!request || request.isCurrent === false) throw new Error('Verification attempt is no longer current')
-    if (!isRealPersonaInquiryId(args.inquiryId)) throw new Error('Invalid Persona inquiry ID')
+    if (!request || request.isCurrent === false) throw new ConvexError('Verification attempt is no longer current')
+    if (!isRealPersonaInquiryId(args.inquiryId)) throw new ConvexError('Invalid Persona inquiry ID')
     if (request.personaInquiryId && request.personaInquiryId !== args.inquiryId) {
-      throw new Error('Verification attempt is already attached to another inquiry')
+      throw new ConvexError('Verification attempt is already attached to another inquiry')
     }
     const duplicate = await ctx.db.query('verificationRequests').withIndex('by_persona_inquiry_id', (q) => q.eq('personaInquiryId', args.inquiryId)).first()
-    if (duplicate && duplicate._id !== args.requestId) throw new Error('Persona inquiry is already attached to another account')
+    if (duplicate && duplicate._id !== args.requestId) throw new ConvexError('Persona inquiry is already attached to another account')
 
     const now = Date.now()
     await ctx.db.patch(args.requestId, {
@@ -186,7 +186,7 @@ export const recordStartFailure = internalMutation({
 export const reconcileLegacyApprovals = internalMutation({
   args: { userIds: v.array(v.id('users')), dryRun: v.boolean() },
   handler: async (ctx, args) => {
-    if (args.userIds.length > 100) throw new Error('Reconcile at most 100 selected users per batch')
+    if (args.userIds.length > 100) throw new ConvexError('Reconcile at most 100 selected users per batch')
     let legacyUsers = 0
     let requestsClassified = 0
 
@@ -368,7 +368,7 @@ function personaConfig() {
   const apiKey = process.env.PERSONA_API_KEY?.trim()
   const templateId = process.env.PERSONA_INQUIRY_TEMPLATE_ID?.trim()
   const environmentId = process.env.PERSONA_ENVIRONMENT_ID?.trim()
-  if (!apiKey || !templateId || !environmentId) throw new Error('Persona environment is not configured')
+  if (!apiKey || !templateId || !environmentId) throw new ConvexError('Persona environment is not configured')
   return {
     apiKey,
     templateId,

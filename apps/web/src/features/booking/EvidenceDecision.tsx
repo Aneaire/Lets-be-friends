@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { Button } from '../../design-system/atoms/Button'
-import { prepareEvidenceImage } from '../../lib/chatAttachments'
+import { prepareEvidenceImage } from '../../lib/chatAttachments';
+import { describeConvexError } from '../../lib/convexErrors'
 
 export type EvidenceDecisionState = 'loading' | 'decided' | 'undecided'
 
@@ -109,7 +110,7 @@ export function EvidenceDecision({ bookingId, label, guidance, skipWarning }: Ev
         contentType: processed.type,
       })
     } catch (error) {
-      setEvidenceError(error instanceof Error ? error.message : 'Evidence image could not be saved.')
+      setEvidenceError(error instanceof Error ? describeConvexError(error) : 'Evidence image could not be saved.')
     } finally {
       setBusy(false)
     }
@@ -122,7 +123,7 @@ export function EvidenceDecision({ bookingId, label, guidance, skipWarning }: Ev
     try {
       await skip({ bookingId, warningAcknowledged: true })
     } catch (error) {
-      setEvidenceError(error instanceof Error ? error.message : 'Evidence decision could not be saved.')
+      setEvidenceError(error instanceof Error ? describeConvexError(error) : 'Evidence decision could not be saved.')
     } finally {
       setBusy(false)
     }

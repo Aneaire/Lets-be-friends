@@ -1,5 +1,5 @@
 import { mutation, query } from './_generated/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import {
   maximumOnboardingActivityCategories,
   normalizeUsername,
@@ -80,14 +80,14 @@ export const claimUsername = mutation({
     const viewer = await requireViewer(ctx)
     const username = normalizeUsername(args.username)
     const validationError = usernameValidationError(username)
-    if (validationError) throw new Error(validationError)
+    if (validationError) throw new ConvexError(validationError)
     if (viewer.username && viewer.username !== username) {
-      throw new Error('Your username is permanent and cannot be changed.')
+      throw new ConvexError('Your username is permanent and cannot be changed.')
     }
     if (viewer.username === username) return username
 
     const existing = await ctx.db.query('users').withIndex('by_username', (q) => q.eq('username', username)).unique()
-    if (existing && existing._id !== viewer._id) throw new Error('That username is already taken.')
+    if (existing && existing._id !== viewer._id) throw new ConvexError('That username is already taken.')
 
     await ctx.db.patch(viewer._id, { username, updatedAt: Date.now() })
     return username
@@ -134,9 +134,9 @@ export const ensureViewer = mutation({
   handler: async (ctx, args) => {
     const clerkUserId = await getClerkUserId(ctx)
     if (args.expectedClerkUserId !== undefined && args.expectedClerkUserId !== clerkUserId) {
-      throw new Error('Your signed-in account changed. Please reload and try again.')
+      throw new ConvexError('Your signed-in account changed. Please reload and try again.')
     }
-    if (!clerkUserId) throw new Error('Authentication required')
+    if (!clerkUserId) throw new ConvexError('Authentication required')
     const existing = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique()
     if (existing) return existing._id
 
@@ -164,11 +164,11 @@ export const saveOnboardingLocationAndConsent = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (!args.locationConsent) throw new Error('Consent to store and use your approximate location is required')
-    if (!args.termsAccepted) throw new Error('Agreement to the Terms and Conditions is required')
+    if (!args.locationConsent) throw new ConvexError('Consent to store and use your approximate location is required')
+    if (!args.termsAccepted) throw new ConvexError('Agreement to the Terms and Conditions is required')
     validateCoordinates(args.latitude, args.longitude)
     const termsVersion = args.termsVersion.trim()
-    if (termsVersion !== currentTermsVersion) throw new Error('Accept the current Terms and Conditions before continuing')
+    if (termsVersion !== currentTermsVersion) throw new ConvexError('Accept the current Terms and Conditions before continuing')
     const now = Date.now()
     await ctx.db.patch(viewer._id, {
       approximateLatitude: roundCoordinate(args.latitude),
@@ -193,16 +193,16 @@ export const completeOnboarding = mutation({
   args: { goal: v.union(v.literal('member'), v.literal('companion')) },
   handler: async (ctx, args) => {
     const clerkUserId = await getClerkUserId(ctx)
-    if (!clerkUserId) throw new Error('Authentication required')
+    if (!clerkUserId) throw new ConvexError('Authentication required')
     const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique()
-    if (!viewer) throw new Error('Account setup is not complete')
-    if (!viewer.username) throw new Error('Choose a username before completing your welcome guide')
+    if (!viewer) throw new ConvexError('Account setup is not complete')
+    if (!viewer.username) throw new ConvexError('Choose a username before completing your welcome guide')
     validateCoordinates(viewer.approximateLatitude, viewer.approximateLongitude)
     if (typeof viewer.approximateLatitude !== 'number' || typeof viewer.approximateLongitude !== 'number') {
-      throw new Error('Save an approximate location before completing your welcome guide')
+      throw new ConvexError('Save an approximate location before completing your welcome guide')
     }
-    if (!viewer.approximateLocationConsentedAt) throw new Error('Approximate location consent is required')
-    if (!viewer.termsAcceptedAt || viewer.termsVersion !== currentTermsVersion) throw new Error('Current Terms and Conditions agreement is required')
+    if (!viewer.approximateLocationConsentedAt) throw new ConvexError('Approximate location consent is required')
+    if (!viewer.termsAcceptedAt || viewer.termsVersion !== currentTermsVersion) throw new ConvexError('Current Terms and Conditions agreement is required')
     const now = Date.now()
     await ctx.db.patch(viewer._id, {
       onboardingGoal: args.goal,
@@ -224,17 +224,17 @@ export const updateProfile = mutation({
   },
   handler: async (ctx, args) => {
     const clerkUserId = await getClerkUserId(ctx)
-    if (!clerkUserId) throw new Error('Authentication required')
+    if (!clerkUserId) throw new ConvexError('Authentication required')
     const now = Date.now()
     const displayName = args.displayName.trim()
-    if (displayName.length < 1) throw new Error('Name is required')
-    if (displayName.length > 80) throw new Error('Name is too long')
+    if (displayName.length < 1) throw new ConvexError('Name is required')
+    if (displayName.length > 80) throw new ConvexError('Name is too long')
     const firstName = normalizeOptional(args.firstName, 40)
     const lastName = normalizeOptional(args.lastName, 40)
     const categoryResult = args.onboardingCategories === undefined
       ? undefined
       : validateActivityCategories(args.onboardingCategories, maximumOnboardingActivityCategories)
-    if (categoryResult && !categoryResult.ok) throw new Error(categoryResult.message)
+    if (categoryResult && !categoryResult.ok) throw new ConvexError(categoryResult.message)
     const onboardingCategories = categoryResult?.value
 
     const bio = normalizeOptional(args.bio, 500)
@@ -281,7 +281,7 @@ export const generateProfileImageUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
     const clerkUserId = await getClerkUserId(ctx)
-    if (!clerkUserId) throw new Error('Authentication required')
+    if (!clerkUserId) throw new ConvexError('Authentication required')
     return await ctx.storage.generateUploadUrl()
   },
 })
@@ -300,15 +300,15 @@ async function hasAdminAccount(ctx: any) {
 function normalizeOptional(value: string | undefined, maxLength: number) {
   const trimmed = value?.trim()
   if (!trimmed) return undefined
-  if (trimmed.length > maxLength) throw new Error('Profile field is too long')
+  if (trimmed.length > maxLength) throw new ConvexError('Profile field is too long')
   return trimmed
 }
 
 function validateCoordinates(latitude?: number, longitude?: number) {
-  if ((latitude === undefined) !== (longitude === undefined)) throw new Error('Latitude and longitude must be provided together')
+  if ((latitude === undefined) !== (longitude === undefined)) throw new ConvexError('Latitude and longitude must be provided together')
   if (latitude === undefined || longitude === undefined) return
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) throw new Error('Latitude must be between -90 and 90')
-  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw new Error('Longitude must be between -180 and 180')
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) throw new ConvexError('Latitude must be between -90 and 90')
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw new ConvexError('Longitude must be between -180 and 180')
 }
 
 function roundCoordinate(value: number) {
@@ -322,9 +322,9 @@ async function profileImageUrl(ctx: any, user: { profileImageStorageId?: any; pr
 
 async function requireImageStorage(ctx: any, storageId: any) {
   const metadata = await ctx.db.system.get('_storage', storageId)
-  if (!metadata) throw new Error('Uploaded profile image was not found')
-  if (metadata.size > 5 * 1024 * 1024) throw new Error('Profile image must be 5 MB or smaller')
+  if (!metadata) throw new ConvexError('Uploaded profile image was not found')
+  if (metadata.size > 5 * 1024 * 1024) throw new ConvexError('Profile image must be 5 MB or smaller')
   if (metadata.contentType && !metadata.contentType.startsWith('image/')) {
-    throw new Error('Profile image must be an image file')
+    throw new ConvexError('Profile image must be an image file')
   }
 }

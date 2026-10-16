@@ -1,5 +1,6 @@
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
+import { ConvexError } from 'convex/values'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { requireViewer } from './lib'
 
@@ -52,15 +53,15 @@ export function isTrustedCircleRole(role: CircleRole) {
 
 export function assertTrustedCircleRoleEligibility(user: Doc<'users'>, role: CircleRole, now = Date.now()) {
   if (!isTrustedCircleRole(role)) return
-  if (!isCircleParticipantRole(user.role)) throw new Error('Circle participation requires an eligible account role')
-  if (user.suspended) throw new Error('A suspended account cannot hold a trusted Circle role')
-  if (!hasCurrentIdentityApproval(user, now)) throw new Error('A current identity approval is required for this Circle role')
+  if (!isCircleParticipantRole(user.role)) throw new ConvexError('Circle participation requires an eligible account role')
+  if (user.suspended) throw new ConvexError('A suspended account cannot hold a trusted Circle role')
+  if (!hasCurrentIdentityApproval(user, now)) throw new ConvexError('A current identity approval is required for this Circle role')
 }
 
 export async function getCircleAuthorization(ctx: CircleCtx, circleId: Id<'circles'>): Promise<CircleAuthorization> {
   const viewer = await requireViewer(ctx)
   const circle = await ctx.db.get(circleId)
-  if (!circle) throw new Error('Circle not found')
+  if (!circle) throw new ConvexError('Circle not found')
   const membership = await ctx.db
     .query('circleMemberships')
     .withIndex('by_circle_user', (q) => q.eq('circleId', circleId).eq('userId', viewer._id))
@@ -107,31 +108,31 @@ export async function getCircleAuthorization(ctx: CircleCtx, circleId: Id<'circl
 
 export async function requireCirclePreview(ctx: CircleCtx, circleId: Id<'circles'>) {
   const access = await getCircleAuthorization(ctx, circleId)
-  if (!access.canPreview) throw new Error(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Circle is unavailable')
+  if (!access.canPreview) throw new ConvexError(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Circle is unavailable')
   return access
 }
 
 export async function requireCircleMember(ctx: CircleCtx, circleId: Id<'circles'>) {
   const access = await getCircleAuthorization(ctx, circleId)
-  if (!access.canRead) throw new Error(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Active Circle membership required')
+  if (!access.canRead) throw new ConvexError(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Active Circle membership required')
   return access
 }
 
 export async function requireCircleWrite(ctx: CircleCtx, circleId: Id<'circles'>) {
   const access = await requireCircleMember(ctx, circleId)
-  if (!access.canWrite) throw new Error('Circle is read-only')
+  if (!access.canWrite) throw new ConvexError('Circle is read-only')
   return access
 }
 
 export async function requireCircleModerator(ctx: CircleCtx, circleId: Id<'circles'>) {
   const access = await requireCircleWrite(ctx, circleId)
-  if (!access.canModerate) throw new Error('Verified Circle moderator role required')
+  if (!access.canModerate) throw new ConvexError('Verified Circle moderator role required')
   return access
 }
 
 export async function requireCircleHost(ctx: CircleCtx, circleId: Id<'circles'>) {
   const access = await requireCircleModerator(ctx, circleId)
-  if (!access.isHost) throw new Error('Verified Circle host role required')
+  if (!access.isHost) throw new ConvexError('Verified Circle host role required')
   return access
 }
 
@@ -141,19 +142,19 @@ export async function requirePostAudienceRead(ctx: CircleCtx, post: Pick<Doc<'po
   // Public discussion visibility admits eligible signed-in outsiders to read
   // visible posts. Writes, moderation, removed content, and block or
   // suspension boundaries are enforced separately by the caller.
-  if (!access.canReadDiscussion) throw new Error(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Active Circle membership required')
+  if (!access.canReadDiscussion) throw new ConvexError(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Active Circle membership required')
   return access
 }
 
 export async function requireCircleDiscussionRead(ctx: CircleCtx, circleId: Id<'circles'>) {
   const access = await getCircleAuthorization(ctx, circleId)
-  if (!access.canReadDiscussion) throw new Error(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Active Circle membership required')
+  if (!access.canReadDiscussion) throw new ConvexError(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Active Circle membership required')
   return access
 }
 
 export async function requireCircleMemberListRead(ctx: CircleCtx, circleId: Id<'circles'>) {
   const access = await getCircleAuthorization(ctx, circleId)
-  if (!access.canReadMembers) throw new Error(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Active Circle membership required')
+  if (!access.canReadMembers) throw new ConvexError(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Active Circle membership required')
   return access
 }
 

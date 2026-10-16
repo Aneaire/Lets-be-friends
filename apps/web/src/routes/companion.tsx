@@ -11,7 +11,8 @@ import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { BookingsView, type BookingsViewMode } from '../features/booking/BookingsView'
 import { BookingsViewSkeleton } from '../features/booking/AppPageSkeleton'
 import { CompanionBookingRow, companionStatusPresentation } from '../features/booking/CompanionBookingRow'
-import type { CompanionBooking } from '../features/booking/combinedBookings'
+import type { CompanionBooking } from '../features/booking/combinedBookings';
+import { describeConvexError } from '../lib/convexErrors'
 
 export const Route = createFileRoute('/companion')({
   validateSearch: (search: Record<string, unknown>): { bookingId?: string } => typeof search.bookingId === 'string' ? { bookingId: search.bookingId } : {},
@@ -358,7 +359,7 @@ function FinancePanel({
                   const form = new FormData(event.currentTarget)
                   await onCreateTopUp(Math.round(Number(form.get('topUpPesos')) * 100))
                 } catch (submitError) {
-                  setError(submitError instanceof Error ? submitError.message : 'Top-up could not be started.')
+                  setError(submitError instanceof Error ? describeConvexError(submitError) : 'Top-up could not be started.')
                 } finally {
                   setBusy(false)
                 }
@@ -406,7 +407,7 @@ function FinancePanel({
                 const form = new FormData(event.currentTarget)
                 await onUpdateRate(Math.round(Number(form.get('hourlyRatePesos')) * 100))
               } catch (submitError) {
-                setError(submitError instanceof Error ? submitError.message : 'Hourly rate could not be updated.')
+                setError(submitError instanceof Error ? describeConvexError(submitError) : 'Hourly rate could not be updated.')
               } finally {
                 setBusy(false)
               }

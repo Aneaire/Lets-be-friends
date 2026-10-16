@@ -10,7 +10,8 @@ import { shareTargetUrl } from '../social/shareLinks'
 import { SharedPostEmbed, SharedReviewEmbed, type SharedPostView, type SharedReviewView } from '../social/SharedEmbeds'
 import { SocialLightbox } from '../social/SocialLightbox'
 import { formatSocialTime } from '../social/formatSocialTime'
-import { PostMediaGrid, type DisplayPostMediaItem } from '../social/PostMediaGrid'
+import { PostMediaGrid, type DisplayPostMediaItem } from '../social/PostMediaGrid';
+import { describeConvexError } from '../../lib/convexErrors'
 
 export type ProfileContentPost = {
   _id: string
@@ -376,7 +377,7 @@ export function ProfileContentPanel({
                       setDeleteError('')
                       void onDeleteReviewComment(targetReview, target.commentId)
                         .then(() => setDeleteTarget(null))
-                        .catch((error) => setDeleteError(error instanceof Error ? error.message : 'Comment could not be deleted.'))
+                        .catch((error) => setDeleteError(error instanceof Error ? describeConvexError(error) : 'Comment could not be deleted.'))
                         .finally(() => setDeleteBusy(false))
                     }}
                   >
@@ -554,7 +555,7 @@ async function runPostAction(
   } catch (error) {
     setErrors((current) => ({
       ...current,
-      [post._id]: error instanceof Error ? error.message : `Post could not be ${action === 'like' ? 'appreciated' : 'saved'}.`,
+      [post._id]: error instanceof Error ? describeConvexError(error) : `Post could not be ${action === 'like' ? 'appreciated' : 'saved'}.`,
     }))
   } finally {
     setBusy(null)

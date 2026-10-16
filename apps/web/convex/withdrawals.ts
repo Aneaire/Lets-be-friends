@@ -8,7 +8,7 @@ import {
 import { action, internalAction, internalMutation, internalQuery, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { applyWalletTransaction, getOrCreateUserWalletAccount, readUnifiedWalletBalance } from './finance'
 import { PaymongoRequestError, paymongoConfig, paymongoRequest } from './paymongo'
 import { getViewer, writeAudit } from './lib'
@@ -78,7 +78,7 @@ export const dashboard = query({
   handler: async (ctx) => {
     const viewer = await getViewer(ctx)
     if (!viewer) return null
-    if (viewer.suspended) throw new Error('Account is suspended')
+    if (viewer.suspended) throw new ConvexError('Account is suspended')
     const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).unique()
     if (!companion) return null
 
@@ -141,9 +141,9 @@ export const dashboard = query({
 export const listReceivingInstitutions = action({
   args: {},
   handler: async (ctx): Promise<{ accountName: string; institutions: Array<{ bic: string; name: string }> }> => {
-    if (!companionWithdrawalsEnabled()) throw new Error('Companion withdrawals are not enabled')
+    if (!companionWithdrawalsEnabled()) throw new ConvexError('Companion withdrawals are not enabled')
     const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error('Authentication required')
+    if (!identity) throw new ConvexError('Authentication required')
     const setup = await ctx.runQuery(internal.withdrawals.payoutSetupContext, { clerkUserId: identity.subject })
     const config = paymongoConfig()
     const response = await listPaymongoReceivingInstitutions(config)
@@ -157,15 +157,15 @@ export const savePayoutMethod = action({
     accountNumber: v.string(),
   },
   handler: async (ctx, args): Promise<{ availableAt: number; institutionName: string; accountNumberLast4: string }> => {
-    if (!companionWithdrawalsEnabled()) throw new Error('Companion withdrawals are not enabled')
+    if (!companionWithdrawalsEnabled()) throw new ConvexError('Companion withdrawals are not enabled')
     const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error('Authentication required')
+    if (!identity) throw new ConvexError('Authentication required')
     const accountNumber = normalizeAccountNumber(args.accountNumber)
     const config = paymongoConfig()
     const setup = await ctx.runQuery(internal.withdrawals.payoutSetupContext, { clerkUserId: identity.subject })
     const institutions = normalizeReceivingInstitutions(await listPaymongoReceivingInstitutions(config))
     const institution = institutions.find((candidate) => candidate.bic === args.institutionBic.trim())
-    if (!institution) throw new Error('Choose a currently supported bank or e-wallet')
+    if (!institution) throw new ConvexError('Choose a currently supported bank or e-wallet')
     const encrypted = await encryptPayoutAccountNumber(
       accountNumber,
       encryptionContext(String(setup.userId), institution.bic, setup.legalName),
@@ -187,19 +187,19 @@ export const savePayoutMethod = action({
 export const request = mutation({
   args: { amountCentavos: v.number() },
   handler: async (ctx, args) => {
-    if (!companionWithdrawalsEnabled()) throw new Error('Companion withdrawals are not enabled')
+    if (!companionWithdrawalsEnabled()) throw new ConvexError('Companion withdrawals are not enabled')
     const viewer = await requireEligibleCompanion(ctx)
     const amountCentavos = validateCompanionWithdrawalCentavos(args.amountCentavos)
     const now = Date.now()
     const method = await ctx.db.query('payoutMethods')
       .withIndex('by_companion_status', (q) => q.eq('companionUserId', viewer._id).eq('status', 'active'))
       .unique()
-    if (!method) throw new Error('Add a payout method before withdrawing')
-    if (method.mode !== configuredPaymongoMode()) throw new Error('Replace the payout method for the current payment mode')
+    if (!method) throw new ConvexError('Add a payout method before withdrawing')
+    if (method.mode !== configuredPaymongoMode()) throw new ConvexError('Replace the payout method for the current payment mode')
     const active = await firstActiveWithdrawal(ctx, viewer._id)
-    if (active) throw new Error('Wait for the current withdrawal to finish before starting another')
+    if (active) throw new ConvexError('Wait for the current withdrawal to finish before starting another')
     const account = await getOrCreateUserWalletAccount(ctx, viewer._id, now)
-    if (account.availableCentavos < amountCentavos) throw new Error('Available wallet balance is lower than this withdrawal amount')
+    if (account.availableCentavos < amountCentavos) throw new ConvexError('Available wallet balance is lower than this withdrawal amount')
 
     const withdrawalId = await ctx.db.insert('withdrawals', {
       companionUserId: viewer._id,
@@ -250,7 +250,7 @@ export const payoutSetupContext = internalQuery({
   args: { clerkUserId: v.string() },
   handler: async (ctx, args) => {
     const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId)).unique()
-    if (!viewer) throw new Error('Profile sync required')
+    if (!viewer) throw new ConvexError('Profile sync required')
     await assertEligibleCompanion(ctx, viewer)
     return { userId: viewer._id, legalName: await verifiedLegalName(ctx, viewer) }
   },
@@ -271,15 +271,15 @@ export const persistPayoutMethod = internalMutation({
   },
   handler: async (ctx, args) => {
     const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId)).unique()
-    if (!viewer) throw new Error('Profile sync required')
+    if (!viewer) throw new ConvexError('Profile sync required')
     await assertEligibleCompanion(ctx, viewer)
     const expectedName = await verifiedLegalName(ctx, viewer)
     if (normalizedName(args.accountName) !== normalizedName(expectedName)) {
-      throw new Error('Payout account name must match the verified legal name')
+      throw new ConvexError('Payout account name must match the verified legal name')
     }
-    if (!/^[A-Z0-9]{6,16}$/.test(args.institutionBic)) throw new Error('Receiving institution BIC is invalid')
-    if (!/^\d{4}$/.test(args.accountNumberLast4)) throw new Error('Payout account ending is invalid')
-    if (!args.accountNumberCiphertext || !args.accountNumberIv) throw new Error('Encrypted payout account is required')
+    if (!/^[A-Z0-9]{6,16}$/.test(args.institutionBic)) throw new ConvexError('Receiving institution BIC is invalid')
+    if (!/^\d{4}$/.test(args.accountNumberLast4)) throw new ConvexError('Payout account ending is invalid')
+    if (!args.accountNumberCiphertext || !args.accountNumberIv) throw new ConvexError('Encrypted payout account is required')
     const now = args.now ?? Date.now()
     const current = await ctx.db.query('payoutMethods')
       .withIndex('by_companion_status', (q) => q.eq('companionUserId', viewer._id).eq('status', 'active'))
@@ -320,7 +320,7 @@ export const beginSubmission = internalMutation({
     const now = args.now ?? Date.now()
     if (withdrawal.nextAttemptAt && withdrawal.nextAttemptAt > now) return null
     const method = await ctx.db.get(withdrawal.payoutMethodId)
-    if (!method || method.companionUserId !== withdrawal.companionUserId) throw new Error('Withdrawal payout method is unavailable')
+    if (!method || method.companionUserId !== withdrawal.companionUserId) throw new ConvexError('Withdrawal payout method is unavailable')
     await ctx.db.patch(withdrawal._id, {
       status: 'submitting',
       attemptCount: withdrawal.attemptCount + 1,
@@ -345,7 +345,7 @@ export const submit = internalAction({
     if (!prepared) return { outcome: 'ignored' as const }
     try {
       const config = paymongoConfig()
-      if (config.mode !== prepared.mode) throw new Error('PayMongo mode mismatch')
+      if (config.mode !== prepared.mode) throw new ConvexError('PayMongo mode mismatch')
       const accountNumber = await decryptPayoutAccountNumber(
         prepared.accountNumberCiphertext,
         prepared.accountNumberIv,
@@ -558,14 +558,14 @@ async function applyProviderTransferInTransaction(
   const withdrawal = args.withdrawalId
     ? await ctx.db.get(args.withdrawalId)
     : await ctx.db.query('withdrawals').withIndex('by_provider_transfer_id', (q: any) => q.eq('providerTransferId', args.transfer.id)).unique()
-  if (!withdrawal) throw new Error('Withdrawal was not found for this PayMongo transfer')
-  if (withdrawal.mode !== args.mode) throw new Error('PayMongo mode mismatch')
-  if (args.transfer.amountCentavos !== withdrawal.amountCentavos) throw new Error('PayMongo withdrawal amount mismatch')
-  if (args.transfer.currency !== withdrawal.currency) throw new Error('PayMongo withdrawal currency mismatch')
+  if (!withdrawal) throw new ConvexError('Withdrawal was not found for this PayMongo transfer')
+  if (withdrawal.mode !== args.mode) throw new ConvexError('PayMongo mode mismatch')
+  if (args.transfer.amountCentavos !== withdrawal.amountCentavos) throw new ConvexError('PayMongo withdrawal amount mismatch')
+  if (args.transfer.currency !== withdrawal.currency) throw new ConvexError('PayMongo withdrawal currency mismatch')
   if (normalizePaymongoReferenceNumber(args.transfer.referenceNumber) !== normalizePaymongoReferenceNumber(withdrawal.referenceNumber)) {
-    throw new Error('PayMongo withdrawal reference mismatch')
+    throw new ConvexError('PayMongo withdrawal reference mismatch')
   }
-  if (withdrawal.providerTransferId && withdrawal.providerTransferId !== args.transfer.id) throw new Error('PayMongo transfer ID mismatch')
+  if (withdrawal.providerTransferId && withdrawal.providerTransferId !== args.transfer.id) throw new ConvexError('PayMongo transfer ID mismatch')
   const now = args.now ?? Date.now()
   const providerPatch = {
     providerBatchTransferId: args.transfer.batchId ?? withdrawal.providerBatchTransferId,
@@ -595,18 +595,18 @@ async function applyProviderTransferInTransaction(
 
 async function requireEligibleCompanion(ctx: any) {
   const viewer = await getViewer(ctx)
-  if (!viewer) throw new Error('Profile sync required')
+  if (!viewer) throw new ConvexError('Profile sync required')
   await assertEligibleCompanion(ctx, viewer)
   return viewer as Doc<'users'>
 }
 
 async function assertEligibleCompanion(ctx: any, viewer: Doc<'users'>) {
-  if (viewer.suspended) throw new Error('Account is suspended')
+  if (viewer.suspended) throw new ConvexError('Account is suspended')
   if (viewer.verificationStatus !== 'approved' || !viewer.identityExpiresAt || viewer.identityExpiresAt <= Date.now()) {
-    throw new Error('Current identity verification is required for withdrawals')
+    throw new ConvexError('Current identity verification is required for withdrawals')
   }
   const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q: any) => q.eq('userId', viewer._id)).unique()
-  if (!companion || companion.status !== 'approved') throw new Error('An approved Companion profile is required for withdrawals')
+  if (!companion || companion.status !== 'approved') throw new ConvexError('An approved Companion profile is required for withdrawals')
 }
 
 async function verifiedLegalName(ctx: any, viewer: Doc<'users'>) {
@@ -716,7 +716,7 @@ export function normalizeBatchTransfer(response: unknown) {
   const data = asRecord(root?.data)
   const batchId = stringValue(data?.id)
   const transfers = asArray(data?.transfers ?? asRecord(data?.attributes)?.transfers)
-  if (!batchId || transfers.length !== 1) throw new Error('PayMongo returned an incomplete batch transfer')
+  if (!batchId || transfers.length !== 1) throw new ConvexError('PayMongo returned an incomplete batch transfer')
   return normalizeTransfer({ data: { ...asRecord(transfers[0]), batch_transfer_id: batchId } })
 }
 
@@ -732,7 +732,7 @@ export function normalizeTransfer(response: unknown): CanonicalPaymongoTransfer 
   const currency = stringValue(value?.currency)?.toUpperCase()
   const referenceNumber = stringValue(value?.reference_number)
   if (!id || !status || amountCentavos === undefined || !currency || !referenceNumber) {
-    throw new Error('PayMongo returned an incomplete transfer')
+    throw new ConvexError('PayMongo returned an incomplete transfer')
   }
   return {
     id,
@@ -754,11 +754,11 @@ export function parsePaymongoTransferWebhookEvent(event: unknown) {
   const eventId = stringValue(data?.id)
   const eventType = stringValue(attributes?.type)
   const livemode = attributes?.livemode
-  if (!eventId || !eventType || typeof livemode !== 'boolean') throw new Error('Invalid PayMongo event envelope')
-  if (!['transfer.outward.successful', 'transfer.outward.failed'].includes(eventType)) throw new Error('Unsupported PayMongo transfer event type')
+  if (!eventId || !eventType || typeof livemode !== 'boolean') throw new ConvexError('Invalid PayMongo event envelope')
+  if (!['transfer.outward.successful', 'transfer.outward.failed'].includes(eventType)) throw new ConvexError('Unsupported PayMongo transfer event type')
   const resource = asRecord(attributes?.data)
   const providerTransferId = stringValue(resource?.id) ?? stringValue(asRecord(resource?.attributes)?.transfer_id)
-  if (!providerTransferId) throw new Error('PayMongo event is missing its transfer ID')
+  if (!providerTransferId) throw new ConvexError('PayMongo event is missing its transfer ID')
   return { eventId, eventType, mode: livemode ? 'live' as const : 'test' as const, providerTransferId }
 }
 
@@ -776,7 +776,7 @@ export function normalizeReceivingInstitutions(response: unknown) {
     const name = stringValue(value?.name) ?? stringValue(value?.bank_name)
     return bic && name ? [{ bic, name }] : []
   })
-  if (!institutions.length) throw new Error('PayMongo returned no InstaPay receiving institutions')
+  if (!institutions.length) throw new ConvexError('PayMongo returned no InstaPay receiving institutions')
   return institutions.sort((left, right) => left.name.localeCompare(right.name))
 }
 
@@ -808,7 +808,7 @@ export function normalizeWalletSourceAccount(response: unknown) {
 
 export function buildWithdrawalReferenceNumber(withdrawalId: string) {
   const sanitized = withdrawalId.replace(/[^a-zA-Z0-9]/g, '')
-  if (!sanitized) throw new Error('Withdrawal reference requires an identifier')
+  if (!sanitized) throw new ConvexError('Withdrawal reference requires an identifier')
   return `lbf ${sanitized}`.slice(0, 60)
 }
 
@@ -819,7 +819,7 @@ export function normalizePaymongoReferenceNumber(value: string) {
 export function paymongoTransferCallbackUrl() {
   const raw = process.env.PAYMONGO_TRANSFER_CALLBACK_URL?.trim()
   if (!raw) return undefined
-  if (!raw.startsWith('https://')) throw new Error('PAYMONGO_TRANSFER_CALLBACK_URL must use HTTPS')
+  if (!raw.startsWith('https://')) throw new ConvexError('PAYMONGO_TRANSFER_CALLBACK_URL must use HTTPS')
   return raw
 }
 
@@ -830,7 +830,7 @@ function configuredPaymongoMode(): 'test' | 'live' | null {
 
 function normalizeAccountNumber(value: string) {
   const normalized = value.replace(/[\s-]/g, '')
-  if (!/^\d{8,24}$/.test(normalized)) throw new Error('Enter a valid 8 to 24 digit bank or e-wallet account number')
+  if (!/^\d{8,24}$/.test(normalized)) throw new ConvexError('Enter a valid 8 to 24 digit bank or e-wallet account number')
   return normalized
 }
 
@@ -840,22 +840,22 @@ function normalizedName(value: string) {
 
 function normalizeRequiredText(value: string, maximum: number, label: string) {
   const normalized = value.trim().replace(/\s+/g, ' ')
-  if (!normalized || normalized.length > maximum) throw new Error(`${label} is invalid`)
+  if (!normalized || normalized.length > maximum) throw new ConvexError(`${label} is invalid`)
   return normalized
 }
 
 function encryptionKeyBytes() {
   const encoded = process.env.PAYOUT_ACCOUNT_ENCRYPTION_KEY?.trim()
-  if (!encoded) throw new Error('PAYOUT_ACCOUNT_ENCRYPTION_KEY is not configured')
+  if (!encoded) throw new ConvexError('PAYOUT_ACCOUNT_ENCRYPTION_KEY is not configured')
   let bytes: Uint8Array
   try {
     const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/')
     const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
     bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
   } catch {
-    throw new Error('PAYOUT_ACCOUNT_ENCRYPTION_KEY must be base64 encoded')
+    throw new ConvexError('PAYOUT_ACCOUNT_ENCRYPTION_KEY must be base64 encoded')
   }
-  if (bytes.byteLength !== 32) throw new Error('PAYOUT_ACCOUNT_ENCRYPTION_KEY must decode to 32 bytes')
+  if (bytes.byteLength !== 32) throw new ConvexError('PAYOUT_ACCOUNT_ENCRYPTION_KEY must decode to 32 bytes')
   return bytes
 }
 

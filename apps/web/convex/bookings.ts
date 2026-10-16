@@ -12,7 +12,7 @@ import {
   validateCompanionHourlyRateCentavos,
 } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
 import { ensureConversationBetween, sendBookingMessage } from './conversations'
 import { hasCurrentIdentityApproval } from './identityVerification'
@@ -34,7 +34,7 @@ export const mine = query({
   handler: async (ctx) => {
     const viewer = await getViewer(ctx)
     if (!viewer) return []
-    if (viewer.suspended) throw new Error('Account is suspended')
+    if (viewer.suspended) throw new ConvexError('Account is suspended')
     const bookings = await ctx.db.query('bookings').withIndex('by_member', (q) => q.eq('memberId', viewer._id)).order('desc').collect()
     return await Promise.all(bookings.map(async (booking) => {
       const companion = await ctx.db.get(booking.companionProfileId)
@@ -57,7 +57,7 @@ export const forCompanion = query({
   handler: async (ctx) => {
     const viewer = await getViewer(ctx)
     if (!viewer) return []
-    if (viewer.suspended) throw new Error('Account is suspended')
+    if (viewer.suspended) throw new ConvexError('Account is suspended')
     const companions = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).collect()
     if (companions.length === 0) return []
     const companionsById = new Map(companions.map((companion) => [companion._id, companion]))
@@ -103,26 +103,26 @@ export const createDraft = mutation({
     const viewer = await requireViewer(ctx)
     await consumeRateLimit(ctx, viewer._id, 'create_booking')
     if (!hasCurrentIdentityApproval(viewer)) {
-      throw new Error('A current identity check and safety review are required before you can request a booking.')
+      throw new ConvexError('A current identity check and safety review are required before you can request a booking.')
     }
     const companion = await ctx.db.get(args.companionProfileId)
-    if (!companion || companion.status !== 'approved') throw new Error('Companion is not available for booking')
+    if (!companion || companion.status !== 'approved') throw new ConvexError('Companion is not available for booking')
     const companionUser = await ctx.db.get(companion.userId)
     if (!companionUser || companionUser.suspended || !hasCurrentIdentityApproval(companionUser)) {
-      throw new Error('Companion is not currently available for new bookings')
+      throw new ConvexError('Companion is not currently available for new bookings')
     }
-    if (!canBookCompanion(String(viewer._id), String(companion.userId))) throw new Error('You cannot book your own Companion profile.')
+    if (!canBookCompanion(String(viewer._id), String(companion.userId))) throw new ConvexError('You cannot book your own Companion profile.')
     await requireNotBlocked(ctx, viewer._id, companion.userId)
-    if (!companion.categories.includes(args.category)) throw new Error('This experience category is not offered by the Companion')
-    if (companion.mode !== 'both' && companion.mode !== args.mode) throw new Error('This booking mode is not offered by the Companion')
-    if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new Error('Booking time must be in the future')
+    if (!companion.categories.includes(args.category)) throw new ConvexError('This experience category is not offered by the Companion')
+    if (companion.mode !== 'both' && companion.mode !== args.mode) throw new ConvexError('This booking mode is not offered by the Companion')
+    if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new ConvexError('Booking time must be in the future')
     const durationMinutes = validateBookingDurationMinutes(args.durationMinutes)
     const hourlyRateCentavos = validateCompanionHourlyRateCentavos(companion.hourlyRateCentavos ?? Number.NaN)
-    if (!memberWalletV2Enabled()) throw new Error('Member-wallet bookings are not enabled')
+    if (!memberWalletV2Enabled()) throw new ConvexError('Member-wallet bookings are not enabled')
     const price = calculateMemberWalletBookingPrice(hourlyRateCentavos, durationMinutes)
     const availableCentavos = await availableMemberBookingBalance(ctx, viewer._id)
     if (availableCentavos < price.memberTotalCentavos) {
-      throw new Error(`Insufficient booking balance. Add at least ${formatPhp(price.memberTotalCentavos - availableCentavos)} to your wallet before sending.`)
+      throw new ConvexError(`Insufficient booking balance. Add at least ${formatPhp(price.memberTotalCentavos - availableCentavos)} to your wallet before sending.`)
     }
 
     const now = Date.now()
@@ -181,28 +181,28 @@ export const editRequest = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const booking = await ctx.db.get(args.bookingId)
-    if (!booking) throw new Error('Booking not found')
-    if (booking.memberId !== viewer._id) throw new Error('Only the member who requested the booking can edit it')
-    if (booking.status !== 'request_sent') throw new Error('A request can only be edited while it is still awaiting the Companion decision')
+    if (!booking) throw new ConvexError('Booking not found')
+    if (booking.memberId !== viewer._id) throw new ConvexError('Only the member who requested the booking can edit it')
+    if (booking.status !== 'request_sent') throw new ConvexError('A request can only be edited while it is still awaiting the Companion decision')
     if (!hasCurrentIdentityApproval(viewer)) {
-      throw new Error('A current identity check and safety review are required before you can update a booking request.')
+      throw new ConvexError('A current identity check and safety review are required before you can update a booking request.')
     }
     const companion = await ctx.db.get(booking.companionProfileId)
-    if (!companion || companion.status !== 'approved') throw new Error('Companion is not available for booking')
+    if (!companion || companion.status !== 'approved') throw new ConvexError('Companion is not available for booking')
     const companionUser = await ctx.db.get(companion.userId)
     if (!companionUser || companionUser.suspended || !hasCurrentIdentityApproval(companionUser)) {
-      throw new Error('The Companion is not currently available for this booking request')
+      throw new ConvexError('The Companion is not currently available for this booking request')
     }
-    if (!companion.categories.includes(args.category)) throw new Error('This experience category is not offered by the Companion')
-    if (companion.mode !== 'both' && companion.mode !== args.mode) throw new Error('This booking mode is not offered by the Companion')
-    if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new Error('Booking time must be in the future')
+    if (!companion.categories.includes(args.category)) throw new ConvexError('This experience category is not offered by the Companion')
+    if (companion.mode !== 'both' && companion.mode !== args.mode) throw new ConvexError('This booking mode is not offered by the Companion')
+    if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new ConvexError('Booking time must be in the future')
     const durationMinutes = validateBookingDurationMinutes(args.durationMinutes)
     const hourlyRateCentavos = validateCompanionHourlyRateCentavos(companion.hourlyRateCentavos ?? Number.NaN)
-    if (!memberWalletV2Enabled()) throw new Error('Member-wallet bookings are not enabled')
+    if (!memberWalletV2Enabled()) throw new ConvexError('Member-wallet bookings are not enabled')
     const price = calculateMemberWalletBookingPrice(hourlyRateCentavos, durationMinutes)
     const availableCentavos = await availableMemberBookingBalance(ctx, viewer._id)
     if (availableCentavos < price.memberTotalCentavos) {
-      throw new Error(`Insufficient booking balance. Add at least ${formatPhp(price.memberTotalCentavos - availableCentavos)} to your wallet before updating.`)
+      throw new ConvexError(`Insufficient booking balance. Add at least ${formatPhp(price.memberTotalCentavos - availableCentavos)} to your wallet before updating.`)
     }
 
     const now = Date.now()
@@ -254,20 +254,20 @@ export const companionDecision = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const booking = await ctx.db.get(args.bookingId)
-    if (!booking) throw new Error('Booking not found')
+    if (!booking) throw new ConvexError('Booking not found')
     const companion = await ctx.db.get(booking.companionProfileId)
-    if (!companion || companion.userId !== viewer._id) throw new Error('Only the booked Companion can decide')
+    if (!companion || companion.userId !== viewer._id) throw new ConvexError('Only the booked Companion can decide')
     if (booking.status === args.decision) return { status: booking.status, idempotent: true }
-    if (booking.status !== 'request_sent') throw new Error('Booking is not awaiting companion decision')
+    if (booking.status !== 'request_sent') throw new ConvexError('Booking is not awaiting companion decision')
     let v2SettlementState = booking.settlementState
     let v2SettlementBlockedAt = booking.settlementBlockedAt
     if (args.decision === 'accepted') {
       if (companion.status !== 'approved' || !hasCurrentIdentityApproval(viewer)) {
-        throw new Error('A current identity check and approved Companion profile are required before accepting new bookings')
+        throw new ConvexError('A current identity check and approved Companion profile are required before accepting new bookings')
       }
       const member = await ctx.db.get(booking.memberId)
       if (!member || member.suspended || !hasCurrentIdentityApproval(member)) {
-        throw new Error('The member must renew identity approval before this booking can be accepted')
+        throw new ConvexError('The member must renew identity approval before this booking can be accepted')
       }
       if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL) {
         await reserveBookingFunds(ctx, booking)
@@ -275,7 +275,7 @@ export const companionDecision = mutation({
         v2SettlementState = blocked ? 'blocked' : 'reserved'
         v2SettlementBlockedAt = blocked ? (booking.settlementBlockedAt ?? Date.now()) : booking.settlementBlockedAt
       } else if (await pastDueCommissionCentavos(ctx, viewer._id) > 0) {
-        throw new Error('Past-due platform commission must be settled before accepting a new booking')
+        throw new ConvexError('Past-due platform commission must be settled before accepting a new booking')
       }
     }
     const now = Date.now()
@@ -318,20 +318,20 @@ export const cancel = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const booking = await ctx.db.get(args.bookingId)
-    if (!booking) throw new Error('Booking not found')
+    if (!booking) throw new ConvexError('Booking not found')
     const companion = await ctx.db.get(booking.companionProfileId)
-    if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new Error('Not your booking')
+    if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new ConvexError('Not your booking')
     if (booking.status === 'cancelled') return { status: 'cancelled' as const, idempotent: true }
     if (
       booking.pricingModel === MEMBER_WALLET_PRICING_MODEL
       && (booking.memberCompletedAt || booking.companionCompletedAt)
     ) {
-      throw new Error('A completion confirmation has already been recorded. Use the report/dispute flow instead of cancelling.')
+      throw new ConvexError('A completion confirmation has already been recorded. Use the report/dispute flow instead of cancelling.')
     }
-    if (!canCancelBooking(booking.status)) throw new Error('This booking can no longer be cancelled')
+    if (!canCancelBooking(booking.status)) throw new ConvexError('This booking can no longer be cancelled')
     if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && booking.status === 'accepted') {
       if (booking.settlementState === 'blocked' || await hasActiveBookingReport(ctx, booking._id)) {
-        throw new Error('This booking has an active safety hold. A full admin must resolve the reserved funds.')
+        throw new ConvexError('This booking has an active safety hold. A full admin must resolve the reserved funds.')
       }
       await releaseBookingFunds(ctx, booking, viewer._id)
     }
@@ -374,15 +374,15 @@ export const markCompleted = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const booking = await ctx.db.get(args.bookingId)
-    if (!booking) throw new Error('Booking not found')
+    if (!booking) throw new ConvexError('Booking not found')
     if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && booking.settlementState === 'refunded') {
-      throw new Error('Refunded bookings cannot be completed')
+      throw new ConvexError('Refunded bookings cannot be completed')
     }
     const companion = await ctx.db.get(booking.companionProfileId)
-    if (!companion) throw new Error('Companion profile not found')
+    if (!companion) throw new ConvexError('Companion profile not found')
     const isMember = booking.memberId === viewer._id
     const isCompanion = companion.userId === viewer._id
-    if (!isMember && !isCompanion) throw new Error('Not your booking')
+    if (!isMember && !isCompanion) throw new ConvexError('Not your booking')
     const participantCompletedAt = isMember ? booking.memberCompletedAt : booking.companionCompletedAt
     if (booking.status !== 'accepted') {
       if (
@@ -391,9 +391,9 @@ export const markCompleted = mutation({
       ) {
         return { status: booking.status, awaitingOtherConfirmation: false, idempotent: true }
       }
-      throw new Error('Only accepted bookings can be completed')
+      throw new ConvexError('Only accepted bookings can be completed')
     }
-    if (!canCompleteBooking(booking.status)) throw new Error('Only accepted bookings can be completed')
+    if (!canCompleteBooking(booking.status)) throw new ConvexError('Only accepted bookings can be completed')
     if (participantCompletedAt) {
       return { status: 'accepted' as const, awaitingOtherConfirmation: true, idempotent: true }
     }
@@ -407,15 +407,15 @@ export const markCompleted = mutation({
       || !Number.isSafeInteger(durationMinutes)
       || durationMinutes <= 0
     ) {
-      throw new Error('Booking schedule is invalid')
+      throw new ConvexError('Booking schedule is invalid')
     }
     const durationMs = durationMinutes * 60_000
     const scheduledEndAt = requestedAt + durationMs
     if (!Number.isSafeInteger(durationMs) || !Number.isFinite(scheduledEndAt) || !Number.isSafeInteger(scheduledEndAt)) {
-      throw new Error('Booking schedule is invalid')
+      throw new ConvexError('Booking schedule is invalid')
     }
     const now = Date.now()
-    if (now < scheduledEndAt) throw new Error('Booking cannot be completed before the scheduled session ends')
+    if (now < scheduledEndAt) throw new ConvexError('Booking cannot be completed before the scheduled session ends')
 
     if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL) {
       const role = isCompanion ? 'companion_start' : 'member_end'
@@ -423,7 +423,7 @@ export const markCompleted = mutation({
         .withIndex('by_booking_role', (q) => q.eq('bookingId', booking._id).eq('role', role))
         .unique()
       if (!decision || decision.userId !== viewer._id) {
-        throw new Error(isCompanion
+        throw new ConvexError(isCompanion
           ? 'Choose start evidence or explicitly skip it before confirming completion.'
           : 'Choose end evidence or explicitly skip it before confirming completion.')
       }
@@ -547,9 +547,9 @@ export const messages = query({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const booking = await ctx.db.get(args.bookingId)
-    if (!booking) throw new Error('Booking not found')
+    if (!booking) throw new ConvexError('Booking not found')
     const companion = await ctx.db.get(booking.companionProfileId)
-    if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new Error('Not your booking')
+    if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new ConvexError('Not your booking')
     if (!canReadBookingMessages(booking.status)) return []
     const messages = await ctx.db.query('messages').withIndex('by_booking', (q) => q.eq('bookingId', args.bookingId)).collect()
     return await Promise.all(messages.map(async (message) => {
@@ -569,10 +569,10 @@ export const sendMessage = mutation({
     const viewer = await requireViewer(ctx)
     await consumeRateLimit(ctx, viewer._id, 'send_message')
     const booking = await ctx.db.get(args.bookingId)
-    if (!booking) throw new Error('Booking not found')
+    if (!booking) throw new ConvexError('Booking not found')
     const companion = await ctx.db.get(booking.companionProfileId)
-    if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new Error('Not your booking')
-    if (!canChatForStatus(booking.status)) throw new Error('Chat unlocks after verification/admin review sends the booking request')
+    if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new ConvexError('Not your booking')
+    if (!canChatForStatus(booking.status)) throw new ConvexError('Chat unlocks after verification/admin review sends the booking request')
     if (booking.status === 'request_sent') {
       const member = await ctx.db.get(booking.memberId)
       const companionUser = companion ? await ctx.db.get(companion.userId) : null
@@ -584,11 +584,11 @@ export const sendMessage = mutation({
         || companionUser.suspended
         || !hasCurrentIdentityApproval(companionUser)
       ) {
-        throw new Error('Both participants need current identity approval before pre-acceptance messaging can continue')
+        throw new ConvexError('Both participants need current identity approval before pre-acceptance messaging can continue')
       }
     }
     const body = args.body.trim()
-    if (!body) throw new Error('Message cannot be empty')
+    if (!body) throw new ConvexError('Message cannot be empty')
     return await ctx.db.insert('messages', { bookingId: args.bookingId, senderId: viewer._id, body, reportable: true, createdAt: Date.now() })
   },
 })

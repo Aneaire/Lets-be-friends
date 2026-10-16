@@ -21,7 +21,8 @@ import {
   prepareChatAttachment,
   type PreparedChatAttachment,
 } from '../lib/chatAttachments'
-import { bookingMessagePresentation, conversationBookingThread } from '../lib/messageBookings'
+import { bookingMessagePresentation, conversationBookingThread } from '../lib/messageBookings';
+import { describeConvexError } from '../lib/convexErrors'
 
 export const Route = createFileRoute('/messages')({
   validateSearch: (search: Record<string, unknown>): { conversationId?: string; messageId?: string } => ({
@@ -104,7 +105,7 @@ export function MessagesPage() {
       setNotice('Message sent to safety review.')
     } catch (reportError) {
       setNotice('')
-      setError(reportError instanceof Error ? reportError.message : 'Message could not be reported.')
+      setError(reportError instanceof Error ? describeConvexError(reportError) : 'Message could not be reported.')
     }
   }
 
@@ -186,7 +187,7 @@ export function MessagesPage() {
                     setNotice(decision === 'accepted' ? 'Booking request accepted.' : 'Booking request declined.')
                   } catch (decideError) {
                     setNotice('')
-                    setError(decideError instanceof Error ? decideError.message : 'The decision could not be saved.')
+                    setError(decideError instanceof Error ? describeConvexError(decideError) : 'The decision could not be saved.')
                   }
                 }}
                 onEdit={(booking) => setEditingBooking(booking)}
@@ -451,7 +452,7 @@ function MessageComposer({
           : attachment))
       } catch (caught) {
         if (!mountedRef.current || cancelledRef.current.has(item.id)) continue
-        const message = caught instanceof Error ? caught.message : 'File could not be prepared.'
+        const message = caught instanceof Error ? describeConvexError(caught) : 'File could not be prepared.'
         setAttachments((current) => current.map((attachment) => attachment.id === item.id
           ? { ...attachment, status: 'error', error: message }
           : attachment))
@@ -517,7 +518,7 @@ function MessageComposer({
         storageId: grant.storageId,
       })))
       onSendFailed()
-      onError(caught instanceof Error ? caught.message : 'Message could not be sent.')
+      onError(caught instanceof Error ? describeConvexError(caught) : 'Message could not be sent.')
     } finally {
       setSending(false)
       sendingRef.current = false

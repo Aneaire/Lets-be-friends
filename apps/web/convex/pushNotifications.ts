@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { internalAction, internalMutation, mutation, query } from './_generated/server'
@@ -58,7 +58,7 @@ export const state = query({
   args: { installationId: v.string() },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (!INSTALLATION_ID.test(args.installationId)) throw new Error('Invalid installation ID')
+    if (!INSTALLATION_ID.test(args.installationId)) throw new ConvexError('Invalid installation ID')
     const config = pushConfiguration()
     const devices = await ctx.db.query('pushDevices')
       .withIndex('by_installation', (q) => q.eq('installationId', args.installationId))
@@ -80,7 +80,7 @@ export const registerDevice = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const config = pushConfiguration()
-    if (!config.enabled) throw new Error('Push notifications are unavailable')
+    if (!config.enabled) throw new ConvexError('Push notifications are unavailable')
     validateRegistration(args, config.projectId)
 
     const now = Date.now()
@@ -139,7 +139,7 @@ export const disableDevice = mutation({
   args: { installationId: v.string() },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (!INSTALLATION_ID.test(args.installationId)) throw new Error('Invalid installation ID')
+    if (!INSTALLATION_ID.test(args.installationId)) throw new ConvexError('Invalid installation ID')
     const devices = await ctx.db.query('pushDevices').withIndex('by_installation', (q) => q.eq('installationId', args.installationId)).collect()
     const device = devices.find((row) => row.userId === viewer._id)
     if (!device) return { disabled: false }
@@ -649,9 +649,9 @@ function pushConfiguration(): PushConfiguration {
 }
 
 function validateRegistration(input: { installationId: string; expoPushToken: string; projectId: string }, expectedProjectId: string) {
-  if (!INSTALLATION_ID.test(input.installationId)) throw new Error('Invalid installation ID')
-  if (!EXPO_TOKEN.test(input.expoPushToken)) throw new Error('Invalid Expo push token')
-  if (input.projectId !== expectedProjectId) throw new Error('Push project does not match this server')
+  if (!INSTALLATION_ID.test(input.installationId)) throw new ConvexError('Invalid installation ID')
+  if (!EXPO_TOKEN.test(input.expoPushToken)) throw new ConvexError('Invalid Expo push token')
+  if (input.projectId !== expectedProjectId) throw new ConvexError('Push project does not match this server')
 }
 
 function expoHeaders(config: Extract<PushConfiguration, { enabled: true }>) {

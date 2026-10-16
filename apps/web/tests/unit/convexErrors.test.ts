@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compactConvexError, extractConvexErrorMessage } from '../../src/lib/convexErrors'
+import { compactConvexError, describeConvexError, extractConvexErrorMessage } from '../../src/lib/convexErrors'
 
 describe('extractConvexErrorMessage', () => {
   it('keeps the meaningful server line and drops the Convex envelope, request ID, and stack', () => {
@@ -68,5 +68,14 @@ describe('extractConvexErrorMessage', () => {
     // forwarded to the client while a plain Error message is redacted.
     expect(extractConvexErrorMessage({ data: 'This ID is expired. Use a current government ID.', message: '[CONVEX M(x)] [Request ID: 1] Server Error' }, 'fallback'))
       .toBe('This ID is expired. Use a current government ID.')
+  })
+
+  it('gives a readable sentence when there is no tailored fallback', () => {
+    expect(describeConvexError({ data: 'Your username is permanent and cannot be changed.' }))
+      .toBe('Your username is permanent and cannot be changed.')
+    // Never surface the transport envelope, which is what members used to see.
+    expect(describeConvexError(new Error('[CONVEX M(x:y)] [Request ID: 1] Server Error\n  Called by client')))
+      .toBe('Something went wrong. Please try again.')
+    expect(describeConvexError(undefined)).toBe('Something went wrong. Please try again.')
   })
 })

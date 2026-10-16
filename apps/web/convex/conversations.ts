@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { paginationOptsValidator } from 'convex/server'
 import type { Doc, Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
@@ -90,7 +90,7 @@ export const between = query({
   args: { otherUserId: v.id('users') },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (viewer._id === args.otherUserId) throw new Error('You cannot message yourself')
+    if (viewer._id === args.otherUserId) throw new ConvexError('You cannot message yourself')
     const pairKey = directPairKey(viewer._id, args.otherUserId)
     const conversation = await ctx.db.query('directConversations').withIndex('by_pair', (q: any) => q.eq('pairKey', pairKey)).unique()
     return conversation?._id ?? null
@@ -183,9 +183,9 @@ export const start = mutation({
   args: { otherUserId: v.id('users') },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (viewer._id === args.otherUserId) throw new Error('You cannot message yourself')
+    if (viewer._id === args.otherUserId) throw new ConvexError('You cannot message yourself')
     const otherUser = await ctx.db.get(args.otherUserId)
-    if (!otherUser || otherUser.suspended) throw new Error('This member is not available for messages')
+    if (!otherUser || otherUser.suspended) throw new ConvexError('This member is not available for messages')
     await requireNotBlocked(ctx, viewer._id, args.otherUserId)
 
     const pairKey = directPairKey(viewer._id, args.otherUserId)
@@ -225,18 +225,18 @@ export const sendMessage = mutation({
       ? conversation.participantTwoId
       : conversation.participantOneId
     const otherUser = await ctx.db.get(otherUserId)
-    if (!otherUser || otherUser.suspended) throw new Error('This member is not available for messages')
+    if (!otherUser || otherUser.suspended) throw new ConvexError('This member is not available for messages')
     await requireNotBlocked(ctx, viewer._id, otherUserId)
 
     const body = args.body.trim()
     const attachmentUploadIds = args.attachmentUploadIds ?? []
-    if (!body && attachmentUploadIds.length === 0) throw new Error('Message cannot be empty')
-    if (body.length > MAX_MESSAGE_LENGTH) throw new Error(`Messages can be up to ${MAX_MESSAGE_LENGTH} characters`)
-    if (attachmentUploadIds.length > MAX_ATTACHMENTS_PER_MESSAGE) throw new Error('Messages can include up to 4 files')
-    if (new Set(attachmentUploadIds.map(String)).size !== attachmentUploadIds.length) throw new Error('Each upload can be attached only once')
+    if (!body && attachmentUploadIds.length === 0) throw new ConvexError('Message cannot be empty')
+    if (body.length > MAX_MESSAGE_LENGTH) throw new ConvexError(`Messages can be up to ${MAX_MESSAGE_LENGTH} characters`)
+    if (attachmentUploadIds.length > MAX_ATTACHMENTS_PER_MESSAGE) throw new ConvexError('Messages can include up to 4 files')
+    if (new Set(attachmentUploadIds.map(String)).size !== attachmentUploadIds.length) throw new ConvexError('Each upload can be attached only once')
     const uploads = await Promise.all(attachmentUploadIds.map((uploadId) => ctx.db.get(uploadId)))
     for (const upload of uploads) {
-      if (!upload || upload.userId !== viewer._id) throw new Error('File upload is not owned by this account')
+      if (!upload || upload.userId !== viewer._id) throw new ConvexError('File upload is not owned by this account')
       if (
         !upload.storageId
         || !upload.kind
@@ -246,8 +246,8 @@ export const sendMessage = mutation({
         || typeof upload.originalSize !== 'number'
         || typeof upload.compressionPercent !== 'number'
         || !upload.registeredAt
-      ) throw new Error('File upload is not registered')
-      if (upload.messageId || upload.discardedAt) throw new Error('File upload has already been claimed')
+      ) throw new ConvexError('File upload is not registered')
+      if (upload.messageId || upload.discardedAt) throw new ConvexError('File upload has already been claimed')
     }
     const attachments = uploads.map((upload) => ({
       storageId: upload!.storageId!,
@@ -290,7 +290,7 @@ export const generateAttachmentUploadUrl = mutation({
     const recent = await ctx.db.query('directMessageUploads').withIndex('by_user_created_at', (q) => (
       q.eq('userId', viewer._id).gte('createdAt', now - UPLOAD_WINDOW_MS)
     )).collect()
-    if (recent.length >= MAX_UPLOADS_PER_DAY) throw new Error('Daily message file limit reached')
+    if (recent.length >= MAX_UPLOADS_PER_DAY) throw new ConvexError('Daily message file limit reached')
     const uploadId = await ctx.db.insert('directMessageUploads', { userId: viewer._id, createdAt: now })
     return { uploadId, uploadUrl: await ctx.storage.generateUploadUrl() }
   },
@@ -307,13 +307,13 @@ export const registerAttachmentUpload = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const upload = await ctx.db.get(args.uploadId)
-    if (!upload || upload.userId !== viewer._id) throw new Error('File upload grant not found')
-    if (upload.storageId || upload.registeredAt || upload.messageId || upload.discardedAt) throw new Error('File upload grant has already been used')
+    if (!upload || upload.userId !== viewer._id) throw new ConvexError('File upload grant not found')
+    if (upload.storageId || upload.registeredAt || upload.messageId || upload.discardedAt) throw new ConvexError('File upload grant has already been used')
     const existingClaim = await ctx.db.query('directMessageUploads').withIndex('by_storage_id', (q) => q.eq('storageId', args.storageId)).first()
-    if (existingClaim) throw new Error('Uploaded file has already been claimed')
+    if (existingClaim) throw new ConvexError('Uploaded file has already been claimed')
     const metadata = await ctx.db.system.get('_storage', args.storageId)
-    if (!metadata) throw new Error('Uploaded file was not found')
-    if (metadata._creationTime < upload.createdAt) throw new Error('Uploaded file predates this grant')
+    if (!metadata) throw new ConvexError('Uploaded file was not found')
+    if (metadata._creationTime < upload.createdAt) throw new ConvexError('Uploaded file predates this grant')
     const file = validatedAttachment(metadata, args)
     await ctx.db.patch(args.uploadId, { storageId: args.storageId, ...file, registeredAt: Date.now() })
     return { uploadId: args.uploadId, storageId: args.storageId, ...file }
@@ -325,17 +325,17 @@ export const discardAttachmentUpload = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const upload = await ctx.db.get(args.uploadId)
-    if (!upload || upload.userId !== viewer._id) throw new Error('File upload grant not found')
-    if (upload.messageId) throw new Error('Sent message files cannot be discarded')
+    if (!upload || upload.userId !== viewer._id) throw new ConvexError('File upload grant not found')
+    if (upload.messageId) throw new ConvexError('Sent message files cannot be discarded')
     if (upload.discardedAt) return
     if (upload.storageId) {
-      if (args.storageId && args.storageId !== upload.storageId) throw new Error('Storage object does not match this file grant')
+      if (args.storageId && args.storageId !== upload.storageId) throw new ConvexError('Storage object does not match this file grant')
       await ctx.storage.delete(upload.storageId)
     } else if (args.storageId) {
       const existingClaim = await ctx.db.query('directMessageUploads').withIndex('by_storage_id', (q) => q.eq('storageId', args.storageId)).first()
-      if (existingClaim) throw new Error('Uploaded file has already been claimed')
+      if (existingClaim) throw new ConvexError('Uploaded file has already been claimed')
       const metadata = await ctx.db.system.get('_storage', args.storageId)
-      if (!metadata || metadata._creationTime < upload.createdAt) throw new Error('Uploaded file was not found')
+      if (!metadata || metadata._creationTime < upload.createdAt) throw new ConvexError('Uploaded file was not found')
       await ctx.storage.delete(args.storageId)
     }
     await ctx.db.patch(args.uploadId, { discardedAt: Date.now() })
@@ -348,9 +348,9 @@ async function requireParticipant(
   viewerId: Id<'users'>,
 ) {
   const conversation = await ctx.db.get(conversationId) as Doc<'directConversations'> | null
-  if (!conversation) throw new Error('Conversation not found')
+  if (!conversation) throw new ConvexError('Conversation not found')
   if (conversation.participantOneId !== viewerId && conversation.participantTwoId !== viewerId) {
-    throw new Error('Not your conversation')
+    throw new ConvexError('Not your conversation')
   }
   return conversation
 }
@@ -368,21 +368,21 @@ function validatedAttachment(
   input: { fileName: string; originalSize: number; compressionPercent: number },
 ) {
   const contentType = metadata.contentType
-  if (!contentType) throw new Error('File type could not be verified')
+  if (!contentType) throw new ConvexError('File type could not be verified')
   const kind = contentType.startsWith('image/') ? 'image' as const : contentType.startsWith('video/') ? 'video' as const : 'file' as const
-  if (kind === 'file' && !allowedFileContentTypes.has(contentType)) throw new Error('This file type is not supported')
+  if (kind === 'file' && !allowedFileContentTypes.has(contentType)) throw new ConvexError('This file type is not supported')
   const maxSize = kind === 'image' ? MAX_IMAGE_BYTES : kind === 'video' ? MAX_VIDEO_BYTES : MAX_FILE_BYTES
-  if (metadata.size > maxSize) throw new Error(`${kind === 'image' ? 'Images' : kind === 'video' ? 'Videos' : 'Files'} must be ${maxSize / 1024 / 1024} MB or smaller after compression`)
+  if (metadata.size > maxSize) throw new ConvexError(`${kind === 'image' ? 'Images' : kind === 'video' ? 'Videos' : 'Files'} must be ${maxSize / 1024 / 1024} MB or smaller after compression`)
   const fileName = input.fileName.trim().slice(0, 160)
-  if (!fileName) throw new Error('File name is required')
-  if (!Number.isSafeInteger(input.originalSize) || input.originalSize < metadata.size) throw new Error('Original file size is invalid')
+  if (!fileName) throw new ConvexError('File name is required')
+  if (!Number.isSafeInteger(input.originalSize) || input.originalSize < metadata.size) throw new ConvexError('Original file size is invalid')
   const expectedCompression = Math.max(0, Math.round((1 - metadata.size / input.originalSize) * 100))
-  if (!Number.isInteger(input.compressionPercent) || Math.abs(input.compressionPercent - expectedCompression) > 1) throw new Error('Compression details do not match the uploaded file')
+  if (!Number.isInteger(input.compressionPercent) || Math.abs(input.compressionPercent - expectedCompression) > 1) throw new ConvexError('Compression details do not match the uploaded file')
   if ((kind === 'file' || input.originalSize < NO_COMPRESSION_BELOW_BYTES) && (metadata.size !== input.originalSize || input.compressionPercent !== 0)) {
-    throw new Error('Small media and documents must be uploaded without compression')
+    throw new ConvexError('Small media and documents must be uploaded without compression')
   }
   if ((kind === 'image' || kind === 'video') && input.originalSize >= NO_COMPRESSION_BELOW_BYTES && metadata.size >= input.originalSize) {
-    throw new Error('Large media must be compressed before sending')
+    throw new ConvexError('Large media must be compressed before sending')
   }
   return { kind, fileName, contentType, size: metadata.size, originalSize: input.originalSize, compressionPercent: expectedCompression }
 }
@@ -403,7 +403,7 @@ export async function ensureConversationBetween(
   firstUserId: Id<'users'>,
   secondUserId: Id<'users'>,
 ) {
-  if (firstUserId === secondUserId) throw new Error('You cannot message yourself')
+  if (firstUserId === secondUserId) throw new ConvexError('You cannot message yourself')
   const pairKey = directPairKey(firstUserId, secondUserId)
   const existing = await ctx.db.query('directConversations').withIndex('by_pair', (q: any) => q.eq('pairKey', pairKey)).unique()
   if (existing) {

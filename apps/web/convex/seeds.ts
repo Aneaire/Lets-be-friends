@@ -1,5 +1,5 @@
 import { calculateMemberWalletBookingPrice } from '@lets-be-friends/shared'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { internalAction, internalMutation, internalQuery } from './_generated/server'
@@ -214,7 +214,7 @@ export const seedPampangaCompanions = internalMutation({
       if (existingMember) reviewMembersUpdated += 1
       else reviewMembersCreated += 1
       const member = await ctx.db.get(memberId)
-      if (!member) throw new Error(`Seeded review member was not saved: ${memberSeed.key}`)
+      if (!member) throw new ConvexError(`Seeded review member was not saved: ${memberSeed.key}`)
       reviewMembers.push(member)
     }
 
@@ -292,7 +292,7 @@ export const seedPampangaCompanions = internalMutation({
       }
 
       const [user, companion] = await Promise.all([ctx.db.get(userId), ctx.db.get(companionProfileId)])
-      if (!companion) throw new Error(`Seeded Companion profile was not saved: ${seed.key}`)
+      if (!companion) throw new ConvexError(`Seeded Companion profile was not saved: ${seed.key}`)
       await syncCompanionLocation(ctx, companion, user)
 
       const historicalBookings = await ctx.db
@@ -328,7 +328,7 @@ export const seedPampangaCompanions = internalMutation({
             updatedAt: completedAt + dayMs,
           })
           booking = await ctx.db.get(bookingId) ?? undefined
-          if (!booking) throw new Error(`Seeded review booking was not saved: ${seed.key}`)
+          if (!booking) throw new ConvexError(`Seeded review booking was not saved: ${seed.key}`)
           historicalBookings.push(booking)
           bookingsCreated += 1
         }
@@ -402,7 +402,7 @@ export const seedPresentationAccount = internalMutation({
       .query('users')
       .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
       .unique()
-    if (!target) throw new Error('The requested account does not exist in Convex')
+    if (!target) throw new ConvexError('The requested account does not exist in Convex')
     const account = target
     const accountFirstName = account.firstName?.trim()
       || account.displayName.trim().split(/\s+/)[0]
@@ -415,12 +415,12 @@ export const seedPresentationAccount = internalMutation({
         .query('users')
         .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', `seed:pampanga:${seed.key}`))
         .unique()
-      if (!user) throw new Error(`Run seedPampangaCompanions first: ${seed.key}`)
+      if (!user) throw new ConvexError(`Run seedPampangaCompanions first: ${seed.key}`)
       const profile = await ctx.db
         .query('companionProfiles')
         .withIndex('by_user', (q) => q.eq('userId', user._id))
         .unique()
-      if (!profile) throw new Error(`Companion profile is missing: ${seed.key}`)
+      if (!profile) throw new ConvexError(`Companion profile is missing: ${seed.key}`)
       seededUsers.push(user)
       seededProfiles.push(profile)
     }
@@ -566,7 +566,7 @@ export const seedPresentationAccount = internalMutation({
         conversation = await ctx.db.get(conversationId)
         conversationsCreated += 1
       }
-      if (!conversation) throw new Error('Conversation could not be created')
+      if (!conversation) throw new ConvexError('Conversation could not be created')
       const existingMessages = await ctx.db.query('directMessages').withIndex('by_conversation_created_at', (q) => q.eq('conversationId', conversation!._id)).collect()
       let lastMessageAt = conversation.lastMessageAt ?? conversation.createdAt
       for (const message of messages) {
@@ -742,7 +742,7 @@ export const seedPresentationAccount = internalMutation({
         updatedAt: now - 4 * dayMs,
       })
       const createdReview = await ctx.db.get(reviewId)
-      if (!createdReview) throw new Error('Presentation review could not be created')
+      if (!createdReview) throw new ConvexError('Presentation review could not be created')
       targetReview = createdReview
     }
     if (!existingReviews.some((review) => review.reviewerId === seededUsers[2]._id)) {
@@ -850,7 +850,7 @@ const peopleBatchSize = 10
 const activityBatchSize = 8
 
 function requireDevelopmentConfirmation(confirm: string) {
-  if (confirm !== 'development') throw new Error('Development seed confirmation is required')
+  if (confirm !== 'development') throw new ConvexError('Development seed confirmation is required')
 }
 
 function philippinesCompanionClerkUserId(key: string) {
@@ -1024,7 +1024,7 @@ export const seedPhilippinesPeopleBatch = internalMutation({
         profilesUpdated += 1
       } else profilesCreated += 1
       const [user, profile] = await Promise.all([ctx.db.get(userId), ctx.db.get(profileId)])
-      if (!profile) throw new Error(`Seeded Companion profile was not saved: ${item.seed.key}`)
+      if (!profile) throw new ConvexError(`Seeded Companion profile was not saved: ${item.seed.key}`)
       await syncCompanionLocation(ctx, profile, user)
     }
 
@@ -1072,11 +1072,11 @@ export const seedPhilippinesActivityBatch = internalMutation({
       const companionUser = await ctx.db.query('users')
         .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', seed.clerkUserId))
         .unique()
-      if (!companionUser) throw new Error(`Seed the Companion first: ${seed.key}`)
+      if (!companionUser) throw new ConvexError(`Seed the Companion first: ${seed.key}`)
       const profile = await ctx.db.query('companionProfiles')
         .withIndex('by_user', (q) => q.eq('userId', companionUser._id))
         .unique()
-      if (!profile) throw new Error(`Companion profile is missing: ${seed.key}`)
+      if (!profile) throw new ConvexError(`Companion profile is missing: ${seed.key}`)
 
       const existingPosts = await ctx.db.query('posts')
         .withIndex('by_author', (q) => q.eq('authorId', companionUser._id))
@@ -1105,7 +1105,7 @@ export const seedPhilippinesActivityBatch = internalMutation({
         const member = await ctx.db.query('users')
           .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', philippinesMemberClerkUserId(memberSeed.key)))
           .unique()
-        if (!member) throw new Error(`Seed the member first: ${memberSeed.key}`)
+        if (!member) throw new ConvexError(`Seed the member first: ${memberSeed.key}`)
         const notes = `Development seed completed experience ${historyIndex + 1} with ${seed.displayName}.`
         const companionBookings = await ctx.db.query('bookings')
           .withIndex('by_companion', (q) => q.eq('companionProfileId', profile._id))
@@ -1138,7 +1138,7 @@ export const seedPhilippinesActivityBatch = internalMutation({
           booking = await ctx.db.get(bookingId) ?? undefined
           bookingsCreated += 1
         }
-        if (!booking) throw new Error(`Historical booking was not saved: ${seed.key}`)
+        if (!booking) throw new ConvexError(`Historical booking was not saved: ${seed.key}`)
         const existingReview = await ctx.db.query('reviews')
           .withIndex('by_booking_reviewer', (q) => q.eq('bookingId', booking!._id).eq('reviewerId', booking!.memberId))
           .first()
@@ -1174,7 +1174,7 @@ export const seedPhilippinesActivityBatch = internalMutation({
       const incomingMember = await ctx.db.query('users')
         .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', philippinesMemberClerkUserId(incomingMemberSeed.key)))
         .unique()
-      if (!incomingMember) throw new Error(`Seed the member first: ${incomingMemberSeed.key}`)
+      if (!incomingMember) throw new ConvexError(`Seed the member first: ${incomingMemberSeed.key}`)
       const incomingNotes = `Development seed incoming request for ${seed.displayName}.`
       const incomingBookings = await ctx.db.query('bookings')
         .withIndex('by_member', (q) => q.eq('memberId', incomingMember._id))
@@ -1222,7 +1222,7 @@ export const seedPhilippinesAdminFixtures = internalMutation({
       const user = await ctx.db.query('users')
         .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', philippinesApplicantClerkUserId(seed.key)))
         .unique()
-      if (!user) throw new Error(`Seed the applicant first: ${seed.key}`)
+      if (!user) throw new ConvexError(`Seed the applicant first: ${seed.key}`)
       const requests = await ctx.db.query('verificationRequests')
         .withIndex('by_user', (q) => q.eq('userId', user._id))
         .collect()
@@ -1252,7 +1252,7 @@ export const seedPhilippinesAdminFixtures = internalMutation({
         identityRecord = await ctx.db.get(identityRecordId)
         identityRecordsCreated += 1
       } else await ctx.db.patch(identityRecord._id, recordFields)
-      if (!identityRecord) throw new Error(`Identity record was not saved: ${seed.key}`)
+      if (!identityRecord) throw new ConvexError(`Identity record was not saved: ${seed.key}`)
       const requestFields = {
         reason: 'companion_application' as const,
         personaStatus: 'not_started' as const,
@@ -1277,7 +1277,7 @@ export const seedPhilippinesAdminFixtures = internalMutation({
         request = await ctx.db.get(requestId) ?? undefined
         verificationRequestsCreated += 1
       } else await ctx.db.patch(request._id, requestFields)
-      if (!request) throw new Error(`Verification request was not saved: ${seed.key}`)
+      if (!request) throw new ConvexError(`Verification request was not saved: ${seed.key}`)
       await ctx.db.patch(identityRecord._id, { verificationRequestId: request._id })
 
       for (const kind of ['id_front', 'selfie'] as const) {
@@ -1292,7 +1292,7 @@ export const seedPhilippinesAdminFixtures = internalMutation({
     const reporter = await ctx.db.query('users')
       .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', philippinesMemberClerkUserId(philippinesMembers[0].key)))
       .unique()
-    if (!reporter) throw new Error('Seeded report author is missing')
+    if (!reporter) throw new ConvexError('Seeded report author is missing')
     const reportStatuses = ['open', 'open', 'reviewing', 'resolved', 'dismissed', 'open', 'reviewing', 'resolved'] as const
     let reportsCreated = 0
     let postsHidden = 0
@@ -1303,18 +1303,18 @@ export const seedPhilippinesAdminFixtures = internalMutation({
       const companionUser = await ctx.db.query('users')
         .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', activitySeed.clerkUserId))
         .unique()
-      if (!companionUser) throw new Error(`Seeded report target is missing: ${activitySeed.key}`)
+      if (!companionUser) throw new ConvexError(`Seeded report target is missing: ${activitySeed.key}`)
       const profile = await ctx.db.query('companionProfiles')
         .withIndex('by_user', (q) => q.eq('userId', companionUser._id))
         .unique()
-      if (!profile) throw new Error(`Seeded report profile is missing: ${activitySeed.key}`)
+      if (!profile) throw new ConvexError(`Seeded report profile is missing: ${activitySeed.key}`)
       const posts = await ctx.db.query('posts').withIndex('by_author', (q) => q.eq('authorId', companionUser._id)).collect()
       const reviews = await ctx.db.query('reviews').withIndex('by_companion_profile', (q) => q.eq('companionProfileId', profile._id)).collect()
       const bookings = await ctx.db.query('bookings').withIndex('by_companion', (q) => q.eq('companionProfileId', profile._id)).collect()
       const post = posts[0]
       const review = reviews[0]
       const booking = bookings[0]
-      if (!post || !review || !booking) throw new Error(`Seed activity before admin fixtures: ${activitySeed.key}`)
+      if (!post || !review || !booking) throw new ConvexError(`Seed activity before admin fixtures: ${activitySeed.key}`)
       if (index < 4 && !post.hidden) {
         await ctx.db.patch(post._id, { hidden: true, updatedAt: args.referenceTime })
         postsHidden += 1
@@ -1389,7 +1389,7 @@ export const seedPhilippinesIdentityImages = internalMutation({
     for (const image of args.images) {
       const identityRecord = await ctx.db.get(image.identityRecordId)
       if (!identityRecord || identityRecord.userId !== image.userId) {
-        throw new Error('Seeded identity image does not match its identity record')
+        throw new ConvexError('Seeded identity image does not match its identity record')
       }
       const existing = await ctx.db.query('identityRecordImages')
         .withIndex('by_record_kind', (q) => q.eq('identityRecordId', image.identityRecordId).eq('kind', image.kind))

@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import type { Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import { mutation, query } from './_generated/server'
@@ -21,19 +21,19 @@ function eventFields(input: {
   const title = input.title.trim()
   const details = input.details.trim()
   const location = input.location?.trim() || undefined
-  if (!title || !details) throw new Error('Event title and details are required')
-  if (title.length > 120 || details.length > 2000) throw new Error('Event details are too long')
-  if (location && (location.length > 120 || /[\r\n]/.test(location))) throw new Error('Use a short, single-line event location')
-  if (!Number.isFinite(input.startsAt) || input.startsAt <= Date.now()) throw new Error('Event date and time must be in the future')
+  if (!title || !details) throw new ConvexError('Event title and details are required')
+  if (title.length > 120 || details.length > 2000) throw new ConvexError('Event details are too long')
+  if (location && (location.length > 120 || /[\r\n]/.test(location))) throw new ConvexError('Use a short, single-line event location')
+  if (!Number.isFinite(input.startsAt) || input.startsAt <= Date.now()) throw new ConvexError('Event date and time must be in the future')
   return { title, details, startsAt: input.startsAt, location, mode: input.mode }
 }
 
 async function requireEventThumbnailStorage(ctx: MutationCtx, storageId: Id<'_storage'>) {
   const metadata = await ctx.db.system.get('_storage', storageId)
-  if (!metadata) throw new Error('Uploaded event thumbnail was not found')
+  if (!metadata) throw new ConvexError('Uploaded event thumbnail was not found')
   const contentType = (metadata.contentType ?? '').trim().toLowerCase()
-  if (!EVENT_IMAGE_TYPES.has(contentType)) throw new Error('Event thumbnails must be JPEG, PNG, or WebP still images')
-  if (metadata.size > MAX_EVENT_IMAGE_SIZE) throw new Error('Event thumbnails must be 5 MB or smaller')
+  if (!EVENT_IMAGE_TYPES.has(contentType)) throw new ConvexError('Event thumbnails must be JPEG, PNG, or WebP still images')
+  if (metadata.size > MAX_EVENT_IMAGE_SIZE) throw new ConvexError('Event thumbnails must be 5 MB or smaller')
   return metadata
 }
 
@@ -46,7 +46,7 @@ export const list = query({
   args: { circleId: v.id('circles') },
   handler: async (ctx, args) => {
     const access = await requireCircleDiscussionRead(ctx, args.circleId)
-    if (access.circle.state === 'suspended') throw new Error('Circle is suspended')
+    if (access.circle.state === 'suspended') throw new ConvexError('Circle is suspended')
     const now = Date.now()
     const rows = await ctx.db
       .query('circleEvents')
@@ -77,7 +77,7 @@ export const generateThumbnailUploadUrl = mutation({
   args: { circleId: v.id('circles') },
   handler: async (ctx, args) => {
     const access = await requireCircleModerator(ctx, args.circleId)
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
     return await ctx.storage.generateUploadUrl()
   },
 })
@@ -94,7 +94,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const access = await requireCircleModerator(ctx, args.circleId)
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
     const fields = eventFields({ title: args.title, details: args.details, startsAt: args.startsAt, location: args.location, mode: args.mode })
     if (args.thumbnailStorageId) await requireEventThumbnailStorage(ctx, args.thumbnailStorageId)
     const now = Date.now()
@@ -124,10 +124,10 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.eventId)
-    if (!row) throw new Error('Circle event not found')
+    if (!row) throw new ConvexError('Circle event not found')
     const access = await requireCircleModerator(ctx, row.circleId)
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
-    if (row.state !== 'scheduled') throw new Error('Only scheduled events can be edited')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
+    if (row.state !== 'scheduled') throw new ConvexError('Only scheduled events can be edited')
     const fields = eventFields({ title: args.title, details: args.details, startsAt: args.startsAt, location: args.location, mode: args.mode })
     const thumbnailStorageId = args.thumbnailStorageId ?? row.thumbnailStorageId
     if (args.thumbnailStorageId && args.thumbnailStorageId !== row.thumbnailStorageId) {
@@ -145,11 +145,11 @@ export const setState = mutation({
   args: { eventId: v.id('circleEvents'), state: v.union(v.literal('scheduled'), v.literal('cancelled')) },
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.eventId)
-    if (!row) throw new Error('Circle event not found')
+    if (!row) throw new ConvexError('Circle event not found')
     const access = await requireCircleModerator(ctx, row.circleId)
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
-    if (row.state === args.state) throw new Error(`Circle event is already ${args.state}`)
-    if (args.state === 'scheduled' && row.startsAt <= Date.now()) throw new Error('Only future events can be restored')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
+    if (row.state === args.state) throw new ConvexError(`Circle event is already ${args.state}`)
+    if (args.state === 'scheduled' && row.startsAt <= Date.now()) throw new ConvexError('Only future events can be restored')
     await ctx.db.patch(row._id, { state: args.state, updatedAt: Date.now() })
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: `circle.event_${args.state}`, targetType: 'circleEvent', targetId: String(row._id) })
   },
@@ -159,10 +159,10 @@ export const removeThumbnail = mutation({
   args: { eventId: v.id('circleEvents') },
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.eventId)
-    if (!row) throw new Error('Circle event not found')
+    if (!row) throw new ConvexError('Circle event not found')
     const access = await requireCircleModerator(ctx, row.circleId)
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
-    if (!row.thumbnailStorageId) throw new Error('Circle event has no thumbnail')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
+    if (!row.thumbnailStorageId) throw new ConvexError('Circle event has no thumbnail')
     await ctx.db.patch(row._id, { thumbnailStorageId: undefined, updatedAt: Date.now() })
     await ctx.storage.delete(row.thumbnailStorageId)
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: 'circle.event_thumbnail_removed', targetType: 'circleEvent', targetId: String(row._id) })

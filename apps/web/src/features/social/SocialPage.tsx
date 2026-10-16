@@ -29,7 +29,8 @@ import { SharedPostEmbed, SharedReviewEmbed } from './SharedEmbeds'
 import { shareTargetUrl } from './shareLinks'
 import { MyCirclesHomeModule } from '../circles/CircleIndexPage'
 import { CurrentCircleRailCard } from '../circles/CurrentCircleRailCard'
-import { FriendayHowItWorksRail, FriendayMobileSummary, FriendaySafetyRail } from './FriendayGuide'
+import { FriendayHowItWorksRail, FriendayMobileSummary, FriendaySafetyRail } from './FriendayGuide';
+import { describeConvexError } from '../../lib/convexErrors'
 
 type FeedItem = NonNullable<FunctionReturnType<typeof api.social.feedPage>>['page'][number]
 type FeedPostItem = Extract<FeedItem, { kind: 'post' }>
@@ -265,7 +266,7 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
                 setNotice('Post shared.')
               } catch (postError) {
                 await discardRegisteredUploads(mediaUploadIds, discardPostMediaUpload)
-                setError(postError instanceof Error ? postError.message : 'Post could not be shared.')
+                setError(postError instanceof Error ? describeConvexError(postError) : 'Post could not be shared.')
               } finally {
                 setPosting(false)
               }
@@ -641,7 +642,7 @@ export function PostRow({
       try {
         await onLike()
       } catch (likeError) {
-        setActionError(likeError instanceof Error ? likeError.message : 'Like could not be updated.')
+        setActionError(likeError instanceof Error ? describeConvexError(likeError) : 'Like could not be updated.')
       } finally {
         setActionPending('')
       }
@@ -655,7 +656,7 @@ export function PostRow({
       await onDelete()
       setDeleteConfirmOpen(false)
     } catch (deleteError) {
-      setActionError(deleteError instanceof Error ? deleteError.message : 'Post could not be deleted.')
+      setActionError(deleteError instanceof Error ? describeConvexError(deleteError) : 'Post could not be deleted.')
     } finally {
       setActionPending('')
     }
@@ -667,7 +668,7 @@ export function PostRow({
     try {
       await onReport()
     } catch (reportError) {
-      setActionError(reportError instanceof Error ? reportError.message : 'Post could not be reported.')
+      setActionError(reportError instanceof Error ? describeConvexError(reportError) : 'Post could not be reported.')
     } finally {
       setActionPending('')
     }
@@ -758,7 +759,7 @@ export function PostRow({
                 await onEdit(body)
                 setEditing(false)
               } catch (editError) {
-                setActionError(editError instanceof Error ? editError.message : 'Post could not be updated.')
+                setActionError(editError instanceof Error ? describeConvexError(editError) : 'Post could not be updated.')
               } finally {
                 setActionPending('')
               }
@@ -824,7 +825,7 @@ export function PostRow({
                     await onComment(body)
                     setCommentBody('')
                   } catch (error) {
-                    setCommentError(error instanceof Error ? error.message : 'Comment could not be added.')
+                    setCommentError(error instanceof Error ? describeConvexError(error) : 'Comment could not be added.')
                   } finally {
                     setCommenting(false)
                   }
@@ -929,7 +930,7 @@ export function PostRow({
                         await onComment(body)
                         setCommentBody('')
                       } catch (error) {
-                        setCommentError(error instanceof Error ? error.message : 'Comment could not be added.')
+                        setCommentError(error instanceof Error ? describeConvexError(error) : 'Comment could not be added.')
                       } finally {
                         setCommenting(false)
                       }
@@ -1034,7 +1035,7 @@ export function CommentRow({
     try {
       await onReport()
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Comment could not be reported.')
+      setActionError(error instanceof Error ? describeConvexError(error) : 'Comment could not be reported.')
     } finally {
       setActionPending('')
     }
@@ -1099,7 +1100,7 @@ export function CommentRow({
           setActionError('')
           void onDelete()
             .then(() => setDeleteConfirmOpen(false))
-            .catch((error) => setActionError(error instanceof Error ? error.message : 'Comment could not be deleted.'))
+            .catch((error) => setActionError(error instanceof Error ? describeConvexError(error) : 'Comment could not be deleted.'))
             .finally(() => setActionPending(''))
         }}
         title="Delete this comment?"
@@ -1118,7 +1119,7 @@ export function CommentRow({
               await onEdit(editBody)
               setEditing(false)
             } catch (error) {
-              setActionError(error instanceof Error ? error.message : 'Comment could not be updated.')
+              setActionError(error instanceof Error ? describeConvexError(error) : 'Comment could not be updated.')
             } finally {
               setActionPending('')
             }
@@ -1181,7 +1182,7 @@ export function CommentRow({
               setActionPending('like')
               setActionError('')
               void onLike()
-                .catch((error) => setActionError(error instanceof Error ? error.message : 'Like could not be updated.'))
+                .catch((error) => setActionError(error instanceof Error ? describeConvexError(error) : 'Like could not be updated.'))
                 .finally(() => setActionPending(''))
             }}
           >
@@ -1204,7 +1205,7 @@ export function CommentRow({
               setReplying(false)
               setReplyBody('')
             } catch (error) {
-              setActionError(error instanceof Error ? error.message : 'Reply could not be added.')
+              setActionError(error instanceof Error ? describeConvexError(error) : 'Reply could not be added.')
             } finally {
               setActionPending('')
             }

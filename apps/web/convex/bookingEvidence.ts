@@ -2,7 +2,7 @@ import { MEMBER_WALLET_PRICING_MODEL } from '@lets-be-friends/shared'
 import { action, internalMutation, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
 
 const EVIDENCE_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000
@@ -39,7 +39,7 @@ export const uploadImage = action({
   },
   handler: async (ctx, args): Promise<{ decisionId: Id<'bookingEvidenceDecisions'> }> => {
     const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error('Authentication required')
+    if (!identity) throw new ConvexError('Authentication required')
     const contentType = normalizeImageType(args.contentType)
     validateImageBytes(args.bytes.byteLength)
 
@@ -59,7 +59,7 @@ export const uploadImage = action({
       try {
         await ctx.storage.delete(storageId)
       } catch {
-        throw new Error('Evidence upload failed and storage cleanup could not be confirmed')
+        throw new ConvexError('Evidence upload failed and storage cleanup could not be confirmed')
       }
       throw error
     }
@@ -80,20 +80,20 @@ export const claimStoredImage = internalMutation({
     const existing = await ctx.db.query('bookingEvidenceDecisions')
       .withIndex('by_booking_role', (q) => q.eq('bookingId', booking._id).eq('role', role))
       .unique()
-    if (existing) throw new Error('Evidence decision has already been made')
+    if (existing) throw new ConvexError('Evidence decision has already been made')
 
     const contentType = normalizeImageType(args.contentType)
     const metadata = await ctx.db.system.get('_storage', args.storageId)
-    if (!metadata) throw new Error('Stored evidence image was not found')
+    if (!metadata) throw new ConvexError('Stored evidence image was not found')
     const storedContentType = normalizeImageType(metadata.contentType ?? contentType)
-    if (storedContentType !== contentType) throw new Error('Stored evidence image type does not match the upload')
+    if (storedContentType !== contentType) throw new ConvexError('Stored evidence image type does not match the upload')
     validateImageBytes(metadata.size)
 
     const now = Date.now()
     const recent = await ctx.db.query('bookingEvidenceUploads').withIndex('by_user_created_at', (q) => (
       q.eq('userId', viewer._id).gte('createdAt', now - 24 * 60 * 60 * 1_000)
     )).collect()
-    if (recent.length >= MAX_EVIDENCE_UPLOADS_PER_DAY) throw new Error('Daily booking evidence upload limit reached')
+    if (recent.length >= MAX_EVIDENCE_UPLOADS_PER_DAY) throw new ConvexError('Daily booking evidence upload limit reached')
 
     const uploadId = await ctx.db.insert('bookingEvidenceUploads', {
       bookingId: booking._id,
@@ -129,7 +129,7 @@ export const skip = mutation({
   args: { bookingId: v.id('bookings'), warningAcknowledged: v.boolean() },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (!args.warningAcknowledged) throw new Error('You must acknowledge the evidence warning before skipping')
+    if (!args.warningAcknowledged) throw new ConvexError('You must acknowledge the evidence warning before skipping')
     const { booking, role } = await requireEvidenceParticipant(ctx, args.bookingId, viewer._id)
     requireDecisionWindow(booking)
     const existing = await ctx.db.query('bookingEvidenceDecisions')
@@ -137,7 +137,7 @@ export const skip = mutation({
       .unique()
     if (existing) {
       if (existing.userId === viewer._id && existing.decision === 'skipped') return existing._id
-      throw new Error('Evidence decision has already been made')
+      throw new ConvexError('Evidence decision has already been made')
     }
     const now = Date.now()
     const decisionId = await ctx.db.insert('bookingEvidenceDecisions', {
@@ -163,13 +163,13 @@ export const readAdminEvidence = action({
   args: { reportId: v.id('reports'), role: evidenceRole },
   handler: async (ctx, args): Promise<{ bytes: ArrayBuffer; contentType: string; displayUntil: number }> => {
     const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error('Authentication required')
+    if (!identity) throw new ConvexError('Authentication required')
     const access: { storageId: Id<'_storage'>; contentType: string; displayUntil: number } = await ctx.runMutation(
       internal.bookingEvidence.authorizeAdminEvidenceRead,
       { clerkUserId: identity.subject, reportId: args.reportId, role: args.role },
     )
     const blob = await ctx.storage.get(access.storageId)
-    if (!blob) throw new Error('Evidence image is unavailable')
+    if (!blob) throw new ConvexError('Evidence image is unavailable')
     validateImageBytes(blob.size)
     return {
       bytes: await blob.arrayBuffer(),
@@ -187,24 +187,24 @@ export const authorizeAdminEvidenceRead = internalMutation({
   },
   handler: async (ctx, args) => {
     const reviewer = await requireViewerByClerkSubject(ctx, args.clerkUserId)
-    if (!['reviewer', 'admin', 'owner'].includes(reviewer.role)) throw new Error('Reviewer or admin role required')
+    if (!['reviewer', 'admin', 'owner'].includes(reviewer.role)) throw new ConvexError('Reviewer or admin role required')
     const report = await ctx.db.get(args.reportId)
-    if (!report || !report.bookingId || report.targetType !== 'booking') throw new Error('Report is not linked to a booking')
-    if (report.status !== 'open' && report.status !== 'reviewing') throw new Error('Evidence access requires an active booking report')
+    if (!report || !report.bookingId || report.targetType !== 'booking') throw new ConvexError('Report is not linked to a booking')
+    if (report.status !== 'open' && report.status !== 'reviewing') throw new ConvexError('Evidence access requires an active booking report')
     const booking = await ctx.db.get(report.bookingId)
-    if (!booking) throw new Error('Booking not found')
+    if (!booking) throw new ConvexError('Booking not found')
     const companion = await ctx.db.get(booking.companionProfileId)
     if (booking.memberId === reviewer._id || companion?.userId === reviewer._id) {
-      throw new Error('A booking participant cannot use admin access to view counterpart evidence')
+      throw new ConvexError('A booking participant cannot use admin access to view counterpart evidence')
     }
     const decision = await ctx.db.query('bookingEvidenceDecisions')
       .withIndex('by_booking_role', (q) => q.eq('bookingId', booking._id).eq('role', args.role))
       .unique()
-    if (!decision || decision.decision !== 'uploaded' || !decision.uploadId) throw new Error('No uploaded evidence exists for this role')
+    if (!decision || decision.decision !== 'uploaded' || !decision.uploadId) throw new ConvexError('No uploaded evidence exists for this role')
     const upload = await ctx.db.get(decision.uploadId)
-    if (!upload?.storageId || upload.purgedAt || upload.discardedAt) throw new Error('Evidence image is no longer retained')
+    if (!upload?.storageId || upload.purgedAt || upload.discardedAt) throw new ConvexError('Evidence image is no longer retained')
     const metadata = await ctx.db.system.get('_storage', upload.storageId)
-    if (!metadata) throw new Error('Evidence image is no longer retained')
+    if (!metadata) throw new ConvexError('Evidence image is no longer retained')
     const contentType = normalizeImageType(metadata.contentType ?? upload.contentType ?? '')
     validateImageBytes(metadata.size)
 
@@ -260,35 +260,35 @@ export const purgeExpired = internalMutation({
 
 async function requireViewerByClerkSubject(ctx: { db: any }, clerkUserId: string) {
   const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q: any) => q.eq('clerkUserId', clerkUserId)).unique()
-  if (!viewer) throw new Error('Profile sync required')
-  if (viewer.suspended) throw new Error('Account is suspended')
+  if (!viewer) throw new ConvexError('Profile sync required')
+  if (viewer.suspended) throw new ConvexError('Account is suspended')
   return viewer as Doc<'users'>
 }
 
 async function requireEvidenceParticipant(ctx: { db: any }, bookingId: Id<'bookings'>, userId: Id<'users'>) {
   const booking = await ctx.db.get(bookingId) as Doc<'bookings'> | null
-  if (!booking) throw new Error('Booking not found')
-  if (booking.pricingModel !== MEMBER_WALLET_PRICING_MODEL) throw new Error('Optional booking evidence is available only for member-wallet bookings')
+  if (!booking) throw new ConvexError('Booking not found')
+  if (booking.pricingModel !== MEMBER_WALLET_PRICING_MODEL) throw new ConvexError('Optional booking evidence is available only for member-wallet bookings')
   const companion = await ctx.db.get(booking.companionProfileId)
   if (companion?.userId === userId) return { booking, role: 'companion_start' as const }
   if (booking.memberId === userId) return { booking, role: 'member_end' as const }
-  throw new Error('Not your booking')
+  throw new ConvexError('Not your booking')
 }
 
 function requireDecisionWindow(booking: Doc<'bookings'>) {
-  if (booking.status !== 'accepted') throw new Error('Evidence decisions are available only while the booking is accepted')
-  if (booking.settlementState === 'refunded') throw new Error('Refunded bookings cannot accept evidence or completion decisions')
+  if (booking.status !== 'accepted') throw new ConvexError('Evidence decisions are available only while the booking is accepted')
+  if (booking.settlementState === 'refunded') throw new ConvexError('Refunded bookings cannot accept evidence or completion decisions')
 }
 
 function normalizeImageType(contentType: string) {
   const normalized = contentType.trim().toLowerCase()
-  if (!allowedImageTypes.has(normalized)) throw new Error('Booking evidence must be a JPEG, PNG, WebP, HEIC, or HEIF image')
+  if (!allowedImageTypes.has(normalized)) throw new ConvexError('Booking evidence must be a JPEG, PNG, WebP, HEIC, or HEIF image')
   return normalized
 }
 
 function validateImageBytes(size: number) {
   if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_EVIDENCE_IMAGE_BYTES) {
-    throw new Error('Booking evidence images must be 10 MB or smaller')
+    throw new ConvexError('Booking evidence images must be 10 MB or smaller')
   }
 }
 

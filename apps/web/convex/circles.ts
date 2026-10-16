@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import { mutation, query } from './_generated/server'
@@ -29,20 +29,20 @@ function parseCircleSettings(input: Partial<CircleSettings>): CircleSettings {
     joinPolicy: input.joinPolicy ?? 'approval_required',
     postApproval: input.postApproval ?? 'off',
   }
-  if (!['listed', 'unlisted'].includes(settings.discoverability)) throw new Error('Unknown Circle discoverability')
-  if (!['members_only', 'signed_in'].includes(settings.discussionVisibility)) throw new Error('Unknown Circle discussion visibility')
-  if (!['members_only', 'signed_in'].includes(settings.memberListVisibility)) throw new Error('Unknown Circle member-list visibility')
-  if (!['approval_required', 'open'].includes(settings.joinPolicy)) throw new Error('Unknown Circle join policy')
-  if (!['off', 'approval_required'].includes(settings.postApproval)) throw new Error('Unknown Circle post approval')
+  if (!['listed', 'unlisted'].includes(settings.discoverability)) throw new ConvexError('Unknown Circle discoverability')
+  if (!['members_only', 'signed_in'].includes(settings.discussionVisibility)) throw new ConvexError('Unknown Circle discussion visibility')
+  if (!['members_only', 'signed_in'].includes(settings.memberListVisibility)) throw new ConvexError('Unknown Circle member-list visibility')
+  if (!['approval_required', 'open'].includes(settings.joinPolicy)) throw new ConvexError('Unknown Circle join policy')
+  if (!['off', 'approval_required'].includes(settings.postApproval)) throw new ConvexError('Unknown Circle post approval')
   return settings
 }
 
 async function requireCircleImageStorage(ctx: MutationCtx, storageId: Id<'_storage'>) {
   const metadata = await ctx.db.system.get('_storage', storageId)
-  if (!metadata) throw new Error('Uploaded Circle image was not found')
+  if (!metadata) throw new ConvexError('Uploaded Circle image was not found')
   const contentType = (metadata.contentType ?? '').trim().toLowerCase()
-  if (!CIRCLE_IMAGE_TYPES.has(contentType)) throw new Error('Circle images must be JPEG, PNG, or WebP still images')
-  if (metadata.size > MAX_CIRCLE_IMAGE_SIZE) throw new Error('Circle images must be 5 MB or smaller')
+  if (!CIRCLE_IMAGE_TYPES.has(contentType)) throw new ConvexError('Circle images must be JPEG, PNG, or WebP still images')
+  if (metadata.size > MAX_CIRCLE_IMAGE_SIZE) throw new ConvexError('Circle images must be 5 MB or smaller')
   return metadata
 }
 
@@ -52,34 +52,34 @@ function circleMetadata(input: { name: string; purpose: string; category: string
   const category = input.category.trim()
   const rules = input.rules.map((rule) => rule.trim()).filter(Boolean)
   const approximateArea = input.approximateArea?.trim() || undefined
-  if (!name || !purpose || !category || rules.length === 0) throw new Error('Circle name, purpose, category, and rules are required')
-  if (name.length > 80 || purpose.length > 500 || category.length > 60 || rules.some((rule) => rule.length > 240)) throw new Error('Circle details are too long')
-  if (approximateArea && (approximateArea.length > 80 || /[\r\n]/.test(approximateArea))) throw new Error('Use a short, approximate area')
+  if (!name || !purpose || !category || rules.length === 0) throw new ConvexError('Circle name, purpose, category, and rules are required')
+  if (name.length > 80 || purpose.length > 500 || category.length > 60 || rules.some((rule) => rule.length > 240)) throw new ConvexError('Circle details are too long')
+  if (approximateArea && (approximateArea.length > 80 || /[\r\n]/.test(approximateArea))) throw new ConvexError('Use a short, approximate area')
   return { name, purpose, category, rules, approximateArea }
 }
 
 async function requireHostOrFullAdmin(ctx: Pick<QueryCtx | MutationCtx, 'auth' | 'db'>, circleId: Id<'circles'>) {
   const viewer = await requireViewer(ctx)
   const circle = await ctx.db.get(circleId)
-  if (!circle) throw new Error('Circle not found')
+  if (!circle) throw new ConvexError('Circle not found')
   const row = await membership(ctx, circleId, viewer._id)
   const hasCanonicalHostMembership = circle.hostUserId === viewer._id && row?.state === 'active' && row.role === 'host'
   const isFullAdmin = isFullAdminRole(viewer.role)
   const isCircleHost = hasCanonicalHostMembership && isCircleParticipantRole(viewer.role) && hasCurrentIdentityApproval(viewer)
   if (hasCanonicalHostMembership && !isCircleHost && !isFullAdmin) assertTrustedCircleRoleEligibility(viewer, 'host')
-  if (!isCircleHost && !isFullAdmin) throw new Error('Verified Circle host role required')
+  if (!isCircleHost && !isFullAdmin) throw new ConvexError('Verified Circle host role required')
   return { viewer, circle, isFullAdmin, isCircleHost }
 }
 
 async function requireFullAdmin(ctx: Pick<QueryCtx | MutationCtx, 'auth' | 'db'>) {
   const viewer = await requireViewer(ctx)
-  if (!isFullAdminRole(viewer.role)) throw new Error('Full admin role required')
+  if (!isFullAdminRole(viewer.role)) throw new ConvexError('Full admin role required')
   return viewer
 }
 
 async function requireCircleHost(ctx: Pick<QueryCtx | MutationCtx, 'auth' | 'db'>, circleId: Id<'circles'>) {
   const access = await requireHostOrFullAdmin(ctx, circleId)
-  if (!access.isCircleHost) throw new Error('Circle management is available only to its host')
+  if (!access.isCircleHost) throw new ConvexError('Circle management is available only to its host')
   return access
 }
 
@@ -190,7 +190,7 @@ export const detail = query({
         membershipState: access.membership?.state ?? null,
       }
     }
-    if (!access.canPreview) throw new Error('Circle is unavailable')
+    if (!access.canPreview) throw new ConvexError('Circle is unavailable')
     const pins = access.canReadDiscussion
       ? await ctx.db.query('circlePins').withIndex('by_circle', (q) => q.eq('circleId', args.circleId)).collect()
       : []
@@ -225,8 +225,8 @@ export const hostManagement = query({
   args: { circleId: v.id('circles') },
   handler: async (ctx, args) => {
     const access = await requireHostOrFullAdmin(ctx, args.circleId)
-    if (!access.isCircleHost) throw new Error('Circle management is available only to its host')
-    if (access.circle.state === 'suspended') throw new Error('Circle is suspended')
+    if (!access.isCircleHost) throw new ConvexError('Circle management is available only to its host')
+    if (access.circle.state === 'suspended') throw new ConvexError('Circle is suspended')
     const [activeRows, bannedRows] = await Promise.all([
       ctx.db.query('circleMemberships').withIndex('by_circle_state', (q) => q.eq('circleId', args.circleId).eq('state', 'active')).collect(),
       ctx.db.query('circleMemberships').withIndex('by_circle_state', (q) => q.eq('circleId', args.circleId).eq('state', 'banned')).collect(),
@@ -324,7 +324,7 @@ export const adminDetail = query({
   handler: async (ctx, args) => {
     await requireFullAdmin(ctx)
     const circle = await ctx.db.get(args.circleId)
-    if (!circle) throw new Error('Circle not found')
+    if (!circle) throw new ConvexError('Circle not found')
     const [membershipRows, postRows, host, pendingRecipient] = await Promise.all([
       ctx.db.query('circleMemberships').withIndex('by_circle', (q) => q.eq('circleId', circle._id)).collect(),
       ctx.db.query('posts').withIndex('by_circle_created_at', (q) => q.eq('circleId', circle._id)).order('desc').take(100),
@@ -394,7 +394,7 @@ export const preview = query({
   args: { circleId: v.id('circles') },
   handler: async (ctx, args) => {
     const access = await getCircleAuthorization(ctx, args.circleId)
-    if (!access.canPreview) throw new Error(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Circle is unavailable')
+    if (!access.canPreview) throw new ConvexError(access.circle.state === 'suspended' ? 'Circle is suspended' : 'Circle is unavailable')
     return await safePreview(ctx, access.circle)
   },
 })
@@ -474,12 +474,12 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const creator = await requireViewer(ctx)
-    if (!isCircleParticipantRole(creator.role)) throw new Error('Circle participation requires an eligible account role')
+    if (!isCircleParticipantRole(creator.role)) throw new ConvexError('Circle participation requires an eligible account role')
     assertTrustedCircleRoleEligibility(creator, 'host')
     const slug = normalizeSlug(args.slug)
-    if (!slug) throw new Error('Circle slug is required')
-    if (slug.length > 60) throw new Error('Circle slug is too long')
-    if (await ctx.db.query('circles').withIndex('by_slug', (q) => q.eq('slug', slug)).unique()) throw new Error('Circle slug is already taken')
+    if (!slug) throw new ConvexError('Circle slug is required')
+    if (slug.length > 60) throw new ConvexError('Circle slug is too long')
+    if (await ctx.db.query('circles').withIndex('by_slug', (q) => q.eq('slug', slug)).unique()) throw new ConvexError('Circle slug is already taken')
     const details = circleMetadata(args)
     const settings = parseCircleSettings(args)
     if (args.iconStorageId) await requireCircleImageStorage(ctx, args.iconStorageId)
@@ -511,8 +511,8 @@ export const edit = mutation({
   },
   handler: async (ctx, args) => {
     const access = await requireHostOrFullAdmin(ctx, args.circleId)
-    if (!access.isCircleHost) throw new Error('Circle metadata is managed by its host')
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
+    if (!access.isCircleHost) throw new ConvexError('Circle metadata is managed by its host')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
     const details = circleMetadata(args)
     const before = { name: access.circle.name, purpose: access.circle.purpose, category: access.circle.category, rules: access.circle.rules, mode: access.circle.mode, approximateArea: access.circle.approximateArea }
     const after = { ...details, mode: args.mode }
@@ -532,8 +532,8 @@ export const updateSettings = mutation({
   },
   handler: async (ctx, args) => {
     const access = await requireHostOrFullAdmin(ctx, args.circleId)
-    if (!access.isCircleHost) throw new Error('Circle privacy settings are managed by its host')
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
+    if (!access.isCircleHost) throw new ConvexError('Circle privacy settings are managed by its host')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
     const before = resolveCircleSettings(access.circle)
     const after = parseCircleSettings(args)
     await ctx.db.patch(access.circle._id, { ...after, updatedAt: Date.now() })
@@ -546,8 +546,8 @@ export const generateCircleImageUploadUrl = mutation({
   args: { circleId: v.id('circles'), kind: v.union(v.literal('icon'), v.literal('cover')) },
   handler: async (ctx, args) => {
     const access = await requireHostOrFullAdmin(ctx, args.circleId)
-    if (!access.isCircleHost) throw new Error('Circle images are managed by its host')
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
+    if (!access.isCircleHost) throw new ConvexError('Circle images are managed by its host')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
     return await ctx.storage.generateUploadUrl()
   },
 })
@@ -556,7 +556,7 @@ export const generateCreateImageUploadUrl = mutation({
   args: { kind: v.union(v.literal('icon'), v.literal('cover')) },
   handler: async (ctx) => {
     const creator = await requireViewer(ctx)
-    if (!isCircleParticipantRole(creator.role)) throw new Error('Circle participation requires an eligible account role')
+    if (!isCircleParticipantRole(creator.role)) throw new ConvexError('Circle participation requires an eligible account role')
     assertTrustedCircleRoleEligibility(creator, 'host')
     return await ctx.storage.generateUploadUrl()
   },
@@ -566,12 +566,12 @@ export const setCircleImage = mutation({
   args: { circleId: v.id('circles'), kind: v.union(v.literal('icon'), v.literal('cover')), storageId: v.id('_storage') },
   handler: async (ctx, args) => {
     const access = await requireHostOrFullAdmin(ctx, args.circleId)
-    if (!access.isCircleHost) throw new Error('Circle images are managed by its host')
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
+    if (!access.isCircleHost) throw new ConvexError('Circle images are managed by its host')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
     await requireCircleImageStorage(ctx, args.storageId)
     const field = args.kind === 'icon' ? 'iconStorageId' : 'coverStorageId'
     const previous = access.circle[field]
-    if (previous === args.storageId) throw new Error('Circle image is already attached')
+    if (previous === args.storageId) throw new ConvexError('Circle image is already attached')
     // Validation runs before any write, so a rejected upload leaves the
     // Circle and both storage objects untouched.
     await ctx.db.patch(access.circle._id, { [field]: args.storageId, updatedAt: Date.now() })
@@ -584,11 +584,11 @@ export const removeCircleImage = mutation({
   args: { circleId: v.id('circles'), kind: v.union(v.literal('icon'), v.literal('cover')) },
   handler: async (ctx, args) => {
     const access = await requireHostOrFullAdmin(ctx, args.circleId)
-    if (!access.isCircleHost) throw new Error('Circle images are managed by its host')
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
+    if (!access.isCircleHost) throw new ConvexError('Circle images are managed by its host')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
     const field = args.kind === 'icon' ? 'iconStorageId' : 'coverStorageId'
     const previous = access.circle[field]
-    if (!previous) throw new Error('Circle has no image to remove')
+    if (!previous) throw new ConvexError('Circle has no image to remove')
     await ctx.db.patch(access.circle._id, { [field]: undefined, updatedAt: Date.now() })
     await ctx.storage.delete(previous)
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: `circle.${args.kind}_removed`, targetType: 'circle', targetId: String(access.circle._id) })
@@ -599,13 +599,13 @@ export const requestToJoin = mutation({
   args: { circleId: v.id('circles'), rulesAcknowledged: v.boolean() },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (!isCircleParticipantRole(viewer.role)) throw new Error('Circle participation requires an eligible account role')
-    if (!args.rulesAcknowledged) throw new Error('Circle rules must be acknowledged')
+    if (!isCircleParticipantRole(viewer.role)) throw new ConvexError('Circle participation requires an eligible account role')
+    if (!args.rulesAcknowledged) throw new ConvexError('Circle rules must be acknowledged')
     const circle = await ctx.db.get(args.circleId)
-    if (!circle || circle.state !== 'active') throw new Error('Circle is unavailable')
+    if (!circle || circle.state !== 'active') throw new ConvexError('Circle is unavailable')
     const existing = await membership(ctx, args.circleId, viewer._id)
-    if (existing?.state === 'banned') throw new Error('You are banned from this Circle')
-    if (existing?.state === 'active' || existing?.state === 'requested') throw new Error('Circle membership already exists')
+    if (existing?.state === 'banned') throw new ConvexError('You are banned from this Circle')
+    if (existing?.state === 'active' || existing?.state === 'requested') throw new ConvexError('Circle membership already exists')
     const now = Date.now()
     // Open Circles admit a rules-acknowledging eligible outsider as an active
     // member in the same transaction. Approval Circles keep the request and
@@ -635,9 +635,9 @@ export const cancelJoinRequest = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const circle = await ctx.db.get(args.circleId)
-    if (!circle || circle.state !== 'active') throw new Error('Circle is unavailable')
+    if (!circle || circle.state !== 'active') throw new ConvexError('Circle is unavailable')
     const row = await membership(ctx, args.circleId, viewer._id)
-    if (!row || row.state !== 'requested') throw new Error('Pending Circle request required')
+    if (!row || row.state !== 'requested') throw new ConvexError('Pending Circle request required')
     await ctx.db.patch(row._id, { state: 'left', updatedAt: Date.now() })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'circle.join_request_cancelled', targetType: 'circleMembership', targetId: String(row._id), before: { state: 'requested' }, after: { state: 'left' } })
   },
@@ -647,11 +647,11 @@ export const decideJoinRequest = mutation({
   args: { membershipId: v.id('circleMemberships'), decision: v.union(v.literal('approve'), v.literal('reject')) },
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.membershipId)
-    if (!row || row.state !== 'requested') throw new Error('Pending Circle request required')
+    if (!row || row.state !== 'requested') throw new ConvexError('Pending Circle request required')
     const access = await requireCircleModerator(ctx, row.circleId)
     if (args.decision === 'approve') {
       const applicant = await ctx.db.get(row.userId)
-      if (!applicant || applicant.suspended || !isCircleParticipantRole(applicant.role)) throw new Error('Circle participation requires an eligible account role')
+      if (!applicant || applicant.suspended || !isCircleParticipantRole(applicant.role)) throw new ConvexError('Circle participation requires an eligible account role')
     }
     const state = args.decision === 'approve' ? 'active' : 'rejected'
     const now = Date.now()
@@ -670,10 +670,10 @@ export const moderateMember = mutation({
   args: { membershipId: v.id('circleMemberships'), action: v.union(v.literal('remove'), v.literal('ban')) },
   handler: async (ctx, args) => {
     const target = await ctx.db.get(args.membershipId)
-    if (!target || target.state !== 'active') throw new Error('Active Circle member required')
+    if (!target || target.state !== 'active') throw new ConvexError('Active Circle member required')
     const access = await requireCircleModerator(ctx, target.circleId)
-    if (target.role !== 'member') throw new Error('Circle moderators cannot act on trusted roles')
-    if (target.userId === access.viewer._id) throw new Error('Use the leave action for your own membership')
+    if (target.role !== 'member') throw new ConvexError('Circle moderators cannot act on trusted roles')
+    if (target.userId === access.viewer._id) throw new ConvexError('Use the leave action for your own membership')
     const state = args.action === 'ban' ? 'banned' : 'removed'
     const now = Date.now()
     await ctx.db.patch(target._id, { state, mutedAt: undefined, decidedByUserId: access.viewer._id, decidedAt: now, updatedAt: now })
@@ -690,15 +690,15 @@ export const setModerator = mutation({
   args: { membershipId: v.id('circleMemberships'), moderator: v.boolean() },
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.membershipId)
-    if (!row || row.state !== 'active') throw new Error('Active Circle member required')
+    if (!row || row.state !== 'active') throw new ConvexError('Active Circle member required')
     const access = await requireCircleHost(ctx, row.circleId)
     const circle = access.circle
-    if (circle.state !== 'active') throw new Error('Active Circle required')
-    if (row.role === 'host') throw new Error('The Circle host role cannot be changed here')
+    if (circle.state !== 'active') throw new ConvexError('Active Circle required')
+    if (row.role === 'host') throw new ConvexError('The Circle host role cannot be changed here')
     const user = await ctx.db.get(row.userId)
-    if (!user) throw new Error('Member not found')
+    if (!user) throw new ConvexError('Member not found')
     const role = args.moderator ? 'moderator' : 'member'
-    if (row.role === role) throw new Error(`Member is already a ${role}`)
+    if (row.role === role) throw new ConvexError(`Member is already a ${role}`)
     assertTrustedCircleRoleEligibility(user, role)
     await ctx.db.patch(row._id, { role, updatedAt: Date.now() })
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: `circle.moderator_${args.moderator ? 'granted' : 'revoked'}`, targetType: 'circleMembership', targetId: String(row._id), before: { role: row.role }, after: { role } })
@@ -710,8 +710,8 @@ export const leave = mutation({
   args: { circleId: v.id('circles') },
   handler: async (ctx, args) => {
     const access = await requireCircleMember(ctx, args.circleId)
-    if (!access.membership) throw new Error('Active Circle membership required')
-    if (access.circle.hostUserId === access.viewer._id || access.membership.role === 'host') throw new Error('The Circle host must transfer the host role before leaving')
+    if (!access.membership) throw new ConvexError('Active Circle membership required')
+    if (access.circle.hostUserId === access.viewer._id || access.membership.role === 'host') throw new ConvexError('The Circle host must transfer the host role before leaving')
     await ctx.db.patch(access.membership._id, { state: 'left', role: 'member', mutedAt: undefined, updatedAt: Date.now() })
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: 'circle.member_left', targetType: 'circleMembership', targetId: String(access.membership._id), before: { state: 'active', role: access.membership.role }, after: { state: 'left', role: 'member' } })
   },
@@ -721,8 +721,8 @@ export const setMuted = mutation({
   args: { circleId: v.id('circles'), muted: v.boolean() },
   handler: async (ctx, args) => {
     const access = await requireCircleMember(ctx, args.circleId)
-    if (!access.membership) throw new Error('Active Circle membership required')
-    if (Boolean(access.membership.mutedAt) === args.muted) throw new Error(`Circle is already ${args.muted ? 'muted' : 'unmuted'}`)
+    if (!access.membership) throw new ConvexError('Active Circle membership required')
+    if (Boolean(access.membership.mutedAt) === args.muted) throw new ConvexError(`Circle is already ${args.muted ? 'muted' : 'unmuted'}`)
     await ctx.db.patch(access.membership._id, { mutedAt: args.muted ? Date.now() : undefined, updatedAt: Date.now() })
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: `circle.${args.muted ? 'muted' : 'unmuted'}`, targetType: 'circleMembership', targetId: String(access.membership._id) })
   },
@@ -733,14 +733,14 @@ export const initiateHostTransfer = mutation({
   handler: async (ctx, args) => {
     const access = await requireCircleHost(ctx, args.circleId)
     const circle = access.circle
-    if (circle.state !== 'active') throw new Error('Active Circle required')
-    if (circle.pendingHostUserId) throw new Error('A host transfer is already pending')
-    if (circle.hostUserId === args.recipientUserId) throw new Error('Recipient is already the Circle host')
+    if (circle.state !== 'active') throw new ConvexError('Active Circle required')
+    if (circle.pendingHostUserId) throw new ConvexError('A host transfer is already pending')
+    if (circle.hostUserId === args.recipientUserId) throw new ConvexError('Recipient is already the Circle host')
     const recipient = await ctx.db.get(args.recipientUserId)
-    if (!recipient) throw new Error('Recipient not found')
+    if (!recipient) throw new ConvexError('Recipient not found')
     assertTrustedCircleRoleEligibility(recipient, 'host')
     const recipientMembership = await membership(ctx, circle._id, recipient._id)
-    if (!recipientMembership || recipientMembership.state !== 'active') throw new Error('Recipient must be an active Circle member')
+    if (!recipientMembership || recipientMembership.state !== 'active') throw new ConvexError('Recipient must be an active Circle member')
     const now = Date.now()
     await ctx.db.patch(circle._id, { pendingHostUserId: recipient._id, hostTransferInitiatedByUserId: access.viewer._id, hostTransferInitiatedAt: now, updatedAt: now })
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: 'circle.host_transfer_initiated', targetType: 'circle', targetId: String(circle._id), after: { recipientUserId: recipient._id } })
@@ -753,12 +753,12 @@ export const acceptHostTransfer = mutation({
   handler: async (ctx, args) => {
     const recipient = await requireViewer(ctx)
     const circle = await ctx.db.get(args.circleId)
-    if (!circle || circle.state !== 'active') throw new Error('Active Circle required')
-    if (circle.pendingHostUserId !== recipient._id) throw new Error('No host transfer is pending for this member')
+    if (!circle || circle.state !== 'active') throw new ConvexError('Active Circle required')
+    if (circle.pendingHostUserId !== recipient._id) throw new ConvexError('No host transfer is pending for this member')
     assertTrustedCircleRoleEligibility(recipient, 'host')
     const [currentHostMembership, recipientMembership] = await Promise.all([membership(ctx, circle._id, circle.hostUserId), membership(ctx, circle._id, recipient._id)])
-    if (!currentHostMembership || currentHostMembership.state !== 'active' || currentHostMembership.role !== 'host') throw new Error('Circle host invariant is invalid')
-    if (!recipientMembership || recipientMembership.state !== 'active') throw new Error('Recipient must be an active Circle member')
+    if (!currentHostMembership || currentHostMembership.state !== 'active' || currentHostMembership.role !== 'host') throw new ConvexError('Circle host invariant is invalid')
+    if (!recipientMembership || recipientMembership.state !== 'active') throw new ConvexError('Recipient must be an active Circle member')
     const now = Date.now()
     // Convex commits all three patches and the audit together. A failed check
     // leaves the canonical host and both role rows untouched.
@@ -775,8 +775,8 @@ export const cancelHostTransfer = mutation({
   handler: async (ctx, args) => {
     const access = await requireHostOrFullAdmin(ctx, args.circleId)
     const circle = access.circle
-    if (circle.state !== 'active' && !access.isFullAdmin) throw new Error('Active Circle required')
-    if (!circle.pendingHostUserId) throw new Error('No host transfer is pending')
+    if (circle.state !== 'active' && !access.isFullAdmin) throw new ConvexError('Active Circle required')
+    if (!circle.pendingHostUserId) throw new ConvexError('No host transfer is pending')
     const recipientUserId = circle.pendingHostUserId
     await ctx.db.patch(circle._id, {
       pendingHostUserId: undefined,
@@ -799,9 +799,9 @@ export const unbanMember = mutation({
   args: { membershipId: v.id('circleMemberships') },
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.membershipId)
-    if (!row || row.state !== 'banned') throw new Error('Banned Circle member required')
+    if (!row || row.state !== 'banned') throw new ConvexError('Banned Circle member required')
     const access = await requireCircleHost(ctx, row.circleId)
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
     const now = Date.now()
     await ctx.db.patch(row._id, { state: 'removed', role: 'member', decidedByUserId: access.viewer._id, decidedAt: now, updatedAt: now })
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: 'circle.member_unbanned', targetType: 'circleMembership', targetId: String(row._id), before: { state: 'banned' }, after: { state: 'removed' } })
@@ -813,10 +813,10 @@ export const pinPost = mutation({
   handler: async (ctx, args) => {
     const access = await requireCircleModerator(ctx, args.circleId)
     const post = await ctx.db.get(args.postId)
-    if (!post || post.circleId !== args.circleId || post.hidden || post.deletedAt || post.circleRemovedAt) throw new Error('Circle post not found')
-    if (post.approvalState === 'pending' || post.approvalState === 'rejected') throw new Error('Approve this post before pinning it')
+    if (!post || post.circleId !== args.circleId || post.hidden || post.deletedAt || post.circleRemovedAt) throw new ConvexError('Circle post not found')
+    if (post.approvalState === 'pending' || post.approvalState === 'rejected') throw new ConvexError('Approve this post before pinning it')
     const existing = await ctx.db.query('circlePins').withIndex('by_circle_post', (q) => q.eq('circleId', args.circleId).eq('postId', args.postId)).unique()
-    if (existing) throw new Error('Circle post is already pinned')
+    if (existing) throw new ConvexError('Circle post is already pinned')
     const current = await ctx.db.query('circlePins').withIndex('by_circle', (q) => q.eq('circleId', args.circleId)).collect()
     const pinId = await ctx.db.insert('circlePins', { circleId: args.circleId, postId: args.postId, pinnedByUserId: access.viewer._id, position: current.length, createdAt: Date.now() })
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: 'circle.post_pinned', targetType: 'post', targetId: String(args.postId) })
@@ -828,7 +828,7 @@ export const pinnedPosts = query({
   args: { circleId: v.id('circles') },
   handler: async (ctx, args) => {
     const access = await requireCircleDiscussionRead(ctx, args.circleId)
-    if (access.circle.state === 'suspended') throw new Error('Circle is suspended')
+    if (access.circle.state === 'suspended') throw new ConvexError('Circle is suspended')
     const pins = await ctx.db.query('circlePins').withIndex('by_circle', (q) => q.eq('circleId', args.circleId)).collect()
     const ordered = pins.sort((left, right) => left.position - right.position)
     const visible = []
@@ -853,7 +853,7 @@ export const unpinPost = mutation({
   handler: async (ctx, args) => {
     const access = await requireCircleModerator(ctx, args.circleId)
     const pin = await ctx.db.query('circlePins').withIndex('by_circle_post', (q) => q.eq('circleId', args.circleId).eq('postId', args.postId)).unique()
-    if (!pin) throw new Error('Pinned Circle post not found')
+    if (!pin) throw new ConvexError('Pinned Circle post not found')
     await ctx.db.delete(pin._id)
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: 'circle.post_unpinned', targetType: 'post', targetId: String(args.postId) })
   },
@@ -863,9 +863,9 @@ export const setPostRemoved = mutation({
   args: { postId: v.id('posts'), removed: v.boolean() },
   handler: async (ctx, args) => {
     const post = await ctx.db.get(args.postId)
-    if (!post?.circleId) throw new Error('Circle post not found')
+    if (!post?.circleId) throw new ConvexError('Circle post not found')
     const access = await requireCircleModerator(ctx, post.circleId)
-    if (Boolean(post.circleRemovedAt) === args.removed) throw new Error(`Circle post is already ${args.removed ? 'removed' : 'available'}`)
+    if (Boolean(post.circleRemovedAt) === args.removed) throw new ConvexError(`Circle post is already ${args.removed ? 'removed' : 'available'}`)
     await ctx.db.patch(post._id, { circleRemovedAt: args.removed ? Date.now() : undefined, circleRemovedByUserId: args.removed ? access.viewer._id : undefined, updatedAt: Date.now() })
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: `circle.post_${args.removed ? 'removed' : 'restored'}`, targetType: 'post', targetId: String(post._id) })
   },
@@ -875,11 +875,11 @@ export const setCommentRemoved = mutation({
   args: { commentId: v.id('postComments'), removed: v.boolean() },
   handler: async (ctx, args) => {
     const comment = await ctx.db.get(args.commentId)
-    if (!comment || comment.hidden) throw new Error('Circle comment not found')
+    if (!comment || comment.hidden) throw new ConvexError('Circle comment not found')
     const post = await ctx.db.get(comment.postId)
-    if (!post?.circleId || post.hidden || post.deletedAt || post.circleRemovedAt) throw new Error('Circle comment not found')
+    if (!post?.circleId || post.hidden || post.deletedAt || post.circleRemovedAt) throw new ConvexError('Circle comment not found')
     const access = await requireCircleModerator(ctx, post.circleId)
-    if (Boolean(comment.circleRemovedAt) === args.removed) throw new Error(`Circle comment is already ${args.removed ? 'removed' : 'available'}`)
+    if (Boolean(comment.circleRemovedAt) === args.removed) throw new ConvexError(`Circle comment is already ${args.removed ? 'removed' : 'available'}`)
     await ctx.db.patch(comment._id, { circleRemovedAt: args.removed ? Date.now() : undefined, circleRemovedByUserId: args.removed ? access.viewer._id : undefined, updatedAt: Date.now() })
     await ctx.db.patch(post._id, { commentCount: adjustCounter(post.commentCount, args.removed ? -1 : 1) })
     await writeAudit(ctx, { actorUserId: access.viewer._id, action: `circle.comment_${args.removed ? 'removed' : 'restored'}`, targetType: 'comment', targetId: String(comment._id) })
@@ -916,10 +916,10 @@ export const approveCirclePost = mutation({
   args: { postId: v.id('posts') },
   handler: async (ctx, args) => {
     const post = await ctx.db.get(args.postId)
-    if (!post?.circleId) throw new Error('Circle post not found')
+    if (!post?.circleId) throw new ConvexError('Circle post not found')
     const access = await requireCircleModerator(ctx, post.circleId)
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
-    if (post.approvalState !== 'pending') throw new Error('This post does not need approval')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
+    if (post.approvalState !== 'pending') throw new ConvexError('This post does not need approval')
     // Publishing bumps the post to the top of the Circle feed immediately.
     const now = Date.now()
     await ctx.db.patch(post._id, { approvalState: 'approved', approvedByUserId: access.viewer._id, approvalDecidedAt: now, createdAt: now, updatedAt: now })
@@ -944,10 +944,10 @@ export const rejectCirclePost = mutation({
   args: { postId: v.id('posts') },
   handler: async (ctx, args) => {
     const post = await ctx.db.get(args.postId)
-    if (!post?.circleId) throw new Error('Circle post not found')
+    if (!post?.circleId) throw new ConvexError('Circle post not found')
     const access = await requireCircleModerator(ctx, post.circleId)
-    if (access.circle.state !== 'active') throw new Error('Active Circle required')
-    if (post.approvalState !== 'pending') throw new Error('This post does not need approval')
+    if (access.circle.state !== 'active') throw new ConvexError('Active Circle required')
+    if (post.approvalState !== 'pending') throw new ConvexError('This post does not need approval')
     const now = Date.now()
     await ctx.db.patch(post._id, { approvalState: 'rejected', approvedByUserId: access.viewer._id, approvalDecidedAt: now, updatedAt: now })
     await createNotification(ctx, {
@@ -963,19 +963,19 @@ export const setState = mutation({
   handler: async (ctx, args) => {
     const access = await requireHostOrFullAdmin(ctx, args.circleId)
     const circle = access.circle
-    if (circle.state === args.state) throw new Error(`Circle is already ${args.state}`)
+    if (circle.state === args.state) throw new ConvexError(`Circle is already ${args.state}`)
     // Voluntary archive cycles belong to the host. Suspension and recovery
     // remain platform safety controls even though the Circle is user-owned.
     const platformLifecycleAction = args.state === 'suspended' || circle.state === 'suspended'
-    if (platformLifecycleAction && !access.isFullAdmin) throw new Error(args.state === 'suspended' ? 'Full admin role required to suspend a Circle' : 'Full admin role required to reactivate a suspended Circle')
+    if (platformLifecycleAction && !access.isFullAdmin) throw new ConvexError(args.state === 'suspended' ? 'Full admin role required to suspend a Circle' : 'Full admin role required to reactivate a suspended Circle')
     if (!platformLifecycleAction && !access.isCircleHost) {
-      if (access.isFullAdmin) throw new Error('Full admins may only suspend or reactivate a suspended Circle')
-      throw new Error('Circle archive controls are available only to its host')
+      if (access.isFullAdmin) throw new ConvexError('Full admins may only suspend or reactivate a suspended Circle')
+      throw new ConvexError('Circle archive controls are available only to its host')
     }
     if (!platformLifecycleAction && !(
       (circle.state === 'active' && args.state === 'archived')
       || (circle.state === 'archived' && args.state === 'active')
-    )) throw new Error('Circle hosts may archive or reactivate their Circle')
+    )) throw new ConvexError('Circle hosts may archive or reactivate their Circle')
     const nextState = access.isFullAdmin && circle.state === 'suspended' && args.state === 'active'
       ? circle.preSuspensionState ?? 'active'
       : args.state
@@ -999,18 +999,18 @@ export const emergencyRecoverHost = mutation({
   handler: async (ctx, args) => {
     const admin = await requireFullAdmin(ctx)
     const reason = args.reason.trim()
-    if (!reason) throw new Error('Emergency recovery requires an internal reason')
+    if (!reason) throw new ConvexError('Emergency recovery requires an internal reason')
     const circle = await ctx.db.get(args.circleId)
-    if (!circle) throw new Error('Circle not found')
-    if (circle.hostUserId === args.recipientUserId) throw new Error('Recipient is already the Circle host')
+    if (!circle) throw new ConvexError('Circle not found')
+    if (circle.hostUserId === args.recipientUserId) throw new ConvexError('Recipient is already the Circle host')
     const [recipient, rows] = await Promise.all([
       ctx.db.get(args.recipientUserId),
       ctx.db.query('circleMemberships').withIndex('by_circle', (q) => q.eq('circleId', circle._id)).collect(),
     ])
-    if (!recipient) throw new Error('Recipient not found')
+    if (!recipient) throw new ConvexError('Recipient not found')
     assertTrustedCircleRoleEligibility(recipient, 'host')
     const recipientMembership = rows.find((row) => row.userId === recipient._id)
-    if (!recipientMembership || recipientMembership.state !== 'active') throw new Error('Recipient must be an active Circle member')
+    if (!recipientMembership || recipientMembership.state !== 'active') throw new ConvexError('Recipient must be an active Circle member')
     const currentHostMembership = rows.find((row) => row.userId === circle.hostUserId)
     const now = Date.now()
     // Recovery rewrites every stale active host row in the same transaction.
@@ -1052,7 +1052,7 @@ export const myAccess = query({
   args: { circleId: v.id('circles') },
   handler: async (ctx, args) => {
     const access = await getCircleAuthorization(ctx, args.circleId)
-    if (access.circle.state === 'suspended') throw new Error('Circle is suspended')
+    if (access.circle.state === 'suspended') throw new ConvexError('Circle is suspended')
     return {
       state: access.circle.state, membershipState: access.membership?.state ?? null, role: access.membership?.role ?? null,
       muted: Boolean(access.membership?.mutedAt), canPreview: access.canPreview, canRead: access.canRead,

@@ -61,3 +61,12 @@ export function compactConvexError(message: string) {
 export function extractConvexErrorMessage(error: unknown, fallback: string) {
   return compactConvexError(rawErrorMessage(error)) || fallback
 }
+
+const DEFAULT_ERROR_MESSAGE = 'Something went wrong. Please try again.'
+
+// For call sites that have no tailored fallback of their own. It never returns a
+// redacted envelope: when Convex strips the server message there is nothing
+// readable to show, so a plain sentence is better than the transport noise.
+export function describeConvexError(error: unknown) {
+  return extractConvexErrorMessage(error, DEFAULT_ERROR_MESSAGE)
+}

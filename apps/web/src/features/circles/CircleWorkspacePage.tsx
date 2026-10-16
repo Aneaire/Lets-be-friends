@@ -19,7 +19,8 @@ import { PostMediaGrid } from '../social/PostMediaGrid'
 import { PollCard } from '../social/PollCard'
 import { PollComposer, emptyPollDraft, type PollDraft } from '../social/PollComposer'
 import { SocialLightbox } from '../social/SocialLightbox'
-import { discardRegisteredUploads, mediaKind, uploadPostMedia, type SelectedMedia } from '../social/postMediaUpload'
+import { discardRegisteredUploads, mediaKind, uploadPostMedia, type SelectedMedia } from '../social/postMediaUpload';
+import { describeConvexError } from '../../lib/convexErrors'
 
 type CircleTab = 'discussions' | 'about' | 'members' | 'manage' | 'removed' | 'pending'
 type CirclePost = NonNullable<FunctionReturnType<typeof api.social.circleFeed>>['page'][number]
@@ -61,7 +62,7 @@ export function CircleWorkspacePage({ circleId, postId, commentId }: { circleId:
       await callback()
       toast.success(success)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The action could not be completed.')
+      setError(cause instanceof Error ? describeConvexError(cause) : 'The action could not be completed.')
     } finally {
       setBusy('')
     }
@@ -295,7 +296,7 @@ function CircleManage({ circleId }: { circleId: Id<'circles'> }) {
       toast.success(success)
       return true
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The Circle setting could not be updated.')
+      setError(cause instanceof Error ? describeConvexError(cause) : 'The Circle setting could not be updated.')
       return false
     }
   }
@@ -469,7 +470,7 @@ function CircleImageManage({ circleId, iconUrl, coverUrl, active, generateImageU
       setPreviews((current) => ({ ...current, [kind]: undefined }))
       toast.success(kind === 'icon' ? 'Circle icon updated.' : 'Circle cover updated.')
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The Circle image could not be updated.')
+      setError(cause instanceof Error ? describeConvexError(cause) : 'The Circle image could not be updated.')
     } finally {
       setBusy('')
     }
@@ -482,7 +483,7 @@ function CircleImageManage({ circleId, iconUrl, coverUrl, active, generateImageU
       await removeImage({ circleId, kind })
       toast.success(kind === 'icon' ? 'Circle icon removed.' : 'Circle cover removed.')
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The Circle image could not be removed.')
+      setError(cause instanceof Error ? describeConvexError(cause) : 'The Circle image could not be removed.')
     } finally {
       setBusy('')
     }
@@ -559,7 +560,7 @@ function CircleMembers({ circleId, canModerate }: { circleId: Id<'circles'>; can
       toast.success(message)
       return true
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The member action could not be completed.')
+      setError(cause instanceof Error ? describeConvexError(cause) : 'The member action could not be completed.')
       return false
     }
   }
@@ -758,7 +759,7 @@ function CircleComposer({ circleId, canModerate, approvalNotice }: { circleId: I
       toast.success(approvalNotice ? 'Sent for leader approval.' : announcement ? 'Announcement posted.' : 'Discussion posted.')
     } catch (cause) {
       await discardRegisteredUploads(mediaUploadIds, discardPostMediaUpload)
-      setError(cause instanceof Error ? cause.message : 'The post could not be created.')
+      setError(cause instanceof Error ? describeConvexError(cause) : 'The post could not be created.')
     } finally {
       setPosting(false)
     }
@@ -838,7 +839,7 @@ function CirclePendingPosts({ circleId }: { circleId: Id<'circles'> }) {
         toast.success('Post not approved.')
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The decision could not be saved.')
+      setError(cause instanceof Error ? describeConvexError(cause) : 'The decision could not be saved.')
     }
   }
 
@@ -879,7 +880,7 @@ function CircleEventsCarousel({ circleId, canLead }: { circleId: Id<'circles'>; 
       toast.success(state === 'cancelled' ? 'Event cancelled.' : 'Event restored.')
       setConfirmCancel(null)
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : 'The event could not be updated.')
+      setActionError(cause instanceof Error ? describeConvexError(cause) : 'The event could not be updated.')
     }
   }
 
@@ -991,7 +992,7 @@ function CircleEventForm({ circleId, initial, onClose, onSaved }: {
       setThumbnailPreview(URL.createObjectURL(file))
       setThumbnailRemoved(false)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The event thumbnail could not be uploaded.')
+      setError(cause instanceof Error ? describeConvexError(cause) : 'The event thumbnail could not be uploaded.')
     } finally {
       setBusy(false)
     }
@@ -1035,7 +1036,7 @@ function CircleEventForm({ circleId, initial, onClose, onSaved }: {
       }
       onSaved()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The event could not be saved.')
+      setError(cause instanceof Error ? describeConvexError(cause) : 'The event could not be saved.')
     } finally {
       setBusy(false)
     }
@@ -1117,7 +1118,7 @@ function CirclePostCard({ post, focused, focusCommentId, canWrite, canModerate, 
       if (success) toast.success(success)
       return true
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : 'The post action could not be completed.')
+      setActionError(cause instanceof Error ? describeConvexError(cause) : 'The post action could not be completed.')
       return false
     }
   }

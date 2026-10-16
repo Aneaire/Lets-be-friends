@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react';
+import { describeConvexError } from '../../lib/convexErrors'
 
 export type PollView = {
   question: string
@@ -36,7 +37,7 @@ export function PollCard({
     try {
       await onVote(selected)
     } catch (voteError) {
-      setError(voteError instanceof Error ? voteError.message : 'Your vote could not be recorded.')
+      setError(voteError instanceof Error ? describeConvexError(voteError) : 'Your vote could not be recorded.')
     } finally {
       setBusy(false)
     }

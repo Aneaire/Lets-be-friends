@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { CircleCard, CircleHomeCard } from '../presentation/CircleCards'
-import { uploadCircleImage } from './CircleWorkspacePage'
+import { uploadCircleImage } from './CircleWorkspacePage';
+import { describeConvexError } from '../../lib/convexErrors'
 
 const CIRCLE_CREATE_DRAFT_KEY = 'lets-be-friends-circle-create-draft-v1'
 const circleSlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -190,7 +191,7 @@ export function CircleIndexPage() {
         setCoverPreview(URL.createObjectURL(file))
       }
     } catch (cause) {
-      setCreateError(cause instanceof Error ? cause.message : 'The Circle image could not be uploaded.')
+      setCreateError(cause instanceof Error ? describeConvexError(cause) : 'The Circle image could not be uploaded.')
     } finally {
       setSubmitting(false)
     }
@@ -253,7 +254,7 @@ export function CircleIndexPage() {
               resetCreateForm()
               await navigate({ to: '/circles/$circleId', params: { circleId } })
             } catch (cause) {
-              setCreateError(cause instanceof Error ? cause.message : 'The Circle could not be created.')
+              setCreateError(cause instanceof Error ? describeConvexError(cause) : 'The Circle could not be created.')
             } finally {
               setSubmitting(false)
             }

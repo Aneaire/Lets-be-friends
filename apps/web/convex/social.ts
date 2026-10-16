@@ -24,7 +24,7 @@ import {
   type ReviewFeedCandidate,
 } from '@lets-be-friends/shared'
 import { paginationOptsValidator } from 'convex/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { internalMutation, mutation, query } from './_generated/server'
@@ -134,7 +134,7 @@ async function feedPageResult(ctx: any, args: {
     const viewer = await requireViewer(ctx)
     const filter = args.filter ?? 'for_you'
     if (!Number.isSafeInteger(args.paginationOpts.numItems) || args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > FOR_YOU_PAGE_SIZE) {
-      throw new Error(`Feed pages can include 1 to ${FOR_YOU_PAGE_SIZE} items`)
+      throw new ConvexError(`Feed pages can include 1 to ${FOR_YOU_PAGE_SIZE} items`)
     }
 
     if (filter === 'saved' && viewer) {
@@ -372,7 +372,7 @@ export const requestedPost = query({
   args: { postId: v.string() },
   handler: async (ctx, args) => {
     const viewer = await getViewer(ctx)
-    if (viewer?.suspended) throw new Error('Account is suspended')
+    if (viewer?.suspended) throw new ConvexError('Account is suspended')
     let post: Doc<'posts'> | null = null
     try {
       post = await ctx.db.get(args.postId as Id<'posts'>)
@@ -382,7 +382,7 @@ export const requestedPost = query({
     if (!post || !isModerationVisible(post) || post.deletedAt) return null
     if (post.circleRemovedAt) return null
     if (post.circleId) {
-      if (!viewer) throw new Error('Active Circle membership required')
+      if (!viewer) throw new ConvexError('Active Circle membership required')
       const readAccess = await requirePostAudienceRead(ctx, post)
       if ((post.approvalState === 'pending' || post.approvalState === 'rejected')
         && viewer._id !== post.authorId && !readAccess?.canModerate) return null
@@ -457,7 +457,7 @@ export const mediaUploadUsage = query({
   handler: async (ctx) => {
     const viewer = await getViewer(ctx)
     if (!viewer) return { used: 0, remaining: 0, limit: MAX_MEDIA_UPLOADS_PER_DAY }
-    if (viewer.suspended) throw new Error('Account is suspended')
+    if (viewer.suspended) throw new ConvexError('Account is suspended')
     const used = await mediaUploadGrantsInWindow(ctx, viewer._id, Date.now())
     return {
       used,
@@ -510,8 +510,8 @@ export const mentionLookup = query({
 
 function assertCirclePostInteractionAllowed(post: Pick<Doc<'posts'>, 'circleId' | 'approvalState'>) {
   if (!post.circleId) return
-  if (post.approvalState === 'pending') throw new Error('This post is waiting for leader approval')
-  if (post.approvalState === 'rejected') throw new Error('This post was not approved')
+  if (post.approvalState === 'pending') throw new ConvexError('This post is waiting for leader approval')
+  if (post.approvalState === 'rejected') throw new ConvexError('This post was not approved')
 }
 
 export const createPost = mutation({
@@ -532,11 +532,11 @@ export const createPost = mutation({
     const pollArg = args.poll
     let sharedPostId = args.sharedPostId
     let sharedReviewId = args.sharedReviewId
-    if (sharedPostId && sharedReviewId) throw new Error('Share one item at a time')
+    if (sharedPostId && sharedReviewId) throw new ConvexError('Share one item at a time')
     if (sharedPostId) {
-      if (args.circleId) throw new Error('Posts cannot be shared into a Circle')
+      if (args.circleId) throw new ConvexError('Posts cannot be shared into a Circle')
       const target = await ctx.db.get(sharedPostId)
-      if (!target || !isModerationVisible(target) || target.deletedAt || target.circleId) throw new Error('This post is no longer available to share')
+      if (!target || !isModerationVisible(target) || target.deletedAt || target.circleId) throw new ConvexError('This post is no longer available to share')
       // Sharing a share always points at the original so the feed never nests.
       if (target.sharedReviewId) {
         sharedPostId = undefined
@@ -546,30 +546,30 @@ export const createPost = mutation({
       }
     }
     if (sharedReviewId) {
-      if (args.circleId) throw new Error('Reviews cannot be shared into a Circle')
+      if (args.circleId) throw new ConvexError('Reviews cannot be shared into a Circle')
       const target = await ctx.db.get(sharedReviewId)
-      if (!target || !isModerationVisible(target) || !target.companionProfileId) throw new Error('This review is no longer available to share')
+      if (!target || !isModerationVisible(target) || !target.companionProfileId) throw new ConvexError('This review is no longer available to share')
       const companion = await ctx.db.get(target.companionProfileId)
-      if (!companion || companion.status !== 'approved') throw new Error('This review is no longer available to share')
+      if (!companion || companion.status !== 'approved') throw new ConvexError('This review is no longer available to share')
     }
     const isShare = Boolean(sharedPostId || sharedReviewId)
     if (isShare) {
-      if (mediaUploadIds.length > 0) throw new Error('Shared posts are text-only')
-      if (pollArg) throw new Error('Shared posts cannot include a poll')
-      if (args.experienceBookingId) throw new Error('Shared posts cannot be experience posts')
+      if (mediaUploadIds.length > 0) throw new ConvexError('Shared posts are text-only')
+      if (pollArg) throw new ConvexError('Shared posts cannot include a poll')
+      if (args.experienceBookingId) throw new ConvexError('Shared posts cannot be experience posts')
     }
     const circleAccess = args.circleId
       ? await (async () => {
-        if (args.experienceBookingId) throw new Error('Circle posts cannot be experience posts')
+        if (args.experienceBookingId) throw new ConvexError('Circle posts cannot be experience posts')
         if (pollArg && (args.circleKind ?? 'discussion') === 'announcement') {
-          throw new Error('Announcements cannot include a poll')
+          throw new ConvexError('Announcements cannot include a poll')
         }
         if ((args.circleKind ?? 'discussion') === 'announcement') return await requireCircleModerator(ctx, args.circleId!)
         return await requireCircleWrite(ctx, args.circleId!)
       })()
       : null
     if (!args.circleId && args.circleKind) {
-      throw new Error('Circle post kind requires a Circle')
+      throw new ConvexError('Circle post kind requires a Circle')
     }
     // Leaders bypass review. Member discussions in approval-required Circles
     // start pending and stay hidden until a leader approves them.
@@ -579,29 +579,29 @@ export const createPost = mutation({
       && !circleAccess.canModerate,
     )
     if (pollArg) {
-      if (mediaUploadIds.length > 0) throw new Error('Polls cannot include photos or video')
-      if (args.experienceBookingId) throw new Error('Experience posts cannot include a poll')
+      if (mediaUploadIds.length > 0) throw new ConvexError('Polls cannot include photos or video')
+      if (args.experienceBookingId) throw new ConvexError('Experience posts cannot include a poll')
       const pollError = pollValidationError(pollArg)
-      if (pollError) throw new Error(pollError)
+      if (pollError) throw new ConvexError(pollError)
     }
-    if (body.length < 1 && mediaUploadIds.length === 0 && !pollArg && !isShare) throw new Error('Post cannot be empty')
-    if (body.length > 1000) throw new Error('Post is too long')
-    if (args.circleId && mediaUploadIds.length > MAX_CIRCLE_POST_MEDIA) throw new Error('Circle posts can include up to 3 media uploads')
-    if (mediaUploadIds.length > MAX_MEDIA_UPLOADS_PER_DAY) throw new Error('Posts can include up to 5 media uploads')
-    if (new Set(mediaUploadIds.map(String)).size !== mediaUploadIds.length) throw new Error('Each media upload can be attached only once')
+    if (body.length < 1 && mediaUploadIds.length === 0 && !pollArg && !isShare) throw new ConvexError('Post cannot be empty')
+    if (body.length > 1000) throw new ConvexError('Post is too long')
+    if (args.circleId && mediaUploadIds.length > MAX_CIRCLE_POST_MEDIA) throw new ConvexError('Circle posts can include up to 3 media uploads')
+    if (mediaUploadIds.length > MAX_MEDIA_UPLOADS_PER_DAY) throw new ConvexError('Posts can include up to 5 media uploads')
+    if (new Set(mediaUploadIds.map(String)).size !== mediaUploadIds.length) throw new ConvexError('Each media upload can be attached only once')
     const uploads = await Promise.all(mediaUploadIds.map((uploadId) => ctx.db.get(uploadId)))
     for (const upload of uploads) {
-      if (!upload || upload.userId !== viewer._id) throw new Error('Media upload is not owned by this account')
-      if (!upload.storageId || !upload.kind || !upload.contentType || typeof upload.size !== 'number' || !upload.registeredAt) throw new Error('Media upload is not registered')
-      if (upload.postId || upload.discardedAt) throw new Error('Media upload has already been claimed')
+      if (!upload || upload.userId !== viewer._id) throw new ConvexError('Media upload is not owned by this account')
+      if (!upload.storageId || !upload.kind || !upload.contentType || typeof upload.size !== 'number' || !upload.registeredAt) throw new ConvexError('Media upload is not registered')
+      if (upload.postId || upload.discardedAt) throw new ConvexError('Media upload has already been claimed')
     }
 
     if (args.experienceBookingId) {
       const booking = await ctx.db.get(args.experienceBookingId)
-      if (!booking) throw new Error('Booking not found')
+      if (!booking) throw new ConvexError('Booking not found')
       const companion = await ctx.db.get(booking.companionProfileId)
-      if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new Error('Not your booking')
-      if (!['completed', 'review_window', 'closed'].includes(booking.status)) throw new Error('Experience posts need a completed booking')
+      if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new ConvexError('Not your booking')
+      if (!['completed', 'review_window', 'closed'].includes(booking.status)) throw new ConvexError('Experience posts need a completed booking')
     }
 
     const now = Date.now()
@@ -688,13 +688,13 @@ export const editPost = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
-    if (!post || post.authorId !== viewer._id || post.deletedAt) throw new Error('Only the author can edit this post')
+    if (!post || post.authorId !== viewer._id || post.deletedAt) throw new ConvexError('Only the author can edit this post')
     await requirePostAudienceWrite(ctx, post)
-    if (post.circleRemovedAt) throw new Error('Post is unavailable')
-    if (post.circleId && post.approvalState === 'rejected') throw new Error('This post was not approved')
+    if (post.circleRemovedAt) throw new ConvexError('Post is unavailable')
+    if (post.circleId && post.approvalState === 'rejected') throw new ConvexError('This post was not approved')
     const body = args.body.trim()
-    if (!body && (post.media?.length ?? 0) === 0 && !post.poll) throw new Error('Post cannot be empty')
-    if (body.length > 1000) throw new Error('Post is too long')
+    if (!body && (post.media?.length ?? 0) === 0 && !post.poll) throw new ConvexError('Post cannot be empty')
+    if (body.length > 1000) throw new ConvexError('Post is too long')
     const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_POST, 'post', post.circleId)
     await ctx.db.patch(args.postId, { body, mentions: mentions.length > 0 ? mentions : undefined, updatedAt: Date.now() })
     await Promise.all(mentions.map((mention) => createNotification(ctx, {
@@ -715,7 +715,7 @@ export const deletePost = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
-    if (!post || post.authorId !== viewer._id) throw new Error('Only the author can delete this post')
+    if (!post || post.authorId !== viewer._id) throw new ConvexError('Only the author can delete this post')
     await requirePostAudienceWrite(ctx, post)
     if (post.deletedAt) return
     const now = Date.now()
@@ -729,22 +729,22 @@ export const createComment = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
-    if (!post || post.hidden) throw new Error('Post not found')
+    if (!post || post.hidden) throw new ConvexError('Post not found')
     await requirePostAudienceWrite(ctx, post)
-    if (post.circleRemovedAt) throw new Error('Post not found')
+    if (post.circleRemovedAt) throw new ConvexError('Post not found')
     assertCirclePostInteractionAllowed(post)
     await requireNotBlocked(ctx, viewer._id, post.authorId)
     const parentComment = args.parentCommentId ? await ctx.db.get(args.parentCommentId) : null
     if (args.parentCommentId && (!parentComment || parentComment.hidden || parentComment.postId !== args.postId)) {
-      throw new Error('Reply target not found')
+      throw new ConvexError('Reply target not found')
     }
     if (parentComment && parentComment.authorId !== viewer._id) {
       await requireNotBlocked(ctx, viewer._id, parentComment.authorId)
     }
-    if (parentComment?.circleRemovedAt) throw new Error('Reply target not found')
+    if (parentComment?.circleRemovedAt) throw new ConvexError('Reply target not found')
     const body = args.body.trim()
-    if (body.length < 1) throw new Error('Comment cannot be empty')
-    if (body.length > 500) throw new Error('Comment is too long')
+    if (body.length < 1) throw new ConvexError('Comment cannot be empty')
+    if (body.length > 500) throw new ConvexError('Comment is too long')
     const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_COMMENT, 'comment', post.circleId)
     await consumeRateLimit(ctx, viewer._id, 'create_comment')
     const now = Date.now()
@@ -798,15 +798,15 @@ export const editComment = mutation({
     const viewer = await requireViewer(ctx)
     const comment = await ctx.db.get(args.commentId)
     if (!comment || comment.authorId !== viewer._id || comment.hidden) {
-      throw new Error('Only the author can edit this comment')
+      throw new ConvexError('Only the author can edit this comment')
     }
     const post = await ctx.db.get(comment.postId)
-    if (!post || post.hidden || post.deletedAt) throw new Error('Post not found')
+    if (!post || post.hidden || post.deletedAt) throw new ConvexError('Post not found')
     await requirePostAudienceWrite(ctx, post)
     assertCirclePostInteractionAllowed(post)
     const body = args.body.trim()
-    if (body.length < 1) throw new Error('Comment cannot be empty')
-    if (body.length > 500) throw new Error('Comment is too long')
+    if (body.length < 1) throw new ConvexError('Comment cannot be empty')
+    if (body.length > 500) throw new ConvexError('Comment is too long')
     const mentions = await resolveMentions(ctx, viewer._id, body, MAX_MENTIONS_PER_COMMENT, 'comment', post.circleId)
     await ctx.db.patch(args.commentId, {
       body,
@@ -837,13 +837,13 @@ export const deleteComment = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const comment = await ctx.db.get(args.commentId)
-    if (!comment || comment.authorId !== viewer._id) throw new Error('Only the author can delete this comment')
+    if (!comment || comment.authorId !== viewer._id) throw new ConvexError('Only the author can delete this comment')
     if (comment.hidden) return
     const post = await ctx.db.get(comment.postId)
-    if (!post || post.hidden || post.deletedAt) throw new Error('Post not found')
+    if (!post || post.hidden || post.deletedAt) throw new ConvexError('Post not found')
     await requirePostAudienceWrite(ctx, post)
     assertCirclePostInteractionAllowed(post)
-    if (post.circleRemovedAt || comment.circleRemovedAt) throw new Error('Post not found')
+    if (post.circleRemovedAt || comment.circleRemovedAt) throw new ConvexError('Post not found')
     await ctx.db.patch(args.commentId, { hidden: true, updatedAt: Date.now() })
     await ctx.db.patch(post._id, { commentCount: adjustCounter(post.commentCount, -1) })
     await writeAudit(ctx, {
@@ -860,12 +860,12 @@ export const toggleCommentLike = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const comment = await ctx.db.get(args.commentId)
-    if (!comment || comment.hidden) throw new Error('Comment not found')
+    if (!comment || comment.hidden) throw new ConvexError('Comment not found')
     const post = await ctx.db.get(comment.postId)
-    if (!post || post.hidden || post.deletedAt) throw new Error('Comment not found')
+    if (!post || post.hidden || post.deletedAt) throw new ConvexError('Comment not found')
     await requirePostAudienceWrite(ctx, post)
     assertCirclePostInteractionAllowed(post)
-    if (post.circleRemovedAt || comment.circleRemovedAt) throw new Error('Comment not found')
+    if (post.circleRemovedAt || comment.circleRemovedAt) throw new ConvexError('Comment not found')
     if (post.authorId !== viewer._id) await requireNotBlocked(ctx, viewer._id, post.authorId)
     if (comment.authorId !== viewer._id) await requireNotBlocked(ctx, viewer._id, comment.authorId)
     await consumeRateLimit(ctx, viewer._id, 'toggle_reaction')
@@ -892,7 +892,7 @@ export const generatePostMediaUploadUrl = mutation({
     const viewer = await requireViewer(ctx)
     const now = Date.now()
     const used = await mediaUploadGrantsInWindow(ctx, viewer._id, now)
-    if (used >= MAX_MEDIA_UPLOADS_PER_DAY) throw new Error('Daily media upload limit reached')
+    if (used >= MAX_MEDIA_UPLOADS_PER_DAY) throw new ConvexError('Daily media upload limit reached')
     const uploadId = await ctx.db.insert('postMediaUploads', { userId: viewer._id, createdAt: now })
     const uploadUrl = await ctx.storage.generateUploadUrl()
     return { uploadUrl, uploadId }
@@ -904,12 +904,12 @@ export const registerPostMediaUpload = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const upload = await ctx.db.get(args.uploadId)
-    if (!upload || upload.userId !== viewer._id) throw new Error('Media upload grant not found')
-    if (upload.storageId || upload.registeredAt || upload.postId || upload.discardedAt) throw new Error('Media upload grant has already been used')
+    if (!upload || upload.userId !== viewer._id) throw new ConvexError('Media upload grant not found')
+    if (upload.storageId || upload.registeredAt || upload.postId || upload.discardedAt) throw new ConvexError('Media upload grant has already been used')
     const existingClaim = await ctx.db.query('postMediaUploads').withIndex('by_storage_id', (q) => q.eq('storageId', args.storageId)).first()
-    if (existingClaim) throw new Error('Uploaded media has already been claimed')
+    if (existingClaim) throw new ConvexError('Uploaded media has already been claimed')
     await requireStorageCreatedForGrant(ctx, args.storageId, upload.createdAt)
-    if (await isStorageReferencedByPost(ctx, args.storageId)) throw new Error('Uploaded media is already attached to a post')
+    if (await isStorageReferencedByPost(ctx, args.storageId)) throw new ConvexError('Uploaded media is already attached to a post')
     const media = await validatedMediaStorage(ctx, args.storageId)
     const now = Date.now()
     await ctx.db.patch(args.uploadId, { storageId: args.storageId, ...media, registeredAt: now })
@@ -922,19 +922,19 @@ export const discardPostMediaUpload = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const upload = await ctx.db.get(args.uploadId)
-    if (!upload || upload.userId !== viewer._id) throw new Error('Media upload grant not found')
-    if (upload.postId) throw new Error('Claimed post media cannot be discarded')
+    if (!upload || upload.userId !== viewer._id) throw new ConvexError('Media upload grant not found')
+    if (upload.postId) throw new ConvexError('Claimed post media cannot be discarded')
     if (upload.discardedAt) return
 
     if (upload.storageId) {
-      if (args.storageId && args.storageId !== upload.storageId) throw new Error('Storage object does not match this media grant')
+      if (args.storageId && args.storageId !== upload.storageId) throw new ConvexError('Storage object does not match this media grant')
       await ctx.storage.delete(upload.storageId)
     } else if (args.storageId) {
-      if (upload.registeredAt) throw new Error('Registered media grant is missing its storage object')
+      if (upload.registeredAt) throw new ConvexError('Registered media grant is missing its storage object')
       const existingClaim = await ctx.db.query('postMediaUploads').withIndex('by_storage_id', (q) => q.eq('storageId', args.storageId)).first()
-      if (existingClaim) throw new Error('Uploaded media has already been claimed')
+      if (existingClaim) throw new ConvexError('Uploaded media has already been claimed')
       await requireStorageCreatedForGrant(ctx, args.storageId, upload.createdAt)
-      if (await isStorageReferencedByPost(ctx, args.storageId)) throw new Error('Uploaded media is already attached to a post')
+      if (await isStorageReferencedByPost(ctx, args.storageId)) throw new ConvexError('Uploaded media is already attached to a post')
       await ctx.storage.delete(args.storageId)
     }
 
@@ -983,9 +983,9 @@ export const toggleSavePost = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
-    if (!post || post.hidden) throw new Error('Post not found')
+    if (!post || post.hidden) throw new ConvexError('Post not found')
     await requirePostAudienceWrite(ctx, post)
-    if (post.circleRemovedAt) throw new Error('Post not found')
+    if (post.circleRemovedAt) throw new ConvexError('Post not found')
     assertCirclePostInteractionAllowed(post)
     await requireNotBlocked(ctx, viewer._id, post.authorId)
     const existing = await ctx.db.query('savedPosts').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', args.postId)).first()
@@ -1007,9 +1007,9 @@ export const toggleLike = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
-    if (!post || post.hidden) throw new Error('Post not found')
+    if (!post || post.hidden) throw new ConvexError('Post not found')
     await requirePostAudienceWrite(ctx, post)
-    if (post.circleRemovedAt) throw new Error('Post not found')
+    if (post.circleRemovedAt) throw new ConvexError('Post not found')
     assertCirclePostInteractionAllowed(post)
     await requireNotBlocked(ctx, viewer._id, post.authorId)
     await consumeRateLimit(ctx, viewer._id, 'toggle_reaction')
@@ -1039,21 +1039,21 @@ export const voteOnPoll = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const post = await ctx.db.get(args.postId)
-    if (!post || post.hidden || post.deletedAt) throw new Error('Post not found')
+    if (!post || post.hidden || post.deletedAt) throw new ConvexError('Post not found')
     await requirePostAudienceWrite(ctx, post)
-    if (post.circleRemovedAt) throw new Error('Post not found')
+    if (post.circleRemovedAt) throw new ConvexError('Post not found')
     assertCirclePostInteractionAllowed(post)
     await requireNotBlocked(ctx, viewer._id, post.authorId)
     const poll = post.poll
-    if (!poll) throw new Error('This post does not have a poll')
+    if (!poll) throw new ConvexError('This post does not have a poll')
     const now = Date.now()
-    if (poll.closesAt !== undefined && now >= poll.closesAt) throw new Error('This poll is closed')
+    if (poll.closesAt !== undefined && now >= poll.closesAt) throw new ConvexError('This poll is closed')
     const optionIndex = poll.options.findIndex((option) => option.id === args.optionId)
-    if (optionIndex === -1) throw new Error('Poll option not found')
+    if (optionIndex === -1) throw new ConvexError('Poll option not found')
     const existing = await ctx.db.query('pollVotes')
       .withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('postId', args.postId))
       .first()
-    if (existing) throw new Error('You have already voted in this poll')
+    if (existing) throw new ConvexError('You have already voted in this poll')
     await consumeRateLimit(ctx, viewer._id, 'vote_poll')
     await ctx.db.insert('pollVotes', {
       userId: viewer._id,
@@ -1081,9 +1081,9 @@ export const toggleFollow = mutation({
   args: { userId: v.id('users') },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (viewer._id === args.userId) throw new Error('You cannot follow yourself')
+    if (viewer._id === args.userId) throw new ConvexError('You cannot follow yourself')
     const target = await ctx.db.get(args.userId)
-    if (!target || target.suspended) throw new Error('User not found')
+    if (!target || target.suspended) throw new ConvexError('User not found')
     await requireNotBlocked(ctx, viewer._id, args.userId)
     const existing = await ctx.db.query('follows').withIndex('by_pair', (q) => q.eq('followerId', viewer._id).eq('followingId', args.userId)).first()
     if (existing) {
@@ -1374,12 +1374,12 @@ function validateInstrumentationInput(
   items: Array<{ itemKey: string; source: FeedInstrumentationSource; position?: number }>,
   requirePosition: boolean,
 ) {
-  if (sessionId.length < 8 || sessionId.length > 64) throw new Error('Feed session ID must be between 8 and 64 characters')
-  if (items.length < 1 || items.length > MAX_INSTRUMENTATION_BATCH) throw new Error(`Feed events must include 1 to ${MAX_INSTRUMENTATION_BATCH} items`)
+  if (sessionId.length < 8 || sessionId.length > 64) throw new ConvexError('Feed session ID must be between 8 and 64 characters')
+  if (items.length < 1 || items.length > MAX_INSTRUMENTATION_BATCH) throw new ConvexError(`Feed events must include 1 to ${MAX_INSTRUMENTATION_BATCH} items`)
   for (const item of items) {
-    if (item.itemKey.length < 1 || item.itemKey.length > 96) throw new Error('Feed item key must be between 1 and 96 characters')
+    if (item.itemKey.length < 1 || item.itemKey.length > 96) throw new ConvexError('Feed item key must be between 1 and 96 characters')
     if (requirePosition && (!Number.isInteger(item.position) || item.position! < 0 || item.position! > 99)) {
-      throw new Error('Feed impression position must be an integer from 0 to 99')
+      throw new ConvexError('Feed impression position must be an integer from 0 to 99')
     }
   }
 }
@@ -1389,7 +1389,7 @@ async function rejectCircleInstrumentation(ctx: any, items: Array<{ itemKey: str
     if (!item.itemKey.startsWith('post:')) continue
     try {
       const post = await ctx.db.get(item.itemKey.slice(5) as Id<'posts'>)
-      if (post?.circleId) throw new Error('Circle posts cannot be recorded in global feed instrumentation')
+      if (post?.circleId) throw new ConvexError('Circle posts cannot be recorded in global feed instrumentation')
     } catch (error) {
       if (error instanceof Error && error.message.includes('Circle posts')) throw error
     }
@@ -1740,15 +1740,15 @@ async function resolveMentions(
     if (seen.has(String(user._id))) continue
     if (circleId) {
       await requireNotBlocked(ctx, authorId, user._id)
-      if (!isCircleParticipantRole(user.role)) throw new Error('Circle mention is unavailable')
+      if (!isCircleParticipantRole(user.role)) throw new ConvexError('Circle mention is unavailable')
       const targetMembership = await ctx.db.query('circleMemberships').withIndex('by_circle_user', (q: any) => q.eq('circleId', circleId).eq('userId', user._id)).unique()
-      if (targetMembership?.state !== 'active') throw new Error('Circle mention is unavailable')
+      if (targetMembership?.state !== 'active') throw new ConvexError('Circle mention is unavailable')
     } else if (await isHiddenByPreference(ctx, authorId, user._id)) continue
     seen.add(String(user._id))
     resolved.push({ userId: user._id, username })
   }
   if (resolved.length > maximum) {
-    throw new Error(surface === 'post'
+    throw new ConvexError(surface === 'post'
       ? `A post can tag up to ${MAX_MENTIONS_PER_POST} people`
       : `A comment can tag up to ${MAX_MENTIONS_PER_COMMENT} people`)
   }
@@ -1772,8 +1772,8 @@ async function mediaUploadGrantsInWindow(ctx: any, userId: Id<'users'>, now: num
 
 async function requireStorageCreatedForGrant(ctx: any, storageId: Id<'_storage'>, grantCreatedAt: number) {
   const metadata = await ctx.db.system.get('_storage', storageId)
-  if (!metadata) throw new Error('Uploaded media was not found')
-  if (metadata._creationTime < grantCreatedAt) throw new Error('Uploaded media predates this grant')
+  if (!metadata) throw new ConvexError('Uploaded media was not found')
+  if (metadata._creationTime < grantCreatedAt) throw new ConvexError('Uploaded media predates this grant')
   return metadata
 }
 
@@ -1789,13 +1789,13 @@ async function isStorageReferencedByPost(ctx: any, storageId: Id<'_storage'>) {
 
 async function validatedMediaStorage(ctx: any, storageId: Id<'_storage'>): Promise<{ kind: 'image' | 'video'; contentType: string; size: number }> {
   const metadata = await ctx.db.system.get('_storage', storageId)
-  if (!metadata) throw new Error('Uploaded media was not found')
+  if (!metadata) throw new ConvexError('Uploaded media was not found')
   const contentType = metadata.contentType
   const kind = contentType?.startsWith('image/') ? 'image' : contentType?.startsWith('video/') ? 'video' : null
-  if (!kind || !contentType) throw new Error('Posts can include photos and video only')
+  if (!kind || !contentType) throw new ConvexError('Posts can include photos and video only')
   const maxSize = kind === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE
   if (metadata.size > maxSize) {
-    throw new Error(kind === 'image' ? 'Photos must be 10 MB or smaller' : 'Videos must be 50 MB or smaller')
+    throw new ConvexError(kind === 'image' ? 'Photos must be 10 MB or smaller' : 'Videos must be 50 MB or smaller')
   }
   return { kind, contentType, size: metadata.size }
 }

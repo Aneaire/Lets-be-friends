@@ -2,7 +2,7 @@ import { BOOKING_CURRENCY, MEMBER_WALLET_PRICING_MODEL, MEMBER_WALLET_SETTLEMENT
 import { internalMutation, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { getViewer, writeAudit } from './lib'
 
 const COLLECTION_BATCH_SIZE = 200
@@ -28,7 +28,7 @@ export const dashboard = query({
   handler: async (ctx) => {
     const viewer = await getViewer(ctx)
     if (!viewer) return null
-    if (viewer.suspended) throw new Error('Account is suspended')
+    if (viewer.suspended) throw new ConvexError('Account is suspended')
     const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
     if (!companion) return null
 
@@ -87,7 +87,7 @@ export const memberDashboard = query({
   handler: async (ctx) => {
     const viewer = await getViewer(ctx)
     if (!viewer) return null
-    if (viewer.suspended) throw new Error('Account is suspended')
+    if (viewer.suspended) throw new ConvexError('Account is suspended')
     const account = await readUnifiedWalletBalance(ctx, viewer._id)
     const topUps = await ctx.db.query('paymongoTopUps')
       .withIndex('by_beneficiary_created_at', (q) => q.eq('beneficiaryUserId', viewer._id))
@@ -202,7 +202,7 @@ export async function creditMemberTopUpInTransaction(
   paidAt: number,
 ) {
   if (topUp.purpose !== 'member_booking_balance' || !topUp.beneficiaryUserId) {
-    throw new Error('Top-up is not a member booking-balance top-up')
+    throw new ConvexError('Top-up is not a member booking-balance top-up')
   }
   const account = await getOrCreateUserWalletAccount(ctx, topUp.beneficiaryUserId, paidAt)
   const applied = await applyWalletTransaction(ctx, {
@@ -245,7 +245,7 @@ export async function reserveBookingFunds(ctx: { db: any }, booking: Doc<'bookin
 }
 
 export async function releaseBookingFunds(ctx: { db: any }, booking: Doc<'bookings'>, actorUserId: Id<'users'>, now = Date.now()) {
-  if (booking.settlementState === 'refunded') throw new Error('Refunded booking funds cannot be released again')
+  if (booking.settlementState === 'refunded') throw new ConvexError('Refunded booking funds cannot be released again')
   const amounts = requireV2BookingAmounts(booking)
   const memberAccount = await getOrCreateUserWalletAccount(ctx, booking.memberId, now)
   return await applyWalletTransaction(ctx, {
@@ -268,7 +268,7 @@ export async function allocateCompletedBookingFunds(
   companionUserId: Id<'users'>,
   now = Date.now(),
 ) {
-  if (booking.settlementState === 'refunded') throw new Error('Refunded bookings cannot allocate completion funds')
+  if (booking.settlementState === 'refunded') throw new ConvexError('Refunded bookings cannot allocate completion funds')
   const amounts = requireV2BookingAmounts(booking)
   const [memberAccount, companionAccount, platformAccount] = await Promise.all([
     getOrCreateUserWalletAccount(ctx, booking.memberId, now),
@@ -307,7 +307,7 @@ export async function settleBookingFunds(ctx: { db: any }, bookingId: Id<'bookin
   }
 
   const companion = await ctx.db.get(booking.companionProfileId)
-  if (!companion) throw new Error('Companion profile not found')
+  if (!companion) throw new ConvexError('Companion profile not found')
   const amounts = requireV2BookingAmounts(booking)
   const [companionAccount, platformAccount] = await Promise.all([
     getOrCreateUserWalletAccount(ctx, companion.userId, now),
@@ -342,17 +342,17 @@ export async function resolveBlockedBookingFunds(
   if (booking.settlementState === 'settled' || booking.settlementState === 'refunded') {
     const expectedResolution = resolution === 'release_to_companion' ? 'released' : 'returned_to_member'
     if (booking.settlementResolution !== expectedResolution) {
-      throw new Error('Booking funds were already resolved with a conflicting outcome')
+      throw new ConvexError('Booking funds were already resolved with a conflicting outcome')
     }
     return { outcome: booking.settlementState, applied: false }
   }
-  if (booking.settlementState !== 'blocked') throw new Error('Booking funds are not blocked by an active report')
+  if (booking.settlementState !== 'blocked') throw new ConvexError('Booking funds are not blocked by an active report')
   const companion = await ctx.db.get(booking.companionProfileId)
-  if (!companion) throw new Error('Companion profile not found')
+  if (!companion) throw new ConvexError('Companion profile not found')
   const memberAccount = await getOrCreateUserWalletAccount(ctx, booking.memberId, now)
 
   if (resolution === 'release_to_companion') {
-    if (!booking.jointlyCompletedAt) throw new Error('Funds can be released to the Companion only after mutual completion')
+    if (!booking.jointlyCompletedAt) throw new ConvexError('Funds can be released to the Companion only after mutual completion')
     const [companionAccount, platformAccount] = await Promise.all([
       getOrCreateUserWalletAccount(ctx, companion.userId, now),
       getOrCreateWalletAccount(ctx, { deterministicKey: PLATFORM_REVENUE_ACCOUNT_KEY, accountType: 'platform_revenue', now }),
@@ -408,7 +408,7 @@ export async function settleTopUpInTransaction(
     await creditMemberTopUpInTransaction(ctx, topUp, paidAt)
     return
   }
-  if (!topUp.companionUserId) throw new Error('Legacy companion-fee top-up is missing its Companion beneficiary')
+  if (!topUp.companionUserId) throw new ConvexError('Legacy companion-fee top-up is missing its Companion beneficiary')
   const creditKey = `topup:${topUp._id}:credit`
   const existingCredit = await ctx.db.query('platformFeeLedger').withIndex('by_idempotency_key', (q: any) => q.eq('idempotencyKey', creditKey)).unique()
   if (!existingCredit) {
@@ -501,7 +501,7 @@ export async function applyWalletTransaction(
     .unique()
   if (existing) return false
   assertMoney(input.amountCentavos, 'Transaction amount')
-  if (input.legs.length === 0) throw new Error('Wallet transaction requires entries')
+  if (input.legs.length === 0) throw new ConvexError('Wallet transaction requires entries')
 
   let debits = 0
   let credits = 0
@@ -518,20 +518,20 @@ export async function applyWalletTransaction(
       delta: (current?.delta ?? 0) + (leg.direction === 'credit' ? leg.amountCentavos : -leg.amountCentavos),
     })
   }
-  if (!Number.isSafeInteger(debits) || !Number.isSafeInteger(credits)) throw new Error('Wallet transaction total is outside supported bounds')
+  if (!Number.isSafeInteger(debits) || !Number.isSafeInteger(credits)) throw new ConvexError('Wallet transaction total is outside supported bounds')
   const externallyBalanced = input.allowExternalCredit
     ? debits === 0 && credits === input.amountCentavos
     : input.allowExternalDebit
       ? credits === 0 && debits === input.amountCentavos
       : debits === credits && debits === input.amountCentavos
   if (!externallyBalanced) {
-    throw new Error('Wallet transaction entries are not balanced')
+    throw new ConvexError('Wallet transaction entries are not balanced')
   }
 
   const patches = new Map<Id<'walletAccounts'>, Doc<'walletAccounts'>>()
   for (const change of deltas.values()) {
     const account = patches.get(change.accountId) ?? await ctx.db.get(change.accountId) as Doc<'walletAccounts'> | null
-    if (!account) throw new Error('Wallet account not found')
+    if (!account) throw new ConvexError('Wallet account not found')
     const field = bucketField(change.bucket)
     const next = account[field] + change.delta
     assertMoney(next, 'Wallet balance')
@@ -571,7 +571,7 @@ export async function getOrCreateWalletAccount(
   const existing = await findWalletAccount(ctx, input.deterministicKey)
   if (existing) {
     if (existing.accountType !== input.accountType || existing.ownerUserId !== input.ownerUserId) {
-      throw new Error('Wallet account key is attached to the wrong beneficiary')
+      throw new ConvexError('Wallet account key is attached to the wrong beneficiary')
     }
     return existing
   }
@@ -643,13 +643,13 @@ export async function getOrCreateUserWalletAccount(ctx: { db: any }, userId: Id<
 
 function requireV2BookingAmounts(booking: Doc<'bookings'>) {
   if (booking.pricingModel !== MEMBER_WALLET_PRICING_MODEL || booking.currency !== BOOKING_CURRENCY) {
-    throw new Error('Booking does not use the member wallet')
+    throw new ConvexError('Booking does not use the member wallet')
   }
   const total = booking.memberTotalCentavos
   const companion = booking.companionEarningsCentavos
   const fee = booking.memberBookingFeeCentavos
   if (total === undefined || companion === undefined || fee === undefined || total !== companion + fee) {
-    throw new Error('Booking wallet amounts are incomplete')
+    throw new ConvexError('Booking wallet amounts are incomplete')
   }
   assertMoney(total, 'Member total')
   assertMoney(companion, 'Companion entitlement')
@@ -672,7 +672,7 @@ function bucketField(bucket: WalletBucket): 'availableCentavos' | 'reservedCenta
 }
 
 function assertMoney(value: number, label: string) {
-  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${label} must be a nonnegative safe integer of centavos`)
+  if (!Number.isSafeInteger(value) || value < 0) throw new ConvexError(`${label} must be a nonnegative safe integer of centavos`)
 }
 
 async function obligationRemainingCentavos(ctx: { db: any }, obligation: Doc<'commissionObligations'>) {

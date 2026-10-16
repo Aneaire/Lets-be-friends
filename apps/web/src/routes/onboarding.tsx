@@ -24,7 +24,8 @@ import {
   type CompanionProfileMode,
   type CompanionProfileValues,
 } from '../features/companion-application/companionProfileForm'
-import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
+import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification';
+import { describeConvexError } from '../lib/convexErrors'
 
 export const Route = createFileRoute('/onboarding')({ component: OnboardingPage })
 
@@ -153,7 +154,7 @@ export function OnboardingPage() {
       })
       setStep(2)
     } catch (usernameError) {
-      setError(usernameError instanceof Error ? usernameError.message : 'Your username could not be saved.')
+      setError(usernameError instanceof Error ? describeConvexError(usernameError) : 'Your username could not be saved.')
     } finally {
       setSubmitting(false)
     }
@@ -167,7 +168,7 @@ export function OnboardingPage() {
       await completeOnboarding({ goal: nextGoal })
       await navigate({ to: onboardingDestination(nextGoal) })
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Your welcome guide could not be completed.')
+      setError(submitError instanceof Error ? describeConvexError(submitError) : 'Your welcome guide could not be completed.')
       setSubmitting(false)
     }
   }
@@ -196,7 +197,7 @@ export function OnboardingPage() {
       })
       setStep(4)
     } catch (profileError) {
-      setError(profileError instanceof Error ? profileError.message : 'Your profile could not be updated.')
+      setError(profileError instanceof Error ? describeConvexError(profileError) : 'Your profile could not be updated.')
     } finally {
       setSubmitting(false)
     }
@@ -220,7 +221,7 @@ export function OnboardingPage() {
       const result = await identityFlow.begin()
       if (result?.mode !== 'launch') await navigate({ to: '/app' })
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Identity verification could not be started.')
+      setError(submitError instanceof Error ? describeConvexError(submitError) : 'Identity verification could not be started.')
     } finally {
       setSubmitting(false)
     }
@@ -270,7 +271,7 @@ export function OnboardingPage() {
       const result = await companionIdentityFlow.begin()
       if (result?.mode !== 'launch') await navigate({ to: onboardingDestination('companion') })
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Your welcome guide could not be completed. Please try again.')
+      setError(submitError instanceof Error ? describeConvexError(submitError) : 'Your welcome guide could not be completed. Please try again.')
     } finally {
       setSubmitting(false)
     }

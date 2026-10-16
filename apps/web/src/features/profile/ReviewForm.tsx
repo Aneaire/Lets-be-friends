@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useMutation } from 'convex/react'
 import { ImagePlus, X } from 'lucide-react'
 import { api } from '../../../convex/_generated/api'
-import type { Id } from '../../../convex/_generated/dataModel'
+import type { Id } from '../../../convex/_generated/dataModel';
+import { describeConvexError } from '../../lib/convexErrors'
 
 export function ReviewForm({
   onReview,
@@ -51,7 +52,7 @@ export function ReviewForm({
           form.reset()
           setPhoto(null)
         } catch (reviewError) {
-          setError(reviewError instanceof Error ? reviewError.message : 'Review could not be published.')
+          setError(reviewError instanceof Error ? describeConvexError(reviewError) : 'Review could not be published.')
         } finally {
           if (uploadId && !published) await discardUpload({ uploadId, storageId }).catch(() => undefined)
           setBusy(false)

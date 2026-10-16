@@ -10,7 +10,8 @@ import { useIdentityVerification } from '../features/identity/IdentityVerificati
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { ProfileContentPanel } from '../features/profile/ProfileContentPanel'
 import { AvatarCropper } from '../features/profile/AvatarCropper'
-import { createCroppedAvatarFile, defaultAvatarCrop, type AvatarCrop } from '../features/profile/avatarCrop'
+import { createCroppedAvatarFile, defaultAvatarCrop, type AvatarCrop } from '../features/profile/avatarCrop';
+import { describeConvexError } from '../lib/convexErrors'
 
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
 
@@ -242,7 +243,7 @@ function ProfilePage() {
                   setNotice('Profile saved.')
                   closeEdit()
                 } catch (profileError) {
-                  setError(profileError instanceof Error ? profileError.message : 'Profile could not be saved.')
+                  setError(profileError instanceof Error ? describeConvexError(profileError) : 'Profile could not be saved.')
                 } finally {
                   setSaving(false)
                 }

@@ -1,6 +1,6 @@
 import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
 import { canAdminApproveIdentity, identityApprovalExpiresAt, identityVerificationReasons, isIdentityAssessmentFlagged, isIdentityReadyForAdminReview, isIdentityVerificationReason } from './identityVerification'
 import { syncUserCompanionLocation } from './companionLocations'
@@ -17,13 +17,13 @@ const visibility = v.union(v.literal('visible'), v.literal('hidden'), v.literal(
 
 async function requireAdmin(ctx: any) {
   const viewer = await requireViewer(ctx)
-  if (!isFullAdminRole(viewer.role) && viewer.role !== 'reviewer') throw new Error('Admin role required')
+  if (!isFullAdminRole(viewer.role) && viewer.role !== 'reviewer') throw new ConvexError('Admin role required')
   return viewer
 }
 
 async function requireFullAdmin(ctx: any) {
   const viewer = await requireAdmin(ctx)
-  if (!isFullAdminRole(viewer.role)) throw new Error('Full admin role required')
+  if (!isFullAdminRole(viewer.role)) throw new ConvexError('Full admin role required')
   return viewer
 }
 
@@ -208,7 +208,7 @@ export const circlePosts = query({
   handler: async (ctx, args) => {
     await requireFullAdmin(ctx)
     const circle = await ctx.db.get(args.circleId)
-    if (!circle) throw new Error('Circle not found')
+    if (!circle) throw new ConvexError('Circle not found')
     const rows = await ctx.db.query('posts').withIndex('by_circle_created_at', (q) => q.eq('circleId', args.circleId)).order('desc').take(100)
     return await Promise.all(rows.map(async (post) => {
       const author = await ctx.db.get(post.authorId)
@@ -256,14 +256,14 @@ export const reviewMemberVerification = mutation({
   handler: async (ctx, args) => {
     const admin = await requireAdmin(ctx)
     const verification = await ctx.db.get(args.verificationRequestId)
-    if (!verification) throw new Error('Verification request not found')
-    if (!isIdentityVerificationReason(verification.reason)) throw new Error('This is not an identity verification request')
+    if (!verification) throw new ConvexError('Verification request not found')
+    if (!isIdentityVerificationReason(verification.reason)) throw new ConvexError('This is not an identity verification request')
     if (!isIdentityReadyForAdminReview(verification)) {
-      throw new Error('Only the current completed identity attempt can receive an admin decision')
+      throw new ConvexError('Only the current completed identity attempt can receive an admin decision')
     }
     let identityRecord: Doc<'identityRecords'> | null = null
     if (verification.verificationSource === 'in_app') {
-      if (!verification.identityRecordId) throw new Error('The current in-app identity attempt has no linked identity record')
+      if (!verification.identityRecordId) throw new ConvexError('The current in-app identity attempt has no linked identity record')
       identityRecord = await ctx.db.get(verification.identityRecordId)
       if (
         !identityRecord
@@ -271,24 +271,24 @@ export const reviewMemberVerification = mutation({
         || identityRecord.verificationRequestId !== verification._id
         || identityRecord.source !== 'in_app'
       ) {
-        throw new Error('The linked identity record for this attempt is unavailable')
+        throw new ConvexError('The linked identity record for this attempt is unavailable')
       }
       const currentRequests = await ctx.db.query('verificationRequests')
         .withIndex('by_user_current', (q) => q.eq('userId', verification.userId).eq('isCurrent', true))
         .collect()
       const newestCurrent = currentRequests.sort((a, b) => (b.attempt ?? 0) - (a.attempt ?? 0) || b.updatedAt - a.updatedAt)[0]
       if (newestCurrent?._id !== verification._id) {
-        throw new Error('Only the newest current identity attempt can receive an admin decision')
+        throw new ConvexError('Only the newest current identity attempt can receive an admin decision')
       }
     }
     if (args.decision === 'approved' && !canAdminApproveIdentity(verification, identityRecord)) {
-      throw new Error('This identity attempt is incomplete or no longer eligible for approval. Start a new attempt instead of overriding it.')
+      throw new ConvexError('This identity attempt is incomplete or no longer eligible for approval. Start a new attempt instead of overriding it.')
     }
     if (args.decision === 'approved' && identityRecord) {
       const front = await ctx.db.query('identityRecordImages').withIndex('by_record_kind', (q) => q.eq('identityRecordId', identityRecord!._id).eq('kind', 'id_front')).unique()
       const selfie = await ctx.db.query('identityRecordImages').withIndex('by_record_kind', (q) => q.eq('identityRecordId', identityRecord!._id).eq('kind', 'selfie')).unique()
-      if (!front?.storageId || front.purgedAt) throw new Error('The ID front image is required and must be retained to approve this attempt')
-      if (!selfie?.storageId || selfie.purgedAt) throw new Error('A current selfie is required and must be retained to approve this attempt')
+      if (!front?.storageId || front.purgedAt) throw new ConvexError('The ID front image is required and must be retained to approve this attempt')
+      if (!selfie?.storageId || selfie.purgedAt) throw new ConvexError('A current selfie is required and must be retained to approve this attempt')
     }
 
     const note = args.decision === 'rejected' ? requireNote(args.note, 'Rejecting identity verification') : normalizeNote(args.note)
@@ -384,11 +384,11 @@ export const resolveBlockedBookingFunds = mutation({
     const admin = await requireFullAdmin(ctx)
     const note = requireNote(args.note, 'Resolving blocked booking funds')
     const booking = await ctx.db.get(args.bookingId)
-    if (!booking) throw new Error('Booking not found')
+    if (!booking) throw new ConvexError('Booking not found')
     const requestedResolution = args.resolution === 'release_to_companion' ? 'released' as const : 'returned_to_member' as const
     if (booking.settlementState === 'settled' || booking.settlementState === 'refunded') {
       if (booking.settlementResolution !== requestedResolution) {
-        throw new Error('Booking funds were already resolved with a conflicting outcome')
+        throw new ConvexError('Booking funds were already resolved with a conflicting outcome')
       }
       return {
         settlementState: booking.settlementState,
@@ -439,8 +439,8 @@ export const setUserSuspended = mutation({
   handler: async (ctx, args) => {
     const fullAdmin = await requireFullAdmin(ctx)
     const user = await ctx.db.get(args.userId)
-    if (!user) throw new Error('User not found')
-    if (args.suspended && user._id === fullAdmin._id) throw new Error('Admins cannot suspend their own account')
+    if (!user) throw new ConvexError('User not found')
+    if (args.suspended && user._id === fullAdmin._id) throw new ConvexError('Admins cannot suspend their own account')
     const note = args.suspended ? requireNote(args.note, 'Suspending a user') : normalizeNote(args.note)
     const after = { ...user, suspended: args.suspended, updatedAt: Date.now() }
     await ctx.db.patch(args.userId, { suspended: args.suspended, updatedAt: after.updatedAt })
@@ -463,8 +463,8 @@ export const setReviewerStatus = mutation({
   handler: async (ctx, args) => {
     const fullAdmin = await requireFullAdmin(ctx)
     const user = await ctx.db.get(args.userId)
-    if (!user) throw new Error('User not found')
-    if (isFullAdminRole(user.role)) throw new Error('Admin role cannot be changed here')
+    if (!user) throw new ConvexError('User not found')
+    if (isFullAdminRole(user.role)) throw new ConvexError('Admin role cannot be changed here')
     const note = normalizeNote(args.note)
     const nextRole = args.reviewer ? 'reviewer' : 'member'
     const after = { ...user, role: nextRole, updatedAt: Date.now() }
@@ -486,8 +486,8 @@ export const setAdminStatus = mutation({
   handler: async (ctx, args) => {
     const fullAdmin = await requireFullAdmin(ctx)
     const user = await ctx.db.get(args.userId)
-    if (!user) throw new Error('User not found')
-    if (user._id === fullAdmin._id) throw new Error('Admins cannot change their own admin role')
+    if (!user) throw new ConvexError('User not found')
+    if (user._id === fullAdmin._id) throw new ConvexError('Admins cannot change their own admin role')
     if (args.admin === isFullAdminRole(user.role)) return
     const note = normalizeNote(args.note)
     const nextRole = args.admin ? 'admin' : 'member'
@@ -510,12 +510,12 @@ export const setPostHidden = mutation({
   handler: async (ctx, args) => {
     const admin = await requireAdmin(ctx)
     const post = await ctx.db.get(args.postId)
-    if (!post) throw new Error('Post not found')
+    if (!post) throw new ConvexError('Post not found')
     if (post.circleId && !isFullAdminRole(admin.role)) {
       const circleReports = await ctx.db.query('reports').withIndex('by_circle', (q) => q.eq('circleId', post.circleId)).collect()
-      if (!circleReports.some((report) => report.targetType === 'post' && report.targetId === String(post._id))) throw new Error('Reported Circle post required')
+      if (!circleReports.some((report) => report.targetType === 'post' && report.targetId === String(post._id))) throw new ConvexError('Reported Circle post required')
     }
-    if (post.deletedAt && !args.hidden) throw new Error('Author-deleted posts cannot be restored')
+    if (post.deletedAt && !args.hidden) throw new ConvexError('Author-deleted posts cannot be restored')
     const note = args.hidden ? requireNote(args.note, 'Hiding a post') : normalizeNote(args.note)
     const after = { ...post, hidden: args.hidden, updatedAt: Date.now() }
     await ctx.db.patch(args.postId, { hidden: args.hidden, updatedAt: after.updatedAt })
@@ -536,7 +536,7 @@ export const setReviewHidden = mutation({
   handler: async (ctx, args) => {
     const admin = await requireAdmin(ctx)
     const review = await ctx.db.get(args.reviewId)
-    if (!review) throw new Error('Review not found')
+    if (!review) throw new ConvexError('Review not found')
     const note = args.hidden ? requireNote(args.note, 'Hiding a review') : normalizeNote(args.note)
     const after = { ...review, hidden: args.hidden, moderatorUserId: admin._id, moderatorNote: note, updatedAt: Date.now() }
     await ctx.db.patch(args.reviewId, {
@@ -578,7 +578,7 @@ function identityExpiry(now: number, expirationDate?: string) {
 async function updateReportStatusHandler(ctx: any, args: { reportId: any; status: 'open' | 'reviewing' | 'resolved' | 'dismissed'; note?: string }) {
   const admin = await requireAdmin(ctx)
   const report = await ctx.db.get(args.reportId)
-  if (!report) throw new Error('Report not found')
+  if (!report) throw new ConvexError('Report not found')
   const note = args.status === 'dismissed' ? requireNote(args.note, 'Dismissing a report') : normalizeNote(args.note)
   const after = { ...report, status: args.status, reviewerUserId: admin._id, reviewerNote: note, updatedAt: Date.now() }
   await ctx.db.patch(args.reportId, { status: args.status, reviewerUserId: admin._id, reviewerNote: note, updatedAt: after.updatedAt })
@@ -697,7 +697,7 @@ function normalizeNote(value?: string) {
 
 function requireNote(value: string | undefined, action: string) {
   const note = normalizeNote(value)
-  if (!note) throw new Error(`${action} requires an internal note`)
+  if (!note) throw new ConvexError(`${action} requires an internal note`)
   return note
 }
 

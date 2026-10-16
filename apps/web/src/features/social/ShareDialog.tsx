@@ -2,7 +2,8 @@ import { Share2 } from 'lucide-react'
 import { useState } from 'react'
 import { Dialog } from '../../design-system/molecules/Dialog'
 import { Button } from '../../design-system/atoms/Button'
-import { copyShareUrl } from './shareLinks'
+import { copyShareUrl } from './shareLinks';
+import { describeConvexError } from '../../lib/convexErrors'
 
 export type SharePreview = {
   label: string
@@ -50,7 +51,7 @@ export function ShareDialog({
       onShared?.()
       onClose()
     } catch (shareError) {
-      setError(shareError instanceof Error ? shareError.message : 'This could not be shared.')
+      setError(shareError instanceof Error ? describeConvexError(shareError) : 'This could not be shared.')
     } finally {
       setBusy(false)
     }

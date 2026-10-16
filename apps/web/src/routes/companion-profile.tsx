@@ -7,7 +7,8 @@ import { User } from 'lucide-react'
 import { formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
-import { ProfileContentPanel } from '../features/profile/ProfileContentPanel'
+import { ProfileContentPanel } from '../features/profile/ProfileContentPanel';
+import { describeConvexError } from '../lib/convexErrors'
 
 export const Route = createFileRoute('/companion-profile')({
   validateSearch: (search: Record<string, unknown>): { companionProfileId?: string; reviewId?: string } => ({
@@ -134,7 +135,7 @@ function CompanionProfilePage() {
                             const conversationId = await startConversation({ otherUserId: companion.userId })
                             await navigate({ to: '/messages', search: { conversationId } })
                           } catch (error) {
-                            setMessageError(error instanceof Error ? error.message : 'Conversation could not be opened.')
+                            setMessageError(error instanceof Error ? describeConvexError(error) : 'Conversation could not be opened.')
                             setStartingMessage(false)
                           }
                         }}

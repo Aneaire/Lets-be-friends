@@ -1,7 +1,8 @@
 import { formatPhp, type BookingStatus } from '@lets-be-friends/shared'
 import { useState } from 'react'
 import type { Id } from '../../../convex/_generated/dataModel'
-import { StatusBadge } from '../../design-system/atoms/StatusBadge'
+import { StatusBadge } from '../../design-system/atoms/StatusBadge';
+import { describeConvexError } from '../../lib/convexErrors'
 
 export type BookingRequestView = {
   bookingId: Id<'bookings'>
@@ -49,7 +50,7 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit,
     try {
       await onDecide(booking.bookingId, decision)
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'The decision could not be saved.')
+      setActionError(error instanceof Error ? describeConvexError(error) : 'The decision could not be saved.')
     } finally {
       setBusy(null)
     }

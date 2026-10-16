@@ -1,5 +1,5 @@
 import { internalMutation } from './_generated/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { isModerationVisible, USERNAME_MAX_LENGTH, usernameBaseFromDisplayName } from '@lets-be-friends/shared'
 import { writeAudit } from './lib'
 import { syncCompanionLocation } from './companionLocations'
@@ -143,7 +143,7 @@ async function getCheckpoint(ctx: any, now: number) {
   if (existing) return existing
   const id = await ctx.db.insert('migrationCheckpoints', { key: CHECKPOINT_KEY, completedSteps: [], updatedAt: now })
   const created = await ctx.db.get(id)
-  if (!created) throw new Error('Migration checkpoint could not be created')
+  if (!created) throw new ConvexError('Migration checkpoint could not be created')
   return created
 }
 
@@ -177,11 +177,11 @@ export const backfillEngagementCounters = internalMutation({
     }
     const expectedStep = BACKFILL_STEPS[checkpoint.completedSteps.length]
     if (args.step !== expectedStep) {
-      throw new Error(`Migration out of order: expected ${expectedStep} before ${args.step}`)
+      throw new ConvexError(`Migration out of order: expected ${expectedStep} before ${args.step}`)
     }
     const requestedCursor = args.cursor ?? null
     if ((checkpoint.cursor ?? null) !== requestedCursor) {
-      throw new Error('Stale migration cursor: resume from the persisted cursor')
+      throw new ConvexError('Stale migration cursor: resume from the persisted cursor')
     }
 
     const pageResult = (page: { isDone: boolean; continueCursor: string }, processed: number, changed: number) => ({

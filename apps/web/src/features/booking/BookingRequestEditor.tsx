@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { Button } from '../../design-system/atoms/Button'
 import { Dialog } from '../../design-system/molecules/Dialog'
-import { BookingRequestFields } from './BookingRequestFields'
+import { BookingRequestFields } from './BookingRequestFields';
+import { describeConvexError } from '../../lib/convexErrors'
 
 export type SaveBookingRequest = {
   category: string
@@ -85,7 +86,7 @@ export function BookingRequestEditor({
     })).then(() => {
       setBusy(false)
     }, (cause) => {
-      setError(cause instanceof Error ? cause.message : 'The request could not be updated.')
+      setError(cause instanceof Error ? describeConvexError(cause) : 'The request could not be updated.')
       setBusy(false)
     })
   }

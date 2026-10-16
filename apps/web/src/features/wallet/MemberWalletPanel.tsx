@@ -4,7 +4,8 @@ import { formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../../convex/_generated/api'
 import { Button } from '../../design-system/atoms/Button'
 import { OpenableImage } from '../../design-system/molecules/OpenableImage'
-import { FormField } from '../../design-system/molecules/FormField'
+import { FormField } from '../../design-system/molecules/FormField';
+import { describeConvexError } from '../../lib/convexErrors'
 
 export type MemberFinance = NonNullable<ReturnType<typeof useQuery<typeof api.finance.memberDashboard>>>
 
@@ -165,7 +166,7 @@ export function MemberWalletPanel({ finance, onCreateTopUp }: {
     try {
       await onCreateTopUp(amountCentavos)
     } catch (submitError) {
-      setWalletError(submitError instanceof Error ? submitError.message : 'Top-up could not be started.')
+      setWalletError(submitError instanceof Error ? describeConvexError(submitError) : 'Top-up could not be started.')
     } finally {
       setBusy(false)
     }

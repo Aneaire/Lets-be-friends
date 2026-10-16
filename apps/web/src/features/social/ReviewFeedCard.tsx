@@ -12,7 +12,8 @@ import { ReviewStars } from './ReviewStars'
 import { ShareDialog } from './ShareDialog'
 import { SocialLightbox } from './SocialLightbox'
 import { shareTargetUrl } from './shareLinks'
-import { formatSocialTime } from './formatSocialTime'
+import { formatSocialTime } from './formatSocialTime';
+import { describeConvexError } from '../../lib/convexErrors'
 
 type FeedItem = NonNullable<FunctionReturnType<typeof api.social.feedPage>>['page'][number]
 export type FeedReview = Extract<FeedItem, { kind: 'review' }>['review']
@@ -218,7 +219,7 @@ function ReviewLightbox({
                           className="btn btn-ghost btn-sm profile-review-comment-delete"
                           onClick={() => {
                             void deleteReviewComment({ commentId: comment._id as Id<'reviewComments'> }).catch((error) => {
-                              setCommentError(error instanceof Error ? error.message : 'Comment could not be deleted.')
+                              setCommentError(error instanceof Error ? describeConvexError(error) : 'Comment could not be deleted.')
                             })
                           }}
                         >
@@ -244,7 +245,7 @@ function ReviewLightbox({
                     await createReviewComment({ reviewId: review._id as Id<'reviews'>, body })
                     setCommentDraft('')
                   } catch (error) {
-                    setCommentError(error instanceof Error ? error.message : 'Comment could not be added.')
+                    setCommentError(error instanceof Error ? describeConvexError(error) : 'Comment could not be added.')
                   } finally {
                     setCommentBusy(false)
                   }

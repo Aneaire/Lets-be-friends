@@ -1,5 +1,5 @@
 import { paginationOptsValidator } from 'convex/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { mutation, query, type MutationCtx } from './_generated/server'
@@ -45,10 +45,10 @@ export async function createNotification(ctx: MutationCtx, input: CreateNotifica
 export async function createNotification(ctx: { db: any; scheduler?: never }, input: CreateNotificationInput): Promise<Id<'notifications'> | null>
 export async function createNotification(ctx: MutationCtx | { db: any; scheduler?: never }, input: CreateNotificationInput) {
   if (input.actorUserId === input.recipientUserId) return null
-  if (!input.dedupeKey.trim()) throw new Error('Notification dedupe key is required')
+  if (!input.dedupeKey.trim()) throw new ConvexError('Notification dedupe key is required')
   const definition = notificationDefinition(input.kind)
   if (!definition.allowedPriorities.includes(input.priority)) {
-    throw new Error(`Priority ${input.priority} is not allowed for ${input.kind}`)
+    throw new ConvexError(`Priority ${input.priority} is not allowed for ${input.kind}`)
   }
   const recipient = await ctx.db.get(input.recipientUserId)
   if (!recipient) return null
@@ -160,8 +160,8 @@ export const markAllRead = mutation({
 
 async function requireOwnedNotification(ctx: { db: any }, notificationId: Id<'notifications'>, viewerId: Id<'users'>) {
   const notification = await ctx.db.get(notificationId) as Doc<'notifications'> | null
-  if (!notification) throw new Error('Notification not found')
-  if (notification.recipientUserId !== viewerId) throw new Error('Not your notification')
+  if (!notification) throw new ConvexError('Notification not found')
+  if (notification.recipientUserId !== viewerId) throw new ConvexError('Not your notification')
   return notification
 }
 

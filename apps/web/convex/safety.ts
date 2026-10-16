@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import type { Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
 import { requireViewer, writeAudit } from './lib'
@@ -79,7 +79,7 @@ export async function isHiddenByPreference(ctx: { db: any }, viewerId: Id<'users
 }
 
 export async function requireNotBlocked(ctx: { db: any }, first: Id<'users'>, second: Id<'users'>) {
-  if (await areUsersBlocked(ctx, first, second)) throw new Error('Contact is unavailable because one member has blocked the other')
+  if (await areUsersBlocked(ctx, first, second)) throw new ConvexError('Contact is unavailable because one member has blocked the other')
 }
 
 export async function preference(ctx: { db: any }, ownerUserId: Id<'users'>, targetUserId: Id<'users'>) {
@@ -91,8 +91,8 @@ function directedPairKey(ownerUserId: Id<'users'>, targetUserId: Id<'users'>) {
 }
 
 async function requireTarget(ctx: { db: any }, viewerId: Id<'users'>, targetUserId: Id<'users'>) {
-  if (viewerId === targetUserId) throw new Error('You cannot block or mute yourself')
+  if (viewerId === targetUserId) throw new ConvexError('You cannot block or mute yourself')
   const target = await ctx.db.get(targetUserId)
-  if (!target) throw new Error('Member not found')
+  if (!target) throw new ConvexError('Member not found')
   return target
 }

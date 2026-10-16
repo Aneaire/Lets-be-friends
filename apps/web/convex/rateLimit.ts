@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import type { Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { internalMutation } from './_generated/server'
@@ -59,7 +59,7 @@ export async function consumeRateLimit(ctx: any, userId: Id<'users'>, family: Ra
       })
       return
     }
-    if (row.count >= limit) throw new Error(RATE_LIMIT_MESSAGES[family])
+    if (row.count >= limit) throw new ConvexError(RATE_LIMIT_MESSAGES[family])
     await ctx.db.patch(row._id, { count: row.count + 1, updatedAt: now })
     return
   }

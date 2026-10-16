@@ -10,7 +10,7 @@ import {
 import { paginationOptsValidator } from 'convex/server'
 import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { getViewer, requireViewer, writeAudit } from './lib'
 import { hasCurrentIdentityApproval, isIdentityVerificationReason } from './identityVerification'
 import { findNearbyCompanionLocations, syncCompanionLocation } from './companionLocations'
@@ -40,7 +40,7 @@ export const listExploreDirectoryPage = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
     if (!Number.isSafeInteger(args.paginationOpts.numItems) || args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > MAX_EXPLORE_PAGE_SIZE) {
-      throw new Error(`Explore pages can include 1 to ${MAX_EXPLORE_PAGE_SIZE} people`)
+      throw new ConvexError(`Explore pages can include 1 to ${MAX_EXPLORE_PAGE_SIZE} people`)
     }
     const viewer = await getViewer(ctx)
     // Ordered by the display-name index so accumulated pages keep a stable
@@ -245,7 +245,7 @@ export const toggleSaveProfile = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const companion = await ctx.db.get(args.companionProfileId)
-    if (!companion || companion.status !== 'approved') throw new Error('Profile is not available')
+    if (!companion || companion.status !== 'approved') throw new ConvexError('Profile is not available')
     await requireNotBlocked(ctx, viewer._id, companion.userId)
     const existing = await ctx.db.query('savedProfiles').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('companionProfileId', args.companionProfileId)).first()
     if (existing) {
@@ -312,27 +312,27 @@ export const submitApplication = mutation({
     const now = Date.now()
     validateCompanionHourlyRateCentavos(args.hourlyRateCentavos)
     const categoryResult = validateActivityCategories(args.categories, maximumCompanionActivityCategories)
-    if (!categoryResult.ok) throw new Error(categoryResult.message)
+    if (!categoryResult.ok) throw new ConvexError(categoryResult.message)
     const bio = args.bio?.trim() ? args.bio.trim() : undefined
     if (bio !== undefined && bio.length > BIO_MAX_LENGTH) {
-      throw new Error(`Tell me about yourself must be ${BIO_MAX_LENGTH} characters or fewer`)
+      throw new ConvexError(`Tell me about yourself must be ${BIO_MAX_LENGTH} characters or fewer`)
     }
     const earningMotivation = args.earningMotivation?.trim() ? args.earningMotivation.trim() : undefined
     if (earningMotivation !== undefined && earningMotivation.length > EARNING_MOTIVATION_MAX_LENGTH) {
-      throw new Error(`Earning motivation must be ${EARNING_MOTIVATION_MAX_LENGTH} characters or fewer`)
+      throw new ConvexError(`Earning motivation must be ${EARNING_MOTIVATION_MAX_LENGTH} characters or fewer`)
     }
     const intro = args.intro.trim()
-    if (intro.length === 0) throw new Error('Add what work or skills you could share')
-    if (intro.length > INTRO_MAX_LENGTH) throw new Error(`Your work or skills note must be ${INTRO_MAX_LENGTH} characters or fewer`)
+    if (intro.length === 0) throw new ConvexError('Add what work or skills you could share')
+    if (intro.length > INTRO_MAX_LENGTH) throw new ConvexError(`Your work or skills note must be ${INTRO_MAX_LENGTH} characters or fewer`)
     const existing = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
     const sourceLatitude = viewer.approximateLatitude ?? existing?.approximateLatitude
     const sourceLongitude = viewer.approximateLongitude ?? existing?.approximateLongitude
     validateCoordinatePair(sourceLatitude, sourceLongitude)
     if (typeof sourceLatitude !== 'number' || typeof sourceLongitude !== 'number') {
-      throw new Error('Complete onboarding with an approximate location before applying as a Companion')
+      throw new ConvexError('Complete onboarding with an approximate location before applying as a Companion')
     }
     if (!viewer.approximateLocationConsentedAt || !viewer.termsAcceptedAt || viewer.termsVersion !== '2026-08-13') {
-      throw new Error('Accept the current location consent and Terms and Conditions before applying as a Companion')
+      throw new ConvexError('Accept the current location consent and Terms and Conditions before applying as a Companion')
     }
     const { bio: _bio, ...applicationArgs } = args
     // New Companion profiles skip profile review. Identity and safety review is
@@ -359,7 +359,7 @@ export const submitApplication = mutation({
       : await ctx.db.insert('companionProfiles', { userId: viewer._id, ...patch, createdAt: now })
 
     const companion = await ctx.db.get(companionProfileId)
-    if (!companion) throw new Error('Companion profile was not saved')
+    if (!companion) throw new ConvexError('Companion profile was not saved')
     await syncCompanionLocation(ctx, companion, viewer)
 
     await writeAudit(ctx, {
@@ -379,7 +379,7 @@ export const updateHourlyRate = mutation({
     const viewer = await requireViewer(ctx)
     const hourlyRateCentavos = validateCompanionHourlyRateCentavos(args.hourlyRateCentavos)
     const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
-    if (!companion) throw new Error('Create a Companion profile before setting an hourly rate')
+    if (!companion) throw new ConvexError('Create a Companion profile before setting an hourly rate')
     await ctx.db.patch(companion._id, { hourlyRateCentavos, updatedAt: Date.now() })
     await writeAudit(ctx, {
       actorUserId: viewer._id,
@@ -395,7 +395,7 @@ export const updateHourlyRate = mutation({
 
 function validateNearbyOrigin(args: { latitude?: number; longitude?: number; radiusKm?: number }) {
   if (args.radiusKm !== undefined && !nearbyRadiusOptions.includes(args.radiusKm as typeof nearbyRadiusOptions[number])) {
-    throw new Error('Radius must be 5, 10, 25, 50, or 100 km')
+    throw new ConvexError('Radius must be 5, 10, 25, 50, or 100 km')
   }
   validateCoordinatePair(args.latitude, args.longitude)
   if (args.latitude === undefined || args.longitude === undefined) return null
@@ -404,14 +404,14 @@ function validateNearbyOrigin(args: { latitude?: number; longitude?: number; rad
 
 function validateCoordinatePair(latitude?: number, longitude?: number) {
   if ((latitude === undefined) !== (longitude === undefined)) {
-    throw new Error('Latitude and longitude must be provided together')
+    throw new ConvexError('Latitude and longitude must be provided together')
   }
   if (latitude === undefined || longitude === undefined) return
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-    throw new Error('Latitude must be between -90 and 90')
+    throw new ConvexError('Latitude must be between -90 and 90')
   }
   if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-    throw new Error('Longitude must be between -180 and 180')
+    throw new ConvexError('Longitude must be between -180 and 180')
   }
 }
 

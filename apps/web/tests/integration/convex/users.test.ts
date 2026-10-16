@@ -70,6 +70,13 @@ describe('usernames and onboarding', () => {
     await expect(t.withIdentity({ subject: 'first-user' }).mutation(api.users.claimUsername, {
       username: 'maya_changed',
     })).rejects.toThrow('permanent and cannot be changed')
+
+    // The message must ride on ConvexError data: Convex redacts a plain Error's
+    // text in production, so a plain Error would reach the member as an envelope.
+    const failure = await t.withIdentity({ subject: 'second-user' })
+      .mutation(api.users.claimUsername, { username: 'maya_friend' })
+      .then(() => null, (error: unknown) => error)
+    expect((failure as { data?: unknown } | null)?.data).toBe('That username is already taken.')
   })
 
   it('rejects onboarding completion without username, location, or consent metadata', async () => {

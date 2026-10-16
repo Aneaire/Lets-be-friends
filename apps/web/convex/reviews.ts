@@ -1,5 +1,5 @@
 import { mutation, query } from './_generated/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { bookingStatusAfterReview, canReviewBooking, isModerationVisible } from '@lets-be-friends/shared'
 import type { Doc } from './_generated/dataModel'
 import { adjustCounter } from './counters'
@@ -89,7 +89,7 @@ export const generateImageUploadUrl = mutation({
     const recentUploads = await ctx.db.query('reviewMediaUploads')
       .withIndex('by_user_created_at', (q) => q.eq('userId', viewer._id).gte('createdAt', now - REVIEW_UPLOAD_WINDOW_MS))
       .collect()
-    if (recentUploads.length >= MAX_REVIEW_UPLOADS_PER_DAY) throw new Error('Daily review photo limit reached')
+    if (recentUploads.length >= MAX_REVIEW_UPLOADS_PER_DAY) throw new ConvexError('Daily review photo limit reached')
     const uploadId = await ctx.db.insert('reviewMediaUploads', { userId: viewer._id, createdAt: now })
     return { uploadId, uploadUrl: await ctx.storage.generateUploadUrl() }
   },
@@ -100,15 +100,15 @@ export const registerImageUpload = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const upload = await ctx.db.get(args.uploadId)
-    if (!upload || upload.userId !== viewer._id) throw new Error('Review photo upload not found')
-    if (upload.storageId || upload.registeredAt || upload.reviewId || upload.discardedAt) throw new Error('Review photo upload has already been used')
+    if (!upload || upload.userId !== viewer._id) throw new ConvexError('Review photo upload not found')
+    if (upload.storageId || upload.registeredAt || upload.reviewId || upload.discardedAt) throw new ConvexError('Review photo upload has already been used')
     const claimed = await ctx.db.query('reviewMediaUploads').withIndex('by_storage_id', (q) => q.eq('storageId', args.storageId)).first()
-    if (claimed) throw new Error('Review photo has already been claimed')
+    if (claimed) throw new ConvexError('Review photo has already been claimed')
     const metadata = await ctx.db.system.get('_storage', args.storageId)
-    if (!metadata) throw new Error('Review photo was not found')
-    if (metadata._creationTime < upload.createdAt) throw new Error('Review photo predates this upload')
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(metadata.contentType ?? '')) throw new Error('Review photos must be JPEG, PNG, or WebP')
-    if (metadata.size > MAX_REVIEW_IMAGE_SIZE) throw new Error('Review photos must be 10 MB or smaller')
+    if (!metadata) throw new ConvexError('Review photo was not found')
+    if (metadata._creationTime < upload.createdAt) throw new ConvexError('Review photo predates this upload')
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(metadata.contentType ?? '')) throw new ConvexError('Review photos must be JPEG, PNG, or WebP')
+    if (metadata.size > MAX_REVIEW_IMAGE_SIZE) throw new ConvexError('Review photos must be 10 MB or smaller')
     const now = Date.now()
     await ctx.db.patch(upload._id, { storageId: args.storageId, contentType: metadata.contentType, size: metadata.size, registeredAt: now })
     return { uploadId: upload._id, storageId: args.storageId }
@@ -120,11 +120,11 @@ export const discardImageUpload = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const upload = await ctx.db.get(args.uploadId)
-    if (!upload || upload.userId !== viewer._id) throw new Error('Review photo upload not found')
-    if (upload.reviewId) throw new Error('A published review photo cannot be discarded')
+    if (!upload || upload.userId !== viewer._id) throw new ConvexError('Review photo upload not found')
+    if (upload.reviewId) throw new ConvexError('A published review photo cannot be discarded')
     if (upload.discardedAt) return
     const storageId = upload.storageId ?? args.storageId
-    if (upload.storageId && args.storageId && upload.storageId !== args.storageId) throw new Error('Storage object does not match this review photo')
+    if (upload.storageId && args.storageId && upload.storageId !== args.storageId) throw new ConvexError('Storage object does not match this review photo')
     if (storageId) await ctx.storage.delete(storageId)
     await ctx.db.patch(upload._id, { discardedAt: Date.now() })
   },
@@ -135,7 +135,7 @@ export const toggleSave = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const review = await ctx.db.get(args.reviewId)
-    if (!review || !isModerationVisible(review)) throw new Error('Review not found')
+    if (!review || !isModerationVisible(review)) throw new ConvexError('Review not found')
     const existing = await ctx.db.query('savedReviews').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('reviewId', args.reviewId)).first()
     if (existing) {
       await ctx.db.delete(existing._id)
@@ -153,7 +153,7 @@ export const toggleLike = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const review = await ctx.db.get(args.reviewId)
-    if (!review || !isModerationVisible(review)) throw new Error('Review not found')
+    if (!review || !isModerationVisible(review)) throw new ConvexError('Review not found')
     await requireNotBlocked(ctx, viewer._id, review.reviewerId)
     await consumeRateLimit(ctx, viewer._id, 'toggle_reaction')
     const existing = await ctx.db.query('reviewReactions').withIndex('by_pair', (q) => q.eq('userId', viewer._id).eq('reviewId', args.reviewId)).first()
@@ -173,11 +173,11 @@ export const createComment = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const review = await ctx.db.get(args.reviewId)
-    if (!review || !isModerationVisible(review)) throw new Error('Review not found')
+    if (!review || !isModerationVisible(review)) throw new ConvexError('Review not found')
     await requireNotBlocked(ctx, viewer._id, review.reviewerId)
     const body = args.body.trim()
-    if (!body) throw new Error('Comment cannot be empty')
-    if (body.length > 500) throw new Error('Comment is too long')
+    if (!body) throw new ConvexError('Comment cannot be empty')
+    if (body.length > 500) throw new ConvexError('Comment is too long')
     await consumeRateLimit(ctx, viewer._id, 'create_comment')
     const now = Date.now()
     const commentId = await ctx.db.insert('reviewComments', {
@@ -199,10 +199,10 @@ export const deleteComment = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const comment = await ctx.db.get(args.commentId)
-    if (!comment || comment.authorId !== viewer._id) throw new Error('Only the author can delete this comment')
+    if (!comment || comment.authorId !== viewer._id) throw new ConvexError('Only the author can delete this comment')
     if (comment.hidden) return
     const review = await ctx.db.get(comment.reviewId)
-    if (!review || !isModerationVisible(review)) throw new Error('Review not found')
+    if (!review || !isModerationVisible(review)) throw new ConvexError('Review not found')
     await ctx.db.patch(args.commentId, { hidden: true, updatedAt: Date.now() })
     await ctx.db.patch(review._id, { commentCount: adjustCounter(review.commentCount, -1) })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'review.comment.deleted', targetType: 'comment', targetId: String(args.commentId) })
@@ -213,24 +213,24 @@ export const submit = mutation({
   args: { bookingId: v.id('bookings'), rating: v.number(), body: v.optional(v.string()), imageUploadId: v.optional(v.id('reviewMediaUploads')) },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (args.rating < 1 || args.rating > 5) throw new Error('Rating must be between 1 and 5')
+    if (args.rating < 1 || args.rating > 5) throw new ConvexError('Rating must be between 1 and 5')
     const booking = await ctx.db.get(args.bookingId)
-    if (!booking) throw new Error('Booking not found')
-    if (!canReviewBooking(booking.status)) throw new Error('Reviews require a completed booking')
+    if (!booking) throw new ConvexError('Booking not found')
+    if (!canReviewBooking(booking.status)) throw new ConvexError('Reviews require a completed booking')
     const companion = await ctx.db.get(booking.companionProfileId)
-    if (!companion) throw new Error('Companion profile not found')
+    if (!companion) throw new ConvexError('Companion profile not found')
     const isMember = booking.memberId === viewer._id
     const isCompanion = companion.userId === viewer._id
-    if (!isMember && !isCompanion) throw new Error('Not your booking')
+    if (!isMember && !isCompanion) throw new ConvexError('Not your booking')
     const existing = await ctx.db.query('reviews').withIndex('by_booking_reviewer', (q) => q.eq('bookingId', args.bookingId).eq('reviewerId', viewer._id)).first()
-    if (existing) throw new Error('You have already reviewed this booking')
+    if (existing) throw new ConvexError('You have already reviewed this booking')
     const otherParticipantId = isMember ? companion.userId : booking.memberId
     const otherReview = await ctx.db.query('reviews').withIndex('by_booking_reviewer', (q) => q.eq('bookingId', args.bookingId).eq('reviewerId', otherParticipantId)).first()
     const body = args.body?.trim() || undefined
-    if (body && body.length > 1000) throw new Error('Review is too long')
+    if (body && body.length > 1000) throw new ConvexError('Review is too long')
     const upload = args.imageUploadId ? await ctx.db.get(args.imageUploadId) : null
     if (args.imageUploadId && (!upload || upload.userId !== viewer._id || !upload.storageId || !upload.registeredAt || upload.reviewId || upload.discardedAt)) {
-      throw new Error('Review photo upload is not ready')
+      throw new ConvexError('Review photo upload is not ready')
     }
     const now = Date.now()
     const reviewId = await ctx.db.insert('reviews', { bookingId: args.bookingId, reviewerId: viewer._id, revieweeId: otherParticipantId, companionProfileId: isMember ? booking.companionProfileId : undefined, rating: args.rating, body, imageStorageId: upload?.storageId, likeCount: 0, commentCount: 0, createdAt: now })

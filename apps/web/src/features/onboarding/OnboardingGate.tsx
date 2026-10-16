@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { api } from '../../../convex/_generated/api'
 import { BrandLogo } from '../../design-system/atoms/BrandLogo'
-import { onboardingGateDecision } from '../../lib/onboarding'
+import { onboardingGateDecision } from '../../lib/onboarding';
+import { describeConvexError } from '../../lib/convexErrors'
 
 export const ONBOARDING_RECOVERY_DELAY_MS = 15_000
 
@@ -60,7 +61,7 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
           expectedClerkUserId: userId,
         })
       } catch (error) {
-        setProvisionError(error instanceof Error ? error.message : 'Account setup failed. Please try again.')
+        setProvisionError(error instanceof Error ? describeConvexError(error) : 'Account setup failed. Please try again.')
       } finally {
         setProvisioning(false)
       }

@@ -22,7 +22,8 @@ import {
   type CompanionProfileValues,
 } from '../features/companion-application/companionProfileForm'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
-import { identityEntitlementStatus, memberVerificationPresentation, canOpenCompanionProfile, type MemberVerificationPresentation } from '../lib/memberVerification'
+import { identityEntitlementStatus, memberVerificationPresentation, canOpenCompanionProfile, type MemberVerificationPresentation } from '../lib/memberVerification';
+import { describeConvexError } from '../lib/convexErrors'
 
 export const Route = createFileRoute('/become-companion')({
   component: BecomeCompanionPage,
@@ -257,7 +258,7 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
             setSaved(true)
             onSubmitted()
           } catch (submitError) {
-            setError(submitError instanceof Error ? submitError.message : 'Your Companion profile could not be saved.')
+            setError(submitError instanceof Error ? describeConvexError(submitError) : 'Your Companion profile could not be saved.')
           } finally {
             setSaving(false)
           }

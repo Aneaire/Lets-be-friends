@@ -27,7 +27,8 @@ import { EvidenceDecision } from '../features/booking/EvidenceDecision'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { findCompanions } from '../lib/discoverySearch'
-import { ReviewForm } from '../features/profile/ReviewForm'
+import { ReviewForm } from '../features/profile/ReviewForm';
+import { describeConvexError } from '../lib/convexErrors'
 
 export const Route = createFileRoute('/app')({
   validateSearch: (search: Record<string, unknown>): { companionProfileId?: string; bookingId?: string } => ({
@@ -893,7 +894,7 @@ function BookingDialog({
             } catch (error) {
               submittingRef.current = false
               setIsSubmitting(false)
-              setSubmitError(error instanceof Error ? error.message : 'The booking could not be sent. Try again.')
+              setSubmitError(error instanceof Error ? describeConvexError(error) : 'The booking could not be sent. Try again.')
             }
           }}
         >

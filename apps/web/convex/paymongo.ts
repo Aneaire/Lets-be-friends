@@ -2,7 +2,7 @@ import { BOOKING_CURRENCY, validateTopUpCentavos } from '@lets-be-friends/shared
 import { action, internalAction, internalMutation, internalQuery } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { memberWalletV2Enabled, settleTopUpInTransaction } from './finance'
 import { writeAudit } from './lib'
 import { consumeRateLimit } from './rateLimit'
@@ -54,7 +54,7 @@ export const createTopUp = action({
 export const createMemberTopUp = action({
   args: { amountCentavos: v.number() },
   handler: async (ctx, args): Promise<TopUpResult> => {
-    if (!memberWalletV2Enabled()) throw new Error('Member-wallet top-ups are not enabled')
+    if (!memberWalletV2Enabled()) throw new ConvexError('Member-wallet top-ups are not enabled')
     return await createTopUpForPurpose(ctx, args.amountCentavos, 'member_booking_balance')
   },
 })
@@ -68,13 +68,13 @@ export const refreshMemberTopUp = action({
     expiresAt?: number
   }> => {
     const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error('Authentication required')
+    if (!identity) throw new ConvexError('Authentication required')
     const topUp = await ctx.runQuery(internal.paymongo.memberTopUpForRefresh, {
       topUpId: args.topUpId,
       clerkUserId: identity.subject,
     })
     const config = paymongoConfig()
-    if (topUp.mode !== config.mode) throw new Error('PayMongo mode mismatch')
+    if (topUp.mode !== config.mode) throw new ConvexError('PayMongo mode mismatch')
     const intent = await retrievePaymongoIntent(topUp.providerIntentId, config)
     validateCanonicalIntent(intent, {
       intentId: topUp.providerIntentId,
@@ -94,9 +94,9 @@ export const refreshMemberTopUp = action({
 
 async function createTopUpForPurpose(ctx: any, requestedAmountCentavos: number, purpose: TopUpPurpose): Promise<TopUpResult> {
   const identity = await ctx.auth.getUserIdentity()
-  if (!identity) throw new Error('Authentication required')
+  if (!identity) throw new ConvexError('Authentication required')
   const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q: any) => q.eq('clerkUserId', identity.subject)).unique()
-  if (!viewer) throw new Error('Profile sync required')
+  if (!viewer) throw new ConvexError('Profile sync required')
   await consumeRateLimit(ctx, viewer._id, 'create_topup')
   const amountCentavos = validateTopUpCentavos(requestedAmountCentavos)
   const config = paymongoConfig()
@@ -133,7 +133,7 @@ async function createTopUpForPurpose(ctx: any, requestedAmountCentavos: number, 
     })
     providerIntentId = providerResourceId(createdIntent, 'payment_intent')
     const providerClientKey = paymentIntentClientKey(createdIntent)
-    if (!providerIntentId || !providerClientKey) throw new Error('PayMongo did not return a Payment Intent ID and client key')
+    if (!providerIntentId || !providerClientKey) throw new ConvexError('PayMongo did not return a Payment Intent ID and client key')
     await ctx.runMutation(internal.paymongo.attachProviderIntent, { topUpId: prepared.topUpId, providerIntentId, providerClientKey })
 
     const paymentMethod = await paymongoRequest('/v1/payment_methods', {
@@ -144,7 +144,7 @@ async function createTopUpForPurpose(ctx: any, requestedAmountCentavos: number, 
       body: { data: { attributes: { type: 'qrph', expiry_seconds: QR_FALLBACK_LIFETIME_MS / 1_000 } } },
     })
     const providerPaymentMethodId = providerResourceId(paymentMethod, 'payment_method')
-    if (!providerPaymentMethodId) throw new Error('PayMongo did not return a QR Ph Payment Method ID')
+    if (!providerPaymentMethodId) throw new ConvexError('PayMongo did not return a QR Ph Payment Method ID')
 
     await paymongoRequest(`/v1/payment_intents/${encodeURIComponent(providerIntentId)}/attach`, {
       method: 'POST',
@@ -181,8 +181,8 @@ async function createTopUpForPurpose(ctx: any, requestedAmountCentavos: number, 
       topUpId: prepared.topUpId,
       failureCode: providerIntentId ? 'provider_result_unknown' : paymongoFailureCode(error),
     })
-    if (providerIntentId) throw new Error('QR creation is still being confirmed with PayMongo. The balance screen will reconcile it automatically.')
-    throw new Error('PayMongo QR Ph top-up could not be started. Please try again shortly.')
+    if (providerIntentId) throw new ConvexError('QR creation is still being confirmed with PayMongo. The balance screen will reconcile it automatically.')
+    throw new ConvexError('PayMongo QR Ph top-up could not be started. Please try again shortly.')
   }
 }
 
@@ -196,13 +196,13 @@ export const prepareTopUp = internalMutation({
   handler: async (ctx, args) => {
     validateTopUpCentavos(args.amountCentavos)
     const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId)).unique()
-    if (!user) throw new Error('Profile sync required')
-    if (user.suspended) throw new Error('Account is suspended')
+    if (!user) throw new ConvexError('Profile sync required')
+    if (user.suspended) throw new ConvexError('Account is suspended')
     const purpose = args.purpose ?? 'legacy_companion_fee'
-    if (purpose === 'member_booking_balance' && !memberWalletV2Enabled()) throw new Error('Member-wallet top-ups are not enabled')
+    if (purpose === 'member_booking_balance' && !memberWalletV2Enabled()) throw new ConvexError('Member-wallet top-ups are not enabled')
     if (purpose === 'legacy_companion_fee') {
       const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).first()
-      if (!companion || companion.status !== 'approved') throw new Error('An approved Companion profile is required to top up')
+      if (!companion || companion.status !== 'approved') throw new ConvexError('An approved Companion profile is required to top up')
     }
 
     const now = Date.now()
@@ -254,13 +254,13 @@ export const memberTopUpForRefresh = internalQuery({
   args: { topUpId: v.id('paymongoTopUps'), clerkUserId: v.string() },
   handler: async (ctx, args) => {
     const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId)).unique()
-    if (!user) throw new Error('Profile sync required')
-    if (user.suspended) throw new Error('Account is suspended')
+    if (!user) throw new ConvexError('Profile sync required')
+    if (user.suspended) throw new ConvexError('Account is suspended')
     const topUp = await ctx.db.get(args.topUpId)
-    if (!topUp || topUp.beneficiaryUserId !== user._id) throw new Error('Member-wallet top-up not found')
-    if (topUp.purpose !== 'member_booking_balance') throw new Error('Only member-wallet top-ups can be refreshed here')
-    if (!['creating', 'awaiting_payment', 'processing'].includes(topUp.status)) throw new Error('Member-wallet top-up is no longer active')
-    if (!topUp.providerIntentId) throw new Error('PayMongo Payment Intent is not ready')
+    if (!topUp || topUp.beneficiaryUserId !== user._id) throw new ConvexError('Member-wallet top-up not found')
+    if (topUp.purpose !== 'member_booking_balance') throw new ConvexError('Only member-wallet top-ups can be refreshed here')
+    if (!['creating', 'awaiting_payment', 'processing'].includes(topUp.status)) throw new ConvexError('Member-wallet top-up is no longer active')
+    if (!topUp.providerIntentId) throw new ConvexError('PayMongo Payment Intent is not ready')
     return { ...topUp, providerIntentId: topUp.providerIntentId }
   },
 })
@@ -269,12 +269,12 @@ export const attachProviderIntent = internalMutation({
   args: { topUpId: v.id('paymongoTopUps'), providerIntentId: v.string(), providerClientKey: v.string() },
   handler: async (ctx, args) => {
     const topUp = await ctx.db.get(args.topUpId)
-    if (!topUp) throw new Error('Top-up not found')
+    if (!topUp) throw new ConvexError('Top-up not found')
     if (topUp.providerIntentId && topUp.providerIntentId !== args.providerIntentId) {
-      throw new Error('Top-up is already attached to another Payment Intent')
+      throw new ConvexError('Top-up is already attached to another Payment Intent')
     }
     const duplicate = await ctx.db.query('paymongoTopUps').withIndex('by_provider_intent_id', (q) => q.eq('providerIntentId', args.providerIntentId)).first()
-    if (duplicate && duplicate._id !== topUp._id) throw new Error('Payment Intent is already attached to another top-up')
+    if (duplicate && duplicate._id !== topUp._id) throw new ConvexError('Payment Intent is already attached to another top-up')
     await ctx.db.patch(topUp._id, {
       providerIntentId: args.providerIntentId,
       providerClientKey: args.providerClientKey,
@@ -294,7 +294,7 @@ export const markQrReady = internalMutation({
   },
   handler: async (ctx, args) => {
     const topUp = await ctx.db.get(args.topUpId)
-    if (!topUp) throw new Error('Top-up not found')
+    if (!topUp) throw new ConvexError('Top-up not found')
     if (topUp.status === 'paid') return
     await ctx.db.patch(topUp._id, {
       providerPaymentMethodId: args.providerPaymentMethodId,
@@ -360,10 +360,10 @@ export const applyWebhookEvent = internalMutation({
   },
   handler: async (ctx, args) => {
     const event = await ctx.db.get(args.eventRecordId)
-    if (!event) throw new Error('Webhook event reservation not found')
+    if (!event) throw new ConvexError('Webhook event reservation not found')
     if (event.status === 'processed') return { outcome: 'duplicate' as const }
     const topUp = await ctx.db.query('paymongoTopUps').withIndex('by_provider_intent_id', (q) => q.eq('providerIntentId', args.intent.id)).unique()
-    if (!topUp) throw new Error('Payment Intent does not belong to a top-up')
+    if (!topUp) throw new ConvexError('Payment Intent does not belong to a top-up')
     validateCanonicalIntent(args.intent, {
       intentId: topUp.providerIntentId!,
       amountCentavos: topUp.amountCentavos,
@@ -384,7 +384,7 @@ export const applyWebhookEvent = internalMutation({
         })
       }
     } else if (args.eventType === 'payment.paid') {
-      throw new Error('Canonical Payment Intent is not paid')
+      throw new ConvexError('Canonical Payment Intent is not paid')
     } else if (args.eventType === 'payment.failed') {
       if (topUp.status !== 'paid') {
         await ctx.db.patch(topUp._id, {
@@ -405,7 +405,7 @@ export const applyWebhookEvent = internalMutation({
         })
       }
     } else {
-      throw new Error('Unsupported PayMongo event type')
+      throw new ConvexError('Unsupported PayMongo event type')
     }
 
     await ctx.db.patch(event._id, {
@@ -495,7 +495,7 @@ export const reconcilePendingTopUps = internalAction({
             body: { data: { attributes: { type: 'qrph', expiry_seconds: QR_FALLBACK_LIFETIME_MS / 1_000 } } },
           })
           const providerPaymentMethodId = providerResourceId(paymentMethod, 'payment_method')
-          if (!providerPaymentMethodId) throw new Error('PayMongo did not return a QR Ph Payment Method ID')
+          if (!providerPaymentMethodId) throw new ConvexError('PayMongo did not return a QR Ph Payment Method ID')
           await paymongoRequest(`/v1/payment_intents/${encodeURIComponent(topUp.providerIntentId)}/attach`, {
             method: 'POST',
             config,
@@ -603,15 +603,15 @@ export function paymongoConfig(): {
   const publicKey = process.env.PAYMONGO_PUBLIC_KEY?.trim()
   const webhookSecret = process.env.PAYMONGO_WEBHOOK_SECRET?.trim()
   const configuredMode = process.env.PAYMONGO_MODE?.trim().toLowerCase()
-  if (!secretKey) throw new Error('PAYMONGO_SECRET_KEY is not configured')
-  if (!publicKey) throw new Error('PAYMONGO_PUBLIC_KEY is not configured')
+  if (!secretKey) throw new ConvexError('PAYMONGO_SECRET_KEY is not configured')
+  if (!publicKey) throw new ConvexError('PAYMONGO_PUBLIC_KEY is not configured')
   const secretMode: PaymongoMode | null = secretKey.startsWith('sk_test_') ? 'test' : secretKey.startsWith('sk_live_') ? 'live' : null
   const publicMode: PaymongoMode | null = publicKey.startsWith('pk_test_') ? 'test' : publicKey.startsWith('pk_live_') ? 'live' : null
-  if (!secretMode) throw new Error('PAYMONGO_SECRET_KEY has an unsupported mode')
-  if (!publicMode) throw new Error('PAYMONGO_PUBLIC_KEY has an unsupported mode')
-  if (configuredMode !== 'test' && configuredMode !== 'live') throw new Error('PAYMONGO_MODE must be test or live')
+  if (!secretMode) throw new ConvexError('PAYMONGO_SECRET_KEY has an unsupported mode')
+  if (!publicMode) throw new ConvexError('PAYMONGO_PUBLIC_KEY has an unsupported mode')
+  if (configuredMode !== 'test' && configuredMode !== 'live') throw new ConvexError('PAYMONGO_MODE must be test or live')
   if (configuredMode !== secretMode || configuredMode !== publicMode) {
-    throw new Error('PAYMONGO_MODE does not match the PayMongo keys')
+    throw new ConvexError('PAYMONGO_MODE does not match the PayMongo keys')
   }
   return {
     secretKey,
@@ -699,11 +699,11 @@ export function parsePaymongoWebhookEvent(event: unknown) {
   const eventId = stringValue(data?.id)
   const eventType = stringValue(attributes?.type)
   const livemode = attributes?.livemode
-  if (!eventId || !eventType || typeof livemode !== 'boolean') throw new Error('Invalid PayMongo event envelope')
-  if (!['payment.paid', 'payment.failed', 'qrph.expired'].includes(eventType)) throw new Error('Unsupported PayMongo event type')
+  if (!eventId || !eventType || typeof livemode !== 'boolean') throw new ConvexError('Invalid PayMongo event envelope')
+  if (!['payment.paid', 'payment.failed', 'qrph.expired'].includes(eventType)) throw new ConvexError('Unsupported PayMongo event type')
   const resource = asRecord(attributes?.data)
   const providerIntentId = extractPaymentIntentId(resource)
-  if (!providerIntentId) throw new Error('PayMongo event is missing its Payment Intent ID')
+  if (!providerIntentId) throw new ConvexError('PayMongo event is missing its Payment Intent ID')
   return { eventId, eventType, mode: (livemode ? 'live' : 'test') as PaymongoMode, providerIntentId }
 }
 
@@ -717,7 +717,7 @@ export function normalizeCanonicalIntent(response: unknown): CanonicalPaymongoIn
   const status = stringValue(attributes?.status)
   const livemode = attributes?.livemode
   if (!id || amountCentavos === undefined || !currency || !status || typeof livemode !== 'boolean') {
-    throw new Error('PayMongo returned an incomplete Payment Intent')
+    throw new ConvexError('PayMongo returned an incomplete Payment Intent')
   }
 
   const methodTypes = new Set<string>()
@@ -760,11 +760,11 @@ export function validateCanonicalIntent(
   intent: CanonicalPaymongoIntent,
   expected: { intentId: string; amountCentavos: number; currency: string; mode: PaymongoMode },
 ) {
-  if (intent.id !== expected.intentId) throw new Error('PayMongo Payment Intent ID mismatch')
-  if (intent.amountCentavos !== expected.amountCentavos) throw new Error('PayMongo top-up amount mismatch')
-  if (intent.currency !== expected.currency.toUpperCase()) throw new Error('PayMongo top-up currency mismatch')
-  if (intent.mode !== expected.mode) throw new Error('PayMongo mode mismatch')
-  if (!intent.methodTypes.includes('qrph')) throw new Error('PayMongo Payment Intent is not QR Ph')
+  if (intent.id !== expected.intentId) throw new ConvexError('PayMongo Payment Intent ID mismatch')
+  if (intent.amountCentavos !== expected.amountCentavos) throw new ConvexError('PayMongo top-up amount mismatch')
+  if (intent.currency !== expected.currency.toUpperCase()) throw new ConvexError('PayMongo top-up currency mismatch')
+  if (intent.mode !== expected.mode) throw new ConvexError('PayMongo mode mismatch')
+  if (!intent.methodTypes.includes('qrph')) throw new ConvexError('PayMongo Payment Intent is not QR Ph')
 }
 
 export async function sha256Hex(value: string | Uint8Array) {

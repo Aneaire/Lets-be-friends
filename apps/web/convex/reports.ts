@@ -1,7 +1,7 @@
 import { MEMBER_WALLET_PRICING_MODEL } from '@lets-be-friends/shared'
 import { mutation, type MutationCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
 import { requireCirclePreview, requirePostAudienceRead } from './circleAuthorization'
 import { isHiddenByPreference } from './safety'
@@ -17,8 +17,8 @@ export const create = mutation({
     const viewer = await requireViewer(ctx)
     await consumeRateLimit(ctx, viewer._id, 'create_report')
     const reason = args.reason.trim()
-    if (!reason) throw new Error('Report reason is required')
-    if (reason.length > 2_000) throw new Error('Report reason must be 2000 characters or fewer')
+    if (!reason) throw new ConvexError('Report reason is required')
+    if (reason.length > 2_000) throw new ConvexError('Report reason must be 2000 characters or fewer')
     const now = Date.now()
     let bookingId: Id<'bookings'> | undefined
     let circleId: Id<'circles'> | undefined
@@ -26,59 +26,59 @@ export const create = mutation({
 
     if (args.targetType === 'profile') {
       const profile = await safeGet(ctx, 'companionProfiles', args.targetId)
-      if (!profile || profile.status !== 'approved') throw new Error('Profile not found')
+      if (!profile || profile.status !== 'approved') throw new ConvexError('Profile not found')
       const owner = await ctx.db.get(profile.userId)
-      if (!owner || owner.suspended) throw new Error('Profile not found')
-      if (owner._id === viewer._id) throw new Error('You cannot report your own profile')
+      if (!owner || owner.suspended) throw new ConvexError('Profile not found')
+      if (owner._id === viewer._id) throw new ConvexError('You cannot report your own profile')
     } else if (args.targetType === 'booking') {
       const booking = await safeGet(ctx, 'bookings', args.targetId)
-      if (!booking) throw new Error('Booking not found')
+      if (!booking) throw new ConvexError('Booking not found')
       const companion = await ctx.db.get(booking.companionProfileId)
-      if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new Error('Only a booking participant can report this booking')
+      if (booking.memberId !== viewer._id && companion?.userId !== viewer._id) throw new ConvexError('Only a booking participant can report this booking')
       bookingId = booking._id
       if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && ['reserved', 'pending', 'blocked'].includes(booking.settlementState ?? '')) {
         settlementHoldAppliedAt = now
       }
     } else if (args.targetType === 'message') {
       const message = await safeGet(ctx, 'directMessages', args.targetId)
-      if (!message || !message.reportable) throw new Error('Message not found')
+      if (!message || !message.reportable) throw new ConvexError('Message not found')
       const conversation = await ctx.db.get(message.conversationId)
       const participant = conversation && (conversation.participantOneId === viewer._id || conversation.participantTwoId === viewer._id)
-      if (!participant) throw new Error('Only a conversation participant can report this message')
-      if (message.senderId === viewer._id) throw new Error('You cannot report your own message')
+      if (!participant) throw new ConvexError('Only a conversation participant can report this message')
+      if (message.senderId === viewer._id) throw new ConvexError('You cannot report your own message')
     } else if (args.targetType === 'review') {
       const review = await safeGet(ctx, 'reviews', args.targetId)
-      if (!review || review.hidden === true) throw new Error('Review not found')
-      if (review.reviewerId === viewer._id) throw new Error('You cannot report your own review')
+      if (!review || review.hidden === true) throw new ConvexError('Review not found')
+      if (review.reviewerId === viewer._id) throw new ConvexError('You cannot report your own review')
     } else if (args.targetType === 'post') {
       const post = await safeGet(ctx, 'posts', args.targetId)
-      if (!post || post.hidden || post.deletedAt || post.circleRemovedAt || !post.reportable) throw new Error('Post not found')
+      if (!post || post.hidden || post.deletedAt || post.circleRemovedAt || !post.reportable) throw new ConvexError('Post not found')
       if (post.circleId) {
         await requirePostAudienceRead(ctx, post)
-        if (await isHiddenByPreference(ctx, viewer._id, post.authorId)) throw new Error('Post not found')
+        if (await isHiddenByPreference(ctx, viewer._id, post.authorId)) throw new ConvexError('Post not found')
         circleId = post.circleId
       }
-      if (post.authorId === viewer._id) throw new Error('You cannot report your own post')
+      if (post.authorId === viewer._id) throw new ConvexError('You cannot report your own post')
     } else if (args.targetType === 'comment') {
       const comment = await safeGet(ctx, 'postComments', args.targetId)
-      if (!comment || comment.hidden || comment.circleRemovedAt || !comment.reportable) throw new Error('Comment not found')
+      if (!comment || comment.hidden || comment.circleRemovedAt || !comment.reportable) throw new ConvexError('Comment not found')
       const post = await ctx.db.get(comment.postId)
-      if (!post || post.hidden || post.deletedAt || post.circleRemovedAt || !post.reportable) throw new Error('Comment not found')
+      if (!post || post.hidden || post.deletedAt || post.circleRemovedAt || !post.reportable) throw new ConvexError('Comment not found')
       if (post.circleId) {
         await requirePostAudienceRead(ctx, post)
-        if (await isHiddenByPreference(ctx, viewer._id, post.authorId) || await isHiddenByPreference(ctx, viewer._id, comment.authorId)) throw new Error('Comment not found')
+        if (await isHiddenByPreference(ctx, viewer._id, post.authorId) || await isHiddenByPreference(ctx, viewer._id, comment.authorId)) throw new ConvexError('Comment not found')
         circleId = post.circleId
       }
-      if (comment.authorId === viewer._id) throw new Error('You cannot report your own comment')
+      if (comment.authorId === viewer._id) throw new ConvexError('You cannot report your own comment')
     } else if (args.targetType === 'circle') {
       const circle = await safeGet(ctx, 'circles', args.targetId)
-      if (!circle || circle.state !== 'active') throw new Error('Circle not found')
+      if (!circle || circle.state !== 'active') throw new ConvexError('Circle not found')
       await requireCirclePreview(ctx, circle._id)
       circleId = circle._id
     } else {
       const user = await safeGet(ctx, 'users', args.targetId)
-      if (!user || user.suspended) throw new Error('Member not found')
-      if (user._id === viewer._id) throw new Error('You cannot report yourself')
+      if (!user || user.suspended) throw new ConvexError('Member not found')
+      if (user._id === viewer._id) throw new ConvexError('You cannot report yourself')
     }
 
     if (bookingId && settlementHoldAppliedAt) {
