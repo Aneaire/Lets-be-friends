@@ -6,6 +6,7 @@ import {
   canCancelBooking,
   canCompleteBooking,
   canReadBookingMessages,
+  formatPhp,
   nextSaturdayManilaCutoff,
   validateBookingDurationMinutes,
   validateCompanionHourlyRateCentavos,
@@ -121,7 +122,7 @@ export const createDraft = mutation({
     const price = calculateMemberWalletBookingPrice(hourlyRateCentavos, durationMinutes)
     const availableCentavos = await availableMemberBookingBalance(ctx, viewer._id)
     if (availableCentavos < price.memberTotalCentavos) {
-      throw new Error(`Insufficient booking balance. Add at least ${price.memberTotalCentavos - availableCentavos} more centavos before sending.`)
+      throw new Error(`Insufficient booking balance. Add at least ${formatPhp(price.memberTotalCentavos - availableCentavos)} to your wallet before sending.`)
     }
 
     const now = Date.now()
@@ -201,7 +202,7 @@ export const editRequest = mutation({
     const price = calculateMemberWalletBookingPrice(hourlyRateCentavos, durationMinutes)
     const availableCentavos = await availableMemberBookingBalance(ctx, viewer._id)
     if (availableCentavos < price.memberTotalCentavos) {
-      throw new Error(`Insufficient booking balance. Add at least ${price.memberTotalCentavos - availableCentavos} more centavos before updating.`)
+      throw new Error(`Insufficient booking balance. Add at least ${formatPhp(price.memberTotalCentavos - availableCentavos)} to your wallet before updating.`)
     }
 
     const now = Date.now()

@@ -2,7 +2,7 @@ import { safeProductError } from '@/data/productErrors'
 
 describe('safe product error mapping', () => {
   it('maps known booking failures to fixed product copy', () => {
-    expect(safeProductError('create_booking', new Error('Insufficient booking balance. Add at least 12345 more centavos.'))).toBe('Your booking balance is not enough for this request.')
+    expect(safeProductError('create_booking', new Error('Insufficient booking balance. Add at least ₱123.45 to your wallet before sending.'))).toBe('Your booking balance is not enough for this request.')
     expect(safeProductError('create_booking', new Error('A current identity check is required'))).toBe('Identity verification must be approved before you can request a booking.')
   })
 

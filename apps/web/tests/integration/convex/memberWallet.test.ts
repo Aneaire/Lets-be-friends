@@ -153,7 +153,7 @@ describe('member-wallet booking ledger', () => {
   it('rejects insufficient send balance and atomically leaves request_sent unchanged if acceptance recheck fails', async () => {
     const insufficient = createTest()
     const lowIds = await seed(insufficient, TOTAL - 1)
-    await expect(createBooking(insufficient, lowIds.companionProfileId)).rejects.toThrow('Insufficient booking balance')
+    await expect(createBooking(insufficient, lowIds.companionProfileId)).rejects.toThrow('Insufficient booking balance. Add at least ₱0.01 to your wallet before sending.')
     expect(await insufficient.run(async (ctx) => ctx.db.query('bookings').collect())).toHaveLength(0)
 
     const t = createTest()

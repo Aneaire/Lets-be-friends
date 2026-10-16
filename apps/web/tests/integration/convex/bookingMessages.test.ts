@@ -268,6 +268,26 @@ describe('booking requests framed in direct messages', () => {
     })
   })
 
+  it('reports an insufficient edit balance in pesos rather than internal centavos', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const created = await createRequest(t, ids.companionProfileId)
+    await t.run(async (ctx) => {
+      const account = await ctx.db.query('walletAccounts')
+        .withIndex('by_deterministic_key', (q) => q.eq('deterministicKey', `member:${ids.memberId}:booking`))
+        .unique()
+      await ctx.db.patch(account!._id, { availableCentavos: TOTAL - 1, updatedAt: Date.now() })
+    })
+
+    await expect(t.withIdentity({ subject: 'req-member' }).mutation(api.bookings.editRequest, {
+      bookingId: created.bookingId,
+      category: 'Coffee or meal companion',
+      mode: 'online',
+      requestedAt: Date.now() + 86_400_000,
+      durationMinutes: 60,
+    })).rejects.toThrow('Insufficient booking balance. Add at least ₱0.01 to your wallet before updating.')
+  })
+
   it('does not mutate linked verification history when a booking is cancelled', async () => {
     const t = createTest()
     const ids = await seed(t)
