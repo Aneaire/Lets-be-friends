@@ -123,4 +123,60 @@ describe('identity image panel', () => {
     await waitFor(() => expectImageRendered('Front of ID'))
     expect(state.readReviewImage).toHaveBeenCalledTimes(3)
   })
+  // Holds the fetch open until the test releases it, so the loading state is
+  // observable. Every pending call must be released, not just the last one.
+  function deferredLoader() {
+    const resolvers: Array<() => void> = []
+    return {
+      impl: async () => {
+        await new Promise<void>((resolve) => { resolvers.push(resolve) })
+        return grant(Date.now() + 5 * 60 * 1000)
+      },
+      releaseAll: async () => {
+        await act(async () => {
+          for (const resolve of resolvers.splice(0)) resolve()
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+      },
+    }
+  }
+
+  it('draws a placeholder per expected image while loading, then replaces them', async () => {
+    const loader = deferredLoader()
+    state.readReviewImage.mockImplementation(loader.impl)
+    const view = render(<IdentityImagePanel verificationRequestId="req-1" imageKinds={['id_front', 'id_back', 'selfie']} />)
+
+    // One skeleton per requested image, with the grid still announced as busy.
+    await waitFor(() => expect(view.container.querySelectorAll('.identity-image-skeleton')).toHaveLength(3))
+    expect(screen.getByText('Loading identity images...')).toBeTruthy()
+    expect(view.container.querySelector('.identity-image-grid')?.getAttribute('aria-busy')).toBe('true')
+    expect(screen.queryByRole('button', { name: 'Open Front of ID larger' })).toBeNull()
+
+    await loader.releaseAll()
+
+    await waitFor(() => expect(view.container.querySelectorAll('.identity-image-skeleton')).toHaveLength(0))
+    for (const label of ['Front of ID', 'Back of ID', 'Current selfie']) expectImageRendered(label)
+    expect(view.container.querySelector('.identity-image-grid')?.getAttribute('aria-busy')).toBeNull()
+  })
+
+  it('keeps the current images on screen while a reload fetches new bytes', async () => {
+    render(<IdentityImagePanel verificationRequestId="req-1" imageKinds={['id_front']} />)
+    await waitFor(() => expectImageRendered('Front of ID'))
+    const firstUrl = thumbnail('Front of ID').querySelector('img')?.getAttribute('src')
+
+    const loader = deferredLoader()
+    state.readReviewImage.mockImplementation(loader.impl)
+    fireEvent.click(screen.getByRole('button', { name: 'Reload images' }))
+
+    // The old blob must not be revoked while it is still displayed.
+    const reloading = await screen.findByRole('button', { name: 'Loading...' })
+    expect((reloading as HTMLButtonElement).disabled).toBe(true)
+    expect(thumbnail('Front of ID').querySelector('img')?.getAttribute('src')).toBe(firstUrl)
+    expect(globalThis.URL.revokeObjectURL).not.toHaveBeenCalled()
+
+    await loader.releaseAll()
+    await waitFor(() => expect(globalThis.URL.revokeObjectURL).toHaveBeenCalledWith(firstUrl))
+    expectImageRendered('Front of ID')
+  })
 })

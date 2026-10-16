@@ -1009,6 +1009,11 @@
       animation: none;
       transition: none;
     }
+
+    .identity-image-skeleton-media,
+    .identity-image-skeleton-caption {
+      animation: none;
+    }
   }
 
   /* Identity evidence review: every retained image renders at once, and each one
@@ -1037,6 +1042,50 @@
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+
+  /* Placeholder drawn while the first batch of bytes loads, sized to match a real
+     thumbnail so the grid does not jump when the images arrive. */
+  .identity-image-skeleton {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--surface-sunk);
+  }
+
+  .identity-image-skeleton-media {
+    display: block;
+    height: 12rem;
+    border-radius: 6px;
+  }
+
+  .identity-image-skeleton-caption {
+    display: block;
+    width: 45%;
+    height: 1.05rem;
+    border-radius: 6px;
+  }
+
+  .identity-image-skeleton-media,
+  .identity-image-skeleton-caption {
+    /* Theme-aware sweep built from defined tokens. --surface-subtle is referenced
+       elsewhere in this file but is not defined, so a rule using it silently
+       drops its background. */
+    background: linear-gradient(
+      90deg,
+      var(--surface) 0%,
+      color-mix(in oklch, var(--surface) 88%, var(--text)) 50%,
+      var(--surface) 100%
+    );
+    background-size: 200% 100%;
+    animation: identity-image-shimmer 1.4s ease-in-out infinite;
+  }
+
+  @keyframes identity-image-shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
   }
 
   .identity-image-thumb {

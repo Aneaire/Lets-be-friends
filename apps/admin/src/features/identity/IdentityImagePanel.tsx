@@ -38,6 +38,7 @@ function accessSummary({ expired, loading, hasImages, expiresAt }: { expired: bo
 // keep it renderable with nothing wired up, which is what the stories do.
 export function IdentityEvidenceGrid({
   images = [],
+  expectedKinds = [],
   expiresAt = null,
   loading = false,
   expired = false,
@@ -45,12 +46,15 @@ export function IdentityEvidenceGrid({
   onOpenImage = () => undefined,
 }: {
   images?: IdentityEvidenceImage[]
+  /** Placeholders to draw while the first batch loads, so the grid never collapses. */
+  expectedKinds?: IdentityImageKind[]
   expiresAt?: number | null
   loading?: boolean
   expired?: boolean
   onReload?: () => void
   onOpenImage?: (kind: IdentityImageKind) => void
 }) {
+  const placeholders = loading && images.length === 0 ? expectedKinds : []
   return (
     <div className="identity-image-review">
       <div className="identity-image-review-head">
@@ -59,7 +63,7 @@ export function IdentityEvidenceGrid({
           {loading ? 'Loading...' : 'Reload images'}
         </button>
       </div>
-      <ul className="identity-image-grid">
+      <ul className="identity-image-grid" aria-busy={loading || undefined}>
         {images.map((image) => (
           <li key={image.kind}>
             <button
@@ -76,7 +80,14 @@ export function IdentityEvidenceGrid({
             </button>
           </li>
         ))}
-        {images.length === 0 && !loading && <li><p className="text-meta">Images will appear here.</p></li>}
+        {placeholders.map((kind) => (
+          // Decorative: the summary line already announces that images are loading.
+          <li key={`skeleton-${kind}`} className="identity-image-skeleton" aria-hidden="true">
+            <span className="identity-image-skeleton-media" />
+            <span className="identity-image-skeleton-caption" />
+          </li>
+        ))}
+        {images.length === 0 && placeholders.length === 0 && !loading && <li><p className="text-meta">Images will appear here.</p></li>}
       </ul>
     </div>
   )
@@ -135,7 +146,8 @@ export function IdentityImagePanel({ verificationRequestId, imageKinds }: { veri
   const [expiresAt, setExpiresAt] = useState<number | null>(null)
   const [expired, setExpired] = useState(false)
   const objectUrls = useRef<string[]>([])
-  const kindKey = (imageKinds ?? allImageKinds).join(',')
+  const kinds = imageKinds ?? allImageKinds
+  const kindKey = kinds.join(',')
 
   const releaseImages = useCallback(() => {
     for (const url of objectUrls.current) URL.revokeObjectURL(url)
@@ -143,15 +155,17 @@ export function IdentityImagePanel({ verificationRequestId, imageKinds }: { veri
   }, [])
 
   const load = useCallback(async () => {
-    const kinds = kindKey ? (kindKey.split(',') as IdentityImageKind[]) : []
-    if (kinds.length === 0) {
+    const requested = kindKey ? (kindKey.split(',') as IdentityImageKind[]) : []
+    if (requested.length === 0) {
       setImages([])
       return
     }
     setLoading(true)
     setExpired(false)
-    releaseImages()
-    const loaded = await Promise.all(kinds.map(async (kind): Promise<IdentityEvidenceImage & { displayUntil: number | null }> => {
+    // New bytes are collected before the previous ones are released, so a reload
+    // never blanks the images the reviewer is already looking at.
+    const alreadyHeld = objectUrls.current.length
+    const loaded = await Promise.all(requested.map(async (kind): Promise<IdentityEvidenceImage & { displayUntil: number | null }> => {
       const label = imageKindLabel(kind)
       try {
         const result = await readImageRef.current({ verificationRequestId, kind })
@@ -162,11 +176,13 @@ export function IdentityImagePanel({ verificationRequestId, imageKinds }: { veri
         return { kind, label, url: null, error: describeConvexError(caught), displayUntil: null }
       }
     }))
+    for (const url of objectUrls.current.slice(0, alreadyHeld)) URL.revokeObjectURL(url)
+    objectUrls.current = objectUrls.current.slice(alreadyHeld)
     setImages(loaded.map(({ kind, label, url, error }) => ({ kind, label, url, error })))
     const grants = loaded.map((image) => image.displayUntil).filter((value): value is number => typeof value === 'number')
     setExpiresAt(grants.length > 0 ? Math.min(...grants) : null)
     setLoading(false)
-  }, [kindKey, releaseImages, verificationRequestId])
+  }, [kindKey, verificationRequestId])
 
   useEffect(() => {
     void load()
@@ -199,6 +215,7 @@ export function IdentityImagePanel({ verificationRequestId, imageKinds }: { veri
     <div className="mt-3">
       <IdentityEvidenceGrid
         images={images}
+        expectedKinds={kinds}
         expiresAt={expiresAt}
         loading={loading}
         expired={expired}

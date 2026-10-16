@@ -24,8 +24,9 @@ const grantedUntil = Date.UTC(2026, 9, 16, 21, 4)
 
 // Adds the lightbox interaction the dialog wires up, so the stories show the
 // same behaviour a reviewer gets.
-function GridHarness({ images = [], expiresAt = null, loading = false, expired = false }: {
+function GridHarness({ images = [], expectedKinds = [], expiresAt = null, loading = false, expired = false }: {
   images?: IdentityEvidenceImage[]
+  expectedKinds?: IdentityImageKind[]
   expiresAt?: number | null
   loading?: boolean
   expired?: boolean
@@ -36,6 +37,7 @@ function GridHarness({ images = [], expiresAt = null, loading = false, expired =
     <>
       <IdentityEvidenceGrid
         images={images}
+        expectedKinds={expectedKinds}
         expiresAt={expiresAt}
         loading={loading}
         expired={expired}
@@ -99,11 +101,19 @@ export const LightboxOpen: Story = {
 }
 
 export const Loading: Story = {
-  args: { images: [], loading: true, expired: false },
+  args: { images: [], expectedKinds: ['id_front', 'id_back', 'selfie'], loading: true, expired: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // A placeholder per expected image, so the grid keeps its shape while loading.
+    await expect(canvasElement.querySelectorAll('.identity-image-skeleton')).toHaveLength(3)
+    await expect(canvas.getByText('Loading identity images...')).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: 'Loading...' })).toBeDisabled()
+    await expect(canvasElement.querySelector('.identity-image-grid')).toHaveAttribute('aria-busy', 'true')
+  },
 }
 
 export const AccessExpired: Story = {
-  args: { images: [], loading: false, expired: true },
+  args: { images: [], expectedKinds: ['id_front'], loading: false, expired: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Image access expired. Reload to view them again.')).toBeInTheDocument()
