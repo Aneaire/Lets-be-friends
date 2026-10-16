@@ -247,6 +247,68 @@ describe('in-app identity records', () => {
     expect(approved.record?.stage).toBe('approved')
   })
 
+  it('lets a rejected member start a fresh attempt instead of locking them out', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'rejected-retry-member')
+    await insertUser(t, 'rejected-retry-admin', 'admin')
+    const member = t.withIdentity({ subject: 'rejected-retry-member' })
+
+    const started = await member.mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' })
+    if (started.mode !== 'started') throw new Error('Expected a started attempt')
+    const identityRecordId = started.identityRecordId
+    await member.action(api.identityRecords.uploadImage, { identityRecordId, kind: 'id_front', bytes: imageBytes, contentType: 'image/jpeg' })
+    await t.mutation(internal.identityRecords.prepareExtraction, { clerkUserId: 'rejected-retry-member', identityRecordId })
+    await t.mutation(internal.identityRecords.completeExtraction, { clerkUserId: 'rejected-retry-member', identityRecordId, extraction: { ...extraction } as any })
+    await member.mutation(api.identityRecords.confirmFields, {
+      identityRecordId,
+      fullLegalName: 'Example Member',
+      dateOfBirth: extraction.dateOfBirth,
+      idType: 'national_id',
+      nationality: 'PH',
+    })
+    const { token } = await member.mutation(api.identityRecords.issueSelfieCaptureToken, { identityRecordId })
+    await member.action(api.identityRecords.uploadImage, { identityRecordId, kind: 'selfie', bytes: imageBytes, contentType: 'image/jpeg', cameraCaptureToken: token })
+    await member.mutation(api.identityRecords.submit, { identityRecordId, reviewConsent: true })
+
+    const request = await t.run(async (ctx) => ctx.db.query('verificationRequests').withIndex('by_user_current', (q) => q.eq('userId', userId).eq('isCurrent', true)).unique())
+    await t.withIdentity({ subject: 'rejected-retry-admin' }).mutation(api.admin.reviewMemberVerification, {
+      verificationRequestId: request!._id,
+      decision: 'rejected',
+      note: 'Photo was unreadable.',
+      memberReason: 'unclear_image',
+    })
+
+    const rejected = await t.run(async (ctx) => ({ user: await ctx.db.get(userId), record: await ctx.db.get(identityRecordId) }))
+    expect(rejected.user?.verificationStatus).toBe('rejected')
+    expect(rejected.record?.stage).toBe('rejected')
+
+    // The rejected attempt must not block a new one, or a rejection is a lockout.
+    const restarted = await member.mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' })
+    expect(restarted.mode).toBe('started')
+    if (restarted.mode !== 'started') throw new Error('Expected a fresh attempt')
+    expect(restarted.identityRecordId).not.toBe(identityRecordId)
+
+    const after = await t.run(async (ctx) => ({
+      fresh: await ctx.db.get(restarted.identityRecordId),
+      old: await ctx.db.get(identityRecordId),
+      oldRequest: (await ctx.db.get(identityRecordId))?.verificationRequestId
+        ? await ctx.db.get((await ctx.db.get(identityRecordId))!.verificationRequestId!)
+        : null,
+      currentRequests: await ctx.db.query('verificationRequests').withIndex('by_user_current', (q) => q.eq('userId', userId).eq('isCurrent', true)).collect(),
+    }))
+    expect(after.fresh?.stage).toBe('draft')
+    expect(after.currentRequests).toHaveLength(1)
+    expect(String(after.currentRequests[0]?.identityRecordId)).toBe(String(restarted.identityRecordId))
+    // The rejected attempt stays as history and is no longer the current attempt.
+    expect(after.old?.stage).toBe('rejected')
+    expect(after.oldRequest).toMatchObject({ adminStatus: 'rejected', memberReason: 'unclear_image', isCurrent: false })
+    expect(String(after.old?.verificationRequestId)).not.toBe(String(after.currentRequests[0]?._id))
+
+    // The member lands on the upload step for the new attempt, not the rejected one.
+    const currentRecord = await member.query(api.identityRecords.current, {})
+    expect(currentRecord).toMatchObject({ _id: restarted.identityRecordId, stage: 'draft' })
+  })
+
   it('rejects superseded attempts across the whole manual workflow', async () => {
     const t = createTest()
     await insertUser(t, 'supersede-member')
