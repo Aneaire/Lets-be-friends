@@ -1010,4 +1010,134 @@
       transition: none;
     }
   }
+
+  /* Identity evidence review: every retained image renders at once, and each one
+     opens larger from its thumbnail. */
+  .identity-image-review {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .identity-image-review-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .identity-image-review-head .text-meta {
+    margin: 0;
+  }
+
+  .identity-image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .identity-image-thumb {
+    display: grid;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--surface-sunk);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .identity-image-thumb:hover:not(:disabled) {
+    border-color: var(--border);
+  }
+
+  .identity-image-thumb:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+
+  .identity-image-thumb:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+
+  .identity-image-thumb img {
+    width: 100%;
+    height: 12rem;
+    object-fit: contain;
+    border-radius: 6px;
+    background: var(--surface);
+  }
+
+  .identity-image-unavailable {
+    display: grid;
+    place-items: center;
+    height: 12rem;
+    padding: 0.5rem;
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    text-align: center;
+  }
+
+  .identity-image-caption {
+    font-size: 0.8125rem;
+    font-weight: 650;
+    color: var(--text-muted);
+  }
+
+  .identity-image-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    background: var(--app-bg);
+  }
+
+  .identity-image-lightbox-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .identity-image-lightbox-bar .text-h3 {
+    margin: 0;
+  }
+
+  .identity-image-lightbox-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .identity-image-lightbox-actions .btn {
+    text-decoration: none;
+  }
+
+  .identity-image-lightbox-stage {
+    display: grid;
+    place-items: center;
+    min-height: 0;
+    padding: 1rem;
+    cursor: zoom-out;
+  }
+
+  .identity-image-lightbox-stage img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+    background: var(--surface);
+  }
 }

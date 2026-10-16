@@ -88,6 +88,14 @@ export const memberVerifications = query({
       const companion = booking ? await ctx.db.get(booking.companionProfileId) : null
       const companionUser = companion ? await ctx.db.get(companion.userId) : null
       const identityRecord = request.identityRecordId ? await ctx.db.get(request.identityRecordId) : null
+      const reviewable = Boolean(identityRecord && isIdentityReadyForAdminReview(request))
+      // Only the images that are actually retained, so the reviewer sees every
+      // available image without calling the reader for ones that are not there.
+      const imageKinds = reviewable && identityRecord
+        ? (await ctx.db.query('identityRecordImages').withIndex('by_record_kind', (q) => q.eq('identityRecordId', identityRecord._id)).collect())
+            .filter((image) => image.storageId && !image.purgedAt)
+            .map((image) => image.kind)
+        : []
       return {
         ...request,
         requestType: request.reason === 'member'
@@ -99,7 +107,7 @@ export const memberVerifications = query({
               : 'Legacy booking verification',
         reviewAllowed: isIdentityReadyForAdminReview(request),
         approvalAllowed: canAdminApproveIdentity(request, identityRecord),
-        identityRecord: identityRecord && isIdentityReadyForAdminReview(request) ? {
+        identityRecord: reviewable && identityRecord ? {
           fullLegalName: identityRecord.fullLegalName,
           dateOfBirth: identityRecord.dateOfBirth,
           idType: identityRecord.idType,
@@ -109,6 +117,7 @@ export const memberVerifications = query({
           assessment: identityRecord.assessment,
           assessmentFlagged: isIdentityAssessmentFlagged(identityRecord.assessment, identityRecord.idType),
           assessmentFailureCode: identityRecord.assessmentFailureCode,
+          imageKinds,
           legalHoldActive: Boolean(identityRecord.legalHoldSetAt && (!identityRecord.legalHoldReleasedAt || identityRecord.legalHoldReleasedAt < identityRecord.legalHoldSetAt)),
         } : undefined,
         memberDisplayName: user?.displayName ?? 'Member',

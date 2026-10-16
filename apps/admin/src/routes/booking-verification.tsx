@@ -1,11 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useAction, useMutation, useQuery } from 'convex/react'
-import { useEffect, useState } from 'react'
+import { useMutation, useQuery } from 'convex/react'
+import { useState } from 'react'
 import { api } from '../../../web/convex/_generated/api'
 import type { IdentityAssessmentSignals } from '../../../web/convex/identityVerification'
 import { identitySignalLines } from '../lib/identitySignals'
 import { ActionNote } from '../design-system/molecules/ActionNote'
 import { AdminWorklistPagePresentation } from '../design-system/templates/AdminWorklistPagePresentation'
+import { IdentityImagePanel } from '../features/identity/IdentityImagePanel'
 
 type VerificationStatus = 'not_ready' | 'pending' | 'approved' | 'rejected' | 'all'
 
@@ -122,7 +123,7 @@ function BookingVerificationPage() {
               {verification.identityRecord.assessment && <IdentitySignalSummary assessment={verification.identityRecord.assessment} />}
               {verification.identityRecord.assessmentFlagged && <p className="text-meta">One or more image signals fall below the review threshold. Compare the document against the confirmed details before approving.</p>}
               {verification.identityRecord.assessmentFailureCode && <p className="text-meta">Image signals were not captured for this attempt ({formatStatus(verification.identityRecord.assessmentFailureCode)}).</p>}
-              {verification.adminStatus === 'pending' && <IdentityImageReview verificationRequestId={verification._id} />}
+              {verification.adminStatus === 'pending' && <IdentityImagePanel verificationRequestId={verification._id} imageKinds={verification.identityRecord.imageKinds} />}
             </div>
           )}
           {!verification.reviewAllowed && verification.adminStatus === 'pending' && (
@@ -143,50 +144,6 @@ function BookingVerificationPage() {
 // stays testable without rendering the admin route.
 function IdentitySignalSummary({ assessment }: { assessment: IdentityAssessmentSignals }) {
   return <>{identitySignalLines(assessment).map((line) => <p key={line} className="text-meta">{line}</p>)}</>
-}
-
-function IdentityImageReview({ verificationRequestId }: { verificationRequestId: any }) {
-  const readImage = useAction(api.identityRecords.readReviewImage)
-  const [preview, setPreview] = useState<{ url: string; label: string; displayUntil: number } | null>(null)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState('')
-
-  useEffect(() => {
-    if (!preview) return
-    const remaining = Math.max(0, preview.displayUntil - Date.now())
-    const timer = window.setTimeout(() => setPreview(null), remaining)
-    return () => {
-      window.clearTimeout(timer)
-      URL.revokeObjectURL(preview.url)
-    }
-  }, [preview])
-
-  const open = async (kind: 'id_front' | 'id_back' | 'selfie', label: string) => {
-    setLoading(kind)
-    setError('')
-    try {
-      const result = await readImage({ verificationRequestId, kind })
-      const url = URL.createObjectURL(new Blob([result.bytes], { type: result.contentType }))
-      setPreview((current) => {
-        if (current) URL.revokeObjectURL(current.url)
-        return { url, label, displayUntil: result.displayUntil }
-      })
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'The identity image could not be opened.')
-    } finally {
-      setLoading('')
-    }
-  }
-
-  return <div className="mt-3">
-    <div className="admin-filter-row">
-      <button type="button" className="btn btn-neutral btn-sm" onClick={() => void open('id_front', 'ID front')} disabled={Boolean(loading)}>{loading === 'id_front' ? 'Opening...' : 'View ID front'}</button>
-      <button type="button" className="btn btn-neutral btn-sm" onClick={() => void open('id_back', 'ID back')} disabled={Boolean(loading)}>{loading === 'id_back' ? 'Opening...' : 'View ID back'}</button>
-      <button type="button" className="btn btn-neutral btn-sm" onClick={() => void open('selfie', 'Current selfie')} disabled={Boolean(loading)}>{loading === 'selfie' ? 'Opening...' : 'View current selfie'}</button>
-    </div>
-    {preview && <div className="mt-3"><p className="text-meta">{preview.label}. Access expires {formatTime(preview.displayUntil)}.</p><img src={preview.url} alt={preview.label} className="w-full" /></div>}
-    {error && <p className="text-meta">{error}</p>}
-  </div>
 }
 
 function adminStatusTone(status: string): 'self' | 'success' | 'warning' | 'danger' {
