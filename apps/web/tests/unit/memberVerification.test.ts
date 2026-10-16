@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { canOpenCompanionProfile, identityEntitlementStatus, memberVerificationPresentation } from '../../src/lib/memberVerification'
+import { identityRejectionReasons } from '../../convex/identityVerification'
 
 describe('member verification presentation', () => {
   it('prompts a member to start Persona before any attempt exists', () => {
@@ -191,5 +192,57 @@ describe('companion profile gate', () => {
       isCurrent: false,
       reason: 'member',
     })).toBe(false)
+  })
+})
+
+describe('rejected identity attempts tell the member why', () => {
+  it('uses the reviewer reason the member was given', () => {
+    expect(memberVerificationPresentation('rejected', {
+      adminStatus: 'rejected',
+      memberReason: 'expired_id',
+    })).toMatchObject({
+      state: 'admin_rejected',
+      tone: 'danger',
+      action: 'retry',
+      guidance: expect.stringContaining('has expired'),
+    })
+    expect(memberVerificationPresentation('rejected', {
+      adminStatus: 'rejected',
+      memberReason: 'unclear_image',
+    })).toMatchObject({ guidance: expect.stringContaining('not clear enough to read') })
+    expect(memberVerificationPresentation('rejected', {
+      adminStatus: 'rejected',
+      memberReason: 'not_accepted_document',
+    })).toMatchObject({ guidance: expect.stringContaining('not an accepted government ID') })
+    expect(memberVerificationPresentation('rejected', {
+      adminStatus: 'rejected',
+      memberReason: 'selfie_unclear',
+    })).toMatchObject({ guidance: expect.stringContaining('selfie') })
+    expect(memberVerificationPresentation('rejected', {
+      adminStatus: 'rejected',
+      memberReason: 'details_mismatch',
+    })).toMatchObject({ guidance: expect.stringContaining('did not match your ID') })
+    expect(memberVerificationPresentation('rejected', {
+      adminStatus: 'rejected',
+      memberReason: 'looks_altered',
+    })).toMatchObject({ guidance: expect.stringContaining('genuine') })
+  })
+
+  it('falls back to the generic copy for an attempt rejected before reasons existed', () => {
+    for (const memberReason of [undefined, null, 'something_unexpected' as never]) {
+      expect(memberVerificationPresentation('rejected', { adminStatus: 'rejected', memberReason })).toMatchObject({
+        state: 'admin_rejected',
+        guidance: 'The safety team did not approve this identity attempt. Start a new identity check if another attempt is available.',
+      })
+    }
+    expect(memberVerificationPresentation('rejected', null)).toMatchObject({ state: 'admin_rejected' })
+  })
+
+  it('offers every reason a distinct sentence', () => {
+    const guidance = identityRejectionReasons.map((reason) => (
+      memberVerificationPresentation('rejected', { adminStatus: 'rejected', memberReason: reason.code }).guidance
+    ))
+    expect(new Set(guidance).size).toBe(identityRejectionReasons.length)
+    for (const line of guidance) expect(line).not.toContain('—')
   })
 })

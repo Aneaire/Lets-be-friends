@@ -3,6 +3,7 @@ import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { api } from '../../../web/convex/_generated/api'
 import type { IdentityAssessmentSignals } from '../../../web/convex/identityVerification'
+import { identityRejectionReasons, isIdentityRejectionReason } from '../../../web/convex/identityVerification'
 import { identitySignalLines } from '../lib/identitySignals'
 import { ActionNote } from '../design-system/molecules/ActionNote'
 import { AdminWorklistPagePresentation } from '../design-system/templates/AdminWorklistPagePresentation'
@@ -69,7 +70,17 @@ function BookingVerificationPage() {
             tone="danger"
             requireNote
             disabled={!verification.reviewAllowed}
-            onSubmit={(note) => reviewMember({ verificationRequestId: verification._id, decision: 'rejected', note })}
+            choice={{
+              label: 'Reason the member will see',
+              placeholder: 'Choose a reason',
+              options: identityRejectionReasons.map((reason) => ({ value: reason.code, label: reason.label })),
+            }}
+            onSubmit={(note, memberReason) => reviewMember({
+              verificationRequestId: verification._id,
+              decision: 'rejected',
+              note,
+              memberReason: isIdentityRejectionReason(memberReason) ? memberReason : undefined,
+            })}
           />
         </>
       )}

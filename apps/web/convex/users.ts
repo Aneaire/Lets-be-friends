@@ -114,6 +114,7 @@ export const latestMemberVerification = query({
       verificationSource: latest.verificationSource,
       identityStage: latest.identityStage,
       adminStatus: latest.adminStatus,
+      memberReason: latest.memberReason,
       isCurrent: latest.isCurrent,
       attempt: latest.attempt,
       providerCompletedAt: latest.providerCompletedAt,

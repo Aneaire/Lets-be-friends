@@ -200,6 +200,7 @@ describe('in-app member verification admin review', () => {
       verificationRequestId: requestId,
       decision: 'rejected',
       note: 'The renewal images do not match closely enough.',
+      memberReason: 'unclear_image',
     })
 
     const member = await t.run(async (ctx) => ctx.db.get(userId))
@@ -209,5 +210,106 @@ describe('in-app member verification admin review', () => {
       identityVerifiedAt: priorVerifiedAt,
       identityExpiresAt: priorExpiresAt,
     })
+  })
+})
+
+describe('identity rejection reasons', () => {
+  async function insertPendingAttempt(t: ReturnType<typeof convexTest>, clerkUserId: string) {
+    const userId = await insertUser(t, clerkUserId, 'member')
+    const requestId = await t.run(async (ctx) => {
+      const now = Date.now()
+      const recordId = await ctx.db.insert('identityRecords', {
+        userId, reason: 'member', source: 'in_app', stage: 'ready_for_review', selectedIdType: 'national_id',
+        fullLegalName: 'Rejectable Member', dateOfBirth: '1990-01-01', idType: 'national_id',
+        fieldsConfirmedAt: now, thirdPartyProcessingConsentedAt: now, reviewConsentedAt: now, submittedAt: now,
+        createdAt: now, updatedAt: now,
+      })
+      const requestId = await ctx.db.insert('verificationRequests', {
+        userId, reason: 'member', personaStatus: 'not_started', personaDecision: 'unknown', verificationSource: 'in_app',
+        identityRecordId: recordId, identityStage: 'ready_for_review', adminStatus: 'pending', isCurrent: true, attempt: 1,
+        createdAt: now, updatedAt: now,
+      })
+      await ctx.db.patch(recordId, { verificationRequestId: requestId })
+      return requestId
+    })
+    return { userId, requestId }
+  }
+
+  it('refuses a rejection that gives the member no reason', async () => {
+    const t = convexTest(schema, modules)
+    await insertUser(t, 'admin-no-reason', 'admin')
+    const { requestId } = await insertPendingAttempt(t, 'member-no-reason')
+
+    await expect(t.withIdentity({ subject: 'admin-no-reason' }).mutation(api.admin.reviewMemberVerification, {
+      verificationRequestId: requestId,
+      decision: 'rejected',
+      note: 'Internal shorthand only.',
+    })).rejects.toThrow(/requires a reason the member will see/)
+
+    // The rejection was refused outright, so nothing was decided.
+    const request = await t.run(async (ctx) => ctx.db.get(requestId))
+    expect(request?.adminStatus).toBe('pending')
+  })
+
+  it('stores the reason for the member while keeping the internal note private', async () => {
+    const t = convexTest(schema, modules)
+    await insertUser(t, 'admin-with-reason', 'admin')
+    const { userId, requestId } = await insertPendingAttempt(t, 'member-with-reason')
+
+    await t.withIdentity({ subject: 'admin-with-reason' }).mutation(api.admin.reviewMemberVerification, {
+      verificationRequestId: requestId,
+      decision: 'rejected',
+      note: 'Looks like an expired licence, second attempt this week.',
+      memberReason: 'expired_id',
+    })
+
+    const state = await t.run(async (ctx) => ({
+      request: await ctx.db.get(requestId),
+      notifications: await ctx.db.query('notifications').collect(),
+      audits: await ctx.db.query('auditLogs').collect(),
+    }))
+    expect(state.request).toMatchObject({ adminStatus: 'rejected', memberReason: 'expired_id', reviewerNote: 'Looks like an expired licence, second attempt this week.' })
+
+    // The member is notified, and the notification carries no reason or note: the
+    // detail lives in their authenticated account view instead.
+    const notified = state.notifications.filter((row) => row.recipientUserId === userId)
+    expect(notified).toHaveLength(1)
+    expect(notified[0]).toMatchObject({ kind: 'identity_verification_rejected', priority: 'attention', verificationRequestId: requestId })
+    expect(JSON.stringify(notified[0])).not.toContain('expired_id')
+    expect(JSON.stringify(notified[0])).not.toContain('expired licence')
+
+    // The audit trail keeps the internal note for safety review.
+    expect(state.audits.some((audit) => audit.action === 'member_verification.rejected')).toBe(true)
+
+    // The member's own query exposes the member-safe reason and not the note.
+    const own = await t.withIdentity({ subject: 'member-with-reason' }).query(api.users.latestMemberVerification, {})
+    expect(own?.memberReason).toBe('expired_id')
+    expect(JSON.stringify(own)).not.toContain('expired licence')
+  })
+
+  it('still allows an approval without a reason', async () => {
+    const t = convexTest(schema, modules)
+    await insertUser(t, 'admin-approve-no-reason', 'admin')
+    const { userId, requestId } = await insertPendingAttempt(t, 'member-approve-no-reason')
+
+    // Approval requires retained images, so give this attempt the two it needs.
+    await t.run(async (ctx) => {
+      const request = await ctx.db.get(requestId)
+      const now = Date.now()
+      for (const kind of ['id_front', 'selfie'] as const) {
+        const storageId = await ctx.storage.store(new Blob([`${kind}-bytes`], { type: 'image/jpeg' }))
+        await ctx.db.insert('identityRecordImages', {
+          identityRecordId: request!.identityRecordId!, userId, kind, storageId, contentType: 'image/jpeg',
+          size: 12, createdAt: now, retentionDueAt: now + 86_400_000, purgeAfter: now + 86_400_000,
+        })
+      }
+    })
+
+    await t.withIdentity({ subject: 'admin-approve-no-reason' }).mutation(api.admin.reviewMemberVerification, {
+      verificationRequestId: requestId,
+      decision: 'approved',
+      note: 'Documents match.',
+    })
+    expect((await t.run(async (ctx) => ctx.db.get(userId)))?.verificationStatus).toBe('approved')
   })
 })

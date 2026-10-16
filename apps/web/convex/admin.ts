@@ -2,7 +2,7 @@ import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { ConvexError, v } from 'convex/values'
 import { requireViewer, writeAudit } from './lib'
-import { canAdminApproveIdentity, identityApprovalExpiresAt, identityVerificationReasons, isIdentityAssessmentFlagged, isIdentityReadyForAdminReview, isIdentityVerificationReason } from './identityVerification'
+import { canAdminApproveIdentity, identityApprovalExpiresAt, identityRejectionReasonValidator, identityVerificationReasons, isIdentityAssessmentFlagged, isIdentityReadyForAdminReview, isIdentityRejectionReason, isIdentityVerificationReason } from './identityVerification'
 import { syncUserCompanionLocation } from './companionLocations'
 import { syncCompanionLocation } from './companionLocations'
 import { resolveBlockedBookingFunds as applyBlockedBookingResolution } from './finance'
@@ -261,7 +261,13 @@ export const auditLogs = query({
 })
 
 export const reviewMemberVerification = mutation({
-  args: { verificationRequestId: v.id('verificationRequests'), decision: v.union(v.literal('approved'), v.literal('rejected')), note: v.optional(v.string()) },
+  args: {
+    verificationRequestId: v.id('verificationRequests'),
+    decision: v.union(v.literal('approved'), v.literal('rejected')),
+    note: v.optional(v.string()),
+    // Required for a rejection: the member is told this reason.
+    memberReason: v.optional(identityRejectionReasonValidator),
+  },
   handler: async (ctx, args) => {
     const admin = await requireAdmin(ctx)
     const verification = await ctx.db.get(args.verificationRequestId)
@@ -301,12 +307,17 @@ export const reviewMemberVerification = mutation({
     }
 
     const note = args.decision === 'rejected' ? requireNote(args.note, 'Rejecting identity verification') : normalizeNote(args.note)
+    // A rejection must carry a reason the member will actually read.
+    const memberReason = args.decision === 'rejected'
+      ? requireMemberReason(args.memberReason)
+      : undefined
     const now = Date.now()
-    const after = { ...verification, adminStatus: args.decision, reviewerUserId: admin._id, reviewerNote: note, reviewedAt: now, updatedAt: now }
+    const after = { ...verification, adminStatus: args.decision, reviewerUserId: admin._id, reviewerNote: note, memberReason, reviewedAt: now, updatedAt: now }
     await ctx.db.patch(args.verificationRequestId, {
       adminStatus: args.decision,
       reviewerUserId: admin._id,
       reviewerNote: note,
+      memberReason,
       reviewedAt: now,
       updatedAt: now,
     })
@@ -708,6 +719,13 @@ function requireNote(value: string | undefined, action: string) {
   const note = normalizeNote(value)
   if (!note) throw new ConvexError(`${action} requires an internal note`)
   return note
+}
+
+function requireMemberReason(value: string | undefined) {
+  if (!isIdentityRejectionReason(value)) {
+    throw new ConvexError('Rejecting identity verification requires a reason the member will see')
+  }
+  return value
 }
 
 function truncate(value: string, max: number) {

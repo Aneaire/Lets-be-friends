@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
+import { identityRejectionReasonValidator } from './identityVerification'
 import { notificationKindValidator, notificationPriorityValidator } from './notificationCatalog'
 
 const role = v.union(
@@ -241,6 +242,8 @@ export default defineSchema({
     companionProfileId: v.optional(v.id('companionProfiles')),
     reviewerUserId: v.optional(v.id('users')),
     reviewerNote: v.optional(v.string()),
+    // The reviewer's internal note stays private. This is the member-safe reason.
+    memberReason: v.optional(identityRejectionReasonValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

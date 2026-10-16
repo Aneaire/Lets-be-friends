@@ -130,3 +130,40 @@ export const DangerNarrow: Story = {
     onSubmit: submitRequiredNote,
   },
 }
+
+const submitWithChoice = fn(async () => undefined)
+
+export const RequiredChoice: Story = {
+  args: {
+    label: 'Reject',
+    submitLabel: 'Reject submission',
+    tone: 'danger',
+    requireNote: true,
+    placeholder: 'Internal note',
+    choice: {
+      label: 'Reason the member will see',
+      placeholder: 'Choose a reason',
+      options: [
+        { value: 'unclear_image', label: 'The ID image was unclear or unreadable' },
+        { value: 'expired_id', label: 'The ID has expired' },
+        { value: 'other', label: 'Another reason the member should start again' },
+      ],
+    },
+    onSubmit: submitWithChoice,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Reject' }))
+    await userEvent.type(canvas.getByRole('textbox', { name: 'Internal note required' }), 'Expired licence on file.')
+
+    // The member-facing reason is required alongside the internal note.
+    await userEvent.click(canvas.getByRole('button', { name: 'Reject submission' }))
+    await expect(canvas.getByRole('alert')).toHaveTextContent('Reason the member will see required.')
+    await expect(submitWithChoice).not.toHaveBeenCalled()
+
+    await userEvent.selectOptions(canvas.getByLabelText('Reason the member will see'), 'expired_id')
+    await userEvent.click(canvas.getByRole('button', { name: 'Reject submission' }))
+    await expect(submitWithChoice).toHaveBeenCalledWith('Expired licence on file.', 'expired_id')
+    await expect(canvas.queryByRole('combobox')).not.toBeInTheDocument()
+  },
+}

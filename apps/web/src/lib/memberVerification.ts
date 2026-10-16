@@ -1,3 +1,5 @@
+import { identityRejectionGuidance, isIdentityRejectionReason, type IdentityRejectionReason } from '../../convex/identityVerification'
+
 export type MemberVerificationStatus = 'not_started' | 'pending' | 'approved' | 'rejected'
 export type PersonaStatus = 'not_started' | 'created' | 'in_progress' | 'processing' | 'completed' | 'failed' | 'expired' | 'pending' | 'approved' | 'rejected'
 export type PersonaDecision = 'unknown' | 'passed' | 'needs_review' | 'declined'
@@ -9,6 +11,7 @@ export type LatestIdentityVerification = {
   adminStatus?: AdminVerificationStatus | null
   verificationSource?: 'persona' | 'in_app' | 'legacy_manual' | null
   identityStage?: 'draft' | 'extracting' | 'confirmation_required' | 'ready_for_review' | 'failed' | 'approved' | 'rejected' | 'purged' | null
+  memberReason?: IdentityRejectionReason | null
 } | null
 
 export type MemberVerificationPresentation = {
@@ -80,7 +83,11 @@ export function memberVerificationPresentation(
       state: 'admin_rejected',
       label: 'Not approved',
       tone: 'danger',
-      guidance: 'The safety team did not approve this identity attempt. Start a new identity check if another attempt is available.',
+      // The reviewer's internal note stays private. When they picked a reason the
+      // member is told exactly what to fix; otherwise fall back to the generic copy.
+      guidance: isIdentityRejectionReason(latestRequest?.memberReason)
+        ? identityRejectionGuidance[latestRequest.memberReason]
+        : 'The safety team did not approve this identity attempt. Start a new identity check if another attempt is available.',
       action: 'retry',
     }
   }
