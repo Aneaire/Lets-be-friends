@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
-import { formatPhp } from '@lets-be-friends/shared'
+import { formatPhp, withdrawalFailureReason } from '@lets-be-friends/shared'
 import { api } from '../../../convex/_generated/api'
 import { FormField } from '../../design-system/molecules/FormField'
 
@@ -246,9 +246,14 @@ export function CompanionWithdrawalPanel() {
             <p className="text-body"><strong>Withdrawal history</strong></p>
             <div className="mt-2 divide-y divide-[color:var(--rule)]">
               {payouts.withdrawals.slice(0, 8).map((withdrawal) => (
-                <div key={withdrawal.id} className="py-3 flex items-start justify-between gap-4">
-                  <div><p className="text-body tabular">{formatPhp(withdrawal.amountCentavos)}</p><p className="text-meta mt-1">{withdrawal.institutionName} · •••• {withdrawal.accountNumberLast4} · {formatManilaDate(withdrawal.createdAt)}</p></div>
-                  <span className="status-pill" data-tone={withdrawalTone(withdrawal.status)}>{withdrawalStatusLabel(withdrawal.status)}</span>
+                <div key={withdrawal.id} className="py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div><p className="text-body tabular">{formatPhp(withdrawal.amountCentavos)}</p><p className="text-meta mt-1">{withdrawal.institutionName} · •••• {withdrawal.accountNumberLast4} · {formatManilaDate(withdrawal.createdAt)}</p></div>
+                    <span className="status-pill" data-tone={withdrawalTone(withdrawal.status)}>{withdrawalStatusLabel(withdrawal.status)}</span>
+                  </div>
+                  {(withdrawal.status === 'failed' || withdrawal.status === 'needs_review') && (
+                    <p className="text-meta mt-2 text-[color:var(--danger)]">{withdrawalFailureReason(withdrawal.failureCode, withdrawal.status)}</p>
+                  )}
                 </div>
               ))}
             </div>

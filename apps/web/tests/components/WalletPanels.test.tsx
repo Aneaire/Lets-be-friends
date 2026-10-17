@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { withdrawalFailureReason } from '@lets-be-friends/shared'
 
 const mocks = vi.hoisted(() => ({
   listAction: vi.fn(),
@@ -307,5 +308,40 @@ describe('dedicated wallet page panels', () => {
     render(<CompanionWithdrawalPanel />)
 
     expect(screen.getByText(/still syncing/)).toBeTruthy()
+  })
+
+  it('explains a returned withdrawal in plain language without exposing the raw code', () => {
+    const now = Date.now()
+    mocks.queryResult = {
+      ...withdrawalDashboard(50_000),
+      withdrawals: [{
+        id: 'wd-returned',
+        amountCentavos: 10_000,
+        providerFeeCentavos: 1_000,
+        status: 'failed',
+        institutionName: 'GoTyme Bank Corporation',
+        accountNumberLast4: '4990',
+        providerReferenceNumber: undefined,
+        failureCode: 'insufficient_wallet_balance',
+        createdAt: now,
+        updatedAt: now,
+        succeededAt: undefined,
+        failedAt: now,
+      }],
+    }
+    render(<CompanionWithdrawalPanel />)
+
+    expect(screen.getByText(/platform payout balance was still settling/i)).toBeTruthy()
+    expect(screen.queryByText(/insufficient_wallet_balance/)).toBeNull()
+  })
+
+  it('maps stored and rail failure codes to friendly reasons', () => {
+    expect(withdrawalFailureReason('insufficient_wallet_balance', 'failed')).toMatch(/still settling/i)
+    expect(withdrawalFailureReason('AM04', 'failed')).toMatch(/still settling/i)
+    expect(withdrawalFailureReason('invalid_destination_account', 'failed')).toMatch(/rejected the transfer/i)
+    expect(withdrawalFailureReason('resource_closed_state', 'failed')).toMatch(/cannot receive transfers/i)
+    expect(withdrawalFailureReason(undefined, 'needs_review')).toMatch(/has not confirmed/i)
+    expect(withdrawalFailureReason('something_unexpected', 'failed')).toMatch(/did not complete/i)
+    expect(withdrawalFailureReason('something_unexpected', 'failed')).not.toContain('something_unexpected')
   })
 })

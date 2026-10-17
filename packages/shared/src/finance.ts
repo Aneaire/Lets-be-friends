@@ -55,6 +55,42 @@ export function validateCompanionWithdrawalCentavos(value: number) {
   return value
 }
 
+export type WithdrawalSettlementState = 'queued' | 'submitting' | 'pending' | 'succeeded' | 'failed' | 'needs_review'
+
+/**
+ * Plain-language reason for a withdrawn transfer that did not complete.
+ * `failureCode` can be one of our own guard codes or a PayMongo or ISO 20022
+ * rail code, so match loosely and never surface the raw value to members.
+ */
+export function withdrawalFailureReason(
+  failureCode: string | undefined,
+  status: WithdrawalSettlementState,
+): string {
+  const code = (failureCode ?? '').toLowerCase()
+  if (/insufficient_wallet_balance|insufficient_funds|am04/.test(code)) {
+    return 'The platform payout balance was still settling when this ran. Try again in a few minutes.'
+  }
+  if (/invalid_destination|invalid_account|ac01|ac03|rc04|ag01/.test(code)) {
+    return 'Your bank or e-wallet rejected the transfer. Replace the payout method and try again.'
+  }
+  if (/resource_not_found|ac04|ac06|dnor|ff05/.test(code)) {
+    return 'The destination account cannot receive transfers. Replace the payout method and try again.'
+  }
+  if (/resource_frozen_state|resource_closed_state/.test(code)) {
+    return 'The destination account cannot receive transfers right now. Use a different payout method.'
+  }
+  if (/transaction_limit_exceeded|parameter_above_maximum/.test(code)) {
+    return 'The amount is above the transfer limit. Try a smaller amount.'
+  }
+  if (/too_many_requests/.test(code)) {
+    return 'Too many attempts at once. Wait a moment and try again.'
+  }
+  if (status === 'needs_review' || /provider_result_unknown|submission_unavailable|provider_processing_error|9910|9912|ds24|ff10/.test(code)) {
+    return 'PayMongo has not confirmed this transfer. The amount stays reserved until it resolves.'
+  }
+  return 'The transfer did not complete. Try again, or contact support if it keeps returning.'
+}
+
 export function calculateBookingPrice(
   hourlyRateCentavos: number,
   durationMinutes: number,

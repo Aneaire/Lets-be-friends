@@ -3,6 +3,7 @@ import { useAction, useMutation, useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
 import { useMemo, useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
+import { withdrawalFailureReason } from '@lets-be-friends/shared'
 
 import { mobileApi } from '@/backend/client'
 import { StateView } from '@/design-system/molecules/StateView'
@@ -239,13 +240,16 @@ function payoutMethodItem(payouts: PayoutDashboard) {
 
 function companionWithdrawalItem(withdrawal: PayoutDashboard['withdrawals'][number]): CompanionWithdrawalItem {
   const status = withdrawalStatusPresentation(withdrawal.status)
+  const reason = withdrawal.status === 'failed' || withdrawal.status === 'needs_review'
+    ? withdrawalFailureReason(withdrawal.failureCode, withdrawal.status)
+    : undefined
   return {
     id: String(withdrawal.id),
     amountLabel: formatMoney(withdrawal.amountCentavos),
     destinationLabel: `${withdrawal.institutionName} · •••• ${withdrawal.accountNumberLast4}`,
     dateLabel: formatDateTime(withdrawal.createdAt),
     statusLabel: status.label,
-    detail: status.detail,
+    detail: reason ?? status.detail,
     danger: status.danger,
   }
 }
