@@ -135,6 +135,77 @@ describe('Companion withdrawals', () => {
     expect(JSON.stringify(dashboard)).not.toContain('encrypted-iv')
   })
 
+  it('exposes the PHP 10 withdrawal minimum on the dashboard', async () => {
+    const t = createTest()
+    await seed(t)
+
+    const dashboard = await t.withIdentity({ subject: 'withdrawal-companion' }).query(api.withdrawals.dashboard, {})
+    expect(dashboard).toMatchObject({
+      minimumCentavos: 1_000,
+      maximumCentavos: 5_000_000,
+      providerFeeCentavos: 1_000,
+      feePaidByPlatform: true,
+    })
+  })
+
+  it('reserves exactly the PHP 10 minimum from an exact PHP 10 balance without charging the provider fee', async () => {
+    const t = createTest()
+    const ids = await seed(t, 1_000)
+    await addPayoutMethod(t, ids.now)
+
+    const result = await t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
+      amountCentavos: 1_000,
+    })
+    const state = await t.run(async (ctx) => ({
+      account: await ctx.db.get(ids.accountId),
+      withdrawal: await ctx.db.get(result.withdrawalId),
+      transactions: await ctx.db.query('walletTransactions').collect(),
+      entries: await ctx.db.query('walletEntries').collect(),
+    }))
+    expect(state.account).toMatchObject({ availableCentavos: 0, reservedCentavos: 1_000 })
+    expect(state.withdrawal).toMatchObject({ status: 'queued', amountCentavos: 1_000, providerFeeCentavos: 1_000 })
+    expect(state.transactions).toHaveLength(1)
+    expect(state.transactions[0]).toMatchObject({ kind: 'payout_reserve', amountCentavos: 1_000 })
+    expect(state.entries).toHaveLength(2)
+    expect(state.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ accountId: ids.accountId, bucket: 'available', direction: 'debit', amountCentavos: 1_000 }),
+      expect.objectContaining({ accountId: ids.accountId, bucket: 'reserved', direction: 'credit', amountCentavos: 1_000 }),
+    ]))
+    expect(state.entries.some((entry) => entry.amountCentavos !== 1_000)).toBe(false)
+  })
+
+  it('rejects a request below the PHP 10 minimum without partial writes', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    await addPayoutMethod(t, ids.now)
+
+    const snapshot = () => t.run(async (ctx) => ({
+      account: await ctx.db.get(ids.accountId),
+      accounts: await ctx.db.query('walletAccounts').collect(),
+      withdrawals: await ctx.db.query('withdrawals').collect(),
+      transactions: await ctx.db.query('walletTransactions').collect(),
+      entries: await ctx.db.query('walletEntries').collect(),
+      notifications: await ctx.db.query('notifications').collect(),
+      auditLogs: await ctx.db.query('auditLogs').collect(),
+      scheduled: await ctx.db.system.query('_scheduled_functions').collect(),
+    }))
+
+    const before = await snapshot()
+    expect(before.account).toMatchObject({ availableCentavos: AVAILABLE, reservedCentavos: 0 })
+    expect(before.withdrawals).toEqual([])
+    expect(before.transactions).toEqual([])
+    expect(before.entries).toEqual([])
+    expect(before.notifications).toEqual([])
+    expect(before.scheduled).toEqual([])
+    expect(before.auditLogs.map((row) => row.action)).toEqual(['payout_method.added'])
+
+    await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
+      amountCentavos: 999,
+    })).rejects.toThrow('between ₱10 and ₱50,000')
+
+    expect(await snapshot()).toEqual(before)
+  })
+
   it('treats newly saved and future-dated payout methods as ready immediately', async () => {
     const t = createTest()
     const ids = await seed(t)

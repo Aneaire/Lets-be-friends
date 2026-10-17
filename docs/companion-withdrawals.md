@@ -7,7 +7,7 @@ Wallet withdrawals move available funds, including verified top-ups, returned bo
 - Only approved, unsuspended Companions with current identity verification can add a payout method or withdraw.
 - The payout account holder is the verified legal name. The client cannot override it.
 - One payout method is active at a time. Replacing it takes effect immediately and new methods are ready right away. The saved `availableAt` timestamp is kept for compatibility.
-- Withdrawal amounts are from PHP 100.00 through PHP 50,000.00 per transfer.
+- Withdrawal amounts are from PHP 10.00 through PHP 50,000.00 per transfer.
 - Only one unresolved withdrawal is allowed per Companion.
 - The Companion receives the exact confirmed amount. The platform absorbs PayMongo's transfer fee.
 - Account numbers are encrypted at rest and only the last four digits are returned to clients.

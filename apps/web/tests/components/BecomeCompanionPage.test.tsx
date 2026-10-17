@@ -143,6 +143,39 @@ describe('become-companion route', () => {
     expect(screen.getAllByText('Live in Explore').length).toBeGreaterThan(0)
   })
 
+  it('groups the profile form and availability card in the primary column beside the aside', () => {
+    state.application = {
+      _id: 'app-1',
+      status: 'approved',
+      displayName: 'Maya Santos',
+      mode: 'both',
+      city: 'Cebu City',
+      hourlyRateCentavos: 50_000,
+      intro: 'I teach guitar and help with everyday errands.',
+      bio: 'Member bio.',
+      categories: ['Good company'],
+    }
+    render(<BecomeCompanionPage />)
+
+    const primary = document.querySelector('.companion-editor-primary')
+    const form = document.querySelector('.companion-editor-form')
+    const availability = document.querySelector('.companion-availability-panel')
+    const aside = document.querySelector('.companion-editor-aside')
+
+    expect(primary).not.toBeNull()
+    expect(form).not.toBeNull()
+    expect(availability).not.toBeNull()
+    expect(aside).not.toBeNull()
+
+    // The form and availability card are siblings inside the shared column.
+    expect(form?.parentElement).toBe(primary)
+    expect(availability?.parentElement).toBe(primary)
+    // The aside stays outside the primary column so desktop shows it alongside.
+    expect(primary?.contains(form as Node)).toBe(true)
+    expect(primary?.contains(availability as Node)).toBe(true)
+    expect(primary?.contains(aside as Node)).toBe(false)
+  })
+
   it('renders legacy review statuses in the editor without crashing', () => {
     state.application = {
       _id: 'app-1',

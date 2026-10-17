@@ -49,6 +49,28 @@ const memberFinance = {
   topUps: [],
 }
 
+function withdrawalDashboard(availableEarningsCentavos: number) {
+  return {
+    enabled: true,
+    payoutMethod: {
+      id: 'method-1',
+      provider: 'instapay',
+      institutionBic: 'BNORPHMM',
+      institutionName: 'BDO Unibank',
+      accountName: 'Maria Santos',
+      accountNumberLast4: '4321',
+      availableAt: Date.now() + 86_400_000,
+      ready: false,
+      modeMismatch: false,
+    },
+    activeWithdrawalId: null,
+    withdrawals: [],
+    minimumCentavos: 1_000,
+    maximumCentavos: 5_000_000,
+    availableEarningsCentavos,
+  }
+}
+
 describe('dedicated wallet page panels', () => {
   it('shows the unified wallet balance with the PayMongo QR Ph top-up option', () => {
     render(
@@ -158,7 +180,7 @@ describe('dedicated wallet page panels', () => {
       payoutMethod: null,
       activeWithdrawalId: null,
       withdrawals: [],
-      minimumCentavos: 10_000,
+      minimumCentavos: 1_000,
       maximumCentavos: 5_000_000,
       availableEarningsCentavos: 50_000,
     }
@@ -182,7 +204,7 @@ describe('dedicated wallet page panels', () => {
       payoutMethod: null,
       activeWithdrawalId: null,
       withdrawals: [],
-      minimumCentavos: 10_000,
+      minimumCentavos: 1_000,
       maximumCentavos: 5_000_000,
       availableEarningsCentavos: 50_000,
     }
@@ -204,7 +226,7 @@ describe('dedicated wallet page panels', () => {
       payoutMethod: null,
       activeWithdrawalId: null,
       withdrawals: [],
-      minimumCentavos: 10_000,
+      minimumCentavos: 1_000,
       maximumCentavos: 5_000_000,
       availableEarningsCentavos: 50_000,
     }
@@ -221,30 +243,45 @@ describe('dedicated wallet page panels', () => {
   })
 
   it('treats a future-dated payout method as ready without hold wording', () => {
-    mocks.queryResult = {
-      enabled: true,
-      payoutMethod: {
-        id: 'method-1',
-        provider: 'instapay',
-        institutionBic: 'BNORPHMM',
-        institutionName: 'BDO Unibank',
-        accountName: 'Maria Santos',
-        accountNumberLast4: '4321',
-        availableAt: Date.now() + 86_400_000,
-        ready: false,
-        modeMismatch: false,
-      },
-      activeWithdrawalId: null,
-      withdrawals: [],
-      minimumCentavos: 10_000,
-      maximumCentavos: 5_000_000,
-      availableEarningsCentavos: 50_000,
-    }
+    mocks.queryResult = withdrawalDashboard(50_000)
     render(<CompanionWithdrawalPanel />)
 
     expect(screen.getByText('Payout method ready')).toBeTruthy()
     expect(screen.queryByText(/Security hold/i)).toBeNull()
     expect(screen.queryByText(/24-hour/i)).toBeNull()
     expect(screen.getByRole('button', { name: 'Review withdrawal' })).toBeTruthy()
+  })
+
+  it('uses the PHP 10 minimum and allows reviewing a withdrawal at that balance', () => {
+    mocks.queryResult = withdrawalDashboard(1_000)
+    render(<CompanionWithdrawalPanel />)
+
+    const amountInput = screen.getByRole('spinbutton', { name: /Withdrawal amount/i }) as HTMLInputElement
+    expect(amountInput.min).toBe('10')
+    expect(amountInput.value).toBe('10')
+    const reviewButton = screen.getByRole('button', { name: 'Review withdrawal' }) as HTMLButtonElement
+    expect(reviewButton.disabled).toBe(false)
+
+    fireEvent.click(reviewButton)
+    expect(screen.getByText('Confirm ₱10.00 withdrawal')).toBeTruthy()
+  })
+
+  it('keeps withdrawal review enabled when the balance is PHP 50', () => {
+    mocks.queryResult = withdrawalDashboard(5_000)
+    render(<CompanionWithdrawalPanel />)
+
+    const amountInput = screen.getByRole('spinbutton', { name: /Withdrawal amount/i }) as HTMLInputElement
+    expect(amountInput.min).toBe('10')
+    expect(amountInput.value).toBe('50')
+    expect((screen.getByRole('button', { name: 'Review withdrawal' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('disables withdrawal review below the PHP 10 minimum', () => {
+    mocks.queryResult = withdrawalDashboard(999)
+    render(<CompanionWithdrawalPanel />)
+
+    const amountInput = screen.getByRole('spinbutton', { name: /Withdrawal amount/i }) as HTMLInputElement
+    expect(amountInput.min).toBe('10')
+    expect((screen.getByRole('button', { name: 'Review withdrawal' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

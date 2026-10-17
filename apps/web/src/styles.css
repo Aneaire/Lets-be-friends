@@ -15732,6 +15732,13 @@ textarea.field {
   cursor: not-allowed;
 }
 
+.companion-editor-primary {
+  display: grid;
+  align-content: start;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
 .companion-editor-form {
   min-width: 0;
   overflow: hidden;
@@ -17735,7 +17742,6 @@ button.companion-preview-avatar {
 
 .companion-availability-panel {
   display: grid;
-  grid-column: 1 / -1;
   gap: 1rem;
   min-width: 0;
   padding: clamp(1.25rem, 3vw, 2rem);

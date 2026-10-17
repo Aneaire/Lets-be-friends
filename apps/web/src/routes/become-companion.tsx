@@ -242,91 +242,93 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
 
   return (
     <div className="drawer-companion" id="companion-profile-editor">
-      <form
-        className="companion-editor-form"
-        onSubmit={async (event) => {
-          event.preventDefault()
-          if (saving) return
-          const validation = validateCompanionProfile(values, selectedCategories)
-          if (!validation.ok) {
-            setError(validation.message)
-            return
-          }
-          setSaving(true)
-          setSaved(false)
-          setError('')
-          try {
-            await sendApplication(buildCompanionProfilePayload(values, selectedCategories))
-            if (userId) clearCompanionApplicationDraft(window.localStorage, userId)
-            setSaved(true)
-            onSubmitted()
-          } catch (submitError) {
-            setError(submitError instanceof Error ? describeConvexError(submitError) : 'Your Companion profile could not be saved.')
-          } finally {
-            setSaving(false)
-          }
-        }}
-      >
-        <header className="companion-editor-header">
-          <div>
-            <div className="companion-editor-heading-line">
-              <p className="eyebrow">{status ? 'Manage profile' : 'Create profile'}</p>
-              {status && <span className="status-pill" data-tone={statusTone(status)}>{companionStatusLabel(status, verification.state === 'approved')}</span>}
-            </div>
-            <h2 className="text-h1">{status ? 'Your Companion profile' : 'Create your Companion profile'}</h2>
-            <p className="text-meta">Your details save right away. Identity and safety review is the only review step.</p>
-          </div>
-          {application?.status === 'approved' && (
-            <Link to="/companion-profile" search={{ companionProfileId: application._id }} className="btn btn-neutral btn-sm">
-              View live profile
-            </Link>
-          )}
-        </header>
-
-        {identityFlow.message && (
-          <InlineNotice tone="success">{identityFlow.message}</InlineNotice>
-        )}
-        {(error || identityFlow.error) && (
-          <InlineNotice tone="danger">{identityFlow.error || error}</InlineNotice>
-        )}
-
-        <section className="companion-editor-step">
-          <header>
-            <h2 className="text-h2">What you offer</h2>
-            <p className="numbered-section-rationale mt-1">Choose how you want to meet, describe the work or skills you can share, and set the amount you receive.</p>
-          </header>
-          <CompanionProfileFields
-            values={values}
-            onChange={updateValues}
-            selectedCategories={selectedCategories}
-            onCategoriesChange={setSelectedCategories}
-          />
-        </section>
-
-        <div className="companion-editor-actions">
-          <Button type="submit" intent="self" disabled={saving}>
-            {saving ? 'Saving...' : status ? 'Save changes' : 'Save profile'}
-          </Button>
-        </div>
-      </form>
-
-      {application && (
-        <section className="companion-availability-panel" id="companion-availability" aria-labelledby="companion-availability-title">
-          <header className="companion-availability-head">
+      <div className="companion-editor-primary">
+        <form
+          className="companion-editor-form"
+          onSubmit={async (event) => {
+            event.preventDefault()
+            if (saving) return
+            const validation = validateCompanionProfile(values, selectedCategories)
+            if (!validation.ok) {
+              setError(validation.message)
+              return
+            }
+            setSaving(true)
+            setSaved(false)
+            setError('')
+            try {
+              await sendApplication(buildCompanionProfilePayload(values, selectedCategories))
+              if (userId) clearCompanionApplicationDraft(window.localStorage, userId)
+              setSaved(true)
+              onSubmitted()
+            } catch (submitError) {
+              setError(submitError instanceof Error ? describeConvexError(submitError) : 'Your Companion profile could not be saved.')
+            } finally {
+              setSaving(false)
+            }
+          }}
+        >
+          <header className="companion-editor-header">
             <div>
-              <p className="eyebrow">Booking windows</p>
-              <h2 id="companion-availability-title" className="text-h2">Weekly availability</h2>
-              <p className="text-meta mt-1">Choose when members can request a session. This saves separately from your profile details.</p>
+              <div className="companion-editor-heading-line">
+                <p className="eyebrow">{status ? 'Manage profile' : 'Create profile'}</p>
+                {status && <span className="status-pill" data-tone={statusTone(status)}>{companionStatusLabel(status, verification.state === 'approved')}</span>}
+              </div>
+              <h2 className="text-h1">{status ? 'Your Companion profile' : 'Create your Companion profile'}</h2>
+              <p className="text-meta">Your details save right away. Identity and safety review is the only review step.</p>
             </div>
+            {application?.status === 'approved' && (
+              <Link to="/companion-profile" search={{ companionProfileId: application._id }} className="btn btn-neutral btn-sm">
+                View live profile
+              </Link>
+            )}
           </header>
-          <WeeklyAvailabilityEditor
-            initialAvailability={application.weeklyAvailability}
-            onSave={async (weeklyAvailability) => {
-              await updateAvailability({ weeklyAvailability })
-            }}
-          />
-        </section>
-      )}
+
+          {identityFlow.message && (
+            <InlineNotice tone="success">{identityFlow.message}</InlineNotice>
+          )}
+          {(error || identityFlow.error) && (
+            <InlineNotice tone="danger">{identityFlow.error || error}</InlineNotice>
+          )}
+
+          <section className="companion-editor-step">
+            <header>
+              <h2 className="text-h2">What you offer</h2>
+              <p className="numbered-section-rationale mt-1">Choose how you want to meet, describe the work or skills you can share, and set the amount you receive.</p>
+            </header>
+            <CompanionProfileFields
+              values={values}
+              onChange={updateValues}
+              selectedCategories={selectedCategories}
+              onCategoriesChange={setSelectedCategories}
+            />
+          </section>
+
+          <div className="companion-editor-actions">
+            <Button type="submit" intent="self" disabled={saving}>
+              {saving ? 'Saving...' : status ? 'Save changes' : 'Save profile'}
+            </Button>
+          </div>
+        </form>
+
+        {application && (
+          <section className="companion-availability-panel" id="companion-availability" aria-labelledby="companion-availability-title">
+            <header className="companion-availability-head">
+              <div>
+                <p className="eyebrow">Booking windows</p>
+                <h2 id="companion-availability-title" className="text-h2">Weekly availability</h2>
+                <p className="text-meta mt-1">Choose when members can request a session. This saves separately from your profile details.</p>
+              </div>
+            </header>
+            <WeeklyAvailabilityEditor
+              initialAvailability={application.weeklyAvailability}
+              onSave={async (weeklyAvailability) => {
+                await updateAvailability({ weeklyAvailability })
+              }}
+            />
+          </section>
+        )}
+      </div>
 
       <div className="companion-editor-aside">
         <CompanionProfilePreview

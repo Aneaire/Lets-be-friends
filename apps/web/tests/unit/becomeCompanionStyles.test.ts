@@ -14,6 +14,8 @@ describe('Become Companion layout styles', () => {
       '.companion-benefit-grid',
       '.companion-ideas',
       '.drawer-companion',
+      '.companion-editor-primary',
+      '.companion-availability-panel',
       '.companion-editor-progress',
       '.companion-mode-options',
       '.companion-profile-preview',
@@ -37,6 +39,22 @@ describe('Become Companion layout styles', () => {
     expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-editor-actions > :only-child\s*\{[\s\S]*grid-column:\s*1 \/ -1;[\s\S]*margin-left:\s*0;/s)
     expect(styles).toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-editor-aside\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\);/s)
     expect(styles).not.toMatch(/@media \(max-width: 680px\)[\s\S]*\.companion-editor-actions\s*\{[^}]*position:\s*sticky;/s)
+  })
+
+  it('groups the profile form and availability card in one primary column', () => {
+    expect(styles).toMatch(/\.companion-editor-primary\s*\{[\s\S]*display:\s*grid;[\s\S]*gap:\s*1\.5rem;[\s\S]*min-width:\s*0;/s)
+    expect(styles).toMatch(/\.companion-availability-panel\s*\{[\s\S]*min-width:\s*0;/s)
+    expect(styles).not.toMatch(/\.companion-availability-panel\s*\{[^}]*grid-column:/s)
+
+    const primaryStart = route.indexOf('className="companion-editor-primary"')
+    const formStart = route.indexOf('className="companion-editor-form"')
+    const availabilityStart = route.indexOf('className="companion-availability-panel"')
+    const asideStart = route.indexOf('className="companion-editor-aside"')
+
+    expect(primaryStart).toBeGreaterThan(-1)
+    expect(formStart).toBeGreaterThan(primaryStart)
+    expect(availabilityStart).toBeGreaterThan(formStart)
+    expect(asideStart).toBeGreaterThan(availabilityStart)
   })
 
   it('renders the shared Companion profile fields in a single section', () => {
