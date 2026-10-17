@@ -187,21 +187,33 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
   )
 
   if (saved) {
+    const identityApproved = verification.state === 'approved'
+    const pendingSafetyReview = verification.state === 'admin_pending' || verification.state === 'provider_declined'
     return (
       <section className="companion-submission-card" aria-labelledby="companion-submission-title">
         <div className="companion-submission-mark" aria-hidden="true">✓</div>
         <p className="eyebrow">Profile saved</p>
         <h2 id="companion-submission-title" className="text-h1">Your Companion profile is saved</h2>
-        <p className="text-body muted">
-          Your details save right away. Your profile stays hidden from discovery until your identity check is approved.
-        </p>
-        <div className="companion-submission-next">
-          <strong>Next: identity verification</strong>
-          <span>Identity and safety review is the only review step.</span>
-        </div>
+        {identityApproved ? (
+          <p className="text-body muted">
+            Your details are saved. Set your availability so members can request a session.
+          </p>
+        ) : (
+          <p className="text-body muted">
+            Your details save right away. Your profile stays hidden from discovery until your identity check is approved.
+          </p>
+        )}
+        {!identityApproved && (
+          <div className="companion-submission-next">
+            <strong>{pendingSafetyReview ? 'Next: safety review' : 'Next: identity verification'}</strong>
+            <span>{pendingSafetyReview ? verification.guidance : 'Identity and safety review is the only review step.'}</span>
+          </div>
+        )}
         <div className="companion-submission-actions">
-          <Link to="/get-verified" className="btn btn-self btn-lg">View verification status</Link>
-          <Link to="/companion" hash="availability" className="btn btn-neutral btn-lg">Set your availability</Link>
+          {!identityApproved && (
+            <Link to="/get-verified" className="btn btn-self btn-lg">View verification status</Link>
+          )}
+          <Link to="/companion" hash="availability" className={identityApproved ? 'btn btn-self btn-lg' : 'btn btn-neutral btn-lg'}>Set your availability</Link>
           <Link to="/" className="btn btn-neutral btn-lg">Go to home</Link>
         </div>
       </section>

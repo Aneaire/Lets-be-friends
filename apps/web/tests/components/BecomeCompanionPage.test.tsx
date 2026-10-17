@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   identity: { begin: vi.fn(async () => ({ mode: 'launch' })), busy: false, message: '', error: '' },
   viewer: undefined as Record<string, unknown> | null | undefined,
   application: null as unknown,
+  latestVerification: null as unknown,
 }))
 
 vi.mock('../../convex/_generated/api', () => ({
@@ -25,7 +26,7 @@ vi.mock('../../convex/_generated/api', () => ({
 vi.mock('convex/react', () => ({
   useQuery: (query: string) => {
     if (query === 'users.viewer') return state.viewer
-    if (query === 'users.latestMemberVerification') return null
+    if (query === 'users.latestMemberVerification') return state.latestVerification
     if (query === 'companions.myApplication') return state.application
     return undefined
   },
@@ -64,6 +65,7 @@ afterEach(() => {
 beforeEach(() => {
   state.identity = { begin: vi.fn(async () => ({ mode: 'launch' })), busy: false, message: '', error: '' }
   state.application = null
+  state.latestVerification = null
   state.viewer = {
     displayName: 'Maya Santos',
     identityEligible: true,
@@ -214,4 +216,91 @@ describe('become-companion route', () => {
 
     expect(screen.getByRole('alert').textContent).toContain('Identity verification could not be started.')
   })
+
+  it.each([
+    { case: 'new profile', application: null },
+    {
+      case: 'existing profile',
+      application: {
+        _id: 'app-1',
+        status: 'approved',
+        displayName: 'Maya Santos',
+        mode: 'both',
+        city: 'Cebu City',
+        hourlyRateCentavos: 50_000,
+        intro: 'I teach guitar and help with everyday errands.',
+        bio: 'Member bio.',
+        categories: ['Good company'],
+      },
+    },
+  ])('confirms a saved profile for an approved identity without verification follow-ups ($case)', async ({ application }) => {
+    state.viewer = {
+      ...(state.viewer as Record<string, unknown>),
+      identityEligible: true,
+      verificationStatus: 'pending',
+      onboardingCategories: ['Good company'],
+    }
+    state.latestVerification = null
+    state.application = application
+    render(<BecomeCompanionPage />)
+    await saveValidCompanionProfile()
+
+    expect(await screen.findByText('Your Companion profile is saved')).toBeTruthy()
+    expect(screen.getByText('Your details are saved. Set your availability so members can request a session.')).toBeTruthy()
+    expect(screen.queryByText('Next: identity verification')).toBeNull()
+    expect(screen.queryByText(/hidden from discovery until your identity check is approved/i)).toBeNull()
+    expect(screen.queryByRole('link', { name: 'View verification status' })).toBeNull()
+    const availability = screen.getByRole('link', { name: 'Set your availability' })
+    expect(availability.getAttribute('class')).toContain('btn-self')
+    expect(screen.getByRole('link', { name: 'Go to home' })).toBeTruthy()
+  })
+
+  it('keeps pending safety review guidance after a saved profile while under review', async () => {
+    state.viewer = {
+      ...(state.viewer as Record<string, unknown>),
+      identityEligible: false,
+      verificationStatus: 'pending',
+    }
+    state.latestVerification = {
+      adminStatus: 'pending',
+      verificationSource: 'in_app',
+      identityStage: 'ready_for_review',
+      isCurrent: true,
+      reason: 'member',
+    }
+    state.application = {
+      _id: 'app-1',
+      status: 'approved',
+      displayName: 'Maya Santos',
+      mode: 'both',
+      city: 'Cebu City',
+      hourlyRateCentavos: 50_000,
+      intro: 'I teach guitar and help with everyday errands.',
+      bio: 'Member bio.',
+      categories: ['Good company'],
+    }
+    render(<BecomeCompanionPage />)
+    await saveValidCompanionProfile()
+
+    expect(await screen.findByText('Your Companion profile is saved')).toBeTruthy()
+    expect(screen.getByText(/hidden from discovery until your identity check is approved/i)).toBeTruthy()
+    expect(screen.getByText('Next: safety review')).toBeTruthy()
+    expect(screen.getByText(/reviewed by the safety team/i)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'View verification status' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Set your availability' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Go to home' })).toBeTruthy()
+  })
 })
+
+async function saveValidCompanionProfile() {
+  fireEvent.change(screen.getByLabelText(/What work or skills could you share/), {
+    target: { value: 'I can help with a calm grocery run and explain everyday technology to neighbors.' },
+  })
+  fireEvent.change(screen.getByLabelText(/Tell me about yourself/), {
+    target: { value: 'Weekend cyclist who likes slow coffees and calm company.' },
+  })
+  fireEvent.change(screen.getByLabelText(/City/), { target: { value: 'Cebu City' } })
+  const form = document.querySelector('.companion-editor-form')
+  if (!form) throw new Error('Companion profile editor form did not render')
+  fireEvent.submit(form)
+}

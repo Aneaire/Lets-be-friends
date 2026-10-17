@@ -269,7 +269,7 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
               }
             }}
           >
-            <span className="avatar avatar-lg" aria-hidden="true"><User aria-hidden="true" /></span>
+            <Avatar name={viewer?.displayName ?? 'You'} src={viewer?.profileImageUrl} size="large" decorative />
             <div className="social-composer-body">
               <div className="social-composer-intents">
                 <strong>Share an update</strong>

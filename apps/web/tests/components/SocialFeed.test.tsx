@@ -5,7 +5,7 @@ import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const feedState = vi.hoisted(() => ({
-  viewer: { _id: 'user-viewer', displayName: 'Viewer Friend' },
+  viewer: { _id: 'user-viewer', displayName: 'Viewer Friend' } as { _id: string; displayName: string; profileImageUrl?: string },
   postCount: 105,
   feedHookCalls: 0,
   impressionCalls: [] as Array<{ items: Array<{ itemKey: string; position: number }> }>,
@@ -118,6 +118,7 @@ afterEach(() => {
   feedState.postCount = 105
   feedState.impressionCalls.length = 0
   feedState.links.length = 0
+  feedState.viewer = { _id: 'user-viewer', displayName: 'Viewer Friend' }
 })
 
 describe('SocialPage feed stability', () => {
@@ -189,5 +190,21 @@ describe('SocialPage feed stability', () => {
     await waitFor(() => expect(screen.getAllByText('Most discussed')).toHaveLength(1))
     const authorLink = feedState.links.find((link) => link.to === '/member-profile' && link.label === "View Author 0's profile")
     expect(authorLink?.search).toEqual({ userId: 'user-author-0' })
+  })
+
+  it('shows the viewer profile photo in the composer avatar', () => {
+    feedState.viewer = { ...feedState.viewer, profileImageUrl: 'https://cdn.example.com/viewer.png' }
+    const { container } = render(<SocialPage />)
+
+    const composerAvatar = container.querySelector('.social-composer .avatar img')
+    expect(composerAvatar?.getAttribute('src')).toBe('https://cdn.example.com/viewer.png')
+  })
+
+  it('falls back to the placeholder icon in the composer avatar without a profile photo', () => {
+    const { container } = render(<SocialPage />)
+
+    const composerAvatar = container.querySelector('.social-composer .avatar')
+    expect(composerAvatar?.querySelector('img')).toBeNull()
+    expect(composerAvatar?.querySelector('svg')).toBeTruthy()
   })
 })
