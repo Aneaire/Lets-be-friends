@@ -16505,6 +16505,76 @@ button.companion-preview-avatar {
   padding: 0.7rem;
 }
 
+/* Guide cafe photo keeps faces in frame with a purposeful center crop. */
+.frienday-guide-cafe-img {
+  border-bottom: 1px solid var(--border);
+  object-position: center 35%;
+}
+
+/* Home inspiration: compact editorial pair, neutral surfaces only. */
+.frienday-ideas {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.65rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0.9rem 1rem;
+}
+
+.frienday-ideas-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.frienday-ideas-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 480px) {
+  .frienday-ideas-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.frienday-ideas-card {
+  display: grid;
+  align-content: start;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.frienday-ideas-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--surface-sunk);
+}
+
+.frienday-ideas-copy {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.6rem 0.7rem;
+}
+
+.frienday-ideas-card-title {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+}
+
+.frienday-ideas-copy .text-meta {
+  margin: 0.2rem 0 0;
+  line-height: 1.5;
+}
+
+.frienday-ideas-cta {
+  justify-self: start;
+}
+
 /* Clickable Frienday cards: neutral, icon led, calm motion. */
 
 .frienday-flip {

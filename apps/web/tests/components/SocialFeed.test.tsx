@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const feedState = vi.hoisted(() => ({
   viewer: { _id: 'user-viewer', displayName: 'Viewer Friend' },
+  postCount: 105,
   feedHookCalls: 0,
   impressionCalls: [] as Array<{ items: Array<{ itemKey: string; position: number }> }>,
   links: [] as Array<{ to?: unknown; search?: Record<string, unknown>; label?: string }>,
@@ -75,7 +76,7 @@ vi.mock('convex/react', () => ({
   usePaginatedQuery: (_fn: unknown, params: unknown) => {
     if (params && typeof params === 'object' && 'filter' in (params as Record<string, unknown>)) {
       feedState.feedHookCalls += 1
-      return { results: buildFeedPosts(105), status: 'Exhausted', loadMore: vi.fn() }
+      return { results: buildFeedPosts(feedState.postCount), status: 'Exhausted', loadMore: vi.fn() }
     }
     return { results: [], status: 'Exhausted', loadMore: vi.fn() }
   },
@@ -114,11 +115,26 @@ import { SocialPage, toFeedImpressionPosition } from '../../src/features/social/
 afterEach(() => {
   cleanup()
   feedState.feedHookCalls = 0
+  feedState.postCount = 105
   feedState.impressionCalls.length = 0
   feedState.links.length = 0
 })
 
 describe('SocialPage feed stability', () => {
+  it('shows activity inspiration in For you and hides it in Following and Saved', () => {
+    feedState.postCount = 0
+    render(<SocialPage />)
+
+    const inspiration = 'A little inspiration for your next Frienday'
+    expect(screen.getByRole('region', { name: inspiration })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: 'Following' }))
+    expect(screen.queryByRole('region', { name: inspiration })).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: 'Saved' }))
+    expect(screen.queryByRole('region', { name: inspiration })).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: 'For you' }))
+    expect(screen.getByRole('region', { name: inspiration })).toBeTruthy()
+  })
+
   it('keeps impression positions inside the 0 to 99 contract past 100 loaded items', () => {
     expect(toFeedImpressionPosition(0)).toBe(0)
     expect(toFeedImpressionPosition(99)).toBe(99)

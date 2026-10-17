@@ -199,6 +199,17 @@ export function WhatIsFriendayCard({ defaultOpen = true }: { defaultOpen?: boole
       previewLabel="Tap to open"
       defaultOpen={defaultOpen}
     >
+      <img
+        src="/images/rail/frienday-cafe-conversation-1024.webp"
+        srcSet="/images/rail/frienday-cafe-conversation-768.webp 768w, /images/rail/frienday-cafe-conversation-1024.webp 1024w"
+        sizes="(max-width: 1500px) 19rem, 21rem"
+        alt="Two people talking over coffee at a table in a bright public cafe"
+        loading="lazy"
+        decoding="async"
+        width={1024}
+        height={768}
+        className="frienday-rail-photo-img frienday-guide-cafe-img"
+      />
       <p className="text-meta frienday-rail-intro">
         A Frienday is the agreed time when a Companion and a member meet and complete a booked
         activity. The Companion offers help and the member books help.
@@ -207,6 +218,64 @@ export function WhatIsFriendayCard({ defaultOpen = true }: { defaultOpen?: boole
         Read the full Frienday guide
       </Link>
     </FlipCard>
+  )
+}
+
+export function FriendayIdeas() {
+  const titleId = useId()
+  return (
+    <section className="frienday-ideas" aria-labelledby={titleId}>
+      <h2 id={titleId} className="text-h3 frienday-ideas-title">
+        A little inspiration for your next Frienday
+      </h2>
+      <div className="frienday-ideas-grid">
+        <article className="frienday-ideas-card">
+          <img
+            src="/images/rail/frienday-public-walk-1024.webp"
+            srcSet="/images/rail/frienday-public-walk-768.webp 768w, /images/rail/frienday-public-walk-1024.webp 1024w"
+            sizes="(max-width: 480px) 100vw, 21rem"
+            alt="Two people walking and talking together on a public path in daylight"
+            loading="lazy"
+            decoding="async"
+            width={1024}
+            height={768}
+            className="frienday-ideas-img"
+          />
+          <div className="frienday-ideas-copy">
+            <p className="eyebrow">In-person session idea</p>
+            <h3 className="text-h3 frienday-ideas-card-title">A walk and a good conversation</h3>
+            <p className="text-meta">
+              Take an easy walk in a public place with clear time and route. Good company and
+              unhurried conversation.
+            </p>
+          </div>
+        </article>
+        <article className="frienday-ideas-card">
+          <img
+            src="/images/rail/frienday-online-session-1024.webp"
+            srcSet="/images/rail/frienday-online-session-768.webp 768w, /images/rail/frienday-online-session-1024.webp 1024w"
+            sizes="(max-width: 480px) 100vw, 21rem"
+            alt="A person smiling during a video call with a Companion on a laptop at home"
+            loading="lazy"
+            decoding="async"
+            width={1024}
+            height={768}
+            className="frienday-ideas-img"
+          />
+          <div className="frienday-ideas-copy">
+            <p className="eyebrow">Online session idea</p>
+            <h3 className="text-h3 frienday-ideas-card-title">Good company, wherever you are</h3>
+            <p className="text-meta">
+              Meet over video from a comfortable place with a clear plan. Good company is possible
+              wherever you are.
+            </p>
+          </div>
+        </article>
+      </div>
+      <Link to="/nearby" className="btn btn-social btn-sm frienday-ideas-cta">
+        Find a Companion
+      </Link>
+    </section>
   )
 }
 

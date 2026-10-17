@@ -29,7 +29,7 @@ import { SharedPostEmbed, SharedReviewEmbed } from './SharedEmbeds'
 import { shareTargetUrl } from './shareLinks'
 import { MyCirclesHomeModule } from '../circles/CircleIndexPage'
 import { CurrentCircleRailCard } from '../circles/CurrentCircleRailCard'
-import { FriendayHowItWorksRail, FriendayMobileSummary, FriendaySafetyRail } from './FriendayGuide';
+import { FriendayHowItWorksRail, FriendayIdeas, FriendayMobileSummary, FriendaySafetyRail } from './FriendayGuide';
 import { describeConvexError } from '../../lib/convexErrors'
 
 type FeedItem = NonNullable<FunctionReturnType<typeof api.social.feedPage>>['page'][number]
@@ -348,6 +348,8 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
             </SignInButton>
           </div>
         )}
+
+        {feedFilter === 'for_you' && <FriendayIdeas />}
 
         {feedStatus === 'LoadingFirstPage' && <SocialTimelineSkeleton />}
         {displayedFeedItems && displayedFeedItems.length === 0 && feedStatus !== 'LoadingFirstPage' && feedFilter !== 'for_you' && (
