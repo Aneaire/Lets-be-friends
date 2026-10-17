@@ -421,46 +421,7 @@ function AppPage() {
             </Link>
           </div>
         </header>
-        {viewer && combinedBookings.length === 0 && (
-          <div className="empty-state">
-            <p className="empty-state-title">
-              {canBook ? 'No bookings yet.' : 'Verify once before sending a booking request.'}
-            </p>
-            <p className="text-meta max-w-[44ch]">
-              {canBook
-                ? 'Explore Companions, find the help or company that feels right, and request a time.'
-                : verification.guidance}
-            </p>
-            {canBook ? (
-              <button
-                type="button"
-                className="btn btn-social btn-sm mt-2"
-                onClick={(event) => openBookingDialog(event.currentTarget)}
-                aria-haspopup="dialog"
-                aria-expanded={bookingDialogOpen}
-                aria-controls="booking-dialog"
-              >
-                Find a Companion
-              </button>
-            ) : verification.action !== 'none' ? (
-              <button
-                type="button"
-                className="btn btn-self btn-sm mt-2"
-                onClick={() => void identityFlow.begin()}
-                disabled={identityFlow.busy}
-              >
-                {identityFlow.busy
-                  ? 'Opening identity check...'
-                  : verification.action === 'continue'
-                    ? 'Continue identity check'
-                    : verification.action === 'retry'
-                      ? 'Start a new identity check'
-                      : 'Verify identity'}
-              </button>
-            ) : null}
-          </div>
-        )}
-        {combinedBookings.length > 0 && (
+        {viewer && (
           <BookingsView
             bookings={combinedBookings}
             bookingId={bookingId}
@@ -473,7 +434,45 @@ function AppPage() {
                 : statusCopy[status as BookingStatus] ?? { label: status, tone: 'self' }
             }
             participantName={(booking) => calendarParticipantName(booking)}
-            cards={(
+            cards={combinedBookings.length === 0 ? (
+              <div className="empty-state">
+                <p className="empty-state-title">
+                  {canBook ? 'No bookings yet.' : 'Verify once before sending a booking request.'}
+                </p>
+                <p className="text-meta max-w-[44ch]">
+                  {canBook
+                    ? 'Explore Companions, find the help or company that feels right, and request a time.'
+                    : verification.guidance}
+                </p>
+                {canBook ? (
+                  <button
+                    type="button"
+                    className="btn btn-social btn-sm mt-2"
+                    onClick={(event) => openBookingDialog(event.currentTarget)}
+                    aria-haspopup="dialog"
+                    aria-expanded={bookingDialogOpen}
+                    aria-controls="booking-dialog"
+                  >
+                    Find a Companion
+                  </button>
+                ) : verification.action !== 'none' ? (
+                  <button
+                    type="button"
+                    className="btn btn-self btn-sm mt-2"
+                    onClick={() => void identityFlow.begin()}
+                    disabled={identityFlow.busy}
+                  >
+                    {identityFlow.busy
+                      ? 'Opening identity check...'
+                      : verification.action === 'continue'
+                        ? 'Continue identity check'
+                        : verification.action === 'retry'
+                          ? 'Start a new identity check'
+                          : 'Verify identity'}
+                  </button>
+                ) : null}
+              </div>
+            ) : (
               <>
                 <section aria-labelledby="open-bookings-title">
                   <header className="flex items-baseline justify-between gap-3 mb-3">
