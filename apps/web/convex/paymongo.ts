@@ -14,6 +14,14 @@ const QR_FALLBACK_LIFETIME_MS = 30 * 60 * 1_000
 const STALE_CREATION_MS = 10 * 60 * 1_000
 export const MAX_PAYMONGO_WEBHOOK_BYTES = 256 * 1_024
 
+export type PaymongoMode = 'test' | 'live'
+export type PaymongoTransactionKind = 'top_up' | 'withdrawal'
+export type PaymongoProviderMetadata = Record<string, string>
+
+// PayMongo accepts only string values and strips keys that start with PYM_.
+// Every key we write is namespaced so provider-added keys never collide.
+const PAYMONGO_METADATA_PREFIX = 'lbf_'
+
 const canonicalIntentValidator = v.object({
   id: v.string(),
   amountCentavos: v.number(),
@@ -25,7 +33,6 @@ const canonicalIntentValidator = v.object({
   expiresAt: v.optional(v.number()),
 })
 
-export type PaymongoMode = 'test' | 'live'
 export type CanonicalPaymongoIntent = {
   id: string
   amountCentavos: number
@@ -35,6 +42,31 @@ export type CanonicalPaymongoIntent = {
   methodTypes: string[]
   qrImageUrl?: string
   expiresAt?: number
+}
+
+// Usernames are unique per member, so they identify the payer to operators
+// without exposing the verified legal name. The user id is the immutable
+// fallback for members who have not chosen a username yet.
+export function paymongoProviderUsername(username: string | undefined, userId: string) {
+  return username?.trim() || String(userId)
+}
+
+export function buildPaymongoProviderMetadata(input: {
+  kind: PaymongoTransactionKind
+  transactionId: string
+  amountCentavos: number
+  currency: string
+  username: string
+  userId: string
+}): PaymongoProviderMetadata {
+  return {
+    [`${PAYMONGO_METADATA_PREFIX}kind`]: input.kind,
+    [`${PAYMONGO_METADATA_PREFIX}transaction_id`]: input.transactionId,
+    [`${PAYMONGO_METADATA_PREFIX}amount_centavos`]: String(input.amountCentavos),
+    [`${PAYMONGO_METADATA_PREFIX}currency`]: input.currency.toUpperCase(),
+    [`${PAYMONGO_METADATA_PREFIX}username`]: input.username,
+    [`${PAYMONGO_METADATA_PREFIX}user_id`]: input.userId,
+  }
 }
 
 type TopUpPurpose = 'legacy_companion_fee' | 'member_booking_balance'
@@ -107,6 +139,14 @@ async function createTopUpForPurpose(ctx: ActionCtx, requestedAmountCentavos: nu
     mode: config.mode,
     purpose,
   })
+  const providerMetadata = buildPaymongoProviderMetadata({
+    kind: 'top_up',
+    transactionId: String(prepared.topUpId),
+    amountCentavos,
+    currency: BOOKING_CURRENCY,
+    username: paymongoProviderUsername(prepared.username, String(prepared.beneficiaryUserId)),
+    userId: String(prepared.beneficiaryUserId),
+  })
 
   let providerIntentId: string | undefined
   try {
@@ -123,11 +163,7 @@ async function createTopUpForPurpose(ctx: ActionCtx, requestedAmountCentavos: nu
             description: purpose === 'member_booking_balance'
               ? 'Lets Be Friends member booking balance top-up'
               : 'Lets Be Friends legacy platform-fee balance top-up',
-            metadata: {
-              top_up_id: String(prepared.topUpId),
-              beneficiary_user_id: String(prepared.beneficiaryUserId),
-              purpose,
-            },
+            metadata: { ...providerMetadata, purpose },
           },
         },
       },
@@ -253,7 +289,7 @@ export const prepareTopUp = internalMutation({
       targetId: String(topUpId),
       after: { amountCentavos: args.amountCentavos, currency: BOOKING_CURRENCY, mode: args.mode, purpose },
     })
-    return { topUpId, beneficiaryUserId: user._id }
+    return { topUpId, beneficiaryUserId: user._id, username: user.username }
   },
 })
 

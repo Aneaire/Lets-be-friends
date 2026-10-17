@@ -224,8 +224,12 @@ describe('PayMongo top-up actions', () => {
       payment_method_allowed: ['qrph'],
       description: 'Lets Be Friends member booking balance top-up',
       metadata: {
-        top_up_id: String(result.topUpId),
-        beneficiary_user_id: String(memberId),
+        lbf_kind: 'top_up',
+        lbf_transaction_id: String(result.topUpId),
+        lbf_amount_centavos: String(AMOUNT),
+        lbf_currency: 'PHP',
+        lbf_username: String(memberId),
+        lbf_user_id: String(memberId),
         purpose: 'member_booking_balance',
       },
     })
@@ -267,8 +271,12 @@ describe('PayMongo top-up actions', () => {
       currency: 'PHP',
       description: 'Lets Be Friends legacy platform-fee balance top-up',
       metadata: {
-        top_up_id: String(result.topUpId),
-        beneficiary_user_id: String(companionId),
+        lbf_kind: 'top_up',
+        lbf_transaction_id: String(result.topUpId),
+        lbf_amount_centavos: String(AMOUNT),
+        lbf_currency: 'PHP',
+        lbf_username: String(companionId),
+        lbf_user_id: String(companionId),
         purpose: 'legacy_companion_fee',
       },
     })

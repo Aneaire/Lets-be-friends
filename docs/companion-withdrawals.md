@@ -14,6 +14,8 @@ Wallet withdrawals move available funds, including verified top-ups, returned bo
 - A request atomically moves earnings from available to reserved before PayMongo submission.
 - Successful transfers debit reserved wallet funds. Definitive failures return the full amount to the available wallet balance.
 - An uncertain provider response keeps funds reserved. The same PayMongo idempotency key is reused, which prevents a duplicate transfer.
+- Every top-up and transfer carries descriptive provider metadata (`lbf_kind`, `lbf_transaction_id`, `lbf_amount_centavos`, `lbf_currency`, `lbf_username`, `lbf_user_id`) so each transaction is identifiable in the PayMongo Dashboard. PayMongo accepts only string values, so the amount is stored as a string.
+- The username is the member's unique username, with the immutable user id as the fallback. Metadata is informational only and never gates a credit or a settlement.
 
 These choices follow patterns documented by [Airbnb](https://www.airbnb.com/help/article/425), [Upwork](https://support.upwork.com/hc/en-us/articles/211060918-How-to-get-paid-on-Upwork), and [Fiverr](https://help.fiverr.com/hc/en-us/articles/360010530058-Withdrawing-your-earnings-managing-payout-methods): separate pending and available balances, verify the payout destination, confirm irreversible details, and keep visible status history.
 

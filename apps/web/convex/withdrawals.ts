@@ -10,7 +10,13 @@ import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { ConvexError, v } from 'convex/values'
 import { applyWalletTransaction, getOrCreateUserWalletAccount, readUnifiedWalletBalance } from './finance'
-import { PaymongoRequestError, paymongoConfig, paymongoRequest } from './paymongo'
+import {
+  PaymongoRequestError,
+  buildPaymongoProviderMetadata,
+  paymongoConfig,
+  paymongoProviderUsername,
+  paymongoRequest,
+} from './paymongo'
 import { getViewer, writeAudit } from './lib'
 
 const ACTIVE_WITHDRAWAL_STATUSES = ['queued', 'submitting', 'pending', 'needs_review'] as const
@@ -62,6 +68,7 @@ type SubmissionPayload = Doc<'withdrawals'> & {
   accountName: string
   accountNumberCiphertext: string
   accountNumberIv: string
+  username: string | undefined
 }
 
 type ReconciliationCandidates = {
@@ -321,6 +328,7 @@ export const beginSubmission = internalMutation({
     if (withdrawal.nextAttemptAt && withdrawal.nextAttemptAt > now) return null
     const method = await ctx.db.get(withdrawal.payoutMethodId)
     if (!method || method.companionUserId !== withdrawal.companionUserId) throw new ConvexError('Withdrawal payout method is unavailable')
+    const owner = await ctx.db.get(withdrawal.companionUserId)
     await ctx.db.patch(withdrawal._id, {
       status: 'submitting',
       attemptCount: withdrawal.attemptCount + 1,
@@ -334,6 +342,7 @@ export const beginSubmission = internalMutation({
       accountName: method.accountName,
       accountNumberCiphertext: method.accountNumberCiphertext,
       accountNumberIv: method.accountNumberIv,
+      username: owner?.username,
     }
   },
 })
@@ -361,6 +370,14 @@ export const submit = internalAction({
         return { outcome: 'failed' as const }
       }
       const callbackUrl = paymongoTransferCallbackUrl()
+      const transferMetadata = buildPaymongoProviderMetadata({
+        kind: 'withdrawal',
+        transactionId: String(prepared._id),
+        amountCentavos: prepared.amountCentavos,
+        currency: BOOKING_CURRENCY,
+        username: paymongoProviderUsername(prepared.username, String(prepared.companionUserId)),
+        userId: String(prepared.companionUserId),
+      })
       const response = await paymongoRequest('/v2/batch_transfers', {
         method: 'POST',
         config,
@@ -380,7 +397,7 @@ export const submit = internalAction({
               bic: prepared.institutionBic,
             },
             ...(callbackUrl ? { callback_url: callbackUrl } : {}),
-            metadata: { withdrawal_id: String(prepared._id), companion_user_id: String(prepared.companionUserId) },
+            metadata: transferMetadata,
           }],
         },
       })
