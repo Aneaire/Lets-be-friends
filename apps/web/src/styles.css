@@ -677,6 +677,62 @@
   color: var(--text-muted);
   font-size: 0.72rem;
 }
+.identity-media-preview,
+.identity-photo-figure {
+  min-width: 0;
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.identity-media-preview img,
+.identity-photo-figure img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  object-fit: contain;
+}
+
+.identity-photo-open {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  padding: 0;
+  cursor: zoom-in;
+}
+
+.identity-photo-open:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
+}
+
+.identity-media-preview figcaption {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.identity-media-preview figcaption strong,
+.identity-media-preview figcaption small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity-media-preview figcaption strong {
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
+.identity-media-preview figcaption small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
 
 .identity-media-actions {
   display: grid;
@@ -807,6 +863,43 @@
   display: grid;
   gap: 0.2rem;
 }
+.identity-selfie-preview {
+  display: grid;
+  justify-items: center;
+}
+
+.identity-selfie-figure img {
+  width: min(15rem, 100%);
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 0.8rem;
+}
+
+.identity-photo-summary {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.identity-photo-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.identity-photo-summary-item img {
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.identity-photo-summary-item figcaption strong {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
 
 .identity-selfie-confirmed strong {
   color: var(--text);
@@ -14761,6 +14854,10 @@ textarea.field {
   padding: 0;
   background: color-mix(in oklch, oklch(0% 0 0) 78%, transparent);
 }
+.direct-image-viewer {
+  --viewer-foreground: oklch(98% 0 0);
+}
+
 
 .direct-image-viewer[data-size="large"] {
   position: relative;
@@ -14794,9 +14891,17 @@ textarea.field {
 }
 
 .direct-image-viewer .ds-dialog-header .icon-button {
-  border-color: var(--border-strong);
-  background: var(--surface);
-  color: var(--text);
+  border: 0;
+  background: transparent;
+  color: color-mix(in oklch, var(--viewer-foreground) 70%, transparent);
+}
+
+/* The glyph itself carries the control, so hover and focus lift only the icon
+   instead of bringing the filled button back. */
+.direct-image-viewer .ds-dialog-header .icon-button:hover,
+.direct-image-viewer .ds-dialog-header .icon-button:focus-visible {
+  background: transparent;
+  color: var(--viewer-foreground);
 }
 
 .direct-image-viewer-stage {

@@ -48,6 +48,9 @@ vi.mock('@tanstack/react-router', () => ({
 
 import { IdentityVerificationPage } from '../../src/features/identity/IdentityVerificationFlow'
 
+const originalCreateObjectURL = URL.createObjectURL
+const originalRevokeObjectURL = URL.revokeObjectURL
+
 function renderPage() {
   return render(<IdentityVerificationPage intent="member" returnTo="/profile" />)
 }
@@ -55,6 +58,8 @@ function renderPage() {
 describe('identity verification restart control', () => {
   beforeEach(() => {
     window.sessionStorage.clear()
+    URL.createObjectURL = vi.fn(() => 'blob:identity-photo') as unknown as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn() as unknown as typeof URL.revokeObjectURL
     state.restart.mockClear()
     state.current = {
       _id: 'record-1',
@@ -71,6 +76,8 @@ describe('identity verification restart control', () => {
   afterEach(() => {
     cleanup()
     window.sessionStorage.clear()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
   })
 
   it('offers a different photo on the details step and calls restartAttempt', async () => {
@@ -108,5 +115,54 @@ describe('identity verification restart control', () => {
 
     await waitFor(() => expect(screen.getByText('Government ID type')).toBeTruthy())
     expect(screen.queryByRole('button', { name: 'Use a different photo' })).toBeNull()
+  })
+})
+
+describe('identity verification photo previews', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear()
+    URL.createObjectURL = vi.fn(() => 'blob:identity-photo') as unknown as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn() as unknown as typeof URL.revokeObjectURL
+    state.current = {
+      _id: 'record-1',
+      reason: 'member',
+      stage: 'draft',
+      selectedIdType: 'drivers_license',
+      extraction: undefined,
+      fieldsConfirmedAt: undefined,
+      imageKinds: [],
+      updatedAt: Date.now(),
+    }
+  })
+
+  afterEach(() => {
+    cleanup()
+    window.sessionStorage.clear()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
+  })
+
+  it('renders the chosen ID photo so the member can confirm the image', async () => {
+    renderPage()
+    await screen.findByText('Government ID type')
+
+    const input = document.getElementById('identity-front') as HTMLInputElement
+    // The upload step only holds the file locally, so the preview must come from
+    // the member's own selection.
+    fireEvent.change(input, { target: { files: [new File(['front'], 'id-front.jpg', { type: 'image/jpeg' })] } })
+
+    expect((await screen.findByAltText('Front of ID preview')).getAttribute('src')).toBe('blob:identity-photo')
+    expect(screen.getByText('id-front.jpg')).toBeTruthy()
+    expect(screen.getByText('Choose another photo')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open Front of ID larger' })).toBeTruthy()
+    expect(screen.getAllByText('No photo added')).toHaveLength(1)
+  })
+
+  it('keeps the empty state until a photo is chosen', async () => {
+    renderPage()
+    await screen.findByText('Government ID type')
+
+    expect(screen.getAllByText('No photo added')).toHaveLength(2)
+    expect(screen.queryByAltText('Front of ID preview')).toBeNull()
   })
 })

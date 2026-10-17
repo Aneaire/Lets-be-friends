@@ -12,6 +12,7 @@ import {
   writeIdentityVerificationDraft,
 } from './identityVerificationDraft'
 import { identityReadFailureMessage } from './identityReadFailure'
+import { IdentityPhotoFigure, IdentityPhotoSummary, useIdentityPhotoUrl } from './IdentityPhotoPreview'
 import { IdentityRetentionTerms } from './IdentityRetentionTerms'
 
 export type IdentityIntent = 'member' | 'companion_application'
@@ -75,6 +76,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
   const [detailStep, setDetailStep] = useState<DetailStep | null>(null)
   const [working, setWorking] = useState(false)
   const [localError, setLocalError] = useState('')
+  const selfiePreviewUrl = useIdentityPhotoUrl(selfieBlob)
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop())
@@ -238,7 +240,6 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
         const { token } = await issueSelfieCaptureToken({ identityRecordId: current._id })
         await uploadImage({ identityRecordId: current._id, kind: 'selfie', bytes: await selfieBlob.arrayBuffer(), contentType: 'image/jpeg', cameraCaptureToken: token })
         setSelfieSaved(true)
-        setSelfieBlob(null)
       }
       setDetailStep(4)
     } catch (error) {
@@ -438,10 +439,17 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
                     <IdentityCamera target="selfie" videoRef={videoRef} working={working} onCapture={() => void captureCameraImage()} onCancel={closeCamera} />
                   )}
                   {(selfieBlob || selfieSaved) && (
-                    <div className="identity-selfie-confirmed">
-                      <span><Check size={18} aria-hidden="true" /></span>
-                      <div><strong>Current selfie captured</strong><small>{selfieSaved ? 'The selfie is stored privately.' : 'The photo will be stored after you complete the next form.'}</small></div>
-                    </div>
+                    <>
+                      {selfiePreviewUrl && (
+                        <div className="identity-selfie-preview">
+                          <IdentityPhotoFigure className="identity-photo-figure identity-selfie-figure" alt="Current selfie preview" label="Current selfie" url={selfiePreviewUrl} />
+                        </div>
+                      )}
+                      <div className="identity-selfie-confirmed">
+                        <span><Check size={18} aria-hidden="true" /></span>
+                        <div><strong>Current selfie captured</strong><small>{selfieSaved ? 'The selfie is stored privately.' : 'The photo will be stored after you complete the next form.'}</small></div>
+                      </div>
+                    </>
                   )}
                   {(selfieBlob || selfieSaved) && (
                     <div className="identity-action-pair">
@@ -468,6 +476,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
 
               {showReview && (
                 <>
+                  <IdentityPhotoSummary front={front} back={back} selfie={selfieBlob} />
                   <dl className="identity-details-review">
                     <IdentityReviewItem label="Full legal name" value={fields.fullLegalName} wide />
                     <IdentityReviewItem label="Date of birth" value={fields.dateOfBirth} />
@@ -510,6 +519,7 @@ function IdentityStep({ number, title, detail, state, icon }: { number: string; 
 }
 
 function IdentityMediaInput({ id, label, file, required, onChange, onError, onUseCamera }: { id: string; label: string; file: File | null; required?: boolean; onChange: (file: File | null) => void; onError: (message: string) => void; onUseCamera: () => void }) {
+  const previewUrl = useIdentityPhotoUrl(file)
   const updateFile = (file: File | null) => {
     if (file && file.size > 10 * 1024 * 1024) {
       onError('Choose an image smaller than 10 MB.')
@@ -522,9 +532,11 @@ function IdentityMediaInput({ id, label, file, required, onChange, onError, onUs
     <div className="identity-media-field">
       <span className="label">{label}{!required && <span className="label-aux">Optional</span>}</span>
       <div className="identity-media-choice">
-        <span className="identity-media-status"><FileText size={20} aria-hidden="true" /><span><strong>{file ? file.name : 'No photo added'}</strong><small>{file ? formatFileSize(file.size) : 'JPEG, PNG, or WebP up to 10 MB'}</small></span></span>
+        {file && previewUrl
+          ? <IdentityPhotoFigure className="identity-media-preview" alt={`${label} preview`} label={label} name={file.name} detail={formatFileSize(file.size)} url={previewUrl} />
+          : <span className="identity-media-status"><FileText size={20} aria-hidden="true" /><span><strong>No photo added</strong><small>JPEG, PNG, or WebP up to 10 MB</small></span></span>}
         <div className="identity-media-actions">
-          <label className="identity-media-button" htmlFor={id}><Upload size={16} aria-hidden="true" />Upload photo</label>
+          <label className="identity-media-button" htmlFor={id}><Upload size={16} aria-hidden="true" />{file ? 'Choose another photo' : 'Upload photo'}</label>
           <button type="button" className="identity-media-button" onClick={onUseCamera}><Camera size={16} aria-hidden="true" />Use camera</button>
         </div>
       </div>
