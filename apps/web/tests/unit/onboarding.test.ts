@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deviceLocationErrorMessage, goalForSkip, onboardingDestination, onboardingGateDecision } from '../../src/lib/onboarding'
+import { deviceLocationErrorMessage, onboardingDestination, onboardingGateDecision } from '../../src/lib/onboarding'
 import { currentPolicyVersion } from '@lets-be-friends/shared'
 
 const ready = {
@@ -144,10 +144,7 @@ describe('onboarding destinations', () => {
     expect(onboardingDestination('companion')).toBe('/companion')
   })
 
-  it('defaults skip to member while preserving a companion choice', () => {
-    expect(goalForSkip()).toBe('member')
-    expect(goalForSkip('companion')).toBe('companion')
-  })
+
 })
 
 describe('onboarding device location errors', () => {

@@ -73,10 +73,6 @@ export function onboardingDestination(goal: OnboardingGoal) {
   return goal === 'companion' ? '/companion' as const : '/nearby' as const
 }
 
-export function goalForSkip(goal?: OnboardingGoal): OnboardingGoal {
-  return goal ?? 'member'
-}
-
 export function deviceLocationErrorMessage(code: number) {
   if (code === 1) {
     return 'Location permission is blocked. Allow location in your browser site settings, reload, then try again.'

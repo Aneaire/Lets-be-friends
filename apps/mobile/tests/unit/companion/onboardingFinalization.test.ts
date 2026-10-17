@@ -57,23 +57,35 @@ describe('mobile onboarding finalization', () => {
     expect(d.calls).toEqual([])
   })
 
-  it('never submits on the explicit later intent but still completes', async () => {
-    const d = deps()
-    const result = await finalizeOnboarding('later', d)
+  it('has no deferral bypass for a new Companion', async () => {
+    await expect(finalizeOnboarding('complete', deps())).rejects.toMatchObject({ code: 'application' })
+    const legacy = deps()
+    await expect(finalizeOnboarding('later' as never, legacy)).rejects.toMatchObject({ code: 'application' })
+    expect(legacy.calls).toEqual([])
+  })
+
+  it('completes a member with both acceptances saved before completion', async () => {
+    const d = deps({ goal: 'member', categories: [] })
+    const result = await finalizeOnboarding('complete', d)
     expect(result).toEqual({ submittedApplication: false })
-    expect(d.calls).toEqual(['claimUsername', 'save', 'updateProfile', 'completeOnboarding'])
+    expect(d.calls).toEqual(['claimUsername', 'save', 'completeOnboarding'])
     expect(d.calls).not.toContain('submitApplication')
   })
 
   it('requires both boxes unless the current acceptance is already remembered', async () => {
-    await expect(finalizeOnboarding('later', deps({ termsAccepted: false, privacyAccepted: true }))).rejects.toMatchObject({ code: 'acceptance' })
-    await expect(finalizeOnboarding('later', deps({ termsAccepted: true, privacyAccepted: true }))).resolves.toEqual({ submittedApplication: false })
-    await expect(finalizeOnboarding('later', deps({ termsAccepted: false, privacyAccepted: false, alreadyAccepted: true }))).resolves.toEqual({ submittedApplication: false })
+    const missing = deps({ goal: 'member', categories: [], termsAccepted: false, privacyAccepted: false })
+    await expect(finalizeOnboarding('complete', missing)).rejects.toMatchObject({ code: 'acceptance' })
+    expect(missing.calls).toEqual([])
+    const single = deps({ goal: 'member', categories: [], termsAccepted: false, privacyAccepted: true })
+    await expect(finalizeOnboarding('complete', single)).rejects.toMatchObject({ code: 'acceptance' })
+    expect(single.calls).toEqual([])
+    await expect(finalizeOnboarding('complete', deps({ goal: 'member', categories: [], termsAccepted: true, privacyAccepted: true }))).resolves.toEqual({ submittedApplication: false })
+    await expect(finalizeOnboarding('complete', deps({ goal: 'member', categories: [], termsAccepted: false, privacyAccepted: false, alreadyAccepted: true }))).resolves.toEqual({ submittedApplication: false })
   })
 
   it('lets an existing Companion reaccept policy-only without categories or profile writes', async () => {
     const d = deps({ categories: [], hasApplication: true })
-    const result = await finalizeOnboarding('later', d)
+    const result = await finalizeOnboarding('complete', d)
     expect(result).toEqual({ submittedApplication: false })
     expect(d.calls).toEqual(['claimUsername', 'save', 'completeOnboarding'])
     expect(d.calls).not.toContain('updateProfile')
@@ -82,20 +94,26 @@ describe('mobile onboarding finalization', () => {
 
   it('treats completed accounts as policy-only even without a profile or categories', async () => {
     const d = deps({ categories: [], hasApplication: false, policyOnly: true })
-    const result = await finalizeOnboarding('submit-profile', d)
+    const result = await finalizeOnboarding('complete', d)
     expect(result).toEqual({ submittedApplication: false })
     expect(d.calls).toEqual(['claimUsername', 'save', 'completeOnboarding'])
   })
 
   it('skips claiming when the username is already set', async () => {
-    const d = deps({ viewerUsername: 'maya_friend' })
-    await finalizeOnboarding('later', d)
-    expect(d.calls).toEqual(['save', 'updateProfile', 'completeOnboarding'])
+    const d = deps({ goal: 'member', categories: [], viewerUsername: 'maya_friend' })
+    await finalizeOnboarding('complete', d)
+    expect(d.calls).toEqual(['save', 'completeOnboarding'])
   })
 
   it('exposes FinalizeError codes for username, location, and categories', async () => {
-    await expect(finalizeOnboarding('later', deps({ usernameReady: false }))).rejects.toMatchObject({ code: 'username' })
-    await expect(finalizeOnboarding('later', deps({ location: null }))).rejects.toMatchObject({ code: 'location' })
-    await expect(finalizeOnboarding('later', deps({ categories: [] }))).rejects.toMatchObject({ code: 'categories' })
+    await expect(finalizeOnboarding('complete', deps({ goal: 'member', categories: [], usernameReady: false }))).rejects.toMatchObject({ code: 'username' })
+    await expect(finalizeOnboarding('complete', deps({ goal: 'member', categories: [], location: null }))).rejects.toMatchObject({ code: 'location' })
+    await expect(finalizeOnboarding('submit-profile', deps({ categories: [] }))).rejects.toMatchObject({ code: 'categories' })
+  })
+
+  it('does not complete when acceptance persistence fails', async () => {
+    const d = deps({ goal: 'member', categories: [], saveOnboardingLocationAndConsent: async () => { throw new Error('offline') } })
+    await expect(finalizeOnboarding('complete', d)).rejects.toMatchObject({ code: 'persistence' })
+    expect(d.calls).not.toContain('completeOnboarding')
   })
 })

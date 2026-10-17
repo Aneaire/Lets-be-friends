@@ -15,7 +15,7 @@ import { InlineNotice } from '../design-system/molecules/FeedbackState'
 import { FormField } from '../design-system/molecules/FormField'
 import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
 import { roundCoordinates, type Coordinates } from '../lib/geo'
-import { currentTermsVersion, deviceLocationErrorMessage, goalForSkip, isRoundedCoordinate, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
+import { currentTermsVersion, deviceLocationErrorMessage, isRoundedCoordinate, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { CompanionProfileFields } from '../features/companion-application/CompanionProfileFields'
 import {
@@ -214,24 +214,6 @@ export function OnboardingPage() {
 
   const acceptanceError = 'Agree to both the Terms and Conditions and the Privacy Policy in Step 5 before continuing.'
 
-  const finish = async (nextGoal: OnboardingGoal) => {
-    if (submitting) return
-    if (!acceptanceSatisfied) {
-      setError(acceptanceError)
-      return
-    }
-    setSubmitting(true)
-    setError('')
-    try {
-      await persistUnifiedAcceptance()
-      await completeOnboarding({ goal: nextGoal })
-      await navigate({ to: onboardingDestination(nextGoal) })
-    } catch (submitError) {
-      setError(submitError instanceof Error ? describeConvexError(submitError) : 'Your welcome guide could not be completed.')
-      setSubmitting(false)
-    }
-  }
-
   const saveProfileAndContinue = async () => {
     if (submitting) return
     const cleanFirstName = firstName.trim()
@@ -291,8 +273,11 @@ export function OnboardingPage() {
     }
   }
 
+  const isApprovedFinal = verification.state === 'approved' || verification.action === 'none'
+  const memberLoadingLabel = isApprovedFinal ? 'Finishing setup…' : 'Opening identity check...'
+  const companionLoadingLabel = isApprovedFinal ? 'Saving…' : 'Opening identity check...'
   const identityActionLabel = verification.state === 'approved'
-    ? 'Open bookings'
+    ? 'Finish setup'
     : verification.action === 'none'
       ? 'View verification status'
       : verification.action === 'continue'
@@ -371,7 +356,7 @@ export function OnboardingPage() {
   const isReacceptance = Boolean(viewer.onboardingCompletedAt)
 
   const companionIdentityActionLabel = verification.state === 'approved' || verification.action === 'none'
-    ? 'Save Companion profile'
+    ? 'Save Companion profile and finish'
     : 'Save and verify identity'
 
   return (
@@ -686,7 +671,7 @@ export function OnboardingPage() {
                 disabled={submitting || companionIdentityFlow.busy || !acceptanceSatisfied}
                 onClick={() => void finishCompanionWithIdentityReview()}
               >
-                {submitting || companionIdentityFlow.busy ? 'Opening identity check...' : companionIdentityActionLabel}
+                {submitting || companionIdentityFlow.busy ? companionLoadingLabel : companionIdentityActionLabel}
               </Button>
             )}
             {step === 5 && selectedGoal === 'companion' && isReacceptance && (
@@ -700,17 +685,10 @@ export function OnboardingPage() {
             )}
             {step === 5 && selectedGoal === 'member' && (
               <Button intent="self" disabled={submitting || identityFlow.busy || !acceptanceSatisfied} onClick={() => void finishWithIdentityReview()}>
-                {submitting || identityFlow.busy ? 'Opening identity check...' : identityActionLabel}
+                {submitting || identityFlow.busy ? memberLoadingLabel : identityActionLabel}
               </Button>
             )}
           </div>
-          {step === 5 && (
-            <div className="onboarding-skip-row">
-              <button type="button" className="onboarding-skip" disabled={submitting || !acceptanceSatisfied} onClick={() => void finish(goalForSkip(goal))}>
-                {submitting ? 'Saving…' : 'Skip for now'}
-              </button>
-            </div>
-          )}
         </footer>
       </section>
     </main>

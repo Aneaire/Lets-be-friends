@@ -88,9 +88,6 @@ export function mergeOnboardingCategoriesIntoForm(
 export const onboardingCompanionReviewNotice =
   'Saving happens only in the final step after acceptance. Your profile stays hidden from discovery until identity verification is approved. Only identity is reviewed.'
 
-export const onboardingCompanionSkipCopy =
-  'Prefer to apply later? Complete the welcome guide now and submit your profile from the Companion screen at any time.'
-
 export const onboardingCompanionIdentityFollowupCopy =
   'Identity verification happens on web after onboarding. Open the Companion screen to continue there.'
 

@@ -146,13 +146,13 @@ function checkBothBoxes() {
 }
 
 describe('onboarding route', () => {
-  it('keeps Back and Continue on one row with Skip only on the final step', async () => {
+  it('keeps Back and Continue on one row with no skip control', async () => {
     state.viewer = unacceptedViewer()
     render(<OnboardingPage />)
 
     const stepOne = screen.getByRole('button', { name: 'Continue' })
     await waitFor(() => expect((stepOne as HTMLButtonElement).disabled).toBe(false))
-    expect(screen.queryByRole('button', { name: 'Skip for now' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
     fireEvent.click(stepOne)
     await screen.findByText('What would you like to do here?')
 
@@ -163,13 +163,13 @@ describe('onboarding route', () => {
     expect(back.textContent).toBe('')
     expect(row!.contains(back)).toBe(true)
     expect(row!.contains(primary)).toBe(true)
-    expect(screen.queryByRole('button', { name: 'Skip for now' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
   })
 
   it('shows no back or skip control on the first step', () => {
     render(<OnboardingPage />)
     expect(screen.queryByRole('button', { name: 'Back to the previous step' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Skip for now' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
   })
 
   it('keeps Step 1 free of policy checkboxes and defers location persistence until Step 5', async () => {
@@ -278,22 +278,27 @@ describe('onboarding route', () => {
   it('requires both boxes in either order and re-disables when either is unchecked', async () => {
     state.viewer = unacceptedViewer()
     await goToStep5Member()
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
     const finishButton = screen.getByRole('button', { name: 'Verify identity' }) as HTMLButtonElement
-    const skipButton = screen.getByRole('button', { name: 'Skip for now' }) as HTMLButtonElement
     expect(finishButton.disabled).toBe(true)
 
     fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }))
     expect(finishButton.disabled).toBe(true)
-    expect(skipButton.disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
+    expect(state.saveLocation).not.toHaveBeenCalled()
+    expect(state.completeOnboarding).not.toHaveBeenCalled()
+    expect(state.navigate).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Privacy Policy/ }))
     await waitFor(() => expect(finishButton.disabled).toBe(false))
-    expect(skipButton.disabled).toBe(false)
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
 
     fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }))
     await waitFor(() => expect(finishButton.disabled).toBe(true))
-    expect(skipButton.disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
     expect(state.saveLocation).not.toHaveBeenCalled()
+    expect(state.completeOnboarding).not.toHaveBeenCalled()
+    expect(state.navigate).not.toHaveBeenCalled()
   })
 
   it('shows no checkbox and a remembered notice for already accepted accounts', async () => {
@@ -301,9 +306,8 @@ describe('onboarding route', () => {
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(screen.getByText(/already accepted the current Terms/i)).toBeTruthy()
     const finishButton = screen.getByRole('button', { name: 'Verify identity' }) as HTMLButtonElement
-    const skipButton = screen.getByRole('button', { name: 'Skip for now' }) as HTMLButtonElement
     expect(finishButton.disabled).toBe(false)
-    expect(skipButton.disabled).toBe(false)
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
   })
 
   it('lands completed legacy accounts directly on the final review', async () => {
@@ -333,14 +337,13 @@ describe('onboarding route', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
     await screen.findByText('Review and accept to finish.')
 
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
     const finishButton = screen.getByRole('button', { name: 'Verify identity' }) as HTMLButtonElement
-    const skipButton = screen.getByRole('button', { name: 'Skip for now' }) as HTMLButtonElement
     expect(finishButton.disabled).toBe(true)
-    expect(skipButton.disabled).toBe(true)
 
     checkBothBoxes()
     await waitFor(() => expect(finishButton.disabled).toBe(false))
-    expect(skipButton.disabled).toBe(false)
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
     fireEvent.click(finishButton)
     await waitFor(() => expect(state.saveLocation).toHaveBeenCalledWith(expect.objectContaining({
       locationConsent: true,
@@ -353,6 +356,41 @@ describe('onboarding route', () => {
     const saveOrder = state.saveLocation.mock.invocationCallOrder[0]
     const completeOrder = state.completeOnboarding.mock.invocationCallOrder[0]
     expect(saveOrder).toBeLessThan(completeOrder)
+  })
+
+  it('never shows a skip control for unchecked, single, both, or remembered acceptance', async () => {
+    state.viewer = unacceptedViewer()
+    await goToStep5Member()
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }))
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Privacy Policy/ }))
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
+    cleanup()
+    state.viewer = acceptedViewer()
+    state.saveLocation.mockClear()
+    state.completeOnboarding.mockClear()
+    state.navigate.mockClear()
+    await goToStep5Member()
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
+  })
+
+  it('labels the final approved member action Finish setup and navigates to /app after saving', async () => {
+    state.viewer = unacceptedViewer({ verificationStatus: 'approved', identityEligible: true })
+    await goToStep5Member()
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
+    const finishButton = screen.getByRole('button', { name: 'Finish setup' }) as HTMLButtonElement
+    expect(screen.queryByRole('button', { name: 'Open bookings' })).toBeNull()
+    expect(finishButton.disabled).toBe(true)
+    checkBothBoxes()
+    await waitFor(() => expect(finishButton.disabled).toBe(false))
+    fireEvent.click(finishButton)
+    await waitFor(() => expect(state.saveLocation).toHaveBeenCalled())
+    await waitFor(() => expect(state.completeOnboarding).toHaveBeenCalledWith({ goal: 'member' }))
+    const saveOrder = state.saveLocation.mock.invocationCallOrder[0]
+    const completeOrder = state.completeOnboarding.mock.invocationCallOrder[0]
+    expect(saveOrder).toBeLessThan(completeOrder)
+    await waitFor(() => expect(state.navigate).toHaveBeenCalledWith({ to: '/app' }))
   })
 
   it('blocks completion when the acceptance save fails and supports retry', async () => {
@@ -373,6 +411,7 @@ describe('onboarding route', () => {
     fireEvent.click(finishButton)
     expect(await screen.findByRole('alert')).toBeTruthy()
     expect(state.completeOnboarding).not.toHaveBeenCalled()
+    expect(state.navigate).not.toHaveBeenCalled()
 
     state.saveLocation.mockReset()
     state.saveLocation.mockImplementation(async () => undefined)
@@ -438,6 +477,37 @@ describe('onboarding route', () => {
       hourlyRateCentavos: 50_000,
     })))
     await waitFor(() => expect(state.completeOnboarding).toHaveBeenCalledWith({ goal: 'companion' }))
+  })
+
+  it('labels the approved Companion final action as a finishing save', async () => {
+    state.viewer = unacceptedViewer({
+      onboardingGoal: 'companion',
+      onboardingCategories: ['Good company'],
+      verificationStatus: 'approved',
+      identityEligible: true,
+    })
+    render(<OnboardingPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+
+    expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
+    const saveButton = screen.getByRole('button', { name: 'Save Companion profile and finish' }) as HTMLButtonElement
+    expect(saveButton.disabled).toBe(true)
+    const bio = await screen.findByLabelText(/Tell me about yourself/) as HTMLTextAreaElement
+    fireEvent.change(bio, { target: { value: 'I like helping neighbors.' } })
+    const skills = await screen.findByLabelText(/What work or skills could you share/) as HTMLTextAreaElement
+    fireEvent.change(skills, { target: { value: 'I can teach guitar and help with everyday errands.' } })
+    fireEvent.change(screen.getByLabelText(/City/), { target: { value: 'Bacolor' } })
+    checkBothBoxes()
+    await waitFor(() => expect(saveButton.disabled).toBe(false))
+    fireEvent.click(saveButton)
+    await waitFor(() => expect(state.saveLocation).toHaveBeenCalled())
+    await waitFor(() => expect(state.submitCompanionProfile).toHaveBeenCalled())
+    await waitFor(() => expect(state.completeOnboarding).toHaveBeenCalledWith({ goal: 'companion' }))
+    expect(state.navigate).toHaveBeenCalled()
   })
 
   it('lets a returning Companion reaccept with Accept and continue without touching the profile', async () => {

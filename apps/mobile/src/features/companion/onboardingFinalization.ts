@@ -10,7 +10,7 @@ import {
 import { mergeOnboardingCategoriesIntoForm } from '@/features/companion/onboardingCompanionApplication'
 
 export type OnboardingGoal = 'member' | 'companion'
-export type FinalizeIntent = 'submit-profile' | 'later'
+export type FinalizeIntent = 'submit-profile' | 'complete'
 export type FinalizeErrorCode =
   | 'username'
   | 'location'
@@ -77,6 +77,9 @@ export async function finalizeOnboarding(
   intent: FinalizeIntent,
   deps: FinalizeDeps,
 ): Promise<{ submittedApplication: boolean }> {
+  // Legacy callers may still pass 'later'. Treat it as completion, except a
+  // new Companion must always submit a profile first.
+  const normalizedIntent = ((intent as string) === 'later' ? 'complete' : intent) as FinalizeIntent
   if (!deps.usernameReady) throw new FinalizeError('username', 'Choose an available username before finishing.')
   if (!deps.location) throw new FinalizeError('location', 'Add your approximate location before finishing.')
   const acceptanceSatisfied = deps.alreadyAccepted || (deps.termsAccepted && deps.privacyAccepted)
@@ -89,6 +92,9 @@ export async function finalizeOnboarding(
   // Previously completed accounts pass policyOnly explicitly, so reacceptance
   // never depends on category data or profile existence.
   const needsProfileWork = deps.goal === 'companion' && !deps.hasApplication && !deps.policyOnly
+  if (needsProfileWork && normalizedIntent !== 'submit-profile') {
+    throw new FinalizeError('application', 'Save your Companion profile to finish. Your profile is required before completion.')
+  }
   const categoryResult = needsProfileWork
     ? validateActivityCategories(deps.categories, maximumOnboardingActivityCategories)
     : null
@@ -99,7 +105,7 @@ export async function finalizeOnboarding(
     )
   }
 
-  const wantsSubmit = intent === 'submit-profile' && deps.goal === 'companion' && !deps.hasApplication && !deps.policyOnly
+  const wantsSubmit = normalizedIntent === 'submit-profile' && deps.goal === 'companion' && !deps.hasApplication && !deps.policyOnly
   const mergedForm = wantsSubmit ? mergeOnboardingCategoriesIntoForm(deps.applicationForm, deps.categories) : deps.applicationForm
   const validatedApplication = wantsSubmit ? validateCompanionApplication(mergedForm) : null
   if (validatedApplication && !validatedApplication.ok) {
@@ -142,7 +148,7 @@ export async function finalizeOnboarding(
     } catch {
       throw new FinalizeError(
         'application',
-        'Your Companion profile could not be saved. Review the details and try again, or finish and set up later.',
+        'Your Companion profile could not be saved. Review the details and try again.',
       )
     }
   }

@@ -8,7 +8,6 @@ import {
   onboardingCompanionHeroTitle,
   onboardingCompanionIdentityFollowupCopy,
   onboardingCompanionReviewNotice,
-  onboardingCompanionSkipCopy,
   onboardingCompanionStatusPresentation,
   onboardingMaxStep,
   onboardingTotalSteps,
@@ -131,9 +130,8 @@ describe('Mobile onboarding Companion application step', () => {
     expect(validateCompanionApplication({ ...base, mode: 'in_person' as const, city: '  ' })).toMatchObject({ ok: false })
   })
 
-  it('keeps skip and review copy free of em dashes and pointed at the Companion screen', () => {
+  it('keeps review copy free of em dashes and pointed at the identity flow', () => {
     for (const copy of [
-      onboardingCompanionSkipCopy,
       onboardingCompanionReviewNotice,
       onboardingCompanionIdentityFollowupCopy,
       onboardingCompanionHeroTitle,
@@ -141,14 +139,12 @@ describe('Mobile onboarding Companion application step', () => {
     ]) {
       expect(copy).not.toContain('—')
     }
-    expect(onboardingCompanionSkipCopy).toContain('Companion screen')
     expect(onboardingCompanionReviewNotice).toContain('Only identity is reviewed')
     expect(onboardingCompanionIdentityFollowupCopy).toContain('on web')
   })
 
   it('keeps Companion onboarding copy free of policy consent and retention prose', () => {
     const copy = [
-      onboardingCompanionSkipCopy,
       onboardingCompanionReviewNotice,
       onboardingCompanionIdentityFollowupCopy,
       onboardingCompanionHeroTitle,

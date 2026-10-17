@@ -42,7 +42,6 @@ import {
   onboardingCompanionHeroTitle,
   onboardingCompanionIdentityFollowupCopy,
   onboardingCompanionReviewNotice,
-  onboardingCompanionSkipCopy,
   onboardingCompanionStatusPresentation,
   onboardingMaxStep,
   onboardingMemberPrepareCopy,
@@ -195,7 +194,7 @@ function ConnectedOnboarding({
     }
   }
 
-  async function finishOnboarding(intent: FinalizeIntent = 'later') {
+  async function finishOnboarding(intent: FinalizeIntent = 'complete') {
     if (submitting || submitted) return
     setSubmitting(true)
     setMessage(null)
@@ -226,11 +225,7 @@ function ConnectedOnboarding({
       })
       if (result.submittedApplication) setApplicationSubmitted(true)
       setSubmitted(true)
-      setMessage(
-        goal === 'companion' && intent === 'later' && !hasApplication && !result.submittedApplication
-          ? 'Your welcome guide is complete. You can submit your Companion profile later from the Companion screen.'
-          : 'Your welcome guide is complete. Opening your profile.',
-      )
+      setMessage('Your welcome guide is complete. Opening your profile.')
     } catch (error) {
       if (error instanceof FinalizeError && (error.code === 'application' || error.code === 'categories')) {
         if (error.code === 'categories') {
@@ -664,7 +659,6 @@ function ConnectedOnboarding({
             </View>
             {applicationError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{applicationError}</AppText> : null}
             <AppText variant="caption" color={theme.colors.textMuted}>{onboardingCompanionReviewNotice}</AppText>
-            <AppText variant="caption" color={theme.colors.textMuted}>{onboardingCompanionSkipCopy}</AppText>
           </View>
         )}
       </View> : null}
@@ -719,24 +713,15 @@ function ConnectedOnboarding({
           intent="self"
           icon="arrow-forward"
           disabled={submitting || submitted}
-        /> : !policyOnly && goal === 'companion' && !hasApplication ? <View style={styles.finalActions}>
-          <ActionButton
-            label={submitting || submitted ? 'Saving welcome guide' : 'Save Companion profile and finish'}
-            onPress={() => void finishOnboarding('submit-profile')}
-            intent="self"
-            disabled={!usernameReady || !location || !acceptanceSatisfied || categories.length === 0 || locating || submitting || submitted}
-            icon="checkmark-circle-outline"
-          />
-          <ActionButton
-            label="Finish and set up later"
-            onPress={() => void finishOnboarding('later')}
-            intent="self"
-            secondary
-            disabled={!usernameReady || !location || !acceptanceSatisfied || locating || submitting || submitted}
-          />
-        </View> : <ActionButton
+        /> : !policyOnly && goal === 'companion' && !hasApplication ? <ActionButton
+          label={submitting || submitted ? 'Saving welcome guide' : 'Save Companion profile and finish'}
+          onPress={() => void finishOnboarding('submit-profile')}
+          intent="self"
+          disabled={!usernameReady || !location || !acceptanceSatisfied || categories.length === 0 || locating || submitting || submitted}
+          icon="checkmark-circle-outline"
+        /> : <ActionButton
           label={submitting || submitted ? 'Saving welcome guide' : 'Accept and complete'}
-          onPress={() => void finishOnboarding('later')}
+          onPress={() => void finishOnboarding('complete')}
           intent="self"
           disabled={!usernameReady || !location || !acceptanceSatisfied || (goal === 'companion' && !policyOnly && !hasApplication && categories.length === 0) || locating || submitting || submitted}
           icon="checkmark-circle-outline"
