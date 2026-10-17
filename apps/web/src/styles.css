@@ -338,22 +338,12 @@
 .circle-member-list article > div:nth-child(2) span { color: var(--text-soft); font-size: 0.84rem; }
 .circle-member-list article > div:last-child { display: flex; gap: 0.35rem; }
 
-.home-circles-module { display: none; border-bottom: 1px solid var(--border); padding: 1rem; }
-.home-circles-module .circle-section-heading { border: 0; padding: 0; }
-.home-circles-module .circle-section-heading a { color: var(--accent-social); font-size: 0.78rem; }
-.home-circles-module > div:last-child { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.75rem; }
-.home-circles-module > div:last-child > a { display: flex; align-items: center; gap: 0.5rem; border: 1px solid var(--border); padding: 0.65rem; color: inherit; text-decoration: none; }
-.home-circles-module .circle-marker { width: 1.7rem; height: 1.7rem; }
-.home-circles-module a > span:last-child { min-width: 0; display: grid; }
-.home-circles-module strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; }
-.home-circles-module small { color: var(--text-soft); font-size: 0.68rem; }
 @media (max-width: 900px) {
   .circle-discussion-layout { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 767px) {
   .circle-image-grid { grid-template-columns: 1fr; }
-  .home-circles-module { display: block; }
   .circles-index-page, .circle-workspace { width: min(100% - 1rem, 44rem); padding-top: 1rem; }
   .circles-index-header h1 { font-size: clamp(2.2rem, 14vw, 3.8rem); }
   .circle-workspace-header h1 { font-size: clamp(1.5rem, 7vw, 2.1rem); }
@@ -376,7 +366,6 @@
   .circle-workspace-tools { display: block; }
   .circle-member-actions { justify-content: flex-end; border-top: 1px solid var(--rule); padding: 0.55rem 0; }
   .circle-comments > form { grid-template-columns: 1fr; }
-  .home-circles-module > div:last-child { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -650,6 +639,7 @@
   color: var(--text-muted);
   font-size: 0.72rem;
 }
+
 .identity-media-preview,
 .identity-photo-figure {
   min-width: 0;
@@ -705,7 +695,6 @@
   color: var(--text-muted);
   font-size: 0.72rem;
 }
-
 
 .identity-media-actions {
   display: grid;
@@ -812,6 +801,7 @@
   display: grid;
   gap: 0.2rem;
 }
+
 .identity-selfie-preview {
   display: grid;
   justify-items: center;
@@ -848,7 +838,6 @@
   font-size: 0.72rem;
   font-weight: 650;
 }
-
 
 .identity-selfie-confirmed strong {
   color: var(--text);
@@ -2296,6 +2285,272 @@
 
   .verification-step .btn,
   .verification-outcome .btn {
+    width: 100%;
+  }
+}
+
+/* Verification congratulations path. Reached from the approval notification. */
+.verified-page {
+  width: min(100% - 2.5rem, 66rem);
+  margin-inline: auto;
+  padding-block: clamp(2rem, 6vw, 4rem) 5rem;
+}
+
+.verified-gate {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.verified-gate > svg {
+  color: var(--accent-self);
+}
+
+.verified-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(1rem, 3vw, 2rem);
+  padding-bottom: clamp(2rem, 5vw, 3rem);
+  border-bottom: 1px solid var(--rule);
+}
+
+.verified-hero-mark {
+  position: relative;
+  display: grid;
+  width: 5rem;
+  height: 5rem;
+  place-items: center;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background: var(--surface-sunk);
+}
+
+.verified-logo {
+  width: 2.75rem;
+  height: auto;
+}
+
+.verified-hero-check {
+  position: absolute;
+  right: -0.35rem;
+  bottom: -0.35rem;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--accent-foreground);
+}
+
+.verified-hero-copy {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.verified-hero-copy .lede {
+  max-width: 42rem;
+}
+
+.verified-hero-note {
+  max-width: 42rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-left: 2px solid var(--success);
+  background: var(--surface-sunk);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.verified-figure {
+  display: grid;
+  gap: 0.75rem;
+  margin: clamp(2rem, 5vw, 3rem) 0 0;
+}
+
+.verified-figure-image {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--surface-sunk);
+}
+
+.verified-figure figcaption {
+  max-width: 46rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.verified-steps {
+  display: grid;
+  gap: 1.5rem;
+  padding-top: clamp(2.5rem, 6vw, 4rem);
+}
+
+.verified-steps-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.7fr);
+  align-items: end;
+  gap: 1.5rem;
+}
+
+.verified-steps-heading > div {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.verified-steps-heading .lede {
+  margin: 0;
+}
+
+.verified-step-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.verified-step-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.verified-step-image {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--surface-sunk);
+}
+
+.verified-step-body {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  padding: 1.25rem;
+}
+
+.verified-step-number {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 1px solid var(--accent-social-line);
+  border-radius: 50%;
+  color: var(--accent-social);
+}
+
+.verified-step-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  margin-top: 0.25rem;
+  color: var(--accent-social);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.verified-step-link:hover {
+  text-decoration: underline;
+}
+
+.verified-step-link:focus-visible,
+.verified-inline-link:focus-visible {
+  border-radius: 4px;
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.verified-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: clamp(2.5rem, 6vw, 4rem);
+  padding: clamp(1.5rem, 4vw, 2.25rem);
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--accent-social);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.verified-actions > div:first-child {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.verified-actions-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.verified-next-level {
+  margin-top: 1.25rem;
+}
+
+.verified-inline-link {
+  color: var(--accent-self);
+  font-weight: 600;
+}
+
+@media (max-width: 980px) {
+  .verified-step-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .verified-page {
+    width: 100%;
+    padding: 1.5rem 0.875rem 6rem;
+  }
+
+  .verified-steps-heading {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .verified-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .verified-hero-mark {
+    width: 4rem;
+    height: 4rem;
+  }
+
+  .verified-logo {
+    width: 2.25rem;
+  }
+
+  .verified-step-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .verified-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .verified-actions-buttons .btn {
     width: 100%;
   }
 }
@@ -10513,14 +10768,18 @@ textarea.field {
 .social-share-message textarea { min-height: 4.5rem; resize: vertical; }
 .social-share-copy-label { display: inline-flex; align-items: center; gap: 0.35rem; }
 
+/* A quoted post keeps the surface of the post it sits in and is separated by its
+   outline alone. An earlier version filled this panel with --surface-sunk, which
+   in dark mode is 14% lightness against a 20% post on a 16% page, so the quote
+   read as a hole punched through the card instead of a quotation inside it. */
 .social-shared-embed {
   display: grid;
   gap: 0.5rem;
   margin-top: 0.5rem;
   padding: 0.75rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--border);
   border-radius: 0.75rem;
-  background: var(--surface-sunk);
+  background: var(--surface);
 }
 
 .social-shared-embed-head {
@@ -14372,10 +14631,6 @@ textarea.field {
       display: none;
     }
 
-    .header-primary-actions {
-      display: none;
-    }
-
     .web-app-shell:has(.desktop-primary-rail) .app-frame-main {
       margin-left: 0;
       padding-bottom: calc(var(--mobile-primary-nav-height) + env(safe-area-inset-bottom));
@@ -14579,6 +14834,13 @@ textarea.field {
 /* In-app notifications */
 .notification-navigation { position: relative; }
 .header-primary-actions { display: flex; align-items: center; gap: 0.4rem; }
+/* This section is deliberately unlayered, so its rules win over @layer
+   components. The mobile bottom tabs already carry Messages and Bookings, so
+   the header must drop its duplicates here: a copy of this rule inside the
+   components layer loses to the display above no matter how it is written. */
+@media (max-width: 767px) {
+  .header-primary-actions { display: none; }
+}
 .header-primary-action { position: relative; display: grid; place-items: center; width: var(--density-touch, 2.75rem); height: var(--density-touch, 2.75rem); border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); text-decoration: none; }
 .header-primary-action:hover { border-color: var(--text); }
 .header-primary-action:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
@@ -14919,10 +15181,10 @@ textarea.field {
   padding: 0;
   background: color-mix(in oklch, oklch(0% 0 0) 78%, transparent);
 }
+
 .direct-image-viewer {
   --viewer-foreground: oklch(98% 0 0);
 }
-
 
 .direct-image-viewer[data-size="large"] {
   position: relative;

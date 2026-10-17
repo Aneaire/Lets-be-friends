@@ -24,6 +24,14 @@ describe('mobile notification helpers', () => {
     expect(mobileNotificationRoute({ type: 'companion' })).toEqual({ pathname: '/companion' })
   })
 
+  it('opens an approved identity notification on the congratulations screen', () => {
+    expect(mobileNotificationRoute({ type: 'identity', outcome: 'verified' })).toEqual({ pathname: '/verified' })
+  })
+
+  it('keeps every other identity notification on the profile status', () => {
+    expect(mobileNotificationRoute({ type: 'identity', outcome: 'status' })).toEqual({ pathname: '/profile' })
+  })
+
   it('preserves post and profile IDs and routes safety updates to the Safety Center', () => {
     expect(mobileNotificationRoute({ type: 'post', postId: 'post-1' })).toEqual({ pathname: '/', params: { postId: 'post-1' } })
     expect(mobileNotificationRoute({ type: 'profile', userId: 'user-1' })).toEqual({ pathname: '/member-profile/[id]', params: { id: 'user-1' } })

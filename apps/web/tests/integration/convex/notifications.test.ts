@@ -264,10 +264,38 @@ describe('notifications', () => {
     const rows = await t.withIdentity({ subject: 'sam' }).query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
     const expiring = rows.page.find((row) => row.kind === 'identity_verification_expiring')
     const expired = rows.page.find((row) => row.kind === 'identity_verification_expired')
-    expect(expiring).toMatchObject({ title: 'Identity verification expiring soon', destination: { type: 'identity' } })
-    expect(expired).toMatchObject({ title: 'Identity verification expired', destination: { type: 'identity' } })
+    expect(expiring).toMatchObject({ title: 'Identity verification expiring soon', destination: { type: 'identity', outcome: 'status' } })
+    expect(expired).toMatchObject({ title: 'Identity verification expired', destination: { type: 'identity', outcome: 'status' } })
     expect(expiring?.body).not.toContain('no longer available')
     expect(expired?.body).not.toContain('no longer available')
+  })
+
+  it('leads an approval notification to the congratulations page only while the approval is current', async () => {
+    const t = convexTest(schema, modules)
+    const now = Date.now()
+    const samId = await t.run(async (ctx) => ctx.db.insert('users', {
+      clerkUserId: 'sam', displayName: 'sam', role: 'member',
+      verificationStatus: 'approved', verificationSource: 'in_app',
+      identityVerifiedAt: now, identityExpiresAt: now + 86_400_000,
+      suspended: false, createdAt: now, updatedAt: now,
+    }))
+    await t.run(async (ctx) => {
+      await createNotification(ctx, { recipientUserId: samId, kind: 'identity_verification_approved', priority: 'attention', dedupeKey: 'approved-1' })
+      await createNotification(ctx, { recipientUserId: samId, kind: 'identity_verification_rejected', priority: 'attention', dedupeKey: 'rejected-1' })
+    })
+
+    const rows = await t.withIdentity({ subject: 'sam' }).query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(rows.page.find((row) => row.kind === 'identity_verification_approved')).toMatchObject({ destination: { type: 'identity', outcome: 'verified' } })
+    expect(rows.page.find((row) => row.kind === 'identity_verification_rejected')).toMatchObject({ destination: { type: 'identity', outcome: 'status' } })
+
+    // The same stored notification must stop promising verified access once the
+    // approval lapses, so a stale row never overstates the member's standing.
+    await t.run(async (ctx) => { await ctx.db.patch(samId, { identityExpiresAt: now - 1 }) })
+    const lapsed = await t.withIdentity({ subject: 'sam' }).query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(lapsed.page.find((row) => row.kind === 'identity_verification_approved')).toMatchObject({ destination: { type: 'identity', outcome: 'status' } })
+
+    const opened = await t.withIdentity({ subject: 'sam' }).mutation(api.notifications.open, { notificationId: lapsed.page.find((row) => row.kind === 'identity_verification_approved')!.id })
+    expect(opened).toMatchObject({ status: 'ready', destination: { type: 'identity', outcome: 'status' } })
   })
 
   it('presents mention copy that distinguishes post from comment and routes to the post', async () => {

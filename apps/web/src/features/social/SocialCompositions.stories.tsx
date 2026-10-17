@@ -264,6 +264,18 @@ export const PostMediaOnly390Dark: Story = {
   render: () => <PostComposition media={[photoMedia[0]]} />,
 }
 
+// A quoted post keeps the surface of the post it sits in, so the panel never
+// sinks below the card. In dark mode a sunk fill put the quote underneath both
+// the post and the page, which read as a hole punched through the card.
+function expectQuotedPanelsMatchThePost(canvasElement: HTMLElement) {
+  const post = canvasElement.querySelector('.ds-post-card')
+  expect(post).toBeTruthy()
+  const postSurface = getComputedStyle(post as Element).backgroundColor
+  const panels = canvasElement.querySelectorAll('.social-shared-embed')
+  expect(panels.length).toBe(2)
+  panels.forEach((panel) => expect(getComputedStyle(panel).backgroundColor).toBe(postSurface))
+}
+
 export const PostSharedEmbeds320Light: Story = {
   globals: { theme: 'light', viewport: mobileSmall },
   render: () => <PostComposition body="Sharing this because it made my week easier." shared />,
@@ -271,12 +283,16 @@ export const PostSharedEmbeds320Light: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('article', { name: 'Shared post by Gelo Santiago' })).toBeVisible()
     await expect(canvas.getByRole('article', { name: 'Shared review by Angelo Santiago' })).toBeVisible()
+    expectQuotedPanelsMatchThePost(canvasElement)
   },
 }
 
 export const PostSharedEmbeds390Dark: Story = {
   globals: { theme: 'dark', viewport: mobileDefault },
   render: () => <PostComposition body="Sharing this because it made my week easier." shared />,
+  play: async ({ canvasElement }) => {
+    expectQuotedPanelsMatchThePost(canvasElement)
+  },
 }
 
 export const PostPoll320Light: Story = {

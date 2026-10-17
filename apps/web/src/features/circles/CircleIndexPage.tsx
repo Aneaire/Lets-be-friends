@@ -4,7 +4,7 @@ import { CircleDot, ImagePlus, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
-import { CircleCard, CircleHomeCard } from '../presentation/CircleCards'
+import { CircleCard } from '../presentation/CircleCards'
 import { uploadCircleImage } from './CircleWorkspacePage';
 import { describeConvexError } from '../../lib/convexErrors'
 
@@ -367,16 +367,5 @@ export function CircleIndexPage() {
         </>
       )}
     </main>
-  )
-}
-
-export function MyCirclesHomeModule() {
-  const mine = useQuery(api.circles.mine)
-  const active = (Array.isArray(mine) ? mine : []).filter((circle) => circle.membershipState === 'active').slice(0, 3)
-  return (
-    <section className="home-circles-module" aria-labelledby="home-circles-title">
-      <div className="circle-section-heading"><h2 id="home-circles-title">My circles</h2><Link to="/circles">See all</Link></div>
-      {mine === undefined ? <p role="status" className="text-meta">Loading circles...</p> : active.length === 0 ? <p>Join a Circle to see its active conversations here.</p> : <div>{active.map((circle) => <CircleHomeCard key={circle._id} link={<Link to="/circles/$circleId" params={{ circleId: circle._id }} />} circle={circle} />)}</div>}
-    </section>
   )
 }

@@ -27,7 +27,6 @@ import { ReviewFeedCard } from './ReviewFeedCard'
 import { ShareDialog } from './ShareDialog'
 import { SharedPostEmbed, SharedReviewEmbed } from './SharedEmbeds'
 import { shareTargetUrl } from './shareLinks'
-import { MyCirclesHomeModule } from '../circles/CircleIndexPage'
 import { CurrentCircleRailCard } from '../circles/CurrentCircleRailCard'
 import { FriendayHowItWorksRail, FriendayIdeas, FriendayMobileSummary, FriendaySafetyRail } from './FriendayGuide';
 import { describeConvexError } from '../../lib/convexErrors'
@@ -222,8 +221,6 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
             </button>
           ))}
         </div>
-
-        {viewer && <MyCirclesHomeModule />}
 
         {error && (
           <div className="notice notice-danger social-notice" role="alert">

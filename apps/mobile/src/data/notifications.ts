@@ -4,7 +4,7 @@ export type MobileNotificationDestination =
   | { type: 'post'; postId: string }
   | { type: 'circle'; circleId: string; postId?: string; commentId?: string }
   | { type: 'companion' }
-  | { type: 'identity' }
+  | { type: 'identity'; outcome: 'verified' | 'status' }
   | { type: 'profile'; userId: string }
   | { type: 'safety' }
   | { type: 'notifications' }
@@ -22,7 +22,9 @@ export function mobileNotificationRoute(destination: MobileNotificationDestinati
       : { pathname: '/booking/[id]' as const, params: { id: destination.bookingId } }
     case 'conversation': return { pathname: '/conversation/[id]' as const, params: { id: destination.conversationId } }
     case 'companion': return { pathname: '/companion' as const }
-    case 'identity': return { pathname: '/profile' as const }
+    case 'identity': return destination.outcome === 'verified'
+      ? { pathname: '/verified' as const }
+      : { pathname: '/profile' as const }
     case 'profile': return { pathname: '/member-profile/[id]' as const, params: { id: destination.userId } }
     case 'post': return { pathname: '/' as const, params: { postId: destination.postId } }
     case 'circle': return { pathname: '/circles/[id]' as const, params: { id: destination.circleId, ...(destination.postId ? { postId: destination.postId } : {}), ...(destination.commentId ? { commentId: destination.commentId } : {}) } }

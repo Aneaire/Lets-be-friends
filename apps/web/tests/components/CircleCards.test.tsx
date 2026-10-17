@@ -2,7 +2,7 @@
 
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { CircleCard, CircleHomeCard, type CircleCardView } from '../../src/features/presentation/CircleCards'
+import { CircleCard, type CircleCardView } from '../../src/features/presentation/CircleCards'
 
 afterEach(cleanup)
 
@@ -56,15 +56,6 @@ describe('circle card presentation', () => {
     cleanup()
     render(<CircleCard link={<a href="/circles/local" />} circle={{ ...joinedOpen, mode: 'in_person', approximateArea: undefined }} />)
     expect(screen.getByText('Area shared in Circle')).toBeTruthy()
-  })
-
-  it('renders the compact home card with its member count while keeping the link', () => {
-    render(<CircleHomeCard link={<a href="/circles/sunday" />} circle={joinedOpen} />)
-
-    const link = screen.getByRole('link', { name: /Sunday Coffee Friends/ })
-    expect(link.getAttribute('href')).toBe('/circles/sunday')
-    expect(screen.getByText('12 members')).toBeTruthy()
-    expect(link.querySelector('.circle-marker')).toBeTruthy()
   })
 
   it('shows the brand logo when a Circle has no icon and the icon image when it does', () => {

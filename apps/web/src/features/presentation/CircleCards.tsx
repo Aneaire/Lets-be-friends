@@ -20,11 +20,6 @@ export type CircleCardView = {
   joinPolicy?: 'approval_required' | 'open' | null
 }
 
-export type CircleHomeCardView = Pick<
-  CircleCardView,
-  'name' | 'mode' | 'iconUrl' | 'memberCount' | 'membershipState'
->
-
 type CircleLinkElementProps = {
   className?: string
   children?: ReactNode
@@ -66,17 +61,5 @@ export function CircleCard({ link, circle }: { link: CircleLinkElement; circle: 
       </span>
     </span>,
     <span key="category" className="circle-index-category">{circle.category}</span>,
-  )
-}
-
-export function CircleHomeCard({ link, circle }: { link: CircleLinkElement; circle: CircleHomeCardView }) {
-  return cloneElement(
-    link,
-    {},
-    <CircleMarker key="marker" circle={circle} />,
-    <span key="copy">
-      <strong>{circle.name}</strong>
-      <small>{circle.memberCount} members</small>
-    </span>,
   )
 }

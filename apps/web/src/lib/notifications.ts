@@ -4,7 +4,7 @@ export type NotificationDestination =
   | { type: 'post'; postId: string; commentId?: string }
   | { type: 'circle'; circleId: string; postId?: string; commentId?: string }
   | { type: 'companion' }
-  | { type: 'identity' }
+  | { type: 'identity'; outcome: 'verified' | 'status' }
   | { type: 'profile'; userId: string }
   | { type: 'safety' }
   | { type: 'notifications' }
@@ -19,7 +19,9 @@ export function webDestination(destination: NotificationDestination) {
     case 'post': return { to: '/social' as const, search: { postId: destination.postId, ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
     case 'circle': return { to: '/circles/$circleId' as const, params: { circleId: destination.circleId }, search: { ...(destination.postId ? { postId: destination.postId } : {}), ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
     case 'companion': return { to: '/companion' as const, search: {} }
-    case 'identity': return { to: '/profile' as const, search: {} }
+    case 'identity': return destination.outcome === 'verified'
+      ? { to: '/verified' as const, search: {} }
+      : { to: '/profile' as const, search: {} }
     case 'profile': return { to: '/member-profile' as const, search: { userId: destination.userId } }
     case 'safety': return { to: '/safety' as const, search: {} }
     case 'notifications': return { to: '/notifications' as const, search: {} }

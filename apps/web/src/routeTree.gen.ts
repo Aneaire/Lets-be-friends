@@ -28,6 +28,7 @@ import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SocialRouteImport } from './routes/social'
 import { Route as TermsAndConditionsRouteImport } from './routes/terms-and-conditions'
+import { Route as VerifiedRouteImport } from './routes/verified'
 import { Route as VerifyIdentityRouteImport } from './routes/verify-identity'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as CirclesIndexRouteImport } from './routes/circles.index'
@@ -128,6 +129,11 @@ const TermsAndConditionsRoute = TermsAndConditionsRouteImport.update({
   path: '/terms-and-conditions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VerifiedRoute = VerifiedRouteImport.update({
+  id: '/verified',
+  path: '/verified',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VerifyIdentityRoute = VerifyIdentityRouteImport.update({
   id: '/verify-identity',
   path: '/verify-identity',
@@ -169,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
   '/terms-and-conditions': typeof TermsAndConditionsRoute
+  '/verified': typeof VerifiedRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
   '/circles/$circleId': typeof CirclesCircleIdRoute
@@ -193,6 +200,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
   '/terms-and-conditions': typeof TermsAndConditionsRoute
+  '/verified': typeof VerifiedRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
   '/circles/$circleId': typeof CirclesCircleIdRoute
@@ -219,6 +227,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
   '/terms-and-conditions': typeof TermsAndConditionsRoute
+  '/verified': typeof VerifiedRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
   '/circles/$circleId': typeof CirclesCircleIdRoute
@@ -246,6 +255,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/social'
     | '/terms-and-conditions'
+    | '/verified'
     | '/verify-identity'
     | '/wallet'
     | '/circles/$circleId'
@@ -270,6 +280,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/social'
     | '/terms-and-conditions'
+    | '/verified'
     | '/verify-identity'
     | '/wallet'
     | '/circles/$circleId'
@@ -295,6 +306,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/social'
     | '/terms-and-conditions'
+    | '/verified'
     | '/verify-identity'
     | '/wallet'
     | '/circles/$circleId'
@@ -321,6 +333,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SocialRoute: typeof SocialRoute
   TermsAndConditionsRoute: typeof TermsAndConditionsRoute
+  VerifiedRoute: typeof VerifiedRoute
   VerifyIdentityRoute: typeof VerifyIdentityRoute
   WalletRoute: typeof WalletRoute
 }
@@ -460,6 +473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsAndConditionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/verified': {
+      id: '/verified'
+      path: '/verified'
+      fullPath: '/verified'
+      preLoaderRoute: typeof VerifiedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/verify-identity': {
       id: '/verify-identity'
       path: '/verify-identity'
@@ -524,6 +544,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SocialRoute: SocialRoute,
   TermsAndConditionsRoute: TermsAndConditionsRoute,
+  VerifiedRoute: VerifiedRoute,
   VerifyIdentityRoute: VerifyIdentityRoute,
   WalletRoute: WalletRoute,
 }

@@ -9,6 +9,8 @@ describe('web notification helpers', () => {
     expect(webDestination({ type: 'booking', audience: 'companion', bookingId: 'booking-1' })).toEqual({ to: '/companion', search: { bookingId: 'booking-1' } })
     expect(webDestination({ type: 'booking', audience: 'member', bookingId: 'booking-2' })).toEqual({ to: '/app', search: { bookingId: 'booking-2' } })
     expect(webDestination({ type: 'companion' })).toEqual({ to: '/companion', search: {} })
+    expect(webDestination({ type: 'identity', outcome: 'verified' })).toEqual({ to: '/verified', search: {} })
+    expect(webDestination({ type: 'identity', outcome: 'status' })).toEqual({ to: '/profile', search: {} })
     expect(webDestination({ type: 'profile', userId: 'user-1' })).toEqual({ to: '/member-profile', search: { userId: 'user-1' } })
     expect(webDestination({ type: 'circle', circleId: 'circle-1', postId: 'post-2', commentId: 'comment-2' })).toEqual({
       to: '/circles/$circleId',

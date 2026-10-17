@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 
-import { CircleCard, CircleHomeCard, type CircleCardView } from './CircleCards'
+import { CircleCard, type CircleCardView } from './CircleCards'
 
 const joinedOpen: CircleCardView = {
   name: 'Sunday Coffee Friends',
@@ -119,27 +119,6 @@ export const LongNameAt320: Story = {
   ),
   play: async ({ canvasElement }) => {
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
-  },
-}
-
-export const HomeModuleCards: Story = {
-  globals: { viewport: { value: 'mobileDefault', isRotated: false } },
-  render: () => (
-    <main className="circles-index-page">
-      <section className="home-circles-module" aria-labelledby="story-home-circles-title">
-        <div className="circle-section-heading"><h2 id="story-home-circles-title">My circles</h2><a href="/circles">See all</a></div>
-        <div>
-          <CircleHomeCard link={<a href="/circles/sunday-coffee" />} circle={joinedOpen} />
-          <CircleHomeCard link={<a href="/circles/garden" />} circle={hostedApproval} />
-        </div>
-      </section>
-    </main>
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByText('Sunday Coffee Friends')).toBeVisible()
-    await expect(canvas.getByText('12 members')).toBeVisible()
-    await expect(canvas.getByRole('link', { name: /Sunday Coffee Friends/ })).toHaveAttribute('href', '/circles/sunday-coffee')
   },
 }
 

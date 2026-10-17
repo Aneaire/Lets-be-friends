@@ -12,13 +12,19 @@ import { isCircleParticipantRole } from './circleAuthorization'
 export type NotificationKind = CatalogNotificationKind
 export type NotificationPriority = Doc<'notifications'>['priority']
 
+// An identity notification points at the member's own approval story. `verified`
+// means the member holds a current approval and can see the congratulations
+// page; `status` covers every other case, including an approval that has since
+// expired or been replaced, and lands on the account overview instead.
+export type IdentityDestinationOutcome = 'verified' | 'status'
+
 export type NotificationDestination =
   | { type: 'booking'; audience: 'member' | 'companion'; bookingId: string }
   | { type: 'conversation'; conversationId: string; messageId?: string }
   | { type: 'post'; postId: string; commentId?: string }
   | { type: 'circle'; circleId: string; postId?: string; commentId?: string }
   | { type: 'companion' }
-  | { type: 'identity' }
+  | { type: 'identity'; outcome: IdentityDestinationOutcome }
   | { type: 'profile'; userId: string }
   | { type: 'safety' }
   | { type: 'notifications' }
@@ -293,7 +299,19 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
     const companion = await ctx.db.get(notification.companionProfileId)
     return { available: Boolean(companion), destination: { type: 'companion' } }
   }
-  if (destination === 'identity') return { available: true, destination: { type: 'identity' } }
+  if (destination === 'identity') {
+    // The approval notification is the entry point to the verification
+    // congratulations page. It only leads there while the approval is still
+    // current, so a stale notification never promises access the member no
+    // longer has.
+    if (notification.kind === 'identity_verification_approved') {
+      const viewer = await ctx.db.get(viewerId) as Doc<'users'> | null
+      if (viewer && hasCurrentIdentityApproval(viewer)) {
+        return { available: true, destination: { type: 'identity', outcome: 'verified' } }
+      }
+    }
+    return { available: true, destination: { type: 'identity', outcome: 'status' } }
+  }
   if (destination === 'safety') {
     return notification.reportId
       ? { available: true, destination: { type: 'safety' } }
