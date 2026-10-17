@@ -14,6 +14,7 @@ import { BookingRequestFields } from '../features/booking/BookingRequestFields'
 import { BookingActionsMenu } from '../features/booking/BookingActionsMenu'
 import { AppPageSkeleton } from '../features/booking/AppPageSkeleton'
 import { BookingCompletionAction } from '../features/booking/BookingCompletionAction'
+import { companionAvailabilityMessage } from '../features/booking/companionAvailability'
 import { BookingsView, type BookingsViewMode } from '../features/booking/BookingsView'
 import { CompanionBookingRow, companionStatusPresentation } from '../features/booking/CompanionBookingRow'
 import {
@@ -707,6 +708,15 @@ function BookingDialog({
     setCompanionSearchOpenState(open)
   }, [])
   const selectedCompanion = companions.find((companion) => companion._id === selectedCompanionProfileId)
+  // The Companion this member is trying to book. It follows their selection and
+  // keeps the profile they arrived with, so the dialog can explain an
+  // unverified Companion instead of failing at the server.
+  const [attemptedCompanionProfileId, setAttemptedCompanionProfileId] = useState(initialCompanionProfileId ?? '')
+  const attemptedAvailability = useQuery(
+    api.companions.bookingAvailability,
+    attemptedCompanionProfileId ? { companionProfileId: attemptedCompanionProfileId as Id<'companionProfiles'> } : 'skip',
+  )
+  const announcedAvailabilityRef = useRef('')
   const companionSearchResults = useMemo(() => {
     if (!companionQuery.trim()) return []
     return findCompanions(companions.map((companion) => ({
@@ -747,6 +757,21 @@ function BookingDialog({
       return ''
     })
   }, [companions, initialCompanionProfileId])
+
+  useEffect(() => {
+    if (selectedCompanionProfileId) setAttemptedCompanionProfileId(selectedCompanionProfileId)
+  }, [selectedCompanionProfileId])
+
+  // A Companion the member tried to book left the bookable list, so the picker
+  // went empty and the send button disabled. Say why once instead of going quiet.
+  useEffect(() => {
+    if (!attemptedCompanionProfileId || companionsLoading) return
+    const message = companionAvailabilityMessage(attemptedAvailability ?? 'available')
+    if (!message) return
+    if (announcedAvailabilityRef.current === attemptedCompanionProfileId) return
+    announcedAvailabilityRef.current = attemptedCompanionProfileId
+    toast.error(message)
+  }, [attemptedAvailability, attemptedCompanionProfileId, companionsLoading])
 
   useEffect(() => {
     if (!companionSearchOpen) return
@@ -861,6 +886,15 @@ function BookingDialog({
           className="booking-dialog-body"
           onSubmit={async (event) => {
             event.preventDefault()
+            const attemptedMessage = attemptedCompanionProfileId
+              ? companionAvailabilityMessage(attemptedAvailability ?? 'available')
+              : ''
+            if (attemptedMessage) {
+              setSubmitError(attemptedMessage)
+              toast.error(attemptedMessage)
+              return
+            }
+
             if (!selectedCompanionProfileId) {
               setSubmitError('Choose an approved Companion before sending a booking.')
               return
@@ -894,7 +928,9 @@ function BookingDialog({
             } catch (error) {
               submittingRef.current = false
               setIsSubmitting(false)
-              setSubmitError(error instanceof Error ? describeConvexError(error) : 'The booking could not be sent. Try again.')
+              const message = error instanceof Error ? describeConvexError(error) : 'The booking could not be sent. Try again.'
+              setSubmitError(message)
+              toast.error(message)
             }
           }}
         >

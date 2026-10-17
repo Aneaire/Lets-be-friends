@@ -240,6 +240,27 @@ export const getPublic = query({
   },
 })
 
+export const bookingAvailability = query({
+  // Explains why a Companion cannot take a new booking. It only separates the
+  // one state this product already discloses publicly ("Not identity checked"
+  // on a member profile) from generic unavailability, so suspension, blocks,
+  // and removals stay private behind the same answer.
+  args: { companionProfileId: v.id('companionProfiles') },
+  handler: async (ctx, args) => {
+    const companion = await ctx.db.get(args.companionProfileId)
+    if (!companion || companion.status !== 'approved') return 'unavailable' as const
+    const viewer = await getViewer(ctx)
+    if (viewer && viewer._id !== companion.userId && await isHiddenByPreference(ctx, viewer._id, companion.userId)) {
+      return 'unavailable' as const
+    }
+    const owner = await ctx.db.get(companion.userId)
+    if (!owner || owner.suspended) return 'unavailable' as const
+    if (!hasCurrentIdentityApproval(owner)) return 'not_verified' as const
+    if (!hasConfiguredHourlyRate(companion.hourlyRateCentavos)) return 'no_listed_rate' as const
+    return 'available' as const
+  },
+})
+
 export const toggleSaveProfile = mutation({
   args: { companionProfileId: v.id('companionProfiles') },
   handler: async (ctx, args) => {

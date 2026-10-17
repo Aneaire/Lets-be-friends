@@ -108,8 +108,11 @@ export const createDraft = mutation({
     const companion = await ctx.db.get(args.companionProfileId)
     if (!companion || companion.status !== 'approved') throw new ConvexError('Companion is not available for booking')
     const companionUser = await ctx.db.get(companion.userId)
-    if (!companionUser || companionUser.suspended || !hasCurrentIdentityApproval(companionUser)) {
+    if (!companionUser || companionUser.suspended) {
       throw new ConvexError('Companion is not currently available for new bookings')
+    }
+    if (!hasCurrentIdentityApproval(companionUser)) {
+      throw new ConvexError('This Companion is not verified yet, so they cannot take new bookings')
     }
     if (!canBookCompanion(String(viewer._id), String(companion.userId))) throw new ConvexError('You cannot book your own Companion profile.')
     await requireNotBlocked(ctx, viewer._id, companion.userId)

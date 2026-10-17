@@ -1,12 +1,14 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { User } from 'lucide-react'
+import { CalendarCheck, Pencil, Sparkles, User } from 'lucide-react'
 import { SignInButton, useAuth, useUser } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
+import { formatPhp } from '@lets-be-friends/shared'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
+import { ActionMenu, type ActionMenuItem } from '../design-system/molecules/ActionMenu'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { ProfileContentPanel } from '../features/profile/ProfileContentPanel'
 import { AvatarCropper } from '../features/profile/AvatarCropper'
@@ -76,10 +78,43 @@ function ProfilePage() {
   const bio = viewer?.bio ?? ''
   const interests = viewer?.onboardingCategories ?? []
   const companionStatus = application?.status ?? 'not started'
+  const companionCategories = application?.categories ?? []
+  const companionStrengths = application?.strengths ?? []
+  const companionBoundaries = application?.boundaries ?? []
   const verification = memberVerificationPresentation(
     identityEntitlementStatus(viewer?.verificationStatus ?? 'not_started', viewer?.identityEligible ?? false),
     latestMemberVerification,
   )
+  // Mirrors companions.getPublic: a Companion profile is readable by others only
+  // while it is approved and the member holds a current identity approval.
+  const companionIsPublic = companionStatus === 'approved' && verification.state === 'approved'
+
+  const viewerLocation = typeof viewer?.approximateLatitude === 'number' && typeof viewer?.approximateLongitude === 'number'
+    ? `${viewer.approximateLatitude}, ${viewer.approximateLongitude}`
+    : ''
+
+  // The three profile actions live behind the menu in the hero's top corner, so
+  // the hero stays about the member instead of a stack of buttons.
+  const profileActions: ActionMenuItem[] = [
+    {
+      label: 'Edit profile',
+      icon: <Pencil size={16} aria-hidden="true" />,
+      tone: 'self',
+      onSelect: () => setEditOpen(true),
+    },
+    {
+      label: 'Your bookings',
+      icon: <CalendarCheck size={16} aria-hidden="true" />,
+      tone: 'social',
+      onSelect: () => void navigate({ to: '/app', search: {} }),
+    },
+    {
+      label: application ? 'Edit Companion profile' : 'Become a Companion',
+      icon: <Sparkles size={16} aria-hidden="true" />,
+      tone: 'self',
+      onSelect: () => void navigate({ to: '/become-companion' }),
+    },
+  ]
 
   return (
     <main className="profile-page">
@@ -101,18 +136,12 @@ function ProfilePage() {
           <ProfilePhoto imageUrl={profileImageUrl} name={displayName} size="xl" />
           <div className="profile-hero-copy">
             <h1 className="text-h1">{displayName}</h1>
-            {username && <p className="text-meta mt-1">@{username}</p>}
-            <p className="text-body muted mt-1">{bio || 'No bio added yet.'}</p>
+            {username && <p className="text-meta">@{username}</p>}
+            <p className="text-body muted profile-hero-bio">{bio || 'No bio added yet.'}</p>
           </div>
-          <div className="profile-hero-actions">
-            <button type="button" className="btn btn-self btn-sm" onClick={() => setEditOpen(true)}>
-              Edit profile
-            </button>
-            <Link to="/app" search={{}} className="btn btn-neutral btn-sm">Your bookings</Link>
-            <Link to="/become-companion" className="btn btn-neutral btn-sm">
-              {application ? 'Edit Companion profile' : 'Become a Companion'}
-            </Link>
-          </div>
+        </div>
+        <div className="profile-hero-menu">
+          <ActionMenu label="Profile actions" panelLabel="Profile actions" items={profileActions} />
         </div>
       </section>
 
@@ -148,7 +177,7 @@ function ProfilePage() {
           <div className="panel-header">
             <div>
               <h2 className="text-h2">Account status</h2>
-              <p className="text-meta mt-1">Identity verification and Companion profile progress.</p>
+              <p className="text-meta mt-1">Identity verification, and where Nearby places you.</p>
             </div>
           </div>
           <div className="panel-body flex flex-col gap-3">
@@ -179,18 +208,106 @@ function ProfilePage() {
               </Link>
             )}
             <div className="flex items-center justify-between gap-3">
-              <span className="text-meta">Companion profile</span>
-              <span className="status-pill" data-tone={companionStatusTone(companionStatus)}>{companionStatusLabel(companionStatus)}</span>
+              <span className="text-meta">Discovery area</span>
+              <span className="text-meta tabular">{viewerLocation || 'Not saved'}</span>
             </div>
             <p className="text-body muted">
-              Your Companion profile uses this name, then adds the Strengths, availability, boundaries, location, and everyday help or activities you want to offer. Profiles save live. Identity verification is the only review, and your profile appears in discovery once identity is approved.
+              This is the rounded device location Nearby measures distances from, to two decimals. An approved Companion profile also appears on the nearby map at this area.
             </p>
-            <Link to="/become-companion" className="btn btn-neutral btn-sm">
-              {application ? 'Edit Companion profile' : 'Become a Companion'}
-            </Link>
+            {!application && (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-meta">Companion profile</span>
+                  <span className="status-pill" data-tone={companionStatusTone(companionStatus)}>{companionStatusLabel(companionStatus)}</span>
+                </div>
+                <p className="text-body muted">
+                  A Companion profile adds the session format, area, listed rate, and everyday help you want to offer. Only the profile name and photo above are taken from your member profile, and identity verification is the only review.
+                </p>
+                <Link to="/become-companion" className="btn btn-neutral btn-sm">
+                  Become a Companion
+                </Link>
+              </>
+            )}
           </div>
         </aside>
       </div>
+
+      {application && (
+        <section className="panel profile-companion-card mt-6">
+          <div className="panel-header">
+            <div>
+              <h2 className="text-h2">Companion profile</h2>
+              <p className="text-meta mt-1">The details members read on your public Companion profile.</p>
+            </div>
+            <span className="status-pill" data-tone={companionStatusTone(companionStatus)}>{companionStatusLabel(companionStatus)}</span>
+          </div>
+          <div className="panel-body profile-companion-body">
+            <div className="profile-companion-copy">
+              <p className="eyebrow">What you offer</p>
+              <p className="profile-companion-invitation mt-2">{application.intro}</p>
+              {companionCategories.length > 0 && (
+                <>
+                  <p className="eyebrow mt-4">Everyday help and activities</p>
+                  <ul className="profile-companion-chips mt-2">
+                    {companionCategories.map((category) => <li key={category}>{category}</li>)}
+                  </ul>
+                </>
+              )}
+              {companionStrengths.length > 0 && (
+                <>
+                  <p className="eyebrow mt-4">Strengths</p>
+                  <ul className="profile-companion-chips mt-2">
+                    {companionStrengths.map((strength) => <li key={strength}>{strength}</li>)}
+                  </ul>
+                </>
+              )}
+              {companionBoundaries.length > 0 && (
+                <>
+                  <p className="eyebrow mt-4">Boundaries</p>
+                  <ul className="profile-companion-chips mt-2">
+                    {companionBoundaries.map((boundary) => <li key={boundary}>{boundary}</li>)}
+                  </ul>
+                </>
+              )}
+            </div>
+            <div>
+              <dl className="profile-facts">
+                <div>
+                  <dt>Session format</dt>
+                  <dd>{companionModeLabel(application.mode)}</dd>
+                </div>
+                <div>
+                  <dt>Area members read</dt>
+                  <dd>{application.city || 'Not set'}</dd>
+                </div>
+                <div>
+                  <dt>Listed hourly rate</dt>
+                  <dd className="tabular">
+                    {application.hourlyRateCentavos !== undefined
+                      ? `${formatPhp(application.hourlyRateCentavos)} per hour`
+                      : 'Not set'}
+                  </dd>
+                </div>
+              </dl>
+              {companionStatus === 'approved' && !companionIsPublic && (
+                <p className="text-meta mt-3">
+                  Your profile appears in Explore and on the nearby map once your identity check is approved.
+                </p>
+              )}
+              <div className="profile-companion-actions">
+                {companionIsPublic && (
+                  <Link to="/companion-profile" search={{ companionProfileId: application._id }} className="btn btn-neutral btn-sm">
+                    View public profile
+                  </Link>
+                )}
+                <Link to="/become-companion" className="btn btn-self btn-sm">
+                  Edit Companion profile
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       <ProfileContentPanel
         className="mt-6"
@@ -363,4 +480,10 @@ function companionStatusTone(status: string): 'self' | 'success' | 'warning' | '
   if (status === 'rejected' || status === 'suspended') return 'danger'
   if (status === 'pending_review') return 'warning'
   return 'self'
+}
+
+function companionModeLabel(mode: string) {
+  if (mode === 'online') return 'Online'
+  if (mode === 'in_person') return 'In-person'
+  return 'Online and in-person'
 }

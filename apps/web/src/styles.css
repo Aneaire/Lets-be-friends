@@ -8258,10 +8258,23 @@ textarea.field {
 }
 
 .profile-hero-panel {
+  position: relative;
   overflow: hidden;
   border: 1px solid var(--rule);
   border-radius: 12px;
   background: var(--surface);
+}
+
+/* The three profile actions live behind the hero menu, so an open menu has to
+   leave the panel instead of being clipped by its rounded corners. */
+.profile-hero-panel:has(.ds-action-menu-panel) {
+  overflow: visible;
+}
+
+.profile-hero-menu {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
 }
 
 .profile-cover {
@@ -8272,7 +8285,7 @@ textarea.field {
 
 .profile-hero-body {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: end;
   gap: 1rem;
   padding: 0 1.5rem 1.5rem;
@@ -8287,12 +8300,30 @@ textarea.field {
   padding-top: 1rem;
 }
 
-.profile-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding-top: 1rem;
+/* The hero sets its own rhythm. The browser default h1 margin (~23px) and
+   paragraph margin (16px) are three to four times larger than this stack
+   wants, so without this reset the name, handle, and bio each drift apart. */
+.profile-hero-copy h1,
+.profile-hero-copy p {
+  margin: 0;
+}
+
+.profile-hero-copy > .text-meta {
+  margin-top: 0.35rem;
+}
+
+.profile-hero-copy > .profile-hero-bio {
+  margin-top: 0.6rem;
+}
+
+/* The hero identity is centered on mobile, so the bio keeps its own readable
+   measure, holds the line breaks the member typed, and stays centered instead
+   of running ragged across the full width of the card. */
+.profile-hero-bio {
+  max-width: 52ch;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 .profile-public-grid {
@@ -8351,7 +8382,8 @@ textarea.field {
   white-space: pre-wrap;
 }
 
-.profile-about-card .profile-about-interests {
+.profile-about-card .profile-about-interests,
+.profile-companion-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
@@ -8360,12 +8392,62 @@ textarea.field {
   list-style: none;
 }
 
-.profile-about-card .profile-about-interests li {
+.profile-about-card .profile-about-interests li,
+.profile-companion-chips li {
   padding: 0.3rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text-muted);
   font-size: 0.75rem;
+}
+
+/* Companion profile summary on the member's own profile. Two columns keep the
+   invitation readable while the session facts stay scannable. */
+.profile-companion-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.profile-companion-copy {
+  min-width: 0;
+}
+
+.profile-companion-invitation {
+  max-width: 52ch;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.profile-companion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* The header pill sits beside a two line heading on narrow screens, so it must
+   not break inside its own label. */
+.profile-companion-card .status-pill {
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .profile-companion-body {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  /* The stacked card separates the invitation from the session facts. */
+  .profile-companion-body > div + div {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.25rem;
+  }
 }
 
 .profile-dialog-backdrop {
@@ -8573,10 +8655,6 @@ textarea.field {
   .profile-hero-body,
   .profile-public-grid {
     grid-template-columns: 1fr;
-  }
-
-  .profile-hero-actions {
-    justify-content: flex-start;
   }
 
   .profile-facts div {
@@ -14163,7 +14241,7 @@ textarea.field {
   }
 
   .profile-hero-body {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     gap: 1.5rem;
     padding: 1.5rem;
@@ -14285,9 +14363,10 @@ textarea.field {
       grid-template-columns: 1fr;
     }
 
-    .profile-hero-actions {
-      justify-content: flex-start;
-      padding: 0;
+    /* The stacked hero keeps one rhythm for the avatar and the identity block
+       instead of the looser row gap it used while it also held the actions. */
+    .profile-hero-body {
+      gap: 1rem;
     }
   }
 
@@ -14466,14 +14545,12 @@ textarea.field {
       text-align: center;
     }
 
-    .profile-hero-copy .text-body {
+    .profile-hero-bio {
       width: 100%;
-      text-align: left;
-    }
-
-    .profile-hero-actions,
-    .profile-hero-actions .btn {
-      width: 100%;
+      max-width: 34ch;
+      margin-inline: auto;
+      text-align: center;
+      text-wrap: pretty;
     }
   }
 
@@ -14502,11 +14579,6 @@ textarea.field {
       padding-inline: 0.3rem;
       font-size: 0.72rem;
       white-space: nowrap;
-    }
-
-    .profile-hero-actions {
-      display: grid;
-      grid-template-columns: 1fr;
     }
   }
 }
