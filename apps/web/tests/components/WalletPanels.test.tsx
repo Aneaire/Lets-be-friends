@@ -52,6 +52,7 @@ const memberFinance = {
 function withdrawalDashboard(availableEarningsCentavos: number) {
   return {
     enabled: true,
+    identityEligible: true,
     payoutMethod: {
       id: 'method-1',
       provider: 'instapay',
@@ -177,6 +178,7 @@ describe('dedicated wallet page panels', () => {
   it('replaces raw server errors with verification guidance', async () => {
     mocks.queryResult = {
       enabled: true,
+      identityEligible: true,
       payoutMethod: null,
       activeWithdrawalId: null,
       withdrawals: [],
@@ -185,7 +187,7 @@ describe('dedicated wallet page panels', () => {
       availableEarningsCentavos: 50_000,
     }
     mocks.listAction.mockRejectedValueOnce(
-      new Error('[CONVEX A(withdrawals:listReceivingInstitutions)] [Request ID: c5b4ed1b6a010a1f] Server Error Uncaught Error: Current identity verification is required for withdrawals at assertEligibleCompanion (../../convex/withdrawals.ts:601:20) Called by client'),
+      new Error('[CONVEX A(withdrawals:listReceivingInstitutions)] [Request ID: c5b4ed1b6a010a1f] Server Error Uncaught Error: Current identity verification is required for withdrawals at assertWithdrawalEligibility (../../convex/withdrawals.ts:601:20) Called by client'),
     )
     render(<CompanionWithdrawalPanel />)
 
@@ -193,7 +195,7 @@ describe('dedicated wallet page panels', () => {
 
     expect(await screen.findByText(/Complete identity verification first/)).toBeTruthy()
     expect(screen.queryByText(/CONVEX/)).toBeNull()
-    expect(screen.queryByText(/assertEligibleCompanion/)).toBeNull()
+    expect(screen.queryByText(/assertWithdrawalEligibility/)).toBeNull()
     const verifyLink = screen.getByRole('link', { name: 'Verify identity' })
     expect(verifyLink.getAttribute('href')).toContain('/verify-identity')
   })
@@ -201,6 +203,7 @@ describe('dedicated wallet page panels', () => {
   it('replaces PayMongo institution errors with payout setup guidance', async () => {
     mocks.queryResult = {
       enabled: true,
+      identityEligible: true,
       payoutMethod: null,
       activeWithdrawalId: null,
       withdrawals: [],
@@ -223,6 +226,7 @@ describe('dedicated wallet page panels', () => {
   it('uses one account number field when setting up a payout method', async () => {
     mocks.queryResult = {
       enabled: true,
+      identityEligible: true,
       payoutMethod: null,
       activeWithdrawalId: null,
       withdrawals: [],
@@ -283,5 +287,25 @@ describe('dedicated wallet page panels', () => {
     const amountInput = screen.getByRole('spinbutton', { name: /Withdrawal amount/i }) as HTMLInputElement
     expect(amountInput.min).toBe('10')
     expect((screen.getByRole('button', { name: 'Review withdrawal' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('asks for identity verification instead of showing payout controls when the identity is not current', () => {
+    mocks.queryResult = {
+      ...withdrawalDashboard(50_000),
+      identityEligible: false,
+    }
+    render(<CompanionWithdrawalPanel />)
+
+    expect(screen.getByText(/Complete identity verification first/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Verify identity' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Review withdrawal' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull()
+  })
+
+  it('shows a syncing note instead of an empty panel when the profile is not ready', () => {
+    mocks.queryResult = null
+    render(<CompanionWithdrawalPanel />)
+
+    expect(screen.getByText(/still syncing/)).toBeTruthy()
   })
 })

@@ -344,8 +344,8 @@ function FinancePanel({
           <div>
             <div className="flex items-baseline justify-between gap-3">
               <div><p className="text-h3">Member-wallet earnings</p><p className="text-meta mt-1">Companion entitlement is 100% of each listed service subtotal.</p></div>
-              <span className="status-pill" data-tone={payouts?.enabled ? 'success' : 'warning'}>
-                {payouts?.enabled ? 'Withdrawals available' : 'Internal balance'}
+              <span className="status-pill" data-tone={payouts?.enabled && payouts.identityEligible ? 'success' : 'warning'}>
+                {payouts?.enabled && payouts.identityEligible ? 'Withdrawals available' : 'Internal balance'}
               </span>
             </div>
             <div className="grid gap-3 sm:grid-cols-3 mt-3">

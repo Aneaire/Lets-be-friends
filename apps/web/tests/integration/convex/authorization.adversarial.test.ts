@@ -1,7 +1,7 @@
 import { convexTest } from 'convex-test'
 import geospatialTest from '@convex-dev/geospatial/test'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { api } from '../../../convex/_generated/api'
+import { api, internal } from '../../../convex/_generated/api'
 import schema from '../../../convex/schema'
 import { convexModules } from '../../helpers/convex'
 
@@ -261,9 +261,25 @@ describe('cross-user authorization boundaries', () => {
       return { companionUserId, accountId }
     })
 
+    // Withdrawals no longer require a Companion profile, so give the outsider
+    // their own payout method. The property under test is that they still
+    // cannot reach another member's wallet balance.
+    await t.mutation(internal.withdrawals.persistPayoutMethod, {
+      clerkUserId: 'adv-wd-outsider',
+      provider: 'instapay',
+      institutionBic: 'BNORPHMM',
+      institutionName: 'BDO Unibank',
+      accountName: 'Withdrawal Outsider',
+      accountNumberCiphertext: 'encrypted-account-number',
+      accountNumberIv: 'encrypted-iv',
+      accountNumberLast4: '9876',
+      mode: 'test',
+      now,
+    })
+
     await expect(
       t.withIdentity({ subject: 'adv-wd-outsider' }).mutation(api.withdrawals.request, { amountCentavos: 50_000 }),
-    ).rejects.toThrow('approved Companion profile')
+    ).rejects.toThrow('Available wallet balance is lower')
 
     const state = await t.run(async (ctx) => ({
       account: await ctx.db.get(accountId),

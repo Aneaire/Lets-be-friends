@@ -373,7 +373,7 @@ PayMongo safety requirements:
 - Test/live mode, canonical intent ID, amount, PHP currency, QR Ph method, top-up purpose, and beneficiary are revalidated before credit.
 - Provider event IDs plus raw-body hashes prevent duplicate or conflicting settlement.
 - `payment.paid`, `payment.failed`, and `qrph.expired` update retained attempts; scheduled reconciliation repairs missed webhooks.
-- Companion withdrawals submit PayMongo InstaPay batch transfers behind `COMPANION_WITHDRAWALS_ENABLED`, with encrypted payout methods, 24-hour holds, reserve-then-submit ledger moves, idempotency keys, per-transfer callback URL when configured, and canonical transfer reconciliation for `transfer.outward.successful` and `transfer.outward.failed`. Every top-up and transfer also carries descriptive `lbf_` metadata (kind, transaction id, amount in centavos, currency, username, user id) for operator identification in the PayMongo Dashboard.
+- Companion withdrawals submit PayMongo InstaPay batch transfers behind `COMPANION_WITHDRAWALS_ENABLED`, with encrypted payout methods, 24-hour holds, reserve-then-submit ledger moves, idempotency keys, per-transfer callback URL when configured, and canonical transfer reconciliation for `transfer.outward.successful` and `transfer.outward.failed`. Withdrawals require current identity approval and an unsuspended account, matching the booking gate. A completed Companion profile is not required and only controls being bookable. Every top-up and transfer also carries descriptive `lbf_` metadata (kind, transaction id, amount in centavos, currency, username, user id) for operator identification in the PayMongo Dashboard.
 
 ## UI Stack
 

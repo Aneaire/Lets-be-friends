@@ -18,6 +18,7 @@ import {
   paymongoRequest,
 } from './paymongo'
 import { getViewer, writeAudit } from './lib'
+import { hasCurrentIdentityApproval } from './identityVerification'
 
 const ACTIVE_WITHDRAWAL_STATUSES = ['queued', 'submitting', 'pending', 'needs_review'] as const
 const MAX_SUBMISSION_ATTEMPTS = 3
@@ -86,8 +87,6 @@ export const dashboard = query({
     const viewer = await getViewer(ctx)
     if (!viewer) return null
     if (viewer.suspended) throw new ConvexError('Account is suspended')
-    const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).unique()
-    if (!companion) return null
 
     const [method, withdrawals, earningsAccount, legalName] = await Promise.all([
       ctx.db.query('payoutMethods')
@@ -107,6 +106,7 @@ export const dashboard = query({
 
     return {
       enabled: companionWithdrawalsEnabled(),
+      identityEligible: hasCurrentIdentityApproval(viewer),
       currency: BOOKING_CURRENCY,
       minimumCentavos: MIN_COMPANION_WITHDRAWAL_CENTAVOS,
       maximumCentavos: MAX_COMPANION_WITHDRAWAL_CENTAVOS,
@@ -195,7 +195,7 @@ export const request = mutation({
   args: { amountCentavos: v.number() },
   handler: async (ctx, args) => {
     if (!companionWithdrawalsEnabled()) throw new ConvexError('Companion withdrawals are not enabled')
-    const viewer = await requireEligibleCompanion(ctx)
+    const viewer = await requireEligibleViewer(ctx)
     const amountCentavos = validateCompanionWithdrawalCentavos(args.amountCentavos)
     const now = Date.now()
     const method = await ctx.db.query('payoutMethods')
@@ -258,7 +258,7 @@ export const payoutSetupContext = internalQuery({
   handler: async (ctx, args) => {
     const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId)).unique()
     if (!viewer) throw new ConvexError('Profile sync required')
-    await assertEligibleCompanion(ctx, viewer)
+    assertWithdrawalEligibility(viewer)
     return { userId: viewer._id, legalName: await verifiedLegalName(ctx, viewer) }
   },
 })
@@ -279,7 +279,7 @@ export const persistPayoutMethod = internalMutation({
   handler: async (ctx, args) => {
     const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId)).unique()
     if (!viewer) throw new ConvexError('Profile sync required')
-    await assertEligibleCompanion(ctx, viewer)
+    assertWithdrawalEligibility(viewer)
     const expectedName = await verifiedLegalName(ctx, viewer)
     if (normalizedName(args.accountName) !== normalizedName(expectedName)) {
       throw new ConvexError('Payout account name must match the verified legal name')
@@ -610,20 +610,21 @@ async function applyProviderTransferInTransaction(
   return { status: 'pending' as const }
 }
 
-async function requireEligibleCompanion(ctx: any) {
+async function requireEligibleViewer(ctx: any) {
   const viewer = await getViewer(ctx)
   if (!viewer) throw new ConvexError('Profile sync required')
-  await assertEligibleCompanion(ctx, viewer)
+  assertWithdrawalEligibility(viewer)
   return viewer as Doc<'users'>
 }
 
-async function assertEligibleCompanion(ctx: any, viewer: Doc<'users'>) {
+// Withdrawals move money out of the unified wallet, so they need the same
+// current identity approval that booking a Companion already requires. A
+// completed Companion profile is not required: it only gates being bookable.
+function assertWithdrawalEligibility(viewer: Doc<'users'>) {
   if (viewer.suspended) throw new ConvexError('Account is suspended')
-  if (viewer.verificationStatus !== 'approved' || !viewer.identityExpiresAt || viewer.identityExpiresAt <= Date.now()) {
+  if (!hasCurrentIdentityApproval(viewer)) {
     throw new ConvexError('Current identity verification is required for withdrawals')
   }
-  const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q: any) => q.eq('userId', viewer._id)).unique()
-  if (!companion || companion.status !== 'approved') throw new ConvexError('An approved Companion profile is required for withdrawals')
 }
 
 async function verifiedLegalName(ctx: any, viewer: Doc<'users'>) {

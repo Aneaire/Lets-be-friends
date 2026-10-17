@@ -4,7 +4,7 @@ Wallet withdrawals move available funds, including verified top-ups, returned bo
 
 ## Product rules
 
-- Only approved, unsuspended Companions with current identity verification can add a payout method or withdraw.
+- Withdrawals require an unsuspended account with current identity verification, the same gate that booking a Companion already uses. A completed Companion profile is not required: it only controls whether the member can be booked by others.
 - The payout account holder is the verified legal name. The client cannot override it.
 - One payout method is active at a time. Replacing it takes effect immediately and new methods are ready right away. The saved `availableAt` timestamp is kept for compatibility.
 - Withdrawal amounts are from PHP 10.00 through PHP 50,000.00 per transfer.
@@ -36,6 +36,8 @@ Required Convex variables are documented in `.env.example`. Never put the PayMon
 PayMongo's current money-movement documentation covers the Wallet, receiving institutions, batch transfer request, status reconciliation, limits, and fees: [Move money with API](https://docs.paymongo.com/docs/money-movement-moving-money-with-api) and [Disbursements](https://docs.paymongo.com/docs/money-movement-disbursements).
 
 PayMongo normalizes `reference_number` to alphanumeric characters and spaces, so withdrawal references use the `lbf <withdrawalId>` shape with no hyphens. Reconciliation compares the normalized provider and internal values before any ledger change.
+
+Withdrawal eligibility is current identity approval plus an unsuspended account, matching the booking gate. A completed Companion profile only controls being bookable, so a verified member can fund a wallet, withdraw, and book others before their Companion profile is finished. Top-ups currently have no identity gate of their own.
 
 ## Operational states
 

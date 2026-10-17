@@ -422,14 +422,52 @@ describe('Companion withdrawals', () => {
     expect(state.transactions.filter((row) => row.kind === 'payout_release')).toHaveLength(1)
   })
 
-  it('requires an approved, current, unsuspended Companion identity', async () => {
+  it('requires a current, unsuspended identity but not a completed Companion profile', async () => {
     const t = createTest()
     const ids = await seed(t)
     await addPayoutMethod(t, ids.now)
+
+    const dashboard = await t.withIdentity({ subject: 'withdrawal-companion' }).query(api.withdrawals.dashboard, {})
+    expect(dashboard?.identityEligible).toBe(true)
+
+    // The Companion profile exists only to make the member bookable. Removing
+    // it must not block withdrawals once identity verification is current.
+    await t.run(async (ctx) => {
+      const profile = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', ids.companionUserId)).unique()
+      await ctx.db.delete(profile!._id)
+    })
+    const result = await t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
+      amountCentavos: WITHDRAWAL,
+    })
+    expect(result).toMatchObject({ status: 'queued', amountCentavos: WITHDRAWAL })
+    expect(await t.run((ctx) => ctx.db.get(ids.accountId))).toMatchObject({
+      availableCentavos: AVAILABLE - WITHDRAWAL,
+      reservedCentavos: WITHDRAWAL,
+    })
+  })
+
+  it('rejects a suspended account and an expired identity verification', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    await addPayoutMethod(t, ids.now)
+
     await t.run((ctx) => ctx.db.patch(ids.companionUserId, { suspended: true, updatedAt: Date.now() }))
     await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
       amountCentavos: WITHDRAWAL,
     })).rejects.toThrow('Account is suspended')
+
+    await t.run((ctx) => ctx.db.patch(ids.companionUserId, {
+      suspended: false,
+      verificationStatus: 'not_started',
+      identityVerifiedAt: undefined,
+      identityExpiresAt: undefined,
+      updatedAt: Date.now(),
+    }))
+    const dashboard = await t.withIdentity({ subject: 'withdrawal-companion' }).query(api.withdrawals.dashboard, {})
+    expect(dashboard?.identityEligible).toBe(false)
+    await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
+      amountCentavos: WITHDRAWAL,
+    })).rejects.toThrow('Current identity verification is required for withdrawals')
     expect(await t.run((ctx) => ctx.db.query('withdrawals').collect())).toEqual([])
   })
 

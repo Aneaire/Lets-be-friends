@@ -91,9 +91,21 @@ export function CompanionWithdrawalPanel() {
         )}
         {payoutMessage && <div className="notice notice-success" role="status"><span className="notice-icon">✓</span><span>{payoutMessage}</span></div>}
         {payouts === undefined && <p className="text-meta">Loading withdrawal settings…</p>}
+        {payouts === null && <p className="text-meta">Your profile is still syncing. Reload this page and try again.</p>}
         {payouts && !payouts.enabled && <p className="text-meta">Withdrawals are currently disabled by the platform. Your earnings remain recorded and cannot be moved from this screen.</p>}
+        {payouts?.enabled && !payouts.identityEligible && (
+          <div className="notice notice-danger" role="alert">
+            <span className="notice-icon">!</span>
+            <span>
+              {VERIFY_IDENTITY_MESSAGE}{' '}
+              <Link to="/verify-identity" search={{ intent: 'member', returnTo: '/app' }} className="notice-link">
+                Verify identity
+              </Link>
+            </span>
+          </div>
+        )}
 
-        {payouts?.enabled && payouts.payoutMethod && !setupOpen && (
+        {payouts?.enabled && payouts.identityEligible && payouts.payoutMethod && !setupOpen && (
           <div className="rounded-lg border border-[color:var(--rule)] p-4">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
@@ -114,7 +126,7 @@ export function CompanionWithdrawalPanel() {
           </div>
         )}
 
-        {payouts?.enabled && !payouts.payoutMethod && !setupOpen && (
+        {payouts?.enabled && payouts.identityEligible && !payouts.payoutMethod && !setupOpen && (
           <div className="rounded-lg border border-[color:var(--rule)] p-4 flex items-center justify-between gap-4 flex-wrap">
             <div><p className="text-body"><strong>Add a payout method</strong></p><p className="text-meta mt-1">Use a bank or e-wallet account under your verified legal name.</p></div>
             <button type="button" className="btn btn-self" disabled={payoutBusy} onClick={() => void openPayoutSetup()}>
@@ -123,7 +135,7 @@ export function CompanionWithdrawalPanel() {
           </div>
         )}
 
-        {payouts?.enabled && setupOpen && (
+        {payouts?.enabled && payouts.identityEligible && setupOpen && (
           <form
             className="rounded-lg border border-[color:var(--rule)] p-4 space-y-3"
             onSubmit={async (event) => {
@@ -172,7 +184,7 @@ export function CompanionWithdrawalPanel() {
           </form>
         )}
 
-        {payouts?.enabled && payouts.payoutMethod && !payouts.payoutMethod.modeMismatch && !payouts.activeWithdrawalId && !setupOpen && withdrawalDraft === null && (
+        {payouts?.enabled && payouts.identityEligible && payouts.payoutMethod && !payouts.payoutMethod.modeMismatch && !payouts.activeWithdrawalId && !setupOpen && withdrawalDraft === null && (
           <form
             className="flex items-end gap-3 flex-wrap"
             onSubmit={(event) => {
@@ -195,7 +207,7 @@ export function CompanionWithdrawalPanel() {
           </form>
         )}
 
-        {payouts?.enabled && payouts.payoutMethod && withdrawalDraft !== null && (
+        {payouts?.enabled && payouts.identityEligible && payouts.payoutMethod && withdrawalDraft !== null && (
           <div className="rounded-lg border border-[color:var(--accent-self)] p-4 space-y-3" role="group" aria-label="Confirm withdrawal">
             <div><p className="text-body"><strong>Confirm {formatPhp(withdrawalDraft)} withdrawal</strong></p><p className="text-meta mt-1">To {payouts.payoutMethod.institutionName} · •••• {payouts.payoutMethod.accountNumberLast4}</p></div>
             <div className="grid gap-2 sm:grid-cols-2 text-meta">
