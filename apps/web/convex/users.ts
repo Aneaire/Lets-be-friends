@@ -1,6 +1,8 @@
 import { mutation, query } from './_generated/server'
 import { ConvexError, v } from 'convex/values'
 import {
+  currentPolicyVersion,
+  hasCurrentUnifiedAcceptance,
   maximumOnboardingActivityCategories,
   normalizeUsername,
   usernameValidationError,
@@ -11,7 +13,7 @@ import { hasCurrentIdentityApproval } from './identityVerification'
 import { syncUserCompanionLocation } from './companionLocations'
 import { isHiddenByPreference } from './safety'
 
-const currentTermsVersion = '2026-08-13'
+const currentTermsVersion = currentPolicyVersion
 
 async function getClerkUserId(ctx: { auth: { getUserIdentity: () => Promise<{ subject: string } | null> } }) {
   const identity = await ctx.auth.getUserIdentity()
@@ -162,21 +164,56 @@ export const saveOnboardingLocationAndConsent = mutation({
     locationConsent: v.boolean(),
     termsAccepted: v.boolean(),
     termsVersion: v.string(),
+    privacyAccepted: v.optional(v.boolean()),
+    privacyVersion: v.optional(v.string()),
+    identityAccepted: v.optional(v.boolean()),
+    identityVersion: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
-    if (!args.locationConsent) throw new ConvexError('Consent to store and use your approximate location is required')
-    if (!args.termsAccepted) throw new ConvexError('Agreement to the Terms and Conditions is required')
+    if (args.locationConsent !== true) throw new ConvexError('Consent to store and use your approximate location is required')
+    if (args.termsAccepted !== true) throw new ConvexError('Agreement to the Terms and Conditions is required')
+    // The single Step 5 acceptance covers Terms, Privacy Policy, and
+    // conditional identity processing together. Each scope must be explicitly
+    // affirmed; a general Terms-only request never manufactures the newly
+    // scoped privacy and identity acceptance. Missing or false scope arguments
+    // from old clients are rejected without writes.
+    if (args.privacyAccepted !== true) throw new ConvexError('Agreement to the Privacy Policy is required')
+    if (args.identityAccepted !== true) throw new ConvexError('Agreement to the identity processing terms is required')
     validateCoordinates(args.latitude, args.longitude)
     const termsVersion = args.termsVersion.trim()
-    if (termsVersion !== currentTermsVersion) throw new ConvexError('Accept the current Terms and Conditions before continuing')
+    const privacyVersion = args.privacyVersion?.trim()
+    const identityVersion = args.identityVersion?.trim()
+    if (!privacyVersion || !identityVersion) {
+      throw new ConvexError('Current Privacy Policy and identity terms versions are required')
+    }
+    if (termsVersion !== currentTermsVersion || privacyVersion !== currentTermsVersion || identityVersion !== currentTermsVersion) {
+      throw new ConvexError('Accept the current Terms, Privacy Policy, and identity terms before continuing')
+    }
     const now = Date.now()
+    const alreadyCurrent = hasCurrentUnifiedAcceptance(viewer)
+    // Preserve the original acceptance timestamp on repeated saves of the same
+    // version. A repeated save is not a new consent.
+    const acceptedAt = alreadyCurrent && typeof viewer.termsAcceptedAt === 'number' ? viewer.termsAcceptedAt : now
+    const privacyAcceptedAt = alreadyCurrent && typeof viewer.privacyPolicyAcceptedAt === 'number'
+      ? viewer.privacyPolicyAcceptedAt
+      : acceptedAt
+    const identityAcceptedAt = alreadyCurrent && typeof viewer.identityConsentAcceptedAt === 'number'
+      ? viewer.identityConsentAcceptedAt
+      : acceptedAt
+    const locationConsentedAt = alreadyCurrent && typeof viewer.approximateLocationConsentedAt === 'number'
+      ? viewer.approximateLocationConsentedAt
+      : acceptedAt
     await ctx.db.patch(viewer._id, {
       approximateLatitude: roundCoordinate(args.latitude),
       approximateLongitude: roundCoordinate(args.longitude),
-      approximateLocationConsentedAt: now,
-      termsAcceptedAt: now,
+      approximateLocationConsentedAt: locationConsentedAt,
+      termsAcceptedAt: acceptedAt,
       termsVersion,
+      privacyPolicyAcceptedAt: privacyAcceptedAt,
+      privacyPolicyVersion: privacyVersion,
+      identityConsentAcceptedAt: identityAcceptedAt,
+      identityConsentVersion: identityVersion,
       updatedAt: now,
     })
     const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
@@ -203,7 +240,7 @@ export const completeOnboarding = mutation({
       throw new ConvexError('Save an approximate location before completing your welcome guide')
     }
     if (!viewer.approximateLocationConsentedAt) throw new ConvexError('Approximate location consent is required')
-    if (!viewer.termsAcceptedAt || viewer.termsVersion !== currentTermsVersion) throw new ConvexError('Current Terms and Conditions agreement is required')
+    if (!hasCurrentUnifiedAcceptance(viewer)) throw new ConvexError('Current Terms, Privacy Policy, and identity terms acceptance is required')
     const now = Date.now()
     await ctx.db.patch(viewer._id, {
       onboardingGoal: args.goal,

@@ -4,6 +4,7 @@ export * from './polls'
 export * from './discovery'
 export * from './mentions'
 export * from './map'
+export * from './policy'
 export * from './username'
 
 export const friendStrengths = [

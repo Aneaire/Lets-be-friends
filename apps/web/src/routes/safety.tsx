@@ -14,7 +14,7 @@ const safetySteps = [
   {
     title: 'Adults verify once',
     body: 'A government ID and current camera selfie support identity and age review before someone can send a booking request.',
-    detail: 'AI extracts editable details from the ID only. Let’s Be Friends privately stores the ID and current selfie for safety review and incident records for up to 730 days, subject to incident or legal holds.',
+    detail: 'AI extracts editable details from the ID only. Let’s Be Friends privately stores the ID and current selfie for safety review and incident records for as long as your account exists. After account removal, images are deleted on scheduled review unless an active incident review or documented legal hold requires continued retention. Earlier deletion may be required by law.',
   },
   {
     title: 'Every Companion is reviewed',

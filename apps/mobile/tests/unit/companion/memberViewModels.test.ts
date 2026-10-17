@@ -1,4 +1,5 @@
-import { onboardingDecision } from '@/member/onboarding'
+import { currentPolicyVersion } from '@lets-be-friends/shared'
+import { initialOnboardingStep, isExemptOnboardingPath, onboardingDecision } from '@/member/onboarding'
 import { isViewerForClerkUser } from '@/member/account'
 import { buildSignedInProfileViewModel } from '@/member/profileViewModel'
 
@@ -24,7 +25,11 @@ describe('member onboarding decisions', () => {
       approximateLongitude: 123.89,
       approximateLocationConsentedAt: 1,
       termsAcceptedAt: 1,
-      termsVersion: '2026-08-13',
+      termsVersion: currentPolicyVersion,
+      privacyPolicyAcceptedAt: 1,
+      privacyPolicyVersion: currentPolicyVersion,
+      identityConsentAcceptedAt: 1,
+      identityConsentVersion: currentPolicyVersion,
     })).toBe('complete')
     expect(onboardingDecision({
       username: 'alexrivera',
@@ -33,8 +38,53 @@ describe('member onboarding decisions', () => {
       approximateLongitude: 123.89,
       approximateLocationConsentedAt: 1,
       termsAcceptedAt: 1,
+      termsVersion: currentPolicyVersion,
+      privacyPolicyAcceptedAt: 1,
+      privacyPolicyVersion: currentPolicyVersion,
+      identityConsentAcceptedAt: 1,
+      identityConsentVersion: currentPolicyVersion,
+    })).toBe('choose_goal')
+  })
+
+  it('routes legacy general Terms acceptance back for the new unified scope', () => {
+    expect(onboardingDecision({
+      username: 'alexrivera',
+      onboardingCompletedAt: 1,
+      approximateLatitude: 10.31,
+      approximateLongitude: 123.89,
+      approximateLocationConsentedAt: 1,
+      termsAcceptedAt: 1,
       termsVersion: '2026-08-13',
     })).toBe('choose_goal')
+  })
+
+  it('exempts only the dedicated legal paths from onboarding redirects', () => {
+    expect(isExemptOnboardingPath('/terms-and-conditions')).toBe(true)
+    expect(isExemptOnboardingPath('/privacy-policy')).toBe(true)
+    expect(isExemptOnboardingPath('/privacy-policy/')).toBe(true)
+    expect(isExemptOnboardingPath('/onboarding')).toBe(false)
+    expect(isExemptOnboardingPath('/profile')).toBe(false)
+    expect(isExemptOnboardingPath('/terms-and-conditions/extra')).toBe(false)
+  })
+
+  it('starts legacy completed accounts directly on the final review step', () => {
+    const accepted = {
+      username: 'alexrivera',
+      onboardingCompletedAt: 1,
+      approximateLatitude: 10.31,
+      approximateLongitude: 123.89,
+      approximateLocationConsentedAt: 1,
+      termsAcceptedAt: 1,
+      termsVersion: currentPolicyVersion,
+      privacyPolicyAcceptedAt: 1,
+      privacyPolicyVersion: currentPolicyVersion,
+      identityConsentAcceptedAt: 1,
+      identityConsentVersion: currentPolicyVersion,
+    }
+    expect(initialOnboardingStep(accepted)).toBe(0)
+    expect(initialOnboardingStep({ ...accepted, termsVersion: '2026-08-13' })).toBe(4)
+    expect(initialOnboardingStep({})).toBe(0)
+    expect(initialOnboardingStep({ username: 'alexrivera' })).toBe(0)
   })
 })
 

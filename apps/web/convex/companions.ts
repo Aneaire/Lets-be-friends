@@ -3,6 +3,7 @@ import {
   MIN_COMPANION_HOURLY_RATE_CENTAVOS,
   bookingEligibility,
   canBookCompanion,
+  hasCurrentUnifiedAcceptance,
   maximumCompanionActivityCategories,
   validateActivityCategories,
   validateCompanionHourlyRateCentavos,
@@ -352,8 +353,8 @@ export const submitApplication = mutation({
     if (typeof sourceLatitude !== 'number' || typeof sourceLongitude !== 'number') {
       throw new ConvexError('Complete onboarding with an approximate location before applying as a Companion')
     }
-    if (!viewer.approximateLocationConsentedAt || !viewer.termsAcceptedAt || viewer.termsVersion !== '2026-08-13') {
-      throw new ConvexError('Accept the current location consent and Terms and Conditions before applying as a Companion')
+    if (!hasCurrentUnifiedAcceptance(viewer)) {
+      throw new ConvexError('Accept the current location consent, Terms, Privacy Policy, and identity terms before applying as a Companion')
     }
     const { bio: _bio, ...applicationArgs } = args
     // New Companion profiles skip profile review. Identity and safety review is

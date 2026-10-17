@@ -5,6 +5,7 @@ import { api, internal } from '../../../convex/_generated/api'
 import schema from '../../../convex/schema'
 import { buildIdentityAssessmentRequest, buildImageQualityRequest, buildOpenAiIdentityRequest, extractionFailureReasonFor, parseOpenAiDecisionResponse, parseOpenAiIdentityResponse } from '../../../convex/identityRecords'
 import { convexModules } from '../../helpers/convex'
+import { currentPolicyVersion, previousPolicyVersion } from '@lets-be-friends/shared'
 
 const modules = convexModules
 const imageBytes = new TextEncoder().encode('identity-image').buffer
@@ -16,16 +17,50 @@ function createTest() {
   return t
 }
 
-async function insertUser(t: ReturnType<typeof convexTest>, clerkUserId: string, role: 'member' | 'reviewer' | 'admin' = 'member') {
-  return await t.run(async (ctx) => ctx.db.insert('users', {
-    clerkUserId,
-    displayName: clerkUserId,
-    role,
-    verificationStatus: 'not_started',
-    suspended: false,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  }))
+async function insertUser(t: ReturnType<typeof convexTest>, clerkUserId: string, role: 'member' | 'reviewer' | 'admin' = 'member', accepted = true) {
+  return await t.run(async (ctx) => {
+    const now = Date.now()
+    return await ctx.db.insert('users', {
+      clerkUserId,
+      displayName: clerkUserId,
+      ...(accepted ? {
+        approximateLatitude: 10.31,
+        approximateLongitude: 123.89,
+        approximateLocationConsentedAt: now,
+        termsAcceptedAt: now,
+        termsVersion: currentPolicyVersion,
+        privacyPolicyAcceptedAt: now,
+        privacyPolicyVersion: currentPolicyVersion,
+        identityConsentAcceptedAt: now,
+        identityConsentVersion: currentPolicyVersion,
+      } : {}),
+      role,
+      verificationStatus: 'not_started',
+      suspended: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  })
+}
+
+async function insertLegacyUser(t: ReturnType<typeof convexTest>, clerkUserId: string) {
+  return await t.run(async (ctx) => {
+    const now = Date.now()
+    return await ctx.db.insert('users', {
+      clerkUserId,
+      displayName: clerkUserId,
+      approximateLatitude: 10.31,
+      approximateLongitude: 123.89,
+      approximateLocationConsentedAt: now,
+      termsAcceptedAt: now,
+      termsVersion: '2026-08-13',
+      role: 'member',
+      verificationStatus: 'not_started',
+      suspended: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  })
 }
 
 const extraction = {
@@ -51,6 +86,7 @@ async function insertSubmittableRecord(t: ReturnType<typeof createTest>, clerkUs
       fullLegalName: 'Example Member', dateOfBirth: '1990-01-02', idType,
       expirationDate: idType === 'passport' ? '2035-01-01' : undefined,
       fieldsConfirmedAt: now, thirdPartyProcessingConsentedAt: now,
+      acceptedPolicyVersion: currentPolicyVersion, acceptedPolicyAcceptedAt: now,
       createdAt: now, updatedAt: now,
     })
     const requestId = await ctx.db.insert('verificationRequests', {
@@ -1169,5 +1205,688 @@ describe('identity read failure reasons', () => {
     const record = await t.run(async (ctx) => ctx.db.get(recordId))
     expect(record?.extractionFailureCode).toBe('provider_error')
     expect(record?.extractionFailureReason).toBe('unknown')
+  })
+})
+
+describe('unified Step 5 acceptance gates for identity', () => {
+  it('rejects start without any persisted acceptance and leaves no partial writes', async () => {
+    const t = createTest()
+    await insertUser(t, 'no-acceptance-member', 'member', false)
+    const before = await t.run(async (ctx) => ({
+      records: (await ctx.db.query('identityRecords').collect()).length,
+      requests: (await ctx.db.query('verificationRequests').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+    }))
+    await expect(t.withIdentity({ subject: 'no-acceptance-member' }).mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' }))
+      .rejects.toThrow('Step 5 acceptance')
+    const after = await t.run(async (ctx) => ({
+      records: (await ctx.db.query('identityRecords').collect()).length,
+      requests: (await ctx.db.query('verificationRequests').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+    }))
+    expect(after).toEqual(before)
+  })
+
+  it('rejects legacy general Terms acceptance that lacks the new privacy and identity scope', async () => {
+    const t = createTest()
+    await insertLegacyUser(t, 'legacy-acceptance-member')
+    await expect(t.withIdentity({ subject: 'legacy-acceptance-member' }).mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' }))
+      .rejects.toThrow('Step 5 acceptance')
+    const rows = await t.run(async (ctx) => ({
+      records: (await ctx.db.query('identityRecords').collect()).length,
+      requests: (await ctx.db.query('verificationRequests').collect()).length,
+    }))
+    expect(rows.records).toBe(0)
+    expect(rows.requests).toBe(0)
+  })
+
+  it('rejects forged client consent booleans without persisted acceptance and leaves no images', async () => {
+    const t = createTest()
+    await insertUser(t, 'forged-member', 'member', false)
+    const userId = await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', 'forged-member')).unique()
+      const now = Date.now()
+      const recordId = await ctx.db.insert('identityRecords', {
+        userId: user!._id, reason: 'member', source: 'in_app', stage: 'draft', selectedIdType: 'national_id',
+        createdAt: now, updatedAt: now,
+      })
+      const requestId = await ctx.db.insert('verificationRequests', {
+        userId: user!._id, reason: 'member', personaStatus: 'not_started', personaDecision: 'unknown', verificationSource: 'in_app',
+        identityRecordId: recordId, identityStage: 'draft', adminStatus: 'not_ready', isCurrent: true, attempt: 1,
+        createdAt: now, updatedAt: now,
+      })
+      await ctx.db.patch(recordId, { verificationRequestId: requestId })
+      return { userId: user!._id, recordId }
+    })
+    await expect(t.withIdentity({ subject: 'forged-member' }).action(api.identityRecords.uploadImage, {
+      identityRecordId: userId.recordId, kind: 'id_front', bytes: imageBytes, contentType: 'image/jpeg',
+    })).rejects.toThrow('Step 5 acceptance')
+    await expect(t.withIdentity({ subject: 'forged-member' }).action(api.identityRecords.extract, {
+      identityRecordId: userId.recordId, thirdPartyProcessingConsent: true,
+    })).rejects.toThrow('Step 5 acceptance')
+    await expect(t.withIdentity({ subject: 'forged-member' }).mutation(api.identityRecords.submit, {
+      identityRecordId: userId.recordId, reviewConsent: true,
+    })).rejects.toThrow()
+    const images = await t.run(async (ctx) => await ctx.db.query('identityRecordImages').collect())
+    expect(images).toHaveLength(0)
+  })
+
+  it('rejects an explicit legacy refusal without provider, storage, or database effects', async () => {
+    const t = createTest()
+    await insertUser(t, 'refusing-member')
+    const member = t.withIdentity({ subject: 'refusing-member' })
+    const started = await member.mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' })
+    if (started.mode !== 'started') throw new Error('Expected a started attempt')
+    const fetchSpy = vi.fn(async () => ({ ok: true, json: async () => ({}) }) as unknown as Response)
+    vi.stubGlobal('fetch', fetchSpy)
+    const before = await t.run(async (ctx) => ({
+      record: await ctx.db.get(started.identityRecordId),
+      images: (await ctx.db.query('identityRecordImages').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+    }))
+    try {
+      await withProviderEnv('test-key', async () => {
+        await expect(member.action(api.identityRecords.extract, {
+          identityRecordId: started.identityRecordId, thirdPartyProcessingConsent: false,
+        })).rejects.toThrow('Consent is required')
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    expect(fetchSpy).not.toHaveBeenCalled()
+    const after = await t.run(async (ctx) => ({
+      record: await ctx.db.get(started.identityRecordId),
+      images: (await ctx.db.query('identityRecordImages').collect()).length,
+      audits: (await ctx.db.query('auditLogs').collect()).length,
+    }))
+    expect(after.record?.stage).toBe(before.record?.stage)
+    expect(after.record?.extraction).toBeUndefined()
+    expect(after.images).toBe(before.images)
+    expect(after.audits).toBe(before.audits)
+
+    const { recordId } = await insertSubmittableRecord(t, 'refusing-member')
+    await expect(member.mutation(api.identityRecords.submit, { identityRecordId: recordId, reviewConsent: false }))
+      .rejects.toThrow('Consent is required')
+    const refused = await t.run(async (ctx) => ctx.db.get(recordId))
+    expect(refused?.stage).toBe('confirmation_required')
+  })
+
+  it('accepts omitted legacy booleans for users with persisted unified acceptance', async () => {
+    const t = createTest()
+    await insertUser(t, 'omitted-consent-member')
+    const member = t.withIdentity({ subject: 'omitted-consent-member' })
+    const started = await member.mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' })
+    if (started.mode !== 'started') throw new Error('Expected a started attempt')
+    await member.action(api.identityRecords.uploadImage, { identityRecordId: started.identityRecordId, kind: 'id_front', bytes: imageBytes, contentType: 'image/jpeg' })
+    const { recordId } = await insertSubmittableRecord(t, 'omitted-consent-member')
+    await member.mutation(api.identityRecords.submit, { identityRecordId: recordId })
+    const record = await t.run(async (ctx) => ctx.db.get(recordId))
+    expect(record?.stage).toBe('ready_for_review')
+  })
+
+  it('records the relied-upon policy version and timestamp on start and submit without stamping new consent', async () => {
+    const t = createTest()
+    await insertUser(t, 'accepted-member')
+    const member = t.withIdentity({ subject: 'accepted-member' })
+    const started = await member.mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' })
+    if (started.mode !== 'started') throw new Error('Expected a started attempt')
+    const viewerBefore = await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', 'accepted-member')).unique()
+      return { acceptedAt: user?.identityConsentAcceptedAt, version: user?.identityConsentVersion }
+    })
+    const recordBefore = await t.run(async (ctx) => ctx.db.get(started.identityRecordId))
+    expect(recordBefore?.acceptedPolicyVersion).toBe(currentPolicyVersion)
+    expect(recordBefore?.acceptedPolicyAcceptedAt).toBe(viewerBefore.acceptedAt)
+    await member.action(api.identityRecords.uploadImage, { identityRecordId: started.identityRecordId, kind: 'id_front', bytes: imageBytes, contentType: 'image/jpeg' })
+    await t.mutation(internal.identityRecords.prepareExtraction, { clerkUserId: 'accepted-member', identityRecordId: started.identityRecordId })
+    await t.mutation(internal.identityRecords.completeExtraction, { clerkUserId: 'accepted-member', identityRecordId: started.identityRecordId, extraction: { ...extraction } as any })
+    await member.mutation(api.identityRecords.confirmFields, {
+      identityRecordId: started.identityRecordId,
+      fullLegalName: 'Accepted Member',
+      dateOfBirth: extraction.dateOfBirth,
+      idType: 'national_id',
+      nationality: 'PH',
+    })
+    const { token } = await member.mutation(api.identityRecords.issueSelfieCaptureToken, { identityRecordId: started.identityRecordId })
+    await member.action(api.identityRecords.uploadImage, { identityRecordId: started.identityRecordId, kind: 'selfie', bytes: imageBytes, contentType: 'image/jpeg', cameraCaptureToken: token })
+    await member.mutation(api.identityRecords.submit, { identityRecordId: started.identityRecordId })
+    const viewerAfter = await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', 'accepted-member')).unique()
+      return { acceptedAt: user?.identityConsentAcceptedAt }
+    })
+    expect(viewerAfter.acceptedAt).toBe(viewerBefore.acceptedAt)
+    const recordAfter = await t.run(async (ctx) => ctx.db.get(started.identityRecordId))
+    expect(recordAfter?.stage).toBe('ready_for_review')
+    expect(recordAfter?.acceptedPolicyVersion).toBe(currentPolicyVersion)
+    expect(recordAfter?.acceptedPolicyAcceptedAt).toBe(viewerBefore.acceptedAt)
+  })
+
+  it('preserves owner and suspension boundaries alongside acceptance checks', async () => {
+    const t = createTest()
+    await insertUser(t, 'suspended-member')
+    await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', 'suspended-member')).unique()
+      await ctx.db.patch(user!._id, { suspended: true })
+    })
+    await expect(t.withIdentity({ subject: 'suspended-member' }).mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' }))
+      .rejects.toThrow('suspended')
+    await insertUser(t, 'owner-member')
+    await insertUser(t, 'outsider-member')
+    const started = await t.withIdentity({ subject: 'owner-member' }).mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' })
+    if (started.mode !== 'started') throw new Error('Expected a started attempt')
+    await expect(t.withIdentity({ subject: 'outsider-member' }).mutation(api.identityRecords.restartAttempt, { identityRecordId: started.identityRecordId }))
+      .rejects.toThrow(/not found/)
+  })
+
+  it('rejects field confirmation and selfie capture preparation without current stored acceptance', async () => {
+    const t = createTest()
+    await insertUser(t, 'confirming-member')
+    const member = t.withIdentity({ subject: 'confirming-member' })
+    const started = await member.mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' })
+    if (started.mode !== 'started') throw new Error('Expected a started attempt')
+    await member.action(api.identityRecords.uploadImage, { identityRecordId: started.identityRecordId, kind: 'id_front', bytes: imageBytes, contentType: 'image/jpeg' })
+    await t.mutation(internal.identityRecords.prepareExtraction, { clerkUserId: 'confirming-member', identityRecordId: started.identityRecordId })
+    await t.mutation(internal.identityRecords.completeExtraction, { clerkUserId: 'confirming-member', identityRecordId: started.identityRecordId, extraction: { ...extraction } as any })
+
+    // Acceptance lapses after extraction: both sensitive follow-ups must fail
+    // without writing anything.
+    await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', 'confirming-member')).unique()
+      await ctx.db.patch(user!._id, { identityConsentVersion: '2026-08-13' })
+    })
+    await expect(member.mutation(api.identityRecords.confirmFields, {
+      identityRecordId: started.identityRecordId,
+      fullLegalName: 'Confirming Member',
+      dateOfBirth: extraction.dateOfBirth,
+      idType: 'national_id',
+      nationality: 'PH',
+    })).rejects.toThrow('Step 5 acceptance')
+    await expect(member.mutation(api.identityRecords.issueSelfieCaptureToken, { identityRecordId: started.identityRecordId }))
+      .rejects.toThrow('Step 5 acceptance')
+
+    const record = await t.run(async (ctx) => ctx.db.get(started.identityRecordId))
+    expect(record?.fieldsConfirmedAt).toBeUndefined()
+    expect(record?.fullLegalName).toBeUndefined()
+    expect(record?.selfieCaptureToken).toBeUndefined()
+  })
+
+  it('rejects the old 730 day scope without reacceptance and leaves no partial writes', async () => {
+    const t = createTest()
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert('users', {
+        clerkUserId: 'old730-member',
+        displayName: 'old730-member',
+        approximateLatitude: 10.31,
+        approximateLongitude: 123.89,
+        approximateLocationConsentedAt: now,
+        termsAcceptedAt: now,
+        termsVersion: previousPolicyVersion,
+        privacyPolicyAcceptedAt: now,
+        privacyPolicyVersion: previousPolicyVersion,
+        identityConsentAcceptedAt: now,
+        identityConsentVersion: previousPolicyVersion,
+        role: 'member',
+        verificationStatus: 'not_started',
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+    await expect(t.withIdentity({ subject: 'old730-member' }).mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' }))
+      .rejects.toThrow('Step 5 acceptance')
+    const rows = await t.run(async (ctx) => ({
+      records: (await ctx.db.query('identityRecords').collect()).length,
+      requests: (await ctx.db.query('verificationRequests').collect()).length,
+    }))
+    expect(rows.records).toBe(0)
+    expect(rows.requests).toBe(0)
+  })
+})
+
+describe('identity image account lifetime retention', () => {
+  const TERMINAL = Number.MAX_SAFE_INTEGER
+  const OLD_730 = '2026-10-17'
+
+  async function insertOld730User(t: ReturnType<typeof createTest>, clerkUserId: string) {
+    return await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('users', {
+        clerkUserId,
+        displayName: clerkUserId,
+        approximateLatitude: 10.31,
+        approximateLongitude: 123.89,
+        approximateLocationConsentedAt: now,
+        termsAcceptedAt: now,
+        termsVersion: OLD_730,
+        privacyPolicyAcceptedAt: now,
+        privacyPolicyVersion: OLD_730,
+        identityConsentAcceptedAt: now,
+        identityConsentVersion: OLD_730,
+        role: 'member',
+        verificationStatus: 'not_started',
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+  }
+
+  async function insertRecord(t: ReturnType<typeof createTest>, userId: any, opts: { hold?: boolean } = {}) {
+    return await t.run(async (ctx) => {
+      const now = Date.now()
+      const recordId = await ctx.db.insert('identityRecords', {
+        userId, reason: 'member', source: 'in_app', stage: 'ready_for_review', selectedIdType: 'national_id',
+        fullLegalName: 'Lifetime Member', dateOfBirth: '1990-01-02', idType: 'national_id',
+        fieldsConfirmedAt: now, submittedAt: now,
+        acceptedPolicyVersion: currentPolicyVersion, acceptedPolicyAcceptedAt: now,
+        ...(opts.hold ? { legalHoldSetAt: now, legalHoldSetByUserId: userId, legalHoldNote: 'Court order preservation for testing.' } : {}),
+        createdAt: now, updatedAt: now,
+      })
+      const requestId = await ctx.db.insert('verificationRequests', {
+        userId, reason: 'member', personaStatus: 'not_started', personaDecision: 'unknown', verificationSource: 'in_app',
+        identityRecordId: recordId, identityStage: 'ready_for_review', adminStatus: 'pending', isCurrent: true, attempt: 1,
+        createdAt: now, updatedAt: now,
+      })
+      await ctx.db.patch(recordId, { verificationRequestId: requestId })
+      return { recordId, requestId }
+    })
+  }
+
+  async function insertLifetimeImage(
+    t: ReturnType<typeof createTest>,
+    userId: any,
+    recordId: any,
+    kind: 'id_front' | 'id_back' | 'selfie',
+    createdAt: number,
+    purgeAfter?: number,
+  ) {
+    return await t.run(async (ctx) => {
+      const storageId = await ctx.storage.store(new Blob([`${String(kind)}-${String(createdAt)}`], { type: 'image/jpeg' }))
+      const imageId = await ctx.db.insert('identityRecordImages', {
+        identityRecordId: recordId, userId, kind, storageId, contentType: 'image/jpeg', size: 12,
+        createdAt,
+        purgeAfter: purgeAfter ?? createdAt + 30 * DAY_MS,
+        retentionMode: 'account_lifetime',
+        retentionPolicyVersion: currentPolicyVersion,
+      })
+      return { imageId, storageId }
+    })
+  }
+
+  async function insertLegacyImage(
+    t: ReturnType<typeof createTest>,
+    userId: any,
+    recordId: any,
+    kind: 'id_front' | 'id_back' | 'selfie',
+    createdAt: number,
+    retentionDueAt: number,
+    purgeAfter?: number,
+  ) {
+    return await t.run(async (ctx) => {
+      const storageId = await ctx.storage.store(new Blob([`${String(kind)}-legacy-${String(createdAt)}`], { type: 'image/jpeg' }))
+      const imageId = await ctx.db.insert('identityRecordImages', {
+        identityRecordId: recordId, userId, kind, storageId, contentType: 'image/jpeg', size: 12,
+        createdAt, retentionDueAt, purgeAfter: purgeAfter ?? retentionDueAt,
+        retentionMode: 'legacy_deadline',
+        retentionPolicyVersion: OLD_730,
+      })
+      return { imageId, storageId }
+    })
+  }
+
+  async function storageExists(t: ReturnType<typeof createTest>, storageId: any) {
+    return await t.run(async (ctx) => (await ctx.db.system.get('_storage', storageId)) !== null)
+  }
+
+  it('retains new policy id_front, id_back, and selfie past 730 days while the account exists', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'lifetime-member')
+    const { recordId } = await insertRecord(t, userId)
+    const now = Date.now()
+    const old = now - 800 * DAY_MS
+    const front = await insertLifetimeImage(t, userId, recordId, 'id_front', old)
+    const back = await insertLifetimeImage(t, userId, recordId, 'id_back', old)
+    const selfie = await insertLifetimeImage(t, userId, recordId, 'selfie', old)
+
+    const result = await t.mutation(internal.identityRecords.purgeExpired, { now, limit: 100 })
+    expect(result.purged).toBe(0)
+    expect(result.retained).toBeGreaterThanOrEqual(3)
+
+    for (const { imageId, storageId } of [front, back, selfie]) {
+      const row = await t.run(async (ctx) => ctx.db.get(imageId))
+      expect(row?.purgedAt).toBeUndefined()
+      expect(row?.storageId).toBe(storageId)
+      expect(await storageExists(t, storageId)).toBe(true)
+    }
+  })
+
+  it('retains suspended, inactive, and expired approval accounts without triggering deletion', async () => {
+    const t = createTest()
+    const now = Date.now()
+    const old = now - 800 * DAY_MS
+
+    const suspendedId = await insertUser(t, 'lifetime-suspended')
+    await t.run(async (ctx) => ctx.db.patch(suspendedId, { suspended: true }))
+    const { recordId: suspendedRecord } = await insertRecord(t, suspendedId)
+    const suspendedImage = await insertLifetimeImage(t, suspendedId, suspendedRecord, 'id_front', old)
+
+    const inactiveId = await insertUser(t, 'lifetime-inactive')
+    const { recordId: inactiveRecord } = await insertRecord(t, inactiveId)
+    const inactiveImage = await insertLifetimeImage(t, inactiveId, inactiveRecord, 'selfie', old)
+
+    const expiredId = await insertUser(t, 'lifetime-expired')
+    await t.run(async (ctx) => ctx.db.patch(expiredId, {
+      verificationStatus: 'approved', verificationSource: 'in_app',
+      identityVerifiedAt: old, identityExpiresAt: now - DAY_MS,
+    }))
+    // Approval expiry is separate: expire it without touching images.
+    await t.mutation(internal.identityRecords.processIdentityExpiry, { now, limit: 100 })
+    const { recordId: expiredRecord } = await insertRecord(t, expiredId)
+    const expiredImage = await insertLifetimeImage(t, expiredId, expiredRecord, 'id_front', old)
+
+    const result = await t.mutation(internal.identityRecords.purgeExpired, { now, limit: 100 })
+    expect(result.purged).toBe(0)
+    for (const { imageId, storageId } of [suspendedImage, inactiveImage, expiredImage]) {
+      const row = await t.run(async (ctx) => ctx.db.get(imageId))
+      expect(row?.purgedAt).toBeUndefined()
+      expect(await storageExists(t, storageId)).toBe(true)
+    }
+    // Expired approval still exists as an account and keeps its images.
+    const expiredUser = await t.run(async (ctx) => ctx.db.get(expiredId))
+    expect(expiredUser).not.toBeNull()
+  })
+
+  it('purges missing owner images even with a legacy far future schedule', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'deleted-future-member')
+    const { recordId } = await insertRecord(t, userId)
+    const now = Date.now()
+    const { imageId, storageId } = await insertLegacyImage(
+      t, userId, recordId, 'id_front', now - 10 * DAY_MS, now + 730 * DAY_MS, now + 10 * 365 * DAY_MS,
+    )
+    await t.run(async (ctx) => {
+      await ctx.db.delete(userId)
+      await ctx.db.delete(recordId)
+    })
+
+    const result = await t.mutation(internal.identityRecords.purgeExpired, { now, limit: 100 })
+    expect(result.purged).toBe(1)
+    const row = await t.run(async (ctx) => ctx.db.get(imageId))
+    expect(row?.storageId).toBeUndefined()
+    expect(row?.purgedAt).toBe(now)
+    expect(row?.purgeAfter).toBe(TERMINAL)
+    expect(row?.purgeReason).toBe('account_removed')
+    expect(await storageExists(t, storageId)).toBe(false)
+  })
+
+  it('retains a deleted account image under legal hold, then purges after release', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'deleted-hold-member')
+    const { recordId } = await insertRecord(t, userId, { hold: true })
+    const now = Date.now()
+    const { imageId, storageId } = await insertLifetimeImage(t, userId, recordId, 'selfie', now - 800 * DAY_MS)
+    await t.run(async (ctx) => ctx.db.delete(userId))
+
+    const held = await t.mutation(internal.identityRecords.purgeExpired, { now, limit: 100 })
+    expect(held.purged).toBe(0)
+    expect(held.retained).toBeGreaterThanOrEqual(1)
+    expect(await storageExists(t, storageId)).toBe(true)
+    expect((await t.run(async (ctx) => ctx.db.get(imageId)))?.purgedAt).toBeUndefined()
+
+    await t.run(async (ctx) => ctx.db.patch(recordId, { legalHoldReleasedAt: now + 1 }))
+    const later = now + 8 * DAY_MS
+    const purged = await t.mutation(internal.identityRecords.purgeExpired, { now: later, limit: 100 })
+    expect(purged.purged).toBe(1)
+    const row = await t.run(async (ctx) => ctx.db.get(imageId))
+    expect(row?.purgedAt).toBe(later)
+    expect(row?.purgeReason).toBe('account_removed')
+    expect(await storageExists(t, storageId)).toBe(false)
+  })
+
+  it('retains a deleted account image during an active incident, then purges after resolution', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'deleted-incident-member')
+    const reporterId = await insertUser(t, 'incident-reporter')
+    const { recordId } = await insertRecord(t, userId)
+    const now = Date.now()
+    const { imageId, storageId } = await insertLifetimeImage(t, userId, recordId, 'id_front', now - 800 * DAY_MS)
+    const reportId = await t.run(async (ctx) => ctx.db.insert('reports', {
+      reporterId, targetType: 'user', targetId: String(userId),
+      reason: 'Safety review about this member.', status: 'open', createdAt: now, updatedAt: now,
+    }))
+    await t.run(async (ctx) => ctx.db.delete(userId))
+
+    const held = await t.mutation(internal.identityRecords.purgeExpired, { now, limit: 100 })
+    expect(held.purged).toBe(0)
+    expect(await storageExists(t, storageId)).toBe(true)
+
+    await t.run(async (ctx) => ctx.db.patch(reportId, { status: 'resolved', updatedAt: now + 1 }))
+    const later = now + 8 * DAY_MS
+    const purged = await t.mutation(internal.identityRecords.purgeExpired, { now: later, limit: 100 })
+    expect(purged.purged).toBe(1)
+    expect((await t.run(async (ctx) => ctx.db.get(imageId)))?.purgeReason).toBe('account_removed')
+    expect(await storageExists(t, storageId)).toBe(false)
+  })
+
+  it('leaves already purged images untouched with unchanged reason', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'already-purged-member')
+    const { recordId } = await insertRecord(t, userId)
+    const now = Date.now()
+    const before = await t.run(async (ctx) => {
+      const imageId = await ctx.db.insert('identityRecordImages', {
+        identityRecordId: recordId, userId, kind: 'id_front', contentType: 'image/jpeg', size: 10,
+        createdAt: now - 900 * DAY_MS, purgeAfter: TERMINAL, purgedAt: now - 10 * DAY_MS, purgeReason: 'member_restarted',
+      })
+      return imageId
+    })
+    const snapshot = await t.run(async (ctx) => ctx.db.get(before))
+    const result = await t.mutation(internal.identityRecords.purgeExpired, { now, limit: 100 })
+    const after = await t.run(async (ctx) => ctx.db.get(before))
+    expect(after?.purgedAt).toBe(snapshot?.purgedAt)
+    expect(after?.purgeReason).toBe('member_restarted')
+    expect(after?.purgeAfter).toBe(TERMINAL)
+    expect(result.purged).toBe(0)
+  })
+
+  it('eventually processes later orphans beyond retained held rows with bounded stable pages', async () => {
+    const t = createTest()
+    const now = Date.now()
+    // Held rows are created first so they sort first in stable _creationTime
+    // order. Each scan retains them (bumping only purgeAfter, which no longer
+    // affects order) and continuation still reaches the later orphans.
+    const heldIds: Array<any> = []
+    const heldStorage: Array<any> = []
+    for (let index = 0; index < 4; index += 1) {
+      const owner = await insertUser(t, `held-owner-${index}`)
+      const { recordId } = await insertRecord(t, owner, { hold: true })
+      const { imageId, storageId } = await insertLifetimeImage(t, owner, recordId, 'id_front', now - 800 * DAY_MS)
+      await t.run(async (ctx) => ctx.db.delete(owner))
+      heldIds.push(imageId)
+      heldStorage.push(storageId)
+    }
+    const orphanIds: Array<any> = []
+    const orphanStorage: Array<any> = []
+    for (let index = 0; index < 2; index += 1) {
+      const owner = await insertUser(t, `orphan-owner-${index}`)
+      const { recordId } = await insertRecord(t, owner)
+      const { imageId, storageId } = await insertLifetimeImage(t, owner, recordId, 'selfie', now - 800 * DAY_MS)
+      await t.run(async (ctx) => {
+        await ctx.db.delete(owner)
+        await ctx.db.delete(recordId)
+      })
+      orphanIds.push(imageId)
+      orphanStorage.push(storageId)
+    }
+
+    let cursor: string | undefined
+    let totalPurged = 0
+    let pages = 0
+    for (let step = 0; step < 10; step += 1) {
+      const page = await t.mutation(internal.identityRecords.purgeExpired, { now, limit: 2, cursor })
+      pages += 1
+      totalPurged += page.purged
+      if (page.remaining === 'done') break
+      cursor = page.continueCursor ?? undefined
+      expect(page.checked).toBeLessThanOrEqual(2)
+    }
+    expect(pages).toBeGreaterThan(1)
+    expect(totalPurged).toBe(2)
+    for (const imageId of orphanIds) {
+      const row = (await t.run(async (ctx: any) => ctx.db.get(imageId))) as any
+      expect(row?.purgedAt).toBe(now)
+    }
+    for (const storageId of orphanStorage) {
+      expect(await storageExists(t, storageId)).toBe(false)
+    }
+    // Held rows were scanned first on every run but never skipped the later
+    // orphans, and their bytes are still retained.
+    for (const imageId of heldIds) {
+      const row = (await t.run(async (ctx: any) => ctx.db.get(imageId))) as any
+      expect(row?.purgedAt).toBeUndefined()
+    }
+    for (const storageId of heldStorage) {
+      expect(await storageExists(t, storageId)).toBe(true)
+    }
+  })
+
+  it('honors the old policy deadline until the owner accepts the new lifetime policy', async () => {
+    const t = createTest()
+    const now = Date.now()
+    const oldUser = await insertOld730User(t, 'old-policy-member')
+    const { recordId } = await insertRecord(t, oldUser)
+    // Original attempt consent stays on the old scope; promotion must not
+    // rewrite it.
+    await t.run(async (ctx) => ctx.db.patch(recordId, { acceptedPolicyVersion: OLD_730 }))
+    // 600 days old: 130 days remain under the recorded 730 day deadline.
+    const recentCreated = now - 600 * DAY_MS
+    const recentDue = recentCreated + 730 * DAY_MS
+    const recent = await insertLegacyImage(t, oldUser, recordId, 'id_front', recentCreated, recentDue)
+    const beforeDeadline = await t.mutation(internal.identityRecords.purgeExpired, { now, limit: 100 })
+    expect(beforeDeadline.purged).toBe(0)
+    expect((await t.run(async (ctx) => ctx.db.get(recent.imageId)))?.purgedAt).toBeUndefined()
+    expect(await storageExists(t, recent.storageId)).toBe(true)
+
+    // Owner accepts the current lifetime policy. The still-stored image is now
+    // retained for account lifetime, even past its old deadline.
+    await t.run(async (ctx) => ctx.db.patch(oldUser, {
+      termsAcceptedAt: now, termsVersion: currentPolicyVersion,
+      privacyPolicyAcceptedAt: now, privacyPolicyVersion: currentPolicyVersion,
+      identityConsentAcceptedAt: now, identityConsentVersion: currentPolicyVersion,
+      updatedAt: now,
+    }))
+    const pastOldDeadline = recentDue + DAY_MS
+    const afterAcceptance = await t.mutation(internal.identityRecords.purgeExpired, { now: pastOldDeadline, limit: 100 })
+    expect(afterAcceptance.purged).toBe(0)
+    const promoted = await t.run(async (ctx) => ctx.db.get(recent.imageId))
+    expect(promoted?.purgedAt).toBeUndefined()
+    // Promotion persists durable lifetime evidence on the image without
+    // rewriting the original attempt consent.
+    expect(promoted?.retentionMode).toBe('account_lifetime')
+    expect(promoted?.retentionPolicyVersion).toBe(currentPolicyVersion)
+    expect((await t.run(async (ctx) => ctx.db.get(recordId)))?.acceptedPolicyVersion).not.toBe(currentPolicyVersion)
+    expect(await storageExists(t, recent.storageId)).toBe(true)
+
+    // A different old-policy image already past its deadline is still honored.
+    const expiredUser = await insertOld730User(t, 'old-policy-expired')
+    const { recordId: expiredRecord } = await insertRecord(t, expiredUser)
+    const expiredCreated = now - 800 * DAY_MS
+    const expired = await insertLegacyImage(t, expiredUser, expiredRecord, 'selfie', expiredCreated, expiredCreated + 730 * DAY_MS)
+    const expiredResult = await t.mutation(internal.identityRecords.purgeExpired, { now, limit: 100 })
+    expect(expiredResult.purged).toBeGreaterThanOrEqual(1)
+    const expiredRow = await t.run(async (ctx) => ctx.db.get(expired.imageId))
+    expect(expiredRow?.purgeReason).toBe('retention_expired')
+    expect(await storageExists(t, expired.storageId)).toBe(false)
+
+    // Accepting the new policy never restores bytes already purged.
+    await t.run(async (ctx) => ctx.db.patch(expiredUser, {
+      termsAcceptedAt: now, termsVersion: currentPolicyVersion,
+      privacyPolicyAcceptedAt: now, privacyPolicyVersion: currentPolicyVersion,
+      identityConsentAcceptedAt: now, identityConsentVersion: currentPolicyVersion,
+      updatedAt: now,
+    }))
+    await t.mutation(internal.identityRecords.purgeExpired, { now: now + DAY_MS, limit: 100 })
+    const stillGone = await t.run(async (ctx) => ctx.db.get(expired.imageId))
+    expect(stillGone?.storageId).toBeUndefined()
+    expect(stillGone?.purgedAt).not.toBeUndefined()
+  })
+
+  it('retains a lifetime-mode image when owner acceptance later goes stale', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'lifetime-stale-member')
+    const { recordId } = await insertRecord(t, userId)
+    const now = Date.now()
+    const created = now - 800 * DAY_MS
+    // Review eligibility passed long ago; durable lifetime mode must still win.
+    const { imageId, storageId } = await insertLifetimeImage(t, userId, recordId, 'id_front', created, now - 700 * DAY_MS)
+    // Owner acceptance later goes stale (old general Terms scope). New uploads
+    // would be refused, but retention still relies on the durable image scope.
+    await t.run(async (ctx) => ctx.db.patch(userId, {
+      termsVersion: '2026-08-13',
+      privacyPolicyVersion: '2026-08-13',
+      identityConsentVersion: '2026-08-13',
+      updatedAt: now,
+    }))
+    const result = await t.mutation(internal.identityRecords.purgeExpired, { now, limit: 100 })
+    expect(result.purged).toBe(0)
+    const row = await t.run(async (ctx) => ctx.db.get(imageId))
+    expect(row?.purgedAt).toBeUndefined()
+    expect(row?.retentionMode).toBe('account_lifetime')
+    expect(await storageExists(t, storageId)).toBe(true)
+  })
+
+  it('keeps a promoted legacy row after a subsequent generic policy change', async () => {
+    const t = createTest()
+    const now = Date.now()
+    const userId = await insertOld730User(t, 'promoted-later-stale')
+    const { recordId } = await insertRecord(t, userId)
+    await t.run(async (ctx) => ctx.db.patch(recordId, { acceptedPolicyVersion: OLD_730 }))
+    const created = now - 600 * DAY_MS
+    const due = created + 730 * DAY_MS
+    const { imageId, storageId } = await insertLegacyImage(t, userId, recordId, 'selfie', created, due)
+    // Owner accepts lifetime retention: promotion writes durable image mode.
+    await t.run(async (ctx) => ctx.db.patch(userId, {
+      termsAcceptedAt: now, termsVersion: currentPolicyVersion,
+      privacyPolicyAcceptedAt: now, privacyPolicyVersion: currentPolicyVersion,
+      identityConsentAcceptedAt: now, identityConsentVersion: currentPolicyVersion,
+      updatedAt: now,
+    }))
+    await t.mutation(internal.identityRecords.purgeExpired, { now, limit: 100 })
+    expect((await t.run(async (ctx) => ctx.db.get(imageId)))?.retentionMode).toBe('account_lifetime')
+    // A later generic policy change makes owner acceptance stale again, but
+    // the promoted durable scope still retains the image past its old deadline.
+    await t.run(async (ctx) => ctx.db.patch(userId, {
+      termsVersion: '2026-08-13',
+      privacyPolicyVersion: '2026-08-13',
+      identityConsentVersion: '2026-08-13',
+      updatedAt: now,
+    }))
+    const later = due + 10 * DAY_MS
+    const result = await t.mutation(internal.identityRecords.purgeExpired, { now: later, limit: 100 })
+    expect(result.purged).toBe(0)
+    const row = await t.run(async (ctx) => ctx.db.get(imageId))
+    expect(row?.purgedAt).toBeUndefined()
+    expect(row?.retentionMode).toBe('account_lifetime')
+    expect(await storageExists(t, storageId)).toBe(true)
+    // Original attempt evidence was never rewritten.
+    expect((await t.run(async (ctx) => ctx.db.get(recordId)))?.acceptedPolicyVersion).toBe(OLD_730)
+  })
+
+  it('stores new uploads in lifetime mode without a legacy deadline', async () => {
+    const t = createTest()
+    await insertUser(t, 'lifetime-upload-member')
+    const member = t.withIdentity({ subject: 'lifetime-upload-member' })
+    const started = await member.mutation(api.identityRecords.start, { reason: 'member', selectedIdType: 'national_id' })
+    if (started.mode !== 'started') throw new Error('Expected a started attempt')
+    await member.action(api.identityRecords.uploadImage, {
+      identityRecordId: started.identityRecordId, kind: 'id_front', bytes: imageBytes, contentType: 'image/jpeg',
+    })
+    const image = await t.run(async (ctx) => ctx.db.query('identityRecordImages').withIndex('by_record_kind', (q: any) => q.eq('identityRecordId', started.identityRecordId).eq('kind', 'id_front')).unique())
+    expect(image?.retentionMode).toBe('account_lifetime')
+    expect(image?.retentionPolicyVersion).toBe(currentPolicyVersion)
+    expect(image?.retentionDueAt).toBeUndefined()
+    expect(typeof image?.purgeAfter).toBe('number')
+    expect(image?.purgedAt).toBeUndefined()
   })
 })

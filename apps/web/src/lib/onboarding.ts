@@ -1,6 +1,8 @@
+import { currentPolicyVersion, hasCurrentUnifiedAcceptance, isPublicLegalPath } from '@lets-be-friends/shared'
+
 export type OnboardingGoal = 'member' | 'companion'
 
-export const currentTermsVersion = '2026-08-13'
+export const currentTermsVersion = currentPolicyVersion
 
 export type OnboardingGateDecision =
   | 'loading'
@@ -33,9 +35,16 @@ export function onboardingGateDecision({
     approximateLocationConsentedAt?: number
     termsAcceptedAt?: number
     termsVersion?: string
+    privacyPolicyAcceptedAt?: number
+    privacyPolicyVersion?: string
+    identityConsentAcceptedAt?: number
+    identityConsentVersion?: string
   }
   pathname: string
 }): OnboardingGateDecision {
+  // The dedicated legal pages stay readable to everyone, including
+  // signed-out visitors, unaccepted accounts, and loading states.
+  if (isPublicLegalPath(pathname)) return 'allow'
   if (!clerkLoaded) return 'loading'
   if (!signedIn) return 'allow'
   if (convexLoading) return 'loading'
@@ -48,9 +57,7 @@ export function onboardingGateDecision({
     && viewer.onboardingCompletedAt
     && isRoundedCoordinate(viewer.approximateLatitude)
     && isRoundedCoordinate(viewer.approximateLongitude)
-    && viewer.approximateLocationConsentedAt
-    && viewer.termsAcceptedAt
-    && viewer.termsVersion === currentTermsVersion,
+    && hasCurrentUnifiedAcceptance(viewer),
   )
   if (!onboardingComplete && pathname !== '/onboarding') return 'redirect_onboarding'
   return 'allow'
@@ -59,6 +66,8 @@ export function onboardingGateDecision({
 function isRoundedCoordinate(value: number | undefined) {
   return typeof value === 'number' && Number.isFinite(value) && Math.round(value * 100) / 100 === value
 }
+
+export { isRoundedCoordinate }
 
 export function onboardingDestination(goal: OnboardingGoal) {
   return goal === 'companion' ? '/companion' as const : '/nearby' as const

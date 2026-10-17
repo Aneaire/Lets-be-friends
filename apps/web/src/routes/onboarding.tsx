@@ -1,9 +1,10 @@
 import { SignInButton, useAuth } from '@clerk/react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Check } from 'lucide-react'
 import {
+  hasCurrentUnifiedAcceptance,
   normalizeUsername,
   usernameValidationError,
 } from '@lets-be-friends/shared'
@@ -14,7 +15,7 @@ import { InlineNotice } from '../design-system/molecules/FeedbackState'
 import { FormField } from '../design-system/molecules/FormField'
 import { ApproximateLocationMap } from '../design-system/organisms/ApproximateLocationMap'
 import { roundCoordinates, type Coordinates } from '../lib/geo'
-import { currentTermsVersion, deviceLocationErrorMessage, goalForSkip, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
+import { currentTermsVersion, deviceLocationErrorMessage, goalForSkip, isRoundedCoordinate, onboardingDestination, type OnboardingGoal } from '../lib/onboarding'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { CompanionProfileFields } from '../features/companion-application/CompanionProfileFields'
 import {
@@ -24,12 +25,14 @@ import {
   type CompanionProfileMode,
   type CompanionProfileValues,
 } from '../features/companion-application/companionProfileForm'
+import { AcceptanceCheckboxes, AlreadyAcceptedNotice, unifiedPolicyVersion } from '../features/policy/PolicySummaries'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification';
 import { describeConvexError } from '../lib/convexErrors'
 
 export const Route = createFileRoute('/onboarding')({ component: OnboardingPage })
 
 const termsVersion = currentTermsVersion
+const policyVersion = unifiedPolicyVersion
 
 const memberJourney = [
   ['Complete identity verification', 'Securely submit a government ID and take a current camera selfie.'],
@@ -70,11 +73,12 @@ export function OnboardingPage() {
   const [companionCity, setCompanionCity] = useState('')
   const [companionIntro, setCompanionIntro] = useState('')
   const [approxLocation, setApproxLocation] = useState<Coordinates | null>(null)
-  const [locationConsent, setLocationConsent] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
   const [locationStatus, setLocationStatus] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const accountKeyRef = useRef<string | null>(null)
   const normalizedUsername = normalizeUsername(username)
   const localUsernameError = usernameValidationError(username)
   const usernameAvailability = useQuery(
@@ -84,6 +88,48 @@ export function OnboardingPage() {
 
   useEffect(() => {
     if (!viewer) return
+    // Stable per-account key: never displayName. Every per-account form
+    // field resets when this changes, so a new account never inherits the
+    // prior account's draft, location, step, or checkbox state.
+    const account = viewer as unknown as { _id?: unknown; clerkUserId?: unknown }
+    const accountKey = String(account._id ?? account.clerkUserId ?? '')
+    if (accountKeyRef.current !== accountKey) {
+      accountKeyRef.current = accountKey
+      const fallbackName = splitExistingName(viewer.displayName)
+      setUsername(viewer.username || '')
+      setGoal(viewer.onboardingGoal)
+      setFirstName(viewer.firstName || fallbackName.firstName)
+      setLastName(viewer.lastName || fallbackName.lastName)
+      setSelectedCategories(viewer.onboardingCategories ?? [])
+      setBio(viewer.bio || '')
+      setApproxLocation(
+        typeof viewer.approximateLatitude === 'number' && typeof viewer.approximateLongitude === 'number'
+          ? { latitude: viewer.approximateLatitude, longitude: viewer.approximateLongitude }
+          : null,
+      )
+      setCompanionMode('both')
+      setCompanionRate(companionProfileDefaults.defaultRatePesos)
+      setCompanionCity('')
+      setCompanionIntro('')
+      setTermsAccepted(false)
+      setPrivacyAccepted(false)
+      setLocationStatus('')
+      setError('')
+      // Completed legacy accounts routed here for one-time reacceptance land
+      // directly on the final review with their saved name and location.
+      setStep(
+        viewer.onboardingCompletedAt
+        && !hasCurrentUnifiedAcceptance(viewer)
+        && viewer.username
+        && isRoundedCoordinate(viewer.approximateLatitude)
+        && isRoundedCoordinate(viewer.approximateLongitude)
+          ? 5
+          : 1,
+      )
+      return
+    }
+    // Same account refetch: merge server data without touching local edits
+    // or unchecking either box.
     setUsername((current) => current || viewer.username || '')
     setGoal((current) => current ?? viewer.onboardingGoal)
     const fallbackName = splitExistingName(viewer.displayName)
@@ -94,8 +140,6 @@ export function OnboardingPage() {
     if (typeof viewer.approximateLatitude === 'number' && typeof viewer.approximateLongitude === 'number') {
       setApproxLocation((current) => current ?? { latitude: viewer.approximateLatitude!, longitude: viewer.approximateLongitude! })
     }
-    setLocationConsent((current) => current || Boolean(viewer.approximateLocationConsentedAt))
-    setTermsAccepted((current) => current || Boolean(viewer.termsAcceptedAt && viewer.termsVersion === termsVersion))
   }, [viewer])
 
   if (!isSignedIn) {
@@ -115,15 +159,16 @@ export function OnboardingPage() {
 
   const selectedGoal = goal ?? 'member'
   const journey = selectedGoal === 'companion' ? companionJourney : memberJourney
+  // An account with current persisted acceptance shows a read-only notice and
+  // no checkboxes. New or legacy accounts must check both Step 5 boxes, and
+  // both checkbox states gate their finishing actions.
+  const alreadyAccepted = hasCurrentUnifiedAcceptance(viewer)
+  const acceptanceSatisfied = alreadyAccepted || (termsAccepted && privacyAccepted)
 
   const saveUsernameAndContinue = async () => {
     if (submitting) return
     if (!approxLocation) {
       setError('Use your device location before continuing.')
-      return
-    }
-    if (!locationConsent || !termsAccepted) {
-      setError('Consent to approximate location use and agreement to the Terms and Conditions are required.')
       return
     }
     if (localUsernameError && !viewer.username) {
@@ -139,32 +184,46 @@ export function OnboardingPage() {
       return
     }
 
-    setSubmitting(true)
+    // Step 1 keeps the username choice and rounded location preview in local
+    // state only. The rounded location and Companion details are saved only
+    // after the unified Step 5 acceptance. Profile name and bio save as you go.
     setError('')
-    try {
-      if (!viewer.username) {
-        const savedUsername = await claimUsername({ username: normalizedUsername })
-        setUsername(savedUsername)
-      }
-      await saveOnboardingLocationAndConsent({
-        ...roundCoordinates(approxLocation),
-        locationConsent,
-        termsAccepted,
-        termsVersion,
-      })
-      setStep(2)
-    } catch (usernameError) {
-      setError(usernameError instanceof Error ? describeConvexError(usernameError) : 'Your username could not be saved.')
-    } finally {
-      setSubmitting(false)
-    }
+    setStep(2)
   }
+
+  const persistUnifiedAcceptance = async () => {
+    if (!approxLocation) throw new Error('Use your device location before continuing.')
+    if (!acceptanceSatisfied) {
+      throw new Error(acceptanceError)
+    }
+    if (!viewer.username) {
+      const savedUsername = await claimUsername({ username: normalizedUsername })
+      setUsername(savedUsername)
+    }
+    await saveOnboardingLocationAndConsent({
+      ...roundCoordinates(approxLocation),
+      locationConsent: true,
+      termsAccepted: true,
+      termsVersion: policyVersion,
+      privacyAccepted: true,
+      privacyVersion: policyVersion,
+      identityAccepted: true,
+      identityVersion: policyVersion,
+    })
+  }
+
+  const acceptanceError = 'Agree to both the Terms and Conditions and the Privacy Policy in Step 5 before continuing.'
 
   const finish = async (nextGoal: OnboardingGoal) => {
     if (submitting) return
+    if (!acceptanceSatisfied) {
+      setError(acceptanceError)
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
+      await persistUnifiedAcceptance()
       await completeOnboarding({ goal: nextGoal })
       await navigate({ to: onboardingDestination(nextGoal) })
     } catch (submitError) {
@@ -210,9 +269,14 @@ export function OnboardingPage() {
 
   const finishWithIdentityReview = async () => {
     if (submitting || identityFlow.busy) return
+    if (!acceptanceSatisfied) {
+      setError(acceptanceError)
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
+      await persistUnifiedAcceptance()
       await completeOnboarding({ goal: 'member' })
       if (verification.state === 'approved' || verification.action === 'none') {
         await navigate({ to: '/app' })
@@ -259,9 +323,14 @@ export function OnboardingPage() {
       setError(validation.message)
       return
     }
+    if (!acceptanceSatisfied) {
+      setError(acceptanceError)
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
+      await persistUnifiedAcceptance()
       await submitCompanionProfile(buildCompanionProfilePayload(companionValues, selectedCategories))
       await completeOnboarding({ goal: 'companion' })
       if (verification.state === 'approved' || verification.action === 'none') {
@@ -276,6 +345,30 @@ export function OnboardingPage() {
       setSubmitting(false)
     }
   }
+
+  // Returning Companion users reaccepting policies only: save acceptance and
+  // complete without touching the existing Companion profile.
+  const finishAcceptOnly = async (nextGoal: OnboardingGoal) => {
+    if (submitting) return
+    if (!acceptanceSatisfied) {
+      setError(acceptanceError)
+      return
+    }
+    setSubmitting(true)
+    setError('')
+    try {
+      await persistUnifiedAcceptance()
+      await completeOnboarding({ goal: nextGoal })
+      await navigate({ to: onboardingDestination(nextGoal) })
+    } catch (submitError) {
+      setError(submitError instanceof Error ? describeConvexError(submitError) : 'Your acceptance could not be saved. Please try again.')
+      setSubmitting(false)
+    }
+  }
+
+  // Returning users reaccepting policies keep their existing Companion
+  // profile untouched: acceptance plus completion only, no profile rewrite.
+  const isReacceptance = Boolean(viewer.onboardingCompletedAt)
 
   const companionIdentityActionLabel = verification.state === 'approved' || verification.action === 'none'
     ? 'Save Companion profile'
@@ -372,8 +465,8 @@ export function OnboardingPage() {
 
             <div className="onboarding-location-card mt-6">
               <div>
-                <p className="label">Required approximate location</p>
-                <p className="text-meta mt-1">Your rounded location is used continuously for discovery. If you become an approved Companion, your profile is always shown on the nearby map at this approximate location, including for online sessions. Ordinary member profiles are never placed on the map.</p>
+                <p className="label">Your approximate location</p>
+                <p className="text-meta mt-1">Add your device location to preview your rounded discovery area. Nothing is saved until Step 5.</p>
               </div>
               <div className="flex gap-2 flex-wrap">
                 <Button
@@ -388,7 +481,7 @@ export function OnboardingPage() {
                     navigator.geolocation.getCurrentPosition(
                       (position) => {
                         setApproxLocation(roundCoordinates({ latitude: position.coords.latitude, longitude: position.coords.longitude }))
-                        setLocationStatus('Device location applied. Only the two-decimal rounded result is saved.')
+                        setLocationStatus('Device location applied to this preview. Only the two-decimal rounded result will be saved in Step 5.')
                       },
                       (locationError) => setLocationStatus(deviceLocationErrorMessage(locationError.code)),
                       { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
@@ -402,28 +495,10 @@ export function OnboardingPage() {
                 <ApproximateLocationMap
                   location={approxLocation}
                   title={approxLocation ? 'Your approximate discovery area' : 'Your location preview'}
-                  description="Use your device location above. Only coordinates rounded to two decimals are saved."
+                  description="Use your device location above. Only coordinates rounded to two decimals will be saved in Step 5."
                 />
               </div>
               {locationStatus && <p className="text-meta mt-2" role="status" aria-live="polite">{locationStatus}</p>}
-              <div className="onboarding-consent-list mt-4">
-                <label>
-                  <input type="checkbox" checked={locationConsent} onChange={(event) => setLocationConsent(event.currentTarget.checked)} />
-                  <span>I consent to Let&apos;s Be Friends storing and using my rounded approximate location for always-on discovery as described above.</span>
-                </label>
-                <label>
-                  <input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.currentTarget.checked)} />
-                  <span>I agree to the displayed Terms and Conditions.</span>
-                </label>
-              </div>
-              <details className="onboarding-terms mt-3">
-                <summary>Terms and Conditions</summary>
-                <div>
-                  <p>You must provide accurate account information, use discovery and messaging safely, respect boundaries, and follow applicable laws and platform safety rules.</p>
-                  <p>Your approximate location is stored at two decimal places and used for discovery. Approved Companions with a saved coordinate pair are shown in nearby discovery. Exact addresses and raw device precision are not stored through onboarding.</p>
-                  <p>Version {termsVersion}. You may stop using the service at any time, but required account and safety records may be retained as permitted by law.</p>
-                </div>
-              </details>
             </div>
           </div>
         )}
@@ -511,15 +586,28 @@ export function OnboardingPage() {
             <span className="onboarding-complete-mark" aria-hidden="true"><Check size={22} strokeWidth={2.25} /></span>
             <div>
               <p className="eyebrow">Step 5</p>
-              <h2 className="text-h1 mt-2">You&apos;re ready for the next step.</h2>
+              <h2 className="text-h1 mt-2">Review and accept to finish.</h2>
               <p className="lede mt-3">
-                {verification.state === 'approved'
-                  ? 'Your identity check and safety review are approved. Continue to Bookings when you are ready.'
-                  : verification.action === 'none'
-                    ? `${verification.guidance} Continue to Bookings to follow its status, or skip for now and explore.`
-                    : 'Complete a private government ID check and current selfie capture now. Every submission is reviewed by the safety team before booking unlocks.'}
+                {alreadyAccepted
+                  ? 'Your acceptance is already recorded. Continue below when you are ready.'
+                  : verification.state === 'approved'
+                    ? 'Your identity check and safety review are approved. Agree to both documents below, then continue to Bookings when you are ready.'
+                    : verification.action === 'none'
+                      ? `${verification.guidance} Agree to both documents below, then continue to Bookings to follow its status, or explore after acceptance.`
+                      : 'Agree to both documents below, then complete a private government ID check and current selfie capture. Every submission is reviewed by the safety team before booking unlocks.'}
               </p>
               {viewer.onboardingCompletedAt && <p className="onboarding-complete-note mt-4">Your welcome guide is already complete. Finishing again keeps your account setup intact.</p>}
+              {alreadyAccepted ? (
+                <AlreadyAcceptedNotice />
+              ) : (
+                <AcceptanceCheckboxes
+                  termsChecked={termsAccepted}
+                  privacyChecked={privacyAccepted}
+                  onTermsChange={setTermsAccepted}
+                  onPrivacyChange={setPrivacyAccepted}
+                  disabled={submitting}
+                />
+              )}
             </div>
           </div>
         )}
@@ -531,25 +619,42 @@ export function OnboardingPage() {
               <p className="eyebrow">Step 5</p>
               <h2 className="text-h1 mt-2">Set up your Companion profile.</h2>
               <p className="lede mt-3">
-                Choose how you meet, set your amount, and describe the work or skills you can share. Your details save right away, and identity verification is the only review step.
+                {isReacceptance
+                  ? 'Agree to both documents below to finish. Your existing Companion profile stays exactly as it is.'
+                  : 'Choose how you meet, set your amount, and describe the work or skills you can share. Your Companion details are saved only after you accept below, and identity verification is the only review step.'}
               </p>
               {viewer.onboardingCompletedAt && <p className="onboarding-complete-note mt-4">Your welcome guide is already complete. Finishing again keeps your account setup intact.</p>}
-              <div className="onboarding-fields mt-6">
-                <CompanionProfileFields
-                  values={companionValues}
-                  onChange={updateCompanionValues}
-                  selectedCategories={selectedCategories}
-                  onCategoriesChange={setSelectedCategories}
+              {!isReacceptance && (
+                <>
+                  <div className="onboarding-fields mt-6">
+                    <CompanionProfileFields
+                      values={companionValues}
+                      onChange={updateCompanionValues}
+                      selectedCategories={selectedCategories}
+                      onCategoriesChange={setSelectedCategories}
+                    />
+                  </div>
+                  <div className="onboarding-identity-after-application mt-6">
+                    <h3 className="text-h3">Next: identity verification</h3>
+                    <p className="text-body muted mt-2">
+                      {verification.state === 'approved'
+                        ? 'Your identity check is approved. Accept below, then continue to your Companion profile when you are ready.'
+                        : 'After acceptance, complete a private government ID check and current selfie capture. Every submission is reviewed by the safety team.'}
+                    </p>
+                  </div>
+                </>
+              )}
+              {alreadyAccepted ? (
+                <AlreadyAcceptedNotice />
+              ) : (
+                <AcceptanceCheckboxes
+                  termsChecked={termsAccepted}
+                  privacyChecked={privacyAccepted}
+                  onTermsChange={setTermsAccepted}
+                  onPrivacyChange={setPrivacyAccepted}
+                  disabled={submitting}
                 />
-              </div>
-              <div className="onboarding-identity-after-application mt-6">
-                <h3 className="text-h3">Next: identity verification</h3>
-                <p className="text-body muted mt-2">
-                  {verification.state === 'approved'
-                    ? 'Your identity check is approved. Continue to your Companion profile when you are ready.'
-                    : 'Complete a private government ID check and current selfie capture now. Every submission is reviewed by the safety team.'}
-                </p>
-              </div>
+              )}
             </div>
           </div>
         )}
@@ -571,28 +676,37 @@ export function OnboardingPage() {
                 <ArrowLeft size={18} aria-hidden="true" />
               </Button>
             )}
-            {step === 1 && <Button intent="self" disabled={submitting || !approxLocation || !locationConsent || !termsAccepted || (!viewer.username && (Boolean(localUsernameError) || usernameAvailability === undefined || !usernameAvailability.available))} onClick={() => void saveUsernameAndContinue()}>{submitting ? 'Saving...' : viewer.username ? 'Save and continue' : 'Save setup and continue'}</Button>}
+            {step === 1 && <Button intent="self" disabled={submitting || !approxLocation || (!viewer.username && (Boolean(localUsernameError) || usernameAvailability === undefined || !usernameAvailability.available))} onClick={() => void saveUsernameAndContinue()}>Continue</Button>}
             {step === 2 && <Button intent="self" onClick={() => setStep(3)}>Continue</Button>}
             {step === 3 && <Button intent="self" disabled={submitting} onClick={() => void saveProfileAndContinue()}>{submitting ? 'Saving…' : 'Save and continue'}</Button>}
             {step === 4 && <Button intent="self" onClick={() => setStep(5)}>Continue</Button>}
-            {step === 5 && selectedGoal === 'companion' && (
+            {step === 5 && selectedGoal === 'companion' && !isReacceptance && (
               <Button
                 intent="self"
-                disabled={submitting || companionIdentityFlow.busy}
+                disabled={submitting || companionIdentityFlow.busy || !acceptanceSatisfied}
                 onClick={() => void finishCompanionWithIdentityReview()}
               >
                 {submitting || companionIdentityFlow.busy ? 'Opening identity check...' : companionIdentityActionLabel}
               </Button>
             )}
+            {step === 5 && selectedGoal === 'companion' && isReacceptance && (
+              <Button
+                intent="self"
+                disabled={submitting || !acceptanceSatisfied}
+                onClick={() => void finishAcceptOnly('companion')}
+              >
+                {submitting ? 'Saving…' : 'Accept and continue'}
+              </Button>
+            )}
             {step === 5 && selectedGoal === 'member' && (
-              <Button intent="self" disabled={submitting || identityFlow.busy} onClick={() => void finishWithIdentityReview()}>
+              <Button intent="self" disabled={submitting || identityFlow.busy || !acceptanceSatisfied} onClick={() => void finishWithIdentityReview()}>
                 {submitting || identityFlow.busy ? 'Opening identity check...' : identityActionLabel}
               </Button>
             )}
           </div>
-          {step > 1 && (
+          {step === 5 && (
             <div className="onboarding-skip-row">
-              <button type="button" className="onboarding-skip" disabled={submitting} onClick={() => void finish(goalForSkip(goal))}>
+              <button type="button" className="onboarding-skip" disabled={submitting || !acceptanceSatisfied} onClick={() => void finish(goalForSkip(goal))}>
                 {submitting ? 'Saving…' : 'Skip for now'}
               </button>
             </div>

@@ -103,7 +103,7 @@ export function CompanionProfileFields({
           onChange={(event) => onChange({ city: event.currentTarget.value })}
           placeholder={values.mode === 'online' ? 'For example, Philippines, GMT+8' : 'For example, Bacolor'}
         />
-        <span className="field-row-help">Nearby discovery uses the rounded location you saved during setup. This label is what members read.</span>
+        <span className="field-row-help">This label is what members read.</span>
       </label>
 
       <ActivityCategoryPicker

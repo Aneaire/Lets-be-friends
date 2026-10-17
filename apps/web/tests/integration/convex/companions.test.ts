@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { api, internal } from '../../../convex/_generated/api'
 import schema from '../../../convex/schema'
 import { convexModules } from '../../helpers/convex'
+import { currentPolicyVersion } from '@lets-be-friends/shared'
 
 const modules = convexModules
 
@@ -27,6 +28,13 @@ async function insertApprovedCompanion(
       displayName: subject,
       approximateLatitude: location.latitude,
       approximateLongitude: location.longitude,
+      approximateLocationConsentedAt: now,
+      termsAcceptedAt: now,
+      termsVersion: currentPolicyVersion,
+      privacyPolicyAcceptedAt: now,
+      privacyPolicyVersion: currentPolicyVersion,
+      identityConsentAcceptedAt: now,
+      identityConsentVersion: currentPolicyVersion,
       role: 'companion',
       verificationStatus: 'approved',
       verificationSource: 'persona',
@@ -267,7 +275,11 @@ describe('nearby companion discovery privacy', () => {
         approximateLongitude: 123.885437,
         approximateLocationConsentedAt: now,
         termsAcceptedAt: now,
-        termsVersion: '2026-08-13',
+        privacyPolicyAcceptedAt: now,
+        identityConsentAcceptedAt: now,
+        termsVersion: currentPolicyVersion,
+        privacyPolicyVersion: currentPolicyVersion,
+        identityConsentVersion: currentPolicyVersion,
         role: 'member',
         verificationStatus: 'not_started',
         suspended: false,
@@ -361,7 +373,14 @@ describe('nearby companion discovery privacy', () => {
     const t = createTest()
     const { userId } = await insertApprovedCompanion(t, 'legacy-editor', { latitude: 10.31, longitude: 123.89 })
     await t.run(async (ctx) => {
-      await ctx.db.patch(userId, { approximateLatitude: undefined, approximateLongitude: undefined })
+      await ctx.db.patch(userId, {
+        approximateLatitude: undefined,
+        approximateLongitude: undefined,
+        approximateLocationConsentedAt: undefined,
+        termsVersion: '2026-08-13',
+        privacyPolicyVersion: undefined,
+        identityConsentVersion: undefined,
+      })
     })
 
     await expect(t.withIdentity({ subject: 'legacy-editor' }).mutation(api.companions.submitApplication, {
@@ -373,7 +392,7 @@ describe('nearby companion discovery privacy', () => {
       mode: 'both',
       hourlyRateCentavos: 50_000,
       earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
-    })).rejects.toThrow('current location consent and Terms and Conditions')
+    })).rejects.toThrow('current location consent, Terms')
   })
 
   it('rounds legacy coordinates during indexing before returning map coordinates', async () => {
@@ -400,12 +419,48 @@ describe('nearby companion discovery privacy', () => {
       longitude: 124.885437,
       locationConsent: true,
       termsAccepted: true,
-      termsVersion: '2026-08-13',
+      termsVersion: currentPolicyVersion,
+      privacyAccepted: true,
+      privacyVersion: currentPolicyVersion,
+      identityAccepted: true,
+      identityVersion: currentPolicyVersion,
     })
 
     expect(await t.query(api.companions.listApproved, { latitude: 10.31, longitude: 123.89, radiusKm: 5 })).toEqual([])
     const [moved] = await t.query(api.companions.listApproved, { latitude: 11.32, longitude: 124.89, radiusKm: 5 })
     expect(moved).toMatchObject({ displayName: 'moving-companion', latitude: 11.32, longitude: 124.89 })
+  })
+
+  it('rejects stale legacy Terms acceptance that lacks the new unified privacy and identity scope', async () => {
+    const t = createTest()
+    const now = Date.now()
+    await t.run(async (ctx) => {
+      await ctx.db.insert('users', {
+        clerkUserId: 'stale-applicant',
+        username: 'stale_applicant',
+        displayName: 'Stale Applicant',
+        approximateLatitude: 10.31,
+        approximateLongitude: 123.89,
+        approximateLocationConsentedAt: now,
+        termsAcceptedAt: now,
+        termsVersion: '2026-08-13',
+        role: 'member',
+        verificationStatus: 'not_started',
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+    await expect(t.withIdentity({ subject: 'stale-applicant' }).mutation(api.companions.submitApplication, {
+      intro: 'A safe and friendly companion application with enough detail to review.',
+      city: 'Cebu City',
+      strengths: ['Good listener'],
+      categories: ['Coffee or meal companion'],
+      boundaries: ['Public places only'],
+      mode: 'both',
+      hourlyRateCentavos: 50_000,
+      earningMotivation: 'I want to earn by sharing everyday help with members in my city.',
+    })).rejects.toThrow('current location consent, Terms')
   })
 })
 
@@ -433,7 +488,11 @@ describe('companion application bio and earning motivation', () => {
         approximateLongitude: 123.89,
         approximateLocationConsentedAt: now,
         termsAcceptedAt: now,
-        termsVersion: '2026-08-13',
+        privacyPolicyAcceptedAt: now,
+        identityConsentAcceptedAt: now,
+        termsVersion: currentPolicyVersion,
+        privacyPolicyVersion: currentPolicyVersion,
+        identityConsentVersion: currentPolicyVersion,
         role: 'member',
         verificationStatus: 'approved',
         verificationSource: 'in_app',
@@ -535,7 +594,11 @@ describe('companion profile edits after approval', () => {
       await ctx.db.patch(userId, {
         approximateLocationConsentedAt: now,
         termsAcceptedAt: now,
-        termsVersion: '2026-08-13',
+        privacyPolicyAcceptedAt: now,
+        identityConsentAcceptedAt: now,
+        termsVersion: currentPolicyVersion,
+        privacyPolicyVersion: currentPolicyVersion,
+        identityConsentVersion: currentPolicyVersion,
       })
       await ctx.db.patch(companionProfileId, { status: 'approved' as const })
     })

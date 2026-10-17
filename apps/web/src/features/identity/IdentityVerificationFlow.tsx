@@ -13,7 +13,6 @@ import {
 } from './identityVerificationDraft'
 import { identityReadFailureMessage } from './identityReadFailure'
 import { IdentityPhotoFigure, IdentityPhotoSummary, useIdentityPhotoUrl } from './IdentityPhotoPreview'
-import { IdentityRetentionTerms } from './IdentityRetentionTerms'
 
 export type IdentityIntent = 'member' | 'companion_application'
 export type IdentityReturnTo = '/app' | '/profile' | '/onboarding' | '/become-companion' | '/get-verified'
@@ -67,8 +66,6 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
   const [selectedIdType, setSelectedIdType] = useState<DocumentType>('drivers_license')
   const [front, setFront] = useState<File | null>(null)
   const [back, setBack] = useState<File | null>(null)
-  const [processingConsent, setProcessingConsent] = useState(false)
-  const [reviewConsent, setReviewConsent] = useState(false)
   const [fields, setFields] = useState<ExtractedFields>({})
   const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null)
   const [selfieBlob, setSelfieBlob] = useState<Blob | null>(null)
@@ -193,8 +190,8 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
   }
 
   const uploadId = async () => {
-    if (!front || !processingConsent) {
-      setLocalError('Add the front of your ID and consent to secure AI processing first.')
+    if (!front) {
+      setLocalError('Add the front of your ID first.')
       return
     }
     setWorking(true)
@@ -209,7 +206,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
       const identityRecordId = started.identityRecordId
       await uploadFile(uploadImage, identityRecordId, 'id_front', front)
       if (back) await uploadFile(uploadImage, identityRecordId, 'id_back', back)
-      setFields(await extract({ identityRecordId, thirdPartyProcessingConsent: true }))
+      setFields(await extract({ identityRecordId }))
       setDetailStep(2)
     } catch (error) {
       fail(error)
@@ -274,7 +271,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
     setWorking(true)
     setLocalError('')
     try {
-      await submit({ identityRecordId: current._id, reviewConsent })
+      await submit({ identityRecordId: current._id })
       if (userId) clearIdentityVerificationDraft(window.sessionStorage, userId, current._id)
       closeCamera()
     } catch (error) {
@@ -376,11 +373,6 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
               <IdentityStep number="03" title="Your details" detail="Complete the auto-filled form" state={stepState(3, activeStep)} icon={<ClipboardCheck size={18} />} />
               <IdentityStep number="04" title="Check details" detail="Review before sending" state={stepState(4, activeStep)} icon={<Check size={18} />} />
             </ol>
-
-            <div className="identity-privacy-note">
-              <ShieldCheck size={20} aria-hidden="true" />
-              <div><strong>Built around restraint</strong><span>The AI receives the ID only. Your selfie stays in private storage for authorized safety review.</span></div>
-            </div>
           </aside>
 
           <section className="identity-work-card" aria-labelledby="identity-work-title">
@@ -414,12 +406,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
                     <IdentityCamera target={cameraTarget} videoRef={videoRef} working={working} onCapture={() => void captureCameraImage()} onCancel={closeCamera} />
                   )}
 
-                  <label className="identity-consent-row">
-                    <input type="checkbox" checked={processingConsent} onChange={(event) => setProcessingConsent(event.currentTarget.checked)} />
-                    <span><strong>Allow secure field extraction</strong><small>I consent to sending only my ID image to OpenAI. Storage is disabled for the request, though applicable safety-log retention may still apply.</small></span>
-                  </label>
-
-                  <button type="button" className="btn btn-self btn-lg identity-primary-action" onClick={() => void uploadId()} disabled={working || !front || !processingConsent}>{working ? 'Reading your ID...' : 'Continue to current selfie'}</button>
+                  <button type="button" className="btn btn-self btn-lg identity-primary-action" onClick={() => void uploadId()} disabled={working || !front}>{working ? 'Reading your ID...' : 'Upload and process ID'}</button>
                 </>
               )}
 
@@ -427,7 +414,6 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
 
               {showSelfie && (
                 <>
-                  <div className="identity-review-callout"><ShieldCheck size={18} aria-hidden="true" /><span>Your selfie is stored privately and is never sent to the AI field extractor.</span></div>
                   {!selfieBlob && !selfieSaved && cameraTarget !== 'selfie' && (
                     <button type="button" className="identity-camera-launch" onClick={() => void openCamera('selfie')}>
                       <span><Camera size={24} aria-hidden="true" /></span>
@@ -447,7 +433,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
                       )}
                       <div className="identity-selfie-confirmed">
                         <span><Check size={18} aria-hidden="true" /></span>
-                        <div><strong>Current selfie captured</strong><small>{selfieSaved ? 'The selfie is stored privately.' : 'The photo will be stored after you complete the next form.'}</small></div>
+                        <div><strong>Current selfie captured</strong><small>{selfieSaved ? 'Saved.' : 'The photo will be stored after you complete the next form.'}</small></div>
                       </div>
                     </>
                   )}
@@ -485,12 +471,7 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
                     <IdentityReviewItem label="Nationality" value={fields.nationality} />
                   </dl>
                   <button type="button" className="identity-edit-details" onClick={() => setDetailStep(3)}>Edit these details</button>
-                  <IdentityRetentionTerms />
-                  <label className="identity-consent-row">
-                    <input type="checkbox" checked={reviewConsent} onChange={(event) => setReviewConsent(event.currentTarget.checked)} />
-                    <span><strong>Allow safety review and retention</strong><small>I have read the ID image storage terms for safety and future transactions. I consent to storing these identity records for up to 730 days and allowing authorized reviewers to access them for verification or an active incident. A legal hold may extend retention.</small></span>
-                  </label>
-                  <button type="button" className="btn btn-self btn-lg identity-primary-action" onClick={() => void submitForReview()} disabled={working || !reviewConsent}>{working ? 'Sending for review...' : 'Send for safety review'}</button>
+                  <button type="button" className="btn btn-self btn-lg identity-primary-action" onClick={() => void submitForReview()} disabled={working}>{working ? 'Sending for review...' : 'Send for safety review'}</button>
                 </>
               )}
 
@@ -499,8 +480,6 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
                   <span><Check size={24} aria-hidden="true" /></span>
                   <h3 className="text-h2">{approved ? 'Identity approved' : 'Submitted securely'}</h3>
                   <p className="text-body muted">{approved ? 'Your current identity approval is active. You can renew it before it expires.' : 'A safety reviewer will make the final decision. Your booking access stays locked until approval.'}</p>
-                  <p className="text-meta">ID images are kept under the ID image storage terms for up to 730 days to support safety review and the security of future transactions.</p>
-                  <IdentityRetentionTerms />
                   {approved && <button type="button" className="btn btn-secondary btn-lg" onClick={() => void startRenewal()} disabled={working}>{working ? 'Starting a renewal...' : 'Renew identity check'}</button>}
                   <button type="button" className="btn btn-self btn-lg" onClick={leavePage}>Return to your account</button>
                 </div>
@@ -593,7 +572,6 @@ function IdentityCamera({ target, videoRef, working, onCapture, onCancel }: { ta
       </div>
 
       <footer className="identity-camera-toolbar">
-        <span className="identity-camera-privacy-note"><LockKeyhole size={14} aria-hidden="true" />Only you and authorized safety reviewers can access this photo.</span>
         <button type="button" className="identity-camera-shutter" onClick={onCapture} disabled={working} aria-label={captureLabel}>
           <span className="identity-camera-shutter-ring" aria-hidden="true"><span /></span>
           <strong>{working ? 'Saving photo...' : captureLabel}</strong>

@@ -180,7 +180,7 @@ function ReadyCompanionScreen() {
             <View style={styles.nearbyCopy}>
               <AppText variant="bodyStrong">Nearby discovery</AppText>
               <AppText variant="caption" color={theme.colors.textMuted}>
-                Approved Companions are always included using the rounded approximate location saved during onboarding, including online-only profiles.
+                Approved Companion profiles can appear in nearby discovery.
               </AppText>
             </View>
           </View>

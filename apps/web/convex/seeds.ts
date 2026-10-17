@@ -1,4 +1,4 @@
-import { calculateMemberWalletBookingPrice } from '@lets-be-friends/shared'
+import { calculateMemberWalletBookingPrice, currentPolicyVersion } from '@lets-be-friends/shared'
 import { ConvexError, v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
@@ -199,7 +199,11 @@ export const seedPampangaCompanions = internalMutation({
         onboardingGoal: 'member' as const,
         onboardingCompletedAt: now,
         termsAcceptedAt: now,
-        termsVersion: '2026-08-13',
+        privacyPolicyAcceptedAt: now,
+        identityConsentAcceptedAt: now,
+        termsVersion: currentPolicyVersion,
+        privacyPolicyVersion: currentPolicyVersion,
+        identityConsentVersion: currentPolicyVersion,
         role: 'member' as const,
         verificationStatus: 'approved' as const,
         verificationSource: 'persona' as const,
@@ -235,7 +239,11 @@ export const seedPampangaCompanions = internalMutation({
         approximateLongitude: seed.longitude,
         approximateLocationConsentedAt: now,
         termsAcceptedAt: now,
-        termsVersion: '2026-08-13',
+        privacyPolicyAcceptedAt: now,
+        identityConsentAcceptedAt: now,
+        termsVersion: currentPolicyVersion,
+        privacyPolicyVersion: currentPolicyVersion,
+        identityConsentVersion: currentPolicyVersion,
         role: 'companion' as const,
         verificationStatus: 'approved' as const,
         verificationSource: 'persona' as const,
@@ -972,7 +980,11 @@ export const seedPhilippinesPeopleBatch = internalMutation({
           approximateLocationConsentedAt: args.referenceTime,
         } : {}),
         termsAcceptedAt: args.referenceTime,
-        termsVersion: '2026-08-13',
+        privacyPolicyAcceptedAt: args.referenceTime,
+        identityConsentAcceptedAt: args.referenceTime,
+        termsVersion: currentPolicyVersion,
+        privacyPolicyVersion: currentPolicyVersion,
+        identityConsentVersion: currentPolicyVersion,
         role: isMember ? 'member' as const : 'companion' as const,
         verificationStatus: isApplicant ? 'pending' as const : 'approved' as const,
         verificationSource: isApplicant ? 'in_app' as const : 'persona' as const,
@@ -1399,8 +1411,10 @@ export const seedPhilippinesIdentityImages = internalMutation({
         contentType: 'image/jpeg',
         size: image.size,
         createdAt: args.referenceTime - dayMs,
-        retentionDueAt: args.referenceTime + 365 * dayMs,
-        purgeAfter: args.referenceTime + 365 * dayMs,
+        retentionDueAt: undefined,
+        purgeAfter: args.referenceTime + 30 * dayMs,
+        retentionMode: 'account_lifetime' as const,
+        retentionPolicyVersion: currentPolicyVersion,
         purgedAt: undefined,
         purgeReason: undefined,
       }

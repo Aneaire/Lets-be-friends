@@ -542,33 +542,6 @@
   font-size: 0.82rem;
 }
 
-.identity-privacy-note {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.8rem;
-  max-width: 28rem;
-  margin-top: 1.5rem;
-  border-top: 1px solid var(--rule);
-  padding-top: 1.25rem;
-  color: var(--accent-self);
-}
-
-.identity-privacy-note div {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.identity-privacy-note strong {
-  color: var(--text);
-  font-size: 0.86rem;
-}
-
-.identity-privacy-note span {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  line-height: 1.55;
-}
-
 .identity-work-card {
   min-width: 0;
   overflow: hidden;
@@ -807,30 +780,6 @@
   line-height: 1.55;
 }
 
-.identity-retention-terms {
-  border-top: 1px solid var(--rule);
-  padding-top: 0.75rem;
-}
-
-.identity-retention-terms summary {
-  color: var(--text);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.identity-retention-terms div {
-  display: grid;
-  gap: 0.65rem;
-  margin-top: 0.75rem;
-  color: var(--text-muted);
-  font-size: 0.8125rem;
-  line-height: 1.55;
-}
-
-.identity-retention-terms p {
-  margin: 0;
-}
-
 .identity-primary-action {
   width: 100%;
   margin-top: 0.25rem;
@@ -982,7 +931,6 @@
 
 .identity-camera-heading span,
 .identity-camera-private,
-.identity-camera-privacy-note,
 .identity-camera-target {
   color: var(--camera-muted);
   font-size: 0.72rem;
@@ -1064,16 +1012,9 @@
   background: var(--camera-surface);
 }
 
-.identity-camera-privacy-note {
-  max-width: 24rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  line-height: 1.4;
-}
-
 .identity-camera-shutter {
   display: grid;
+  grid-column: 2;
   justify-items: center;
   gap: 0.35rem;
   border: 0;
@@ -1118,6 +1059,7 @@
 }
 
 .identity-camera-target {
+  grid-column: 3;
   justify-self: end;
   font-weight: 650;
   letter-spacing: 0.06em;
@@ -1267,12 +1209,6 @@
   margin-top: 0.75rem;
 }
 
-.identity-submitted .identity-retention-terms {
-  width: 100%;
-  max-width: 34rem;
-  text-align: left;
-}
-
 .identity-page-gate {
   display: grid;
   place-items: center;
@@ -1337,8 +1273,7 @@
     height: 2.25rem;
   }
 
-  .identity-step-copy span,
-  .identity-privacy-note {
+  .identity-step-copy span {
     display: none;
   }
 }
@@ -1430,7 +1365,6 @@
   .identity-camera-close span,
   .identity-camera-heading span,
   .identity-camera-private span,
-  .identity-camera-privacy-note,
   .identity-camera-target {
     display: none;
   }
@@ -1446,6 +1380,11 @@
     min-height: 7.25rem;
     grid-template-columns: 1fr;
     justify-items: center;
+  }
+
+  .identity-camera-shutter {
+    grid-column: 1;
+    justify-self: center;
   }
 
   .identity-camera-hint {
@@ -3162,6 +3101,39 @@ button:disabled {
   width: min(100% - 2.5rem, 64rem);
   margin-inline: auto;
   padding-block: 4rem 5rem;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Legal pages (dedicated Terms and Privacy documents)
+   ────────────────────────────────────────────────────────────── */
+
+.legal-page {
+  width: min(100% - 2.5rem, 76ch);
+  margin-inline: auto;
+  padding-block: 3rem 4rem;
+  overflow-wrap: break-word;
+}
+
+.legal-page .text-display {
+  font-size: clamp(1.75rem, 1.35rem + 2vw, 2.5rem);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.legal-page .text-h2 {
+  font-size: clamp(1.125rem, 1rem + 0.6vw, 1.375rem);
+  line-height: 1.3;
+}
+
+.legal-page section {
+  max-width: 76ch;
+}
+
+@media (max-width: 36rem) {
+  .legal-page {
+    width: min(100% - 2rem, 76ch);
+    padding-block: 2rem 3rem;
+  }
 }
 
 .marketing-page-wide {
@@ -9210,6 +9182,27 @@ textarea.field {
   font-size: 0.875rem;
   line-height: 1.5;
   cursor: pointer;
+}
+
+.onboarding-consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.onboarding-consent-row > span > label {
+  display: inline;
+  cursor: pointer;
+}
+
+.onboarding-consent-row a {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.15rem;
 }
 
 .onboarding-consent-list input {

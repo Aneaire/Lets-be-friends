@@ -29,6 +29,7 @@ import type * as notificationCatalog from "../notificationCatalog.js";
 import type * as notifications from "../notifications.js";
 import type * as paymongo from "../paymongo.js";
 import type * as persona from "../persona.js";
+import type * as policy from "../policy.js";
 import type * as pushNotifications from "../pushNotifications.js";
 import type * as rateLimit from "../rateLimit.js";
 import type * as reports from "../reports.js";
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   paymongo: typeof paymongo;
   persona: typeof persona;
+  policy: typeof policy;
   pushNotifications: typeof pushNotifications;
   rateLimit: typeof rateLimit;
   reports: typeof reports;

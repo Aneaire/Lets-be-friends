@@ -81,4 +81,21 @@ describe('isPublicMobilePath', () => {
       expect(isPublicMobilePath(path)).toBe(false)
     }
   })
+
+  it('treats the dedicated legal pages as public, but not their subpaths', () => {
+    for (const path of ['/terms-and-conditions', '/privacy-policy', '/privacy-policy/']) {
+      expect(isPublicMobilePath(path)).toBe(true)
+    }
+    for (const path of ['/terms-and-conditions/unknown', '/privacy-policy/private']) {
+      expect(isPublicMobilePath(path)).toBe(false)
+    }
+    routerState.pathname = '/privacy-policy'
+    const { container } = render(
+      <MobileAuthGate>
+        <p>Privacy policy content</p>
+      </MobileAuthGate>,
+    )
+    expect(screen.queryByRole('heading', { name: 'Sign in to continue.' })).toBeNull()
+    expect(container.querySelector('.mobile-auth-gate-root')?.getAttribute('data-gate')).toBe('open')
+  })
 })

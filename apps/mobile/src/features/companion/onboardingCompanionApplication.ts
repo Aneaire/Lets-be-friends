@@ -12,8 +12,8 @@ export type OnboardingCompanionApplicationRecord = {
   status: string
 } | null | undefined
 
-export function onboardingTotalSteps(goal: OnboardingGoal): number {
-  return goal === 'companion' ? 5 : 4
+export function onboardingTotalSteps(_goal: OnboardingGoal): number {
+  return 5
 }
 
 export function onboardingMaxStep(goal: OnboardingGoal): number {
@@ -86,7 +86,7 @@ export function mergeOnboardingCategoriesIntoForm(
 }
 
 export const onboardingCompanionReviewNotice =
-  'Saving creates your Companion profile right away. It stays hidden from discovery until identity verification is approved. Only identity is reviewed.'
+  'Saving happens only in the final step after acceptance. Your profile stays hidden from discovery until identity verification is approved. Only identity is reviewed.'
 
 export const onboardingCompanionSkipCopy =
   'Prefer to apply later? Complete the welcome guide now and submit your profile from the Companion screen at any time.'
@@ -97,4 +97,9 @@ export const onboardingCompanionIdentityFollowupCopy =
 export const onboardingCompanionHeroTitle = 'Share your profile.'
 
 export const onboardingCompanionHeroCopy =
-  'Save your Companion profile. Only identity verification is reviewed.'
+  'Prepare your Companion profile. It saves only in the final step after acceptance. Only identity verification is reviewed.'
+
+export const onboardingMemberPrepareTitle = 'Get ready to meet.'
+
+export const onboardingMemberPrepareCopy =
+  'Identity review comes first, then discovery, booking, and reviews. Your details save only in the final step after acceptance.'

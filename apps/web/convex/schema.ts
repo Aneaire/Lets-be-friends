@@ -198,6 +198,10 @@ export default defineSchema({
     approximateLocationConsentedAt: v.optional(v.number()),
     termsAcceptedAt: v.optional(v.number()),
     termsVersion: v.optional(v.string()),
+    privacyPolicyAcceptedAt: v.optional(v.number()),
+    privacyPolicyVersion: v.optional(v.string()),
+    identityConsentAcceptedAt: v.optional(v.number()),
+    identityConsentVersion: v.optional(v.string()),
     role,
     verificationStatus,
     verificationSource: v.optional(verificationSource),
@@ -310,6 +314,8 @@ export default defineSchema({
     fieldsConfirmedAt: v.optional(v.number()),
     thirdPartyProcessingConsentedAt: v.optional(v.number()),
     reviewConsentedAt: v.optional(v.number()),
+    acceptedPolicyVersion: v.optional(v.string()),
+    acceptedPolicyAcceptedAt: v.optional(v.number()),
     selfieCaptureToken: v.optional(v.string()),
     selfieCaptureExpiresAt: v.optional(v.number()),
     selfieCaptureUsedAt: v.optional(v.number()),
@@ -336,14 +342,33 @@ export default defineSchema({
     contentType: v.string(),
     size: v.number(),
     createdAt: v.number(),
-    retentionDueAt: v.number(),
+    // Legacy per-image deletion deadline recorded before the account-lifetime
+    // policy (up to 730 days as actually recorded). Honored only while the
+    // owner has not yet accepted lifetime retention and the image is not in
+    // account_lifetime mode. New lifetime images omit this field. Never
+    // backfill or extend it without recorded acceptance.
+    retentionDueAt: v.optional(v.number()),
+    // Review eligibility and legacy deadline marker. This is not the deletion
+    // decision by itself: the purge job decides from account existence,
+    // durable retention mode, legacy deadlines, holds, and incidents.
     purgeAfter: v.number(),
+    // Durable retention evidence written by the server at upload or when the
+    // owner newly accepts lifetime retention. account_lifetime rows are
+    // retained while the account exists, even across later policy version
+    // changes. legacy_deadline rows honor retentionDueAt while the owner stays
+    // on the old policy. Never rewrite original attempt consent evidence.
+    retentionMode: v.optional(v.union(v.literal('account_lifetime'), v.literal('legacy_deadline'))),
+    retentionPolicyVersion: v.optional(v.string()),
     purgedAt: v.optional(v.number()),
-    purgeReason: v.optional(v.union(v.literal('retention_expired'), v.literal('storage_missing'), v.literal('member_restarted'))),
+    purgeReason: v.optional(v.union(v.literal('retention_expired'), v.literal('storage_missing'), v.literal('member_restarted'), v.literal('account_removed'))),
   })
     .index('by_record_kind', ['identityRecordId', 'kind'])
     .index('by_user_created_at', ['userId', 'createdAt'])
-    .index('by_active_purge_after', ['purgedAt', 'purgeAfter']),
+    .index('by_active_purge_after', ['purgedAt', 'purgeAfter'])
+    // Stable full-scan order for the retention review. Pagination follows
+    // _creationTime within purgedAt, so mutating purgeAfter during a scan
+    // cannot duplicate or skip rows. Purged rows drop out, which is fine.
+    .index('by_active', ['purgedAt']),
   identityRecordAccessGrants: defineTable({
     identityRecordId: v.id('identityRecords'),
     imageId: v.id('identityRecordImages'),

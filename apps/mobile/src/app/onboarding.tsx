@@ -1,6 +1,8 @@
 import {
   activityCategoryOptions,
+  currentPolicyVersion,
   friendStrengths,
+  hasCurrentUnifiedAcceptance,
   maximumActivityCategoryLength,
   maximumCompanionActivityCategories,
   maximumOnboardingActivityCategories,
@@ -20,16 +22,14 @@ import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { Chip } from '@/design-system/atoms/Chip'
-import { Checkbox } from '@/design-system/atoms/Field'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
-import { onboardingDecision } from '@/member/onboarding'
+import { initialOnboardingStep, onboardingDecision } from '@/member/onboarding'
 import {
   COMPANION_BIO_PLACEHOLDER,
-  validateCompanionApplication,
   type CompanionApplicationForm,
   type CompanionMode,
 } from '@/data/companionTools'
@@ -45,14 +45,21 @@ import {
   onboardingCompanionSkipCopy,
   onboardingCompanionStatusPresentation,
   onboardingMaxStep,
+  onboardingMemberPrepareCopy,
+  onboardingMemberPrepareTitle,
   onboardingTotalSteps,
 } from '@/features/companion/onboardingCompanionApplication'
+import {
+  FinalizeError,
+  finalizeOnboarding,
+  type FinalizeIntent,
+} from '@/features/companion/onboardingFinalization'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 type OnboardingGoal = 'member' | 'companion'
 type ApproximateLocation = { latitude: number; longitude: number }
 
-const termsVersion = '2026-08-13'
+const termsVersion = currentPolicyVersion
 
 export default function OnboardingScreen() {
   const auth = useMobileAuth()
@@ -82,7 +89,7 @@ export default function OnboardingScreen() {
     return <OnboardingState title="Sign in to continue" detail="Your member account is not available yet." />
   }
 
-  return <ConnectedOnboarding viewer={member.viewer} onSignOut={auth.signOut} />
+  return <ConnectedOnboarding key={String(member.viewer._id)} viewer={member.viewer} onSignOut={auth.signOut} />
 }
 
 function ConnectedOnboarding({
@@ -107,13 +114,13 @@ function ConnectedOnboarding({
       ? { latitude: viewer.approximateLatitude, longitude: viewer.approximateLongitude }
       : null
   ))
-  const [locationConsent, setLocationConsent] = useState(Boolean(viewer.approximateLocationConsentedAt))
-  const [termsAccepted, setTermsAccepted] = useState(Boolean(viewer.termsAcceptedAt && viewer.termsVersion === termsVersion))
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
   const [locating, setLocating] = useState(false)
   const [locationMessage, setLocationMessage] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   useAppToastMessage(message)
-  const [step, setStep] = useState(0)
+  const [step, setStep] = useState(() => initialOnboardingStep(viewer))
   const totalSteps = onboardingTotalSteps(goal)
   const maxStep = onboardingMaxStep(goal)
   const existingApplication = useQuery(mobileApi.companions.myApplication, {})
@@ -121,7 +128,6 @@ function ConnectedOnboarding({
   const [applicationForm, setApplicationForm] = useState<CompanionApplicationForm>(() => (
     defaultOnboardingCompanionForm({ bio: viewer.bio, categories: viewer.onboardingCategories })
   ))
-  const [applicationBusy, setApplicationBusy] = useState(false)
   const [applicationError, setApplicationError] = useState<string | null>(null)
   const [applicationSubmitted, setApplicationSubmitted] = useState(false)
   const [customApplicationCategory, setCustomApplicationCategory] = useState('')
@@ -142,6 +148,11 @@ function ConnectedOnboarding({
   const completeOnboarding = useMutation(mobileApi.users.completeOnboarding)
   const updateProfile = useMutation(mobileApi.users.updateProfile)
   const usernameReady = Boolean(viewer.username || (!validationError && availability?.available))
+  const alreadyAccepted = hasCurrentUnifiedAcceptance(viewer)
+  const acceptanceSatisfied = alreadyAccepted || (termsAccepted && privacyAccepted)
+  // Previously completed accounts reaccept policies only: no profile work,
+  // no category requirements, no submission actions.
+  const policyOnly = Boolean(viewer.onboardingCompletedAt)
   const availabilityColor = usernameReady
     ? theme.colors.self
     : validationError || availability?.available === false
@@ -176,7 +187,7 @@ function ConnectedOnboarding({
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
       const rounded = roundLocation({ latitude: current.coords.latitude, longitude: current.coords.longitude })
       setLocation(rounded)
-      setLocationMessage('Your approximate area is ready. Your precise device location will not be sent or saved.')
+      setLocationMessage('Preview ready. Nothing is saved until you accept in the final step. Your precise device location will not be sent or saved.')
     } catch {
       setLocationMessage('Your location could not be read. Check device location services and try again.')
     } finally {
@@ -184,38 +195,54 @@ function ConnectedOnboarding({
     }
   }
 
-  async function finishOnboarding() {
-    if (!usernameReady || !location || !locationConsent || !termsAccepted || submitting) return
-    const categoryResult = goal === 'companion'
-      ? validateActivityCategories(categories, maximumOnboardingActivityCategories)
-      : null
-    if (categoryResult && (!categoryResult.ok || categoryResult.value.length === 0)) {
-      setCategoryError(categoryResult.ok ? 'Choose at least one category you would like to offer.' : categoryResult.message)
-      return
-    }
-
+  async function finishOnboarding(intent: FinalizeIntent = 'later') {
+    if (submitting || submitted) return
     setSubmitting(true)
     setMessage(null)
+    setApplicationError(null)
+    setCategoryError('')
     try {
-      if (!viewer.username) await claimUsername({ username: normalizedUsername })
-      await saveOnboardingLocationAndConsent({
-        ...roundLocation(location),
-        locationConsent,
+      const result = await finalizeOnboarding(intent, {
+        viewerUsername: viewer.username,
+        usernameReady,
+        normalizedUsername,
+        location,
         termsAccepted,
-        termsVersion,
+        privacyAccepted,
+        alreadyAccepted,
+        policyOnly,
+        goal,
+        categories,
+        applicationForm,
+        hasApplication,
+        displayName: viewer.displayName,
+        viewerBio: viewer.bio ?? undefined,
+        claimUsername: (args) => claimUsername(args),
+        saveOnboardingLocationAndConsent: (args) => saveOnboardingLocationAndConsent(args),
+        updateProfile: (args) => updateProfile(args),
+        submitApplication: (args) => submitApplication(args as never),
+        completeOnboarding: (args) => completeOnboarding(args),
+        policyVersion: termsVersion,
       })
-      if (categoryResult?.ok) {
-        await updateProfile({
-          displayName: viewer.displayName,
-          ...(viewer.bio !== undefined ? { bio: viewer.bio } : {}),
-          onboardingCategories: categoryResult.value,
-        })
-      }
-      await completeOnboarding({ goal })
+      if (result.submittedApplication) setApplicationSubmitted(true)
       setSubmitted(true)
-      setMessage('Your welcome guide is complete. Opening your profile.')
-    } catch {
-      setMessage('Your welcome guide could not be saved. Please review your choices and try again.')
+      setMessage(
+        goal === 'companion' && intent === 'later' && !hasApplication && !result.submittedApplication
+          ? 'Your welcome guide is complete. You can submit your Companion profile later from the Companion screen.'
+          : 'Your welcome guide is complete. Opening your profile.',
+      )
+    } catch (error) {
+      if (error instanceof FinalizeError && (error.code === 'application' || error.code === 'categories')) {
+        if (error.code === 'categories') {
+          setCategoryError(error.message)
+          setStep(2)
+        } else {
+          setApplicationError(error.message)
+        }
+        setMessage(error.message)
+      } else {
+        setMessage(error instanceof Error ? error.message : 'Your welcome guide could not be saved. Please review your choices and try again.')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -226,29 +253,9 @@ function ConnectedOnboarding({
     setApplicationForm(update)
   }
 
-  function goToApplicationStep() {
+  function goToFinalStep() {
     setApplicationForm((current) => mergeOnboardingCategoriesIntoForm(current, categories))
     setStep(4)
-  }
-
-  async function submitOnboardingApplication() {
-    if (applicationBusy || submitting || submitted || hasApplication) return
-    const validated = validateCompanionApplication(applicationForm)
-    if (!validated.ok) {
-      setApplicationError(validated.message)
-      return
-    }
-    setApplicationBusy(true)
-    setApplicationError(null)
-    try {
-      await submitApplication(validated.value)
-      setApplicationSubmitted(true)
-      setMessage('Companion profile saved. Complete the welcome guide to continue.')
-    } catch {
-      setApplicationError('Your Companion profile could not be saved. Review the details and try again.')
-    } finally {
-      setApplicationBusy(false)
-    }
   }
 
   function addApplicationCustomCategory() {
@@ -293,6 +300,21 @@ function ConnectedOnboarding({
     }
   }
 
+  const heroTitles = [
+    'Choose your name.',
+    'Set your area.',
+    'Choose your path.',
+    goal === 'companion' ? onboardingCompanionHeroTitle : onboardingMemberPrepareTitle,
+    'Review and accept.',
+  ]
+  const heroCopies = [
+    'Pick the permanent username people will recognize.',
+    'Preview only a rounded area. Nothing is saved until the final step.',
+    'Find help or share your everyday Strengths.',
+    goal === 'companion' ? onboardingCompanionHeroCopy : onboardingMemberPrepareCopy,
+    'Read the Terms and Privacy Policy, agree to both, then finish.',
+  ]
+
   return (
     <Screen contentStyle={styles.content} keyboardDismissMode="on-drag">
       <View style={styles.header}>
@@ -303,9 +325,9 @@ function ConnectedOnboarding({
         <View accessibilityLabel={`Step ${step + 1} of ${totalSteps}`} style={styles.progressTrack}>
           <View style={[styles.progressValue, { width: `${((step + 1) / totalSteps) * 100}%`, backgroundColor: theme.colors.self }]} />
         </View>
-        <AppText variant="display" style={styles.heroTitle}>{['Choose your name.', 'Set your area.', 'Review your privacy.', 'Choose your path.', onboardingCompanionHeroTitle][step]}</AppText>
+        <AppText variant="display" style={styles.heroTitle}>{heroTitles[step]}</AppText>
         <AppText color={theme.colors.textMuted} style={styles.heroCopy}>
-          {['Pick the permanent username people will recognize.', 'We use only a rounded area for nearby discovery.', 'Know what is stored before you agree.', 'Find help or share your everyday Strengths.', onboardingCompanionHeroCopy][step]}
+          {heroCopies[step]}
         </AppText>
       </View>
 
@@ -348,18 +370,15 @@ function ConnectedOnboarding({
 
       {step === 1 ? <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <AppText variant="heading">Add your approximate location</AppText>
+          <AppText variant="heading">Preview your approximate location</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            We save only a rounded area, never the precise point read from your device.
+            Use your device location to preview your rounded area.
           </AppText>
         </View>
         <View style={[styles.locationCard, { backgroundColor: theme.colors.surface, borderColor: location ? theme.colors.self : theme.colors.border }]}>
-          <AppText variant="bodyStrong">Always-on discovery</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>
-            Your approximate area helps with nearby discovery. Members are never placed on the map. Approved Companions can appear nearby using this rounded area.
-          </AppText>
+          <AppText variant="bodyStrong">Preview your discovery area</AppText>
           {location ? (
-            <AppText variant="caption" color={theme.colors.selfText}>Approximate area saved</AppText>
+            <AppText variant="caption" color={theme.colors.selfText}>Approximate area preview ready</AppText>
           ) : null}
           <ActionButton
             label={locating ? 'Finding approximate location' : location ? 'Refresh approximate location' : 'Use device location'}
@@ -371,38 +390,9 @@ function ConnectedOnboarding({
           {locating ? <ActivityIndicator accessibilityLabel="Finding approximate location" color={theme.colors.self} /> : null}
           {locationMessage ? <AppText accessibilityLiveRegion="polite" variant="caption" color={theme.colors.textMuted}>{locationMessage}</AppText> : null}
         </View>
-        <ConsentChoice
-          label="I consent to Let's Be Friends storing and using my rounded approximate location for always-on discovery as described above."
-          checked={locationConsent}
-          onPress={() => setLocationConsent((current) => !current)}
-          disabled={submitting || submitted}
-        />
       </View> : null}
 
       {step === 2 ? <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <AppText variant="heading">Privacy and community terms</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>Read this summary before continuing.</AppText>
-        </View>
-        <View style={[styles.terms, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]} accessible accessibilityLabel={`Terms and Conditions version ${termsVersion}`}>
-          <AppText variant="bodyStrong">Terms and Conditions</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>
-            You must provide accurate account information, use discovery and messaging safely, respect boundaries, and follow applicable laws and platform safety rules.
-          </AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>
-            Your area is rounded before it is saved and used for discovery. Approved Companions can appear in nearby discovery. Exact addresses and precise device location are not stored during onboarding.
-          </AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>Version {termsVersion}.</AppText>
-        </View>
-        <ConsentChoice
-          label="I agree to the displayed Terms and Conditions."
-          checked={termsAccepted}
-          onPress={() => setTermsAccepted((current) => !current)}
-          disabled={submitting || submitted}
-        />
-      </View> : null}
-
-      {step === 3 ? <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <AppText variant="heading">Choose your starting point</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
@@ -470,11 +460,28 @@ function ConnectedOnboarding({
         ) : null}
       </View> : null}
 
-      {step === 4 && goal === 'companion' ? <View style={styles.section}>
+      {step === 3 && goal === 'member' ? <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <AppText variant="heading">Submit your Companion profile</AppText>
+          <AppText variant="heading">What happens before you meet</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            Saving creates your profile right away. It stays hidden until identity verification is approved.
+            Identity review comes first, then discovery, booking, and reviews. Nothing here is saved yet.
+          </AppText>
+        </View>
+        <View style={[styles.locationCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <AppText variant="bodyStrong">Complete identity verification</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>Submit a government ID and a current selfie. Every submission is reviewed by the safety team.</AppText>
+        </View>
+        <View style={[styles.locationCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <AppText variant="bodyStrong">Discover and book</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>Compare Strengths, availability, and reviews, then send a booking request for the Companion to accept or decline.</AppText>
+        </View>
+      </View> : null}
+
+      {step === 3 && goal === 'companion' ? <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <AppText variant="heading">Prepare your Companion profile</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>
+            Editing only. Nothing saves until the final acceptance step. It stays hidden until identity verification is approved.
           </AppText>
         </View>
         {applicationLoading ? (
@@ -517,7 +524,7 @@ function ConnectedOnboarding({
                 onChangeText={(intro) => editApplicationForm((current) => ({ ...current, intro }))}
                 multiline
                 maxLength={500}
-                editable={!applicationBusy && !submitting && !submitted}
+                editable={!submitting && !submitted}
                 placeholder="For example, I can join a shopping trip, explain everyday technology, or offer unhurried conversation."
                 placeholderTextColor={theme.colors.textMuted}
                 style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
@@ -532,7 +539,7 @@ function ConnectedOnboarding({
                 onChangeText={(bio) => editApplicationForm((current) => ({ ...current, bio }))}
                 multiline
                 maxLength={500}
-                editable={!applicationBusy && !submitting && !submitted}
+                editable={!submitting && !submitted}
                 placeholder={COMPANION_BIO_PLACEHOLDER}
                 placeholderTextColor={theme.colors.textMuted}
                 style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
@@ -585,7 +592,7 @@ function ConnectedOnboarding({
                 accessibilityLabel="Custom Companion application category"
                 value={customApplicationCategory}
                 maxLength={maximumActivityCategoryLength}
-                editable={!applicationBusy && !submitting && !submitted && applicationForm.categories.length < maximumCompanionActivityCategories}
+                editable={!submitting && !submitted && applicationForm.categories.length < maximumCompanionActivityCategories}
                 returnKeyType="done"
                 onChangeText={(value) => { setCustomApplicationCategory(value); setCustomApplicationCategoryError('') }}
                 onSubmitEditing={addApplicationCustomCategory}
@@ -598,7 +605,7 @@ function ConnectedOnboarding({
                 onPress={addApplicationCustomCategory}
                 intent="self"
                 secondary
-                disabled={applicationBusy || submitting || submitted || applicationForm.categories.length >= maximumCompanionActivityCategories}
+                disabled={submitting || submitted || applicationForm.categories.length >= maximumCompanionActivityCategories}
               />
               {customApplicationCategoryError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{customApplicationCategoryError}</AppText> : null}
             </View>
@@ -608,7 +615,7 @@ function ConnectedOnboarding({
                 accessibilityLabel={applicationForm.mode === 'online' ? 'Timezone or broad region' : 'City'}
                 value={applicationForm.city}
                 onChangeText={(city) => editApplicationForm((current) => ({ ...current, city }))}
-                editable={!applicationBusy && !submitting && !submitted}
+                editable={!submitting && !submitted}
                 placeholder={applicationForm.mode === 'online' ? 'For example, Philippines, GMT+8' : 'For example, Cebu City'}
                 placeholderTextColor={theme.colors.textMuted}
                 style={[styles.input, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
@@ -621,7 +628,7 @@ function ConnectedOnboarding({
                 value={applicationForm.boundaries}
                 onChangeText={(boundaries) => editApplicationForm((current) => ({ ...current, boundaries }))}
                 multiline
-                editable={!applicationBusy && !submitting && !submitted}
+                editable={!submitting && !submitted}
                 placeholder="Public places only"
                 placeholderTextColor={theme.colors.textMuted}
                 style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
@@ -635,7 +642,7 @@ function ConnectedOnboarding({
                 value={applicationForm.applicationNote}
                 onChangeText={(applicationNote) => editApplicationForm((current) => ({ ...current, applicationNote }))}
                 multiline
-                editable={!applicationBusy && !submitting && !submitted}
+                editable={!submitting && !submitted}
                 placeholder="Anything else to share about your offer."
                 placeholderTextColor={theme.colors.textMuted}
                 style={[styles.input, styles.multiline, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
@@ -648,7 +655,7 @@ function ConnectedOnboarding({
                 value={applicationForm.hourlyRatePesos}
                 onChangeText={(hourlyRatePesos) => editApplicationForm((current) => ({ ...current, hourlyRatePesos }))}
                 keyboardType="decimal-pad"
-                editable={!applicationBusy && !submitting && !submitted}
+                editable={!submitting && !submitted}
                 placeholder="500"
                 placeholderTextColor={theme.colors.textMuted}
                 style={[styles.input, theme.typography.body, { color: theme.colors.text, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
@@ -657,15 +664,45 @@ function ConnectedOnboarding({
             </View>
             {applicationError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{applicationError}</AppText> : null}
             <AppText variant="caption" color={theme.colors.textMuted}>{onboardingCompanionReviewNotice}</AppText>
-            <ActionButton
-              label={applicationBusy ? 'Saving profile' : 'Save profile'}
-              onPress={() => void submitOnboardingApplication()}
-              intent="self"
-              icon="send-outline"
-              disabled={applicationBusy || submitting || submitted}
-            />
             <AppText variant="caption" color={theme.colors.textMuted}>{onboardingCompanionSkipCopy}</AppText>
           </View>
+        )}
+      </View> : null}
+
+      {step === 4 ? <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <AppText variant="heading">Privacy and community terms</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>Read the Terms and Privacy Policy, agree to both, then finish.</AppText>
+        </View>
+        <View style={[styles.terms, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]} accessible accessibilityLabel={`Policy documents version ${termsVersion}`}>
+          <AppText variant="bodyStrong">Two documents, one version</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>Version {termsVersion}. The full text lives on the dedicated pages linked below.</AppText>
+        </View>
+        {alreadyAccepted ? (
+          <View style={[styles.terms, { borderColor: theme.colors.self, backgroundColor: theme.colors.selfSoft }]}>
+            <AppText variant="bodyStrong">Already accepted (version {termsVersion})</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted}>No need to accept again. Finishing keeps your original acceptance date.</AppText>
+            <PolicyLinks />
+          </View>
+        ) : (
+          <>
+            <LinkedConsentChoice
+              prefix="I agree to the "
+              documentLabel="Terms and Conditions"
+              documentPath="/terms-and-conditions"
+              checked={termsAccepted}
+              onToggle={() => setTermsAccepted((current) => !current)}
+              disabled={submitting || submitted}
+            />
+            <LinkedConsentChoice
+              prefix="I agree to the "
+              documentLabel="Privacy Policy"
+              documentPath="/privacy-policy"
+              checked={privacyAccepted}
+              onToggle={() => setPrivacyAccepted((current) => !current)}
+              disabled={submitting || submitted}
+            />
+          </>
         )}
       </View> : null}
 
@@ -675,18 +712,33 @@ function ConnectedOnboarding({
           onPress={() => setStep((current) => Math.min(current + 1, maxStep))}
           intent="self"
           icon="arrow-forward"
-          disabled={(step === 0 && !usernameReady) || (step === 1 && (!location || !locationConsent || locating)) || (step === 2 && !termsAccepted)}
-        /> : step === 3 && goal === 'companion' ? <ActionButton
-          label="Continue"
-          onPress={goToApplicationStep}
+          disabled={(step === 0 && !usernameReady) || (step === 1 && (!location || locating)) || (step === 2 && goal === 'companion' && !policyOnly && categories.length === 0)}
+        /> : step === 3 ? <ActionButton
+          label="Continue to review"
+          onPress={() => (goal === 'companion' ? goToFinalStep() : setStep(4))}
           intent="self"
           icon="arrow-forward"
-          disabled={!usernameReady || !location || !locationConsent || !termsAccepted || categories.length === 0 || locating || submitting || submitted}
-        /> : <ActionButton
-          label={submitting || submitted ? 'Saving welcome guide' : 'Complete welcome guide'}
-          onPress={() => void finishOnboarding()}
+          disabled={submitting || submitted}
+        /> : !policyOnly && goal === 'companion' && !hasApplication ? <View style={styles.finalActions}>
+          <ActionButton
+            label={submitting || submitted ? 'Saving welcome guide' : 'Save Companion profile and finish'}
+            onPress={() => void finishOnboarding('submit-profile')}
+            intent="self"
+            disabled={!usernameReady || !location || !acceptanceSatisfied || categories.length === 0 || locating || submitting || submitted}
+            icon="checkmark-circle-outline"
+          />
+          <ActionButton
+            label="Finish and set up later"
+            onPress={() => void finishOnboarding('later')}
+            intent="self"
+            secondary
+            disabled={!usernameReady || !location || !acceptanceSatisfied || locating || submitting || submitted}
+          />
+        </View> : <ActionButton
+          label={submitting || submitted ? 'Saving welcome guide' : 'Accept and complete'}
+          onPress={() => void finishOnboarding('later')}
           intent="self"
-          disabled={!usernameReady || !location || !locationConsent || !termsAccepted || (goal === 'companion' && categories.length === 0) || locating || submitting || submitted || applicationBusy}
+          disabled={!usernameReady || !location || !acceptanceSatisfied || (goal === 'companion' && !policyOnly && !hasApplication && categories.length === 0) || locating || submitting || submitted}
           icon="checkmark-circle-outline"
         />}
         {step > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Go to previous step" disabled={submitting || submitted} onPress={() => setStep((current) => Math.max(0, current - 1))} style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}><AppIcon name="arrow-back" color={theme.colors.selfText} size={18} /><AppText variant="caption" color={theme.colors.selfText}>Back</AppText></Pressable> : null}
@@ -715,29 +767,71 @@ function ConnectedOnboarding({
   )
 }
 
-function ConsentChoice({
-  label,
+function PolicyLinks() {
+  const theme = useAppTheme()
+  return (
+    <View style={styles.policyLinks}>
+      {([
+        ['Terms and Conditions', '/terms-and-conditions'],
+        ['Privacy Policy', '/privacy-policy'],
+      ] as const).map(([label, href]) => (
+        <Pressable
+          key={href}
+          accessibilityRole="link"
+          accessibilityLabel={label}
+          onPress={() => router.push(href)}
+          style={({ pressed }) => [pressed && styles.pressed]}>
+          <AppText variant="caption" style={[styles.linkedConsentLink, { color: theme.colors.selfText }]}>{label}</AppText>
+        </Pressable>
+      ))}
+    </View>
+  )
+}
+
+function LinkedConsentChoice({
+  prefix,
+  documentLabel,
+  documentPath,
   checked,
-  onPress,
+  onToggle,
   disabled,
 }: {
-  label: string
+  prefix: string
+  documentLabel: string
+  documentPath: '/terms-and-conditions' | '/privacy-policy'
   checked: boolean
-  onPress: () => void
+  onToggle: () => void
   disabled: boolean
 }) {
   const theme = useAppTheme()
   return (
-    <Checkbox
-      label={label}
-      checked={checked}
-      disabled={disabled}
-      onChange={onPress}
+    <View
       style={[
-        styles.consent,
+        styles.linkedConsent,
         { backgroundColor: checked ? theme.colors.selfSoft : theme.colors.surface, borderColor: checked ? theme.colors.self : theme.colors.border },
-      ]}
-    />
+      ]}>
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityLabel={`${prefix}${documentLabel}`}
+        accessibilityState={{ checked, disabled }}
+        disabled={disabled}
+        onPress={onToggle}
+        style={styles.linkedConsentBoxWrap}>
+        <View style={[styles.linkedConsentBox, { borderColor: checked ? theme.colors.self : theme.colors.borderStrong, backgroundColor: checked ? theme.colors.self : 'transparent' }]}>
+          {checked ? <AppIcon name="checkmark" color={theme.colors.accentText} size={15} /> : null}
+        </View>
+      </Pressable>
+      <AppText style={styles.linkedConsentText}>
+        {prefix}
+        <AppText
+          accessibilityRole="link"
+          accessibilityLabel={documentLabel}
+          onPress={() => router.push(documentPath)}
+          style={[styles.linkedConsentLink, { color: theme.colors.selfText }]}>
+          {documentLabel}
+        </AppText>
+      </AppText>
+    </View>
   )
 }
 
@@ -827,6 +921,12 @@ const styles = StyleSheet.create({
   locationCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
   terms: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
   consent: { minHeight: 58, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, alignItems: 'flex-start', gap: 12 },
+  linkedConsent: { minHeight: 58, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  linkedConsentBoxWrap: { paddingVertical: 2 },
+  linkedConsentBox: { width: 22, height: 22, borderWidth: 1, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  linkedConsentText: { flex: 1, minWidth: 0 },
+  linkedConsentLink: { textDecorationLine: 'underline', fontWeight: '700' },
+  policyLinks: { flexDirection: 'row', gap: 16, marginTop: 8 },
   goal: { minHeight: 68, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
   radio: { width: 22, height: 22, borderWidth: 2, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
@@ -842,6 +942,7 @@ const styles = StyleSheet.create({
   multiline: { minHeight: 110, textAlignVertical: 'top' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   actions: { marginTop: 24, gap: 3 },
+  finalActions: { gap: 10 },
   signOutLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   backLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   signOutText: { fontWeight: '600', textAlign: 'center' },

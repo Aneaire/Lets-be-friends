@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { api, internal } from '../../../convex/_generated/api'
 import schema from '../../../convex/schema'
 import { convexModules } from '../../helpers/convex'
+import { currentPolicyVersion as termsVersion } from '@lets-be-friends/shared'
 
 const modules = convexModules
-const termsVersion = '2026-08-13'
 
 async function insertUser(t: ReturnType<typeof convexTest>, clerkUserId: string, displayName: string, username?: string) {
   return await t.run(async (ctx) => {
@@ -14,6 +14,31 @@ async function insertUser(t: ReturnType<typeof convexTest>, clerkUserId: string,
       clerkUserId,
       username,
       displayName,
+      role: 'member',
+      verificationStatus: 'not_started',
+      suspended: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  })
+}
+
+async function insertAcceptedUser(t: ReturnType<typeof convexTest>, clerkUserId: string, displayName: string, username?: string) {
+  const now = Date.now()
+  return await t.run(async (ctx) => {
+    return await ctx.db.insert('users', {
+      clerkUserId,
+      username,
+      displayName,
+      approximateLatitude: 10.31,
+      approximateLongitude: 123.89,
+      approximateLocationConsentedAt: now,
+      termsAcceptedAt: now,
+      termsVersion,
+      privacyPolicyAcceptedAt: now,
+      privacyPolicyVersion: termsVersion,
+      identityConsentAcceptedAt: now,
+      identityConsentVersion: termsVersion,
       role: 'member',
       verificationStatus: 'not_started',
       suspended: false,
@@ -109,10 +134,86 @@ describe('usernames and onboarding', () => {
       locationConsent: true,
       termsAccepted: true,
       termsVersion: 'outdated',
-    })).rejects.toThrow('current Terms and Conditions')
+      privacyAccepted: true,
+      privacyVersion: 'outdated',
+      identityAccepted: true,
+      identityVersion: 'outdated',
+    })).rejects.toThrow('current Terms')
+    await expect(authenticated.mutation(api.users.saveOnboardingLocationAndConsent, {
+      latitude: 10.31,
+      longitude: 123.89,
+      locationConsent: true,
+      termsAccepted: true,
+      termsVersion,
+      privacyAccepted: false,
+    })).rejects.toThrow('Privacy Policy')
+    await expect(authenticated.mutation(api.users.saveOnboardingLocationAndConsent, {
+      latitude: 10.31,
+      longitude: 123.89,
+      locationConsent: true,
+      termsAccepted: true,
+      termsVersion,
+      privacyAccepted: true,
+      privacyVersion: termsVersion,
+      identityAccepted: false,
+    })).rejects.toThrow('identity')
   })
 
-  it('rounds onboarding coordinates and records consent, terms, and completion', async () => {
+  it('rejects a Terms-only request that omits the new privacy and identity scope without writing anything', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await insertUser(t, 'terms-only-user', 'Terms Only', 'terms_only')
+    const authenticated = t.withIdentity({ subject: 'terms-only-user' })
+
+    await expect(authenticated.mutation(api.users.saveOnboardingLocationAndConsent, {
+      latitude: 10.31,
+      longitude: 123.89,
+      locationConsent: true,
+      termsAccepted: true,
+      termsVersion,
+    } as never)).rejects.toThrow('Privacy Policy')
+    await expect(authenticated.mutation(api.users.saveOnboardingLocationAndConsent, {
+      latitude: 10.31,
+      longitude: 123.89,
+      locationConsent: true,
+      termsAccepted: true,
+      termsVersion,
+      privacyAccepted: true,
+      privacyVersion: termsVersion,
+    } as never)).rejects.toThrow('identity')
+
+    const user = await t.run(async (ctx) => await ctx.db.get(userId))
+    expect(user?.approximateLatitude).toBeUndefined()
+    expect(user?.approximateLocationConsentedAt).toBeUndefined()
+    expect(user?.termsAcceptedAt).toBeUndefined()
+    expect(user?.privacyPolicyAcceptedAt).toBeUndefined()
+    expect(user?.identityConsentAcceptedAt).toBeUndefined()
+  })
+
+  it('rejects explicitly refused scope without manufacturing acceptance or partial writes', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await insertUser(t, 'refused-scope-user', 'Refused Scope', 'refused_scope')
+    const authenticated = t.withIdentity({ subject: 'refused-scope-user' })
+
+    await expect(authenticated.mutation(api.users.saveOnboardingLocationAndConsent, {
+      latitude: 10.31,
+      longitude: 123.89,
+      locationConsent: true,
+      termsAccepted: true,
+      termsVersion,
+      privacyAccepted: false,
+      privacyVersion: termsVersion,
+      identityAccepted: false,
+      identityVersion: termsVersion,
+    })).rejects.toThrow('Privacy Policy')
+
+    const user = await t.run(async (ctx) => await ctx.db.get(userId))
+    expect(user?.approximateLatitude).toBeUndefined()
+    expect(user?.termsAcceptedAt).toBeUndefined()
+    expect(user?.privacyPolicyAcceptedAt).toBeUndefined()
+    expect(user?.identityConsentAcceptedAt).toBeUndefined()
+  })
+
+  it('rounds onboarding coordinates and records unified consent, terms, privacy, identity, and completion', async () => {
     const t = convexTest(schema, modules)
     const userId = await insertUser(t, 'complete-user', 'Complete User', 'complete_user')
     const authenticated = t.withIdentity({ subject: 'complete-user' })
@@ -123,6 +224,10 @@ describe('usernames and onboarding', () => {
       locationConsent: true,
       termsAccepted: true,
       termsVersion,
+      privacyAccepted: true,
+      privacyVersion: termsVersion,
+      identityAccepted: true,
+      identityVersion: termsVersion,
     })
     await authenticated.mutation(api.users.completeOnboarding, { goal: 'companion' })
 
@@ -132,10 +237,72 @@ describe('usernames and onboarding', () => {
       approximateLongitude: 123.89,
       onboardingGoal: 'companion',
       termsVersion,
+      privacyPolicyVersion: termsVersion,
+      identityConsentVersion: termsVersion,
     })
     expect(user?.approximateLocationConsentedAt).toEqual(expect.any(Number))
     expect(user?.termsAcceptedAt).toEqual(expect.any(Number))
+    expect(user?.privacyPolicyAcceptedAt).toEqual(expect.any(Number))
+    expect(user?.identityConsentAcceptedAt).toEqual(expect.any(Number))
     expect(user?.onboardingCompletedAt).toEqual(expect.any(Number))
+  })
+
+  it('preserves the original acceptance timestamp on repeated saves of the same version', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await insertUser(t, 'repeat-user', 'Repeat User', 'repeat_user')
+    const authenticated = t.withIdentity({ subject: 'repeat-user' })
+    await authenticated.mutation(api.users.saveOnboardingLocationAndConsent, {
+      latitude: 10.31,
+      longitude: 123.89,
+      locationConsent: true,
+      termsAccepted: true,
+      termsVersion,
+      privacyAccepted: true,
+      privacyVersion: termsVersion,
+      identityAccepted: true,
+      identityVersion: termsVersion,
+    })
+    const first = await t.run(async (ctx) => await ctx.db.get(userId))
+    await authenticated.mutation(api.users.saveOnboardingLocationAndConsent, {
+      latitude: 10.32,
+      longitude: 123.89,
+      locationConsent: true,
+      termsAccepted: true,
+      termsVersion,
+      privacyAccepted: true,
+      privacyVersion: termsVersion,
+      identityAccepted: true,
+      identityVersion: termsVersion,
+    })
+    const second = await t.run(async (ctx) => await ctx.db.get(userId))
+    expect(second?.termsAcceptedAt).toBe(first?.termsAcceptedAt)
+    expect(second?.privacyPolicyAcceptedAt).toBe(first?.privacyPolicyAcceptedAt)
+    expect(second?.identityConsentAcceptedAt).toBe(first?.identityConsentAcceptedAt)
+    expect(second?.approximateLatitude).toBe(10.32)
+  })
+
+  it('routes legacy general Terms acceptance back to onboarding instead of grandfathering new identity scope', async () => {
+    const t = convexTest(schema, modules)
+    const now = Date.now()
+    await t.run(async (ctx) => {
+      await ctx.db.insert('users', {
+        clerkUserId: 'legacy-user',
+        username: 'legacy_user',
+        displayName: 'Legacy User',
+        approximateLatitude: 10.31,
+        approximateLongitude: 123.89,
+        approximateLocationConsentedAt: now,
+        termsAcceptedAt: now,
+        termsVersion: '2026-08-13',
+        role: 'member',
+        verificationStatus: 'not_started',
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+    await expect(t.withIdentity({ subject: 'legacy-user' }).mutation(api.users.completeOnboarding, { goal: 'member' }))
+      .rejects.toThrow('acceptance is required')
   })
 
   it('normalizes custom onboarding categories and rejects filter labels and duplicates', async () => {

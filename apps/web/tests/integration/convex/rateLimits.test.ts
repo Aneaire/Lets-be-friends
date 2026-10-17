@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { api } from '../../../convex/_generated/api'
 import schema from '../../../convex/schema'
 import { convexModules } from '../../helpers/convex'
+import { currentPolicyVersion } from '@lets-be-friends/shared'
 
 function createTest() {
   return convexTest(schema, convexModules)
@@ -14,6 +15,15 @@ async function insertUser(t: ReturnType<typeof convexTest>, subject: string) {
     return await ctx.db.insert('users', {
       clerkUserId: subject,
       displayName: subject,
+      approximateLatitude: 10.31,
+      approximateLongitude: 123.89,
+      approximateLocationConsentedAt: now,
+      termsAcceptedAt: now,
+      termsVersion: currentPolicyVersion,
+      privacyPolicyAcceptedAt: now,
+      privacyPolicyVersion: currentPolicyVersion,
+      identityConsentAcceptedAt: now,
+      identityConsentVersion: currentPolicyVersion,
       role: 'member',
       verificationStatus: 'not_started',
       suspended: false,

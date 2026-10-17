@@ -1,6 +1,7 @@
 import { SignInButton, useAuth } from '@clerk/react'
 import { useRouterState } from '@tanstack/react-router'
 import type React from 'react'
+import { isPublicLegalPath } from '@lets-be-friends/shared'
 import { BrandLogo } from '../../design-system/atoms/BrandLogo'
 
 const publicMobilePaths = [
@@ -15,6 +16,8 @@ const publicMobilePaths = [
 ] as const
 
 export function isPublicMobilePath(pathname: string) {
+  // Dedicated legal pages are exact-only: subpaths stay guarded.
+  if (isPublicLegalPath(pathname)) return true
   return publicMobilePaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))
 }
 

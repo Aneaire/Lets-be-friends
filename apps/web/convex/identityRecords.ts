@@ -1,12 +1,14 @@
-import { action, internalAction, internalMutation, mutation, query } from './_generated/server'
+import { action, internalAction, internalMutation, internalQuery, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { ConvexError, v } from 'convex/values'
 import { hasCurrentIdentityApproval, parseIdentityDate, validateIdentityFields } from './identityVerification'
 import { requireViewer, writeAudit } from './lib'
+import { requireUnifiedAcceptance } from './policy'
 import { syncUserCompanionLocation } from './companionLocations'
 import { createNotification } from './notifications'
 import { consumeRateLimit } from './rateLimit'
+import { currentPolicyVersion, hasCurrentUnifiedAcceptance } from '@lets-be-friends/shared'
 
 const DAY_MS = 24 * 60 * 60 * 1_000
 const ACCESS_MS = 5 * 60 * 1_000
@@ -15,8 +17,14 @@ const EXTRACTION_TIMEOUT_MS = 30_000
 const DECISION_TIMEOUT_MS = 20_000
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const MAX_UPLOADS_PER_DAY = 10
-const PURGE_BATCH_SIZE = 50
 const TERMINAL_PURGE_AFTER = Number.MAX_SAFE_INTEGER
+// Review eligibility for new account-lifetime images. This schedules the next
+// scan pass and is not a deletion deadline: lifetime images are retained while
+// the account exists regardless of this timestamp.
+const LIFETIME_REVIEW_ELIGIBILITY_MS = 30 * DAY_MS
+// Short extension while a hold or active incident blocks deletion, so the next
+// scheduled review rechecks promptly after the matter closes.
+const HOLD_REVIEW_EXTENSION_MS = 7 * DAY_MS
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const documentType = v.union(
   v.literal('passport'),
@@ -133,6 +141,8 @@ export const current = query({
       extractionFailureReason: record.extractionFailureReason,
       thirdPartyProcessingConsentedAt: record.thirdPartyProcessingConsentedAt,
       reviewConsentedAt: record.reviewConsentedAt,
+      acceptedPolicyVersion: record.acceptedPolicyVersion,
+      acceptedPolicyAcceptedAt: record.acceptedPolicyAcceptedAt,
       imageKinds: images.filter((image) => image.storageId && !image.purgedAt).map((image) => image.kind),
       updatedAt: record.updatedAt,
     }
@@ -143,6 +153,9 @@ export const start = mutation({
   args: { reason, selectedIdType: documentType },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
+    // Server-authoritative unified acceptance. Client booleans are never
+    // trusted here; the persisted Step 5 acceptance must be current.
+    const acceptance = requireUnifiedAcceptance(viewer)
     if (args.reason === 'booking') throw new ConvexError('Booking-linked identity verification is no longer available')
     // A still-valid approval can be renewed pre-expiry. While the renewal is in
     // progress the prior entitlement stays active and is never downgraded.
@@ -190,6 +203,8 @@ export const start = mutation({
       source: 'in_app',
       stage: 'draft',
       selectedIdType: args.selectedIdType,
+      acceptedPolicyVersion: acceptance.policyVersion,
+      acceptedPolicyAcceptedAt: acceptance.acceptedAt,
       createdAt: now,
       updatedAt: now,
     })
@@ -224,6 +239,12 @@ export const uploadImage = action({
   handler: async (ctx, args): Promise<{ imageId: Id<'identityRecordImages'> }> => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new ConvexError('Authentication required')
+    // Authorize before touching upload bytes or provider calls. This read-only
+    // check writes nothing, so a rejected acceptance leaves no partial writes.
+    await ctx.runQuery(internal.identityRecords.checkIdentityAcceptance, {
+      clerkUserId: identity.subject,
+      identityRecordId: args.identityRecordId,
+    })
     const contentType = normalizeImageType(args.contentType)
     validateImageSize(args.bytes.byteLength)
     const storageId = await ctx.storage.store(new Blob([args.bytes], { type: contentType }))
@@ -244,10 +265,21 @@ export const uploadImage = action({
   },
 })
 
+export const checkIdentityAcceptance = internalQuery({
+  args: { clerkUserId: v.string(), identityRecordId: v.id('identityRecords') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewerBySubject(ctx, args.clerkUserId)
+    const acceptance = requireUnifiedAcceptance(viewer)
+    await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
+    return { policyVersion: acceptance.policyVersion, acceptedAt: acceptance.acceptedAt }
+  },
+})
+
 export const claimStoredImage = internalMutation({
   args: { clerkUserId: v.string(), identityRecordId: v.id('identityRecords'), kind: imageKind, storageId: v.id('_storage'), contentType: v.string(), cameraCaptureToken: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const viewer = await requireViewerBySubject(ctx, args.clerkUserId)
+    const acceptance = requireUnifiedAcceptance(viewer)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     if (!['draft', 'confirmation_required', 'failed'].includes(record.stage)) throw new ConvexError('This identity attempt cannot accept another image')
     if (args.kind === 'selfie') {
@@ -265,10 +297,14 @@ export const claimStoredImage = internalMutation({
     const now = Date.now()
     const recent = await ctx.db.query('identityRecordImages').withIndex('by_user_created_at', (q) => q.eq('userId', viewer._id).gte('createdAt', now - DAY_MS)).collect()
     if (recent.length >= MAX_UPLOADS_PER_DAY) throw new ConvexError('Daily identity image upload limit reached')
+    // Account-lifetime retention: new uploads are retained while the member
+    // account exists. retentionDueAt stays omitted, purgeAfter is only review
+    // eligibility, and the explicit mode plus policy version record the promise.
+    // The server guards above already require current persisted acceptance.
     let imageId: Id<'identityRecordImages'>
     if (existing) {
       if (existing.storageId) await ctx.storage.delete(existing.storageId)
-      await ctx.db.patch(existing._id, { storageId: args.storageId, contentType, size: metadata.size, createdAt: now, retentionDueAt: now + retentionMs(), purgeAfter: now + retentionMs(), purgedAt: undefined, purgeReason: undefined })
+      await ctx.db.patch(existing._id, { storageId: args.storageId, contentType, size: metadata.size, createdAt: now, retentionDueAt: undefined, purgeAfter: now + LIFETIME_REVIEW_ELIGIBILITY_MS, retentionMode: 'account_lifetime', retentionPolicyVersion: acceptance.policyVersion, purgedAt: undefined, purgeReason: undefined })
       imageId = existing._id
     } else {
       imageId = await ctx.db.insert('identityRecordImages', {
@@ -279,8 +315,9 @@ export const claimStoredImage = internalMutation({
         contentType,
         size: metadata.size,
         createdAt: now,
-        retentionDueAt: now + retentionMs(),
-        purgeAfter: now + retentionMs(),
+        purgeAfter: now + LIFETIME_REVIEW_ELIGIBILITY_MS,
+        retentionMode: 'account_lifetime',
+        retentionPolicyVersion: acceptance.policyVersion,
       })
     }
     if (args.kind === 'selfie') await ctx.db.patch(record._id, { selfieCaptureUsedAt: now, updatedAt: now })
@@ -290,11 +327,13 @@ export const claimStoredImage = internalMutation({
 })
 
 export const extract = action({
-  args: { identityRecordId: v.id('identityRecords'), thirdPartyProcessingConsent: v.boolean() },
+  args: { identityRecordId: v.id('identityRecords'), thirdPartyProcessingConsent: v.optional(v.boolean()) },
   handler: async (ctx, args): Promise<Extraction> => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new ConvexError('Authentication required')
-    if (!args.thirdPartyProcessingConsent) throw new ConvexError('Consent is required before the ID image can be processed')
+    // An explicit false from a legacy client is a refusal, never consent.
+    // Omitted is fine: the persisted unified Step 5 acceptance is authoritative.
+    if (args.thirdPartyProcessingConsent === false) throw new ConvexError('Consent is required before the ID image can be processed')
     const prepared: { storageId: Id<'_storage'>; contentType: string; backStorageId?: Id<'_storage'>; backContentType?: string; selectedIdType: DocumentType } = await ctx.runMutation(internal.identityRecords.prepareExtraction, {
       clerkUserId: identity.subject,
       identityRecordId: args.identityRecordId,
@@ -338,13 +377,17 @@ export const prepareExtraction = internalMutation({
   args: { clerkUserId: v.string(), identityRecordId: v.id('identityRecords') },
   handler: async (ctx, args) => {
     const viewer = await requireViewerBySubject(ctx, args.clerkUserId)
+    const acceptance = requireUnifiedAcceptance(viewer)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     if (!['draft', 'failed'].includes(record.stage)) throw new ConvexError('This identity attempt is not ready for extraction')
     const image = await activeImage(ctx, record._id, 'id_front')
     const backImage = await activeImage(ctx, record._id, 'id_back')
     if (!image?.storageId) throw new ConvexError('Upload the front of the ID first')
     const now = Date.now()
-    await ctx.db.patch(record._id, { stage: 'extracting', extractionStartedAt: now, extractionFailureCode: undefined, extractionFailureReason: undefined, thirdPartyProcessingConsentedAt: now, updatedAt: now })
+    // extractionStartedAt is an operation timestamp only, not a fresh consent.
+    // The authorizing consent is the persisted unified acceptance recorded on
+    // the attempt.
+    await ctx.db.patch(record._id, { stage: 'extracting', extractionStartedAt: now, extractionFailureCode: undefined, extractionFailureReason: undefined, acceptedPolicyVersion: acceptance.policyVersion, acceptedPolicyAcceptedAt: acceptance.acceptedAt, updatedAt: now })
     if (record.verificationRequestId) await ctx.db.patch(record.verificationRequestId, { identityStage: 'extracting', updatedAt: now })
     return { storageId: image.storageId, contentType: image.contentType, backStorageId: backImage?.storageId, backContentType: backImage?.contentType, selectedIdType: record.selectedIdType }
   },
@@ -384,6 +427,9 @@ export const confirmFields = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
+    // Confirming records new sensitive identity fields, so the stored
+    // unified acceptance must still be current. Restart stays available.
+    requireUnifiedAcceptance(viewer)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     if (record.stage !== 'confirmation_required') throw new ConvexError('The extracted details are not ready for confirmation')
     const fullLegalName = normalizeRequiredText(args.fullLegalName, 2, 120, 'Full legal name')
@@ -451,6 +497,9 @@ export const restartAttempt = mutation({
 export const issueSelfieCaptureToken = mutation({  args: { identityRecordId: v.id('identityRecords') },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
+    // Preparing a new selfie capture starts new sensitive collection, so the
+    // stored unified acceptance must still be current.
+    requireUnifiedAcceptance(viewer)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
     if (record.stage !== 'confirmation_required' || !record.fieldsConfirmedAt) throw new ConvexError('Confirm the ID details before opening the camera')
     const token = crypto.randomUUID()
@@ -461,19 +510,24 @@ export const issueSelfieCaptureToken = mutation({  args: { identityRecordId: v.i
 })
 
 export const submit = mutation({
-  args: { identityRecordId: v.id('identityRecords'), reviewConsent: v.boolean() },
+  args: { identityRecordId: v.id('identityRecords'), reviewConsent: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
+    // An explicit false from a legacy client is a refusal, never consent.
+    // Omitted is fine: the persisted unified Step 5 acceptance is authoritative.
+    if (args.reviewConsent === false) throw new ConvexError('Consent is required before submitting these records for safety review')
+    const acceptance = requireUnifiedAcceptance(viewer)
     const record = await requireCurrentLinkedInAppRecord(ctx, args.identityRecordId, viewer._id)
-    if (!args.reviewConsent) throw new ConvexError('Consent is required before submitting these records for safety review')
-    if (record.stage !== 'confirmation_required' || !record.fieldsConfirmedAt || !record.thirdPartyProcessingConsentedAt) throw new ConvexError('Complete and confirm the ID details first')
+    if (record.stage !== 'confirmation_required' || !record.fieldsConfirmedAt) throw new ConvexError('Complete and confirm the ID details first')
     if (!record.dateOfBirth || !record.idType) throw new ConvexError('Complete and confirm the ID details first')
     const policy = validateIdentityFields({ dateOfBirth: record.dateOfBirth, idType: record.idType, expirationDate: record.expirationDate })
     if (!policy.ok) throw new ConvexError(policy.error)
     if (!(await activeImage(ctx, record._id, 'id_front')) || !(await activeImage(ctx, record._id, 'selfie'))) throw new ConvexError('An ID image and current camera selfie are required')
     if (!record.verificationRequestId) throw new ConvexError('Identity verification request is unavailable')
     const now = Date.now()
-    await ctx.db.patch(record._id, { stage: 'ready_for_review', reviewConsentedAt: now, submittedAt: now, updatedAt: now })
+    // submittedAt is an operation timestamp only. The authorizing consent is
+    // the persisted unified Step 5 acceptance recorded on the attempt.
+    await ctx.db.patch(record._id, { stage: 'ready_for_review', submittedAt: now, acceptedPolicyVersion: acceptance.policyVersion, acceptedPolicyAcceptedAt: acceptance.acceptedAt, updatedAt: now })
     await ctx.db.patch(record.verificationRequestId, { identityStage: 'ready_for_review', adminStatus: 'pending', providerCompletedAt: now, adminQueuedAt: now, updatedAt: now })
     // A renewal keeps a still-valid prior entitlement active; only a fresh
     // attempt (or one whose prior entitlement already lapsed) moves to pending.
@@ -661,24 +715,99 @@ export const setLegalHold = mutation({
 })
 
 export const purgeExpired = internalMutation({
-  args: { now: v.optional(v.number()) },
+  args: { now: v.optional(v.number()), limit: v.optional(v.number()), cursor: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const now = args.now ?? Date.now()
-    const due = await ctx.db.query('identityRecordImages').withIndex('by_active_purge_after', (q) => q.eq('purgedAt', undefined).lte('purgeAfter', now)).take(PURGE_BATCH_SIZE)
+    const limit = Math.min(Math.max(args.limit ?? 100, 1), 500)
+    // Bounded full scan of active images in stable _creationTime order via the
+    // purgedAt-only index. Unlike the old due-only query, this still reaches
+    // far-future legacy rows when their owner is gone, and mutating purgeAfter
+    // during the scan cannot duplicate or skip rows. Cursor continuation avoids
+    // first-page starvation behind many retained lifetime rows.
+    const page = await ctx.db.query('identityRecordImages')
+      .withIndex('by_active', (q) => q.eq('purgedAt', undefined))
+      .paginate({ cursor: args.cursor ?? null, numItems: limit })
     let purged = 0
     let retained = 0
-    for (const image of due) {
+    let skipped = 0
+    for (const image of page.page) {
+      // Terminal rows are excluded by the index, but never overwrite one if a
+      // concurrent run already purged it.
+      if (image.purgedAt) {
+        skipped += 1
+        continue
+      }
+      // A lookup failure must abort this image, never be mistaken for a
+      // deleted account or a missing hold. Only a successful read returning
+      // null counts as the deletion signal. Typed IDs target the right table.
+      const owner = await ctx.db.get(image.userId)
       const record = await ctx.db.get(image.identityRecordId)
-      if (record && (hasLegalHold(record) || await hasActiveIncident(ctx, record.userId))) {
-        await ctx.db.patch(image._id, { purgeAfter: now + 7 * DAY_MS })
+      if (owner) {
+        // Durable lifetime evidence first: server-written account_lifetime
+        // mode survives later policy version changes and stale owner
+        // acceptance. Suspended, signed-out, inactive, rejected, and
+        // expired-approval accounts still exist, so they are retained here.
+        // Verification expiry stays separate via processIdentityExpiry.
+        // Incident and hold scans are skipped: retention already forbids
+        // deletion, which keeps harmless account reviews cheap.
+        if (image.retentionMode === 'account_lifetime') {
+          retained += 1
+          continue
+        }
+        // The owner newly accepts lifetime retention: promote this
+        // still-stored image to durable lifetime mode without touching the
+        // original attempt consent evidence on the identity record.
+        if (image.storageId && hasCurrentUnifiedAcceptance(owner)) {
+          await ctx.db.patch(image._id, { retentionMode: 'account_lifetime', retentionPolicyVersion: currentPolicyVersion })
+          retained += 1
+          continue
+        }
+        // Old-policy owners who have not yet reaccepted keep their recorded
+        // per-image deadline. Do not retroactively extend without acceptance.
+        const legacyDue = image.retentionDueAt ?? image.purgeAfter
+        if (typeof legacyDue !== 'number' || now < legacyDue) {
+          retained += 1
+          continue
+        }
+        // Deletion candidate: check holds and incidents only now.
+        // Holds live on the record. When the record itself is missing there
+        // is no documented hold, so only incidents (by image.userId) can
+        // still block deletion.
+        const holdActive = record ? hasLegalHold(record) : false
+        const incidentActive = await hasActiveIncident(ctx, image.userId)
+        if (holdActive || incidentActive) {
+          await ctx.db.patch(image._id, { purgeAfter: now + HOLD_REVIEW_EXTENSION_MS })
+          retained += 1
+          continue
+        }
+        if (image.storageId) await ctx.storage.delete(image.storageId)
+        await ctx.db.patch(image._id, { storageId: undefined, purgedAt: now, purgeAfter: TERMINAL_PURGE_AFTER, purgeReason: image.storageId ? 'retention_expired' : 'storage_missing' })
+        purged += 1
+        continue
+      }
+      // No user row is the authoritative deletion signal in this repository.
+      // There is no account-deletion webhook or public delete-account API, so
+      // future lifecycle integration must call this same review or an explicit
+      // cleanup path. Check holds/incidents only for this deletion candidate.
+      const holdActive = record ? hasLegalHold(record) : false
+      const incidentActive = await hasActiveIncident(ctx, image.userId)
+      if (holdActive || incidentActive) {
+        await ctx.db.patch(image._id, { purgeAfter: now + HOLD_REVIEW_EXTENSION_MS })
         retained += 1
         continue
       }
       if (image.storageId) await ctx.storage.delete(image.storageId)
-      await ctx.db.patch(image._id, { storageId: undefined, purgedAt: now, purgeAfter: TERMINAL_PURGE_AFTER, purgeReason: image.storageId ? 'retention_expired' : 'storage_missing' })
+      await ctx.db.patch(image._id, { storageId: undefined, purgedAt: now, purgeAfter: TERMINAL_PURGE_AFTER, purgeReason: image.storageId ? 'account_removed' : 'storage_missing' })
       purged += 1
     }
-    return { checked: due.length, purged, retained }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.identityRecords.purgeExpired, {
+        now,
+        limit,
+        cursor: page.continueCursor,
+      })
+    }
+    return { checked: page.page.length, purged, retained, skipped, remaining: page.isDone ? ('done' as const) : ('more' as const), continueCursor: page.continueCursor }
   },
 })
 
@@ -1053,7 +1182,10 @@ function extractionModel() { return process.env.OPENAI_IDENTITY_MODEL?.trim() ||
 function decisionModel() { return process.env.OPENAI_DECISION_MODEL?.trim() || 'gpt-6-luna' }
 function openAiBaseUrl() { return (process.env.OPENAI_API_BASE_URL?.trim() || 'https://api.openai.com/v1').replace(/\/$/, '') }
 function imageDataUrl(bytes: ArrayBuffer, contentType: string) { return `data:${normalizeImageType(contentType)};base64,${arrayBufferToBase64(bytes)}` }
-function retentionMs() { const configured = Number(process.env.IDENTITY_RECORD_RETENTION_DAYS); return (Number.isFinite(configured) && configured > 0 ? configured : 730) * DAY_MS }
+// Identity image retention is account lifetime while the member account
+// exists. The legacy IDENTITY_RECORD_RETENTION_DAYS upload TTL is deprecated
+// and must not override that promise. Approval expiry stays independent via
+// IDENTITY_APPROVAL_TTL_DAYS in identityVerification.ts.
 function normalizeRequiredText(value: string, min: number, max: number, label: string) { const normalized = value.trim().replace(/\s+/g, ' '); if (normalized.length < min || normalized.length > max) throw new ConvexError(`${label} must be ${min} to ${max} characters`); return normalized }
 function normalizeOptionalText(value: unknown, max: number) { if (typeof value !== 'string') return undefined; const normalized = value.trim().replace(/\s+/g, ' ').slice(0, max); return normalized || undefined }
 function safeDate(value: unknown) { if (typeof value !== 'string') return undefined; const parsed = parseIdentityDate(value.trim()); return parsed ? value.trim() : undefined }

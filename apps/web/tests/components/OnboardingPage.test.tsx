@@ -76,66 +76,115 @@ afterEach(() => {
   Reflect.deleteProperty(window.navigator, 'geolocation')
 })
 
-beforeEach(() => {
-  state.viewer = {
+function acceptedViewer(overrides: Record<string, unknown> = {}) {
+  return {
+    _id: 'user-test',
     username: 'maya',
     displayName: 'Maya Santos',
     firstName: 'Maya',
     lastName: 'Santos',
-    bio: '',
+    bio: 'I like unhurried errands.',
     onboardingCategories: [],
     onboardingGoal: 'member',
-    approximateLatitude: 15.145,
-    approximateLongitude: 120.585,
+    approximateLatitude: 15.14,
+    approximateLongitude: 120.58,
     approximateLocationConsentedAt: 1,
     termsAcceptedAt: 1,
     termsVersion: currentTermsVersion,
+    privacyPolicyAcceptedAt: 1,
+    privacyPolicyVersion: currentTermsVersion,
+    identityConsentAcceptedAt: 1,
+    identityConsentVersion: currentTermsVersion,
     verificationStatus: 'not_started',
     identityEligible: false,
     onboardingCompletedAt: undefined,
+    ...overrides,
   }
+}
+
+function unacceptedViewer(overrides: Record<string, unknown> = {}) {
+  return acceptedViewer({
+    approximateLocationConsentedAt: undefined,
+    termsAcceptedAt: undefined,
+    termsVersion: undefined,
+    privacyPolicyAcceptedAt: undefined,
+    privacyPolicyVersion: undefined,
+    identityConsentAcceptedAt: undefined,
+    identityConsentVersion: undefined,
+    ...overrides,
+  })
+}
+
+beforeEach(() => {
+  state.viewer = acceptedViewer()
   state.latest = null
   state.application = null
   state.availability = undefined
   state.updateProfile.mockClear()
+  state.claimUsername.mockClear()
   state.saveLocation.mockClear()
   state.submitCompanionProfile.mockClear()
+  state.completeOnboarding.mockClear()
+  state.navigate.mockClear()
 })
 
+async function goToStep5Member() {
+  render(<OnboardingPage />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+  fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Maya' } })
+  fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Santos' } })
+  fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'I can help you practice a new language.' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+  await screen.findByText('Review and accept to finish.')
+}
+
+function checkBothBoxes() {
+  fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }))
+  fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Privacy Policy/ }))
+}
+
 describe('onboarding route', () => {
-  it('keeps Back and Continue on one row with a text Skip at the very bottom', async () => {
+  it('keeps Back and Continue on one row with Skip only on the final step', async () => {
+    state.viewer = unacceptedViewer()
     render(<OnboardingPage />)
 
-    const saveUsername = screen.getByRole('button', { name: 'Save and continue' })
-    await waitFor(() => expect((saveUsername as HTMLButtonElement).disabled).toBe(false))
-    fireEvent.click(saveUsername)
+    const stepOne = screen.getByRole('button', { name: 'Continue' })
+    await waitFor(() => expect((stepOne as HTMLButtonElement).disabled).toBe(false))
+    expect(screen.queryByRole('button', { name: 'Skip for now' })).toBeNull()
+    fireEvent.click(stepOne)
     await screen.findByText('What would you like to do here?')
 
     const row = document.querySelector('.onboarding-actions-row')
     const back = screen.getByRole('button', { name: 'Back to the previous step' })
     const primary = screen.getByRole('button', { name: 'Continue' })
-    const skip = screen.getByRole('button', { name: 'Skip for now' })
-
     expect(row).toBeTruthy()
-    // Back carries an accessible name but no visible label, so it stays compact.
     expect(back.textContent).toBe('')
-    expect(back.classList.contains('onboarding-back')).toBe(true)
-    expect(back.getAttribute('title')).toBe('Back')
     expect(row!.contains(back)).toBe(true)
     expect(row!.contains(primary)).toBe(true)
-
-    // Skip is a text control in its own trailing row, not a row button or a link.
-    expect(row!.contains(skip)).toBe(false)
-    expect(skip.tagName).toBe('BUTTON')
-    expect(skip.parentElement?.classList.contains('onboarding-skip-row')).toBe(true)
-    expect(skip.compareDocumentPosition(primary) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
-    expect(screen.queryByRole('link', { name: 'Skip for now' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Skip for now' })).toBeNull()
   })
 
   it('shows no back or skip control on the first step', () => {
     render(<OnboardingPage />)
     expect(screen.queryByRole('button', { name: 'Back to the previous step' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Skip for now' })).toBeNull()
+  })
+
+  it('keeps Step 1 free of policy checkboxes and defers location persistence until Step 5', async () => {
+    state.viewer = acceptedViewer({ username: undefined, approximateLatitude: undefined, approximateLongitude: undefined })
+    render(<OnboardingPage />)
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.getByText(/Nothing is saved until Step 5/i)).toBeTruthy()
+    const getCurrentPosition = vi.fn((success: (position: { coords: { latitude: number; longitude: number } }) => void) => {
+      success({ coords: { latitude: 15.1456789, longitude: 120.5851234 } })
+    })
+    Object.defineProperty(window.navigator, 'geolocation', { configurable: true, value: { getCurrentPosition } })
+    fireEvent.click(screen.getByRole('button', { name: 'Use device location' }))
+    expect(await screen.findByText(/Only the two-decimal rounded result will be saved in Step 5/i)).toBeTruthy()
+    expect(state.saveLocation).not.toHaveBeenCalled()
+    expect(state.claimUsername).not.toHaveBeenCalled()
   })
 
   it('applies the rounded device location immediately without a confirmation step', async () => {
@@ -151,18 +200,15 @@ describe('onboarding route', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use device location' }))
 
     expect(getCurrentPosition).toHaveBeenCalledTimes(1)
-    expect(await screen.findByText('Device location applied. Only the two-decimal rounded result is saved.')).toBeTruthy()
+    expect(await screen.findByText('Device location applied to this preview. Only the two-decimal rounded result will be saved in Step 5.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Apply rounded location' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Do not apply' })).toBeNull()
   })
 
   it('uses design-system fields with controlled values on the profile step', async () => {
+    state.viewer = unacceptedViewer()
     render(<OnboardingPage />)
 
-    const saveUsername = screen.getByRole('button', { name: 'Save and continue' })
-    await waitFor(() => expect((saveUsername as HTMLButtonElement).disabled).toBe(false))
-    fireEvent.click(saveUsername)
-
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
 
     const firstName = screen.getByLabelText('First name') as HTMLInputElement
@@ -178,11 +224,10 @@ describe('onboarding route', () => {
   })
 
   it('announces a validation error with an inline notice and stays on the profile step', async () => {
+    state.viewer = unacceptedViewer()
     render(<OnboardingPage />)
 
-    const saveUsername = screen.getByRole('button', { name: 'Save and continue' })
-    await waitFor(() => expect((saveUsername as HTMLButtonElement).disabled).toBe(false))
-    fireEvent.click(saveUsername)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
 
     fireEvent.change(screen.getByLabelText('First name'), { target: { value: '' } })
@@ -195,11 +240,10 @@ describe('onboarding route', () => {
   })
 
   it('saves the profile and advances to the journey step', async () => {
+    state.viewer = unacceptedViewer()
     render(<OnboardingPage />)
 
-    const saveUsername = screen.getByRole('button', { name: 'Save and continue' })
-    await waitFor(() => expect((saveUsername as HTMLButtonElement).disabled).toBe(false))
-    fireEvent.click(saveUsername)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
     fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'I can help you practice a new language.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
@@ -208,30 +252,183 @@ describe('onboarding route', () => {
     expect(await screen.findByText('What happens before you meet.')).toBeTruthy()
   })
 
-  it('collects the full Companion profile on the Companion step and submits it before identity', async () => {
-    state.viewer = { ...state.viewer, onboardingGoal: 'companion', onboardingCategories: ['Good company'] }
+  it('shows two independent unchecked boxes with document links on Step 5 for new accounts', async () => {
+    state.viewer = unacceptedViewer()
+    await goToStep5Member()
+    const termsBox = screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }) as HTMLInputElement
+    const privacyBox = screen.getByRole('checkbox', { name: /I agree to the Privacy Policy/ }) as HTMLInputElement
+    expect(termsBox.checked).toBe(false)
+    expect(privacyBox.checked).toBe(false)
+
+    const termsLink = screen.getByRole('link', { name: 'Terms and Conditions' })
+    const privacyLink = screen.getByRole('link', { name: 'Privacy Policy' })
+    expect(termsLink.getAttribute('href')).toBe('/terms-and-conditions')
+    expect(termsLink.getAttribute('target')).toBe('_blank')
+    expect(termsLink.getAttribute('rel')).toContain('noopener')
+    expect(privacyLink.getAttribute('href')).toBe('/privacy-policy')
+    expect(privacyLink.getAttribute('target')).toBe('_blank')
+
+    fireEvent.click(termsLink)
+    expect(termsBox.checked).toBe(false)
+    expect(screen.queryByText(/rounded approximate location is stored/i)).toBeNull()
+    expect(screen.queryByText(/for as long as your account exists/i)).toBeNull()
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(2)
+  })
+
+  it('requires both boxes in either order and re-disables when either is unchecked', async () => {
+    state.viewer = unacceptedViewer()
+    await goToStep5Member()
+    const finishButton = screen.getByRole('button', { name: 'Verify identity' }) as HTMLButtonElement
+    const skipButton = screen.getByRole('button', { name: 'Skip for now' }) as HTMLButtonElement
+    expect(finishButton.disabled).toBe(true)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }))
+    expect(finishButton.disabled).toBe(true)
+    expect(skipButton.disabled).toBe(true)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Privacy Policy/ }))
+    await waitFor(() => expect(finishButton.disabled).toBe(false))
+    expect(skipButton.disabled).toBe(false)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }))
+    await waitFor(() => expect(finishButton.disabled).toBe(true))
+    expect(skipButton.disabled).toBe(true)
+    expect(state.saveLocation).not.toHaveBeenCalled()
+  })
+
+  it('shows no checkbox and a remembered notice for already accepted accounts', async () => {
+    await goToStep5Member()
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.getByText(/already accepted the current Terms/i)).toBeTruthy()
+    const finishButton = screen.getByRole('button', { name: 'Verify identity' }) as HTMLButtonElement
+    const skipButton = screen.getByRole('button', { name: 'Skip for now' }) as HTMLButtonElement
+    expect(finishButton.disabled).toBe(false)
+    expect(skipButton.disabled).toBe(false)
+  })
+
+  it('lands completed legacy accounts directly on the final review', async () => {
+    state.viewer = acceptedViewer({
+      onboardingCompletedAt: 1,
+      termsVersion: '2026-08-13',
+      privacyPolicyVersion: undefined,
+      identityConsentVersion: undefined,
+      privacyPolicyAcceptedAt: undefined,
+      identityConsentAcceptedAt: undefined,
+    })
     render(<OnboardingPage />)
+    await screen.findByText('Review and accept to finish.')
+    expect(screen.queryByText('Choose your unique username.')).toBeNull()
+    expect((screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }) as HTMLInputElement).checked).toBe(false)
+  })
 
-    const saveUsername = screen.getByRole('button', { name: 'Save and continue' })
-    await waitFor(() => expect((saveUsername as HTMLButtonElement).disabled).toBe(false))
-    fireEvent.click(saveUsername)
+  it('guards Step 5 finishing actions until both boxes are checked and saves before completing', async () => {
+    state.viewer = unacceptedViewer()
+    render(<OnboardingPage />)
     fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
-
-    expect(screen.queryByLabelText(/Bio/)).toBeNull()
-    expect(screen.queryByText(/What would you like to offer/)).toBeNull()
-
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Maya' } })
+    fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Santos' } })
+    fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'I can help you practice a new language.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    await screen.findByText('Review and accept to finish.')
+
+    const finishButton = screen.getByRole('button', { name: 'Verify identity' }) as HTMLButtonElement
+    const skipButton = screen.getByRole('button', { name: 'Skip for now' }) as HTMLButtonElement
+    expect(finishButton.disabled).toBe(true)
+    expect(skipButton.disabled).toBe(true)
+
+    checkBothBoxes()
+    await waitFor(() => expect(finishButton.disabled).toBe(false))
+    expect(skipButton.disabled).toBe(false)
+    fireEvent.click(finishButton)
+    await waitFor(() => expect(state.saveLocation).toHaveBeenCalledWith(expect.objectContaining({
+      locationConsent: true,
+      termsAccepted: true,
+      termsVersion: currentTermsVersion,
+      privacyAccepted: true,
+      identityAccepted: true,
+    })))
+    await waitFor(() => expect(state.completeOnboarding).toHaveBeenCalledWith({ goal: 'member' }))
+    const saveOrder = state.saveLocation.mock.invocationCallOrder[0]
+    const completeOrder = state.completeOnboarding.mock.invocationCallOrder[0]
+    expect(saveOrder).toBeLessThan(completeOrder)
+  })
+
+  it('blocks completion when the acceptance save fails and supports retry', async () => {
+    state.viewer = unacceptedViewer()
+    state.saveLocation.mockRejectedValueOnce(new Error('Network error'))
+    render(<OnboardingPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Maya' } })
+    fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Santos' } })
+    fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'I can help you practice a new language.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    await screen.findByText('Review and accept to finish.')
+
+    checkBothBoxes()
+    const finishButton = await screen.findByRole('button', { name: 'Verify identity' })
+    fireEvent.click(finishButton)
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(state.completeOnboarding).not.toHaveBeenCalled()
+
+    state.saveLocation.mockReset()
+    state.saveLocation.mockImplementation(async () => undefined)
+    fireEvent.click(screen.getByRole('button', { name: 'Verify identity' }))
+    await waitFor(() => expect(state.completeOnboarding).toHaveBeenCalledWith({ goal: 'member' }))
+  })
+
+  it('does not precheck new acceptance from legacy Terms', async () => {
+    state.viewer = acceptedViewer({
+      termsVersion: '2026-08-13',
+      privacyPolicyVersion: undefined,
+      identityConsentVersion: undefined,
+      privacyPolicyAcceptedAt: undefined,
+      identityConsentAcceptedAt: undefined,
+    })
+    render(<OnboardingPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Maya' } })
+    fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Santos' } })
+    fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'I can help you practice a new language.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    await screen.findByText('Review and accept to finish.')
+    expect((screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }) as HTMLInputElement).checked).toBe(false)
+    expect((screen.getByRole('checkbox', { name: /I agree to the Privacy Policy/ }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('collects the full Companion profile on Step 5 and submits it only after both acceptances', async () => {
+    state.viewer = unacceptedViewer({
+      onboardingGoal: 'companion',
+      onboardingCategories: ['Good company'],
+    })
+    render(<OnboardingPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    const saveButton = screen.getByRole('button', { name: 'Save and verify identity' }) as HTMLButtonElement
+    expect(saveButton.disabled).toBe(true)
 
     const bio = await screen.findByLabelText(/Tell me about yourself/) as HTMLTextAreaElement
     fireEvent.change(bio, { target: { value: 'I like helping neighbors.' } })
     const skills = await screen.findByLabelText(/What work or skills could you share/) as HTMLTextAreaElement
     fireEvent.change(skills, { target: { value: 'I can teach guitar and help with everyday errands.' } })
     fireEvent.change(screen.getByLabelText(/City/), { target: { value: 'Bacolor' } })
-    expect(skills.value).toBe('I can teach guitar and help with everyday errands.')
+    expect(state.submitCompanionProfile).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save and verify identity' }))
+    checkBothBoxes()
+    await waitFor(() => expect(saveButton.disabled).toBe(false))
+    fireEvent.click(saveButton)
 
+    await waitFor(() => expect(state.saveLocation).toHaveBeenCalled())
     await waitFor(() => expect(state.submitCompanionProfile).toHaveBeenCalledWith(expect.objectContaining({
       intro: 'I can teach guitar and help with everyday errands.',
       city: 'Bacolor',
@@ -241,5 +438,75 @@ describe('onboarding route', () => {
       hourlyRateCentavos: 50_000,
     })))
     await waitFor(() => expect(state.completeOnboarding).toHaveBeenCalledWith({ goal: 'companion' }))
+  })
+
+  it('lets a returning Companion reaccept with Accept and continue without touching the profile', async () => {
+    state.viewer = unacceptedViewer({
+      onboardingGoal: 'companion',
+      onboardingCompletedAt: 1,
+      onboardingCategories: ['Good company'],
+    })
+    render(<OnboardingPage />)
+    await screen.findByText('Set up your Companion profile.')
+    expect(screen.queryByLabelText(/Tell me about yourself/)).toBeNull()
+
+    const acceptButton = screen.getByRole('button', { name: 'Accept and continue' }) as HTMLButtonElement
+    expect(acceptButton.disabled).toBe(true)
+    checkBothBoxes()
+    await waitFor(() => expect(acceptButton.disabled).toBe(false))
+    fireEvent.click(acceptButton)
+
+    await waitFor(() => expect(state.saveLocation).toHaveBeenCalled())
+    await waitFor(() => expect(state.completeOnboarding).toHaveBeenCalledWith({ goal: 'companion' }))
+    expect(state.submitCompanionProfile).not.toHaveBeenCalled()
+  })
+
+  it('resets all per-account state on account switch without leaking the prior draft', async () => {
+    state.viewer = unacceptedViewer({ _id: 'user-anna', username: 'anna' })
+    const view = render(<OnboardingPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Anna Changed' } })
+    fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'Anna bio.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    await screen.findByText('Review and accept to finish.')
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }))
+    expect((screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }) as HTMLInputElement).checked).toBe(true)
+
+    state.viewer = unacceptedViewer({ _id: 'user-bob', username: 'bob' })
+    view.rerender(<OnboardingPage />)
+    await screen.findByText('Choose your unique username.')
+    expect(screen.getByText('@bob')).toBeTruthy()
+    expect(screen.queryByText('Anna Changed')).toBeNull()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('Maya')
+    fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'Bob bio.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    await screen.findByText('Review and accept to finish.')
+    expect((screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }) as HTMLInputElement).checked).toBe(false)
+    expect((screen.getByRole('checkbox', { name: /I agree to the Privacy Policy/ }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('preserves edits and unchecked boxes on same-account refetch', async () => {
+    state.viewer = unacceptedViewer({ _id: 'user-anna', username: 'anna' })
+    const view = render(<OnboardingPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Anna Changed' } })
+    fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'Anna bio.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    await screen.findByText('Review and accept to finish.')
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Privacy Policy/ }))
+
+    state.viewer = unacceptedViewer({ _id: 'user-anna', username: 'anna' })
+    view.rerender(<OnboardingPage />)
+    await screen.findByText('Review and accept to finish.')
+    expect((screen.getByRole('checkbox', { name: /I agree to the Terms and Conditions/ }) as HTMLInputElement).checked).toBe(false)
+    expect((screen.getByRole('checkbox', { name: /I agree to the Privacy Policy/ }) as HTMLInputElement).checked).toBe(true)
   })
 })

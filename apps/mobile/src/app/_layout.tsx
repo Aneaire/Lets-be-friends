@@ -7,7 +7,7 @@ import { canAccessMemberRoutes } from '@/auth/routeAccess'
 import { MobileBackendProvider } from '@/backend/MobileBackendProvider'
 import { SafeAreaRoot } from '@/design-system/templates/SafeAreaRoot'
 import { useMobileMember } from '@/member/MobileMember'
-import { onboardingDecision } from '@/member/onboarding'
+import { isExemptOnboardingPath, onboardingDecision } from '@/member/onboarding'
 import { AppThemeProvider, useAppTheme } from '@/theme/ThemeProvider'
 import { useReducedMotion } from '@/utils/accessibility'
 import { AppToastHost } from '@/design-system/molecules/AppToast'
@@ -49,6 +49,8 @@ function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
       <AccountRouteCoordinator />
       <Stack screenOptions={{ headerShown: false, animation: reduceMotion ? 'none' : 'slide_from_right' }}>
         <Stack.Screen name="auth/callback" options={{ animation: 'none' }} />
+        <Stack.Screen name="terms-and-conditions" />
+        <Stack.Screen name="privacy-policy" />
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="auth" />
         </Stack.Protected>
@@ -87,6 +89,7 @@ function AccountRouteCoordinator() {
 
   useEffect(() => {
     if (auth.status !== 'signed_in' || member.status !== 'ready') return
+    if (isExemptOnboardingPath(pathname)) return
 
     const onboardingComplete = onboardingDecision(member.viewer) === 'complete'
     if (!onboardingComplete && pathname !== '/onboarding') {

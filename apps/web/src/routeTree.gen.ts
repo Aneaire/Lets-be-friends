@@ -22,10 +22,12 @@ import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as NearbyRouteImport } from './routes/nearby'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SocialRouteImport } from './routes/social'
+import { Route as TermsAndConditionsRouteImport } from './routes/terms-and-conditions'
 import { Route as VerifyIdentityRouteImport } from './routes/verify-identity'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as CirclesIndexRouteImport } from './routes/circles.index'
@@ -96,6 +98,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+  id: '/privacy-policy',
+  path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -114,6 +121,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const SocialRoute = SocialRouteImport.update({
   id: '/social',
   path: '/social',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsAndConditionsRoute = TermsAndConditionsRouteImport.update({
+  id: '/terms-and-conditions',
+  path: '/terms-and-conditions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VerifyIdentityRoute = VerifyIdentityRouteImport.update({
@@ -151,10 +163,12 @@ export interface FileRoutesByFullPath {
   '/nearby': typeof NearbyRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
+  '/terms-and-conditions': typeof TermsAndConditionsRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
   '/circles/$circleId': typeof CirclesCircleIdRoute
@@ -173,10 +187,12 @@ export interface FileRoutesByTo {
   '/nearby': typeof NearbyRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
+  '/terms-and-conditions': typeof TermsAndConditionsRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
   '/circles/$circleId': typeof CirclesCircleIdRoute
@@ -197,10 +213,12 @@ export interface FileRoutesById {
   '/nearby': typeof NearbyRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
+  '/terms-and-conditions': typeof TermsAndConditionsRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
   '/circles/$circleId': typeof CirclesCircleIdRoute
@@ -222,10 +240,12 @@ export interface FileRouteTypes {
     | '/nearby'
     | '/notifications'
     | '/onboarding'
+    | '/privacy-policy'
     | '/profile'
     | '/safety'
     | '/settings'
     | '/social'
+    | '/terms-and-conditions'
     | '/verify-identity'
     | '/wallet'
     | '/circles/$circleId'
@@ -244,10 +264,12 @@ export interface FileRouteTypes {
     | '/nearby'
     | '/notifications'
     | '/onboarding'
+    | '/privacy-policy'
     | '/profile'
     | '/safety'
     | '/settings'
     | '/social'
+    | '/terms-and-conditions'
     | '/verify-identity'
     | '/wallet'
     | '/circles/$circleId'
@@ -267,10 +289,12 @@ export interface FileRouteTypes {
     | '/nearby'
     | '/notifications'
     | '/onboarding'
+    | '/privacy-policy'
     | '/profile'
     | '/safety'
     | '/settings'
     | '/social'
+    | '/terms-and-conditions'
     | '/verify-identity'
     | '/wallet'
     | '/circles/$circleId'
@@ -291,10 +315,12 @@ export interface RootRouteChildren {
   NearbyRoute: typeof NearbyRoute
   NotificationsRoute: typeof NotificationsRoute
   OnboardingRoute: typeof OnboardingRoute
+  PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   ProfileRoute: typeof ProfileRoute
   SafetyRoute: typeof SafetyRoute
   SettingsRoute: typeof SettingsRoute
   SocialRoute: typeof SocialRoute
+  TermsAndConditionsRoute: typeof TermsAndConditionsRoute
   VerifyIdentityRoute: typeof VerifyIdentityRoute
   WalletRoute: typeof WalletRoute
 }
@@ -392,6 +418,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy-policy': {
+      id: '/privacy-policy'
+      path: '/privacy-policy'
+      fullPath: '/privacy-policy'
+      preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -418,6 +451,13 @@ declare module '@tanstack/react-router' {
       path: '/social'
       fullPath: '/social'
       preLoaderRoute: typeof SocialRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms-and-conditions': {
+      id: '/terms-and-conditions'
+      path: '/terms-and-conditions'
+      fullPath: '/terms-and-conditions'
+      preLoaderRoute: typeof TermsAndConditionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/verify-identity': {
@@ -478,10 +518,12 @@ const rootRouteChildren: RootRouteChildren = {
   NearbyRoute: NearbyRoute,
   NotificationsRoute: NotificationsRoute,
   OnboardingRoute: OnboardingRoute,
+  PrivacyPolicyRoute: PrivacyPolicyRoute,
   ProfileRoute: ProfileRoute,
   SafetyRoute: SafetyRoute,
   SettingsRoute: SettingsRoute,
   SocialRoute: SocialRoute,
+  TermsAndConditionsRoute: TermsAndConditionsRoute,
   VerifyIdentityRoute: VerifyIdentityRoute,
   WalletRoute: WalletRoute,
 }

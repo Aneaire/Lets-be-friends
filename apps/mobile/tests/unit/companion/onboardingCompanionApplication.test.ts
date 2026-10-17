@@ -15,18 +15,19 @@ import {
 } from '@/features/companion/onboardingCompanionApplication'
 
 describe('Mobile onboarding Companion application step', () => {
-  it('keeps the member track at four steps and adds a fifth step for the companion track', () => {
-    expect(onboardingTotalSteps('member')).toBe(4)
-    expect(onboardingMaxStep('member')).toBe(3)
+  it('keeps exactly five steps for both member and companion tracks with the final step for acceptance', () => {
+    expect(onboardingTotalSteps('member')).toBe(5)
+    expect(onboardingMaxStep('member')).toBe(4)
     expect(onboardingTotalSteps('companion')).toBe(5)
     expect(onboardingMaxStep('companion')).toBe(4)
   })
 
-  it('clamps the active step when the goal changes so members never see the application step', () => {
-    expect(clampOnboardingStep(4, 'member')).toBe(3)
+  it('clamps the active step within the five-step flow', () => {
+    expect(clampOnboardingStep(4, 'member')).toBe(4)
     expect(clampOnboardingStep(4, 'companion')).toBe(4)
     expect(clampOnboardingStep(-1, 'companion')).toBe(0)
     expect(clampOnboardingStep(2, 'member')).toBe(2)
+    expect(clampOnboardingStep(9, 'member')).toBe(4)
   })
 
   it('treats an existing application or a just-submitted form as submitted, without duplicating the form', () => {
@@ -143,5 +144,21 @@ describe('Mobile onboarding Companion application step', () => {
     expect(onboardingCompanionSkipCopy).toContain('Companion screen')
     expect(onboardingCompanionReviewNotice).toContain('Only identity is reviewed')
     expect(onboardingCompanionIdentityFollowupCopy).toContain('on web')
+  })
+
+  it('keeps Companion onboarding copy free of policy consent and retention prose', () => {
+    const copy = [
+      onboardingCompanionSkipCopy,
+      onboardingCompanionReviewNotice,
+      onboardingCompanionIdentityFollowupCopy,
+      onboardingCompanionHeroTitle,
+      onboardingCompanionHeroCopy,
+    ].join('\n')
+    expect(copy).not.toContain('for as long as your account exists')
+    expect(copy).not.toContain('Privacy Policy')
+    expect(copy).not.toContain('Terms and Conditions')
+    expect(copy).not.toContain('OpenAI')
+    expect(copy).not.toMatch(/human safety/i)
+    expect(onboardingCompanionReviewNotice).toContain('Only identity is reviewed')
   })
 })
