@@ -1,3 +1,4 @@
+export * from './availability'
 export * from './feed'
 export * from './finance'
 export * from './polls'

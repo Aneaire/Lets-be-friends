@@ -12,6 +12,7 @@ import { BookingsView, type BookingsViewMode } from '../features/booking/Booking
 import { BookingsViewSkeleton } from '../features/booking/AppPageSkeleton'
 import { CompanionBookingRow, companionStatusPresentation } from '../features/booking/CompanionBookingRow'
 import type { CompanionBooking } from '../features/booking/combinedBookings';
+import { WeeklyAvailabilityEditor } from '../features/scheduling/WeeklyAvailabilityEditor'
 import { describeConvexError } from '../lib/convexErrors'
 
 export const Route = createFileRoute('/companion')({
@@ -32,6 +33,7 @@ function CompanionWorkspacePage() {
   const submitReview = useMutation(api.reviews.submit)
   const report = useMutation(api.reports.create)
   const updateHourlyRate = useMutation(api.companions.updateHourlyRate)
+  const updateAvailability = useMutation(api.companions.updateAvailability)
   const createTopUp = useAction(api.paymongo.createTopUp)
   const [notice, setNotice] = useState('')
   const [bookingsView, setBookingsView] = useState<BookingsViewMode>('calendar')
@@ -126,6 +128,9 @@ function CompanionWorkspacePage() {
             <a href="#profile" className="rail-link">
               <span>Profile status</span>
             </a>
+            <a href="#availability" className="rail-link">
+              <span>Weekly availability</span>
+            </a>
             <a href="#fee-balance" className="rail-link">
               <span>Earnings and legacy fee balance</span>
               {finance && <span className="rail-link-count tabular">{formatPhp(finance.availableBalanceCentavos)}</span>}
@@ -188,6 +193,24 @@ function CompanionWorkspacePage() {
           </div>
         )}
       </section>
+
+      {application && (
+        <section id="availability" className="mb-10">
+          <header className="flex items-baseline justify-between gap-3 mb-3">
+            <div>
+              <h2 className="text-h2">Weekly availability</h2>
+              <p className="text-meta mt-1">Set the days and times members can request. A full session must fit inside one window.</p>
+            </div>
+          </header>
+          <WeeklyAvailabilityEditor
+            initialAvailability={application.weeklyAvailability}
+            onSave={async (weeklyAvailability) => {
+              await updateAvailability({ weeklyAvailability })
+              setNotice('Weekly availability updated. Members now see the times that fit their session length.')
+            }}
+          />
+        </section>
+      )}
 
       {application && (
         <FinancePanel

@@ -18,7 +18,7 @@ vi.mock('../../convex/_generated/api', () => ({
       latestMemberVerification: 'users.latestMemberVerification',
       saveOnboardingLocationAndConsent: 'users.saveOnboardingLocationAndConsent',
     },
-    companions: { myApplication: 'companions.myApplication', submitApplication: 'companions.submitApplication' },
+    companions: { myApplication: 'companions.myApplication', submitApplication: 'companions.submitApplication', updateAvailability: 'companions.updateAvailability' },
   },
 }))
 
@@ -99,6 +99,7 @@ describe('become-companion route', () => {
     expect(screen.queryByLabelText(/Why do you want to earn/)).toBeNull()
     expect(screen.getByLabelText(/City/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Save profile' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Save availability' })).toBeNull()
   })
 
   it('prefills the form from an existing Companion profile', () => {
@@ -137,6 +138,8 @@ describe('become-companion route', () => {
     expect(screen.queryByText('Your Companion profile is locked')).toBeNull()
     expect(screen.queryByText('Manage in settings')).toBeNull()
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeTruthy()
+    expect(screen.getByRole('switch', { name: 'Monday availability' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Save availability' })).toBeTruthy()
     expect(screen.getAllByText('Live in Explore').length).toBeGreaterThan(0)
   })
 

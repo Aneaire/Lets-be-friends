@@ -1,5 +1,6 @@
 import {
   BOOKING_CURRENCY,
+  MANILA_TIMEZONE,
   MEMBER_WALLET_PRICING_MODEL,
   calculateMemberWalletBookingPrice,
   canBookCompanion,
@@ -7,18 +8,26 @@ import {
   canCompleteBooking,
   canReadBookingMessages,
   formatPhp,
+  hasConfiguredCompanionHourlyRate,
   nextSaturdayManilaCutoff,
+  parseAvailabilityMonth,
   validateBookingDurationMinutes,
   validateCompanionHourlyRateCentavos,
 } from '@lets-be-friends/shared'
 import { mutation, query } from './_generated/server'
+import type { Doc } from './_generated/dataModel'
 import { ConvexError, v } from 'convex/values'
 import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
 import { ensureConversationBetween, sendBookingMessage } from './conversations'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { createNotification } from './notifications'
-import { requireNotBlocked } from './safety'
+import { areUsersBlocked, requireNotBlocked } from './safety'
 import { consumeRateLimit } from './rateLimit'
+import {
+  assertNoAcceptedBookingConflict,
+  assertScheduleAllowsRequest,
+  buildCompanionAvailabilityMonth,
+} from './availability'
 import {
   allocateCompletedBookingFunds,
   availableMemberBookingBalance,
@@ -90,6 +99,59 @@ export const forCompanion = query({
   },
 })
 
+const EMPTY_AVAILABILITY = {
+  timezone: MANILA_TIMEZONE,
+  scheduleConfigured: false,
+  days: [] as Array<{ date: string; startsAt: number[] }>,
+}
+
+export const availableSlots = query({
+  // Returns the Companion's bookable starts for every date in a Manila calendar
+  // month. Ineligible viewers always receive the same empty, loading-independent
+  // shape, and no busy interval, booking, or member metadata is ever returned.
+  args: {
+    companionProfileId: v.id('companionProfiles'),
+    month: v.string(),
+    durationMinutes: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const month = parseAvailabilityMonth(args.month)
+    if (!month) throw new ConvexError('Choose a month between 2000-01 and 2100-12')
+    const durationMinutes = validateBookingDurationMinutes(args.durationMinutes)
+    const viewer = await getViewer(ctx)
+    const companion = await ctx.db.get(args.companionProfileId)
+    if (!companion) return EMPTY_AVAILABILITY
+    if (!await canReadCompanionAvailability(ctx, viewer, companion)) return EMPTY_AVAILABILITY
+    const { scheduleConfigured, days } = await buildCompanionAvailabilityMonth(
+      ctx,
+      companion,
+      month.year,
+      month.month,
+      durationMinutes,
+      Date.now(),
+    )
+    return { timezone: MANILA_TIMEZONE, scheduleConfigured, days }
+  },
+})
+
+async function canReadCompanionAvailability(
+  ctx: { db: any },
+  viewer: Doc<'users'> | null,
+  companion: Doc<'companionProfiles'>,
+) {
+  if (!viewer || viewer.suspended) return false
+  if (!hasCurrentIdentityApproval(viewer)) return false
+  if (companion.status !== 'approved') return false
+  // Availability is only readable when the Companion can actually be booked, so
+  // a missing or out-of-range listed rate fails the same generic empty shape.
+  if (!hasConfiguredCompanionHourlyRate(companion.hourlyRateCentavos)) return false
+  if (companion.userId === viewer._id) return false
+  const owner = await ctx.db.get(companion.userId)
+  if (!owner || owner.suspended || !hasCurrentIdentityApproval(owner)) return false
+  if (await areUsersBlocked(ctx, viewer._id, companion.userId)) return false
+  return true
+}
+
 export const createDraft = mutation({
   args: {
     companionProfileId: v.id('companionProfiles'),
@@ -120,6 +182,8 @@ export const createDraft = mutation({
     if (companion.mode !== 'both' && companion.mode !== args.mode) throw new ConvexError('This booking mode is not offered by the Companion')
     if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new ConvexError('Booking time must be in the future')
     const durationMinutes = validateBookingDurationMinutes(args.durationMinutes)
+    assertScheduleAllowsRequest(companion, args.requestedAt, durationMinutes)
+    await assertNoAcceptedBookingConflict(ctx, companion.userId, args.requestedAt, durationMinutes)
     const hourlyRateCentavos = validateCompanionHourlyRateCentavos(companion.hourlyRateCentavos ?? Number.NaN)
     if (!memberWalletV2Enabled()) throw new ConvexError('Member-wallet bookings are not enabled')
     const price = calculateMemberWalletBookingPrice(hourlyRateCentavos, durationMinutes)
@@ -200,6 +264,8 @@ export const editRequest = mutation({
     if (companion.mode !== 'both' && companion.mode !== args.mode) throw new ConvexError('This booking mode is not offered by the Companion')
     if (!Number.isFinite(args.requestedAt) || args.requestedAt <= Date.now()) throw new ConvexError('Booking time must be in the future')
     const durationMinutes = validateBookingDurationMinutes(args.durationMinutes)
+    assertScheduleAllowsRequest(companion, args.requestedAt, durationMinutes)
+    await assertNoAcceptedBookingConflict(ctx, companion.userId, args.requestedAt, durationMinutes, booking._id)
     const hourlyRateCentavos = validateCompanionHourlyRateCentavos(companion.hourlyRateCentavos ?? Number.NaN)
     if (!memberWalletV2Enabled()) throw new ConvexError('Member-wallet bookings are not enabled')
     const price = calculateMemberWalletBookingPrice(hourlyRateCentavos, durationMinutes)
@@ -268,6 +334,11 @@ export const companionDecision = mutation({
       if (companion.status !== 'approved' || !hasCurrentIdentityApproval(viewer)) {
         throw new ConvexError('A current identity check and approved Companion profile are required before accepting new bookings')
       }
+      // Authoritative schedule and conflict checks run before any funds move, so
+      // a rejected acceptance leaves zero partial writes. The current booking is
+      // excluded so a retried acceptance stays idempotent.
+      assertScheduleAllowsRequest(companion, booking.requestedAt, booking.durationMinutes)
+      await assertNoAcceptedBookingConflict(ctx, viewer._id, booking.requestedAt, booking.durationMinutes, booking._id)
       const member = await ctx.db.get(booking.memberId)
       if (!member || member.suspended || !hasCurrentIdentityApproval(member)) {
         throw new ConvexError('The member must renew identity approval before this booking can be accepted')

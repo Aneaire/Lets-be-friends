@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { identityRejectionReasonValidator } from './identityVerification'
 import { notificationKindValidator, notificationPriorityValidator } from './notificationCatalog'
+import { weeklyAvailabilityValidator } from './availabilityRules'
 
 const role = v.union(
   v.literal('member'),
@@ -404,6 +405,10 @@ export default defineSchema({
     mode,
     // Optional so existing Companion records remain readable. New cash bookings require it.
     hourlyRateCentavos: v.optional(v.number()),
+    // Optional so existing Companion records remain readable. Missing means the
+    // schedule has not been shared; an empty array means configured with no
+    // availability. Windows are fixed Asia/Manila local time.
+    weeklyAvailability: v.optional(weeklyAvailabilityValidator),
     status: companionStatus,
     applicationNote: v.optional(v.string()),
     // Private application response for the review team. Optional so legacy

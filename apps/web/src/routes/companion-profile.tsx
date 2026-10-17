@@ -1,14 +1,18 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { api } from '../../convex/_generated/api'
 import { User } from 'lucide-react'
 import { formatPhp } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
+import { BookingDialog, type ApprovedCompanionOption } from '../features/booking/BookingDialog'
 import { ProfileContentPanel } from '../features/profile/ProfileContentPanel';
 import { describeConvexError } from '../lib/convexErrors'
+
+const NO_DISCOVERY_COMPANIONS: ApprovedCompanionOption[] = []
 
 export const Route = createFileRoute('/companion-profile')({
   validateSearch: (search: Record<string, unknown>): { companionProfileId?: string; reviewId?: string } => ({
@@ -46,9 +50,13 @@ function CompanionProfilePage() {
   const createPost = useMutation(api.social.createPost)
   const report = useMutation(api.reports.create)
   const startConversation = useMutation(api.conversations.start)
+  const createDraft = useMutation(api.bookings.createDraft)
   const [notice, setNotice] = useState('')
   const [messageError, setMessageError] = useState('')
   const [startingMessage, setStartingMessage] = useState(false)
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
+  const bookingTriggerRef = useRef<HTMLButtonElement>(null)
+  const closeBookingDialog = useCallback(() => setBookingDialogOpen(false), [])
 
   if (!companionProfileId) {
     return (
@@ -122,7 +130,13 @@ function CompanionProfilePage() {
                 </>
               ) : (
                 <>
-                  <CompanionBookingAction eligibility={companion.viewerBookingEligibility} companionProfileId={companion._id} bookable={companion.bookable} />
+                  <CompanionBookingAction
+                    eligibility={companion.viewerBookingEligibility}
+                    bookable={companion.bookable}
+                    dialogOpen={bookingDialogOpen}
+                    triggerRef={bookingTriggerRef}
+                    onBook={() => setBookingDialogOpen(true)}
+                  />
                   {isSignedIn ? (
                     <>
                       <button
@@ -244,26 +258,50 @@ function CompanionProfilePage() {
           </button>
         ) : null}
       />
+
+      {bookingDialogOpen && (
+        <BookingDialog
+          createDraft={createDraft}
+          companions={NO_DISCOVERY_COMPANIONS}
+          companionsLoading={false}
+          fixedCompanion={companion}
+          onClose={closeBookingDialog}
+          restoreFocusTo={bookingTriggerRef.current}
+          setNotice={setNotice}
+        />
+      )}
     </main>
   )
 }
 
 function CompanionBookingAction({
   eligibility,
-  companionProfileId,
   bookable,
+  dialogOpen,
+  triggerRef,
+  onBook,
 }: {
   eligibility: 'eligible' | 'sign_in_required' | 'verification_required' | 'own_profile'
-  companionProfileId: Id<'companionProfiles'>
   bookable: boolean
+  dialogOpen: boolean
+  triggerRef: RefObject<HTMLButtonElement | null>
+  onBook: () => void
 }) {
   if (!bookable) return <span className="status-pill" data-tone="warning">Rate not configured</span>
 
   if (eligibility === 'eligible') {
     return (
-      <Link to="/app" search={{ companionProfileId }} className="btn btn-social btn-sm">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="btn btn-social btn-sm"
+        aria-haspopup="dialog"
+        aria-expanded={dialogOpen}
+        aria-controls="booking-dialog"
+        onClick={onBook}
+      >
         Book a time
-      </Link>
+      </button>
     )
   }
 

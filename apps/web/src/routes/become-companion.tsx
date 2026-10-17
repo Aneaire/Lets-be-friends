@@ -22,6 +22,7 @@ import {
   type CompanionProfileValues,
 } from '../features/companion-application/companionProfileForm'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
+import { WeeklyAvailabilityEditor } from '../features/scheduling/WeeklyAvailabilityEditor'
 import { identityEntitlementStatus, memberVerificationPresentation, canOpenCompanionProfile, type MemberVerificationPresentation } from '../lib/memberVerification';
 import { describeConvexError } from '../lib/convexErrors'
 
@@ -107,6 +108,7 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
   const application = useQuery(api.companions.myApplication)
   const latestIdentityVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const sendApplication = useMutation(api.companions.submitApplication)
+  const updateAvailability = useMutation(api.companions.updateAvailability)
   const identityFlow = useIdentityVerification('companion_application')
   const [values, setValues] = useState<CompanionProfileValues>(() => defaultCompanionProfileValues())
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
@@ -199,6 +201,7 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
         </div>
         <div className="companion-submission-actions">
           <Link to="/get-verified" className="btn btn-self btn-lg">View verification status</Link>
+          <Link to="/companion" hash="availability" className="btn btn-neutral btn-lg">Set your availability</Link>
           <Link to="/" className="btn btn-neutral btn-lg">Go to home</Link>
         </div>
       </section>
@@ -306,6 +309,24 @@ function CompanionAuthPanel({ onSubmitted }: { onSubmitted: () => void }) {
           </Button>
         </div>
       </form>
+
+      {application && (
+        <section className="companion-availability-panel" id="companion-availability" aria-labelledby="companion-availability-title">
+          <header className="companion-availability-head">
+            <div>
+              <p className="eyebrow">Booking windows</p>
+              <h2 id="companion-availability-title" className="text-h2">Weekly availability</h2>
+              <p className="text-meta mt-1">Choose when members can request a session. This saves separately from your profile details.</p>
+            </div>
+          </header>
+          <WeeklyAvailabilityEditor
+            initialAvailability={application.weeklyAvailability}
+            onSave={async (weeklyAvailability) => {
+              await updateAvailability({ weeklyAvailability })
+            }}
+          />
+        </section>
+      )}
 
       <div className="companion-editor-aside">
         <CompanionProfilePreview

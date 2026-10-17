@@ -19,10 +19,13 @@ type Props = {
   onModeChange: (value: 'online' | 'in_person') => void
   durationMinutes: number
   onDurationMinutesChange: (value: number) => void
-  requestedAt: Date
-  requestedTime: string
-  onRequestedDayChange: (date: Date) => void
-  onRequestedTimeChange: (value: string) => void
+  // The new-booking dialog schedules through the availability picker, so it
+  // turns these free-text date and time controls off. The edit dialog keeps them.
+  requestedAt?: Date
+  requestedTime?: string
+  onRequestedDayChange?: (date: Date) => void
+  onRequestedTimeChange?: (value: string) => void
+  showScheduling?: boolean
   notes: string
   onNotesChange: (value: string) => void
   estimate?: BookingPriceEstimate
@@ -43,11 +46,18 @@ export function BookingRequestFields(props: Props) {
     requestedTime,
     onRequestedDayChange,
     onRequestedTimeChange,
+    showScheduling = true,
     notes,
     onNotesChange,
     estimate,
     disabled,
   } = props
+
+  const schedulingAvailable = showScheduling
+    && requestedAt !== undefined
+    && requestedTime !== undefined
+    && onRequestedDayChange !== undefined
+    && onRequestedTimeChange !== undefined
 
   return (
     <>
@@ -91,21 +101,25 @@ export function BookingRequestFields(props: Props) {
         </label>
       </div>
 
-      <label className="field-row">
-        <span className="label">Date</span>
-        <Calendar
-          value={requestedAt}
-          variant="social"
-          aria-label="Booking date"
-          min={new Date()}
-          disabled={disabled}
-          onChange={onRequestedDayChange}
-        />
-      </label>
+      {schedulingAvailable && (
+        <>
+          <label className="field-row">
+            <span className="label">Date</span>
+            <Calendar
+              value={requestedAt}
+              variant="social"
+              aria-label="Booking date"
+              min={new Date()}
+              disabled={disabled}
+              onChange={onRequestedDayChange}
+            />
+          </label>
 
-      <FormField label="Time">
-        <Input type="time" name="requestedTime" required value={requestedTime} onChange={(event) => onRequestedTimeChange(event.currentTarget.value)} disabled={disabled} />
-      </FormField>
+          <FormField label="Time">
+            <Input type="time" name="requestedTime" required value={requestedTime} onChange={(event) => onRequestedTimeChange(event.currentTarget.value)} disabled={disabled} />
+          </FormField>
+        </>
+      )}
 
       <label className="field-row">
         <span className="label">Anything you would like them to know? <span className="label-aux">shared with the Companion</span></span>

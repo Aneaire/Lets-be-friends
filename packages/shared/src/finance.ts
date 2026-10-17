@@ -21,6 +21,14 @@ export function validateCompanionHourlyRateCentavos(value: number) {
   return value
 }
 
+/** True when a listed hourly rate is a whole number inside the supported range. */
+export function hasConfiguredCompanionHourlyRate(value: number | undefined | null): value is number {
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= MIN_COMPANION_HOURLY_RATE_CENTAVOS
+    && value <= MAX_COMPANION_HOURLY_RATE_CENTAVOS
+}
+
 export function validateBookingDurationMinutes(value: number) {
   if (!Number.isSafeInteger(value) || value % 15 !== 0) {
     throw new Error('Duration must use 15-minute increments')

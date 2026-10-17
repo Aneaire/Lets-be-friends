@@ -1,8 +1,7 @@
 import {
-  MAX_COMPANION_HOURLY_RATE_CENTAVOS,
-  MIN_COMPANION_HOURLY_RATE_CENTAVOS,
   bookingEligibility,
   canBookCompanion,
+  hasConfiguredCompanionHourlyRate,
   hasCurrentUnifiedAcceptance,
   maximumCompanionActivityCategories,
   validateActivityCategories,
@@ -16,6 +15,7 @@ import { getViewer, requireViewer, writeAudit } from './lib'
 import { hasCurrentIdentityApproval, isIdentityVerificationReason } from './identityVerification'
 import { findNearbyCompanionLocations, syncCompanionLocation } from './companionLocations'
 import { isHiddenByPreference, requireNotBlocked } from './safety'
+import { validateWeeklyAvailabilityOrThrow, weeklyAvailabilityValidator } from './availabilityRules'
 
 const nearbyRadiusOptions = [5, 10, 25, 50, 100] as const
 const MAX_EXPLORE_PAGE_SIZE = 50
@@ -120,7 +120,7 @@ async function buildDirectoryEntry(ctx: any, viewer: Doc<'users'> | null, user: 
         displayName: user.displayName,
         profileImageUrl: profileImage,
         bio: user.bio,
-        bookable: hasConfiguredHourlyRate(companion.hourlyRateCentavos),
+        bookable: hasConfiguredCompanionHourlyRate(companion.hourlyRateCentavos),
         verified: true,
         viewerCanBook: canBookCompanion(viewer ? String(viewer._id) : null, String(user._id)),
         viewerBookingEligibility: bookingEligibility(
@@ -195,7 +195,7 @@ export const listApproved = query({
         latitude: typeof companion.approximateLatitude === 'number' ? roundCoordinate(companion.approximateLatitude) : undefined,
         longitude: typeof companion.approximateLongitude === 'number' ? roundCoordinate(companion.approximateLongitude) : undefined,
         _id: companion._id,
-        bookable: hasConfiguredHourlyRate(companion.hourlyRateCentavos),
+        bookable: hasConfiguredCompanionHourlyRate(companion.hourlyRateCentavos),
         viewerCanBook: canBookCompanion(viewer ? String(viewer._id) : null, String(companion.userId)),
         viewerBookingEligibility: bookingEligibility(
           viewer ? String(viewer._id) : null,
@@ -227,7 +227,7 @@ export const getPublic = query({
       firstName: user.firstName ?? user.displayName,
       profileImageUrl: await profileImageUrl(ctx, user),
       bio: user.bio,
-      bookable: hasConfiguredHourlyRate(companion.hourlyRateCentavos),
+      bookable: hasConfiguredCompanionHourlyRate(companion.hourlyRateCentavos),
       viewerCanBook: canBookCompanion(viewer ? String(viewer._id) : null, String(companion.userId)),
       viewerBookingEligibility: bookingEligibility(
         viewer ? String(viewer._id) : null,
@@ -257,7 +257,7 @@ export const bookingAvailability = query({
     const owner = await ctx.db.get(companion.userId)
     if (!owner || owner.suspended) return 'unavailable' as const
     if (!hasCurrentIdentityApproval(owner)) return 'not_verified' as const
-    if (!hasConfiguredHourlyRate(companion.hourlyRateCentavos)) return 'no_listed_rate' as const
+    if (!hasConfiguredCompanionHourlyRate(companion.hourlyRateCentavos)) return 'no_listed_rate' as const
     return 'available' as const
   },
 })
@@ -415,6 +415,29 @@ export const updateHourlyRate = mutation({
   },
 })
 
+export const updateAvailability = mutation({
+  // The signed-in owner shares or clears their own weekly schedule. Missing
+  // schedule state is only reachable through legacy records; this mutation always
+  // writes an array, so `[]` clearly means configured with no availability.
+  args: { weeklyAvailability: weeklyAvailabilityValidator },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const weeklyAvailability = validateWeeklyAvailabilityOrThrow(args.weeklyAvailability)
+    const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    if (!companion) throw new ConvexError('Create a Companion profile before sharing availability')
+    await ctx.db.patch(companion._id, { weeklyAvailability, updatedAt: Date.now() })
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'companion_profile.availability_updated',
+      targetType: 'companionProfile',
+      targetId: String(companion._id),
+      before: { weeklyAvailability: companion.weeklyAvailability },
+      after: { weeklyAvailability },
+    })
+    return { weeklyAvailability }
+  },
+})
+
 function validateNearbyOrigin(args: { latitude?: number; longitude?: number; radiusKm?: number }) {
   if (args.radiusKm !== undefined && !nearbyRadiusOptions.includes(args.radiusKm as typeof nearbyRadiusOptions[number])) {
     throw new ConvexError('Radius must be 5, 10, 25, 50, or 100 km')
@@ -447,13 +470,6 @@ function publicCompanionProfile(companion: Doc<'companionProfiles'>) {
     ...publicCompanion
   } = companion
   return publicCompanion
-}
-
-function hasConfiguredHourlyRate(value: number | undefined) {
-  return typeof value === 'number'
-    && Number.isSafeInteger(value)
-    && value >= MIN_COMPANION_HOURLY_RATE_CENTAVOS
-    && value <= MAX_COMPANION_HOURLY_RATE_CENTAVOS
 }
 
 function roundCoordinate(value: number) {
