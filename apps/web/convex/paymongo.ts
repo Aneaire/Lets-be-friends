@@ -1,5 +1,6 @@
 import { BOOKING_CURRENCY, validateTopUpCentavos } from '@lets-be-friends/shared'
 import { action, internalAction, internalMutation, internalQuery } from './_generated/server'
+import type { ActionCtx } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { ConvexError, v } from 'convex/values'
@@ -92,12 +93,12 @@ export const refreshMemberTopUp = action({
   },
 })
 
-async function createTopUpForPurpose(ctx: any, requestedAmountCentavos: number, purpose: TopUpPurpose): Promise<TopUpResult> {
+async function createTopUpForPurpose(ctx: ActionCtx, requestedAmountCentavos: number, purpose: TopUpPurpose): Promise<TopUpResult> {
   const identity = await ctx.auth.getUserIdentity()
   if (!identity) throw new ConvexError('Authentication required')
-  const viewer = await ctx.db.query('users').withIndex('by_clerk_user_id', (q: any) => q.eq('clerkUserId', identity.subject)).unique()
-  if (!viewer) throw new ConvexError('Profile sync required')
-  await consumeRateLimit(ctx, viewer._id, 'create_topup')
+  // Actions have no database access. Viewer validation, the create_topup rate
+  // limit, and all domain writes run inside the transactional prepareTopUp
+  // mutation so a rejected call leaves no partial financial state.
   const amountCentavos = validateTopUpCentavos(requestedAmountCentavos)
   const config = paymongoConfig()
   const prepared = await ctx.runMutation(internal.paymongo.prepareTopUp, {
@@ -204,6 +205,12 @@ export const prepareTopUp = internalMutation({
       const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).first()
       if (!companion || companion.status !== 'approved') throw new ConvexError('An approved Companion profile is required to top up')
     }
+
+    // Consume the create_topup limit only after authentication, suspension,
+    // input, feature-flag, and purpose-eligibility checks, and before any
+    // top-up, supersede, or audit write. A rejection rolls the whole mutation
+    // back, so a limited caller leaves no rate-limit or domain side effects.
+    await consumeRateLimit(ctx, user._id, 'create_topup')
 
     const now = Date.now()
     const existing = purpose === 'member_booking_balance'
