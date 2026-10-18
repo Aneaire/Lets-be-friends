@@ -61,6 +61,8 @@ export type WithdrawalSettlementState = 'queued' | 'submitting' | 'pending' | 's
  * Plain-language reason for a withdrawn transfer that did not complete.
  * `failureCode` can be one of our own guard codes or a PayMongo or ISO 20022
  * rail code, so match loosely and never surface the raw value to members.
+ * Causes that sit with the platform's own provider balance are reported as a
+ * payment-service outage on purpose; they must never disclose that state.
  */
 export function withdrawalFailureReason(
   failureCode: string | undefined,
@@ -68,7 +70,9 @@ export function withdrawalFailureReason(
 ): string {
   const code = (failureCode ?? '').toLowerCase()
   if (/insufficient_wallet_balance|insufficient_funds|am04/.test(code)) {
-    return 'The platform payout balance was still settling when this ran. Try again in a few minutes.'
+    // The cause is the platform's own provider balance, so never disclose it.
+    // Report a payment-service outage instead and note that funds were returned.
+    return 'Our payment service is temporarily unavailable, so this transfer could not be completed. The amount was returned to your wallet. Please try again later.'
   }
   if (/invalid_destination|invalid_account|ac01|ac03|rc04|ag01/.test(code)) {
     return 'Your bank or e-wallet rejected the transfer. Replace the payout method and try again.'

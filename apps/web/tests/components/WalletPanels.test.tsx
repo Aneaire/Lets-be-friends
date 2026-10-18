@@ -331,13 +331,13 @@ describe('dedicated wallet page panels', () => {
     }
     render(<CompanionWithdrawalPanel />)
 
-    expect(screen.getByText(/platform payout balance was still settling/i)).toBeTruthy()
+    expect(screen.getByText(/payment service is temporarily unavailable/i)).toBeTruthy()
     expect(screen.queryByText(/insufficient_wallet_balance/)).toBeNull()
   })
 
   it('maps stored and rail failure codes to friendly reasons', () => {
-    expect(withdrawalFailureReason('insufficient_wallet_balance', 'failed')).toMatch(/still settling/i)
-    expect(withdrawalFailureReason('AM04', 'failed')).toMatch(/still settling/i)
+    expect(withdrawalFailureReason('insufficient_wallet_balance', 'failed')).toMatch(/payment service is temporarily unavailable/i)
+    expect(withdrawalFailureReason('AM04', 'failed')).toMatch(/payment service is temporarily unavailable/i)
     expect(withdrawalFailureReason('invalid_destination_account', 'failed')).toMatch(/rejected the transfer/i)
     expect(withdrawalFailureReason('resource_closed_state', 'failed')).toMatch(/cannot receive transfers/i)
     expect(withdrawalFailureReason(undefined, 'needs_review')).toMatch(/has not confirmed/i)

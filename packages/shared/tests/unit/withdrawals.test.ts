@@ -26,8 +26,10 @@ describe('Companion withdrawal policy', () => {
   })
 
   it('explains a returned withdrawal without exposing the provider code', () => {
-    expect(withdrawalFailureReason('insufficient_wallet_balance', 'failed')).toMatch(/still settling/i)
-    expect(withdrawalFailureReason('AM04', 'failed')).toMatch(/still settling/i)
+    expect(withdrawalFailureReason('insufficient_wallet_balance', 'failed')).toMatch(/payment service is temporarily unavailable/i)
+    expect(withdrawalFailureReason('AM04', 'failed')).toMatch(/payment service is temporarily unavailable/i)
+    expect(withdrawalFailureReason('AM04', 'failed')).toMatch(/returned to your wallet/i)
+    expect(withdrawalFailureReason('AM04', 'failed')).not.toMatch(/platform|settling|balance/i)
     expect(withdrawalFailureReason('invalid_destination_account', 'failed')).toMatch(/rejected the transfer/i)
     expect(withdrawalFailureReason('resource_closed_state', 'failed')).toMatch(/cannot receive transfers/i)
     expect(withdrawalFailureReason('monthly_limit', 'failed')).toMatch(/did not complete/i)
