@@ -1,4 +1,4 @@
-import { BOOKING_CURRENCY, MEMBER_WALLET_PRICING_MODEL, MEMBER_WALLET_SETTLEMENT_DELAY_MS, nextSaturdayManilaCutoff } from '@lets-be-friends/shared'
+import { BOOKING_CURRENCY, MEMBER_WALLET_PRICING_MODEL, nextSaturdayManilaCutoff } from '@lets-be-friends/shared'
 import { internalMutation, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
@@ -263,7 +263,7 @@ export async function releaseBookingFunds(ctx: { db: any }, booking: Doc<'bookin
 }
 
 export async function allocateCompletedBookingFunds(
-  ctx: { db: any; scheduler: any },
+  ctx: { db: any },
   booking: Doc<'bookings'>,
   companionUserId: Id<'users'>,
   now = Date.now(),
@@ -290,8 +290,7 @@ export async function allocateCompletedBookingFunds(
       { accountId: platformAccount._id, bucket: 'pending', direction: 'credit', amountCentavos: amounts.fee },
     ],
   })
-  const settlementEligibleAt = now + MEMBER_WALLET_SETTLEMENT_DELAY_MS
-  if (applied) await ctx.scheduler.runAt(settlementEligibleAt, internal.finance.settleBooking, { bookingId: booking._id })
+  const settlementEligibleAt = now
   return { applied, settlementEligibleAt }
 }
 

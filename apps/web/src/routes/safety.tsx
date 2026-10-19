@@ -29,7 +29,7 @@ const safetySteps = [
   {
     title: 'Money follows the plan',
     body: 'You see the complete booking total, including the service fee, before sending. Funds are reserved only when the Companion accepts.',
-    detail: 'After both people confirm completion, funds remain pending for 24 hours before settlement can continue.',
+    detail: 'After both people confirm completion, the Companion earnings become available right away. A booking report filed before completion keeps those funds held for review.',
   },
   {
     title: 'Help stays within reach',
@@ -180,7 +180,7 @@ export function SafetyPage() {
         <summary>Technical and policy details</summary>
         <div className="safety-technical-body">
           <p><strong>Identity:</strong> AI extracts editable fields from the government ID, then the member takes a current camera selfie. The selfie is not sent to the AI, face matched, or treated as biometric liveness proof. Every completed submission receives an explicit safety-team decision.</p>
-          <p><strong>Payments:</strong> The member sees one booking total that includes the service fee. Acceptance reserves the total; mutual completion begins a 24-hour pending period.</p>
+          <p><strong>Payments:</strong> The member sees one booking total that includes the service fee. Acceptance reserves the total, and mutual completion puts the Companion earnings in the Companion wallet immediately.</p>
           <p><strong>Private booking evidence:</strong> The Companion decides at the start and the member decides at the end. Each may upload a private image or explicitly skip after a warning. Retrieval requires an active linked report and is audit-logged.</p>
           <p><strong>Reports:</strong> Participant booking reports block unsettled wallet funds until a full admin records a resolution.</p>
         </div>

@@ -78,7 +78,7 @@ function CompanionWorkspacePage() {
         const result = await complete({ bookingId: booking._id })
         setNotice(result.awaitingOtherConfirmation
           ? 'Completion confirmed. Waiting for the member to confirm separately.'
-          : 'Both people confirmed completion. The review window is open and member-wallet funds moved to pending earnings once.')
+          : 'Both people confirmed completion. The review window is open and your earnings are in your Companion wallet.')
       }}
       onReview={async (rating, body, imageUploadId) => {
         await submitReview({ bookingId: booking._id, rating, body, imageUploadId })

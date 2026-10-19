@@ -39,16 +39,16 @@ export function companionSettlementPresentation(input: CompanionSettlementInput)
         state: 'reserved',
         tone: 'warning',
         label: 'Reserved until completion',
-        explanation: 'Payment is reserved until both you and the member confirm the session is complete. Once both confirm, it enters a 24-hour review window before it becomes available in your Companion wallet.',
+        explanation: 'Payment is reserved until both you and the member confirm the session is complete. Once both confirm, it is available in your Companion wallet.',
       }
     case 'pending':
       return {
         state: 'pending',
         tone: 'warning',
-        label: 'Pending 24-hour review',
+        label: 'Settlement pending',
         explanation: releaseAtLabel
-          ? `Both participants confirmed completion. Payment is inside the 24-hour review window and becomes available in your Companion wallet on ${releaseAtLabel} (Asia/Manila time).`
-          : 'Both participants confirmed completion. Payment is inside the 24-hour review window before it becomes available in your Companion wallet.',
+          ? `Both participants confirmed completion. Payment becomes available in your Companion wallet on ${releaseAtLabel} (Asia/Manila time).`
+          : 'Both participants confirmed completion. Payment becomes available in your Companion wallet once settlement completes.',
         releaseAt,
         releaseAtLabel,
       }

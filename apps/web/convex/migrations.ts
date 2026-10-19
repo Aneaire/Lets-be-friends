@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values'
 import { isModerationVisible, USERNAME_MAX_LENGTH, usernameBaseFromDisplayName } from '@lets-be-friends/shared'
 import { writeAudit } from './lib'
 import { syncCompanionLocation } from './companionLocations'
+import { settleBookingFunds } from './finance'
 
 // Engagement counter rollout:
 //   1. Deploy the optional counter fields on posts, postComments, and reviews,
@@ -116,6 +117,59 @@ export const backfillUsernames = internalMutation({
     return {
       processed: page.page.length,
       migrated,
+      isDone: page.isDone,
+      nextCursor: page.isDone ? null : page.continueCursor,
+    }
+  },
+})
+
+// Immediate-settlement rollout:
+//   1. Deploy the allocation that settles at mutual completion.
+//   2. Run releasePendingSettlements to completion. It clears the remaining hold
+//      on bookings that were already waiting and then settles each one through
+//      the same guarded path, so a booking with an active report stays blocked
+//      for admin resolution. Re-running is safe: settled bookings leave the
+//      pending index, and every settlement is idempotent.
+export const releasePendingSettlements = internalMutation({
+  args: {
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 25), 1), 50)
+    const now = Date.now()
+    const page = await ctx.db.query('bookings')
+      .withIndex('by_settlement_state_eligible_at', (q) => q.eq('settlementState', 'pending'))
+      .paginate({ cursor: args.cursor ?? null, numItems: limit })
+    let settled = 0
+    let blocked = 0
+    let unchanged = 0
+
+    for (const booking of page.page) {
+      await ctx.db.patch(booking._id, { settlementEligibleAt: now, updatedAt: now })
+      const result = await settleBookingFunds(ctx, booking._id, now)
+      if (result.outcome === 'settled') {
+        settled += 1
+        await writeAudit(ctx, {
+          action: 'booking.settlement_released_at_completion',
+          targetType: 'booking',
+          targetId: String(booking._id),
+          before: { settlementEligibleAt: booking.settlementEligibleAt, settlementState: 'pending' },
+          after: { settlementEligibleAt: now, settlementState: 'settled' },
+          note: 'Companion earnings became available at mutual completion, so the remaining hold was released.',
+        })
+      } else if (result.outcome === 'blocked') {
+        blocked += 1
+      } else {
+        unchanged += 1
+      }
+    }
+
+    return {
+      processed: page.page.length,
+      settled,
+      blocked,
+      unchanged,
       isDone: page.isDone,
       nextCursor: page.isDone ? null : page.continueCursor,
     }

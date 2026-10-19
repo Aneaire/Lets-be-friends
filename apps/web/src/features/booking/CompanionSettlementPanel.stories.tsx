@@ -23,11 +23,12 @@ export const ReservedUntilCompletion: Story = {
   args: { settlementState: 'reserved' },
 }
 
-export const PendingReviewWindow: Story = {
+export const PendingSettlement: Story = {
   args: { settlementState: 'pending', settlementEligibleAt: ELIGIBLE_AT },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Pending 24-hour review')).toBeVisible()
+    await expect(canvas.getByText('Settlement pending')).toBeVisible()
+    await expect(canvas.getByText(/becomes available in your Companion wallet/)).toBeVisible()
     await expect(canvas.getByText(/₱575\.00/)).toBeVisible()
     await expect(canvas.getByText(/The member paid ₱661\.25 total/)).toBeVisible()
   },

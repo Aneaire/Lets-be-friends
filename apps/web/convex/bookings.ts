@@ -36,6 +36,7 @@ import {
   pastDueCommissionCentavos,
   releaseBookingFunds,
   reserveBookingFunds,
+  settleBookingFunds,
 } from './finance'
 
 export const mine = query({
@@ -526,23 +527,24 @@ export const markCompleted = mutation({
 
     if (booking.pricingModel === MEMBER_WALLET_PRICING_MODEL) {
       const allocation = await allocateCompletedBookingFunds(ctx, booking, companion.userId, now)
-      const blocked = await hasActiveBookingReport(ctx, booking._id)
       await ctx.db.patch(args.bookingId, {
         status: 'review_window',
         memberCompletedAt,
         companionCompletedAt,
         jointlyCompletedAt: booking.jointlyCompletedAt ?? now,
         settlementEligibleAt: booking.settlementEligibleAt ?? allocation.settlementEligibleAt,
-        settlementState: blocked ? 'blocked' : 'pending',
-        settlementBlockedAt: blocked ? (booking.settlementBlockedAt ?? now) : booking.settlementBlockedAt,
         updatedAt: now,
       })
+      // Mutual completion settles immediately, so the Companion wallet reflects
+      // the booking at once. A booking with an active report is held for admin
+      // resolution instead, exactly as it would have been during the hold.
+      const settlement = await settleBookingFunds(ctx, args.bookingId, now)
       await writeAudit(ctx, {
         actorUserId: viewer._id,
         action: 'booking.review_window_opened',
         targetType: 'booking',
         targetId: String(args.bookingId),
-        after: { settlementEligibleAt: allocation.settlementEligibleAt, settlementBlocked: blocked },
+        after: { settlementEligibleAt: allocation.settlementEligibleAt, settlementState: settlement.outcome },
       })
       await notifyReviewWindowOpened(ctx, booking.memberId, companion.userId, viewer._id, args.bookingId)
       return { status: 'review_window' as const, awaitingOtherConfirmation: false, idempotent: !allocation.applied }

@@ -115,6 +115,20 @@ async function acceptAndComplete(t: ReturnType<typeof convexTest>, bookingId: an
   await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.markCompleted, { bookingId })
 }
 
+// A report filed before completion holds the funds, so mutual completion
+// allocates them to the pending bucket and leaves them there for an admin.
+async function reportThenComplete(t: ReturnType<typeof convexTest>, bookingId: any, reporter: 'wallet-member' | 'wallet-companion') {
+  await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.companionDecision, { bookingId, decision: 'accepted' })
+  await t.withIdentity({ subject: reporter }).mutation(api.reports.create, {
+    targetType: 'booking', targetId: String(bookingId), reason: 'Safety concern before completion',
+  })
+  await endBookingSchedule(t, bookingId)
+  await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookingEvidence.skip, { bookingId, warningAcknowledged: true })
+  await t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookingEvidence.skip, { bookingId, warningAcknowledged: true })
+  await t.withIdentity({ subject: 'wallet-member' }).mutation(api.bookings.markCompleted, { bookingId })
+  await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.bookings.markCompleted, { bookingId })
+}
+
 describe('member-wallet booking ledger', () => {
   it('requires exact available balance, reserves on acceptance, and releases cancellation idempotently', async () => {
     const t = createTest()
@@ -215,7 +229,7 @@ describe('member-wallet booking ledger', () => {
     })
   })
 
-  it('keeps funds reserved after first completion, then allocates once and settles exactly 24 hours after mutual completion', async () => {
+  it('keeps funds reserved after first completion, then allocates and settles in the same transaction as mutual completion', async () => {
     const t = createTest()
     const ids = await seed(t)
     const created = await createBooking(t, ids.companionProfileId)
@@ -245,15 +259,17 @@ describe('member-wallet booking ledger', () => {
       accounts: await ctx.db.query('walletAccounts').collect(),
       transactions: await ctx.db.query('walletTransactions').collect(),
     }))
-    expect(state.booking?.settlementEligibleAt! - state.booking?.jointlyCompletedAt!).toBe(86_400_000)
-    expect(state.booking?.settlementState).toBe('pending')
+    // Companion earnings are in the withdrawable bucket at mutual completion,
+    // with no hold between completion and settlement.
+    expect(state.booking?.settlementEligibleAt).toBe(state.booking?.jointlyCompletedAt)
+    expect(state.booking?.settlementState).toBe('settled')
     expect(state.transactions.filter((row) => row.kind === 'booking_complete')).toHaveLength(1)
-    expect(state.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)).toMatchObject({ pendingCentavos: SUBTOTAL, availableCentavos: 0 })
-    expect(state.accounts.find((row) => row.accountType === 'platform_revenue')).toMatchObject({ pendingCentavos: FEE, availableCentavos: 0 })
+    expect(state.transactions.filter((row) => row.kind === 'booking_settle')).toHaveLength(1)
+    expect(state.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
+    expect(state.accounts.find((row) => row.accountType === 'platform_revenue')).toMatchObject({ pendingCentavos: 0, availableCentavos: FEE })
 
-    await t.mutation(internal.finance.settleBooking, { bookingId: created.bookingId, now: state.booking!.settlementEligibleAt! - 1 })
-    await t.mutation(internal.finance.settleBooking, { bookingId: created.bookingId, now: state.booking!.settlementEligibleAt })
-    await t.mutation(internal.finance.settleBooking, { bookingId: created.bookingId, now: state.booking!.settlementEligibleAt })
+    const settledAt = state.booking?.settlementEligibleAt
+    await t.mutation(internal.finance.settleBooking, { bookingId: created.bookingId, now: settledAt })
     state = await t.run(async (ctx) => ({
       booking: await ctx.db.get(created.bookingId),
       accounts: await ctx.db.query('walletAccounts').collect(),
@@ -262,7 +278,6 @@ describe('member-wallet booking ledger', () => {
     expect(state.booking?.settlementState).toBe('settled')
     expect(state.transactions.filter((row) => row.kind === 'booking_settle')).toHaveLength(1)
     expect(state.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
-    expect(state.accounts.find((row) => row.accountType === 'platform_revenue')).toMatchObject({ pendingCentavos: 0, availableCentavos: FEE })
   })
 
   it('enforces evidence roles and acknowledgement, and rejects cancellation after completion starts', async () => {
@@ -470,21 +485,23 @@ describe('member-wallet booking ledger', () => {
     expect(after.transactions.filter((row) => row.kind === 'booking_admin_release')).toHaveLength(0)
   })
 
-  it('blocks unsettled funds on participant reports, rejects outsiders, and lets only a full admin refund once', async () => {
+  it('blocks funds on a participant report before completion, rejects outsiders, and lets only a full admin refund once', async () => {
     const t = createTest()
     const ids = await seed(t)
     const created = await createBooking(t, ids.companionProfileId)
-    await acceptAndComplete(t, created.bookingId)
 
     await expect(t.withIdentity({ subject: 'wallet-outsider' }).mutation(api.reports.create, {
       targetType: 'booking', targetId: String(created.bookingId), reason: 'Outsider report',
     })).rejects.toThrow('Only a booking participant')
-    const reportId = await t.withIdentity({ subject: 'wallet-member' }).mutation(api.reports.create, {
-      targetType: 'booking', targetId: String(created.bookingId), reason: 'Safety concern without evidence',
-    })
-    const blocked = await t.run(async (ctx) => ctx.db.get(created.bookingId))
-    expect(blocked?.settlementState).toBe('blocked')
-    await t.mutation(internal.finance.settleBooking, { bookingId: created.bookingId, now: blocked!.settlementEligibleAt! })
+
+    await reportThenComplete(t, created.bookingId, 'wallet-member')
+    const held = await t.run(async (ctx) => ({
+      booking: await ctx.db.get(created.bookingId),
+      accounts: await ctx.db.query('walletAccounts').collect(),
+    }))
+    expect(held.booking?.settlementState).toBe('blocked')
+    expect(held.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)).toMatchObject({ pendingCentavos: SUBTOTAL, availableCentavos: 0 })
+    await t.mutation(internal.finance.settleBooking, { bookingId: created.bookingId, now: held.booking!.settlementEligibleAt! })
     expect((await t.run(async (ctx) => ctx.db.get(created.bookingId)))?.settlementState).toBe('blocked')
 
     await expect(t.withIdentity({ subject: 'wallet-reviewer' }).mutation(api.admin.resolveBlockedBookingFunds, {
@@ -508,7 +525,7 @@ describe('member-wallet booking ledger', () => {
     })).rejects.toThrow('conflicting outcome')
     const state = await t.run(async (ctx) => ({
       booking: await ctx.db.get(created.bookingId),
-      report: await ctx.db.get(reportId),
+      reports: await ctx.db.query('reports').withIndex('by_booking', (q: any) => q.eq('bookingId', created.bookingId)).collect(),
       accounts: await ctx.db.query('walletAccounts').collect(),
       transactions: await ctx.db.query('walletTransactions').collect(),
       audits: await ctx.db.query('auditLogs').collect(),
@@ -516,7 +533,7 @@ describe('member-wallet booking ledger', () => {
     expect(state.booking).toMatchObject({ settlementState: 'refunded', settlementResolution: 'returned_to_member' })
     expect(state.booking?.settlementResolvedAt).toBe(firstResolution.booking?.settlementResolvedAt)
     expect(state.audits).toHaveLength(firstResolution.audits.length)
-    expect(state.report?.settlementHoldReleasedAt).toBeTypeOf('number')
+    expect(state.reports[0]?.settlementHoldReleasedAt).toBeTypeOf('number')
     expect(state.accounts.find((row) => row.accountType === 'member_booking')).toMatchObject({ availableCentavos: TOTAL, reservedCentavos: 0 })
     expect(state.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)?.pendingCentavos ?? 0).toBe(0)
     expect(state.transactions.filter((row) => row.kind === 'booking_admin_refund')).toHaveLength(1)
@@ -526,10 +543,7 @@ describe('member-wallet booking ledger', () => {
     const t = createTest()
     const ids = await seed(t)
     const created = await createBooking(t, ids.companionProfileId)
-    await acceptAndComplete(t, created.bookingId)
-    await t.withIdentity({ subject: 'wallet-companion' }).mutation(api.reports.create, {
-      targetType: 'booking', targetId: String(created.bookingId), reason: 'Companion safety concern',
-    })
+    await reportThenComplete(t, created.bookingId, 'wallet-companion')
     await t.withIdentity({ subject: 'wallet-admin' }).mutation(api.admin.resolveBlockedBookingFunds, {
       bookingId: created.bookingId, resolution: 'release_to_companion', note: 'Release after full-admin review.',
     })
@@ -555,5 +569,36 @@ describe('member-wallet booking ledger', () => {
     expect(state.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
     expect(state.accounts.find((row) => row.accountType === 'platform_revenue')).toMatchObject({ pendingCentavos: 0, availableCentavos: FEE })
     expect(state.transactions.filter((row) => row.kind === 'booking_admin_release')).toHaveLength(1)
+  })
+
+  it('settles at mutual completion, so a later report cannot hold funds that are already in the Companion wallet', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const created = await createBooking(t, ids.companionProfileId)
+    await acceptAndComplete(t, created.bookingId)
+
+    const settled = await t.run(async (ctx) => ({
+      booking: await ctx.db.get(created.bookingId),
+      accounts: await ctx.db.query('walletAccounts').collect(),
+    }))
+    expect(settled.booking).toMatchObject({ status: 'review_window', settlementState: 'settled' })
+    expect(settled.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)).toMatchObject({ availableCentavos: SUBTOTAL, pendingCentavos: 0 })
+
+    const reportId = await t.withIdentity({ subject: 'wallet-member' }).mutation(api.reports.create, {
+      targetType: 'booking', targetId: String(created.bookingId), reason: 'Safety concern after completion',
+    })
+    const after = await t.run(async (ctx) => ({
+      booking: await ctx.db.get(created.bookingId),
+      report: await ctx.db.get(reportId),
+      accounts: await ctx.db.query('walletAccounts').collect(),
+    }))
+    expect(after.report).toMatchObject({ status: 'open' })
+    expect(after.report?.settlementHoldAppliedAt).toBeUndefined()
+    expect(after.booking?.settlementState).toBe('settled')
+    expect(after.accounts.find((row) => row.accountType === 'member_booking' && row.ownerUserId === ids.companionUserId)).toMatchObject({ availableCentavos: SUBTOTAL })
+    // Funds are already the Companion's, so an admin cannot return them.
+    await expect(t.withIdentity({ subject: 'wallet-admin' }).mutation(api.admin.resolveBlockedBookingFunds, {
+      bookingId: created.bookingId, resolution: 'return_to_member', note: 'Nothing is held for this booking.',
+    })).rejects.toThrow('conflicting outcome')
   })
 })

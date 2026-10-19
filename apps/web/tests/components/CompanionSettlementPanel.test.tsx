@@ -22,7 +22,7 @@ describe('CompanionSettlementPanel', () => {
     )
 
     expect(screen.getByText('₱575.00')).toBeTruthy()
-    expect(screen.getByText('Pending 24-hour review')).toBeTruthy()
+    expect(screen.getByText('Settlement pending')).toBeTruthy()
     expect(screen.getByText(/Aug 12, 2026, 1:39 PM/)).toBeTruthy()
     expect(screen.getByText(/The member paid ₱661.25 total/)).toBeTruthy()
     expect(container.querySelector('[data-settlement="pending"]')).toBeTruthy()

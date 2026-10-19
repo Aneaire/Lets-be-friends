@@ -97,7 +97,7 @@ describe('CompanionBookingRow', () => {
 
     expect(document.querySelector('[data-settlement="pending"]')).toBeTruthy()
     expect(screen.getByText('₱500.00')).toBeTruthy()
-    expect(screen.getByText('Pending 24-hour review')).toBeTruthy()
+    expect(screen.getByText('Settlement pending')).toBeTruthy()
     expect(screen.queryByText(/Your entitlement:/)).toBeNull()
   })
 

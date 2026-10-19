@@ -147,3 +147,119 @@ describe('engagement counter backfill', () => {
       .rejects.toThrow('Migration out of order')
   })
 })
+
+describe('immediate settlement rollout', () => {
+  const DAY_MS = 24 * 60 * 60 * 1_000
+  const SUBTOTAL = 50_000
+  const FEE = 7_500
+  const TOTAL = SUBTOTAL + FEE
+
+  async function seedHeldBooking(t: ReturnType<typeof convexTest>, options: { withReport: boolean }) {
+    return await t.run(async (ctx) => {
+      const now = Date.now()
+      const base = { verificationStatus: 'approved' as const, suspended: false, createdAt: now, updatedAt: now }
+      const memberId = await ctx.db.insert('users', { clerkUserId: `held-member-${now}`, displayName: 'Held Member', role: 'member', ...base })
+      const companionUserId = await ctx.db.insert('users', { clerkUserId: `held-companion-${now}`, displayName: 'Held Companion', role: 'companion', ...base })
+      const companionProfileId = await ctx.db.insert('companionProfiles', {
+        userId: companionUserId, displayName: 'Held Companion', intro: 'Intro', city: 'Test City', strengths: [],
+        categories: ['Coffee or meal companion'], boundaries: [], mode: 'both', hourlyRateCentavos: 50_000,
+        status: 'approved', rating: 0, reviewCount: 0, createdAt: now, updatedAt: now,
+      })
+      const bookingId = await ctx.db.insert('bookings', {
+        memberId,
+        companionProfileId,
+        category: 'Coffee or meal companion',
+        mode: 'online',
+        requestedAt: now - 7_200_000,
+        durationMinutes: 60,
+        status: 'review_window',
+        pricingModel: 'member_wallet_v2',
+        serviceSubtotalCentavos: SUBTOTAL,
+        memberBookingFeeBps: 1_500,
+        memberBookingFeeCentavos: FEE,
+        memberTotalCentavos: TOTAL,
+        companionEarningsCentavos: SUBTOTAL,
+        currency: 'PHP',
+        settlementState: 'pending',
+        memberCompletedAt: now - 3_600_000,
+        companionCompletedAt: now - 3_600_000,
+        jointlyCompletedAt: now - 3_600_000,
+        settlementEligibleAt: now + DAY_MS,
+        createdAt: now - 7_200_000,
+        updatedAt: now - 3_600_000,
+      })
+      await ctx.db.insert('walletAccounts', {
+        deterministicKey: `member:${companionUserId}:booking`,
+        accountType: 'member_booking',
+        ownerUserId: companionUserId,
+        currency: 'PHP',
+        availableCentavos: 0,
+        reservedCentavos: 0,
+        pendingCentavos: SUBTOTAL,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert('walletAccounts', {
+        deterministicKey: 'platform:booking-revenue',
+        accountType: 'platform_revenue',
+        currency: 'PHP',
+        availableCentavos: 0,
+        reservedCentavos: 0,
+        pendingCentavos: FEE,
+        createdAt: now,
+        updatedAt: now,
+      })
+      if (options.withReport) {
+        await ctx.db.insert('reports', {
+          reporterId: memberId,
+          targetType: 'booking',
+          targetId: String(bookingId),
+          bookingId,
+          reason: 'Active safety review',
+          status: 'open',
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+      return { bookingId, companionUserId, memberId }
+    })
+  }
+
+  it('releases the remaining hold on bookings that were already waiting', async () => {
+    const t = createTest()
+    const ids = await seedHeldBooking(t, { withReport: false })
+
+    const result = await t.mutation(internal.migrations.releasePendingSettlements, {})
+    expect(result).toMatchObject({ processed: 1, settled: 1, blocked: 0, unchanged: 0, isDone: true })
+
+    const state = await t.run(async (ctx) => ({
+      booking: await ctx.db.get(ids.bookingId),
+      accounts: await ctx.db.query('walletAccounts').collect(),
+      audits: await ctx.db.query('auditLogs').collect(),
+    }))
+    expect(state.booking?.settlementState).toBe('settled')
+    expect(state.accounts.find((row) => row.ownerUserId === ids.companionUserId)).toMatchObject({ pendingCentavos: 0, availableCentavos: SUBTOTAL })
+    expect(state.accounts.find((row) => row.accountType === 'platform_revenue')).toMatchObject({ pendingCentavos: 0, availableCentavos: FEE })
+    expect(state.audits).toEqual(expect.arrayContaining([
+      expect.objectContaining({ action: 'booking.settlement_released_at_completion' }),
+    ]))
+
+    const replay = await t.mutation(internal.migrations.releasePendingSettlements, {})
+    expect(replay).toMatchObject({ processed: 0, settled: 0 })
+  })
+
+  it('keeps a booking with an active report held for admin resolution', async () => {
+    const t = createTest()
+    const ids = await seedHeldBooking(t, { withReport: true })
+
+    const result = await t.mutation(internal.migrations.releasePendingSettlements, {})
+    expect(result).toMatchObject({ processed: 1, settled: 0, blocked: 1, isDone: true })
+
+    const state = await t.run(async (ctx) => ({
+      booking: await ctx.db.get(ids.bookingId),
+      accounts: await ctx.db.query('walletAccounts').collect(),
+    }))
+    expect(state.booking?.settlementState).toBe('blocked')
+    expect(state.accounts.find((row) => row.ownerUserId === ids.companionUserId)).toMatchObject({ pendingCentavos: SUBTOTAL, availableCentavos: 0 })
+  })
+})

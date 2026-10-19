@@ -7,7 +7,7 @@ import {
 const ELIGIBLE_AT = Date.UTC(2026, 7, 12, 5, 39, 0)
 
 describe('companionSettlementPresentation', () => {
-  it('shows the exact local release date and the 24-hour review window for pending settlement', () => {
+  it('shows the exact local release date for a settlement that is still pending', () => {
     const settlement = companionSettlementPresentation({
       settlementState: 'pending',
       settlementEligibleAt: ELIGIBLE_AT,
@@ -15,10 +15,10 @@ describe('companionSettlementPresentation', () => {
 
     expect(settlement.state).toBe('pending')
     expect(settlement.tone).toBe('warning')
-    expect(settlement.label).toBe('Pending 24-hour review')
+    expect(settlement.label).toBe('Settlement pending')
     expect(settlement.releaseAt).toBe(ELIGIBLE_AT)
     expect(settlement.releaseAtLabel).toBe('Aug 12, 2026, 1:39 PM')
-    expect(settlement.explanation).toContain('24-hour review window')
+    expect(settlement.explanation).toContain('becomes available in your Companion wallet')
     expect(settlement.explanation).toContain('Aug 12, 2026, 1:39 PM')
     expect(settlement.explanation).toContain('Asia/Manila')
   })
@@ -28,7 +28,7 @@ describe('companionSettlementPresentation', () => {
 
     expect(settlement.tone).toBe('warning')
     expect(settlement.releaseAt).toBeUndefined()
-    expect(settlement.explanation).toContain('24-hour review window')
+    expect(settlement.explanation).toContain('available in your Companion wallet')
   })
 
   it('describes settled funds as available in the Companion wallet', () => {
@@ -50,14 +50,22 @@ describe('companionSettlementPresentation', () => {
     expect(settlement.explanation).toContain('on hold')
   })
 
-  it('explains that reserved funds wait for both participants to confirm completion', () => {
+  it('explains that reserved funds become available once both participants confirm completion', () => {
     const settlement = companionSettlementPresentation({ settlementState: 'reserved' })
 
     expect(settlement.state).toBe('reserved')
     expect(settlement.tone).toBe('warning')
     expect(settlement.label).toBe('Reserved until completion')
     expect(settlement.explanation).toContain('reserved until both')
-    expect(settlement.explanation).toContain('24-hour review window')
+    expect(settlement.explanation).toContain('available in your Companion wallet')
+  })
+
+  it('never promises a hold between completion and settlement', () => {
+    const states = ['unreserved', 'reserved', 'pending', 'blocked', 'settled', 'refunded', 'unknown']
+    for (const settlementState of states) {
+      const { label, explanation } = companionSettlementPresentation({ settlementState })
+      expect(`${label} ${explanation}`).not.toMatch(/24-hour|24 hour/i)
+    }
   })
 
   it('returns refunded funds to the member without recording Companion earnings', () => {
