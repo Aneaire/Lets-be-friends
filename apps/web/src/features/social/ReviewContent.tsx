@@ -9,6 +9,7 @@ export function ReviewContent({
   showRatingValue = false,
   bodyClassName = 'social-review-body',
   imageWrapperClassName,
+  plainImage = false,
   onOpenImage,
 }: {
   rating: number
@@ -18,6 +19,9 @@ export function ReviewContent({
   showRatingValue?: boolean
   bodyClassName?: string
   imageWrapperClassName?: string
+  // Renders the feed's image sizing without a viewer, for surfaces that only
+  // show how a review will look.
+  plainImage?: boolean
   onOpenImage?: () => void
 }) {
   const image = imageUrl ? (
@@ -30,6 +34,13 @@ export function ReviewContent({
       >
         <img src={imageUrl} alt={`Photo shared with ${reviewerDisplayName}'s review`} loading="lazy" />
       </button>
+    ) : plainImage ? (
+      <img
+        className="social-review-image-plain"
+        src={imageUrl}
+        alt={`Photo shared with ${reviewerDisplayName}'s review`}
+        loading="lazy"
+      />
     ) : (
       <OpenableImage src={imageUrl} alt={`Photo shared with ${reviewerDisplayName}'s review`} />
     )

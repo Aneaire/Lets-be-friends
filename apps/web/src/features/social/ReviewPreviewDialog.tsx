@@ -47,6 +47,7 @@ export function ReviewPostPreview({
         body={body}
         imageUrl={imageUrl}
         reviewerDisplayName={authorName}
+        plainImage
       />
       <PostActionBar
         liked={false}

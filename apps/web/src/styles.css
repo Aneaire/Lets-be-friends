@@ -8533,6 +8533,14 @@ textarea.field {
   line-height: 1.5;
 }
 
+/* The feed sizes review photos through the lightbox button wrapper; the
+   preview shows the same image treatment without a viewer. */
+.social-review-image-plain {
+  width: 100%;
+  display: block;
+  border-radius: 8px;
+}
+
 @media (max-width: 640px) {
   .profile-rating-summary {
     text-align: left;
