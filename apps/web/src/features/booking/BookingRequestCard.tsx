@@ -91,57 +91,65 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit,
 
           {intro && <p className="booking-request-card-body">{intro}</p>}
 
-          <div className="booking-request-card-details">
-            {booking.memberTotalCentavos !== undefined && (
-              <p className="booking-request-card-total">
-                {isRequester ? (
-                  <>
-                    Booking total <strong className="tabular">{formatPhp(booking.memberTotalCentavos)}</strong>
-                    {' · '}Includes service fee.
-                  </>
-                ) : (
-                  <>
-                    Your entitlement <strong className="tabular">{formatPhp(booking.companionEarningsCentavos ?? 0)}</strong>
-                    {' · '}the member paid {formatPhp(booking.memberTotalCentavos)} total, which includes the service fee.
-                  </>
-                )}
-              </p>
-            )}
+          {(booking.memberTotalCentavos !== undefined || booking.notes) && (
+            <div className="booking-request-card-details">
+              {booking.memberTotalCentavos !== undefined && (
+                <p className="booking-request-card-total">
+                  {isRequester ? (
+                    <>
+                      <span>Booking total</span>
+                      <strong className="tabular">{formatPhp(booking.memberTotalCentavos)}</strong>
+                      <span className="booking-request-card-total-sub">Includes service fee.</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Your entitlement</span>
+                      <strong className="tabular">{formatPhp(booking.companionEarningsCentavos ?? 0)}</strong>
+                      <span className="booking-request-card-total-sub">
+                        The member paid {formatPhp(booking.memberTotalCentavos)} total, which includes the service fee.
+                      </span>
+                    </>
+                  )}
+                </p>
+              )}
 
-            {booking.notes && <p className="booking-request-card-note"><span>Note</span>{booking.notes}</p>}
-          </div>
+              {booking.notes && <p className="booking-request-card-note"><span>Note</span>{booking.notes}</p>}
+            </div>
+          )}
         </>
       )}
 
       {actionError && <p className="booking-request-card-error" role="alert">{actionError}</p>}
 
-      <div className="booking-request-card-actions">
-        {canDecide && (
-          <>
-            <button
-              type="button"
-              className="btn btn-social btn-sm"
-              disabled={busy !== null}
-              aria-busy={busy === 'accepted' || undefined}
-              onClick={() => void decide('accepted')}>
-              {busy === 'accepted' ? 'Accepting…' : 'Accept request'}
+      {(canDecide || canEdit) && (
+        <div className="booking-request-card-actions">
+          {canDecide && (
+            <>
+              <button
+                type="button"
+                className="btn btn-social btn-sm"
+                disabled={busy !== null}
+                aria-busy={busy === 'accepted' || undefined}
+                onClick={() => void decide('accepted')}>
+                {busy === 'accepted' ? 'Accepting…' : 'Accept request'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                disabled={busy !== null}
+                aria-busy={busy === 'declined' || undefined}
+                onClick={() => void decide('declined')}>
+                {busy === 'declined' ? 'Declining…' : 'Decline'}
+              </button>
+            </>
+          )}
+          {canEdit && (
+            <button type="button" className="btn btn-social btn-sm" disabled={busy !== null} onClick={() => onEdit(booking)}>
+              Edit request
             </button>
-            <button
-              type="button"
-              className="btn btn-danger btn-sm"
-              disabled={busy !== null}
-              aria-busy={busy === 'declined' || undefined}
-              onClick={() => void decide('declined')}>
-              {busy === 'declined' ? 'Declining…' : 'Decline'}
-            </button>
-          </>
-        )}
-        {canEdit && (
-          <button type="button" className="btn btn-social btn-sm" disabled={busy !== null} onClick={() => onEdit(booking)}>
-            Edit request
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
