@@ -41,4 +41,17 @@ describe('NearbyOriginActions', () => {
     fireEvent.click(deviceButton)
     expect(onUseCurrentLocation).toHaveBeenCalledOnce()
   })
+
+  it('keeps the location control active when Explore starts from the saved location', () => {
+    render(
+      <NearbyOriginActions
+        originMode="saved"
+        onUseCurrentLocation={vi.fn()}
+        onBeginTravelPin={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Use my location' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Place a pin' }).getAttribute('aria-pressed')).toBe('false')
+  })
 })

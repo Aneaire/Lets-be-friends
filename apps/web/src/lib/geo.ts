@@ -6,6 +6,29 @@ export type Coordinates = {
 export const nearbyRadiusOptions = [5, 10, 25, 50, 100] as const
 export type NearbyRadiusKm = (typeof nearbyRadiusOptions)[number]
 
+/**
+ * The approximate location a member already shared during onboarding. When it
+ * is present and consented, Explore can search nearby straight away instead of
+ * asking for the browser location again.
+ */
+export type SharedLocationViewer = {
+  approximateLatitude?: number
+  approximateLongitude?: number
+  approximateLocationConsentedAt?: number
+}
+
+export function sharedNearbyOrigin(viewer: SharedLocationViewer | null | undefined): Coordinates | null {
+  if (!viewer || !viewer.approximateLocationConsentedAt) return null
+  const latitude = viewer.approximateLatitude
+  const longitude = viewer.approximateLongitude
+  if (!isUsableCoordinate(latitude, -90, 90) || !isUsableCoordinate(longitude, -180, 180)) return null
+  return { latitude, longitude }
+}
+
+function isUsableCoordinate(value: number | undefined, minimum: number, maximum: number): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum
+}
+
 export function geolocationErrorMessage(code: number) {
   if (code === 1) {
     return 'Location permission is blocked. Allow location in your browser site settings, reload, then try again. You can also place a pin on the map.'

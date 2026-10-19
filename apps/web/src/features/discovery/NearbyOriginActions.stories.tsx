@@ -35,6 +35,15 @@ export const CurrentLocationSelected: Story = {
   },
 }
 
+export const SavedLocationSelected: Story = {
+  args: { originMode: 'saved' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('button', { name: 'Use my location' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(canvas.getByRole('button', { name: 'Place a pin' })).toHaveAttribute('aria-pressed', 'false')
+  },
+}
+
 export const TravelPinSelected: Story = {
   args: { originMode: 'custom' },
   play: async ({ canvasElement }) => {

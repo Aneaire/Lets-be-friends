@@ -4,8 +4,25 @@ import { api, internal } from '../../../convex/_generated/api'
 import schema from '../../../convex/schema'
 import { convexModules } from '../../helpers/convex'
 import { currentPolicyVersion as termsVersion } from '@lets-be-friends/shared'
+import { distanceKm } from '../../../src/lib/geo'
 
 const modules = convexModules
+
+// Saved locations are jittered up to 1 km and rounded to two decimals, so a
+// stored point can sit a little under 2 km from the true device fix.
+function expectStoredLocationNear(
+  actual: { approximateLatitude?: number; approximateLongitude?: number } | null,
+  expected: { latitude: number; longitude: number },
+) {
+  expect(actual?.approximateLatitude).toEqual(expect.any(Number))
+  expect(actual?.approximateLongitude).toEqual(expect.any(Number))
+  expect(Math.round(actual!.approximateLatitude! * 100) / 100).toBe(actual!.approximateLatitude)
+  expect(Math.round(actual!.approximateLongitude! * 100) / 100).toBe(actual!.approximateLongitude)
+  expect(distanceKm(
+    { latitude: actual!.approximateLatitude!, longitude: actual!.approximateLongitude! },
+    expected,
+  )).toBeLessThanOrEqual(2)
+}
 
 async function insertUser(t: ReturnType<typeof convexTest>, clerkUserId: string, displayName: string, username?: string) {
   return await t.run(async (ctx) => {
@@ -213,7 +230,7 @@ describe('usernames and onboarding', () => {
     expect(user?.identityConsentAcceptedAt).toBeUndefined()
   })
 
-  it('rounds onboarding coordinates and records unified consent, terms, privacy, identity, and completion', async () => {
+  it('jitters and rounds onboarding coordinates and records unified consent, terms, privacy, identity, and completion', async () => {
     const t = convexTest(schema, modules)
     const userId = await insertUser(t, 'complete-user', 'Complete User', 'complete_user')
     const authenticated = t.withIdentity({ subject: 'complete-user' })
@@ -232,9 +249,8 @@ describe('usernames and onboarding', () => {
     await authenticated.mutation(api.users.completeOnboarding, { goal: 'companion' })
 
     const user = await t.run(async (ctx) => await ctx.db.get(userId))
+    expectStoredLocationNear(user, { latitude: 10.315699, longitude: 123.885437 })
     expect(user).toMatchObject({
-      approximateLatitude: 10.32,
-      approximateLongitude: 123.89,
       onboardingGoal: 'companion',
       termsVersion,
       privacyPolicyVersion: termsVersion,
@@ -278,7 +294,7 @@ describe('usernames and onboarding', () => {
     expect(second?.termsAcceptedAt).toBe(first?.termsAcceptedAt)
     expect(second?.privacyPolicyAcceptedAt).toBe(first?.privacyPolicyAcceptedAt)
     expect(second?.identityConsentAcceptedAt).toBe(first?.identityConsentAcceptedAt)
-    expect(second?.approximateLatitude).toBe(10.32)
+    expectStoredLocationNear(second, { latitude: 10.32, longitude: 123.89 })
   })
 
   it('routes legacy general Terms acceptance back to onboarding instead of grandfathering new identity scope', async () => {
@@ -343,5 +359,56 @@ describe('usernames and onboarding', () => {
 
     const usernames = await t.run(async (ctx) => (await ctx.db.query('users').collect()).map((user) => user.username).sort())
     expect(usernames).toEqual(['alex_santos', 'alex_santos_2', 'alex_santos_3'])
+  })
+})
+
+describe('approximate location updates', () => {
+  it('saves a jittered, rounded location for a consented member and returns it', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await insertAcceptedUser(t, 'mover', 'Mover', 'mover')
+
+    const saved = await t.withIdentity({ subject: 'mover' }).mutation(api.users.updateApproximateLocation, {
+      latitude: 14.599512,
+      longitude: 120.984222,
+    })
+
+    expect(saved.latitude).toEqual(expect.any(Number))
+    expect(Math.round(saved.latitude * 100) / 100).toBe(saved.latitude)
+    expect(Math.round(saved.longitude * 100) / 100).toBe(saved.longitude)
+    expect(distanceKm(saved, { latitude: 14.599512, longitude: 120.984222 })).toBeLessThanOrEqual(2)
+
+    expectStoredLocationNear(await t.run(async (ctx) => await ctx.db.get(userId)), {
+      latitude: 14.599512,
+      longitude: 120.984222,
+    })
+  })
+
+  it('refuses to move the saved location without approximate-location consent', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await insertUser(t, 'unconsented', 'Unconsented')
+    await t.run(async (ctx) => {
+      await ctx.db.patch(userId, { approximateLatitude: 10.31, approximateLongitude: 123.89 })
+    })
+
+    await expect(t.withIdentity({ subject: 'unconsented' }).mutation(api.users.updateApproximateLocation, {
+      latitude: 14.599512,
+      longitude: 120.984222,
+    })).rejects.toThrow('Agree to store and use your approximate location')
+
+    const user = await t.run(async (ctx) => await ctx.db.get(userId))
+    expect(user?.approximateLatitude).toBe(10.31)
+  })
+
+  it('rejects out-of-range coordinates before writing', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await insertAcceptedUser(t, 'bad-coords', 'Bad Coords')
+
+    await expect(t.withIdentity({ subject: 'bad-coords' }).mutation(api.users.updateApproximateLocation, {
+      latitude: 120,
+      longitude: 120.984222,
+    })).rejects.toThrow('Latitude must be between -90 and 90')
+
+    const user = await t.run(async (ctx) => await ctx.db.get(userId))
+    expect(user?.approximateLatitude).toBe(10.31)
   })
 })

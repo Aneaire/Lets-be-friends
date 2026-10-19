@@ -1,7 +1,7 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useAuth } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, MapPin, RotateCcw } from 'lucide-react'
 import { activityCategoriesMatch, activityCategoryOptions, friendStrengths } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
@@ -14,6 +14,8 @@ import { NearbyOriginActions, type NearbyOriginMode } from '../features/discover
 import {
   geolocationErrorMessage,
   nearbyRadiusOptions,
+  roundCoordinates,
+  sharedNearbyOrigin,
   type Coordinates,
   type NearbyRadiusKm,
 } from '../lib/geo'
@@ -51,10 +53,12 @@ type NearbyCompanion = {
   verified?: boolean
 }
 
-function NearbySearchPage() {
+export function NearbySearchPage() {
   const navigate = useNavigate()
   const { isSignedIn } = useAuth()
+  const viewer = useQuery(api.users.viewer)
   const toggleFollow = useMutation(api.social.toggleFollow)
+  const updateApproximateLocation = useMutation(api.users.updateApproximateLocation)
   const [location, setLocation] = useState<Coordinates | null>(null)
   const [originMode, setOriginMode] = useState<NearbyOriginMode>(null)
   const [radiusKm, setRadiusKm] = useState<NearbyRadiusKm>(25)
@@ -64,6 +68,22 @@ function NearbySearchPage() {
   const [bookableOnly, setBookableOnly] = useState(false)
   const [query, setQuery] = useState('')
   const [locationStatus, setLocationStatus] = useState('Use your location or place a travel pin to begin.')
+
+  // Members already share an approximate location during onboarding. When it
+  // is present and consented, start the nearby search from it automatically so
+  // Explore is useful on arrival, without a fresh device permission prompt. A
+  // manual choice (device refresh or travel pin) always wins and is never
+  // overwritten.
+  const sharedOrigin = useMemo(() => sharedNearbyOrigin(viewer), [viewer])
+  const appliedSharedOrigin = useRef(false)
+  useEffect(() => {
+    if (appliedSharedOrigin.current) return
+    if (originMode !== null || !sharedOrigin) return
+    appliedSharedOrigin.current = true
+    setLocation(sharedOrigin)
+    setOriginMode('saved')
+    setLocationStatus(`Using your saved location. Showing approved Companions within ${radiusKm} km.`)
+  }, [originMode, radiusKm, sharedOrigin])
 
   const companionsQuery = useQuery(
     api.companions.listApproved,
@@ -128,13 +148,24 @@ function NearbySearchPage() {
     }
     setLocationStatus('Finding your current location...')
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation({
+      async (position) => {
+        const deviceFix = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-        })
+        }
         setOriginMode('device')
-        setLocationStatus(`Showing approved Companions within ${radiusKm} km.`)
+        try {
+          // Saving returns the jittered, rounded area, so the search, the map,
+          // and the member's saved discovery area all agree.
+          const saved = await updateApproximateLocation(deviceFix)
+          setLocation({ latitude: saved.latitude, longitude: saved.longitude })
+          setLocationStatus(`Saved area updated. Showing approved Companions within ${radiusKm} km.`)
+        } catch {
+          // Keep the search useful even if the saved area could not be updated,
+          // and never fall back to the exact device fix.
+          setLocation(roundCoordinates(deviceFix))
+          setLocationStatus('Showing nearby from this device. Your saved area could not be updated.')
+        }
       },
       (error) => setLocationStatus(geolocationErrorMessage(error.code)),
       { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
@@ -256,11 +287,11 @@ function NearbySearchPage() {
               setLocationStatus(`Travel pin updated. Showing approved Companions within ${radiusKm} km.`)
             }}
             title={location
-              ? `${originMode === 'device' ? 'Current location' : 'Travel pin'} · ${radiusKm} km`
+              ? `${originMode === 'custom' ? 'Travel pin' : originMode === 'saved' ? 'Your saved location' : 'Current location'} · ${radiusKm} km`
               : 'Choose a search area'}
             description={location
               ? 'Locations are approximate. Select a person to review their full profile.'
-              : 'Use your location or place a pin. Your search origin stays in this browser session.'}
+              : 'Use your location to update your saved approximate area, or place a pin that stays in this browser session.'}
           />
         </section>
 

@@ -1,7 +1,7 @@
 import { LocateFixed, MapPin } from 'lucide-react'
 import { Button } from '../../design-system/atoms/Button'
 
-export type NearbyOriginMode = 'device' | 'custom' | null
+export type NearbyOriginMode = 'device' | 'saved' | 'custom' | null
 
 export function NearbyOriginActions({
   originMode,
@@ -12,7 +12,10 @@ export function NearbyOriginActions({
   onUseCurrentLocation: () => void
   onBeginTravelPin: () => void
 }) {
-  const deviceActive = originMode === 'device'
+  // The member's location is the origin both when they share a fresh device
+  // fix and when Explore starts from the approximate location they already
+  // saved, so the location control reads as active in either case.
+  const deviceActive = originMode === 'device' || originMode === 'saved'
   const pinActive = originMode === 'custom'
 
   return (

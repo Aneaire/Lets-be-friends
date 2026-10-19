@@ -428,7 +428,10 @@ describe('nearby companion discovery privacy', () => {
 
     expect(await t.query(api.companions.listApproved, { latitude: 10.31, longitude: 123.89, radiusKm: 5 })).toEqual([])
     const [moved] = await t.query(api.companions.listApproved, { latitude: 11.32, longitude: 124.89, radiusKm: 5 })
-    expect(moved).toMatchObject({ displayName: 'moving-companion', latitude: 11.32, longitude: 124.89 })
+    // The move is stored as a jittered, rounded point near the new fix, so the
+    // companion now resolves close to it instead of at an exact coordinate.
+    expect(moved).toMatchObject({ displayName: 'moving-companion' })
+    expect(moved.distanceKm).toBeLessThanOrEqual(3)
   })
 
   it('rejects stale legacy Terms acceptance that lacks the new unified privacy and identity scope', async () => {

@@ -6,6 +6,7 @@ import {
   geolocationErrorMessage,
   offsetCoordinates,
   roundCoordinates,
+  sharedNearbyOrigin,
 } from '../../src/lib/geo'
 
 describe('privacy-safe geospatial helpers', () => {
@@ -47,5 +48,33 @@ describe('privacy-safe geospatial helpers', () => {
     expect(geolocationErrorMessage(2)).toContain('could not determine your location')
     expect(geolocationErrorMessage(3)).toContain('timed out')
     expect(geolocationErrorMessage(99)).toContain('could not be read')
+  })
+
+  it('reuses the consented location a member already shared', () => {
+    expect(sharedNearbyOrigin({
+      approximateLatitude: 10.32,
+      approximateLongitude: 123.89,
+      approximateLocationConsentedAt: 1_700_000_000_000,
+    })).toEqual({ latitude: 10.32, longitude: 123.89 })
+  })
+
+  it('withholds a shared origin until it is consented and valid', () => {
+    expect(sharedNearbyOrigin(null)).toBeNull()
+    expect(sharedNearbyOrigin(undefined)).toBeNull()
+    expect(sharedNearbyOrigin({ approximateLatitude: 10.32, approximateLongitude: 123.89 })).toBeNull()
+    expect(sharedNearbyOrigin({
+      approximateLatitude: 10.32,
+      approximateLocationConsentedAt: 1,
+    })).toBeNull()
+    expect(sharedNearbyOrigin({
+      approximateLatitude: Number.NaN,
+      approximateLongitude: 123.89,
+      approximateLocationConsentedAt: 1,
+    })).toBeNull()
+    expect(sharedNearbyOrigin({
+      approximateLatitude: 120,
+      approximateLongitude: 123.89,
+      approximateLocationConsentedAt: 1,
+    })).toBeNull()
   })
 })

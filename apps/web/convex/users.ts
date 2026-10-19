@@ -2,6 +2,7 @@ import { mutation, query } from './_generated/server'
 import { ConvexError, v } from 'convex/values'
 import {
   currentPolicyVersion,
+  fuzzApproximateCoordinates,
   hasCurrentUnifiedAcceptance,
   maximumOnboardingActivityCategories,
   normalizeUsername,
@@ -204,9 +205,13 @@ export const saveOnboardingLocationAndConsent = mutation({
     const locationConsentedAt = alreadyCurrent && typeof viewer.approximateLocationConsentedAt === 'number'
       ? viewer.approximateLocationConsentedAt
       : acceptedAt
+    // Store only the jittered, rounded point. A fresh offset every save keeps
+    // the member's real location hidden within about a kilometer while the
+    // saved area stays near where they are.
+    const approximateLocation = fuzzApproximateCoordinates({ latitude: args.latitude, longitude: args.longitude })
     await ctx.db.patch(viewer._id, {
-      approximateLatitude: roundCoordinate(args.latitude),
-      approximateLongitude: roundCoordinate(args.longitude),
+      approximateLatitude: approximateLocation.latitude,
+      approximateLongitude: approximateLocation.longitude,
       approximateLocationConsentedAt: locationConsentedAt,
       termsAcceptedAt: acceptedAt,
       termsVersion,
@@ -218,12 +223,50 @@ export const saveOnboardingLocationAndConsent = mutation({
     })
     const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
     if (companion) {
-      const approximateLatitude = roundCoordinate(args.latitude)
-      const approximateLongitude = roundCoordinate(args.longitude)
-      await ctx.db.patch(companion._id, { approximateLatitude, approximateLongitude, approximateArea: undefined, updatedAt: now })
+      await ctx.db.patch(companion._id, {
+        approximateLatitude: approximateLocation.latitude,
+        approximateLongitude: approximateLocation.longitude,
+        approximateArea: undefined,
+        updatedAt: now,
+      })
       await syncUserCompanionLocation(ctx, viewer._id)
     }
     return viewer._id
+  },
+})
+
+export const updateApproximateLocation = mutation({
+  args: {
+    latitude: v.number(),
+    longitude: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    // Moving the saved area is a location write, so it stays inside the
+    // approximate-location consent the member already gave. Re-checking keeps
+    // old clients from writing without it.
+    if (!viewer.approximateLocationConsentedAt) {
+      throw new ConvexError('Agree to store and use your approximate location before updating it')
+    }
+    validateCoordinates(args.latitude, args.longitude)
+    const now = Date.now()
+    const approximateLocation = fuzzApproximateCoordinates({ latitude: args.latitude, longitude: args.longitude })
+    await ctx.db.patch(viewer._id, {
+      approximateLatitude: approximateLocation.latitude,
+      approximateLongitude: approximateLocation.longitude,
+      updatedAt: now,
+    })
+    const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', viewer._id)).first()
+    if (companion) {
+      await ctx.db.patch(companion._id, {
+        approximateLatitude: approximateLocation.latitude,
+        approximateLongitude: approximateLocation.longitude,
+        approximateArea: undefined,
+        updatedAt: now,
+      })
+      await syncUserCompanionLocation(ctx, viewer._id)
+    }
+    return approximateLocation
   },
 })
 
@@ -347,10 +390,6 @@ function validateCoordinates(latitude?: number, longitude?: number) {
   if (latitude === undefined || longitude === undefined) return
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) throw new ConvexError('Latitude must be between -90 and 90')
   if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw new ConvexError('Longitude must be between -180 and 180')
-}
-
-function roundCoordinate(value: number) {
-  return Math.round(value * 100) / 100
 }
 
 async function profileImageUrl(ctx: any, user: { profileImageStorageId?: any; profileImageUrl?: string }) {
