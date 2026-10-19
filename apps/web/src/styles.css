@@ -8561,6 +8561,108 @@ textarea.field {
   gap: 0.75rem;
 }
 
+/* The post composer opens the same way as the review one: the dialog is the
+   post card, and the media or poll is edited inside it. */
+.post-editor {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.post-editor-card {
+  width: 100%;
+  max-width: 43rem;
+  margin-inline: auto;
+}
+
+.post-editor-body {
+  width: 100%;
+  min-height: 4.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.post-editor-body::placeholder {
+  color: var(--text-soft);
+}
+
+.post-editor-body:focus {
+  border-color: var(--accent-social);
+  outline: none;
+}
+
+.post-editor-media {
+  margin-top: 0;
+}
+
+.post-editor-drop {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  padding: 1rem 0.9rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 0.75rem;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.post-editor-drop[data-compact] {
+  grid-auto-flow: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0.9rem;
+}
+
+.post-editor[data-dragging] .post-editor-drop {
+  border-color: var(--accent-social);
+  background: var(--accent-social-soft);
+}
+
+.post-editor-drop-title {
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.post-editor-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+/* A poll edits where the published poll sits, so the questions and options read
+   as part of the post rather than as a separate form beside it. */
+.post-editor[data-mode="poll"] .social-poll-composer {
+  margin: 0;
+  border: 1px solid var(--rule);
+  border-radius: 0.75rem;
+  background: var(--surface-subtle);
+  padding: 0.85rem;
+}
+
+.post-editor[data-mode="poll"] .social-poll-composer legend {
+  padding-inline: 0.35rem;
+  color: var(--text-soft);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.post-composer-dialog:has(.post-editor) {
+  width: min(100%, calc(43rem + 1.75rem));
+}
+
 .review-editor-card {
   width: 100%;
   max-width: 43rem;

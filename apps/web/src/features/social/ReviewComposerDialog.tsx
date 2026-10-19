@@ -58,6 +58,7 @@ export function ReviewComposerView({
       multiple
       accept="image/jpeg,image/png,image/webp"
       className="sr-only"
+      aria-label="Add photos"
       disabled={busy}
       onChange={(event) => {
         onChooseFiles(Array.from(event.currentTarget.files ?? []))

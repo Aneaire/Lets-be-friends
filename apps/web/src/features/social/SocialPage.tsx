@@ -22,7 +22,9 @@ import { PostMediaGrid } from './PostMediaGrid'
 import { SocialLightbox } from './SocialLightbox'
 import { discardRegisteredUploads, mediaKind, uploadPostMedia, type SelectedMedia } from './postMediaUpload'
 import { PollCard } from './PollCard'
-import { PollComposer, emptyPollDraft, type PollDraft } from './PollComposer'
+import { MentionField } from './MentionField'
+import { PostComposerDialog, type PostComposerMode } from './PostComposerDialog'
+import type { PollDraft } from './PollComposer'
 import { ReviewFeedCard } from './ReviewFeedCard'
 import { ShareDialog } from './ShareDialog'
 import { SharedPostEmbed, SharedReviewEmbed } from './SharedEmbeds'
@@ -86,22 +88,12 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
   const [error, setError] = useState('')
   const [posting, setPosting] = useState(false)
   const [composerBody, setComposerBody] = useState('')
-  const [selectedMedia, setSelectedMedia] = useState<SelectedMedia[]>([])
-  const [pollOpen, setPollOpen] = useState(false)
-  const [pollDraft, setPollDraft] = useState<PollDraft>(emptyPollDraft)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const selectedMediaRef = useRef<SelectedMedia[]>([])
+  const [composerMode, setComposerMode] = useState<PostComposerMode | null>(null)
   const mediaLimit = mediaUsage?.limit ?? 5
   const remainingUploads = mediaUsage?.remaining ?? mediaLimit
   const displayedFeedItems = useMemo(() => feedItems && requestedPost && !feedItems.some((item) => item.kind === 'post' && String(item.post._id) === String(requestedPost._id))
     ? [{ kind: 'post' as const, itemKey: `post:${requestedPost._id}`, source: 'recent' as const, reason: 'Opened from your notification', post: requestedPost }, ...feedItems]
     : feedItems, [feedItems, requestedPost])
-
-  selectedMediaRef.current = selectedMedia
-
-  useEffect(() => () => {
-    selectedMediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
-  }, [])
 
   useEffect(() => {
     if (!viewer || !displayedFeedItems) return
@@ -138,50 +130,34 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
     }).catch(() => undefined)
   }
 
-  const clearSelectedMedia = () => {
-    selectedMedia.forEach((item) => URL.revokeObjectURL(item.previewUrl))
-    setSelectedMedia([])
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
-
-  const addFiles = (files: FileList | null) => {
-    if (!files) return
+  // The inline composer posts the text on its own. Media and polls compose in
+  // the dialog, which hands the finished draft back here to publish.
+  const postNow = async (input: { body: string; media: SelectedMedia[]; poll?: PollDraft }) => {
+    const body = input.body.trim()
+    if (!body && input.media.length === 0 && !input.poll) return
+    setPosting(true)
     setError('')
-    const current = selectedMedia.length
-    const slots = Math.max(0, remainingUploads - current)
-    if (slots === 0) {
-      setError('You have reached the daily media upload limit.')
-      return
+    let mediaUploadIds: Id<'postMediaUploads'>[] = []
+    try {
+      mediaUploadIds = await uploadPostMedia(
+        input.media,
+        generatePostMediaUploadUrl,
+        registerPostMediaUpload,
+        discardPostMediaUpload,
+      )
+      await createPost({
+        body,
+        mediaUploadIds: mediaUploadIds.length > 0 ? mediaUploadIds : undefined,
+        poll: input.poll ? { question: input.poll.question, options: input.poll.options } : undefined,
+      })
+      setComposerBody('')
+      setNotice('Post shared.')
+    } catch (postError) {
+      await discardRegisteredUploads(mediaUploadIds, discardPostMediaUpload)
+      throw postError
+    } finally {
+      setPosting(false)
     }
-    const accepted: SelectedMedia[] = []
-    for (const file of Array.from(files)) {
-      if (accepted.length >= slots) break
-      const kind = mediaKind(file)
-      if (!kind) {
-        setError('Posts can include photos and video only.')
-        continue
-      }
-      if (kind === 'image' && file.size > 10 * 1024 * 1024) {
-        setError('Photos must be 10 MB or smaller.')
-        continue
-      }
-      if (kind === 'video' && file.size > 50 * 1024 * 1024) {
-        setError('Videos must be 50 MB or smaller.')
-        continue
-      }
-      accepted.push({ file, kind, previewUrl: URL.createObjectURL(file) })
-    }
-    if (Array.from(files).length > slots) setError(`You can add ${slots} more media upload${slots === 1 ? '' : 's'} before the daily limit.`)
-    setSelectedMedia((items) => [...items, ...accepted])
-  }
-
-  const removeSelectedMedia = (index: number) => {
-    setSelectedMedia((items) => {
-      const next = [...items]
-      const [removed] = next.splice(index, 1)
-      if (removed) URL.revokeObjectURL(removed.previewUrl)
-      return next
-    })
   }
 
   return (
@@ -230,42 +206,15 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
         )}
 
         {isSignedIn ? (
+          <>
           <form
             className="social-composer"
             onSubmit={async (event) => {
               event.preventDefault()
-              setPosting(true)
-              setError('')
-              let mediaUploadIds: Id<'postMediaUploads'>[] = []
               try {
-                const body = composerBody.trim()
-                if (!body && selectedMedia.length === 0 && !pollOpen) return
-                const pollError = pollOpen ? pollValidationError(pollDraft) : null
-                if (pollError) {
-                  setError(pollError)
-                  return
-                }
-                mediaUploadIds = await uploadPostMedia(
-                  selectedMedia,
-                  generatePostMediaUploadUrl,
-                  registerPostMediaUpload,
-                  discardPostMediaUpload,
-                )
-                await createPost({
-                  body,
-                  mediaUploadIds: mediaUploadIds.length > 0 ? mediaUploadIds : undefined,
-                  poll: pollOpen ? { question: pollDraft.question, options: pollDraft.options } : undefined,
-                })
-                setComposerBody('')
-                setPollOpen(false)
-                setPollDraft(emptyPollDraft())
-                clearSelectedMedia()
-                setNotice('Post shared.')
+                await postNow({ body: composerBody, media: [] })
               } catch (postError) {
-                await discardRegisteredUploads(mediaUploadIds, discardPostMediaUpload)
                 setError(postError instanceof Error ? describeConvexError(postError) : 'Post could not be shared.')
-              } finally {
-                setPosting(false)
               }
             }}
           >
@@ -285,19 +234,13 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
                 ariaLabel="Create a post"
                 multiline
               />
-              {selectedMedia.length > 0 && (
-                <PostMediaGrid mode="preview" media={selectedMedia} onRemove={removeSelectedMedia} />
-              )}
-              {pollOpen && (
-                <PollComposer value={pollDraft} onChange={setPollDraft} disabled={posting} />
-              )}
               <div className="social-composer-toolbar">
                 <div className="social-upload-actions">
                   <button
                     type="button"
                     className="social-icon-button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={pollOpen || remainingUploads <= selectedMedia.length}
+                    onClick={() => setComposerMode('media')}
+                    disabled={remainingUploads === 0}
                     aria-label="Add photos or video"
                     title="Add photos or video"
                   >
@@ -306,28 +249,12 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
                   <button
                     type="button"
                     className="social-icon-button"
-                    data-active={pollOpen}
-                    aria-pressed={pollOpen}
-                    aria-label={pollOpen ? 'Remove poll' : 'Add a poll'}
-                    title={pollOpen ? 'Remove poll' : 'Add a poll'}
-                    onClick={() => {
-                      setPollOpen((open) => {
-                        if (!open) clearSelectedMedia()
-                        return !open
-                      })
-                      setError('')
-                    }}
+                    onClick={() => setComposerMode('poll')}
+                    aria-label="Add a poll"
+                    title="Add a poll"
                   >
                     <ListChecks size={18} />
                   </button>
-                  <input
-                    ref={fileInputRef}
-                    className="social-file-input"
-                    type="file"
-                    accept="image/*,video/*"
-                    multiple
-                    onChange={(event) => addFiles(event.currentTarget.files)}
-                  />
                   <span className="text-meta">{remainingUploads} of {mediaLimit} daily media uploads left</span>
                 </div>
                 <button disabled={posting} className="btn btn-social btn-sm">
@@ -337,6 +264,19 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
               </div>
             </div>
           </form>
+          <PostComposerDialog
+            open={composerMode !== null}
+            mode={composerMode ?? 'media'}
+            onClose={() => setComposerMode(null)}
+            body={composerBody}
+            onBodyChange={setComposerBody}
+            authorName={viewer?.displayName ?? 'You'}
+            authorImageUrl={viewer?.profileImageUrl}
+            mediaLimit={mediaLimit}
+            remainingUploads={remainingUploads}
+            onPost={postNow}
+          />
+          </>
         ) : (
           <div className="social-signin">
             <p className="empty-state-title">Sign in to post, comment, save, or follow.</p>
@@ -1230,109 +1170,6 @@ export function CommentRow({
     </CommentBubble>
   )
 }
-
-function MentionField({
-  value,
-  onChange,
-  name,
-  placeholder,
-  ariaLabel,
-  maxLength,
-  multiline = false,
-  className,
-  autoFocus = false,
-}: {
-  value: string
-  onChange: (value: string) => void
-  name: string
-  placeholder: string
-  ariaLabel: string
-  maxLength: number
-  multiline?: boolean
-  className?: string
-  autoFocus?: boolean
-}) {
-  const [caret, setCaret] = useState(value.length)
-  const [open, setOpen] = useState(false)
-  const openRef = useRef(false)
-  const activeToken = activeMentionQuery(value, caret)
-  const suggestions = useQuery(api.social.mentionLookup, activeToken ? { query: activeToken } : 'skip')
-
-  const syncCaret = (nextValue: string, nextCaret: number) => {
-    setCaret(nextCaret)
-    openRef.current = Boolean(activeMentionQuery(nextValue, nextCaret))
-    setOpen(openRef.current)
-  }
-
-  const insertMention = (username: string) => {
-    const before = value.slice(0, caret).replace(/@[a-z0-9_]*$/i, `@${username} `)
-    const after = value.slice(caret)
-    onChange(before + after)
-    openRef.current = false
-    setOpen(false)
-  }
-
-  const shared = {
-    name,
-    placeholder,
-    'aria-label': ariaLabel,
-    maxLength,
-    autoFocus,
-    value,
-    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const next = event.currentTarget.value
-      const nextCaret = event.currentTarget.selectionStart ?? next.length
-      onChange(next)
-      syncCaret(next, nextCaret)
-    },
-    onSelect: (event: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const el = event.currentTarget
-      syncCaret(el.value, el.selectionStart ?? el.value.length)
-    },
-    onFocus: () => {
-      openRef.current = Boolean(activeMentionQuery(value, caret))
-      setOpen(openRef.current)
-    },
-    onKeyDown: (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      if (event.key === 'Escape' && openRef.current) {
-        event.preventDefault()
-        openRef.current = false
-        setOpen(false)
-      }
-    },
-  }
-
-  return (
-    <div className="social-mention-wrap">
-      {multiline ? (
-        <textarea {...shared} className={className} />
-      ) : (
-        <input {...shared} className={className} />
-      )}
-      {open && suggestions && suggestions.length > 0 && (
-        <div className="social-mention-menu" role="listbox" aria-label="Mention suggestions">
-          {suggestions.map((suggestion) => (
-            <button
-              key={suggestion.userId}
-              type="button"
-              role="option"
-              className="social-mention-option"
-              onClick={() => insertMention(suggestion.username)}
-            >
-              <span className="avatar" aria-hidden="true"><User aria-hidden="true" /></span>
-              <span className="social-mention-option-copy">
-                <strong>{suggestion.displayName}</strong>
-                <small>@{suggestion.username}</small>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-
 
 function formatTime(timestamp: number) {
   return new Date(timestamp).toLocaleString(undefined, {
