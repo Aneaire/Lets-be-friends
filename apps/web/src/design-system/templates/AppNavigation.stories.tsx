@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { Bell, CalendarCheck, Compass, House, MessageCircle, User, UserRound } from 'lucide-react'
+import { BadgeCheck, Bell, CalendarCheck, Compass, House, MessageCircle, User, UserRound } from 'lucide-react'
 import { expect, within } from 'storybook/test'
 
 import { BrandLogo } from '../atoms/BrandLogo'
@@ -10,7 +10,7 @@ import { BrandLogo } from '../atoms/BrandLogo'
 // contract can still be verified in a real browser. That matters here because
 // the header copy of Messages and Bookings is hidden by a media query whose
 // outcome depends on the cascade layer, not on the markup.
-function ShellChrome() {
+function ShellChrome({ verified = false }: { verified?: boolean }) {
   return (
     <div className="app-frame web-app-shell">
       <header className="app-header" data-member="true">
@@ -38,7 +38,16 @@ function ShellChrome() {
             </div>
             <div className="account-navigation">
               <button type="button" className="account-menu-trigger" aria-label="Open account navigation">
-                <span className="account-avatar" aria-hidden="true"><User aria-hidden="true" /></span>
+                {/* Mirrors AccountAvatar, including the verified badge on the header photo. */}
+                <span className="account-avatar" data-verified={verified ? 'true' : undefined}>
+                  <span className="account-avatar-photo" aria-hidden="true"><User aria-hidden="true" /></span>
+                  {verified && (
+                    <span className="account-avatar-badge">
+                      <BadgeCheck aria-hidden="true" />
+                      <span className="sr-only">Identity and Companion profile verified</span>
+                    </span>
+                  )}
+                </span>
               </button>
             </div>
           </div>
@@ -95,6 +104,19 @@ export const DesktopHeader: Story = {
     // The rail owns desktop navigation, so the bottom tabs stay out of the way.
     expect(displayOf(canvasElement, '.header-primary-actions')).toBe('flex')
     expect(displayOf(canvasElement, '.mobile-primary-nav')).toBe('none')
+  },
+}
+
+export const VerifiedHeader: Story = {
+  render: () => <ShellChrome verified />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // The badge marks the account photo in the header and carries a screen
+    // reader label, so the state is not color-and-icon only.
+    const badge = canvasElement.querySelector('.account-avatar[data-verified="true"] .account-avatar-badge')
+    if (!badge) throw new Error('Missing the verified badge on the header account photo')
+    await expect(badge).toBeVisible()
+    await expect(canvas.getByText('Identity and Companion profile verified')).toBeInTheDocument()
   },
 }
 

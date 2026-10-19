@@ -11,10 +11,12 @@ export type NotificationDestination =
 
 export function webDestination(destination: NotificationDestination) {
   switch (destination.type) {
+    // Both perspectives use the home workspace: it owns the booking details
+    // dialog and lists the Companion side under "Bookings as Companion".
+    // Sending Companions to the Companion tools page dropped the details dialog
+    // on top of a profile editor they did not ask for.
     case 'booking':
-      return destination.audience === 'companion'
-        ? { to: '/companion' as const, search: { bookingId: destination.bookingId } }
-        : { to: '/app' as const, search: { bookingId: destination.bookingId } }
+      return { to: '/app' as const, search: { bookingId: destination.bookingId } }
     case 'conversation': return { to: '/messages' as const, search: { conversationId: destination.conversationId, ...(destination.messageId ? { messageId: destination.messageId } : {}) } }
     case 'post': return { to: '/social' as const, search: { postId: destination.postId, ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
     case 'circle': return { to: '/circles/$circleId' as const, params: { circleId: destination.circleId }, search: { ...(destination.postId ? { postId: destination.postId } : {}), ...(destination.commentId ? { commentId: destination.commentId } : {}) } }

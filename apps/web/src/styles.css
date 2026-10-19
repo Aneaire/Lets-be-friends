@@ -6069,7 +6069,6 @@ textarea.field {
   justify-content: center;
   width: 1.75rem;
   height: 1.75rem;
-  overflow: hidden;
   border-radius: 999px;
   background: var(--surface-sunk);
   color: var(--text);
@@ -6081,17 +6080,41 @@ textarea.field {
   flex: 0 0 auto;
 }
 
+/* The photo clips itself so the verified badge can sit on the rim of the
+   avatar instead of being cut off with it. */
+.account-avatar-photo {
+  display: inline-grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
 .account-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.account-avatar span {
+.account-avatar-badge {
+  position: absolute;
+  right: -6%;
+  bottom: -6%;
   display: inline-grid;
   place-items: center;
-  width: 100%;
-  height: 100%;
+  width: 46%;
+  height: 46%;
+  border-radius: 999px;
+  background: var(--accent-self-control);
+  color: var(--accent-control-foreground);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.account-avatar .account-avatar-badge svg {
+  width: 68%;
+  height: 68%;
+  stroke-width: 3;
 }
 
 .account-avatar-lg {

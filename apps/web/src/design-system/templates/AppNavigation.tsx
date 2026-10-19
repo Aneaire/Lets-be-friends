@@ -25,7 +25,7 @@ import type React from 'react'
 import { api } from '../../../convex/_generated/api'
 import { findCompanions } from '../../lib/discoverySearch'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../../lib/memberVerification'
-import { companionSetupState, verificationNudge } from '../../lib/verificationNudge'
+import { companionSetupState, fullyVerifiedAccount, verificationNudge } from '../../lib/verificationNudge'
 import { activePrimaryNavigation, headerNavigation, mobileNavigation, primaryNavigation, sidebarNavigation } from '../../lib/navigation'
 import { formatNotificationTime, webDestination, type NotificationDestination } from '../../lib/notifications'
 import { BrandLogo } from '../atoms/BrandLogo'
@@ -461,7 +461,7 @@ function NavigationIcon({ id }: { id: ReturnType<typeof activePrimaryNavigation>
   return <UserRoundCog size={20} aria-hidden="true" />
 }
 
-function AccountNavigation({
+export function AccountNavigation({
   open,
   onOpen,
   onClose,
@@ -489,9 +489,14 @@ function AccountNavigation({
       latestVerification,
     )
     : null
-  const nudge = viewer === undefined || application === undefined
-    ? { highlight: false, label: 'Verified' }
-    : verificationNudge(verification, companionSetupState(application?.status))
+  // Undefined queries are still loading, so the header holds the neutral state
+  // instead of flashing the verified badge before the account is known.
+  const accountLoaded = viewer !== undefined && application !== undefined
+  const companionState = companionSetupState(application?.status)
+  const nudge = accountLoaded
+    ? verificationNudge(verification, companionState)
+    : { highlight: false, label: 'Verified' }
+  const fullyVerified = accountLoaded && fullyVerifiedAccount(verification, companionState)
 
   return (
     <div className="account-navigation" ref={rootRef}>
@@ -503,7 +508,7 @@ function AccountNavigation({
         aria-controls="account-navigation-panel"
         onClick={(event) => open ? onClose() : onOpen(event.currentTarget)}
       >
-        <AccountAvatar imageUrl={imageUrl} />
+        <AccountAvatar imageUrl={imageUrl} verified={fullyVerified} />
       </button>
 
       {open && (
@@ -527,7 +532,7 @@ function AccountNavigation({
               </button>
             </div>
             <div className="account-menu-identity">
-              <AccountAvatar imageUrl={imageUrl} size="lg" />
+              <AccountAvatar imageUrl={imageUrl} size="lg" verified={fullyVerified} />
               <span className="min-w-0">
                 <span className="account-menu-name">{displayName}</span>
                 {email && <span className="account-menu-email">{email}</span>}
@@ -535,14 +540,16 @@ function AccountNavigation({
             </div>
 
             <div className="account-menu-group">
-              <AccountLink
-                to="/get-verified"
-                icon={<BadgeCheck size={17} />}
-                onSelect={() => onClose(false)}
-                nudge={nudge.highlight
-                  ? <span className="status-pill" data-tone="warning" style={{ marginLeft: 'auto' }}>{nudge.label}</span>
-                  : undefined}
-              >Get verified</AccountLink>
+              {!fullyVerified && (
+                <AccountLink
+                  to="/get-verified"
+                  icon={<BadgeCheck size={17} />}
+                  onSelect={() => onClose(false)}
+                  nudge={nudge.highlight
+                    ? <span className="status-pill" data-tone="warning" style={{ marginLeft: 'auto' }}>{nudge.label}</span>
+                    : undefined}
+                >Get verified</AccountLink>
+              )}
               <AccountLink to="/profile" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Edit profile</AccountLink>
               {publicProfileSearch ? (
                 <AccountLink to="/companion-profile" search={publicProfileSearch} icon={<UserRound size={17} />} onSelect={() => onClose(false)}>
@@ -581,13 +588,28 @@ function AccountNavigation({
 export function AccountAvatar({
   imageUrl,
   size = 'default',
+  verified = false,
 }: {
   imageUrl?: string
   size?: 'default' | 'lg'
+  // Fully verified members carry a blue check on the header photo only. The
+  // badge rides outside the photo so it stays legible at the smallest size.
+  verified?: boolean
 }) {
   return (
-    <span className={size === 'lg' ? 'account-avatar account-avatar-lg' : 'account-avatar'} aria-hidden="true">
-      {imageUrl ? <img src={imageUrl} alt="" /> : <User aria-hidden="true" />}
+    <span
+      className={size === 'lg' ? 'account-avatar account-avatar-lg' : 'account-avatar'}
+      data-verified={verified ? 'true' : undefined}
+    >
+      <span className="account-avatar-photo" aria-hidden="true">
+        {imageUrl ? <img src={imageUrl} alt="" /> : <User aria-hidden="true" />}
+      </span>
+      {verified && (
+        <span className="account-avatar-badge">
+          <BadgeCheck aria-hidden="true" />
+          <span className="sr-only">Identity and Companion profile verified</span>
+        </span>
+      )}
     </span>
   )
 }

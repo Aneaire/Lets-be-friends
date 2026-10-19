@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { createRef, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const navigationMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   query: vi.fn(),
   mutation: vi.fn(),
+  signOut: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -35,7 +36,12 @@ vi.mock('convex/react', () => ({
   useMutation: (...args: unknown[]) => navigationMocks.mutation(...args),
 }))
 
-import { AccountAvatar, DesktopPrimaryNavigation, HeaderPrimaryActions, HeaderSearch, MobilePrimaryNavigation, NotificationNavigation, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
+vi.mock('@clerk/react', () => ({
+  useClerk: () => ({ signOut: navigationMocks.signOut }),
+  useUser: () => ({ user: { fullName: 'Gelo Santiago', username: 'gelo' } }),
+}))
+
+import { AccountAvatar, AccountNavigation, DesktopPrimaryNavigation, HeaderPrimaryActions, HeaderSearch, MobilePrimaryNavigation, NotificationNavigation, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
 
 afterEach(() => {
   cleanup()
@@ -76,6 +82,69 @@ describe('account avatar', () => {
     const { container } = render(<AccountAvatar imageUrl="/member-photo.jpg" />)
 
     expect(container.querySelector('.account-avatar img')?.getAttribute('src')).toBe('/member-photo.jpg')
+  })
+})
+
+describe('account navigation verification', () => {
+  const verifiedViewer = {
+    _id: 'user-1',
+    displayName: 'Gelo Santiago',
+    profileImageUrl: '/gelo.jpg',
+    verificationStatus: 'approved',
+    identityEligible: true,
+  }
+  const savedCompanionProfile = { _id: 'companion-1', status: 'approved' }
+
+  function renderAccountNavigation({ viewer, application, latestVerification }: { viewer?: unknown; application?: unknown; latestVerification?: unknown }) {
+    // AccountNavigation reads viewer, myApplication, then the latest identity
+    // attempt, in that order.
+    const values = [viewer, application, latestVerification]
+    let index = 0
+    navigationMocks.query.mockImplementation(() => values[index++ % values.length])
+    return render(
+      <AccountNavigation
+        open
+        onOpen={vi.fn()}
+        onClose={vi.fn()}
+        rootRef={createRef<HTMLDivElement>()}
+        panelRef={createRef<HTMLElement>()}
+      />,
+    )
+  }
+
+  it('drops Get verified and badges the header photo once identity and the Companion profile are complete', () => {
+    const { container } = renderAccountNavigation({
+      viewer: verifiedViewer,
+      application: savedCompanionProfile,
+      latestVerification: null,
+    })
+
+    expect(screen.queryByRole('link', { name: /Get verified/ })).toBeNull()
+    // The badge marks both the header trigger photo and the photo in the card.
+    expect(container.querySelectorAll('.account-avatar[data-verified="true"]')).toHaveLength(2)
+    expect(container.querySelectorAll('.account-avatar-badge')).toHaveLength(2)
+    expect(screen.getAllByText('Identity and Companion profile verified')).toHaveLength(2)
+  })
+
+  it('keeps Get verified with its identity nudge while the checks are incomplete', () => {
+    const { container } = renderAccountNavigation({
+      viewer: { ...verifiedViewer, verificationStatus: 'not_started', identityEligible: false },
+      application: savedCompanionProfile,
+      latestVerification: null,
+    })
+
+    expect(screen.getByRole('link', { name: /Get verified/ })).toBeTruthy()
+    expect(screen.getByText('Verify identity')).toBeTruthy()
+    expect(container.querySelector('.account-avatar-badge')).toBeNull()
+  })
+
+  it('holds the neutral state and never flashes the badge while the account queries load', () => {
+    const { container } = renderAccountNavigation({})
+
+    expect(screen.getByRole('link', { name: /Get verified/ })).toBeTruthy()
+    expect(screen.queryByText('Verify identity')).toBeNull()
+    expect(screen.queryByText('Verified')).toBeNull()
+    expect(container.querySelector('.account-avatar-badge')).toBeNull()
   })
 })
 

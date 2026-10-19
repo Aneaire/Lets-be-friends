@@ -6,8 +6,6 @@ describe('web notification helpers', () => {
     expect(webDestination({ type: 'post', postId: 'post-1' })).toEqual({ to: '/social', search: { postId: 'post-1' } })
     expect(webDestination({ type: 'post', postId: 'post-1', commentId: 'comment-1' })).toEqual({ to: '/social', search: { postId: 'post-1', commentId: 'comment-1' } })
     expect(webDestination({ type: 'conversation', conversationId: 'conversation-1', messageId: 'message-1' })).toEqual({ to: '/messages', search: { conversationId: 'conversation-1', messageId: 'message-1' } })
-    expect(webDestination({ type: 'booking', audience: 'companion', bookingId: 'booking-1' })).toEqual({ to: '/companion', search: { bookingId: 'booking-1' } })
-    expect(webDestination({ type: 'booking', audience: 'member', bookingId: 'booking-2' })).toEqual({ to: '/app', search: { bookingId: 'booking-2' } })
     expect(webDestination({ type: 'companion' })).toEqual({ to: '/companion', search: {} })
     expect(webDestination({ type: 'identity', outcome: 'verified' })).toEqual({ to: '/verified', search: {} })
     expect(webDestination({ type: 'identity', outcome: 'status' })).toEqual({ to: '/profile', search: {} })
@@ -17,6 +15,14 @@ describe('web notification helpers', () => {
       params: { circleId: 'circle-1' },
       search: { postId: 'post-2', commentId: 'comment-2' },
     })
+  })
+
+  it('opens booking notifications on the home workspace for both perspectives', () => {
+    // A Companion used to land on the Companion tools page, which dropped the
+    // booking details dialog on top of a profile editor. The home workspace owns
+    // that dialog and also lists the Companion side under Bookings as Companion.
+    expect(webDestination({ type: 'booking', audience: 'companion', bookingId: 'booking-1' })).toEqual({ to: '/app', search: { bookingId: 'booking-1' } })
+    expect(webDestination({ type: 'booking', audience: 'member', bookingId: 'booking-2' })).toEqual({ to: '/app', search: { bookingId: 'booking-2' } })
   })
 
   it('groups attention, new, and earlier items consistently', () => {

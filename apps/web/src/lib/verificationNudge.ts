@@ -24,6 +24,17 @@ export function verificationNudge(
   return { highlight: false, label: 'Verified' }
 }
 
+// The account header shows the verified badge and drops the Get verified link
+// only when the member has cleared both steps: the approved identity check and a
+// saved Companion profile. That is exactly the point where the nudge goes quiet,
+// so the badge and the Get verified link never disagree.
+export function fullyVerifiedAccount(
+  identity: Pick<MemberVerificationPresentation, 'state'> | null | undefined,
+  companion: CompanionSetupState | null | undefined,
+): boolean {
+  return verificationNudge(identity, companion).highlight === false
+}
+
 export function companionSetupState(status: string | null | undefined): CompanionSetupState {
   if (status === 'approved' || status === 'pending_review' || status === 'rejected' || status === 'suspended' || status === 'draft') {
     return status

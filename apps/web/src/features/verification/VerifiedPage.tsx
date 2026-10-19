@@ -80,9 +80,6 @@ export function VerifiedCelebration() {
           <p className="lede">
             Your identity check passed safety review. You can now explore people, send your first booking request, and share your own Strengths as a Companion.
           </p>
-          <p className="verified-hero-note">
-            Nothing from your identity check appears on your public profile. Only the safety team can see your ID and selfie.
-          </p>
         </div>
       </header>
 
