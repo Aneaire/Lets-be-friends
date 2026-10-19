@@ -48,6 +48,19 @@ export const RatingOnly: Story = {
   },
 }
 
+export const SinglePhoto: Story = {
+  args: {
+    rating: 5,
+    body: 'The photo speaks for itself.',
+    photos: [{ key: 'one', url: 'https://placehold.co/800x500/png', name: 'walk-1.png' }],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('Selected photos').getAttribute('data-count')).toBe('1')
+    await expect(canvas.getByText('Add more photos')).toBeVisible()
+  },
+}
+
 export const WrittenWithPhotos: Story = {
   args: {
     rating: 4,

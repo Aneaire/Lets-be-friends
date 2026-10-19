@@ -8613,6 +8613,17 @@ textarea.field {
   object-fit: cover;
 }
 
+/* One photo is the whole card, the way the feed shows a single review photo.
+   Two or more fall into the square grid the published card uses. */
+.review-editor-photos[data-count="1"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.review-editor-photos[data-count="1"] .review-editor-photo img {
+  aspect-ratio: 16 / 10;
+  max-height: min(34rem, 68vh);
+}
+
 .review-photo-thumb-remove {
   position: absolute;
   top: 0.4rem;
@@ -8661,9 +8672,12 @@ textarea.field {
 /* The feed sizes review photos through the lightbox button wrapper; the
    preview shows the same image treatment without a viewer. */
 .social-review-image-plain {
-  width: 100%;
   display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  max-height: min(34rem, 68vh);
   border-radius: 8px;
+  object-fit: cover;
 }
 
 @media (max-width: 640px) {
@@ -15746,9 +15760,13 @@ textarea.field {
   object-fit: cover;
 }
 .social-review-image-open img {
-  width: 100%;
   display: block;
+  width: 100%;
+  /* A single review photo fills the card the way a single post photo does. */
+  aspect-ratio: 16 / 10;
+  max-height: min(34rem, 68vh);
   border-radius: 8px;
+  object-fit: cover;
 }
 
 @media (max-width: 820px) {

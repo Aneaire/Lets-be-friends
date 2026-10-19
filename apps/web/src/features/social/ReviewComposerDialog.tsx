@@ -120,7 +120,11 @@ export function ReviewComposerView({
         </label>
 
         {photos.length > 0 && (
-          <ul className="social-review-image-grid review-editor-photos" aria-label="Selected photos">
+          <ul
+            className="social-review-image-grid review-editor-photos"
+            data-count={Math.min(photos.length, 4)}
+            aria-label="Selected photos"
+          >
             {photos.map((photo, index) => (
               <li key={photo.key} className="review-editor-photo">
                 <img src={photo.url} alt={`Selected photo ${index + 1}: ${photo.name}`} />

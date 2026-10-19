@@ -110,6 +110,17 @@ describe('ReviewComposerDialog', () => {
     expect(mocks.registerUpload).toHaveBeenCalledTimes(2)
   })
 
+  it('gives a single photo the width of the card and grids several', () => {
+    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:draft'), revokeObjectURL: vi.fn() })
+    renderComposer()
+
+    choosePhotos([photoFile('one.png')])
+    expect(screen.getByLabelText('Selected photos').getAttribute('data-count')).toBe('1')
+
+    choosePhotos([photoFile('two.png'), photoFile('three.png')])
+    expect(screen.getByLabelText('Selected photos').getAttribute('data-count')).toBe('3')
+  })
+
   it('removes a chosen photo and rejects unsupported files', () => {
     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:draft'), revokeObjectURL: vi.fn() })
     renderComposer()
