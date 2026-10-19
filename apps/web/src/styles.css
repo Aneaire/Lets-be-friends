@@ -8462,75 +8462,203 @@ textarea.field {
   padding-top: 1rem;
 }
 
-.review-form {
-  display: flex;
+/* Review composer: the booking rows only offer the entry point, so these
+   styles cover the dialog that writes the review. */
+.review-star-picker {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.review-star-picker-row {
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  gap: 0.1rem;
 }
 
-.review-form-rating {
-  width: 7.25rem;
+.review-star-picker-star {
+  display: inline-grid;
+  place-items: center;
+  padding: 0.2rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--border-strong);
+  cursor: pointer;
+  transition: color 120ms ease, transform 120ms ease;
 }
 
-.review-form-note {
-  min-width: min(100%, 15rem);
-  flex: 1 1 15rem;
+.review-star-picker-star[data-filled] {
+  color: var(--warning);
 }
 
-.review-photo-button {
+.review-star-picker-star:hover:not(:disabled) {
+  color: var(--warning);
+  transform: translateY(-1px);
+}
+
+.review-star-picker-star:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.review-star-picker-star:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.review-star-picker-value {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.review-composer {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.review-composer-form {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.review-composer-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.review-composer-label {
+  color: var(--text-soft);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.review-composer-note {
+  resize: vertical;
+}
+
+.review-composer-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.review-drop-zone {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 0.85rem;
+  background: var(--surface-subtle);
+  padding: 0.9rem;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.review-drop-zone[data-dragging] {
+  border-color: var(--accent-social);
+  background: var(--accent-social-soft);
+}
+
+.review-drop-zone[data-disabled] {
+  opacity: 0.6;
+}
+
+.review-drop-zone-target {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  padding: 0.6rem;
+  color: var(--text-muted);
+  text-align: center;
   cursor: pointer;
 }
 
-.review-photo-selection {
-  display: inline-flex;
-  max-width: 15rem;
-  align-items: center;
-  gap: 0.35rem;
-  color: var(--text-muted);
-  font-size: 0.75rem;
+.review-drop-zone-title {
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 650;
 }
 
-.review-photo-selection > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.review-photo-selection button {
-  display: inline-grid;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.review-form-error {
-  width: 100%;
-  color: var(--danger);
-  font-size: 0.78rem;
-}
-
-/* The review preview shows the feed card at the width members see it, so the
-   card does not wrap differently from the timeline. */
-.review-preview {
+.review-drop-zone-thumbs {
   display: grid;
-  gap: 0.75rem;
-  justify-items: center;
-}
-
-.review-preview .ds-post-card {
-  width: 100%;
-  max-width: 43rem;
-}
-
-.review-preview-note {
-  max-width: 43rem;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: 0.5rem;
   margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review-photo-thumb {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 0.6rem;
+  background: var(--surface);
+}
+
+.review-photo-thumb img {
+  display: block;
+  width: 100%;
+  height: 5.5rem;
+  object-fit: cover;
+}
+
+.review-photo-thumb-remove {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
   color: var(--text-muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
+}
+
+.review-photo-thumb-remove:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+@media (min-width: 900px) {
+  .review-composer[data-has-preview] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+    align-items: start;
+  }
+}
+
+.review-composer-preview {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.review-composer-preview .ds-post-card {
+  width: 100%;
+}
+
+.social-review-image-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.social-review-image-grid > * {
+  width: 100%;
+}
+
+.social-review-image-grid img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  object-fit: cover;
 }
 
 /* The feed sizes review photos through the lightbox button wrapper; the

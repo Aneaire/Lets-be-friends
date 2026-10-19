@@ -1,7 +1,7 @@
 import { mutation, query } from './_generated/server'
 import { ConvexError, v } from 'convex/values'
 import { bookingStatusAfterReview, canReviewBooking, isModerationVisible } from '@lets-be-friends/shared'
-import type { Doc } from './_generated/dataModel'
+import type { Doc, Id } from './_generated/dataModel'
 import { adjustCounter } from './counters'
 import { requireViewer, writeAudit } from './lib'
 import { createNotification } from './notifications'
@@ -9,7 +9,8 @@ import { consumeRateLimit } from './rateLimit'
 import { requireNotBlocked } from './safety'
 
 const MAX_REVIEW_IMAGE_SIZE = 10 * 1024 * 1024
-const MAX_REVIEW_UPLOADS_PER_DAY = 5
+const MAX_REVIEW_IMAGES = 4
+const MAX_REVIEW_UPLOADS_PER_DAY = 12
 const REVIEW_UPLOAD_WINDOW_MS = 24 * 60 * 60 * 1_000
 const MAX_REVIEW_COMMENTS = 20
 
@@ -47,12 +48,18 @@ export async function enrichReview(
 ) {
   const includeComments = options.includeComments ?? false
   const reviewer = await ctx.db.get(review.reviewerId)
-  const [likedReaction, savedRow, imageUrl, reviewerProfileImageUrl] = await Promise.all([
+  const storageIds = review.imageStorageIds?.length
+    ? review.imageStorageIds
+    : review.imageStorageId
+      ? [review.imageStorageId]
+      : []
+  const [likedReaction, savedRow, imageUrls, reviewerProfileImageUrl] = await Promise.all([
     viewer ? ctx.db.query('reviewReactions').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('reviewId', review._id)).first() : null,
     viewer ? ctx.db.query('savedReviews').withIndex('by_pair', (q: any) => q.eq('userId', viewer._id).eq('reviewId', review._id)).first() : null,
-    review.imageStorageId ? ctx.storage.getUrl(review.imageStorageId) : null,
+    Promise.all(storageIds.map((storageId) => ctx.storage.getUrl(storageId))),
     reviewer ? profileImageUrl(ctx, reviewer) : undefined,
   ])
+  const images = imageUrls.filter((url: string | null): url is string => Boolean(url))
   // Take the newest 20, then render that bounded set chronologically so a
   // freshly submitted comment is never hidden behind older ones.
   let visibleComments: Doc<'reviewComments'>[] = []
@@ -62,7 +69,8 @@ export async function enrichReview(
   }
   return {
     ...review,
-    imageUrl,
+    imageUrl: images[0] ?? null,
+    imageUrls: images,
     reviewerDisplayName: reviewer ? fullName(reviewer) : 'Member',
     reviewerProfileImageUrl,
     likeCount: review.likeCount ?? 0,
@@ -210,7 +218,13 @@ export const deleteComment = mutation({
 })
 
 export const submit = mutation({
-  args: { bookingId: v.id('bookings'), rating: v.number(), body: v.optional(v.string()), imageUploadId: v.optional(v.id('reviewMediaUploads')) },
+  args: {
+    bookingId: v.id('bookings'),
+    rating: v.number(),
+    body: v.optional(v.string()),
+    imageUploadId: v.optional(v.id('reviewMediaUploads')),
+    imageUploadIds: v.optional(v.array(v.id('reviewMediaUploads'))),
+  },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     if (args.rating < 1 || args.rating > 5) throw new ConvexError('Rating must be between 1 and 5')
@@ -228,13 +242,37 @@ export const submit = mutation({
     const otherReview = await ctx.db.query('reviews').withIndex('by_booking_reviewer', (q) => q.eq('bookingId', args.bookingId).eq('reviewerId', otherParticipantId)).first()
     const body = args.body?.trim() || undefined
     if (body && body.length > 1000) throw new ConvexError('Review is too long')
-    const upload = args.imageUploadId ? await ctx.db.get(args.imageUploadId) : null
-    if (args.imageUploadId && (!upload || upload.userId !== viewer._id || !upload.storageId || !upload.registeredAt || upload.reviewId || upload.discardedAt)) {
-      throw new ConvexError('Review photo upload is not ready')
+    // The single-image argument stays for mobile; the array serves the web
+    // composer, which can attach several photos.
+    const requestedUploadIds = [...(args.imageUploadIds ?? [])]
+    if (args.imageUploadId) requestedUploadIds.push(args.imageUploadId)
+    const uniqueUploadIds = [...new Set(requestedUploadIds)]
+    if (uniqueUploadIds.length > MAX_REVIEW_IMAGES) {
+      throw new ConvexError(`Reviews can include up to ${MAX_REVIEW_IMAGES} photos`)
     }
+    const uploads = await Promise.all(uniqueUploadIds.map(async (uploadId) => {
+      const upload = await ctx.db.get(uploadId)
+      if (!upload || upload.userId !== viewer._id || !upload.storageId || !upload.registeredAt || upload.reviewId || upload.discardedAt) {
+        throw new ConvexError('Review photo upload is not ready')
+      }
+      return upload
+    }))
+    const imageStorageIds = uploads.map((upload) => upload.storageId as Id<'_storage'>)
     const now = Date.now()
-    const reviewId = await ctx.db.insert('reviews', { bookingId: args.bookingId, reviewerId: viewer._id, revieweeId: otherParticipantId, companionProfileId: isMember ? booking.companionProfileId : undefined, rating: args.rating, body, imageStorageId: upload?.storageId, likeCount: 0, commentCount: 0, createdAt: now })
-    if (upload) await ctx.db.patch(upload._id, { reviewId })
+    const reviewId = await ctx.db.insert('reviews', {
+      bookingId: args.bookingId,
+      reviewerId: viewer._id,
+      revieweeId: otherParticipantId,
+      companionProfileId: isMember ? booking.companionProfileId : undefined,
+      rating: args.rating,
+      body,
+      imageStorageId: imageStorageIds[0],
+      imageStorageIds: imageStorageIds.length > 0 ? imageStorageIds : undefined,
+      likeCount: 0,
+      commentCount: 0,
+      createdAt: now,
+    })
+    for (const upload of uploads) await ctx.db.patch(upload._id, { reviewId })
     if (isMember) {
       const nextCount = companion.reviewCount + 1
       const nextRating = (companion.rating * companion.reviewCount + args.rating) / nextCount

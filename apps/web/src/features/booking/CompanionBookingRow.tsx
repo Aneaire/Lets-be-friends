@@ -138,7 +138,7 @@ type CompanionBookingRowProps = {
   onDecline: () => Promise<void>
   onCancel: () => Promise<void>
   onComplete: () => Promise<void>
-  onReview: (rating: number, body?: string, imageUploadId?: Id<'reviewMediaUploads'>) => Promise<void>
+  onReview: (rating: number, body: string | undefined, imageUploadIds: Id<'reviewMediaUploads'>[]) => Promise<void>
   onReport: () => Promise<void>
 }
 

@@ -3,7 +3,13 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { ReviewPreviewDialog, ReviewPostPreview } from '../../src/features/social/ReviewPreviewDialog'
+vi.mock('convex/react', () => ({
+  useQuery: () => ({ displayName: 'Robin Lee', profileImageUrl: null }),
+  useMutation: () => vi.fn(),
+  useAction: () => vi.fn(),
+}))
+
+import { ReviewPostPreview } from '../../src/features/social/ReviewPostCard'
 
 afterEach(cleanup)
 
@@ -40,51 +46,29 @@ describe('ReviewPostPreview', () => {
     expect(screen.getByRole('button', { name: 'Share post' })).toBeTruthy()
   })
 
-  it('previews the selected photo inside the card', () => {
-    render(
+  it('grids several photos and keeps one photo full width', () => {
+    const { container, rerender } = render(
       <ReviewPostPreview
         authorName="Robin Lee"
         companionName="Jordan Companion"
         rating={5}
-        imageUrl="blob:preview"
+        imageUrls={['blob:one', 'blob:two', 'blob:three']}
       />,
     )
 
-    expect(screen.getByAltText("Photo shared with Robin Lee's review")).toBeTruthy()
-  })
-})
+    expect(container.querySelector('.social-review-image-grid')).toBeTruthy()
+    expect(screen.getAllByAltText("Photo shared with Robin Lee's review")).toHaveLength(3)
 
-describe('ReviewPreviewDialog', () => {
-  it('frames the preview and explains which reviews reach the feed', () => {
-    render(
-      <ReviewPreviewDialog
-        open
-        onClose={vi.fn()}
+    rerender(
+      <ReviewPostPreview
         authorName="Robin Lee"
         companionName="Jordan Companion"
         rating={5}
-        body="An easy conversation."
+        imageUrls={['blob:one']}
       />,
     )
 
-    expect(screen.getByRole('dialog', { name: 'How your review will look' })).toBeTruthy()
-    expect(screen.getByText(/Published reviews appear in the feed like this/)).toBeTruthy()
-    expect(screen.getByText(/A star rating on its own stays on/)).toBeTruthy()
-    expect(screen.getByRole('article', { name: 'Review preview' })).toBeTruthy()
-    expect(screen.getByText('An easy conversation.')).toBeTruthy()
-  })
-
-  it('renders nothing while closed', () => {
-    render(
-      <ReviewPreviewDialog
-        open={false}
-        onClose={vi.fn()}
-        authorName="Robin Lee"
-        companionName="Jordan Companion"
-        rating={5}
-      />,
-    )
-
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(container.querySelector('.social-review-image-grid')).toBeNull()
+    expect(screen.getAllByAltText("Photo shared with Robin Lee's review")).toHaveLength(1)
   })
 })

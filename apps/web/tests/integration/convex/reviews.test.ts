@@ -151,6 +151,71 @@ describe('review submission', () => {
     expect(reviews[0].imageUrl).toContain('http')
   })
 
+  it('stores every registered photo and enriches them all for the feed', async () => {
+    const t = createTest()
+    const { bookingId, companionProfileId } = await seedReviewableBooking(t)
+    const member = t.withIdentity({ subject: 'review-member' })
+
+    const storageIds: any[] = []
+    const uploadIds = []
+    for (const label of ['one', 'two', 'three']) {
+      const grant = await member.mutation(api.reviews.generateImageUploadUrl, {})
+      const storageId = await t.run(async (ctx) => {
+        const id = await ctx.storage.store(new Blob([label], { type: 'image/png' }))
+        await (ctx.db as any).patch(id, { contentType: 'image/png' })
+        return id
+      })
+      storageIds.push(storageId)
+      await member.mutation(api.reviews.registerImageUpload, { uploadId: grant.uploadId, storageId })
+      uploadIds.push(grant.uploadId)
+    }
+
+    await member.mutation(api.reviews.submit, {
+      bookingId,
+      rating: 5,
+      body: 'Three photos from the walk.',
+      imageUploadIds: uploadIds,
+    })
+
+    const reviews = await t.query(api.reviews.forCompanion, { companionProfileId })
+    expect(reviews).toHaveLength(1)
+    expect(reviews[0].imageStorageIds).toEqual(storageIds)
+    // The first photo also fills the single-image fields older readers use.
+    expect(reviews[0].imageStorageId).toBe(storageIds[0])
+    expect(reviews[0].imageUrls).toHaveLength(3)
+    expect(reviews[0].imageUrl).toBe(reviews[0].imageUrls[0])
+
+    const uploads = await t.run(async (ctx) => ctx.db.query('reviewMediaUploads').collect())
+    expect(uploads.every((upload) => upload.reviewId)).toBe(true)
+  })
+
+  it('rejects more than four photos and photo uploads a member does not own', async () => {
+    const t = createTest()
+    const { bookingId } = await seedReviewableBooking(t)
+    const member = t.withIdentity({ subject: 'review-member' })
+
+    const uploadIds = []
+    for (let index = 0; index < 5; index += 1) {
+      const grant = await member.mutation(api.reviews.generateImageUploadUrl, {})
+      const storageId = await t.run(async (ctx) => {
+        const id = await ctx.storage.store(new Blob([`photo-${index}`], { type: 'image/png' }))
+        await (ctx.db as any).patch(id, { contentType: 'image/png' })
+        return id
+      })
+      await member.mutation(api.reviews.registerImageUpload, { uploadId: grant.uploadId, storageId })
+      uploadIds.push(grant.uploadId)
+    }
+
+    await expect(member.mutation(api.reviews.submit, {
+      bookingId, rating: 5, imageUploadIds: uploadIds,
+    })).rejects.toThrow('up to 4 photos')
+
+    const outsiderGrant = await t.withIdentity({ subject: 'review-outsider' }).mutation(api.reviews.generateImageUploadUrl, {})
+    await expect(member.mutation(api.reviews.submit, {
+      bookingId, rating: 5, imageUploadIds: [outsiderGrant.uploadId],
+    })).rejects.toThrow('not ready')
+  })
+
   it('lets signed-in members like and comment on visible reviews', async () => {
     const t = createTest()
     const { bookingId, companionProfileId } = await seedReviewableBooking(t)

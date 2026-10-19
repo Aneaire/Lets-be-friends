@@ -80,8 +80,8 @@ function CompanionWorkspacePage() {
           ? 'Completion confirmed. Waiting for the member to confirm separately.'
           : 'Both people confirmed completion. The review window is open and your earnings are in your Companion wallet.')
       }}
-      onReview={async (rating, body, imageUploadId) => {
-        await submitReview({ bookingId: booking._id, rating, body, imageUploadId })
+      onReview={async (rating, body, imageUploadIds) => {
+        await submitReview({ bookingId: booking._id, rating, body, imageUploadIds })
         setNotice('Review submitted.')
       }}
       onReport={async () => {

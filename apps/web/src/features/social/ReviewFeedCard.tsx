@@ -38,7 +38,12 @@ export function ReviewFeedCard({
   onCopied?: () => void
 }) {
   const [shareOpen, setShareOpen] = useState(false)
-  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const reviewImages = review.imageUrls?.length
+    ? review.imageUrls
+    : review.imageUrl
+      ? [review.imageUrl]
+      : []
   const shareUrl = shareTargetUrl({
     kind: 'review',
     companionProfileId: String(review.companionProfileId ?? ''),
@@ -79,9 +84,9 @@ export function ReviewFeedCard({
         <ReviewContent
           rating={review.rating}
           body={review.body}
-          imageUrl={review.imageUrl}
+          imageUrls={reviewImages}
           reviewerDisplayName={review.reviewerDisplayName}
-          onOpenImage={review.imageUrl ? () => setLightboxOpen(true) : undefined}
+          onOpenImage={reviewImages.length > 0 ? (index) => setLightboxIndex(index) : undefined}
         />
         <PostActionBar
           liked={Boolean(review.liked)}
@@ -93,21 +98,23 @@ export function ReviewFeedCard({
           showSave={viewerReady}
           onLike={onLike}
           onToggleComments={() => {
-            if (review.imageUrl) setLightboxOpen(true)
+            if (reviewImages.length > 0) setLightboxIndex(0)
             else onOpen()
           }}
           onSave={onSave}
           onShare={() => setShareOpen(true)}
         />
       </PostCard>
-      {lightboxOpen && review.imageUrl && (
+      {lightboxIndex !== null && reviewImages.length > 0 && (
         <ReviewLightbox
           review={review}
+          images={reviewImages}
+          initialIndex={lightboxIndex}
           viewerReady={viewerReady}
-          onClose={() => setLightboxOpen(false)}
+          onClose={() => setLightboxIndex(null)}
           onLike={onLike}
           onSave={onSave}
-          onOpenFull={() => { setLightboxOpen(false); onOpen() }}
+          onOpenFull={() => { setLightboxIndex(null); onOpen() }}
           onShare={() => setShareOpen(true)}
         />
       )}
@@ -140,6 +147,8 @@ type ReviewLightboxComment = {
 
 function ReviewLightbox({
   review,
+  images,
+  initialIndex,
   viewerReady,
   onClose,
   onLike,
@@ -148,6 +157,8 @@ function ReviewLightbox({
   onShare,
 }: {
   review: FeedReview
+  images: readonly string[]
+  initialIndex: number
   viewerReady: boolean
   onClose: () => void
   onLike: () => void
@@ -174,7 +185,8 @@ function ReviewLightbox({
       open
       onClose={onClose}
       title={`Review by ${review.reviewerDisplayName}`}
-      media={[{ kind: 'image', url: review.imageUrl, alt: `Photo shared with ${review.reviewerDisplayName}'s review` }]}
+      media={images.map((url, index) => ({ kind: 'image' as const, url, alt: images.length > 1 ? `Photo ${index + 1} of ${images.length} shared with ${review.reviewerDisplayName}'s review` : `Photo shared with ${review.reviewerDisplayName}'s review` }))}
+      initialIndex={initialIndex}
       details={(
         <div className="social-lightbox-post">
           <div className="social-lightbox-author">

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 
-import { ReviewPostPreview, ReviewPreviewDialog } from './ReviewPreviewDialog'
+import { ReviewPostPreview } from './ReviewPostCard'
 
 const meta = {
   title: 'Features/Social/Review preview',
@@ -40,14 +40,30 @@ export const RatingOnly: Story = {
   },
 }
 
-export const WithPhoto: Story = {
+export const NoRatingChosen: Story = {
+  args: { rating: 0, body: undefined },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByLabelText('0 out of 5 stars'),
+    ).toBeVisible()
+  },
+}
+
+export const WithPhotos: Story = {
   args: {
     body: undefined,
-    imageUrl: 'https://placehold.co/640x480/png',
+    imageUrls: [
+      'https://placehold.co/400x400/png',
+      'https://placehold.co/400x400/png?text=2',
+      'https://placehold.co/400x400/png?text=3',
+    ],
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByAltText("Photo shared with Robin Lee's review")).toBeVisible()
+    // The remote placeholders may not load in the test browser, so assert the
+    // grid and the photos instead of their painted pixels.
+    await expect(canvasElement.querySelector('.social-review-image-grid')).toBeTruthy()
+    await expect(canvas.getAllByAltText("Photo shared with Robin Lee's review")).toHaveLength(3)
   },
 }
 
@@ -59,27 +75,4 @@ export const NarrowDarkRatingOnly: Story = {
       within(canvasElement).getByText(/Shared an experience with Jordan Companion/),
     ).toBeVisible()
   },
-}
-
-export const InsideTheDialog: Story = {
-  render: () => (
-    <ReviewPreviewDialog
-      open
-      onClose={() => undefined}
-      authorName="Robin Lee"
-      companionName="Jordan Companion"
-      rating={5}
-      body="A thoughtful walk and an easy conversation."
-    />
-  ),
-  play: async () => {
-    const dialog = await within(document.body).findByRole('dialog', { name: 'How your review will look' })
-    await expect(within(dialog).getByRole('article', { name: 'Review preview' })).toBeVisible()
-    await expect(within(dialog).getByText(/Shared an experience with Jordan Companion/)).toBeVisible()
-  },
-}
-
-export const InsideTheDialogLight: Story = {
-  ...InsideTheDialog,
-  globals: { theme: 'light', viewport: { value: 'desktop', isRotated: false } },
 }

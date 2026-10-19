@@ -188,8 +188,8 @@ function AppPage() {
           ? 'Completion confirmed. Waiting for the Companion to confirm separately.'
           : 'Both people confirmed completion. The review window is open.')
       }}
-      onReview={async (rating, body, imageUploadId) => {
-        await submitReview({ bookingId: booking._id, rating, body, imageUploadId })
+      onReview={async (rating, body, imageUploadIds) => {
+        await submitReview({ bookingId: booking._id, rating, body, imageUploadIds })
         setNotice('Review submitted.')
       }}
       onReport={async () => {
@@ -222,8 +222,8 @@ function AppPage() {
           ? 'Completion confirmed. Waiting for the member to confirm separately.'
           : 'Both people confirmed completion. The review window is open and your earnings are in your Companion wallet.')
       }}
-      onReview={async (rating, body, imageUploadId) => {
-        await submitReview({ bookingId: booking._id, rating, body, imageUploadId })
+      onReview={async (rating, body, imageUploadIds) => {
+        await submitReview({ bookingId: booking._id, rating, body, imageUploadIds })
         setNotice('Review submitted.')
       }}
       onReport={async () => {
@@ -543,7 +543,7 @@ function BookingRow({
   booking: Booking
   onCancel: () => Promise<void>
   onComplete: () => Promise<void>
-  onReview: (rating: number, body?: string, imageUploadId?: Id<'reviewMediaUploads'>) => Promise<void>
+  onReview: (rating: number, body: string | undefined, imageUploadIds: Id<'reviewMediaUploads'>[]) => Promise<void>
   onReport: () => Promise<void>
   onEditRequest?: (request: EditableBookingRequest) => void
 }) {

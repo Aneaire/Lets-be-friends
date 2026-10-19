@@ -807,6 +807,9 @@ export default defineSchema({
     rating: v.number(),
     body: v.optional(v.string()),
     imageStorageId: v.optional(v.id('_storage')),
+    // Reviews can carry up to four photos. imageStorageId keeps the first so
+    // older readers and shared embeds still resolve a single image.
+    imageStorageIds: v.optional(v.array(v.id('_storage'))),
     hidden: v.optional(v.boolean()),
     moderatorUserId: v.optional(v.id('users')),
     moderatorNote: v.optional(v.string()),
