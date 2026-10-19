@@ -640,7 +640,12 @@ function BookingRow({
           />
         )}
         {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Companion</span>}
-        {canReview && <ReviewForm onReview={onReview} />}
+        {canReview && (
+          <ReviewForm
+            onReview={onReview}
+            preview={{ companionName: 'companionDisplayName' in booking ? String(booking.companionDisplayName) : 'this Companion' }}
+          />
+        )}
         {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
       </div>
     </article>
