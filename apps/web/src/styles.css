@@ -2930,6 +2930,8 @@ body {
 }
 .ds-dialog[data-size="small"] { width: min(100%, 27rem); }
 .ds-dialog[data-size="large"] { width: min(100%, 48rem); }
+/* The review composer only widens when the live feed card sits beside the form. */
+.ds-dialog.review-composer-dialog[data-size="large"]:has(.review-composer[data-has-preview]) { width: min(100%, 74rem); }
 .ds-dialog-header {
   display: flex;
   align-items: flex-start;
@@ -8625,13 +8627,8 @@ textarea.field {
   color: var(--danger);
 }
 
-@media (min-width: 900px) {
-  .review-composer[data-has-preview] {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
-    align-items: start;
-  }
-}
-
+/* The live card renders at the width the feed uses, and only sits beside the
+   form when there is room for both columns. */
 .review-composer-preview {
   display: grid;
   gap: 0.5rem;
@@ -8640,6 +8637,13 @@ textarea.field {
 
 .review-composer-preview .ds-post-card {
   width: 100%;
+}
+
+@media (min-width: 1100px) {
+  .review-composer[data-has-preview] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 43rem);
+    align-items: start;
+  }
 }
 
 .social-review-image-grid {

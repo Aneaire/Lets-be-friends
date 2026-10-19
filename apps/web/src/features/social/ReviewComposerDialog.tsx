@@ -136,6 +136,7 @@ export function ReviewComposerDialog({
         ? `This is how your review will appear in the feed. A rating on its own stays on ${companionName}'s profile.`
         : 'Your review is shared with the other person once you publish it.'}
       size="large"
+      className="review-composer-dialog"
       busy={busy}
       footer={(
         <>
