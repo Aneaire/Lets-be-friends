@@ -100,6 +100,35 @@ describe('private booking evidence', () => {
     ]))
   })
 
+  it('shows the start and end decision state to both participants without exposing the stored image', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    await uploadImage(t, 'evidence-companion', ids.bookingId)
+    await t.withIdentity({ subject: 'evidence-member' }).mutation(api.bookingEvidence.skip, {
+      bookingId: ids.bookingId, warningAcknowledged: true,
+    })
+
+    const companionView = await t.withIdentity({ subject: 'evidence-companion' }).query(api.bookingEvidence.status, { bookingId: ids.bookingId })
+    expect(companionView).toMatchObject({ role: 'companion_start', decision: 'uploaded', requiredBeforeCompletion: true })
+    expect(companionView.rows).toEqual([
+      { role: 'companion_start', isViewer: true, decision: 'uploaded', decidedAt: expect.any(Number) },
+      { role: 'member_end', isViewer: false, decision: 'skipped', decidedAt: expect.any(Number) },
+    ])
+
+    const memberView = await t.withIdentity({ subject: 'evidence-member' }).query(api.bookingEvidence.status, { bookingId: ids.bookingId })
+    expect(memberView).toMatchObject({ role: 'member_end', decision: 'skipped' })
+    expect(memberView.rows).toEqual([
+      { role: 'companion_start', isViewer: false, decision: 'uploaded', decidedAt: expect.any(Number) },
+      { role: 'member_end', isViewer: true, decision: 'skipped', decidedAt: expect.any(Number) },
+    ])
+
+    // The counterpart learns that a decision exists, never the stored image.
+    const serialized = JSON.stringify({ companionView, memberView })
+    expect(serialized).not.toContain('storage')
+    expect(serialized).not.toContain('uploadId')
+    expect(serialized).not.toContain('contentType')
+  })
+
   it('stores and claims only action-provided bytes without accepting or deleting another resource storage ID', async () => {
     const t = createTest()
     const ids = await seed(t)

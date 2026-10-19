@@ -13,20 +13,37 @@ const PURGE_BATCH_SIZE = 50
 const TERMINAL_PURGE_AFTER = Number.MAX_SAFE_INTEGER
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
 const evidenceRole = v.union(v.literal('companion_start'), v.literal('member_end'))
+const evidenceRoles = ['companion_start', 'member_end'] as const
 
 export const status = query({
   args: { bookingId: v.id('bookings') },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
     const { booking, role } = await requireEvidenceParticipant(ctx, args.bookingId, viewer._id)
-    const decision = await ctx.db.query('bookingEvidenceDecisions')
-      .withIndex('by_booking_role', (q) => q.eq('bookingId', booking._id).eq('role', role))
-      .unique()
+    // Both participants see that a start and an end decision exist, so each of
+    // them can read the whole record before confirming completion. Only the
+    // viewer's own row is actionable, and this never returns an image, a
+    // storage ID, or upload metadata.
+    const decisions = await ctx.db.query('bookingEvidenceDecisions')
+      .withIndex('by_booking_role', (q) => q.eq('bookingId', booking._id))
+      .collect()
+    const decisionByRole = new Map(decisions.map((decision) => [decision.role, decision]))
+    const rows = evidenceRoles.map((rowRole) => {
+      const decision = decisionByRole.get(rowRole)
+      return {
+        role: rowRole,
+        isViewer: rowRole === role,
+        decision: decision?.decision,
+        decidedAt: decision?.decidedAt,
+      }
+    })
+    const viewerRow = rows.find((row) => row.isViewer)
     return {
       role,
       requiredBeforeCompletion: booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && booking.status === 'accepted',
-      decision: decision?.decision,
-      decidedAt: decision?.decidedAt,
+      decision: viewerRow?.decision,
+      decidedAt: viewerRow?.decidedAt,
+      rows,
     }
   },
 })

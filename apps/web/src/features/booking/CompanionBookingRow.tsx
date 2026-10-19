@@ -164,14 +164,7 @@ export function CompanionBookingRow({
       onComplete={onComplete}
       onReport={onReport}
       reviewSlot={canReview ? <ReviewForm onReview={onReview} /> : undefined}
-      evidenceSlot={showEvidence ? (
-        <EvidenceDecision
-          bookingId={booking._id}
-          label="Start evidence"
-          guidance="You make the start decision. The image is optional and private; a reviewer or admin can retrieve it only with an active linked booking report, and each retrieval is audited. The member cannot access it."
-          skipWarning="Strict warning: skipping means no private start image will be available to help reviewers evaluate a later booking report. Skip anyway?"
-        />
-      ) : undefined}
+      evidenceSlot={showEvidence ? <EvidenceDecision bookingId={booking._id} /> : undefined}
       conversationLink={conversationId ? (
         <Link to="/messages" search={{ conversationId }} className="btn btn-social btn-sm">Open conversation</Link>
       ) : undefined}

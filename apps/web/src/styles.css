@@ -12017,8 +12017,132 @@ textarea.field {
 
 .evidence-decision {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.7rem;
   padding: 0.875rem;
+}
+
+/* Both participants read the same start and end record, so each row names its
+   owner and its state. Only the viewer's own row carries the decision
+   controls, which sit under the record instead of inside a row. */
+.evidence-decision-head {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.evidence-decision-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+}
+
+.evidence-decision-guidance {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.evidence-decision-loading {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.evidence-decision-rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evidence-decision-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name state"
+    "owner state";
+  align-items: center;
+  column-gap: 0.75rem;
+  border-top: 1px solid var(--rule);
+  padding-block: 0.45rem;
+}
+
+.evidence-decision-row:first-child {
+  border-top: 0;
+  padding-top: 0.1rem;
+}
+
+.evidence-decision-row:last-child {
+  padding-bottom: 0.1rem;
+}
+
+.evidence-decision-row-name {
+  grid-area: name;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+
+.evidence-decision-row[data-own] .evidence-decision-row-name {
+  color: var(--text);
+  font-weight: 680;
+}
+
+.evidence-decision-row-owner {
+  grid-area: owner;
+  color: var(--text-soft);
+  font-size: 0.6875rem;
+}
+
+.evidence-decision-row-state {
+  grid-area: state;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.evidence-decision-row-state::before {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: none;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+.evidence-decision-row-state[data-decision="uploaded"] {
+  color: var(--text);
+}
+
+.evidence-decision-row-state[data-decision="uploaded"]::before {
+  background: var(--success);
+}
+
+.evidence-decision-row-state[data-decision="skipped"]::before {
+  background: var(--warning);
+}
+
+.evidence-decision-controls {
+  display: grid;
+  gap: 0.55rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.7rem;
+}
+
+.evidence-decision-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.evidence-decision-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.75rem;
+  line-height: 1.45;
 }
 
 /* ──────────────────────────────────────────────────────────────

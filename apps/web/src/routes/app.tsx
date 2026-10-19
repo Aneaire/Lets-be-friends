@@ -623,12 +623,7 @@ function BookingRow({
       )}
 
       {booking.pricingModel === 'member_wallet_v2' && booking.status === 'accepted' && (
-        <EvidenceDecision
-          bookingId={booking._id}
-          label="End evidence"
-          guidance="Optional and private. A reviewer or admin can retrieve it only while a linked booking report is active, and each retrieval is audited. Your counterpart cannot access it."
-          skipWarning="Strict warning: skipping means no private image from your role will be available to help reviewers evaluate a later booking report. Skip anyway?"
-        />
+        <EvidenceDecision bookingId={booking._id} />
       )}
 
       <div className="worklist-row-actions">
