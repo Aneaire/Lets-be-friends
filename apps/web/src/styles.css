@@ -5890,6 +5890,10 @@ textarea.field {
   border-left: 3px solid var(--accent-social);
 }
 
+.app-toast[data-sonner-toast][data-type="warning"] {
+  border-left: 3px solid var(--warning);
+}
+
 .app-toast-title {
   color: var(--text);
   font-weight: 650;

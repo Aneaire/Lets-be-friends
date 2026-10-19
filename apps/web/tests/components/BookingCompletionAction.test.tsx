@@ -4,16 +4,28 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BookingCompletionAction } from '../../src/features/booking/BookingCompletionAction'
 
+const toastWarning = vi.hoisted(() => vi.fn())
+
+vi.mock('sonner', () => ({ toast: { warning: toastWarning } }))
+
 afterEach(() => {
   cleanup()
+  toastWarning.mockClear()
 })
+
+// A session that ended two hours ago, so the completion call reaches the server.
+const endedSession = { requestedAt: Date.now() - 2 * 60 * 60 * 1000, durationMinutes: 60 }
+
+function renderAction(onComplete: () => Promise<void>, schedule = endedSession) {
+  return render(<BookingCompletionAction onComplete={onComplete} {...schedule} />)
+}
 
 describe('BookingCompletionAction', () => {
   it('shows a concise, visible error and re-enables the button when completion is rejected', async () => {
     const onComplete = vi.fn(() => Promise.reject(new Error(
       '[CONVEX M(bookings:markCompleted)] [Request ID: c5b4ed1b6a010a1f] Server Error Uncaught Error: Booking cannot be completed before the scheduled session ends at handler (../../convex/bookings.ts:401:27) Called by client',
     )))
-    render(<BookingCompletionAction onComplete={onComplete} />)
+    renderAction(onComplete)
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
 
@@ -29,7 +41,7 @@ describe('BookingCompletionAction', () => {
     const onComplete = vi.fn(() => new Promise<void>((resolve) => {
       resolveCompletion = resolve
     }))
-    render(<BookingCompletionAction onComplete={onComplete} />)
+    renderAction(onComplete)
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
     const pending = screen.getByRole('button', { name: /Confirming completion/ })
@@ -50,7 +62,7 @@ describe('BookingCompletionAction', () => {
       .mockImplementationOnce(() => new Promise<void>((resolve) => {
         resolveRetry = resolve
       }))
-    render(<BookingCompletionAction onComplete={onComplete} />)
+    renderAction(onComplete)
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
     expect((await screen.findByRole('alert')).textContent).toContain('Booking cannot be completed before the scheduled session ends')
@@ -70,7 +82,7 @@ describe('BookingCompletionAction', () => {
     const onComplete = vi.fn()
       .mockRejectedValueOnce(new Error('Uncaught Error: Booking cannot be completed before the scheduled session ends at handler (a) Called by client'))
       .mockResolvedValueOnce(undefined)
-    render(<BookingCompletionAction onComplete={onComplete} />)
+    renderAction(onComplete)
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
@@ -78,5 +90,47 @@ describe('BookingCompletionAction', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
     expect(onComplete).toHaveBeenCalledTimes(2)
+  })
+
+  it('tells the viewer the session is not done yet instead of asking the server', async () => {
+    const onComplete = vi.fn().mockResolvedValue(undefined)
+    renderAction(onComplete, { requestedAt: Date.now() + 60 * 60 * 1000, durationMinutes: 60 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
+
+    expect(onComplete).not.toHaveBeenCalled()
+    expect(toastWarning).toHaveBeenCalledTimes(1)
+    expect(toastWarning.mock.calls[0][0]).toMatch(/^Your session is not done yet\. You can confirm completion after \d/)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Confirm completion' }).hasAttribute('disabled')).toBe(false)
+  })
+
+  it('keeps the wait toast while the session is running and clears it once the session ends', async () => {
+    const onComplete = vi.fn().mockResolvedValue(undefined)
+    const requestedAt = Date.now() + 30 * 60 * 1000
+    const { rerender } = render(
+      <BookingCompletionAction onComplete={onComplete} requestedAt={requestedAt} durationMinutes={60} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
+    expect(toastWarning).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <BookingCompletionAction onComplete={onComplete} requestedAt={requestedAt - 2 * 60 * 60 * 1000} durationMinutes={60} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1))
+    expect(toastWarning).toHaveBeenCalledTimes(1)
+  })
+
+  it('defers to the server when the stored schedule cannot be read', async () => {
+    const onComplete = vi.fn().mockResolvedValue(undefined)
+    renderAction(onComplete, { requestedAt: Number.NaN, durationMinutes: 0 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1))
+    expect(toastWarning).not.toHaveBeenCalled()
   })
 })

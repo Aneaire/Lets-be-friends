@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
 
+import { Toaster } from '../../design-system/primitives/sonner'
 import { BookingCompletionAction } from './BookingCompletionAction'
 
 const keepPending = fn(() => new Promise<void>(() => undefined))
@@ -8,12 +9,18 @@ const rejectCompletion = fn(async () => {
   throw new Error('Booking cannot be completed before the scheduled session ends.')
 })
 
+// A session that has already ended, so the completion call reaches the server.
+const endedSession = {
+  requestedAt: Date.UTC(2026, 8, 12, 6, 30),
+  durationMinutes: 60,
+}
+
 const meta = {
   title: 'Features/Booking/Completion action',
   component: BookingCompletionAction,
   parameters: { layout: 'centered' },
   globals: { viewport: { value: 'mobileDefault', isRotated: false } },
-  args: { onComplete: fn(async () => undefined) },
+  args: { onComplete: fn(async () => undefined), ...endedSession },
 } satisfies Meta<typeof BookingCompletionAction>
 
 export default meta
@@ -43,5 +50,16 @@ export const Rejected: Story = {
     await expect(
       canvas.getByRole('button', { name: 'Confirm completion' }),
     ).toBeEnabled()
+  },
+}
+
+export const SessionStillRunning: Story = {
+  decorators: [(Story) => (<><Story /><Toaster /></>)],
+  args: { requestedAt: Date.now() + 60 * 60 * 1000, durationMinutes: 60 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Confirm completion' }))
+    const toast = await within(document.body).findByText(/Your session is not done yet/)
+    await expect(toast).toHaveTextContent('You can confirm completion after')
   },
 }

@@ -7,6 +7,7 @@ import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { Button } from '../../design-system/atoms/Button'
 import { ReviewForm } from '../profile/ReviewForm'
+import { BookingCompletionAction } from './BookingCompletionAction'
 import { CompanionSettlementPanel } from './CompanionSettlementPanel'
 import { EvidenceDecision } from './EvidenceDecision'
 import type { CompanionBooking } from './combinedBookings'
@@ -113,7 +114,13 @@ export function CompanionBookingRowView({
             <Button size="small" intent="danger" onClick={onDecline}>Decline</Button>
           </>
         )}
-        {canComplete && !booking.companionCompletedAt && <Button size="small" onClick={onComplete}>Confirm completion</Button>}
+        {canComplete && !booking.companionCompletedAt && (
+          <BookingCompletionAction
+            onComplete={onComplete}
+            requestedAt={booking.requestedAt}
+            durationMinutes={booking.durationMinutes}
+          />
+        )}
         {canComplete && booking.companionCompletedAt && <span className="text-meta">You confirmed completion · waiting for member</span>}
         {canReview && reviewSlot}
         {booking.viewerHasReviewed && reviewWindowOpen && <span className="text-meta">Review submitted</span>}

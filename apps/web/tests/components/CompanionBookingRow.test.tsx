@@ -7,7 +7,10 @@ import type { CompanionBooking } from '../../src/features/booking/combinedBookin
 
 const mocks = vi.hoisted(() => ({
   queryResult: undefined as unknown,
+  toastWarning: vi.fn(),
 }))
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: mocks.toastWarning } }))
 
 vi.mock('convex/react', () => ({
   useQuery: () => mocks.queryResult,
@@ -26,6 +29,7 @@ import { CompanionBookingRow, CompanionBookingRowView } from '../../src/features
 afterEach(() => {
   cleanup()
   mocks.queryResult = undefined
+  mocks.toastWarning.mockClear()
 })
 
 const booking = {
@@ -95,6 +99,44 @@ describe('CompanionBookingRow', () => {
     expect(screen.getByText('₱500.00')).toBeTruthy()
     expect(screen.getByText('Pending 24-hour review')).toBeTruthy()
     expect(screen.queryByText(/Your entitlement:/)).toBeNull()
+  })
+
+  it('surfaces the readable server message when the Companion cannot complete the booking yet', async () => {
+    const onComplete = vi.fn(() => Promise.reject(new Error(
+      '[CONVEX M(bookings:markCompleted)] [Request ID: c5b4ed1b6a010a1f] Server Error Uncaught ConvexError: Booking cannot be completed before the scheduled session ends at handler (../../convex/bookings.ts:492:37) Called by client',
+    )))
+    renderRow({
+      booking: { ...booking, status: 'accepted' } as unknown as CompanionBooking,
+      onComplete,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('Booking cannot be completed before the scheduled session ends')
+    expect(alert.textContent).not.toMatch(/CONVEX|Request ID|bookings\.ts/)
+    expect(screen.getByRole('button', { name: 'Confirm completion' }).hasAttribute('disabled')).toBe(false)
+    expect(onComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('tells the Companion the session is not done yet when completion is confirmed too early', () => {
+    const onComplete = vi.fn().mockResolvedValue(undefined)
+    renderRow({
+      booking: {
+        ...booking,
+        status: 'accepted',
+        requestedAt: Date.now() + 60 * 60 * 1000,
+        durationMinutes: 60,
+      } as unknown as CompanionBooking,
+      onComplete,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
+
+    expect(onComplete).not.toHaveBeenCalled()
+    expect(mocks.toastWarning).toHaveBeenCalledTimes(1)
+    expect(mocks.toastWarning.mock.calls[0][0]).toMatch(/^Your session is not done yet\./)
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })
 

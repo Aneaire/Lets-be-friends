@@ -637,7 +637,13 @@ function BookingRow({
             Open conversation
           </Link>
         )}
-        {canComplete && !booking.memberCompletedAt && <BookingCompletionAction onComplete={onComplete} />}
+        {canComplete && !booking.memberCompletedAt && (
+          <BookingCompletionAction
+            onComplete={onComplete}
+            requestedAt={booking.requestedAt}
+            durationMinutes={booking.durationMinutes}
+          />
+        )}
         {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Companion</span>}
         {canReview && <ReviewForm onReview={onReview} />}
         {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
