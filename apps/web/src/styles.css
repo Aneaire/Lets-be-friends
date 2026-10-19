@@ -2930,6 +2930,9 @@ body {
 }
 .ds-dialog[data-size="small"] { width: min(100%, 27rem); }
 .ds-dialog[data-size="large"] { width: min(100%, 48rem); }
+/* The review composer is sized to the card it edits: the feed's column width
+   plus the dialog's own body padding, so the card fills it edge to edge. */
+.ds-dialog.review-composer-dialog[data-size="large"] { width: min(100%, calc(43rem + 1.75rem)); }
 .ds-dialog-header {
   display: flex;
   align-items: flex-start;
@@ -8518,6 +8521,7 @@ textarea.field {
 }
 
 .review-editor-card {
+  width: 100%;
   max-width: 43rem;
   margin-inline: auto;
 }
