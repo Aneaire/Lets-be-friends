@@ -5,15 +5,184 @@ import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { Dialog } from '../../design-system/molecules/Dialog'
 import { describeConvexError } from '../../lib/convexErrors'
-import { ReviewPostPreview } from './ReviewPostCard'
+import { PostActionBar } from './PostActionBar'
+import { PostCard } from './PostCard'
 import { ReviewStarPicker } from './ReviewStarPicker'
 
 const MAX_REVIEW_PHOTOS = 4
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const noop = () => undefined
 
 type DraftPhoto = { key: string; file: File; url: string }
+export type DraftPhotoView = { key: string; url: string; name: string }
 
+export function ReviewComposerView({
+  authorName,
+  authorImageUrl,
+  companionName,
+  rating,
+  body,
+  photos,
+  busy,
+  dragging,
+  error,
+  onRate,
+  onBodyChange,
+  onChooseFiles,
+  onRemovePhoto,
+  onDraggingChange,
+}: {
+  authorName: string
+  authorImageUrl?: string | null
+  companionName?: string
+  rating?: number
+  body: string
+  photos: readonly DraftPhotoView[]
+  busy: boolean
+  dragging: boolean
+  error: string
+  onRate: (rating: number) => void
+  onBodyChange: (body: string) => void
+  onChooseFiles: (files: File[]) => void
+  onRemovePhoto: (key: string) => void
+  onDraggingChange: (dragging: boolean) => void
+}) {
+  const inputId = useId()
+  const dragDepth = useRef(0)
+
+  const fileInput = (
+    <input
+      id={inputId}
+      type="file"
+      multiple
+      accept="image/jpeg,image/png,image/webp"
+      className="sr-only"
+      disabled={busy}
+      onChange={(event) => {
+        onChooseFiles(Array.from(event.currentTarget.files ?? []))
+        event.currentTarget.value = ''
+      }}
+    />
+  )
+
+  return (
+    <div
+      className="review-editor"
+      data-dragging={dragging ? 'true' : undefined}
+      onDragEnter={(event) => {
+        event.preventDefault()
+        dragDepth.current += 1
+        onDraggingChange(true)
+      }}
+      onDragOver={(event) => event.preventDefault()}
+      onDragLeave={(event) => {
+        event.preventDefault()
+        dragDepth.current = Math.max(0, dragDepth.current - 1)
+        if (dragDepth.current === 0) onDraggingChange(false)
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        dragDepth.current = 0
+        onDraggingChange(false)
+        if (busy) return
+        onChooseFiles(Array.from(event.dataTransfer.files))
+      }}
+    >
+      {fileInput}
+      <PostCard
+        author={authorName}
+        imageUrl={authorImageUrl}
+        timestamp="Just now"
+        className="social-review-card review-editor-card"
+        aria-label="Write your review"
+        meta={companionName ? (
+          <>
+            <span aria-hidden="true" className="ds-post-meta-separator">·</span>
+            <span className="social-review-companion">Shared an experience with {companionName}</span>
+          </>
+        ) : undefined}
+      >
+        <ReviewStarPicker value={rating} onChange={onRate} disabled={busy} />
+        {rating ? null : <p className="review-editor-hint">Tap a star to rate the experience.</p>}
+
+        <label className="review-editor-note-field">
+          <span className="sr-only">Your note</span>
+          <textarea
+            className="review-editor-note"
+            value={body}
+            onChange={(event) => onBodyChange(event.currentTarget.value)}
+            placeholder="Say a little about the experience. This is what members read."
+            maxLength={1000}
+            rows={3}
+            disabled={busy}
+          />
+        </label>
+
+        {photos.length > 0 && (
+          <ul className="social-review-image-grid review-editor-photos" aria-label="Selected photos">
+            {photos.map((photo, index) => (
+              <li key={photo.key} className="review-editor-photo">
+                <img src={photo.url} alt={`Selected photo ${index + 1}: ${photo.name}`} />
+                <button
+                  type="button"
+                  className="review-photo-thumb-remove"
+                  aria-label={`Remove ${photo.name}`}
+                  disabled={busy}
+                  onClick={() => onRemovePhoto(photo.key)}
+                >
+                  <X size={14} aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {photos.length < MAX_REVIEW_PHOTOS && (
+          <label
+            htmlFor={inputId}
+            className="review-editor-drop"
+            data-compact={photos.length > 0 ? 'true' : undefined}
+          >
+            <ImagePlus size={photos.length > 0 ? 16 : 20} aria-hidden="true" />
+            <span className="review-editor-drop-title">
+              {dragging
+                ? 'Drop to add photos'
+                : photos.length > 0
+                  ? 'Add more photos'
+                  : 'Drag photos here, or choose files'}
+            </span>
+            {photos.length === 0 && (
+              <span className="text-meta">JPEG, PNG, or WebP, up to 10 MB each. Up to {MAX_REVIEW_PHOTOS} photos.</span>
+            )}
+          </label>
+        )}
+
+        {error && <p className="review-editor-error" role="alert">{error}</p>}
+
+        <PostActionBar
+          liked={false}
+          likeCount={0}
+          commentCount={0}
+          saved={false}
+          commentsOpen={false}
+          likeDisabled
+          commentsDisabled
+          showSave
+          onLike={noop}
+          onToggleComments={noop}
+          onSave={noop}
+          onShare={noop}
+        />
+      </PostCard>
+    </div>
+  )
+}
+
+/**
+ * The composer is the review card: the stars, the note, and the photos are
+ * edited where they will be read, and the dialog publishes from its footer.
+ */
 export function ReviewComposerDialog({
   open,
   onClose,
@@ -27,25 +196,22 @@ export function ReviewComposerDialog({
   onSubmit: (rating: number, body: string | undefined, imageUploadIds: Id<'reviewMediaUploads'>[]) => Promise<void>
   authorName: string
   authorImageUrl?: string | null
-  // Present only when the review can reach the feed, which is also the only
-  // case where the live card is shown.
+  // Present only when the review can reach the feed.
   companionName?: string
 }) {
   const generateUploadUrl = useMutation(api.reviews.generateImageUploadUrl)
   const registerUpload = useMutation(api.reviews.registerImageUpload)
   const discardUpload = useMutation(api.reviews.discardImageUpload)
-  const inputId = useId()
   const [rating, setRating] = useState<number | undefined>(undefined)
   const [body, setBody] = useState('')
   const [photos, setPhotos] = useState<DraftPhoto[]>([])
   const [dragging, setDragging] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const dragDepth = useRef(0)
   const photosRef = useRef(photos)
   photosRef.current = photos
 
-  // Object URLs are owned by this draft, so drop them when the dialogs closes.
+  // Object URLs belong to this draft, so release them when the dialog closes.
   useEffect(() => {
     if (open) return
     return () => {
@@ -125,16 +291,14 @@ export function ReviewComposerDialog({
     }
   }
 
-  const previewPhotos = photos.map((photo) => photo.url)
-
   return (
     <Dialog
       open={open}
       onClose={busy ? () => undefined : onClose}
       title="Leave a review"
       description={companionName
-        ? `This is how your review will appear in the feed. A rating on its own stays on ${companionName}'s profile.`
-        : 'Your review is shared with the other person once you publish it.'}
+        ? `Write it here. This is how your review will appear in the feed. A rating on its own stays on ${companionName}'s profile.`
+        : 'Write it here. Your review is shared with the other person once you publish it.'}
       size="large"
       className="review-composer-dialog"
       busy={busy}
@@ -147,101 +311,22 @@ export function ReviewComposerDialog({
         </>
       )}
     >
-      <div className="review-composer" data-has-preview={companionName ? 'true' : undefined}>
-        <div className="review-composer-form">
-          <ReviewStarPicker value={rating} onChange={setRating} disabled={busy} />
-
-          <label className="review-composer-field">
-            <span className="review-composer-label">Your note</span>
-            <textarea
-              className="field review-composer-note"
-              value={body}
-              onChange={(event) => setBody(event.currentTarget.value)}
-              placeholder="What stood out about the experience?"
-              maxLength={1000}
-              rows={4}
-              disabled={busy}
-            />
-            <span className="text-meta">{body.length}/1000</span>
-          </label>
-
-          <div
-            className="review-drop-zone"
-            data-dragging={dragging ? 'true' : undefined}
-            data-disabled={busy ? 'true' : undefined}
-            onDragEnter={(event) => {
-              event.preventDefault()
-              dragDepth.current += 1
-              setDragging(true)
-            }}
-            onDragOver={(event) => event.preventDefault()}
-            onDragLeave={(event) => {
-              event.preventDefault()
-              dragDepth.current = Math.max(0, dragDepth.current - 1)
-              if (dragDepth.current === 0) setDragging(false)
-            }}
-            onDrop={(event) => {
-              event.preventDefault()
-              dragDepth.current = 0
-              setDragging(false)
-              if (busy) return
-              addFiles(Array.from(event.dataTransfer.files))
-            }}
-          >
-            <input
-              id={inputId}
-              type="file"
-              multiple
-              accept="image/jpeg,image/png,image/webp"
-              className="sr-only"
-              disabled={busy}
-              onChange={(event) => {
-                addFiles(Array.from(event.currentTarget.files ?? []))
-                event.currentTarget.value = ''
-              }}
-            />
-            <label htmlFor={inputId} className="review-drop-zone-target">
-              <ImagePlus size={20} aria-hidden="true" />
-              <span className="review-drop-zone-title">Drag photos here, or choose files</span>
-              <span className="text-meta">JPEG, PNG, or WebP, up to 10 MB each. Up to {MAX_REVIEW_PHOTOS} photos.</span>
-            </label>
-            {photos.length > 0 && (
-              <ul className="review-drop-zone-thumbs" aria-label="Selected photos">
-                {photos.map((photo, index) => (
-                  <li key={photo.key} className="review-photo-thumb">
-                    <img src={photo.url} alt={`Selected photo ${index + 1}: ${photo.file.name}`} />
-                    <button
-                      type="button"
-                      className="review-photo-thumb-remove"
-                      aria-label={`Remove ${photo.file.name}`}
-                      disabled={busy}
-                      onClick={() => removePhoto(photo.key)}
-                    >
-                      <X size={14} aria-hidden="true" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {error && <p className="review-composer-error" role="alert">{error}</p>}
-        </div>
-
-        {companionName && (
-          <div className="review-composer-preview">
-            <span className="review-composer-label">How it will look</span>
-            <ReviewPostPreview
-              authorName={authorName}
-              authorImageUrl={authorImageUrl}
-              companionName={companionName}
-              rating={rating ?? 0}
-              body={body.trim() || undefined}
-              imageUrls={previewPhotos}
-            />
-          </div>
-        )}
-      </div>
+      <ReviewComposerView
+        authorName={authorName}
+        authorImageUrl={authorImageUrl}
+        companionName={companionName}
+        rating={rating}
+        body={body}
+        photos={photos.map((photo) => ({ key: photo.key, url: photo.url, name: photo.file.name }))}
+        busy={busy}
+        dragging={dragging}
+        error={error}
+        onRate={setRating}
+        onBodyChange={setBody}
+        onChooseFiles={addFiles}
+        onRemovePhoto={removePhoto}
+        onDraggingChange={setDragging}
+      />
     </Dialog>
   )
 }

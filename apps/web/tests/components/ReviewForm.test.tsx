@@ -36,7 +36,7 @@ describe('ReviewForm', () => {
     render(<ReviewForm onReview={vi.fn()} preview={{ companionName: 'Jordan Companion' }} />)
     fireEvent.click(screen.getByRole('button', { name: 'Leave a review' }))
 
-    expect(screen.getByRole('article', { name: 'Review preview' })).toBeTruthy()
+    expect(screen.getByRole('article', { name: 'Write your review' })).toBeTruthy()
     expect(screen.getByText(/Shared an experience with Jordan Companion/)).toBeTruthy()
     expect(screen.getByText(/A rating on its own stays on Jordan Companion's profile/)).toBeTruthy()
   })
@@ -46,7 +46,7 @@ describe('ReviewForm', () => {
     render(<ReviewForm onReview={onReview} />)
     fireEvent.click(screen.getByRole('button', { name: 'Leave a review' }))
     fireEvent.click(screen.getByRole('radio', { name: '4 stars' }))
-    fireEvent.change(screen.getByPlaceholderText('What stood out about the experience?'), {
+    fireEvent.change(screen.getByPlaceholderText('Say a little about the experience. This is what members read.'), {
       target: { value: 'Great session.' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))

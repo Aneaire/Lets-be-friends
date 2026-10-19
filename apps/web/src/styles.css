@@ -2930,8 +2930,6 @@ body {
 }
 .ds-dialog[data-size="small"] { width: min(100%, 27rem); }
 .ds-dialog[data-size="large"] { width: min(100%, 48rem); }
-/* The review composer only widens when the live feed card sits beside the form. */
-.ds-dialog.review-composer-dialog[data-size="large"]:has(.review-composer[data-has-preview]) { width: min(100%, 74rem); }
 .ds-dialog-header {
   display: flex;
   align-items: flex-start;
@@ -8464,8 +8462,8 @@ textarea.field {
   padding-top: 1rem;
 }
 
-/* Review composer: the booking rows only offer the entry point, so these
-   styles cover the dialog that writes the review. */
+/* Review composer: the booking rows only offer the entry point, and the dialog
+   it opens is the review card itself, edited in place. */
 .review-star-picker {
   display: grid;
   gap: 0.3rem;
@@ -8514,108 +8512,111 @@ textarea.field {
   font-size: 0.8rem;
 }
 
-.review-composer {
+.review-editor {
   display: grid;
-  gap: 1.25rem;
+  gap: 0.75rem;
 }
 
-.review-composer-form {
-  display: grid;
-  gap: 1rem;
-  min-width: 0;
+.review-editor-card {
+  max-width: 43rem;
+  margin-inline: auto;
 }
 
-.review-composer-field {
-  display: grid;
-  gap: 0.35rem;
+.review-editor-hint {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
 }
 
-.review-composer-label {
-  color: var(--text-soft);
-  font-size: 0.7rem;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.review-editor-note-field {
+  display: block;
 }
 
-.review-composer-note {
+.review-editor-note {
+  display: block;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.55;
   resize: vertical;
 }
 
-.review-composer-error {
-  margin: 0;
-  color: var(--danger);
-  font-size: 0.78rem;
-  line-height: 1.45;
+.review-editor-note::placeholder {
+  color: var(--text-soft);
 }
 
-.review-drop-zone {
+.review-editor-note:focus {
+  border-color: var(--accent-social);
+  outline: none;
+}
+
+.review-editor-drop {
   display: grid;
-  gap: 0.75rem;
+  justify-items: center;
+  gap: 0.2rem;
+  padding: 1rem 0.9rem;
   border: 1px dashed var(--border-strong);
-  border-radius: 0.85rem;
+  border-radius: 0.75rem;
   background: var(--surface-subtle);
-  padding: 0.9rem;
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
   transition: border-color 140ms ease, background-color 140ms ease;
 }
 
-.review-drop-zone[data-dragging] {
+.review-editor-drop[data-compact] {
+  grid-auto-flow: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0.9rem;
+}
+
+.review-editor[data-dragging] .review-editor-drop {
   border-color: var(--accent-social);
   background: var(--accent-social-soft);
 }
 
-.review-drop-zone[data-disabled] {
-  opacity: 0.6;
-}
-
-.review-drop-zone-target {
-  display: grid;
-  justify-items: center;
-  gap: 0.25rem;
-  padding: 0.6rem;
-  color: var(--text-muted);
-  text-align: center;
-  cursor: pointer;
-}
-
-.review-drop-zone-title {
+.review-editor-drop-title {
   color: var(--text);
   font-size: 0.85rem;
   font-weight: 650;
 }
 
-.review-drop-zone-thumbs {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
-  gap: 0.5rem;
+.review-editor-photos {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.review-photo-thumb {
+.review-editor-photo {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--rule);
-  border-radius: 0.6rem;
-  background: var(--surface);
+  border-radius: 8px;
+  background: var(--surface-sunk);
 }
 
-.review-photo-thumb img {
+.review-editor-photo img {
   display: block;
   width: 100%;
-  height: 5.5rem;
+  height: 100%;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
 }
 
 .review-photo-thumb-remove {
   position: absolute;
-  top: 0.3rem;
-  right: 0.3rem;
+  top: 0.4rem;
+  right: 0.4rem;
   display: inline-grid;
   place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.6rem;
+  height: 1.6rem;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface);
@@ -8627,23 +8628,11 @@ textarea.field {
   color: var(--danger);
 }
 
-/* The live card renders at the width the feed uses, and only sits beside the
-   form when there is room for both columns. */
-.review-composer-preview {
-  display: grid;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.review-composer-preview .ds-post-card {
-  width: 100%;
-}
-
-@media (min-width: 1100px) {
-  .review-composer[data-has-preview] {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 43rem);
-    align-items: start;
-  }
+.review-editor-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .social-review-image-grid {

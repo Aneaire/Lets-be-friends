@@ -80,7 +80,7 @@ describe('ReviewComposerDialog', () => {
     fireEvent.click(screen.getByRole('radio', { name: '3 stars' }))
     expect(screen.getByText('3 of 5, Good')).toBeTruthy()
 
-    fireEvent.change(screen.getByPlaceholderText('What stood out about the experience?'), {
+    fireEvent.change(screen.getByPlaceholderText('Say a little about the experience. This is what members read.'), {
       target: { value: '  A calm, well-planned session.  ' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
@@ -127,11 +127,12 @@ describe('ReviewComposerDialog', () => {
     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:draft'), revokeObjectURL: vi.fn() })
     renderComposer()
 
-    const zone = screen.getByText('Drag photos here, or choose files').closest('.review-drop-zone')!
-    fireEvent.dragEnter(zone)
-    expect(zone.getAttribute('data-dragging')).toBe('true')
-    fireEvent.dragLeave(zone)
-    expect(zone.getAttribute('data-dragging')).toBeNull()
+    const editor = document.querySelector('.review-editor')!
+    fireEvent.dragEnter(editor)
+    expect(editor.getAttribute('data-dragging')).toBe('true')
+    expect(screen.getByText('Drop to add photos')).toBeTruthy()
+    fireEvent.dragLeave(editor)
+    expect(editor.getAttribute('data-dragging')).toBeNull()
 
     choosePhotos([1, 2, 3, 4, 5].map((index) => photoFile(`photo-${index}.png`)))
 
@@ -139,10 +140,11 @@ describe('ReviewComposerDialog', () => {
     expect(screen.getByRole('alert').textContent).toContain('up to 4 photos')
   })
 
-  it('leaves the live feed card out when the review cannot reach the feed', () => {
+  it('drops the Companion line when the review cannot reach the feed', () => {
     renderComposer({ companionName: undefined })
 
-    expect(screen.queryByRole('article', { name: 'Review preview' })).toBeNull()
-    expect(screen.queryByRole('radio', { name: '5 stars' })).toBeTruthy()
+    expect(screen.queryByText(/Shared an experience with/)).toBeNull()
+    expect(screen.getByRole('radio', { name: '5 stars' })).toBeTruthy()
+    expect(screen.getByRole('article', { name: 'Write your review' })).toBeTruthy()
   })
 })
