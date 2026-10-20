@@ -6135,6 +6135,37 @@ textarea.field {
   stroke-width: 3;
 }
 
+/* Hovering the badge confirms what it marks. Chip styling mirrors the popover
+   voice (surface, hairline border, one soft shadow); blue stays on the badge. */
+.account-avatar-badge::after {
+  content: "Verified";
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: -0.35rem;
+  z-index: 60;
+  padding: 0.24rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-popover-subtle);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  translate: 0 -0.15rem;
+  transition: opacity 120ms ease, translate 120ms ease;
+}
+
+.account-avatar-badge:hover::after {
+  opacity: 1;
+  translate: 0 0;
+}
+
 .account-avatar-lg {
   width: 2.25rem;
   height: 2.25rem;
