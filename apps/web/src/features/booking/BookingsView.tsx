@@ -303,6 +303,7 @@ export function BookingsView<TBooking extends CalendarBooking>({
                   type="button"
                   className="booking-calendar-nav-button"
                   aria-label="Previous month"
+                  data-tooltip="Previous month"
                   onClick={() => setVisibleMonth((month) => addMonths(month, -1))}
                 >
                   <ChevronLeft size={18} aria-hidden="true" />
@@ -311,6 +312,7 @@ export function BookingsView<TBooking extends CalendarBooking>({
                   type="button"
                   className="booking-calendar-nav-button"
                   aria-label="Next month"
+                  data-tooltip="Next month"
                   onClick={() => setVisibleMonth((month) => addMonths(month, 1))}
                 >
                   <ChevronRight size={18} aria-hidden="true" />

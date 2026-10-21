@@ -206,6 +206,7 @@ export function AvailabilityCalendar({
             type="button"
             className="availability-calendar-nav-button"
             aria-label="Previous month"
+            data-tooltip="Previous month"
             disabled={!canGoPrevious}
             onClick={() => onMonthChange(shiftSchedulingMonth(month, -1))}
           >
@@ -215,6 +216,7 @@ export function AvailabilityCalendar({
             type="button"
             className="availability-calendar-nav-button"
             aria-label="Next month"
+            data-tooltip="Next month"
             disabled={!canGoNext}
             onClick={() => onMonthChange(shiftSchedulingMonth(month, 1))}
           >

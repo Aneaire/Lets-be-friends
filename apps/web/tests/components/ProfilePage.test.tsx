@@ -20,7 +20,15 @@ vi.mock('../../convex/_generated/api', () => ({
       generateProfileImageUploadUrl: 'users.generateProfileImageUploadUrl',
     },
     companions: { myApplication: 'companions.myApplication' },
-    social: { byUser: 'social.byUser', toggleLike: 'social.toggleLike', toggleSavePost: 'social.toggleSavePost' },
+    social: {
+      byUser: 'social.byUser',
+      toggleLike: 'social.toggleLike',
+      toggleSavePost: 'social.toggleSavePost',
+      editPost: 'social.editPost',
+      deletePost: 'social.deletePost',
+      createPost: 'social.createPost',
+      voteOnPoll: 'social.voteOnPoll',
+    },
     reviews: {
       forCompanion: 'reviews.forCompanion',
       toggleLike: 'reviews.toggleLike',

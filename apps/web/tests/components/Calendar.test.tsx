@@ -24,6 +24,8 @@ describe('Calendar', () => {
     trigger.focus()
     fireEvent.click(trigger)
 
+    expect(screen.getByRole('button', { name: 'Previous month' }).getAttribute('data-tooltip')).toBe('Previous month')
+    expect(screen.getByRole('button', { name: 'Next month' }).getAttribute('data-tooltip')).toBe('Next month')
     const selected = screen.getByRole('gridcell', { name: /August 15, 2026/ })
     expect(selected.getAttribute('aria-selected')).toBe('true')
     expect(selected.tabIndex).toBe(0)

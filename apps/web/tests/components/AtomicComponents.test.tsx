@@ -164,7 +164,9 @@ describe('atomic design-system components', () => {
     }
     render(<SearchExample />)
     const input = screen.getByRole('searchbox', { name: 'Search members' })
-    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+    const clear = screen.getByRole('button', { name: 'Clear search' })
+    expect(clear.getAttribute('data-tooltip')).toBe('Clear search')
+    fireEvent.click(clear)
     expect(input.getAttribute('value')).toBe('')
     expect(document.activeElement).toBe(input)
     expect(onClear).toHaveBeenCalledOnce()

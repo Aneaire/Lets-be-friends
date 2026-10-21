@@ -149,6 +149,8 @@ export function MessagesPage() {
               type="button"
               className="direct-thread-back"
               aria-label="Back to conversations"
+              data-tooltip="Back to conversations"
+              data-tooltip-position="below-left"
               onClick={() => navigate({ to: '/messages', search: {} })}
             >
               <ArrowLeft size={18} aria-hidden="true" />
@@ -556,7 +558,7 @@ function MessageComposer({
               ? 'danger'
               : 'success'}
           action={(
-            <button type="button" className="ds-compact-composer-remove" onClick={() => removeAttachment(attachment.id)} disabled={sending} aria-label={`Remove ${attachment.source.name}`}>
+            <button type="button" className="ds-compact-composer-remove" onClick={() => removeAttachment(attachment.id)} disabled={sending} aria-label={`Remove ${attachment.source.name}`} data-tooltip="Remove attachment" data-tooltip-position="above">
               <X size={14} aria-hidden="true" />
             </button>
           )}

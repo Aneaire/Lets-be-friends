@@ -42,6 +42,8 @@ export const SearchField = forwardRef<HTMLInputElement, Omit<InputHTMLAttributes
           type="button"
           className="ds-search-field-clear"
           aria-label={clearLabel}
+          data-tooltip={clearLabel}
+          data-tooltip-position="below-right"
           onClick={(event) => {
             const input = event.currentTarget.parentElement?.querySelector('input')
             onChange('')

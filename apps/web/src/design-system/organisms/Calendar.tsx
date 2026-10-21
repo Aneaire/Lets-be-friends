@@ -241,13 +241,13 @@ export function Calendar({ value, onChange, variant = 'self', min, max, defaultM
         >
           <p className="eyebrow calendar-label">When</p>
           <div className="calendar-nav">
-            <button type="button" className="calendar-nav-btn" aria-label="Previous month" disabled={!canGoPrev} onClick={() => shiftMonth(-1)}>
+            <button type="button" className="calendar-nav-btn" aria-label="Previous month" data-tooltip="Previous month" disabled={!canGoPrev} onClick={() => shiftMonth(-1)}>
               <ChevronLeft size={16} aria-hidden="true" />
             </button>
             <div className="calendar-month-name" aria-live="polite">
               {MONTH_NAMES[viewMonth.getMonth()]} <span className="calendar-year-pill">{viewMonth.getFullYear()}</span>
             </div>
-            <button type="button" className="calendar-nav-btn" aria-label="Next month" disabled={!canGoNext} onClick={() => shiftMonth(1)}>
+            <button type="button" className="calendar-nav-btn" aria-label="Next month" data-tooltip="Next month" disabled={!canGoNext} onClick={() => shiftMonth(1)}>
               <ChevronRight size={16} aria-hidden="true" />
             </button>
           </div>

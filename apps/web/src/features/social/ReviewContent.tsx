@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { OpenableImage } from '../../design-system/molecules/OpenableImage'
 import { ReviewStars } from './ReviewStars'
+import { mediaAspectStyle, rememberMediaAspect } from './fluidMedia'
 
 export function ReviewContent({
   rating,
@@ -27,6 +29,10 @@ export function ReviewContent({
   onOpenImage?: (index: number) => void
 }) {
   const images = (imageUrls?.length ? imageUrls : imageUrl ? [imageUrl] : []).filter(Boolean)
+  const [imageAspects, setImageAspects] = useState<Record<string, number>>({})
+  const rememberAspect = (src: string, width: number, height: number) => (
+    rememberMediaAspect(setImageAspects, src, width, height)
+  )
 
   const photo = (src: string, index: number) => (
     onOpenImage ? (
@@ -39,7 +45,12 @@ export function ReviewContent({
           ? `Open photo ${index + 1} of ${images.length} with description and comments`
           : `Open ${reviewerDisplayName}'s review photo with description and comments`}
       >
-        <img src={src} alt={`Photo shared with ${reviewerDisplayName}'s review`} loading="lazy" />
+        <img
+          src={src}
+          alt={`Photo shared with ${reviewerDisplayName}'s review`}
+          loading="lazy"
+          onLoad={(event) => rememberAspect(src, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
+        />
       </button>
     ) : plainImage ? (
       <img
@@ -48,16 +59,30 @@ export function ReviewContent({
         src={src}
         alt={`Photo shared with ${reviewerDisplayName}'s review`}
         loading="lazy"
+        onLoad={(event) => rememberAspect(src, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
       />
     ) : (
-      <OpenableImage key={src} src={src} alt={`Photo shared with ${reviewerDisplayName}'s review`} />
+      <OpenableImage
+        key={src}
+        src={src}
+        alt={`Photo shared with ${reviewerDisplayName}'s review`}
+        loading="lazy"
+        onLoad={(event) => rememberAspect(src, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
+      />
     )
   )
 
   const image = images.length === 0
     ? null
     : images.length === 1
-      ? photo(images[0], 0)
+      ? (
+        <div
+          className="social-review-image-single"
+          style={mediaAspectStyle(imageAspects[images[0]], '--social-review-aspect')}
+        >
+          {photo(images[0], 0)}
+        </div>
+      )
       : (
         <div className="social-review-image-grid" data-count={Math.min(images.length, 4)}>
           {images.map(photo)}

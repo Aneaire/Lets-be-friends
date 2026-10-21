@@ -384,6 +384,8 @@ export function BookingDialog({
                       type="button"
                       className="booking-companion-search-clear"
                       aria-label="Clear Companion search"
+                      data-tooltip="Clear Companion search"
+                      data-tooltip-position="below-right"
                       disabled={isSubmitting}
                       onClick={() => {
                         setCompanionQuery('')

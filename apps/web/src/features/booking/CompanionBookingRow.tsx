@@ -10,6 +10,7 @@ import { ReviewForm } from '../profile/ReviewForm'
 import { BookingCompletionAction } from './BookingCompletionAction'
 import { CompanionSettlementPanel } from './CompanionSettlementPanel'
 import { EvidenceDecision } from './EvidenceDecision'
+import { ReviewSubmittedLink } from './ReviewSubmittedLink'
 import type { CompanionBooking } from './combinedBookings'
 
 export type CompanionBookingStatus =
@@ -123,7 +124,7 @@ export function CompanionBookingRowView({
         )}
         {canComplete && booking.companionCompletedAt && <span className="text-meta">You confirmed completion · waiting for member</span>}
         {canReview && reviewSlot}
-        {booking.viewerHasReviewed && reviewWindowOpen && <span className="text-meta">Review submitted</span>}
+        {booking.viewerHasReviewed && <ReviewSubmittedLink reviewId={booking.viewerReviewId} />}
         {canCancel && <Button size="small" intent="danger" onClick={onCancel}>Cancel booking</Button>}
         {conversationLink}
         <Button size="small" intent="danger" onClick={onReport}>Report</Button>

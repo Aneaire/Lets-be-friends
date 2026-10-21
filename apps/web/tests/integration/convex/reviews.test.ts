@@ -236,6 +236,44 @@ describe('review submission', () => {
   })
 })
 
+describe('review permalink', () => {
+  it('returns the reviewer own submission and hides it from other participants and signed-out readers', async () => {
+    const t = createTest()
+    const { bookingId } = await seedReviewableBooking(t)
+    const reviewId = await t.withIdentity({ subject: 'review-member' }).mutation(api.reviews.submit, {
+      bookingId,
+      rating: 5,
+      body: 'Kind and clear.',
+    })
+
+    const own = await t.withIdentity({ subject: 'review-member' }).query(api.reviews.viewerSubmission, { reviewId })
+    expect(own).toMatchObject({
+      _id: reviewId,
+      rating: 5,
+      body: 'Kind and clear.',
+      reviewerDisplayName: 'Angelo Santiago',
+      companionDisplayName: 'review-companion',
+    })
+
+    expect(await t.withIdentity({ subject: 'review-companion' }).query(api.reviews.viewerSubmission, { reviewId })).toBeNull()
+    expect(await t.withIdentity({ subject: 'review-outsider' }).query(api.reviews.viewerSubmission, { reviewId })).toBeNull()
+    expect(await t.query(api.reviews.viewerSubmission, { reviewId })).toBeNull()
+  })
+
+  it('links each booking row to the review id the viewer submitted', async () => {
+    const t = createTest()
+    const { bookingId } = await seedReviewableBooking(t)
+    const memberReviewId = await t.withIdentity({ subject: 'review-member' }).mutation(api.reviews.submit, { bookingId, rating: 5 })
+    const companionReviewId = await t.withIdentity({ subject: 'review-companion' }).mutation(api.reviews.submit, { bookingId, rating: 4 })
+
+    const memberBookings = await t.withIdentity({ subject: 'review-member' }).query(api.bookings.mine, {})
+    expect(memberBookings[0]).toMatchObject({ viewerHasReviewed: true, viewerReviewId: memberReviewId })
+
+    const companionBookings = await t.withIdentity({ subject: 'review-companion' }).query(api.bookings.forCompanion, {})
+    expect(companionBookings[0]).toMatchObject({ viewerHasReviewed: true, viewerReviewId: companionReviewId })
+  })
+})
+
 describe('review engagement counters and rate limits', () => {
   it('maintains exact review like and comment counters through reactions and comments', async () => {
     const t = createTest()

@@ -124,6 +124,11 @@ describe('account navigation verification', () => {
     expect(container.querySelectorAll('.account-avatar[data-verified="true"]')).toHaveLength(2)
     expect(container.querySelectorAll('.account-avatar-badge')).toHaveLength(2)
     expect(screen.getAllByText('Identity and Companion profile verified')).toHaveLength(2)
+    // The shared chip carries the copy; the badge markup no longer hardcodes it.
+    for (const badge of container.querySelectorAll('.account-avatar-badge')) {
+      expect(badge.getAttribute('data-tooltip')).toBe('Verified')
+      expect(badge.getAttribute('data-tooltip-position')).toBe('below-right')
+    }
   })
 
   it('keeps Get verified with its identity nudge while the checks are incomplete', () => {
@@ -189,6 +194,8 @@ describe('header primary actions', () => {
     expect(nav.querySelectorAll('a.header-primary-action')).toHaveLength(2)
     expect(screen.getByRole('link', { name: 'Messages' }).getAttribute('href')).toBe('/messages')
     expect(screen.getByRole('link', { name: 'Bookings' }).getAttribute('href')).toBe('/app')
+    expect(screen.getByRole('link', { name: 'Messages' }).getAttribute('data-tooltip')).toBe('Messages')
+    expect(screen.getByRole('link', { name: 'Bookings' }).getAttribute('data-tooltip')).toBe('Bookings')
   })
 
   it('marks the active header destination for Messages', () => {

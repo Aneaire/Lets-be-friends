@@ -166,7 +166,10 @@ describe('BookingsView', () => {
   it('navigates between months and can return to today', () => {
     render(<Harness />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
+    const next = screen.getByRole('button', { name: 'Next month' })
+    expect(next.getAttribute('data-tooltip')).toBe('Next month')
+    expect(screen.getByRole('button', { name: 'Previous month' }).getAttribute('data-tooltip')).toBe('Previous month')
+    fireEvent.click(next)
     expect(screen.getByRole('heading', { name: 'September 2026' })).toBeTruthy()
     expect(screen.getByRole('gridcell', { name: /September 3, 2026, 1 booking/ })).toBeTruthy()
 

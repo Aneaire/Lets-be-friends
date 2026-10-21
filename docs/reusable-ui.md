@@ -6,13 +6,16 @@ Use the production component first. Storybook documents and exercises that compo
 
 | Surface | Production building blocks | Storybook examples |
 | --- | --- | --- |
-| Web feed and profile posts | `features/social/PostCard`, `PostActionBar`, `PostMediaGrid`; profiles compose these in `ProfileContentPanel` | Web/Organisms/Social compositions, existing social card/action/media stories |
+| Web feed and profile posts | `features/social/SocialPostCard` composes `PostCard`, `PostActionBar`, `PostMediaGrid`, the post menu, and share for both surfaces; profiles render it inside `ProfileContentPanel` | Web/Organisms/Social compositions, existing social card/action/media stories |
 | Web feed, profile, and shared reviews | `ReviewContent` and `ReviewStars`; connected wrappers keep data and action handling | Social compositions and shared embed stories |
+| Web submitted review permalink | `SubmittedReviewView`; `SubmittedReviewPage` loads the reviewer's own submission | Features/Review/Submitted review page |
 | Web featured discussion | `FeaturedComment` used by `SocialPage` | Social compositions |
 | Mobile feed, post comments, Companion profile posts | `PostCard` plus shared `PostContent` (mentions, media, poll, featured comment), with each surface supplying its actions | Mobile/Organisms/Post content; Mobile/Social/Social feed card |
 | Mobile feed and Companion profile reviews | `ReviewContent`; feed uses `ReviewFeedCardPresentation` | Mobile/Social/Review feed card |
 
-Web profile cards now share the feed's identity, media, and action components, including the actual owner avatar. Page layout can differ, but shared card internals have one definition. Mobile own/member profiles still do not expose post lists; this refactor does not add that feature. Web and React Native have separate implementations for their platforms.
+Web profile cards render the same `SocialPostCard` as the feed, including the round identity photo, post menu, share action, media, polls, and action bar. Page layout can differ, but shared card internals have one definition. Mobile own/member profiles still do not expose post lists; this refactor does not add that feature. Web and React Native have separate implementations for their platforms.
+
+Single post and review photos or videos keep their natural aspect ratio between a tall 4:5 cap and a wide 1.91:1 cap, using `fluidMedia.ts`. Two, three, four, and five item collages use fixed Facebook-style blocks so mixed portrait, square, landscape, and panorama media stay aligned without ragged cells.
 
 ## Other reusable patterns
 

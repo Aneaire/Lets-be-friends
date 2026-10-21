@@ -39,6 +39,25 @@ const previewMedia: PreviewPostMediaItem[] = [
   { kind: 'image', previewUrl: '/images/marketing/cook-together-768.webp' },
 ]
 
+function fluidPhoto(label: string, width: number, height: number) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#d8d8d8"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="${Math.round(width / 12)}" fill="#111111">${label}</text></svg>`
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
+
+const portraitMedia: DisplayPostMediaItem[] = [
+  { storageId: 'fluid-portrait', kind: 'image', url: fluidPhoto('Portrait 3:4', 600, 800) },
+]
+
+const panoramaMedia: DisplayPostMediaItem[] = [
+  { storageId: 'fluid-panorama', kind: 'image', url: fluidPhoto('Panorama 3:1', 1200, 400) },
+]
+
+const collageMedia: DisplayPostMediaItem[] = [
+  { storageId: 'fluid-collage-portrait', kind: 'image', url: fluidPhoto('Portrait', 600, 800) },
+  { storageId: 'fluid-collage-square', kind: 'image', url: fluidPhoto('Square', 700, 700) },
+  { storageId: 'fluid-collage-landscape', kind: 'image', url: fluidPhoto('Landscape', 900, 600) },
+]
+
 function PostStory({ media }: { media: DisplayPostMediaItem[] }) {
   return (
     <div className="social-story-timeline">
@@ -90,6 +109,18 @@ export const PhotoGallery: Story = {
 
 export const PhotoAndVideo: Story = {
   render: () => <PostStory media={mixedMedia} />,
+}
+
+export const SinglePortrait: Story = {
+  render: () => <PostStory media={portraitMedia} />,
+}
+
+export const SinglePanorama: Story = {
+  render: () => <PostStory media={panoramaMedia} />,
+}
+
+export const ThreePhotoCollage: Story = {
+  render: () => <PostStory media={collageMedia} />,
 }
 
 export const RemovableUploadPreview: Story = {

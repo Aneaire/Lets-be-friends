@@ -1,8 +1,23 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, within } from 'storybook/test'
+import { useMemo, useRef, type ReactNode } from 'react'
+import { RouterProvider, createMemoryHistory, createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
 
 import type { CompanionBooking } from './combinedBookings'
 import { CompanionBookingRowView } from './CompanionBookingRow'
+
+const storyPaths = ['/app', '/review', '/member-profile']
+
+function StoryRouter({ children }: { children: ReactNode }) {
+  const childrenRef = useRef(children)
+  childrenRef.current = children
+  const router = useMemo(() => {
+    const rootRoute = createRootRoute({ component: () => <>{childrenRef.current}</> })
+    const routeTree = rootRoute.addChildren(storyPaths.map((path) => createRoute({ getParentRoute: () => rootRoute, path })))
+    return createRouter({ routeTree, history: createMemoryHistory({ initialEntries: ['/'] }) })
+  }, [])
+  return <RouterProvider router={router} />
+}
 
 const baseBooking = {
   _id: 'booking_story',
@@ -29,6 +44,7 @@ const meta = {
   component: CompanionBookingRowView,
   parameters: { layout: 'padded' },
   globals: { viewport: { value: 'desktop', isRotated: false } },
+  decorators: [(Story) => <StoryRouter><Story /></StoryRouter>],
   args: {
     booking: baseBooking,
     onAccept: accept,
@@ -114,12 +130,12 @@ export const ReviewSubmitted: Story = {
       ...baseBooking,
       status: 'review_window',
       viewerHasReviewed: true,
+      viewerReviewId: 'review_story',
     } as unknown as CompanionBooking,
   },
   play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText('Review submitted'),
-    ).toBeVisible()
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('link', { name: 'View your review' })).toBeVisible()
   },
 }
 

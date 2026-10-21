@@ -48,6 +48,9 @@ function CompanionProfilePage() {
   const createReviewComment = useMutation(api.reviews.createComment)
   const deleteReviewComment = useMutation(api.reviews.deleteComment)
   const createPost = useMutation(api.social.createPost)
+  const editPost = useMutation(api.social.editPost)
+  const deletePost = useMutation(api.social.deletePost)
+  const voteOnPoll = useMutation(api.social.voteOnPoll)
   const report = useMutation(api.reports.create)
   const startConversation = useMutation(api.conversations.start)
   const createDraft = useMutation(api.bookings.createDraft)
@@ -244,6 +247,14 @@ function CompanionProfilePage() {
         } : undefined}
         onLikePost={isSignedIn ? (post) => toggleLikePost({ postId: post._id as Id<'posts'> }) : undefined}
         onSavePost={isSignedIn ? (post) => toggleSavePost({ postId: post._id as Id<'posts'> }) : undefined}
+        onEditPost={isSignedIn ? (post, body) => editPost({ postId: post._id as Id<'posts'>, body }) : undefined}
+        onDeletePost={isSignedIn ? (post) => deletePost({ postId: post._id as Id<'posts'> }) : undefined}
+        onReportPost={isSignedIn ? (post) => report({ targetType: 'post', targetId: post._id, reason: 'Post needs safety review' }) : undefined}
+        onVotePoll={isSignedIn ? (post, optionId) => voteOnPoll({ postId: post._id as Id<'posts'>, optionId }) : undefined}
+        onSharePostToFeed={isSignedIn ? async (post, message) => {
+          await createPost({ body: message, sharedPostId: post._id as Id<'posts'> })
+          setNotice('Post shared to your feed.')
+        } : undefined}
         onOpenPostComments={(post) => void navigate({ to: '/social', search: { postId: post._id } })}
         reviewAction={(review) => isSignedIn ? (
           <button

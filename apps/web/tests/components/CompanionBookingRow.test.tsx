@@ -166,7 +166,32 @@ describe('CompanionBookingRowView', () => {
     expect(screen.queryByText('Review submitted')).toBeNull()
   })
 
-  it('replaces the review slot with a submitted note once the Companion has reviewed', () => {
+  it('replaces the review slot with a link to the submitted review once the Companion has reviewed', () => {
+    render(
+      <CompanionBookingRowView
+        booking={{ ...booking, status: 'review_window', viewerHasReviewed: true, viewerReviewId: 'review-1' } as unknown as CompanionBooking}
+        {...handlers}
+        reviewSlot={<button type="button">Leave review</button>}
+      />,
+    )
+
+    const reviewLink = screen.getByRole('link', { name: 'View your review' })
+    expect(reviewLink.getAttribute('href')).toBe('/review')
+    expect(screen.queryByRole('button', { name: 'Leave review' })).toBeNull()
+  })
+
+  it('keeps the submitted review link available after the review window closes', () => {
+    render(
+      <CompanionBookingRowView
+        booking={{ ...booking, status: 'closed', viewerHasReviewed: true, viewerReviewId: 'review-1' } as unknown as CompanionBooking}
+        {...handlers}
+      />,
+    )
+
+    expect(screen.getByRole('link', { name: 'View your review' }).getAttribute('href')).toBe('/review')
+  })
+
+  it('keeps the submitted note readable when the review id is unavailable', () => {
     render(
       <CompanionBookingRowView
         booking={{ ...booking, status: 'review_window', viewerHasReviewed: true } as unknown as CompanionBooking}
@@ -176,6 +201,7 @@ describe('CompanionBookingRowView', () => {
     )
 
     expect(screen.getByText('Review submitted')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'View your review' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Leave review' })).toBeNull()
   })
 

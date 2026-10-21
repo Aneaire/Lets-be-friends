@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { ReviewContent } from '../../src/features/social/ReviewContent'
@@ -48,5 +48,59 @@ describe('ReviewContent', () => {
 
     expect(container.querySelector('p.social-shared-embed-body')?.textContent).toBe('Shared review body.')
     expect(container.querySelector('.social-shared-embed-image img')).toBeTruthy()
+  })
+
+  it('sizes a single review photo fluidly from its natural ratio within a 4:5 cap', () => {
+    const { container } = render(
+      <ReviewContent
+        rating={5}
+        imageUrl="https://example.com/review-portrait.jpg"
+        reviewerDisplayName="Robin Lee"
+      />,
+    )
+
+    const image = screen.getByAltText("Photo shared with Robin Lee's review")
+    Object.defineProperties(image, {
+      naturalWidth: { configurable: true, value: 720 },
+      naturalHeight: { configurable: true, value: 1200 },
+    })
+    fireEvent.load(image)
+
+    const frame = container.querySelector<HTMLElement>('.social-review-image-single')
+    expect(frame?.style.getPropertyValue('--social-review-aspect')).toBe('0.8')
+  })
+
+  it('keeps a single landscape review photo at its natural ratio', () => {
+    const { container } = render(
+      <ReviewContent
+        rating={5}
+        imageUrl="https://example.com/review-landscape.jpg"
+        reviewerDisplayName="Robin Lee"
+      />,
+    )
+
+    const image = screen.getByAltText("Photo shared with Robin Lee's review")
+    Object.defineProperties(image, {
+      naturalWidth: { configurable: true, value: 1600 },
+      naturalHeight: { configurable: true, value: 1000 },
+    })
+    fireEvent.load(image)
+
+    const frame = container.querySelector<HTMLElement>('.social-review-image-single')
+    expect(frame?.style.getPropertyValue('--social-review-aspect')).toBe('1.6')
+  })
+
+  it('lays out three review photos as a large photo beside two stacked photos', () => {
+    const { container } = render(
+      <ReviewContent
+        rating={5}
+        imageUrls={['https://example.com/one.jpg', 'https://example.com/two.jpg', 'https://example.com/three.jpg']}
+        reviewerDisplayName="Robin Lee"
+      />,
+    )
+
+    const grid = container.querySelector<HTMLElement>('.social-review-image-grid')
+    expect(grid?.dataset.count).toBe('3')
+    expect(grid?.querySelectorAll('img')).toHaveLength(3)
   })
 })

@@ -7,7 +7,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../../convex/_generated/api', () => ({
   api: {
     users: { publicProfile: 'users.publicProfile' },
-    social: { byUser: 'social.byUser', toggleFollow: 'social.toggleFollow', toggleLike: 'social.toggleLike', toggleSavePost: 'social.toggleSavePost' },
+    social: {
+      byUser: 'social.byUser',
+      toggleFollow: 'social.toggleFollow',
+      toggleLike: 'social.toggleLike',
+      toggleSavePost: 'social.toggleSavePost',
+      editPost: 'social.editPost',
+      deletePost: 'social.deletePost',
+      createPost: 'social.createPost',
+      voteOnPoll: 'social.voteOnPoll',
+    },
+    reports: { create: 'reports.create' },
   },
 }))
 

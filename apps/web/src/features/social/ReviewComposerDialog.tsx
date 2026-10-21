@@ -8,6 +8,7 @@ import { describeConvexError } from '../../lib/convexErrors'
 import { PostActionBar } from './PostActionBar'
 import { PostCard } from './PostCard'
 import { ReviewStarPicker } from './ReviewStarPicker'
+import { mediaAspectStyle, rememberMediaAspect } from './fluidMedia'
 
 const MAX_REVIEW_PHOTOS = 4
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024
@@ -50,6 +51,7 @@ export function ReviewComposerView({
 }) {
   const inputId = useId()
   const dragDepth = useRef(0)
+  const [photoAspects, setPhotoAspects] = useState<Record<string, number>>({})
 
   const fileInput = (
     <input
@@ -127,8 +129,21 @@ export function ReviewComposerView({
             aria-label="Selected photos"
           >
             {photos.map((photo, index) => (
-              <li key={photo.key} className="review-editor-photo">
-                <img src={photo.url} alt={`Selected photo ${index + 1}: ${photo.name}`} />
+              <li
+                key={photo.key}
+                className="review-editor-photo"
+                style={mediaAspectStyle(photoAspects[photo.key], '--social-review-aspect')}
+              >
+                <img
+                  src={photo.url}
+                  alt={`Selected photo ${index + 1}: ${photo.name}`}
+                  onLoad={(event) => rememberMediaAspect(
+                    setPhotoAspects,
+                    photo.key,
+                    event.currentTarget.naturalWidth,
+                    event.currentTarget.naturalHeight,
+                  )}
+                />
                 <button
                   type="button"
                   className="review-photo-thumb-remove"

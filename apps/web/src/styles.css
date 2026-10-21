@@ -3071,6 +3071,8 @@ body {
   background: var(--surface);
 }
 .ds-post-avatar { width: 2.75rem; min-width: 2.75rem; }
+/* Every surface that renders the shared post card uses the same round identity. */
+.ds-post-card .ds-post-avatar-round { border-radius: 999px; }
 .ds-post-body { min-width: 0; }
 .ds-post-body > .social-media-grid { width: auto; margin-top: 0.5rem; margin-left: 0; border-radius: 8px; }
 .ds-post-body > .social-action-bar { width: 100%; max-width: none; justify-content: flex-start; gap: 0.25rem; margin: 0.25rem 0 0; padding-top: 0; border-top: 0; }
@@ -6135,13 +6137,22 @@ textarea.field {
   stroke-width: 3;
 }
 
-/* Hovering the badge confirms what it marks. Chip styling mirrors the popover
-   voice (surface, hairline border, one soft shadow); blue stays on the badge. */
-.account-avatar-badge::after {
-  content: "Verified";
+/* Shared hover hint. Markup owns the copy in data-tooltip and this block owns
+   the chip voice, so every screen gets the same surface, hairline border, soft
+   shadow, and 120ms reveal. Copy must not contain a double quote because the
+   value is read through attr(). The chip sits centered below the host unless a
+   data-tooltip-position modifier moves it. :where keeps the position rule at
+   zero specificity so a host that already anchors itself, such as an absolutely
+   positioned clear button or the verified badge, keeps its own placement. */
+:where([data-tooltip]) {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
   position: absolute;
   top: calc(100% + 0.35rem);
-  right: -0.35rem;
+  left: var(--tooltip-anchor, 50%);
   z-index: 60;
   padding: 0.24rem 0.5rem;
   border: 1px solid var(--border);
@@ -6153,17 +6164,53 @@ textarea.field {
   font-weight: 650;
   line-height: 1;
   letter-spacing: 0.05em;
+  text-align: center;
   text-transform: uppercase;
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  translate: 0 -0.15rem;
+  translate: var(--tooltip-shift, -50%) -0.15rem;
   transition: opacity 120ms ease, translate 120ms ease;
 }
 
-.account-avatar-badge:hover::after {
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
   opacity: 1;
-  translate: 0 0;
+  translate: var(--tooltip-shift, -50%) 0;
+}
+
+/* Align the chip under the right edge of the host, as the verified badge does. */
+[data-tooltip-position="below-right"] {
+  --tooltip-anchor: auto;
+  --tooltip-shift: 0;
+}
+
+[data-tooltip-position="below-right"]::after {
+  right: -0.35rem;
+}
+
+/* Align the chip under the left edge of a host that sits near a left edge. */
+[data-tooltip-position="below-left"] {
+  --tooltip-anchor: -0.35rem;
+  --tooltip-shift: 0;
+}
+
+/* Place the chip above a host that sits near the bottom of a scroll area. */
+[data-tooltip-position="above"]::after {
+  top: auto;
+  bottom: calc(100% + 0.35rem);
+  translate: var(--tooltip-shift, -50%) 0.15rem;
+}
+
+[data-tooltip-position="above"]:hover::after,
+[data-tooltip-position="above"]:focus-visible::after {
+  translate: var(--tooltip-shift, -50%) 0;
+}
+
+/* The badge anchors to the avatar rim, so it keeps absolute positioning while
+   the shared chip renders below it. */
+.account-avatar-badge[data-tooltip] {
+  position: absolute;
 }
 
 .account-avatar-lg {
@@ -8441,13 +8488,6 @@ textarea.field {
   background: var(--surface-sunk);
 }
 
-.profile-review-image img {
-  display: block;
-  width: 100%;
-  max-height: 32rem;
-  object-fit: cover;
-}
-
 .profile-review-actions {
   display: flex;
   align-items: center;
@@ -8783,7 +8823,6 @@ textarea.field {
   display: block;
   width: 100%;
   height: 100%;
-  aspect-ratio: 1 / 1;
   object-fit: cover;
 }
 
@@ -8793,9 +8832,15 @@ textarea.field {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.review-editor-photos[data-count="1"] .review-editor-photo img {
-  aspect-ratio: 16 / 10;
+.review-editor-photos[data-count="1"] .review-editor-photo {
+  width: 100%;
+  aspect-ratio: var(--social-review-aspect, 16 / 10);
   max-height: min(34rem, 68vh);
+}
+
+.review-editor-photos[data-count="1"] .review-editor-photo img {
+  height: 100%;
+  object-fit: cover;
 }
 
 .review-photo-thumb-remove {
@@ -8824,22 +8869,69 @@ textarea.field {
   line-height: 1.45;
 }
 
+.social-review-image-single {
+  width: 100%;
+  aspect-ratio: var(--social-review-aspect, 16 / 10);
+  max-height: min(34rem, 68vh);
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface-sunk);
+}
+
+.social-review-image-single > * {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.social-review-image-single img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .social-review-image-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.4rem;
 }
 
+.social-review-image-grid[data-count="2"] {
+  aspect-ratio: 2 / 1;
+}
+
+.social-review-image-grid[data-count="3"] {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  aspect-ratio: 3 / 2;
+}
+
+.social-review-image-grid[data-count="3"] > *:first-child {
+  grid-row: span 2;
+}
+
+.social-review-image-grid[data-count="4"] {
+  grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1 / 1;
+}
+
 .social-review-image-grid > * {
   width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.social-review-image-grid > img {
+  border-radius: 8px;
 }
 
 .social-review-image-grid img {
   display: block;
   width: 100%;
   height: 100%;
-  aspect-ratio: 1 / 1;
-  border-radius: 8px;
   object-fit: cover;
 }
 
@@ -8848,9 +8940,8 @@ textarea.field {
 .social-review-image-plain {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 10;
-  max-height: min(34rem, 68vh);
-  border-radius: 8px;
+  height: 100%;
+  border-radius: 0;
   object-fit: cover;
 }
 
@@ -10474,19 +10565,68 @@ textarea.field {
 .social-media-preview-grid[data-count="1"] .social-media-preview,
 .social-media-grid[data-count="1"] .social-media-item {
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: var(--social-media-aspect, 16 / 10);
   max-height: min(34rem, 68vh);
 }
 
-.social-media-grid[data-count="1"] .social-media-item[data-layout="portrait"] {
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  max-height: min(42rem, 75vh);
+/* Two photos sit side by side, three use a large left photo with two stacked
+   beside it, four form a square, and five use two wide photos over three
+   square ones. The collage keeps one calm block instead of ragged cells, and
+   the composer preview uses the same blocks as the published card. */
+.social-media-preview-grid[data-count="2"],
+.social-media-grid[data-count="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  aspect-ratio: 2 / 1;
 }
 
-.social-media-grid[data-count="1"] .social-media-item[data-layout="portrait"] img {
-  object-fit: cover;
-  object-position: center;
+.social-media-preview-grid[data-count="3"],
+.social-media-grid[data-count="3"] {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  aspect-ratio: 3 / 2;
+}
+
+.social-media-preview-grid[data-count="3"] > *:first-child,
+.social-media-grid[data-count="3"] .social-media-item:first-child {
+  grid-row: span 2;
+}
+
+.social-media-preview-grid[data-count="4"],
+.social-media-grid[data-count="4"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1 / 1;
+}
+
+.social-media-preview-grid[data-count="5"],
+.social-media-grid[data-count="5"] {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: 1fr 1fr;
+  aspect-ratio: 3 / 2;
+}
+
+.social-media-preview-grid[data-count="5"] > *:nth-child(-n + 2),
+.social-media-grid[data-count="5"] .social-media-item:nth-child(-n + 2) {
+  grid-column: span 3;
+}
+
+.social-media-preview-grid[data-count="5"] > *:nth-child(n + 3),
+.social-media-grid[data-count="5"] .social-media-item:nth-child(n + 3) {
+  grid-column: span 2;
+}
+
+.social-media-preview-grid[data-count="2"] > *,
+.social-media-preview-grid[data-count="3"] > *,
+.social-media-preview-grid[data-count="4"] > *,
+.social-media-preview-grid[data-count="5"] > *,
+.social-media-grid[data-count="2"] .social-media-item,
+.social-media-grid[data-count="3"] .social-media-item,
+.social-media-grid[data-count="4"] .social-media-item,
+.social-media-grid[data-count="5"] .social-media-item {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: auto;
 }
 
 .social-media-preview img,
@@ -15946,10 +16086,8 @@ textarea.field {
 .social-review-image-open img {
   display: block;
   width: 100%;
-  /* A single review photo fills the card the way a single post photo does. */
-  aspect-ratio: 16 / 10;
-  max-height: min(34rem, 68vh);
-  border-radius: 8px;
+  height: 100%;
+  border-radius: 0;
   object-fit: cover;
 }
 
@@ -15968,6 +16106,80 @@ textarea.field {
   }
   .social-lightbox-media { max-height: 46dvh; }
   .social-lightbox-details { border-top: 1px solid var(--rule); border-left: 0; }
+}
+
+/* Dedicated review permalink: the published review opens as a focused page
+   with the same media-and-details split the fullscreen viewer uses. */
+.review-page {
+  min-height: 100dvh;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+.review-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: min(100%, 72rem);
+  margin: 0 auto 1rem;
+}
+.review-page-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(20rem, 26rem);
+  width: min(100%, 72rem);
+  min-height: min(80dvh, 46rem);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.review-page-panel[data-has-media="false"] {
+  display: block;
+  width: min(100%, 40rem);
+  min-height: 0;
+}
+.review-page-stage {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  place-items: center;
+  overflow: hidden;
+  background: oklch(0% 0 0);
+}
+.review-page-media {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(80dvh, 46rem);
+  object-fit: contain;
+}
+.review-page-details {
+  min-height: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--rule);
+  background: var(--surface);
+}
+.review-page-panel[data-has-media="false"] .review-page-details {
+  border-left: 0;
+}
+
+@media (max-width: 820px) {
+  .review-page { padding: 0; }
+  .review-page-header { padding: 1rem; margin-bottom: 0; }
+  .review-page-panel {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    width: 100%;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .review-page-panel[data-has-media="false"] {
+    min-height: 0;
+  }
+  .review-page-media { max-height: 60dvh; }
+  .review-page-details { border-top: 1px solid var(--rule); border-left: 0; overflow: visible; }
 }
 
 /* Companion setup and public invitation */

@@ -28,13 +28,14 @@ export function activePrimaryNavigation(pathname: string): PrimaryNavigationId |
   if (pathname === '/discover' || pathname === '/nearby' || pathname === '/companion-profile') return 'discover'
   if (pathname === '/circles' || pathname.startsWith('/circles/')) return 'circles'
   if (pathname === '/messages' || pathname.startsWith('/messages/')) return 'messages'
-  if (pathname === '/app' || pathname.startsWith('/app/')) return 'bookings'
+  if (pathname === '/app' || pathname.startsWith('/app/') || pathname === '/review') return 'bookings'
   return null
 }
 
 export function isWorkspacePath(pathname: string) {
   return pathname === '/app'
     || pathname.startsWith('/app/')
+    || pathname === '/review'
     || pathname === '/profile'
     || pathname.startsWith('/profile/')
     || pathname === '/settings'

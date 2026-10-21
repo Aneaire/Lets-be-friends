@@ -194,7 +194,7 @@ describe('PostMediaGrid', () => {
     expect(reorderedItems[1]).toBe(originalItems[0])
   })
 
-  it('marks a single portrait image with its natural aspect ratio', () => {
+  it('keeps a single portrait image fluid within a 4:5 cap', () => {
     const { container } = render(
       <PostMediaGrid media={[{ storageId: 'portrait-1', kind: 'image', url: '/portrait.webp' }]} />,
     )
@@ -208,10 +208,10 @@ describe('PostMediaGrid', () => {
 
     const item = container.querySelector<HTMLElement>('.social-media-item')
     expect(item?.dataset.layout).toBe('portrait')
-    expect(item?.style.getPropertyValue('--social-media-aspect')).toBe('0.72')
+    expect(item?.style.getPropertyValue('--social-media-aspect')).toBe('0.8')
   })
 
-  it('keeps a single landscape image on the default layout', () => {
+  it('keeps a single landscape image fluid at its natural ratio', () => {
     const { container } = render(
       <PostMediaGrid media={[{ storageId: 'landscape-1', kind: 'image', url: '/landscape.webp' }]} />,
     )
@@ -225,7 +225,46 @@ describe('PostMediaGrid', () => {
 
     const item = container.querySelector<HTMLElement>('.social-media-item')
     expect(item?.dataset.layout).toBeUndefined()
-    expect(item?.style.getPropertyValue('--social-media-aspect')).toBe('')
+    expect(item?.style.getPropertyValue('--social-media-aspect')).toBe('1.6')
+  })
+
+  it('sizes a single video from its metadata and caps extreme aspect ratios', () => {
+    const { container } = render(
+      <PostMediaGrid media={[{ storageId: 'video-1', kind: 'video', url: '/portrait-clip.mp4' }]} />,
+    )
+    const video = container.querySelector('video')!
+
+    Object.defineProperties(video, {
+      duration: { configurable: true, value: 12 },
+      videoWidth: { configurable: true, value: 720 },
+      videoHeight: { configurable: true, value: 1280 },
+    })
+    fireEvent.loadedMetadata(video)
+
+    const item = container.querySelector<HTMLElement>('.social-media-item')
+    expect(item?.dataset.layout).toBe('portrait')
+    expect(item?.style.getPropertyValue('--social-media-aspect')).toBe('0.8')
+  })
+
+  it('previews a single draft image at its fluid aspect ratio', () => {
+    const onRemove = vi.fn()
+    const { container } = render(
+      <PostMediaGrid
+        mode="preview"
+        media={[{ previewUrl: 'blob:portrait', kind: 'image' }]}
+        onRemove={onRemove}
+      />,
+    )
+    const image = container.querySelector('img')!
+
+    Object.defineProperties(image, {
+      naturalWidth: { configurable: true, value: 720 },
+      naturalHeight: { configurable: true, value: 1200 },
+    })
+    fireEvent.load(image)
+
+    const preview = container.querySelector<HTMLElement>('.social-media-preview')
+    expect(preview?.style.getPropertyValue('--social-media-aspect')).toBe('0.8')
   })
 
   it('renders removable previews and reports the selected index', () => {

@@ -25,6 +25,10 @@ describe('shared post card styles', () => {
     expect(styles).not.toContain('.social-post-copy')
   })
 
+  it('gives every shared post card the same round identity photo', () => {
+    expect(styles).toMatch(/\.ds-post-card \.ds-post-avatar-round \{ border-radius: 999px; \}/)
+  })
+
   it('keeps the post card surface steady instead of darkening on hover', () => {
     expect(styles).not.toMatch(/\.ds-post-card:hover\s*\{/)
     expect(styles).not.toMatch(/\.social-post:hover\s*\{/)

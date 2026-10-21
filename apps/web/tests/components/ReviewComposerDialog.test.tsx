@@ -121,6 +121,23 @@ describe('ReviewComposerDialog', () => {
     expect(screen.getByLabelText('Selected photos').getAttribute('data-count')).toBe('3')
   })
 
+  it('previews a single photo at its fluid aspect ratio', () => {
+    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:draft'), revokeObjectURL: vi.fn() })
+    renderComposer()
+
+    choosePhotos([photoFile('portrait.png')])
+    const photo = screen.getByLabelText('Selected photos').querySelector<HTMLElement>('.review-editor-photo')
+    const image = screen.getByAltText('Selected photo 1: portrait.png')
+
+    Object.defineProperties(image, {
+      naturalWidth: { configurable: true, value: 900 },
+      naturalHeight: { configurable: true, value: 1600 },
+    })
+    fireEvent.load(image)
+
+    expect(photo?.style.getPropertyValue('--social-review-aspect')).toBe('0.8')
+  })
+
   it('removes a chosen photo and rejects unsupported files', () => {
     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:draft'), revokeObjectURL: vi.fn() })
     renderComposer()

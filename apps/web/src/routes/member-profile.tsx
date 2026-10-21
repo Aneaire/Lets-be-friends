@@ -25,6 +25,11 @@ function MemberProfilePage() {
   const toggleFollow = useMutation(api.social.toggleFollow)
   const toggleLikePost = useMutation(api.social.toggleLike)
   const toggleSavePost = useMutation(api.social.toggleSavePost)
+  const editPost = useMutation(api.social.editPost)
+  const deletePost = useMutation(api.social.deletePost)
+  const createPost = useMutation(api.social.createPost)
+  const voteOnPoll = useMutation(api.social.voteOnPoll)
+  const report = useMutation(api.reports.create)
 
   if (!userId) return <UnavailableProfile detail="Choose someone from Explore first." />
   if (profile === undefined) return <main className="marketing-page"><div className="empty-state">Loading profile...</div></main>
@@ -86,6 +91,11 @@ function MemberProfilePage() {
         unavailableReviewsDescription="Reviews appear when a member has an approved Companion profile."
         onLikePost={isSignedIn ? (post) => toggleLikePost({ postId: post._id as Id<'posts'> }) : undefined}
         onSavePost={isSignedIn ? (post) => toggleSavePost({ postId: post._id as Id<'posts'> }) : undefined}
+        onEditPost={isSignedIn ? (post, body) => editPost({ postId: post._id as Id<'posts'>, body }) : undefined}
+        onDeletePost={isSignedIn ? (post) => deletePost({ postId: post._id as Id<'posts'> }) : undefined}
+        onReportPost={isSignedIn ? (post) => report({ targetType: 'post', targetId: post._id, reason: 'Post needs safety review' }) : undefined}
+        onVotePoll={isSignedIn ? (post, optionId) => voteOnPoll({ postId: post._id as Id<'posts'>, optionId }) : undefined}
+        onSharePostToFeed={isSignedIn ? async (post, message) => { await createPost({ body: message, sharedPostId: post._id as Id<'posts'> }) } : undefined}
         onOpenPostComments={(post) => void navigate({ to: '/social', search: { postId: post._id } })}
       />
     </main>

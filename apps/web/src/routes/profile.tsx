@@ -37,6 +37,10 @@ function ProfilePage() {
   const deleteReviewComment = useMutation(api.reviews.deleteComment)
   const toggleLikePost = useMutation(api.social.toggleLike)
   const toggleSavePost = useMutation(api.social.toggleSavePost)
+  const editPost = useMutation(api.social.editPost)
+  const deletePost = useMutation(api.social.deletePost)
+  const createPost = useMutation(api.social.createPost)
+  const voteOnPoll = useMutation(api.social.voteOnPoll)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [editOpen, setEditOpen] = useState(false)
@@ -327,6 +331,13 @@ function ProfilePage() {
         onDeleteReviewComment={(review, commentId) => deleteReviewComment({ commentId: commentId as Id<'reviewComments'> })}
         onLikePost={(post) => toggleLikePost({ postId: post._id as Id<'posts'> })}
         onSavePost={(post) => toggleSavePost({ postId: post._id as Id<'posts'> })}
+        onEditPost={(post, body) => editPost({ postId: post._id as Id<'posts'>, body })}
+        onDeletePost={(post) => deletePost({ postId: post._id as Id<'posts'> })}
+        onVotePoll={(post, optionId) => voteOnPoll({ postId: post._id as Id<'posts'>, optionId })}
+        onSharePostToFeed={async (post, message) => {
+          await createPost({ body: message, sharedPostId: post._id as Id<'posts'> })
+          setNotice('Post shared to your feed.')
+        }}
         onOpenPostComments={(post) => void navigate({ to: '/social', search: { postId: post._id } })}
       />
 

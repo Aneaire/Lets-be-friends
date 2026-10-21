@@ -50,12 +50,14 @@ export const mine = query({
       const companion = await ctx.db.get(booking.companionProfileId)
       const companionUser = companion ? await ctx.db.get(companion.userId) : null
       const reviews = await ctx.db.query('reviews').withIndex('by_booking', (q) => q.eq('bookingId', booking._id)).collect()
+      const viewerReview = reviews.find((review) => review.reviewerId === viewer._id)
       return {
         ...booking,
         companionUserId: companion?.userId,
         companionDisplayName: companionUser?.displayName ?? companion?.displayName ?? 'Companion',
         companionCity: companion?.city ?? 'Unknown location',
-        viewerHasReviewed: reviews.some((review) => review.reviewerId === viewer._id),
+        viewerHasReviewed: Boolean(viewerReview),
+        viewerReviewId: viewerReview?._id,
         otherHasReviewed: reviews.some((review) => review.reviewerId === companion?.userId),
       }
     }))
@@ -88,12 +90,14 @@ export const forCompanion = query({
       const member = await ctx.db.get(booking.memberId)
       const companion = companionsById.get(booking.companionProfileId)
       const reviews = await ctx.db.query('reviews').withIndex('by_booking', (q) => q.eq('bookingId', booking._id)).collect()
+      const viewerReview = reviews.find((review) => review.reviewerId === viewer._id)
       return {
         ...booking,
         memberDisplayName: member?.displayName ?? 'Member',
         companionDisplayName: viewer.displayName,
         companionCity: companion?.city ?? 'Unknown location',
-        viewerHasReviewed: reviews.some((review) => review.reviewerId === viewer._id),
+        viewerHasReviewed: Boolean(viewerReview),
+        viewerReviewId: viewerReview?._id,
         otherHasReviewed: reviews.some((review) => review.reviewerId === booking.memberId),
       }
     }))

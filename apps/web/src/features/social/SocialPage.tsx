@@ -13,13 +13,10 @@ import { ConfirmationDialog } from '../../design-system/molecules/Dialog'
 import { InfiniteScrollTrigger } from '../../design-system/molecules/InfiniteScrollTrigger'
 import { CommentActionsMenu } from './CommentActionsMenu'
 import { CommentBubble } from './CommentBubble'
-import { FeaturedComment } from './FeaturedComment'
 import { MentionText } from './MentionText'
-import { PostActionsMenu } from './PostActionsMenu'
 import { PostActionBar } from './PostActionBar'
-import { PostCard } from './PostCard'
-import { PostMediaGrid } from './PostMediaGrid'
 import { SocialLightbox } from './SocialLightbox'
+import { SocialPostCard } from './SocialPostCard'
 import { discardRegisteredUploads, mediaKind, uploadPostMedia, type SelectedMedia } from './postMediaUpload'
 import { PollCard } from './PollCard'
 import { MentionField } from './MentionField'
@@ -535,12 +532,10 @@ export function PostRow({
   const [commenting, setCommenting] = useState(false)
   const [commentError, setCommentError] = useState('')
   const [commentBody, setCommentBody] = useState('')
-  const [editing, setEditing] = useState(false)
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [shareOpen, setShareOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
-  const [actionPending, setActionPending] = useState('')
-  const [actionError, setActionError] = useState('')
+  const [lightboxShareOpen, setLightboxShareOpen] = useState(false)
+  const [lightboxPending, setLightboxPending] = useState('')
+  const [lightboxError, setLightboxError] = useState('')
   const { results: comments, status: commentsStatus, loadMore: loadMoreComments } = usePaginatedQuery(
     api.social.commentPage,
     commentsOpen || lightboxIndex !== null ? { postId: post._id } : 'skip',
@@ -565,191 +560,44 @@ export function PostRow({
     }
   }, [commentsStatus, focusCommentId, loadMoreComments, comments.length])
 
-  function editFromOptions() {
-    setEditing((value) => !value)
-  }
-
   function openLightbox(index: number) {
     setCommentsOpen(true)
     setLightboxIndex(index)
   }
 
-  function handleLike() {
+  function handleLightboxLike() {
     void (async () => {
-      setActionPending('like')
-      setActionError('')
+      setLightboxPending('like')
+      setLightboxError('')
       try {
         await onLike()
       } catch (likeError) {
-        setActionError(likeError instanceof Error ? describeConvexError(likeError) : 'Like could not be updated.')
+        setLightboxError(likeError instanceof Error ? describeConvexError(likeError) : 'Like could not be updated.')
       } finally {
-        setActionPending('')
+        setLightboxPending('')
       }
     })()
   }
 
-  async function deleteFromOptions() {
-    setActionPending('delete')
-    setActionError('')
-    try {
-      await onDelete()
-      setDeleteConfirmOpen(false)
-    } catch (deleteError) {
-      setActionError(deleteError instanceof Error ? describeConvexError(deleteError) : 'Post could not be deleted.')
-    } finally {
-      setActionPending('')
-    }
-  }
-
-  async function reportFromOptions() {
-    setActionPending('report')
-    setActionError('')
-    try {
-      await onReport()
-    } catch (reportError) {
-      setActionError(reportError instanceof Error ? describeConvexError(reportError) : 'Post could not be reported.')
-    } finally {
-      setActionPending('')
-    }
-  }
-
-  const authorAction = post.ownPost ? (
-    <Link to="/profile" className="social-post-author-link">{post.authorDisplayName}</Link>
-  ) : post.authorCompanionProfileId ? (
-    <Link
-      to="/companion-profile"
-      search={{ companionProfileId: post.authorCompanionProfileId }}
-      className="social-post-author-link"
-    >
-      {post.authorDisplayName}
-    </Link>
-  ) : undefined
-
-  const avatarAction = post.ownPost ? (
-    <Link to="/profile" className="social-post-avatar-link" aria-label="View your profile">
-      <Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="large" decorative />
-    </Link>
-  ) : post.authorCompanionProfileId ? (
-    <Link
-      to="/companion-profile"
-      search={{ companionProfileId: post.authorCompanionProfileId }}
-      className="social-post-avatar-link"
-      aria-label={`View ${post.authorDisplayName}'s profile`}
-    >
-      <Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="large" decorative />
-    </Link>
-  ) : (
-    <Link
-      to="/member-profile"
-      search={{ userId: post.authorId }}
-      className="social-post-avatar-link"
-      aria-label={`View ${post.authorDisplayName}'s profile`}
-    >
-      <Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="large" decorative />
-    </Link>
-  )
-
   return (
     <>
-      <PostCard
-      ref={rowRef}
-      id={`post-${post._id}`}
-      tabIndex={focusComments ? -1 : undefined}
-      author={post.authorDisplayName}
-      imageUrl={post.authorProfileImageUrl}
-      timestamp={formatTime(post.createdAt)}
-      dateTime={new Date(post.createdAt).toISOString()}
-      authorAction={authorAction}
-      avatarAction={avatarAction}
-      meta={post.experienceBookingId ? (
-        <>
-          <span className="ds-post-meta-separator" aria-hidden="true">·</span>
-          <span>Experience post</span>
-        </>
-      ) : undefined}
-      actions={viewerReady ? (
-        <PostActionsMenu
-          ownedByViewer={post.ownPost}
-          disabled={Boolean(actionPending)}
-          onEdit={post.ownPost ? editFromOptions : undefined}
-          onDelete={post.ownPost ? () => setDeleteConfirmOpen(true) : undefined}
-          onReport={!post.ownPost ? () => void reportFromOptions() : undefined}
-        />
-      ) : undefined}
-    >
-      <ConfirmationDialog
-        open={deleteConfirmOpen}
-        onClose={() => setDeleteConfirmOpen(false)}
-        onConfirm={deleteFromOptions}
-        title="Delete this post?"
-        description="This also deletes its comments. This action cannot be undone."
-        confirmLabel="Delete post"
-        busy={actionPending === 'delete'}
-      />
-      {editing ? (
-          <form
-            className="social-edit-form"
-            onSubmit={async (event) => {
-              event.preventDefault()
-              setActionPending('edit')
-              setActionError('')
-              try {
-                const body = String(new FormData(event.currentTarget).get('body') ?? '')
-                await onEdit(body)
-                setEditing(false)
-              } catch (editError) {
-                setActionError(editError instanceof Error ? describeConvexError(editError) : 'Post could not be updated.')
-              } finally {
-                setActionPending('')
-              }
-            }}
-          >
-            <textarea name="body" className="field min-h-24" maxLength={1000} defaultValue={post.body} aria-label="Edit post" />
-            <div className="flex gap-2 justify-end">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>Cancel</button>
-              <button disabled={Boolean(actionPending)} className="btn btn-social btn-sm">{actionPending === 'edit' ? 'Saving...' : 'Save'}</button>
-            </div>
-          </form>
-        ) : post.body ? <MentionText body={post.body} mentions={post.mentions} className="ds-post-copy" /> : null}
-        {actionError && <p className="text-meta social-comment-error mt-2">{actionError}</p>}
-        {post.media.length > 0 && <PostMediaGrid media={post.media} onOpenAt={openLightbox} />}
-        {post.poll && <PollCard poll={post.poll} disabled={!viewerReady} onVote={onVotePoll} />}
-        {post.featuredComment && !commentsOpen && (
-          <FeaturedComment
-            comment={post.featuredComment}
-            onOpenThread={() => setCommentsOpen(true)}
-          />
-        )}
-        {post.sharedPost && <SharedPostEmbed post={post.sharedPost} />}
-        {post.sharedReview && <SharedReviewEmbed review={post.sharedReview} />}
-        <PostActionBar
-          liked={post.liked}
-          likeCount={post.likeCount}
-          commentCount={post.commentCount}
-          saved={post.saved}
-          commentsOpen={commentsOpen}
-          likeDisabled={!viewerReady || actionPending === 'like'}
-          showSave={viewerReady}
-          onLike={handleLike}
-          onToggleComments={() => setCommentsOpen((open) => !open)}
-          onSave={onSave}
-          onShare={viewerReady && onShareToFeed ? () => setShareOpen(true) : undefined}
-        />
-        {onShareToFeed && (
-          <ShareDialog
-            open={shareOpen}
-            onClose={() => setShareOpen(false)}
-            title="Share this post"
-            url={shareTargetUrl({ kind: 'post', postId: String(post._id) })}
-            preview={{
-              label: `Post by ${post.authorDisplayName}`,
-              body: post.body,
-              imageUrl: post.media?.[0]?.url,
-            }}
-            onShareToFeed={onShareToFeed}
-          />
-        )}
-        {commentsOpen && (
+      <SocialPostCard
+        ref={rowRef}
+        id={`post-${post._id}`}
+        tabIndex={focusComments ? -1 : undefined}
+        post={post}
+        viewerReady={viewerReady}
+        commentsOpen={commentsOpen}
+        onToggleComments={() => setCommentsOpen((open) => !open)}
+        onLike={onLike}
+        onSave={viewerReady ? onSave : undefined}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onReport={onReport}
+        onVotePoll={onVotePoll}
+        onShareToFeed={onShareToFeed}
+        onOpenMedia={openLightbox}
+        comments={commentsOpen ? (
           <div className="social-comments">
             {viewerReady && (
               <form
@@ -818,8 +666,8 @@ export function PostRow({
               </>
             )}
           </div>
-        )}
-    </PostCard>
+        ) : null}
+      />
       {lightboxIndex !== null && post.media.length > 0 && (
         <SocialLightbox
           open
@@ -834,9 +682,9 @@ export function PostRow({
           details={(
             <div className="social-lightbox-post">
               <div className="social-lightbox-author">
-                {avatarAction}
+                <Avatar name={post.authorDisplayName} src={post.authorProfileImageUrl} size="large" decorative />
                 <div className="min-w-0">
-                  <div className="social-lightbox-author-name">{authorAction ?? <strong>{post.authorDisplayName}</strong>}</div>
+                  <div className="social-lightbox-author-name"><strong>{post.authorDisplayName}</strong></div>
                   <time className="text-meta" dateTime={new Date(post.createdAt).toISOString()}>{formatTime(post.createdAt)}</time>
                 </div>
               </div>
@@ -848,13 +696,28 @@ export function PostRow({
                 commentCount={post.commentCount}
                 saved={post.saved}
                 commentsOpen
-                likeDisabled={!viewerReady || actionPending === 'like'}
+                likeDisabled={!viewerReady || lightboxPending === 'like'}
                 showSave={viewerReady}
-                onLike={handleLike}
+                onLike={handleLightboxLike}
                 onToggleComments={() => setLightboxIndex(null)}
                 onSave={onSave}
-                onShare={viewerReady && onShareToFeed ? () => setShareOpen(true) : undefined}
+                onShare={viewerReady && onShareToFeed ? () => setLightboxShareOpen(true) : undefined}
               />
+              {lightboxError && <p className="text-meta social-comment-error" role="alert">{lightboxError}</p>}
+              {onShareToFeed && (
+                <ShareDialog
+                  open={lightboxShareOpen}
+                  onClose={() => setLightboxShareOpen(false)}
+                  title="Share this post"
+                  url={shareTargetUrl({ kind: 'post', postId: String(post._id) })}
+                  preview={{
+                    label: `Post by ${post.authorDisplayName}`,
+                    body: post.body ?? '',
+                    imageUrl: post.media?.[0]?.url,
+                  }}
+                  onShareToFeed={onShareToFeed}
+                />
+              )}
               <div className="social-lightbox-comments">
                 {viewerReady && (
                   <form

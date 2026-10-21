@@ -1,27 +1,39 @@
+import type { StoredMention } from '@lets-be-friends/shared'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type Ref, type SetStateAction } from 'react'
 import { Avatar } from '../../design-system/atoms/Avatar'
+import type { FeaturedCommentView } from '../social/FeaturedComment'
+import type { PollView } from '../social/PollCard'
 import { PostActionBar } from '../social/PostActionBar'
-import { PostCard } from '../social/PostCard'
 import { ReviewContent } from '../social/ReviewContent'
 import { ReviewStars } from '../social/ReviewStars'
 import { ShareDialog } from '../social/ShareDialog'
 import { shareTargetUrl } from '../social/shareLinks'
-import { SharedPostEmbed, SharedReviewEmbed, type SharedPostView, type SharedReviewView } from '../social/SharedEmbeds'
+import type { SharedPostView, SharedReviewView } from '../social/SharedEmbeds'
 import { SocialLightbox } from '../social/SocialLightbox'
+import { SocialPostCard } from '../social/SocialPostCard'
 import { formatSocialTime } from '../social/formatSocialTime'
-import { PostMediaGrid, type DisplayPostMediaItem } from '../social/PostMediaGrid';
+import type { DisplayPostMediaItem } from '../social/PostMediaGrid';
 import { describeConvexError } from '../../lib/convexErrors'
 
 export type ProfileContentPost = {
   _id: string
+  authorId?: string
+  authorDisplayName?: string
+  authorProfileImageUrl?: string | null
+  authorCompanionProfileId?: string | null
+  ownPost?: boolean
   body?: string
+  mentions?: StoredMention[]
   createdAt: number
   media: readonly DisplayPostMediaItem[]
+  poll?: PollView | null
+  featuredComment?: FeaturedCommentView | null
   likeCount: number
   commentCount: number
   liked: boolean
   saved: boolean
+  experienceBookingId?: string | null
   sharedPost?: SharedPostView | null
   sharedReview?: SharedReviewView | null
 }
@@ -71,6 +83,11 @@ export function ProfileContentPanel({
   focusedReviewId,
   onLikePost,
   onSavePost,
+  onEditPost,
+  onDeletePost,
+  onReportPost,
+  onVotePoll,
+  onSharePostToFeed,
   onOpenPostComments,
   onLikeReview,
   onCommentReview,
@@ -93,6 +110,11 @@ export function ProfileContentPanel({
   focusedReviewId?: string
   onLikePost?: (post: ProfileContentPost) => Promise<unknown>
   onSavePost?: (post: ProfileContentPost) => Promise<unknown>
+  onEditPost?: (post: ProfileContentPost, body: string) => Promise<unknown>
+  onDeletePost?: (post: ProfileContentPost) => Promise<unknown>
+  onReportPost?: (post: ProfileContentPost) => Promise<unknown>
+  onVotePoll?: (post: ProfileContentPost, optionId: string) => Promise<unknown>
+  onSharePostToFeed?: (post: ProfileContentPost, message: string) => Promise<unknown>
   onOpenPostComments?: (post: ProfileContentPost) => void
   onLikeReview?: (review: ProfileContentReview) => Promise<unknown>
   onCommentReview?: (review: ProfileContentReview, body: string) => Promise<unknown>
@@ -169,32 +191,25 @@ export function ProfileContentPanel({
           {posts && posts.length > 0 && (
             <div className="worklist profile-post-list">
               {posts.map((post) => (
-                <PostCard
+                <SocialPostCard
                   key={post._id}
                   className="profile-post-card"
-                  author={ownerName}
-                  imageUrl={ownerImageUrl}
-                  timestamp={formatSocialTime(post.createdAt)}
-                  dateTime={new Date(post.createdAt).toISOString()}
-                >
-                  {post.body && <p className="ds-post-copy">{post.body}</p>}
-                  {post.media.length > 0 && <PostMediaGrid media={post.media} onOpenAt={(index) => setPostLightbox({ post, index })} />}
-                  {post.sharedPost && <SharedPostEmbed post={post.sharedPost} />}
-                  {post.sharedReview && <SharedReviewEmbed review={post.sharedReview} />}
-                  <PostActionBar
-                    liked={post.liked}
-                    likeCount={post.likeCount}
-                    commentCount={post.commentCount}
-                    saved={post.saved}
-                    commentsOpen={false}
-                    likeDisabled={!onLikePost || postActionBusy === `${post._id}:like`}
-                    showSave={Boolean(onSavePost)}
-                    onLike={() => void runPostAction(post, 'like', onLikePost, setPostActionBusy, setPostActionErrors)}
-                    onToggleComments={() => onOpenPostComments?.(post)}
-                    onSave={() => void runPostAction(post, 'save', onSavePost, setPostActionBusy, setPostActionErrors)}
-                  />
-                  {postActionErrors[post._id] && <p className="text-meta social-comment-error">{postActionErrors[post._id]}</p>}
-                </PostCard>
+                  post={{
+                    ...post,
+                    authorDisplayName: post.authorDisplayName ?? ownerName,
+                    authorProfileImageUrl: post.authorProfileImageUrl ?? ownerImageUrl,
+                  }}
+                  viewerReady={Boolean(onLikePost || onSavePost)}
+                  onToggleComments={() => onOpenPostComments?.(post)}
+                  onLike={async () => { await onLikePost?.(post) }}
+                  onSave={onSavePost ? async () => { await onSavePost(post) } : undefined}
+                  onEdit={onEditPost ? async (body) => { await onEditPost(post, body) } : undefined}
+                  onDelete={onDeletePost ? async () => { await onDeletePost(post) } : undefined}
+                  onReport={onReportPost ? async () => { await onReportPost(post) } : undefined}
+                  onVotePoll={onVotePoll ? async (optionId) => { await onVotePoll(post, optionId) } : undefined}
+                  onShareToFeed={onSharePostToFeed ? async (message) => { await onSharePostToFeed(post, message) } : undefined}
+                  onOpenMedia={(index) => setPostLightbox({ post, index })}
+                />
               ))}
             </div>
           )}
@@ -432,7 +447,7 @@ export function ProfileContentPanel({
                 commentCount={postLightbox.post.commentCount}
                 saved={postLightbox.post.saved}
                 commentsOpen
-                likeDisabled={!onLikePost}
+                likeDisabled={!onLikePost || postActionBusy === `${postLightbox.post._id}:like`}
                 showSave={Boolean(onSavePost)}
                 onLike={() => void runPostAction(postLightbox.post, 'like', onLikePost, setPostActionBusy, setPostActionErrors)}
                 onToggleComments={() => {
@@ -442,6 +457,7 @@ export function ProfileContentPanel({
                 }}
                 onSave={() => void runPostAction(postLightbox.post, 'save', onSavePost, setPostActionBusy, setPostActionErrors)}
               />
+              {postActionErrors[postLightbox.post._id] && <p className="text-meta social-comment-error" role="alert">{postActionErrors[postLightbox.post._id]}</p>}
               <div className="social-lightbox-comments">
                 <p className="text-meta">
                   {postLightbox.post.commentCount > 0

@@ -38,6 +38,7 @@ const profilePosts: ProfileContentPost[] = [
   {
     _id: 'post-1',
     body: 'Looking for someone to practice conversational English with this weekend.',
+    ownPost: true,
     createdAt: Date.UTC(2026, 7, 23, 8, 13),
     media: photoMedia,
     likeCount: 3,
@@ -47,6 +48,7 @@ const profilePosts: ProfileContentPost[] = [
   },
   {
     _id: 'post-2',
+    ownPost: true,
     createdAt: Date.UTC(2026, 7, 22, 8, 13),
     media: [photoMedia[0]],
     likeCount: 1,
@@ -203,6 +205,9 @@ function ProfileComposition({ interactive = true }: { interactive?: boolean }) {
         reviewCount={21}
         onLikePost={interactive ? fn() : undefined}
         onSavePost={interactive ? fn() : undefined}
+        onEditPost={interactive ? fn() : undefined}
+        onDeletePost={interactive ? fn() : undefined}
+        onSharePostToFeed={interactive ? fn() : undefined}
         onOpenPostComments={interactive ? fn() : undefined}
         onLikeReview={interactive ? fn() : undefined}
         onCommentReview={interactive ? fn() : undefined}

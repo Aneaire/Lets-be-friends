@@ -284,6 +284,7 @@ describe('ProfileContentPanel', () => {
 
     const avatar = document.querySelector('.profile-post-card .ds-post-avatar img')
     expect(avatar?.getAttribute('src')).toBe('/angelo.jpg')
+    expect(avatar?.closest('.avatar')?.classList.contains('ds-post-avatar-round')).toBe(true)
   })
 
   it('renders posts and reviews without panel headings or home actions', () => {
@@ -308,7 +309,96 @@ describe('ProfileContentPanel', () => {
     expect(document.querySelector('.profile-review-list .profile-review-card')).toBeTruthy()
   })
 
-  it('reuses the shared PostCard layout and renders shared post and review embeds', () => {
+  it('offers the same post menu and share action as the feed', async () => {
+    const onReportPost = vi.fn().mockResolvedValue(true)
+    const onSharePostToFeed = vi.fn().mockResolvedValue(true)
+    const otherMemberPost = [{
+      ...posts[0],
+      authorId: 'member-2',
+      authorDisplayName: 'Niko Santiago',
+      ownPost: false,
+    }]
+    render(
+      <ProfileContentPanel
+        ownerName="Niko Santiago"
+        posts={otherMemberPost}
+        reviews={[]}
+        onLikePost={vi.fn().mockResolvedValue(true)}
+        onReportPost={onReportPost}
+        onSharePostToFeed={onSharePostToFeed}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Report post' }))
+    await waitFor(() => expect(onReportPost).toHaveBeenCalledWith(otherMemberPost[0]))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Share post' }))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Share to feed' }))
+    await waitFor(() => expect(onSharePostToFeed).toHaveBeenCalledWith(otherMemberPost[0], ''))
+  })
+
+  it('edits and deletes your own post from the shared menu', async () => {
+    const onEditPost = vi.fn().mockResolvedValue(true)
+    const onDeletePost = vi.fn().mockResolvedValue(true)
+    const ownPost = [{ ...posts[0], authorId: 'member-1', ownPost: true }]
+    render(
+      <ProfileContentPanel
+        ownerName="Mara"
+        posts={ownPost}
+        reviews={[]}
+        onLikePost={vi.fn().mockResolvedValue(true)}
+        onEditPost={onEditPost}
+        onDeletePost={onDeletePost}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit post' }))
+    const editor = screen.getByRole('textbox', { name: 'Edit post' })
+    fireEvent.change(editor, { target: { value: 'A quieter creative session.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(onEditPost).toHaveBeenCalledWith(ownPost[0], 'A quieter creative session.'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete post' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete post' }))
+    await waitFor(() => expect(onDeletePost).toHaveBeenCalledWith(ownPost[0]))
+  })
+
+  it('renders and records poll votes on profile posts', async () => {
+    const onVotePoll = vi.fn().mockResolvedValue(true)
+    const pollPost = [{
+      ...posts[0],
+      authorId: 'member-2',
+      poll: {
+        question: 'Which plan sounds best?',
+        options: [
+          { id: 'walk', label: 'Photo walk', voteCount: 1, percentage: 50 },
+          { id: 'coffee', label: 'Coffee chat', voteCount: 1, percentage: 50 },
+        ],
+        totalVotes: 2,
+        closed: false,
+      },
+    }]
+    render(
+      <ProfileContentPanel
+        ownerName="Niko Santiago"
+        posts={pollPost}
+        reviews={[]}
+        onLikePost={vi.fn().mockResolvedValue(true)}
+        onVotePoll={onVotePoll}
+      />,
+    )
+
+    expect(screen.getByRole('region', { name: 'Poll: Which plan sounds best?' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: /Coffee chat/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Vote' }))
+    await waitFor(() => expect(onVotePoll).toHaveBeenCalledWith(pollPost[0], 'coffee'))
+  })
+
+  it('uses the shared PostCard layout and renders shared post and review embeds', () => {
     const sharedPosts = [{
       _id: 'post-share',
       createdAt: Date.UTC(2026, 7, 28, 8, 10),

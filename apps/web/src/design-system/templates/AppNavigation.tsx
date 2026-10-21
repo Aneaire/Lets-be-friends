@@ -223,6 +223,8 @@ export function HeaderSearch({ directory }: { directory?: HeaderSearchPerson[] |
             type="button"
             className="app-header-search-clear"
             aria-label="Clear search"
+            data-tooltip="Clear search"
+            data-tooltip-position="below-right"
             onClick={() => setSearchQuery('')}
           >
             <X size={14} aria-hidden="true" />
@@ -300,6 +302,8 @@ export function HeaderPrimaryActions({ activeItem }: { activeItem: ReturnType<ty
           className="header-primary-action"
           data-kind={item.id}
           aria-label={item.id === 'messages' && messagesUnread > 0 ? `${item.label}, ${messagesUnread} unread` : item.label}
+          data-tooltip={item.label}
+          data-tooltip-position="below-right"
           aria-current={activeItem === item.id ? 'page' : undefined}
         >
           <NavigationIcon id={item.id} />
@@ -345,7 +349,7 @@ export function NotificationNavigation() {
   }, [open])
 
   return <div className="notification-navigation" ref={rootRef}>
-    <button ref={triggerRef} type="button" className="notification-trigger" aria-label={unreadCount ? `Open notifications, ${unreadCount} unread` : 'Open notifications'} aria-haspopup="dialog" aria-expanded={open} aria-controls="notification-panel" onClick={() => setOpen((value) => !value)}>
+    <button ref={triggerRef} type="button" className="notification-trigger" aria-label={unreadCount ? `Open notifications, ${unreadCount} unread` : 'Open notifications'} data-tooltip={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'} data-tooltip-position="below-right" aria-haspopup="dialog" aria-expanded={open} aria-controls="notification-panel" onClick={() => setOpen((value) => !value)}>
       <Bell size={19} aria-hidden="true" />
       {unreadCount > 0 && <span className="notification-badge tabular">{unreadCount > 99 ? '99+' : unreadCount}</span>}
     </button>
@@ -605,7 +609,11 @@ export function AccountAvatar({
         {imageUrl ? <img src={imageUrl} alt="" /> : <User aria-hidden="true" />}
       </span>
       {verified && (
-        <span className="account-avatar-badge">
+        <span
+          className="account-avatar-badge"
+          data-tooltip="Verified"
+          data-tooltip-position="below-right"
+        >
           <BadgeCheck aria-hidden="true" />
           <span className="sr-only">Identity and Companion profile verified</span>
         </span>

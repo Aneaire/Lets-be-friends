@@ -27,6 +27,7 @@ import { EvidenceDecision } from '../features/booking/EvidenceDecision'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { ReviewForm } from '../features/profile/ReviewForm';
+import { ReviewSubmittedLink } from '../features/booking/ReviewSubmittedLink';
 
 export const Route = createFileRoute('/app')({
   validateSearch: (search: Record<string, unknown>): { companionProfileId?: string; bookingId?: string } => ({
@@ -646,7 +647,7 @@ function BookingRow({
             preview={{ companionName: 'companionDisplayName' in booking ? String(booking.companionDisplayName) : 'this Companion' }}
           />
         )}
-        {booking.viewerHasReviewed && canReviewBooking(booking.status) && <span className="text-meta">Review submitted</span>}
+        {booking.viewerHasReviewed && <ReviewSubmittedLink reviewId={booking.viewerReviewId} />}
       </div>
     </article>
   )

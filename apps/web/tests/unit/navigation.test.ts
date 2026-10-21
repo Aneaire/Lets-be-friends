@@ -45,6 +45,7 @@ describe('application navigation', () => {
     expect(activePrimaryNavigation('/messages/thread')).toBe('messages')
     expect(activePrimaryNavigation('/app')).toBe('bookings')
     expect(activePrimaryNavigation('/app/thread')).toBe('bookings')
+    expect(activePrimaryNavigation('/review')).toBe('bookings')
     expect(activePrimaryNavigation('/companion')).toBeNull()
     expect(activePrimaryNavigation('/companion-profile')).toBe('discover')
     expect(activePrimaryNavigation('/nearby')).toBe('discover')
@@ -60,6 +61,7 @@ describe('application navigation', () => {
 
   it('keeps operational routes off the public footer surface', () => {
     expect(isWorkspacePath('/app')).toBe(true)
+    expect(isWorkspacePath('/review')).toBe(true)
     expect(isWorkspacePath('/profile')).toBe(true)
     expect(isWorkspacePath('/settings')).toBe(true)
     expect(isWorkspacePath('/messages')).toBe(true)

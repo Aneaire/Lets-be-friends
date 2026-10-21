@@ -40,6 +40,7 @@ export function SocialVideoPlayer({
   pauseWhenHidden = false,
   onSurfaceClick,
   onCurrentTimeChange,
+  onSize,
   className = '',
 }: {
   src: string
@@ -55,6 +56,7 @@ export function SocialVideoPlayer({
   pauseWhenHidden?: boolean
   onSurfaceClick?: () => void
   onCurrentTimeChange?: (currentTime: number) => void
+  onSize?: (width: number, height: number) => void
   className?: string
 }) {
   const stageRef = useRef<HTMLDivElement>(null)
@@ -198,6 +200,7 @@ export function SocialVideoPlayer({
   function handleLoadedMetadata(event: React.SyntheticEvent<HTMLVideoElement>) {
     const video = event.currentTarget
     setDuration(video.duration)
+    onSize?.(video.videoWidth, video.videoHeight)
     if (startAt > 0 && video.currentTime < startAt) {
       try {
         video.currentTime = startAt

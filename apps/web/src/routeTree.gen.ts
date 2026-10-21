@@ -24,6 +24,7 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ReviewRouteImport } from './routes/review'
 import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SocialRouteImport } from './routes/social'
@@ -109,6 +110,11 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReviewRoute = ReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SafetyRoute = SafetyRouteImport.update({
   id: '/safety',
   path: '/safety',
@@ -171,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
+  '/review': typeof ReviewRoute
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
@@ -196,6 +203,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
+  '/review': typeof ReviewRoute
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
@@ -223,6 +231,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
+  '/review': typeof ReviewRoute
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
@@ -251,6 +260,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy-policy'
     | '/profile'
+    | '/review'
     | '/safety'
     | '/settings'
     | '/social'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy-policy'
     | '/profile'
+    | '/review'
     | '/safety'
     | '/settings'
     | '/social'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy-policy'
     | '/profile'
+    | '/review'
     | '/safety'
     | '/settings'
     | '/social'
@@ -329,6 +341,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   ProfileRoute: typeof ProfileRoute
+  ReviewRoute: typeof ReviewRoute
   SafetyRoute: typeof SafetyRoute
   SettingsRoute: typeof SettingsRoute
   SocialRoute: typeof SocialRoute
@@ -445,6 +458,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/review': {
+      id: '/review'
+      path: '/review'
+      fullPath: '/review'
+      preLoaderRoute: typeof ReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/safety': {
       id: '/safety'
       path: '/safety'
@@ -540,6 +560,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   ProfileRoute: ProfileRoute,
+  ReviewRoute: ReviewRoute,
   SafetyRoute: SafetyRoute,
   SettingsRoute: SettingsRoute,
   SocialRoute: SocialRoute,

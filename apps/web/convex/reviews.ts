@@ -3,7 +3,7 @@ import { ConvexError, v } from 'convex/values'
 import { bookingStatusAfterReview, canReviewBooking, isModerationVisible } from '@lets-be-friends/shared'
 import type { Doc, Id } from './_generated/dataModel'
 import { adjustCounter } from './counters'
-import { requireViewer, writeAudit } from './lib'
+import { getViewer, requireViewer, writeAudit } from './lib'
 import { createNotification } from './notifications'
 import { consumeRateLimit } from './rateLimit'
 import { requireNotBlocked } from './safety'
@@ -32,6 +32,31 @@ export const requested = query({
     const companion = await ctx.db.get(review.companionProfileId)
     if (!companion || companion.status !== 'approved') return null
     return await enrichReview(ctx, review, viewer, { includeComments: true })
+  },
+})
+
+/**
+ * The signed-in reviewer's own submission, used by the review permalink. This
+ * stays private to the reviewer so a Companion's review of a member is never
+ * exposed through the public Companion profile surfaces.
+ */
+export const viewerSubmission = query({
+  args: { reviewId: v.id('reviews') },
+  handler: async (ctx, args) => {
+    const viewer = await getViewer(ctx)
+    if (!viewer || viewer.suspended) return null
+    const review = await ctx.db.get(args.reviewId)
+    if (!review || review.reviewerId !== viewer._id || !isModerationVisible(review)) return null
+    const [companion, reviewee] = await Promise.all([
+      review.companionProfileId ? ctx.db.get(review.companionProfileId) : null,
+      ctx.db.get(review.revieweeId),
+    ])
+    const companionUser = companion ? await ctx.db.get(companion.userId) : null
+    return {
+      ...await enrichReview(ctx, review, viewer, { includeComments: true }),
+      companionDisplayName: companionUser?.displayName ?? companion?.displayName,
+      revieweeDisplayName: reviewee ? fullName(reviewee) : undefined,
+    }
   },
 })
 
