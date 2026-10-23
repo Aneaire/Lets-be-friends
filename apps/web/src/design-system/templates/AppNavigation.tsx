@@ -554,7 +554,7 @@ export function AccountNavigation({
                     : undefined}
                 >Get verified</AccountLink>
               )}
-              <AccountLink to="/profile" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Edit profile</AccountLink>
+              <AccountLink to="/profile" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Profile</AccountLink>
               {publicProfileSearch ? (
                 <AccountLink to="/companion-profile" search={publicProfileSearch} icon={<UserRound size={17} />} onSelect={() => onClose(false)}>
                   View public Companion profile

@@ -131,6 +131,12 @@ describe('account navigation verification', () => {
     }
   })
 
+  it('links the account menu to Profile', () => {
+    renderAccountNavigation({ viewer: verifiedViewer })
+
+    expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
+  })
+
   it('keeps Get verified with its identity nudge while the checks are incomplete', () => {
     const { container } = renderAccountNavigation({
       viewer: { ...verifiedViewer, verificationStatus: 'not_started', identityEligible: false },
