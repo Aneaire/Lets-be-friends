@@ -8250,6 +8250,27 @@ textarea.field {
   min-width: 0;
 }
 
+.booking-dialog-request {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.booking-notes-field {
+  min-height: 7rem;
+}
+
+.booking-notes-label {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.booking-notes-label .label-aux {
+  margin-left: 0;
+}
+
 .booking-dialog-paired-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -9447,6 +9468,172 @@ textarea.field {
 .account-avatar svg {
   width: 55%;
   height: 55%;
+}
+
+.booking-companion-search-root {
+  position: relative;
+}
+
+.booking-companion-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.booking-companion-search:focus-within {
+  border-color: var(--accent-social);
+  box-shadow: 0 0 0 3px var(--accent-social-soft);
+}
+
+.booking-companion-search:has(input:disabled) {
+  opacity: 0.6;
+}
+
+.booking-companion-search > svg {
+  position: absolute;
+  left: 0.85rem;
+  color: var(--text-soft);
+  pointer-events: none;
+}
+
+.booking-companion-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem 2.6rem 0.65rem 2.55rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9375rem;
+  outline: none;
+}
+
+.booking-companion-search input::placeholder {
+  color: var(--text-soft);
+}
+
+.booking-companion-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.booking-companion-search-clear {
+  position: absolute;
+  right: 0.45rem;
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.booking-companion-search-clear:hover,
+.booking-companion-search-clear:focus-visible {
+  background: var(--surface-sunk);
+  color: var(--text);
+}
+
+.booking-companion-search-clear:focus-visible {
+  outline: 2px solid var(--accent-social-line);
+  outline-offset: 1px;
+}
+
+.booking-companion-search-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  max-height: min(18rem, 45vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-popover-subtle);
+}
+
+.booking-companion-search-guidance {
+  margin: 0;
+  padding: 0.6rem 0.65rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.booking-companion-search-summary {
+  margin: 0;
+  padding: 0.4rem 0.65rem 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.booking-companion-search-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.booking-companion-search-result {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.55rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.booking-companion-search-result:hover,
+.booking-companion-search-result:focus-visible,
+.booking-companion-search-result[aria-selected="true"] {
+  background: var(--accent-social-soft);
+}
+
+.booking-companion-search-result:focus-visible {
+  outline: 2px solid var(--accent-social-line);
+  outline-offset: 1px;
+}
+
+.booking-companion-search-result > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.booking-companion-search-result strong,
+.booking-companion-search-result small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.booking-companion-search-result strong {
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.booking-companion-search-result small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
 }
 
 .booking-companion-search-avatar {

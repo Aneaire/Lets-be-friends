@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
+import { BookingCompanionSearch } from './BookingCompanionSearch'
 import { BookingDialogCompanionSummary, BookingDialogFrame, BookingDialogLayout } from './BookingDialogFrame'
 import { BookingRequestFields } from './BookingRequestFields'
 import { AvailabilityCalendar } from '../scheduling/AvailabilityCalendar'
@@ -22,6 +23,39 @@ const DAYS = [{ date: '2026-10-20', startsAt: [SLOT_0900, SLOT_1030] }]
 // keeps the Companion photo bounded.
 const LARGE_PROFILE_IMAGE = 'data:image/svg+xml,'
   + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="2000"><rect width="2000" height="2000" fill="#1093ED"/></svg>')
+
+const SEARCH_COMPANIONS = [
+  {
+    _id: 'companion-dana',
+    displayName: 'Dana Cruz',
+    username: 'dana',
+    city: 'Manila',
+    strengths: ['Errands'],
+    mode: 'both' as const,
+    categories: ['Coffee and conversation', 'City walk'],
+    profileImageUrl: LARGE_PROFILE_IMAGE,
+  },
+  {
+    _id: 'companion-mina',
+    displayName: 'Mina Santos',
+    username: 'mina_s',
+    city: 'Quezon City',
+    strengths: ['Study sessions'],
+    mode: 'online' as const,
+    categories: ['Study session', 'Career practice'],
+    profileImageUrl: LARGE_PROFILE_IMAGE,
+  },
+  {
+    _id: 'companion-jules',
+    displayName: 'Jules Rivera',
+    username: 'jules',
+    city: 'Makati',
+    strengths: ['City walks'],
+    mode: 'in_person' as const,
+    categories: ['City walk', 'Coffee and conversation'],
+    profileImageUrl: LARGE_PROFILE_IMAGE,
+  },
+]
 
 const submit = fn()
 
@@ -76,29 +110,101 @@ function BookingCreationDialogStory() {
               detail="Errands"
               profileImageUrl={LARGE_PROFILE_IMAGE}
             />
-            <BookingRequestFields
-              category={category}
-              categoryOptions={['Coffee and conversation', 'City walk']}
-              onCategoryChange={setCategory}
-              mode={mode}
-              modeOptions={['online', 'in_person']}
-              onModeChange={setMode}
-              durationMinutes={durationMinutes}
-              onDurationMinutesChange={setDurationMinutes}
-              showScheduling={false}
-              notes={notes}
-              onNotesChange={setNotes}
-              disabled={false}
-            />
-            <button type="submit" className="btn btn-social btn-block" disabled={selectedStart === null}>
-              Send booking
-            </button>
-            <p className="text-tiny" id="booking-dialog-guidance">
-              Bookings are available only after identity review is approved.
-            </p>
+            <div className="booking-dialog-request">
+              <BookingRequestFields
+                category={category}
+                categoryOptions={['Coffee and conversation', 'City walk']}
+                onCategoryChange={setCategory}
+                mode={mode}
+                modeOptions={['online', 'in_person']}
+                onModeChange={setMode}
+                durationMinutes={durationMinutes}
+                onDurationMinutesChange={setDurationMinutes}
+                showScheduling={false}
+                notes={notes}
+                onNotesChange={setNotes}
+                disabled={false}
+              />
+              <button type="submit" className="btn btn-social btn-block" disabled={selectedStart === null}>
+                Send booking
+              </button>
+              <p className="text-tiny" id="booking-dialog-guidance">
+                Bookings are available only after identity review is approved.
+              </p>
+            </div>
           </>
         )}
       />
+    </BookingDialogFrame>
+  )
+}
+
+function BookingSearchDialogStory() {
+  const [open, setOpen] = useState(true)
+  const [query, setQuery] = useState('')
+  const [selected, setSelected] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [category, setCategory] = useState('Coffee and conversation')
+  const [mode, setMode] = useState<'online' | 'in_person'>('online')
+  const [durationMinutes, setDurationMinutes] = useState(60)
+  const [notes, setNotes] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  if (!open) {
+    return (
+      <button type="button" className="btn btn-social" onClick={() => setOpen(true)}>
+        Book a time
+      </button>
+    )
+  }
+
+  return (
+    <BookingDialogFrame
+      title="Book a time"
+      onClose={() => setOpen(false)}
+      describedById="booking-dialog-guidance"
+      onSubmit={(event) => event.preventDefault()}
+    >
+      <BookingCompanionSearch
+        companions={SEARCH_COMPANIONS}
+        loading={false}
+        query={query}
+        onQueryChange={(value) => {
+          setQuery(value)
+          setSelected('')
+        }}
+        selectedCompanionProfileId={selected}
+        onSelect={(companion) => {
+          setSelected(companion._id)
+          setQuery(companion.displayName)
+          setSearchOpen(false)
+        }}
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        searchRef={searchRef}
+      />
+      <div className="booking-dialog-request">
+        <BookingRequestFields
+          category={category}
+          categoryOptions={['Coffee and conversation', 'City walk']}
+          onCategoryChange={setCategory}
+          mode={mode}
+          modeOptions={['online', 'in_person']}
+          onModeChange={setMode}
+          durationMinutes={durationMinutes}
+          onDurationMinutesChange={setDurationMinutes}
+          showScheduling={false}
+          notes={notes}
+          onNotesChange={setNotes}
+          disabled={false}
+        />
+        <button type="submit" className="btn btn-social btn-block" disabled={!selected}>
+          Send booking
+        </button>
+        <p className="text-tiny" id="booking-dialog-guidance">
+          Bookings are available only after identity review is approved.
+        </p>
+      </div>
     </BookingDialogFrame>
   )
 }
@@ -231,6 +337,25 @@ export const ChooseDayAndStartTime: Story = {
     await expect(canvas.getByRole('button', { name: '9:00 AM, 1 hr session' })).toHaveAttribute('aria-pressed', 'true')
     await waitFor(() => expect(canvas.getByText(/^Selected /)).toBeVisible())
     await expect(send).toBeEnabled()
+  },
+}
+
+export const CompanionSearchResults: Story = {
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  render: () => <BookingSearchDialogStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await settledDialog(canvasElement)
+    const search = canvas.getByLabelText('Search Companions')
+    await userEvent.type(search, 'Dana')
+
+    const results = canvas.getByRole('listbox', { name: 'Companion search results' })
+    await expect(results).toBeVisible()
+    await expect(canvas.getByRole('option', { name: /Dana Cruz/ })).toBeVisible()
+
+    await userEvent.click(canvas.getByRole('option', { name: /Dana Cruz/ }))
+    await expect(search).toHaveValue('Dana Cruz')
+    await expect(canvas.queryByRole('listbox', { name: 'Companion search results' })).not.toBeInTheDocument()
   },
 }
 

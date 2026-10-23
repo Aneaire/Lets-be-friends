@@ -34,6 +34,16 @@ describe('booking dialog centered modal styles', () => {
     expect(styles).toMatch(/\.booking-companion-summary-text (?:strong|small)\s*\{[^}]*overflow-wrap:\s*anywhere;/s)
   })
 
+  it('styles the Companion search as a bounded combobox with a results panel', () => {
+    expect(styles).toMatch(/\.booking-companion-search\s*\{[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;/s)
+    expect(styles).toMatch(/\.booking-companion-search-panel\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*30;[^}]*max-height:/s)
+    expect(styles).toMatch(/\.booking-companion-search-result\s*\{[^}]*display:\s*flex;[^}]*width:\s*100%;/s)
+    expect(styles).toMatch(/\.booking-companion-search-result > span\s*\{[^}]*display:\s*grid;[^}]*min-width:\s*0;/s)
+    expect(styles).toMatch(/\.booking-notes-field\s*\{[^}]*min-height:\s*7rem;/s)
+    expect(story).toContain("from './BookingCompanionSearch'")
+    expect(story).toContain('<BookingCompanionSearch')
+  })
+
   it('covers the centered modal through real component stories, not hand-rolled markup', () => {
     expect(story).toContain("from './BookingDialogFrame'")
     expect(story).toContain('<BookingDialogFrame')

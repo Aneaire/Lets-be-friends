@@ -85,7 +85,7 @@ export function BookingRequestFields(props: Props) {
           </Select>
         </FormField>
         <label className="field-row">
-          <span className="label">Duration <span className="label-aux">hours</span></span>
+          <span className="label">Duration</span>
           <select
             name="durationMinutes"
             value={durationMinutes}
@@ -95,7 +95,7 @@ export function BookingRequestFields(props: Props) {
           >
             {Array.from({ length: 12 }, (_, index) => {
               const minutes = (index + 1) * 60
-              return <option key={minutes} value={minutes}>{index + 1}</option>
+              return <option key={minutes} value={minutes}>{index + 1} {index === 0 ? 'hour' : 'hours'}</option>
             })}
           </select>
         </label>
@@ -122,8 +122,8 @@ export function BookingRequestFields(props: Props) {
       )}
 
       <label className="field-row">
-        <span className="label">Anything you would like them to know? <span className="label-aux">shared with the Companion</span></span>
-        <textarea name="notes" className="field min-h-20" value={notes} onChange={(event) => onNotesChange(event.currentTarget.value)} placeholder="Share what you have in mind, what would make the time comfortable, or any useful context." disabled={disabled} />
+        <span className="label booking-notes-label">Anything you would like them to know? <span className="label-aux">shared with the Companion</span></span>
+        <textarea name="notes" className="field booking-notes-field" value={notes} onChange={(event) => onNotesChange(event.currentTarget.value)} placeholder="Share what you have in mind, what would make the time comfortable, or any useful context." disabled={disabled} />
       </label>
 
       {estimate && (

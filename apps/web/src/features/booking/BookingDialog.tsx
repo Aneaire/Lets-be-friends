@@ -1,16 +1,15 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { activityCategories, calculateMemberWalletBookingPrice, formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
-import { BookingDialogCompanionAvatar, BookingDialogCompanionSummary, BookingDialogFrame, BookingDialogLayout } from './BookingDialogFrame'
+import { BookingCompanionSearch } from './BookingCompanionSearch'
+import { BookingDialogCompanionSummary, BookingDialogFrame, BookingDialogLayout } from './BookingDialogFrame'
 import { BookingRequestFields } from './BookingRequestFields'
 import { BookingAvailabilityPicker } from '../scheduling/BookingAvailabilityPicker'
 import { companionAvailabilityMessage } from './companionAvailability'
-import { findCompanions } from '../../lib/discoverySearch'
 import { describeConvexError } from '../../lib/convexErrors'
 
 export type ApprovedCompanionOption = {
@@ -70,7 +69,6 @@ export function BookingDialog({
   const [submitError, setSubmitError] = useState('')
   const dialogRef = useRef<HTMLDivElement>(null)
   const companionSearchRef = useRef<HTMLInputElement>(null)
-  const companionSearchRootRef = useRef<HTMLDivElement>(null)
   const companionSearchOpenRef = useRef(false)
   const submittingRef = useRef(false)
   const [companionQuery, setCompanionQuery] = useState('')
@@ -89,13 +87,6 @@ export function BookingDialog({
     attemptedCompanionProfileId ? { companionProfileId: attemptedCompanionProfileId as Id<'companionProfiles'> } : 'skip',
   )
   const announcedAvailabilityRef = useRef('')
-  const companionSearchResults = useMemo(() => {
-    if (!companionQuery.trim()) return []
-    return findCompanions(companionChoices.map((companion) => ({
-      ...companion,
-      intro: companion.intro ?? '',
-    })), companionQuery).slice(0, 6)
-  }, [companionQuery, companionChoices])
   const categoryOptions = selectedCompanion?.categories?.length ? selectedCompanion.categories : activityCategories
   const [selectedMode, setSelectedMode] = useState<'online' | 'in_person'>('online')
   const [category, setCategory] = useState('')
@@ -163,17 +154,6 @@ export function BookingDialog({
     announcedAvailabilityRef.current = attemptedCompanionProfileId
     toast.error(attemptedAvailabilityMessage)
   }, [attemptedAvailabilityMessage, attemptedCompanionProfileId, companionsLoading])
-
-  useEffect(() => {
-    if (!companionSearchOpen) return
-
-    function handlePointerDown(event: PointerEvent) {
-      if (!companionSearchRootRef.current?.contains(event.target as Node)) setCompanionSearchOpen(false)
-    }
-
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [companionSearchOpen, setCompanionSearchOpen])
 
   useEffect(() => {
     if (!modeOptions.includes(selectedMode)) setSelectedMode(modeOptions[0])
@@ -348,123 +328,51 @@ export function BookingDialog({
                 profileImageUrl={fixedCompanion.profileImageUrl}
               />
             ) : (
-              <div className="field-row booking-companion-search-root" ref={companionSearchRootRef}>
-                <label className="label" htmlFor="booking-companion-search">Companion</label>
-                <div className="booking-companion-search" role="search">
-                  <Search size={18} aria-hidden="true" />
-                  <input
-                    ref={companionSearchRef}
-                    id="booking-companion-search"
-                    type="search"
-                    value={companionQuery}
-                    placeholder="Search by username, name, Strength, activity, or city"
-                    aria-label="Search Companions"
-                    aria-expanded={companionSearchOpen}
-                    aria-controls="booking-companion-search-results"
-                    aria-autocomplete="list"
-                    autoComplete="off"
-                    disabled={companionsLoading || companionChoices.length === 0 || isSubmitting}
-                    required
-                    onFocus={() => setCompanionSearchOpen(true)}
-                    onClick={() => setCompanionSearchOpen(true)}
-                    onChange={(event) => {
-                      setCompanionQuery(event.currentTarget.value)
-                      setSelectedCompanionProfileId('')
-                      setCompanionSearchOpen(true)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'ArrowDown' && companionSearchResults.length > 0) {
-                        event.preventDefault()
-                        companionSearchRootRef.current?.querySelector<HTMLButtonElement>('[role="option"]')?.focus()
-                      }
-                    }}
-                  />
-                  {companionQuery && (
-                    <button
-                      type="button"
-                      className="booking-companion-search-clear"
-                      aria-label="Clear Companion search"
-                      data-tooltip="Clear Companion search"
-                      data-tooltip-position="below-right"
-                      disabled={isSubmitting}
-                      onClick={() => {
-                        setCompanionQuery('')
-                        setSelectedCompanionProfileId('')
-                        setCompanionSearchOpen(true)
-                        companionSearchRef.current?.focus()
-                      }}
-                    >
-                      <X size={15} aria-hidden="true" />
-                    </button>
-                  )}
-                </div>
-
-                {companionSearchOpen && (
-                  <div id="booking-companion-search-results" className="booking-companion-search-panel">
-                    {!companionQuery.trim() ? (
-                      <p className="booking-companion-search-guidance">Search Companions by username, name, Strength, activity, or city.</p>
-                    ) : companionsLoading ? (
-                      <p className="booking-companion-search-guidance" role="status">Searching…</p>
-                    ) : companionSearchResults.length === 0 ? (
-                      <p className="booking-companion-search-guidance" role="status">No Companions match “{companionQuery.trim()}”.</p>
-                    ) : (
-                      <>
-                        <p className="booking-companion-search-summary" role="status">
-                          {companionSearchResults.length} {companionSearchResults.length === 1 ? 'match' : 'matches'}
-                        </p>
-                        <ul className="booking-companion-search-list" role="listbox" aria-label="Companion search results">
-                          {companionSearchResults.map((companion) => (
-                            <li key={companion._id}>
-                              <button
-                                type="button"
-                                role="option"
-                                aria-selected={companion._id === selectedCompanionProfileId}
-                                className="booking-companion-search-result"
-                                onClick={() => {
-                                  setSelectedCompanionProfileId(companion._id)
-                                  setCompanionQuery(companion.displayName)
-                                  companionSearchRef.current?.focus()
-                                  setCompanionSearchOpen(false)
-                                }}
-                              >
-                                <BookingDialogCompanionAvatar profileImageUrl={companion.profileImageUrl} />
-                                <span>
-                                  <strong>{companion.displayName}</strong>
-                                  <small>{[companion.username ? `@${companion.username}` : undefined, companion.city, companion.strengths?.[0] ?? companion.categories?.[0]].filter(Boolean).join(' · ')}</small>
-                                </span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+              <BookingCompanionSearch
+                companions={companionChoices}
+                loading={companionsLoading}
+                disabled={companionsLoading || companionChoices.length === 0 || isSubmitting}
+                query={companionQuery}
+                onQueryChange={(value) => {
+                  setCompanionQuery(value)
+                  setSelectedCompanionProfileId('')
+                }}
+                selectedCompanionProfileId={selectedCompanionProfileId}
+                onSelect={(companion) => {
+                  setSelectedCompanionProfileId(companion._id)
+                  setCompanionQuery(companion.displayName)
+                  setCompanionSearchOpen(false)
+                }}
+                open={companionSearchOpen}
+                onOpenChange={setCompanionSearchOpen}
+                searchRef={companionSearchRef}
+              />
             )}
 
-            <BookingRequestFields
-              category={category}
-              categoryOptions={categoryOptions}
-              onCategoryChange={setCategory}
-              mode={selectedMode}
-              modeOptions={modeOptions}
-              onModeChange={setSelectedMode}
-              durationMinutes={durationMinutes}
-              onDurationMinutesChange={setDurationMinutes}
-              showScheduling={false}
-              notes={notes}
-              onNotesChange={setNotes}
-              estimate={estimatedPrice}
-              disabled={isSubmitting}
-            />
+            <div className="booking-dialog-request">
+              <BookingRequestFields
+                category={category}
+                categoryOptions={categoryOptions}
+                onCategoryChange={setCategory}
+                mode={selectedMode}
+                modeOptions={modeOptions}
+                onModeChange={setSelectedMode}
+                durationMinutes={durationMinutes}
+                onDurationMinutesChange={setDurationMinutes}
+                showScheduling={false}
+                notes={notes}
+                onNotesChange={setNotes}
+                estimate={estimatedPrice}
+                disabled={isSubmitting}
+              />
 
-            <button disabled={!canSubmit} className="btn btn-social btn-block">
-              {isSubmitting ? 'Sending…' : 'Send booking'}
-            </button>
-            <p className="text-tiny" id="booking-dialog-guidance">
-              Bookings are available only after identity review is approved.
-            </p>
+              <button disabled={!canSubmit} className="btn btn-social btn-block">
+                {isSubmitting ? 'Sending…' : 'Send booking'}
+              </button>
+              <p className="text-tiny" id="booking-dialog-guidance">
+                Bookings are available only after identity review is approved.
+              </p>
+            </div>
           </>
         )}
       />
