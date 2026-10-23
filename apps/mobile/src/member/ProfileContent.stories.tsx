@@ -39,6 +39,7 @@ const meta = {
     bio: 'Coffee enthusiast and weekend hiker.',
     hasCompanionTools: false,
     approvedCompanion: false,
+    fullyVerified: false,
     openingVerification: false,
     signingOut: false,
     pushNotifications: null,
@@ -49,11 +50,14 @@ const meta = {
     onOpenNotificationCenter: fn(),
     onOpenBookings: fn(),
     onOpenWallet: fn(),
+    onOpenWithdrawals: fn(),
     onOpenCompanion: fn(),
     onOpenIncomingBookings: fn(),
     onOpenCompanionFinance: fn(),
     onOpenSafety: fn(),
     onOpenMyPosts: fn(),
+    onOpenTerms: fn(),
+    onOpenPrivacy: fn(),
     onSignOut: fn(),
   },
 } satisfies Meta<typeof SignedInProfileContent>
@@ -75,6 +79,22 @@ export const CompanionTools: Story = {
     profile: { ...verifiedMember, role: 'Companion' },
     hasCompanionTools: true,
     approvedCompanion: true,
+    fullyVerified: true,
+  },
+}
+
+export const FullyVerifiedBadge: Story = {
+  args: {
+    profile: { ...verifiedMember, role: 'Companion' },
+    hasCompanionTools: true,
+    approvedCompanion: true,
+    fullyVerified: true,
+  },
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('Identity and Companion profile verified')).toBeInTheDocument()
+    await expect(canvas.getByText('Identity and Companion profile verified.')).toBeInTheDocument()
   },
 }
 
@@ -103,5 +123,15 @@ export const OwnContentLink: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'My posts and reviews' }))
     await expect(args.onOpenMyPosts).toHaveBeenCalledOnce()
+  },
+}
+
+export const LegalDocuments: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Terms and Conditions' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Privacy Policy' }))
+    await expect(args.onOpenTerms).toHaveBeenCalledOnce()
+    await expect(args.onOpenPrivacy).toHaveBeenCalledOnce()
   },
 }

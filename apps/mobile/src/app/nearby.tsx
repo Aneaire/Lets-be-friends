@@ -1,7 +1,7 @@
 import * as Location from 'expo-location'
-import { useQuery } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FlatList, ScrollView, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
@@ -10,6 +10,7 @@ import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { IconButton } from '@/design-system/atoms/IconButton'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { SearchField } from '@/design-system/molecules/SearchField'
 import { CompanionCard } from '@/design-system/organisms/CompanionCard'
 import { ProductMap } from '@/design-system/organisms/ProductMap'
@@ -20,18 +21,46 @@ import { mapApprovedCompanion, type ApprovedCompanionRecord } from '@/data/compa
 import { defaultDiscoveryFilters, discoveryCategoryOptions, filterDiscoveryCompanions, nearbySearchOptionsLabel, type DiscoveryFilters } from '@/data/discovery'
 import { NearbySearchOptionsSheet, type NearbyRadius } from '@/features/discovery/NearbySearchOptionsSheet'
 import { readCurrentCoordinates } from '@/features/discovery/nearbyLocation'
-import { normalizeMapCoordinates, roundOriginCoordinates } from '@/features/discovery/nearbyOrigin'
+import { NearbyAccountRequestScope, normalizeMapCoordinates, roundOriginCoordinates } from '@/features/discovery/nearbyOrigin'
+import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 export default function NearbyScreen() {
   const backend = useMobileBackendConfiguration()
   const theme = useAppTheme()
+  const member = useMobileMember()
+  const updateApproximateLocation = useMutation(mobileApi.users.updateApproximateLocation)
   const [radiusKm, setRadiusKm] = useState<NearbyRadius>(25)
-  const [origin, setOrigin] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [overrideOrigin, setOverrideOrigin] = useState<{ latitude: number; longitude: number } | null>(null)
   const [pinMode, setPinMode] = useState(false)
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
-  const [originLabel, setOriginLabel] = useState('Current area')
+  const [locationNotice, setLocationNotice] = useState('')
+  useAppToastMessage(locationNotice)
+  const consentedSavedOrigin =
+    member.status === 'ready' &&
+    typeof member.viewer.approximateLatitude === 'number' &&
+    typeof member.viewer.approximateLongitude === 'number' &&
+    member.viewer.approximateLocationConsentedAt !== undefined &&
+    member.viewer.approximateLocationConsentedAt !== null
+      ? { latitude: member.viewer.approximateLatitude, longitude: member.viewer.approximateLongitude }
+      : null
+  const memberKey = member.status === 'ready' ? String(member.viewer._id) : null
+  const accountScope = useMemo(() => new NearbyAccountRequestScope(), [])
+  useEffect(() => {
+    accountScope.switchMember(memberKey)
+    setOverrideOrigin(null)
+    setPinMode(false)
+    setLocating(false)
+    setLocationError('')
+    setLocationNotice('')
+    setOriginLabel('Saved area')
+    setTravelArea('')
+  }, [accountScope, memberKey])
+  // Consented saved coordinates are the default search center: no GPS prompt,
+  // no foreground fix. Explicit choices override them for this screen only.
+  const origin = overrideOrigin ?? consentedSavedOrigin
+  const [originLabel, setOriginLabel] = useState('Saved area')
   const [travelArea, setTravelArea] = useState('')
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<DiscoveryFilters>(defaultDiscoveryFilters)
@@ -48,10 +77,13 @@ export default function NearbyScreen() {
   const categories = useMemo(() => discoveryCategoryOptions(sourceCompanions), [sourceCompanions])
 
   async function locate() {
+    const request = accountScope.begin()
     setLocating(true)
     setLocationError('')
+    setLocationNotice('')
     try {
       const permission = await Location.requestForegroundPermissionsAsync()
+      if (!request.isCurrent()) return
       if (!permission.granted) {
         setLocationError('Foreground location permission is needed to search nearby. You can continue using regular Explore without it.')
         return
@@ -59,32 +91,59 @@ export default function NearbyScreen() {
       const coordinates = await readCurrentCoordinates(() => (
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
       ))
-      setOrigin(roundOrigin(coordinates))
-      setOriginLabel('Current area')
+      if (!request.isCurrent()) return
+      const canSave =
+        member.status === 'ready' &&
+        member.viewer.approximateLocationConsentedAt !== undefined &&
+        member.viewer.approximateLocationConsentedAt !== null
+      if (canSave) {
+        try {
+          const saved = await updateApproximateLocation({ latitude: coordinates.latitude, longitude: coordinates.longitude })
+          if (!request.isCurrent()) return
+          setOverrideOrigin({ latitude: saved.latitude, longitude: saved.longitude })
+          setOriginLabel('Saved area')
+          setLocationNotice('Your current area was saved as your approximate location and is now the nearby search center.')
+          return
+        } catch {
+          if (!request.isCurrent()) return
+        }
+      }
+      setOverrideOrigin(roundOriginCoordinates(coordinates))
+      setOriginLabel(canSave ? 'Current area' : 'Current area (not saved)')
+      if (canSave) {
+        setLocationNotice('Showing nearby from this device. Your saved approximate area could not be updated.')
+      } else {
+        setLocationNotice('This device fix is used only for this search. Agree to store your approximate location during onboarding to save an area.')
+      }
     } catch {
+      if (!request.isCurrent()) return
       setLocationError('Your current location could not be read. Try again outdoors or continue with regular Explore.')
     } finally {
-      setLocating(false)
+      if (request.isCurrent()) setLocating(false)
     }
   }
 
   async function locateTravelArea() {
+    const request = accountScope.begin()
     const area = travelArea.trim()
     if (area.length < 2) { setLocationError('Enter a city, neighborhood, or landmark.'); return }
     setLocating(true)
     setLocationError('')
     try {
       const matches = await Location.geocodeAsync(area)
+      if (!request.isCurrent()) return
       if (!matches[0]) { setLocationError('That travel area could not be found. Try a city and province.'); return }
-      setOrigin(roundOrigin(matches[0]))
+      setOverrideOrigin(roundOriginCoordinates(matches[0]))
       setOriginLabel(area)
-    } catch { setLocationError('That travel area could not be searched. Please try again.') } finally { setLocating(false) }
+    } catch {
+      if (request.isCurrent()) setLocationError('That travel area could not be searched. Please try again.')
+    } finally { if (request.isCurrent()) setLocating(false) }
   }
 
   function handlePickLocation(coords: { latitude: number; longitude: number }) {
     const picked = normalizeMapCoordinates(coords)
     if (!picked) return
-    setOrigin(roundOriginCoordinates(picked))
+    setOverrideOrigin(roundOriginCoordinates(picked))
     setOriginLabel('Placed pin')
     setLocationError('')
     setPinMode(false)
@@ -119,7 +178,11 @@ export default function NearbyScreen() {
             <>
               <ProductMap />
               <AppText variant="title">Find Companions near you</AppText>
-              <AppText color={theme.colors.textMuted}>Your foreground location is sent only for this radius search. Results use approximate Companion locations and distances, not precise meeting locations.</AppText>
+              {consentedSavedOrigin ? (
+                <AppText color={theme.colors.textMuted}>Searching from your saved approximate area. No foreground location is needed. Use your current location below to move the saved area.</AppText>
+              ) : (
+                <AppText color={theme.colors.textMuted}>Your foreground location is sent only for this radius search. Results use approximate Companion locations and distances, not precise meeting locations.</AppText>
+              )}
               {locationError ? <AppText accessibilityRole="alert" color={theme.colors.danger}>{locationError}</AppText> : null}
               <ActionButton label={locating ? 'Finding your location' : 'Use current location'} onPress={() => void locate()} disabled={locating} />
               <View style={styles.orRow}><View style={[styles.orLine, { backgroundColor: theme.colors.border }]} /><AppText variant="caption" color={theme.colors.textMuted}>OR SEARCH A TRAVEL AREA</AppText><View style={[styles.orLine, { backgroundColor: theme.colors.border }]} /></View>
@@ -189,8 +252,6 @@ function goBack() {
   if (router.canGoBack()) router.back()
   else router.replace('/explore')
 }
-
-function roundOrigin(origin: { latitude: number; longitude: number }) { return { latitude: Math.round(origin.latitude * 100) / 100, longitude: Math.round(origin.longitude * 100) / 100 } }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },

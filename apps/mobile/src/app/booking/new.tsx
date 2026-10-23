@@ -2,7 +2,7 @@ import { formatPhp } from '@lets-be-friends/shared'
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { mobileApi, type CompanionProfileId } from '@/backend/client'
@@ -13,6 +13,12 @@ import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { bookingPriceEstimate } from '@/data/bookingPricing'
+import {
+  bookingAvailabilityNotice,
+  bookingRequestGate,
+  normalizeCompanionAvailability,
+} from '@/data/companionAvailability'
+import { BookingSlotPicker } from '@/features/booking/BookingSlotPicker'
 import { parseManilaBookingInput } from '@/data/bookingViewModels'
 import { mapPublicCompanion, type ApprovedCompanionRecord, type SessionMode } from '@/data/companionViewModels'
 import { safeProductError } from '@/data/productErrors'
@@ -63,6 +69,28 @@ function BookingForm({ companion, availableCentavos }: { companion: ReturnType<t
   const [submitting, setSubmitting] = useState(false)
   const submittingRef = useRef(false)
   const estimate = bookingPriceEstimate(companion.hourlyRateCentavos, durationInput)
+  const schedule = normalizeCompanionAvailability(companion.weeklyAvailability)
+  const scheduleConfigured = schedule !== null
+  const [slotStart, setSlotStart] = useState<number | null>(null)
+  const [slotState, setSlotState] = useState({ loading: true, selectedValid: false })
+  const onSlotStateChange = useCallback((next: typeof slotState) => setSlotState((current) => (
+    current.loading === next.loading && current.selectedValid === next.selectedValid ? current : next
+  )), [])
+  const durationMinutes = Number(durationInput)
+  const parsedPreview = scheduleConfigured ? null : parseManilaBookingInput(dateInput, timeInput, durationInput)
+  const bookingAvailability = useQuery(
+    mobileApi.companions.bookingAvailability,
+    companion.id ? { companionProfileId: companion.id as CompanionProfileId } : 'skip',
+  )
+  const gate = bookingRequestGate({
+    scheduleConfigured,
+    availability: companion.weeklyAvailability,
+    bookingAvailability,
+    slotsLoading: scheduleConfigured && slotState.loading,
+    selectedSlotValid: !scheduleConfigured || slotState.selectedValid,
+    requestedAt: scheduleConfigured ? slotStart : parsedPreview && parsedPreview.ok ? parsedPreview.requestedAt : null,
+    durationMinutes,
+  })
   const pickerValue = useMemo(() => new Date(`${dateInput}T${timeInput}:00`), [dateInput, timeInput])
 
   function updateSchedule(event: DateTimePickerEvent, selected?: Date) {
@@ -79,9 +107,28 @@ function BookingForm({ companion, availableCentavos }: { companion: ReturnType<t
       setError('Choose a category and format offered by this Companion.')
       return
     }
-    const parsed = parseManilaBookingInput(dateInput, timeInput, durationInput)
-    if (!parsed.ok) {
-      setError(parsed.message)
+    const parsed = scheduleConfigured ? null : parseManilaBookingInput(dateInput, timeInput, durationInput)
+    if (parsed && !parsed.ok) { setError(parsed.message); return }
+    if (!Number.isSafeInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 720 || durationMinutes % 15 !== 0) {
+      setError('Duration must be 15 to 720 minutes in 15-minute steps.')
+      return
+    }
+    const requestedAt = scheduleConfigured ? slotStart : parsed && parsed.ok ? parsed.requestedAt : null
+    const slotGate = bookingRequestGate({
+      scheduleConfigured,
+      availability: companion.weeklyAvailability,
+      bookingAvailability,
+      slotsLoading: scheduleConfigured && slotState.loading,
+      selectedSlotValid: !scheduleConfigured || slotState.selectedValid,
+      requestedAt,
+      durationMinutes,
+    })
+    if (slotGate.blocked || (scheduleConfigured && requestedAt === null)) {
+      setError(slotGate.notice ?? 'Choose an available Manila date and time before sending.')
+      return
+    }
+    if (requestedAt === null) {
+      setError('Choose an available Manila date and time before sending.')
       return
     }
     if (notes.length > 1_000) {
@@ -95,8 +142,8 @@ function BookingForm({ companion, availableCentavos }: { companion: ReturnType<t
         companionProfileId: companion.id as CompanionProfileId,
         category,
         mode,
-        requestedAt: parsed.requestedAt,
-        durationMinutes: parsed.durationMinutes,
+        requestedAt,
+        durationMinutes,
         notes: notes.trim() || undefined,
       })
       router.replace({ pathname: '/booking/[id]', params: { id: String(result.bookingId) } })
@@ -123,15 +170,36 @@ function BookingForm({ companion, availableCentavos }: { companion: ReturnType<t
       <FieldLabel label="Format" />
       <ChoiceRow values={companion.sessionModes} selected={mode} onSelect={(value) => setMode(value as SessionMode)} format={(value) => value === 'in_person' ? 'In person' : 'Online'} />
 
-      <FieldLabel label="Schedule" />
-      <AppText variant="caption" color={theme.colors.textMuted}>Asia/Manila (UTC+8). Confirm that this timezone works for both people.</AppText>
-      <View style={styles.scheduleRow}>
-        <ScheduleButton icon="calendar-outline" label="Date" value={formatDateLabel(dateInput)} onPress={() => setPicker('date')} />
-        <ScheduleButton icon="time-outline" label="Time" value={formatTimeLabel(timeInput)} onPress={() => setPicker('time')} />
-      </View>
-      {picker ? <DateTimePicker value={pickerValue} mode={picker} display="default" minimumDate={picker === 'date' ? new Date() : undefined} minuteInterval={15} onChange={updateSchedule} /> : null}
       <FieldLabel label="Duration" />
       <ChoiceRow values={['30', '60', '90', '120']} selected={durationInput} onSelect={setDurationInput} format={(value) => `${Number(value) / 60 < 1 ? `${value} min` : `${Number(value) / 60} ${Number(value) === 60 ? 'hour' : 'hours'}`}`} />
+      <FieldLabel label="Schedule" />
+      <AppText variant="caption" color={theme.colors.textMuted}>Asia/Manila (UTC+8). Confirm that this timezone works for both people.</AppText>
+      {bookingAvailabilityNotice(bookingAvailability) ? (
+        <AppText accessibilityRole="alert" variant="caption" color={theme.colors.textMuted}>{bookingAvailabilityNotice(bookingAvailability)}</AppText>
+      ) : null}
+      {scheduleConfigured ? (
+        <>
+          <BookingSlotPicker
+            companionProfileId={companion.id}
+            durationMinutes={durationMinutes}
+            selectedStart={slotStart}
+            onSelectStart={setSlotStart}
+            onStateChange={onSlotStateChange}
+            disabled={submitting}
+          />
+          {gate.notice ? (
+            <AppText accessibilityRole="alert" variant="caption" color={theme.colors.textMuted}>{gate.notice}</AppText>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <View style={styles.scheduleRow}>
+            <ScheduleButton icon="calendar-outline" label="Date" value={formatDateLabel(dateInput)} onPress={() => setPicker('date')} />
+            <ScheduleButton icon="time-outline" label="Time" value={formatTimeLabel(timeInput)} onPress={() => setPicker('time')} />
+          </View>
+          {picker ? <DateTimePicker value={pickerValue} mode={picker} display="default" minimumDate={picker === 'date' ? new Date() : undefined} minuteInterval={15} onChange={updateSchedule} /> : null}
+        </>
+      )}
       <FieldLabel label="Notes, optional" />
       <Input label="Booking notes" value={notes} onChangeText={setNotes} placeholder="Share meeting details or accessibility needs" multiline />
       <AppText variant="caption" color={notes.length > 1_000 ? theme.colors.danger : theme.colors.textMuted}>{notes.length}/1,000</AppText>
@@ -150,7 +218,7 @@ function BookingForm({ companion, availableCentavos }: { companion: ReturnType<t
         <ActionButton label="Open booking wallet" onPress={() => router.push('/wallet')} intent="self" secondary />
       </View>
 
-      <ActionButton label={submitting ? 'Sending request' : 'Send booking request'} onPress={() => void submit()} disabled={submitting} />
+      <ActionButton label={submitting ? 'Sending request' : 'Send booking request'} onPress={() => void submit()} disabled={submitting || gate.blocked || (scheduleConfigured && slotStart === null)} />
       <ActionButton label="Cancel" onPress={() => goBackOr('/nearby')} secondary disabled={submitting} />
     </Screen>
   )

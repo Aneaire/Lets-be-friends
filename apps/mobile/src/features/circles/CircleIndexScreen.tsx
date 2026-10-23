@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from 'convex/react'
 import { router } from 'expo-router'
-import { useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { useLayoutEffect, useMemo, useState } from 'react'
+import { Alert, StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -16,6 +16,12 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 import { CircleCard } from './CircleCard'
 import { CirclePreviewCard } from './CirclePreviewCard'
 import { circleActionError, circleIndexPresentation } from './circlePresentation'
+import {
+  CircleDraftController,
+  emptyCircleCreationDraft,
+} from './circleCreationDraft'
+import { getCircleDraftStorage } from './circleDraftStorage'
+import { useMobileMember } from '@/member/MobileMember'
 
 const pilotRules = [
   'Treat every member with respect.',
@@ -34,8 +40,51 @@ export function CircleIndexScreen() {
   const [error, setError] = useState('')
   const [form, setForm] = useState({ name: '', slug: '', purpose: '', category: '', mode: 'online' as 'online' | 'in_person' | 'both', approximateArea: '' })
   const [rules, setRules] = useState([pilotRules[0]])
+  const [draftRestored, setDraftRestored] = useState(false)
   const index = circleIndexPresentation(mine, discover)
   const loading = index.loading || eligibility === undefined
+  const member = useMobileMember()
+  const draftStorage = useMemo(() => getCircleDraftStorage(), [])
+  const draftController = useMemo(() => new CircleDraftController(draftStorage), [draftStorage])
+  const memberKey = member.status === 'ready' ? String(member.viewer._id) : null
+
+  useLayoutEffect(() => {
+    setForm({ name: '', slug: '', purpose: '', category: '', mode: 'online', approximateArea: '' })
+    setRules([pilotRules[0]])
+    setDraftRestored(false)
+    setError('')
+    void draftController.switchMember(memberKey, (saved) => {
+      if (!saved) return
+      setForm({ name: saved.name, slug: saved.slug, purpose: saved.purpose, category: saved.category, mode: saved.mode, approximateArea: saved.approximateArea })
+      setRules(saved.rules.length ? saved.rules : [pilotRules[0]])
+      setDraftRestored(true)
+    })
+    return () => { void draftController.switchMember(null, () => undefined) }
+  }, [memberKey, draftController])
+
+  function updateForm(next: typeof form) {
+    setForm(next)
+    setDraftRestored(false)
+    void draftController.save({ ...emptyCircleCreationDraft(), ...next, rules, updatedAt: Date.now() })
+  }
+
+  function updateRules(next: string[]) {
+    setRules(next)
+    setDraftRestored(false)
+    void draftController.save({ ...emptyCircleCreationDraft(), ...form, rules: next, updatedAt: Date.now() })
+  }
+
+  async function discardDraft() {
+    const cleared = await draftController.clear()
+    if (!cleared) {
+      setError('The saved draft could not be discarded on this device. Try again before editing it.')
+      return
+    }
+    setForm({ name: '', slug: '', purpose: '', category: '', mode: 'online', approximateArea: '' })
+    setRules([pilotRules[0]])
+    setDraftRestored(false)
+    setError('')
+  }
 
   async function submit() {
     if (!eligibility?.eligible || busy || !rules.length) return
@@ -51,6 +100,9 @@ export function CircleIndexScreen() {
         approximateArea: form.approximateArea.trim() || undefined,
         rules,
       })
+      const cleared = await draftController.clear()
+      if (!cleared) Alert.alert('Circle created', 'The Circle was created, but its saved draft could not be removed from this device.')
+      setDraftRestored(false)
       router.replace({ pathname: '/circles/[id]', params: { id: circleId } } as never)
     } catch (cause) {
       setError(circleActionError(cause, 'The Circle could not be created.'))
@@ -71,15 +123,17 @@ export function CircleIndexScreen() {
           <AppText variant="heading">Create a Circle</AppText>
           <AppText color={theme.colors.textMuted}>You become the host and manage membership, roles, and rules.</AppText>
           {error ? <InlineNotice title="Circle not created" tone="danger">{error}</InlineNotice> : null}
-          <LabeledField label="Name"><TextField value={form.name} maxLength={80} placeholder="Cebu Coffee Friends" onChangeText={(name) => setForm((current) => ({ ...current, name }))} /></LabeledField>
-          <LabeledField label="URL slug"><TextField value={form.slug} maxLength={60} autoCapitalize="none" placeholder="cebu-coffee-friends" onChangeText={(slug) => setForm((current) => ({ ...current, slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))} /></LabeledField>
-          <LabeledField label="Purpose"><TextField multiline value={form.purpose} maxLength={500} placeholder="What brings this Circle together?" onChangeText={(purpose) => setForm((current) => ({ ...current, purpose }))} /></LabeledField>
-          <LabeledField label="Category"><TextField value={form.category} maxLength={60} placeholder="Coffee" onChangeText={(category) => setForm((current) => ({ ...current, category }))} /></LabeledField>
+          {draftRestored ? <InlineNotice title="Draft restored" tone="neutral">Your unfinished Circle details were restored.</InlineNotice> : null}
+          {draftRestored ? <ActionButton label="Discard draft" intent="self" secondary compact onPress={() => void discardDraft()} /> : null}
+          <LabeledField label="Name"><TextField value={form.name} maxLength={80} placeholder="Cebu Coffee Friends" onChangeText={(name) => updateForm({ ...form, name })} /></LabeledField>
+          <LabeledField label="URL slug"><TextField value={form.slug} maxLength={60} autoCapitalize="none" placeholder="cebu-coffee-friends" onChangeText={(slug) => updateForm({ ...form, slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} /></LabeledField>
+          <LabeledField label="Purpose"><TextField multiline value={form.purpose} maxLength={500} placeholder="What brings this Circle together?" onChangeText={(purpose) => updateForm({ ...form, purpose })} /></LabeledField>
+          <LabeledField label="Category"><TextField value={form.category} maxLength={60} placeholder="Coffee" onChangeText={(category) => updateForm({ ...form, category })} /></LabeledField>
           <AppText variant="label">SESSION FORMAT</AppText>
-          <View style={styles.row}>{(['online', 'in_person', 'both'] as const).map((mode) => <ActionButton key={mode} compact label={mode === 'in_person' ? 'In person' : mode === 'both' ? 'Both' : 'Online'} intent="self" secondary={form.mode !== mode} onPress={() => setForm((current) => ({ ...current, mode }))} />)}</View>
-          <LabeledField label="Approximate area"><TextField value={form.approximateArea} maxLength={80} placeholder="Cebu City or Online" onChangeText={(approximateArea) => setForm((current) => ({ ...current, approximateArea }))} /></LabeledField>
+          <View style={styles.row}>{(['online', 'in_person', 'both'] as const).map((mode) => <ActionButton key={mode} compact label={mode === 'in_person' ? 'In person' : mode === 'both' ? 'Both' : 'Online'} intent="self" secondary={form.mode !== mode} onPress={() => updateForm({ ...form, mode })} />)}</View>
+          <LabeledField label="Approximate area"><TextField value={form.approximateArea} maxLength={80} placeholder="Cebu City or Online" onChangeText={(approximateArea) => updateForm({ ...form, approximateArea })} /></LabeledField>
           <AppText variant="label">CIRCLE RULES</AppText>
-          {pilotRules.map((rule) => <Checkbox key={rule} label={rule} checked={rules.includes(rule)} onChange={(checked) => setRules((current) => checked ? [...current, rule] : current.filter((item) => item !== rule))} />)}
+          {pilotRules.map((rule) => <Checkbox key={rule} label={rule} checked={rules.includes(rule)} onChange={(checked) => updateRules(checked ? [...rules, rule] : rules.filter((item) => item !== rule))} />)}
           <ActionButton label="Create Circle" intent="self" loading={busy} disabled={!form.name.trim() || !form.slug.trim() || !form.purpose.trim() || !form.category.trim() || !rules.length} onPress={() => void submit()} />
         </View>
       ) : null}

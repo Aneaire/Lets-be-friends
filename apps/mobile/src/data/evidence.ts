@@ -18,6 +18,21 @@ export function evidenceDecisionCopy(role: 'companion_start' | 'member_end', dec
   return { label, detail: 'Upload one private image or explicitly skip after reading the warning.' }
 }
 
+export type EvidenceSharedRow = {
+  role: 'companion_start' | 'member_end'
+  isViewer: boolean
+  decision?: EvidenceDecision
+}
+
+/** Short, image-free state line for the record both participants can read. */
+export function evidenceSharedRowCopy(row: EvidenceSharedRow) {
+  const owner = row.role === 'companion_start' ? 'Start' : 'End'
+  const label = row.isViewer ? `${owner} (you)` : owner
+  if (row.decision === 'uploaded') return { label, detail: 'Private image saved for authorized safety review only.' }
+  if (row.decision === 'skipped') return { label, detail: 'Skipped after the strict warning was acknowledged.' }
+  return { label, detail: 'Not decided yet.' }
+}
+
 export function validateEvidenceAsset(asset: EvidenceAsset) {
   if (asset.type && asset.type !== 'image') {
     return { ok: false as const, message: 'Choose an image file for private booking evidence.' }

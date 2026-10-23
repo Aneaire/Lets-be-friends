@@ -35,10 +35,14 @@ describe('companion view-model mapping', () => {
   })
 
   it('keeps public detail fields supplied by the backend', () => {
-    expect(mapPublicCompanion(approvedCompanion)).toMatchObject({
+    const weeklyAvailability = [{ weekday: 1, startMinutes: 540, endMinutes: 720 }]
+    expect(mapPublicCompanion({ ...approvedCompanion, weeklyAvailability })).toMatchObject({
       bio: 'Public companion bio.',
       boundaries: ['Public places only'],
+      weeklyAvailability,
     })
+    expect(mapPublicCompanion(approvedCompanion).weeklyAvailability).toBeUndefined()
+    expect(mapPublicCompanion({ ...approvedCompanion, weeklyAvailability: [] }).weeklyAvailability).toEqual([])
   })
 
   it('preserves truthful public booking eligibility and route decisions', () => {

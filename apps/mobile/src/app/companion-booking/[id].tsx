@@ -183,6 +183,7 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
         bookingId={booking._id as BookingId}
         status={booking.status}
         viewerHasReviewed={booking.viewerHasReviewed}
+        viewerReviewId={booking.viewerReviewId ? String(booking.viewerReviewId) : undefined}
       />
       <View style={styles.actions}>
         {canCancel ? <BookingCancelAction bookingId={booking._id as BookingId} participantLabel="Companion" /> : null}

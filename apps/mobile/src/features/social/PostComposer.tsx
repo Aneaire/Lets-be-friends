@@ -27,6 +27,12 @@ export type PostComposerProps = {
   remainingUploads?: number
   mentionSuggestions?: PostComposerMention[]
   /**
+   * Viewer identity shown above the text field. Home passes the signed-in
+   * member photo and name so the author can confirm which account is posting.
+   */
+  avatarUri?: string
+  avatarName?: string
+  /**
    * Optional poll state. When `pollOpen` is true the composer shows the
    * shared {@link PollComposer} and disables media selection, because polls
    * are text-only. Circle discussions can pass the same props to reuse this
@@ -67,6 +73,8 @@ export function PostComposer({
   onRemoveMedia,
   onSelectMention,
   onPublish,
+  avatarUri,
+  avatarName,
   style,
 }: PostComposerProps) {
   const theme = useAppTheme()
@@ -128,6 +136,14 @@ export function PostComposer({
         </View>
       ) : (
         <View style={styles.copy}>
+          {avatarName ? (
+            <View style={styles.authorRow}>
+              <Avatar uri={avatarUri} name={avatarName} size={32} />
+              <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>
+                Posting as {avatarName}
+              </AppText>
+            </View>
+          ) : null}
           <TextField
             accessibilityLabel="Create a text post"
             value={body}
@@ -266,6 +282,11 @@ const styles = StyleSheet.create({
   copy: {
     flex: 1,
     gap: 7,
+  },
+  authorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   prompt: {
     flex: 1,

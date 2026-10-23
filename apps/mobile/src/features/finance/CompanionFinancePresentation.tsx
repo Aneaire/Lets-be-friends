@@ -69,6 +69,9 @@ export function CompanionFinancePresentation({
   obligations,
   ledger,
   onBack,
+  hideCompanionFinanceSections = false,
+  identityEligible = true,
+  identityNotice = 'Complete identity verification first. Your payout account must use your verified legal name.',
 }: {
   canAcceptBookings: boolean
   availableEarnings: string
@@ -93,6 +96,11 @@ export function CompanionFinancePresentation({
   obligations: readonly CompanionFinanceObligationItem[]
   ledger: readonly CompanionFinanceLedgerItem[]
   onBack: () => void
+  /** Hides the booking-acceptance alert and legacy fee sections for members without a Companion finance profile. */
+  hideCompanionFinanceSections?: boolean
+  /** Disables payout setup and withdrawal actions while keeping history visible. */
+  identityEligible?: boolean
+  identityNotice?: string
 }) {
   const theme = useAppTheme()
 
@@ -105,7 +113,7 @@ export function CompanionFinancePresentation({
         onBack={onBack}
       />
 
-      {!canAcceptBookings ? (
+      {!canAcceptBookings && !hideCompanionFinanceSections ? (
         <View
           accessibilityRole="alert"
           style={[styles.status, { borderColor: theme.colors.danger, backgroundColor: theme.colors.surface }]}>
@@ -136,6 +144,8 @@ export function CompanionFinancePresentation({
 
         {!withdrawalsEnabled ? (
           <AppText color={theme.colors.textMuted}>{payoutNotice}</AppText>
+        ) : !identityEligible ? (
+          <AppText accessibilityRole="alert" color={theme.colors.textMuted}>{identityNotice}</AppText>
         ) : payoutMethod ? (
           <View style={[styles.destinationRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
             <View style={styles.destinationCopy}>
@@ -151,7 +161,7 @@ export function CompanionFinancePresentation({
               intent="self"
               secondary
               compact
-              disabled={withdrawalBusy || activeWithdrawal}
+              disabled={withdrawalBusy || activeWithdrawal || !identityEligible}
               style={styles.changeButton}
               onPress={() => onSetupPayoutMethod?.()}
             />
@@ -160,11 +170,11 @@ export function CompanionFinancePresentation({
           <View style={styles.emptyPayoutMethod}>
             <AppText variant="bodyStrong">Add a payout account first</AppText>
             <AppText variant="caption" color={theme.colors.textMuted}>The account must use your verified legal name.</AppText>
-            <ActionButton label="Set up payout method" intent="self" disabled={withdrawalBusy} onPress={() => onSetupPayoutMethod?.()} />
+            <ActionButton label="Set up payout method" intent="self" disabled={withdrawalBusy || !identityEligible} onPress={() => onSetupPayoutMethod?.()} />
           </View>
         )}
 
-        {withdrawalsEnabled && payoutMethod?.ready && !payoutMethod.modeMismatch && !activeWithdrawal ? (
+        {withdrawalsEnabled && identityEligible && payoutMethod?.ready && !payoutMethod.modeMismatch && !activeWithdrawal ? (
           <View style={styles.withdrawalForm}>
             <AppText variant="caption" color={theme.colors.textMuted}>Amount in PHP</AppText>
             <TextField
@@ -197,7 +207,7 @@ export function CompanionFinancePresentation({
         ) : null}
       </View>
 
-      {withdrawalsEnabled && withdrawals.length ? (
+      {withdrawals.length ? (
         <DisclosureSection
           title="Withdrawal history"
           summary={`${withdrawals.length} ${withdrawals.length === 1 ? 'withdrawal' : 'withdrawals'}`}>
@@ -213,6 +223,7 @@ export function CompanionFinancePresentation({
         </DisclosureSection>
       ) : null}
 
+      {hideCompanionFinanceSections ? null : (
       <DisclosureSection
         title="Legacy platform fees"
         summary={hasPastDue ? `${pastDue} past due` : `${dueThisSaturday} due ${dueDateLabel}`}
@@ -259,6 +270,7 @@ export function CompanionFinancePresentation({
           )) : <EmptyRow text="No platform fee ledger entries." />}
         </FinanceGroup>
       </DisclosureSection>
+      )}
     </Screen>
   )
 }

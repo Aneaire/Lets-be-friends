@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { Search } from 'lucide-react'
+import { policyDocuments } from '@lets-be-friends/shared'
 import { SignInAction } from '../../features/auth/SignInAction'
 import { isWorkspacePath } from '../../lib/navigation'
 import { SignedInApplicationChrome } from './AppNavigation'
@@ -77,10 +78,13 @@ export function Footer() {
             Early access
           </span>
         </div>
-        <div className="flex items-center gap-5">
+        <div className="flex flex-wrap items-center gap-5">
           <SignInAction className="nav-link">Explore</SignInAction>
           <Link to="/safety" className="nav-link">How safety works</Link>
           <Link to="/become-companion" className="nav-link">Become a Companion</Link>
+          {policyDocuments.map((document) => (
+            <Link key={document.id} to={document.path} className="nav-link">{document.shortTitle}</Link>
+          ))}
           <span className="text-soft">Everyday skills. Real connections.</span>
         </div>
       </div>

@@ -43,6 +43,7 @@ export function BookingsCalendarView<TBooking extends CalendarBooking>({
 
   const byDay = useMemo(() => bookingsByDay(bookings), [bookings])
   const days = useMemo(() => calendarDays(visibleMonth.getFullYear(), visibleMonth.getMonth()), [visibleMonth])
+  const hasBookings = bookings.length > 0
   const selectedBookings = byDay.get(dateKey(selectedDate)) ?? []
   const monthTitle = monthLabel(visibleMonth.getFullYear(), visibleMonth.getMonth())
 
@@ -63,7 +64,7 @@ export function BookingsCalendarView<TBooking extends CalendarBooking>({
       <View style={styles.calendarPanel}>
         <View style={styles.calendarHeader}>
           <View style={styles.calendarHeaderCopy}>
-            <AppText variant="label" color={theme.colors.social}>SCHEDULE</AppText>
+            <AppText variant="label" color={theme.colors.socialText}>SCHEDULE</AppText>
             <AppText variant="title" accessibilityLiveRegion="polite">{monthTitle}</AppText>
           </View>
           <View style={styles.calendarNavigation}>
@@ -97,7 +98,6 @@ export function BookingsCalendarView<TBooking extends CalendarBooking>({
                 onPress={() => chooseDate(date)}
                 style={({ pressed }) => [
                   styles.day,
-                  outside && styles.dayOutside,
                   selected && { backgroundColor: theme.colors.socialSoft },
                   today && { borderColor: theme.colors.socialControl },
                   pressed && styles.pressed,
@@ -117,7 +117,7 @@ export function BookingsCalendarView<TBooking extends CalendarBooking>({
       </View>
 
       <View style={styles.dayPanel}>
-        <AppText variant="label" color={theme.colors.social}>SELECTED DAY</AppText>
+        <AppText variant="label" color={theme.colors.socialText}>SELECTED DAY</AppText>
         <AppText variant="heading">{longDate(selectedDate)}</AppText>
         <AppText variant="caption" color={theme.colors.textMuted}>
           {selectedBookings.length === 0 ? 'No bookings' : `${selectedBookings.length} ${selectedBookings.length === 1 ? 'booking' : 'bookings'}`}
@@ -130,8 +130,8 @@ export function BookingsCalendarView<TBooking extends CalendarBooking>({
           </View>
         ) : (
           <View style={styles.dayEmpty}>
-            <AppText variant="bodyStrong" color={theme.colors.textMuted}>Choose a marked date</AppText>
-            <AppText variant="caption" color={theme.colors.textMuted} style={styles.dayEmptyCopy}>Pick a day with a booking count to see its details.</AppText>
+            <AppText variant="bodyStrong" color={theme.colors.textMuted}>{hasBookings ? 'Choose a marked date' : 'No bookings yet'}</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted} style={styles.dayEmptyCopy}>{hasBookings ? 'Pick a day with a booking count to see its details.' : 'Future bookings appear here.'}</AppText>
           </View>
         )}
       </View>
@@ -142,9 +142,9 @@ export function BookingsCalendarView<TBooking extends CalendarBooking>({
 const styles = StyleSheet.create({
   container: { gap: density.contentGap },
   calendarPanel: { gap: density.compactCardPadding },
-  calendarHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: density.cardGap },
-  calendarHeaderCopy: { flex: 1, gap: 2 },
-  calendarNavigation: { flexDirection: 'row', alignItems: 'center', gap: 0 },
+  calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: density.cardGap, flexWrap: 'wrap' },
+  calendarHeaderCopy: { flex: 1, flexBasis: 140, minWidth: 140, gap: 2 },
+  calendarNavigation: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0, flexWrap: 'wrap' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   weekday: { flexBasis: '13.0%', flexGrow: 1, alignItems: 'center', paddingVertical: 4 },
   day: {
@@ -159,7 +159,6 @@ const styles = StyleSheet.create({
     gap: 2,
     paddingVertical: 4,
   },
-  dayOutside: { opacity: 0.55 },
   dayNumber: { fontVariant: ['tabular-nums'] },
   dayCount: { minWidth: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   dayCountText: { fontVariant: ['tabular-nums'], fontWeight: '700' },

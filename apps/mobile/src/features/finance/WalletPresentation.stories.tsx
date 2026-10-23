@@ -56,6 +56,7 @@ const meta = {
     onRefresh: refreshTopUp,
     topUps: [],
     onReturn: returnToProfile,
+    onOpenWithdrawals: fn(),
   },
 } satisfies Meta<typeof WalletPresentation>
 
@@ -92,6 +93,7 @@ function AmountEntryStory() {
       onRefresh={refreshTopUp}
       topUps={[]}
       onReturn={returnToProfile}
+      onOpenWithdrawals={fn()}
     />
   )
 }

@@ -4,6 +4,12 @@ Current scope (version `2026-10-17.2`, effective `2026-10-17`): two separate Ste
 
 ID front, optional back, and current selfie are retained privately for as long as the member account exists, for identity checks, user safety, fraud prevention, and incident reports, with restricted access and audit logging. After account removal, images are deleted on scheduled review unless an active incident review or documented legal hold requires continued retention. Earlier deletion may be required by law. Verification and approval expiry (730 day approval TTL) is unchanged and separate from image retention.
 
+## Centralized catalog and access
+
+`packages/shared/src/policy.ts` is the single catalog for both documents. It owns the titles, short labels, paths, acceptance prefixes and labels, version, effective date, section order, and crosslink labels. Web and mobile render the same `termsDocument` and `privacyDocument` entries, and onboarding acceptance controls are generated from `policyDocuments` rather than repeating titles or paths.
+
+Both platforms expose the legal pages from persistent signed-in surfaces: Settings on web and the Profile settings groups on mobile. Signed-out web visitors also get Terms and Privacy links in the footer. The mobile legal screens are one shared `PolicyDocumentScreen` with the same crosslinks as the web pages, so either document links to the other on both platforms.
+
 ## Historical transition from 2026-10-17
 
 Previous scope `2026-10-17` promised up to 730 days. That scope is not rewritten into lifetime retention. Owners still on `2026-10-17` or older general Terms must complete Step 5 reacceptance once under existing gates before identity actions proceed.

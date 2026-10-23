@@ -335,6 +335,8 @@ function ConnectedHome() {
       {signedIn ? (
         <PostComposer
           expanded={composerOpen}
+          avatarUri={accountImage}
+          avatarName={accountName}
           body={postBody}
           busy={creating}
           media={mediaAssets.map((asset) => ({

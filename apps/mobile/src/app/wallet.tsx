@@ -142,6 +142,7 @@ function WalletView({ wallet }: { wallet: Wallet }) {
       message={message}
       topUps={wallet.topUps.map((topUp) => walletTopUpItem(topUp, clockNow))}
       onReturn={() => router.replace('/profile')}
+      onOpenWithdrawals={() => router.push('/companion-finance')}
     />
   )
 }

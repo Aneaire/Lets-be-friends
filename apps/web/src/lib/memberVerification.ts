@@ -1,4 +1,4 @@
-import { identityRejectionGuidance, isIdentityRejectionReason, type IdentityRejectionReason } from '../../convex/identityVerification'
+import { identityRejectionReasonGuidance, type IdentityRejectionReason } from '@lets-be-friends/shared'
 
 export type MemberVerificationStatus = 'not_started' | 'pending' | 'approved' | 'rejected'
 export type PersonaStatus = 'not_started' | 'created' | 'in_progress' | 'processing' | 'completed' | 'failed' | 'expired' | 'pending' | 'approved' | 'rejected'
@@ -85,9 +85,7 @@ export function memberVerificationPresentation(
       tone: 'danger',
       // The reviewer's internal note stays private. When they picked a reason the
       // member is told exactly what to fix; otherwise fall back to the generic copy.
-      guidance: isIdentityRejectionReason(latestRequest?.memberReason)
-        ? identityRejectionGuidance[latestRequest.memberReason]
-        : 'The safety team did not approve this identity attempt. Start a new identity check if another attempt is available.',
+      guidance: identityRejectionReasonGuidance(latestRequest?.memberReason),
       action: 'retry',
     }
   }

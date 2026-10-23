@@ -2,8 +2,22 @@ import { safeProductError } from '@/data/productErrors'
 
 describe('safe product error mapping', () => {
   it('maps known booking failures to fixed product copy', () => {
-    expect(safeProductError('create_booking', new Error('Insufficient booking balance. Add at least ₱123.45 to your wallet before sending.'))).toBe('Your booking balance is not enough for this request.')
+    expect(safeProductError('create_booking', new Error('Insufficient booking balance. Add at least ₱123.45 to your wallet before sending.'))).toBe(
+      'Your booking balance is not enough. Add at least ₱123.45 to your wallet before continuing.',
+    )
     expect(safeProductError('create_booking', new Error('A current identity check is required'))).toBe('Identity verification must be approved before you can request a booking.')
+  })
+
+  it('keeps a safe peso shortfall and rejects malformed amounts', () => {
+    expect(safeProductError('edit_booking', new Error('Insufficient booking balance. Add at least ₱1,234.00 to your wallet before updating.'))).toBe(
+      'Your booking balance is not enough. Add at least ₱1,234.00 to your wallet before continuing.',
+    )
+    expect(safeProductError('create_booking', new Error('Insufficient booking balance. Add at least PHP 45.00 to your wallet before sending.'))).toBe(
+      'Your booking balance is not enough. Add at least PHP 45.00 to your wallet before continuing.',
+    )
+    expect(safeProductError('create_booking', new Error('Insufficient booking balance. Add at least <script> to your wallet before sending.'))).toBe(
+      'Your booking balance is not enough for this request.',
+    )
   })
 
   it.each([
@@ -20,8 +34,25 @@ describe('safe product error mapping', () => {
     expect(safeProductError('cancel_booking', new Error(raw))).not.toContain('abc123')
   })
 
-  it('explains the unsupported completion safety step without raw errors', () => {
-    expect(safeProductError('complete_booking', new Error('Choose end evidence or explicitly skip it.'))).toBe('Completion needs an additional safety step that is not available in the mobile app yet.')
+  it('maps recognized completion failures to fixed product copy, never raw errors', () => {
+    expect(safeProductError('complete_booking', new Error('Choose end evidence or explicitly skip it before confirming completion.'))).toBe(
+      'Upload end evidence or explicitly skip it before confirming completion.',
+    )
+    expect(safeProductError('complete_booking', new Error('Booking cannot be completed before the scheduled session ends.'))).toBe(
+      'Completion becomes available after the listed session duration. The server checks the schedule again when you confirm.',
+    )
+    expect(safeProductError('complete_booking', new Error('Only accepted bookings can be completed.'))).toBe(
+      'Only an accepted booking can be confirmed complete. Refresh the booking for its current state.',
+    )
+    expect(safeProductError('complete_booking', new Error('Uncaught Error: Booking schedule is invalid. Called by client'))).toBe(
+      'Completion is unavailable because the scheduled session could not be verified. Refresh the booking or contact support.',
+    )
+  })
+
+  it('falls back to generic copy for unrecognized completion errors', () => {
+    const raw = 'internal member id abc123 and 90210 centavos'
+    expect(safeProductError('complete_booking', new Error(raw))).toBe('Completion could not be confirmed. Please try again later.')
+    expect(safeProductError('complete_booking', new Error('Server Error'))).toBe('Completion could not be confirmed. Please try again later.')
   })
 
   it('uses fixed copy for safety-setting failures', () => {

@@ -34,6 +34,7 @@ import { prepareChatUpload, uploadChatAttachment } from '@/features/messaging/ch
 import {
   formatFileSize,
   formatMessageTimestamp,
+  conversationBookingCardView,
   messageCounter,
   validateMessageBody,
 } from '@/data/messageViewModels'
@@ -396,7 +397,7 @@ function MessageItem({ message, otherName, viewerId }: {
         booking={destination ? (
           <BookingCard
             compact
-            booking={{ id: String(message.booking.bookingId), participantName: message.booking.companionDisplayName, category: message.booking.category, mode: message.booking.mode, requestedAt: message.booking.requestedAt, durationMinutes: message.booking.durationMinutes, status: message.booking.status, memberTotalCentavos: message.booking.memberTotalCentavos }}
+            booking={conversationBookingCardView(message.booking, viewerId)}
             onPress={() => router.push(destination)}
           />
         ) : undefined}

@@ -1,15 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import {
   currentPolicyVersion,
+  getPolicyDocument,
   hasCurrentUnifiedAcceptance,
   isPublicLegalPath,
+  otherPolicyDocument,
+  policyCrossLinkLabel,
+  policyDocuments,
   policyEffectiveDate,
   previousPolicyVersion,
   privacyAcceptanceLabel,
+  privacyDocument,
   privacySections,
   privacySummaryParagraphs,
   publicLegalPaths,
   termsAcceptanceLabel,
+  termsDocument,
   termsSections,
   termsSummaryParagraphs,
   unifiedAcceptanceStatement,
@@ -86,5 +92,32 @@ describe('unified policy acceptance', () => {
     expect(isPublicLegalPath('/privacy-policy/')).toBe(true)
     expect(isPublicLegalPath('/onboarding')).toBe(false)
     expect(isPublicLegalPath('/terms-and-conditions/extra')).toBe(false)
+  })
+
+  it('exposes one policy catalog for every platform surface', () => {
+    expect(policyDocuments).toEqual([termsDocument, privacyDocument])
+    expect(policyDocuments.map((document) => document.id)).toEqual(['terms', 'privacy'])
+    expect(termsDocument).toMatchObject({
+      title: 'Terms and Conditions',
+      shortTitle: 'Terms',
+      path: '/terms-and-conditions',
+      acceptancePrefix: 'I agree to the ',
+      acceptanceLabel: 'I agree to the Terms and Conditions',
+    })
+    expect(privacyDocument).toMatchObject({
+      title: 'Privacy Policy',
+      shortTitle: 'Privacy',
+      path: '/privacy-policy',
+      acceptancePrefix: 'I agree to the ',
+      acceptanceLabel: 'I agree to the Privacy Policy',
+    })
+    expect(termsDocument.sections).toBe(termsSections)
+    expect(privacyDocument.sections).toBe(privacySections)
+    expect(getPolicyDocument('terms')).toBe(termsDocument)
+    expect(getPolicyDocument('privacy')).toBe(privacyDocument)
+    expect(otherPolicyDocument('terms')).toBe(privacyDocument)
+    expect(otherPolicyDocument(privacyDocument)).toBe(termsDocument)
+    expect(policyCrossLinkLabel(privacyDocument)).toBe('Read the Privacy Policy')
+    expect(policyCrossLinkLabel(termsDocument)).toBe('Read the Terms and Conditions')
   })
 })

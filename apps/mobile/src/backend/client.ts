@@ -12,6 +12,8 @@ export const mobileApi = {
     myApplication: generatedApi.companions.myApplication,
     submitApplication: generatedApi.companions.submitApplication,
     updateHourlyRate: generatedApi.companions.updateHourlyRate,
+    updateAvailability: generatedApi.companions.updateAvailability,
+    bookingAvailability: generatedApi.companions.bookingAvailability,
   },
   users: {
     viewer: generatedApi.users.viewer,
@@ -20,6 +22,7 @@ export const mobileApi = {
     usernameAvailability: generatedApi.users.usernameAvailability,
     claimUsername: generatedApi.users.claimUsername,
     saveOnboardingLocationAndConsent: generatedApi.users.saveOnboardingLocationAndConsent,
+    updateApproximateLocation: generatedApi.users.updateApproximateLocation,
     completeOnboarding: generatedApi.users.completeOnboarding,
     latestMemberVerification: generatedApi.users.latestMemberVerification,
     updateProfile: generatedApi.users.updateProfile,
@@ -28,6 +31,7 @@ export const mobileApi = {
   bookings: {
     mine: generatedApi.bookings.mine,
     forCompanion: generatedApi.bookings.forCompanion,
+    availableSlots: generatedApi.bookings.availableSlots,
     createDraft: generatedApi.bookings.createDraft,
     editRequest: generatedApi.bookings.editRequest,
     companionDecision: generatedApi.bookings.companionDecision,
@@ -114,6 +118,7 @@ export const mobileApi = {
   reviews: {
     forCompanion: generatedApi.reviews.forCompanion,
     requested: generatedApi.reviews.requested,
+    viewerSubmission: generatedApi.reviews.viewerSubmission,
     toggleSave: generatedApi.reviews.toggleSave,
     submit: generatedApi.reviews.submit,
     toggleLike: generatedApi.reviews.toggleLike,

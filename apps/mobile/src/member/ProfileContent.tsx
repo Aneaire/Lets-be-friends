@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
 import { StyleSheet, View } from 'react-native'
+import { privacyDocument, termsDocument } from '@lets-be-friends/shared'
 
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { AppText } from '@/design-system/atoms/Typography'
+import { VerifiedBadge } from '@/design-system/atoms/VerifiedBadge'
 import { SettingsRow } from '@/design-system/molecules/SettingsRow'
 import { Screen } from '@/design-system/templates/Screen'
 import { type ProfileViewModel } from '@/member/profileViewModel'
@@ -13,6 +15,7 @@ export function SignedInProfileContent({
   bio,
   hasCompanionTools,
   approvedCompanion,
+  fullyVerified,
   openingVerification,
   signingOut,
   pushNotifications,
@@ -23,17 +26,22 @@ export function SignedInProfileContent({
   onOpenNotificationCenter,
   onOpenBookings,
   onOpenWallet,
+  onOpenWithdrawals,
   onOpenCompanion,
   onOpenIncomingBookings,
   onOpenCompanionFinance,
   onOpenSafety,
   onOpenMyPosts,
+  onOpenTerms,
+  onOpenPrivacy,
   onSignOut,
 }: {
   profile: ProfileViewModel
   bio?: string
   hasCompanionTools: boolean
   approvedCompanion: boolean
+  /** Identity approved plus a saved Companion profile, matching the web header badge. */
+  fullyVerified: boolean
   openingVerification: boolean
   signingOut: boolean
   pushNotifications?: ReactNode
@@ -44,11 +52,14 @@ export function SignedInProfileContent({
   onOpenNotificationCenter: () => void
   onOpenBookings: () => void
   onOpenWallet: () => void
+  onOpenWithdrawals: () => void
   onOpenCompanion: () => void
   onOpenIncomingBookings: () => void
   onOpenCompanionFinance: () => void
   onOpenSafety: () => void
   onOpenMyPosts: () => void
+  onOpenTerms: () => void
+  onOpenPrivacy: () => void
   onSignOut: () => void
 }) {
   const theme = useAppTheme()
@@ -62,11 +73,21 @@ export function SignedInProfileContent({
       </View>
 
       <View style={styles.identityRow}>
-        <Avatar uri={profile.imageUrl} name={profile.name} size={72} />
+        <View style={styles.avatarWrap}>
+          <Avatar uri={profile.imageUrl} name={profile.name} size={72} />
+          {fullyVerified ? (
+            <View style={styles.avatarBadge}>
+              <VerifiedBadge label="Identity and Companion profile verified" />
+            </View>
+          ) : null}
+        </View>
         <View style={styles.identityCopy}>
           <AppText variant="heading">{profile.name}</AppText>
           <AppText color={colors.textMuted}>{profile.username}</AppText>
           <AppText variant="caption" color={colors.textMuted}>{profile.memberSince} · {profile.role}</AppText>
+          {fullyVerified ? (
+            <AppText variant="caption" color={colors.textMuted}>Identity and Companion profile verified.</AppText>
+          ) : null}
         </View>
       </View>
       {bio ? <AppText color={colors.textMuted}>{bio}</AppText> : null}
@@ -101,6 +122,7 @@ export function SignedInProfileContent({
       <SettingsGroup title="Bookings and money">
         <SettingsRow icon="calendar-outline" label="Bookings" detail="Upcoming, requests, and past experiences" onPress={onOpenBookings} />
         <SettingsRow icon="wallet-outline" label="Booking wallet" detail="Available, reserved, and pending member balance" onPress={onOpenWallet} />
+        {profile.verificationApproved ? <SettingsRow icon="cash-outline" label="Withdraw funds" detail="Move available wallet funds to your verified payout account" onPress={onOpenWithdrawals} /> : null}
       </SettingsGroup>
 
       <SettingsGroup title="Companion">
@@ -111,6 +133,11 @@ export function SignedInProfileContent({
 
       <SettingsGroup title="Safety and support">
         <SettingsRow icon="shield-outline" label="Safety Center" detail="Meeting guidance, reports, blocked members, and muted members" onPress={onOpenSafety} />
+      </SettingsGroup>
+
+      <SettingsGroup title="Legal and privacy">
+        <SettingsRow icon="document-text-outline" label={termsDocument.title} detail="Rules for using Let's Be Friends, bookings, and Companion conduct" onPress={onOpenTerms} />
+        <SettingsRow icon="lock-closed-outline" label={privacyDocument.title} detail="What we collect, why we use it, and how long we keep it" onPress={onOpenPrivacy} />
       </SettingsGroup>
 
       <SettingsGroup title="Session">
@@ -134,6 +161,8 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 32, gap: 16 },
   header: { paddingTop: 12, gap: 2 },
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatarWrap: { position: 'relative' },
+  avatarBadge: { position: 'absolute', right: -2, bottom: -2 },
   identityCopy: { flex: 1, gap: 2 },
   trustLine: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   trustMark: { width: 32, height: 32, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },

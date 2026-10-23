@@ -2,7 +2,7 @@ import { formatPhp } from '@lets-be-friends/shared'
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { mobileApi, type BookingId, type CompanionProfileId } from '@/backend/client'
@@ -13,6 +13,8 @@ import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
 import { bookingPriceEstimate } from '@/data/bookingPricing'
+import { bookingAvailabilityNotice, bookingRequestGate, normalizeCompanionAvailability } from '@/data/companionAvailability'
+import { BookingSlotPicker } from '@/features/booking/BookingSlotPicker'
 import { parseManilaBookingInput } from '@/data/bookingViewModels'
 import { mapPublicCompanion, type ApprovedCompanionRecord, type SessionMode } from '@/data/companionViewModels'
 import { safeProductError } from '@/data/productErrors'
@@ -29,6 +31,12 @@ export default function EditBookingRequestScreen() {
   const booking = bookings?.find((item: Booking) => String(item._id) === bookingId)
   const companionResult = useQuery(
     mobileApi.companions.getPublic,
+    member.status === 'ready' && booking
+      ? { companionProfileId: booking.companionProfileId as CompanionProfileId }
+      : 'skip',
+  )
+  const bookingAvailability = useQuery(
+    mobileApi.companions.bookingAvailability,
     member.status === 'ready' && booking
       ? { companionProfileId: booking.companionProfileId as CompanionProfileId }
       : 'skip',
@@ -50,10 +58,10 @@ export default function EditBookingRequestScreen() {
   if (companionResult === undefined) return <PageSkeleton variant="bookingForm" />
   if (companionResult === null) return <EditGate title="This request cannot be edited" detail="The current public Companion profile is unavailable. No changes were made." action="Return to booking" onPress={() => returnToBooking(bookingId)} />
 
-  return <EditRequestForm key={String(booking.updatedAt)} booking={booking} companionRecord={companionResult as ApprovedCompanionRecord} />
+  return <EditRequestForm key={String(booking.updatedAt)} booking={booking} companionRecord={companionResult as ApprovedCompanionRecord} bookingAvailability={bookingAvailability} />
 }
 
-function EditRequestForm({ booking, companionRecord }: { booking: Booking; companionRecord: ApprovedCompanionRecord }) {
+function EditRequestForm({ booking, companionRecord, bookingAvailability }: { booking: Booking; companionRecord: ApprovedCompanionRecord; bookingAvailability: 'available' | 'not_verified' | 'no_listed_rate' | 'unavailable' | undefined }) {
   const theme = useAppTheme()
   const editRequest = useMutation(mobileApi.bookings.editRequest)
   const companion = mapPublicCompanion(companionRecord)
@@ -69,6 +77,23 @@ function EditRequestForm({ booking, companionRecord }: { booking: Booking; compa
   const [submitting, setSubmitting] = useState(false)
   const submittingRef = useRef(false)
   const estimate = bookingPriceEstimate(companion.hourlyRateCentavos, durationInput)
+  const schedule = normalizeCompanionAvailability(companion.weeklyAvailability)
+  const scheduleConfigured = schedule !== null
+  const [slotStart, setSlotStart] = useState<number | null>(booking.requestedAt)
+  const [slotState, setSlotState] = useState({ loading: true, selectedValid: false })
+  const onSlotStateChange = useCallback((next: typeof slotState) => setSlotState((current) => (
+    current.loading === next.loading && current.selectedValid === next.selectedValid ? current : next
+  )), [])
+  const durationMinutes = Number(durationInput)
+  const gate = bookingRequestGate({
+    scheduleConfigured,
+    availability: companion.weeklyAvailability,
+    bookingAvailability,
+    slotsLoading: scheduleConfigured && slotState.loading,
+    selectedSlotValid: !scheduleConfigured || slotState.selectedValid,
+    requestedAt: scheduleConfigured ? slotStart : null,
+    durationMinutes,
+  })
 
   useEffect(() => {
     if (!companion.categories.includes(category)) setCategory(companion.categories[0] ?? '')
@@ -82,9 +107,28 @@ function EditRequestForm({ booking, companionRecord }: { booking: Booking; compa
       setError('Choose a category and format offered by this Companion.')
       return
     }
-    const parsed = parseManilaBookingInput(dateInput, timeInput, durationInput)
-    if (!parsed.ok) {
-      setError(parsed.message)
+    const parsed = scheduleConfigured ? null : parseManilaBookingInput(dateInput, timeInput, durationInput)
+    if (parsed && !parsed.ok) { setError(parsed.message); return }
+    if (!Number.isSafeInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 720 || durationMinutes % 15 !== 0) {
+      setError('Duration must be 15 to 720 minutes in 15-minute steps.')
+      return
+    }
+    const requestedAt = scheduleConfigured ? slotStart : parsed && parsed.ok ? parsed.requestedAt : null
+    const slotGate = bookingRequestGate({
+      scheduleConfigured,
+      availability: companion.weeklyAvailability,
+      bookingAvailability,
+      slotsLoading: scheduleConfigured && slotState.loading,
+      selectedSlotValid: !scheduleConfigured || slotState.selectedValid,
+      requestedAt,
+      durationMinutes,
+    })
+    if (slotGate.blocked || (scheduleConfigured && requestedAt === null)) {
+      setError(slotGate.notice ?? 'Choose an available Manila date and time before saving.')
+      return
+    }
+    if (requestedAt === null) {
+      setError('Choose an available Manila date and time before saving.')
       return
     }
     if (notes.length > 1_000) {
@@ -99,8 +143,8 @@ function EditRequestForm({ booking, companionRecord }: { booking: Booking; compa
         bookingId: booking._id as BookingId,
         category,
         mode,
-        requestedAt: parsed.requestedAt,
-        durationMinutes: parsed.durationMinutes,
+        requestedAt,
+        durationMinutes,
         notes: notes.trim() || undefined,
       })
       router.replace({ pathname: '/booking/[id]', params: { id: String(booking._id) } })
@@ -126,12 +170,33 @@ function EditRequestForm({ booking, companionRecord }: { booking: Booking; compa
       <ChoiceRow values={companion.categories} selected={category} onSelect={setCategory} />
       <FieldLabel label="Format" />
       <ChoiceRow values={companion.sessionModes} selected={mode} onSelect={(value) => setMode(value as SessionMode)} format={(value) => value === 'in_person' ? 'In person' : 'Online'} />
-      <FieldLabel label="Date in Manila" />
-      <Input label="Booking date in Manila" value={dateInput} onChangeText={setDateInput} placeholder="YYYY-MM-DD" inputMode="numeric" />
-      <FieldLabel label="Time in Manila" />
-      <Input label="Booking time in Manila" value={timeInput} onChangeText={setTimeInput} placeholder="HH:MM" inputMode="numeric" />
       <FieldLabel label="Duration in minutes" />
       <Input label="Booking duration in minutes" value={durationInput} onChangeText={setDurationInput} placeholder="60" inputMode="numeric" />
+      {scheduleConfigured ? (
+        <>
+          <FieldLabel label="Schedule" />
+          <AppText variant="caption" color={theme.colors.textMuted}>Asia/Manila (UTC+8). Only open times from the shared weekly schedule can be saved.</AppText>
+          {bookingAvailability && bookingAvailability !== 'available' ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.textMuted}>{bookingAvailabilityNotice(bookingAvailability)}</AppText> : null}
+          <BookingSlotPicker
+            companionProfileId={String(booking.companionProfileId)}
+            durationMinutes={durationMinutes}
+            selectedStart={slotStart}
+            onSelectStart={setSlotStart}
+            onStateChange={onSlotStateChange}
+            disabled={submitting}
+          />
+          {gate.notice ? (
+            <AppText accessibilityRole="alert" variant="caption" color={theme.colors.textMuted}>{gate.notice}</AppText>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <FieldLabel label="Date in Manila" />
+          <Input label="Booking date in Manila" value={dateInput} onChangeText={setDateInput} placeholder="YYYY-MM-DD" inputMode="numeric" />
+          <FieldLabel label="Time in Manila" />
+          <Input label="Booking time in Manila" value={timeInput} onChangeText={setTimeInput} placeholder="HH:MM" inputMode="numeric" />
+        </>
+      )}
       <FieldLabel label="Notes, optional" />
       <Input label="Booking notes" value={notes} onChangeText={setNotes} placeholder="Share meeting details or accessibility needs" multiline />
       <AppText variant="caption" color={notes.length > 1_000 ? theme.colors.danger : theme.colors.textMuted}>{notes.length}/1,000</AppText>
@@ -147,7 +212,7 @@ function EditRequestForm({ booking, companionRecord }: { booking: Booking; compa
         ) : <AppText variant="caption" color={theme.colors.textMuted}>Enter a valid duration in 15-minute increments to see the estimate.</AppText>}
         <AppText variant="caption" color={theme.colors.textMuted}>Your final price is checked again when you save.</AppText>
       </View>
-      <ActionButton label={submitting ? 'Saving request' : 'Save request changes'} onPress={() => void submit()} disabled={submitting} intent="social" />
+      <ActionButton label={submitting ? 'Saving request' : 'Save request changes'} onPress={() => void submit()} disabled={submitting || gate.blocked || (scheduleConfigured && slotStart === null)} intent="social" />
       <ActionButton label="Keep current request" onPress={() => returnToBooking(String(booking._id))} disabled={submitting} intent="social" secondary />
     </Screen>
   )

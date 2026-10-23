@@ -46,6 +46,22 @@ export type PolicySection = {
   paragraphs: string[]
 }
 
+export type PolicyDocumentId = 'terms' | 'privacy'
+
+export type PolicyPath = typeof termsPath | typeof privacyPath
+
+// One catalog drives legal pages, acceptance controls, onboarding links,
+// settings rows, and signed-out footer links on every platform.
+export type PolicyDocument = {
+  id: PolicyDocumentId
+  title: string
+  shortTitle: string
+  path: PolicyPath
+  acceptancePrefix: string
+  acceptanceLabel: string
+  sections: PolicySection[]
+}
+
 // Canonical policy content shared by every platform. The same policyVersion
 // represents the same accepted content everywhere.
 export const termsSections: PolicySection[] = [
@@ -132,8 +148,46 @@ export const termsSummaryParagraphs: string[] = termsSections.flatMap((section) 
 
 export const privacySummaryParagraphs: string[] = privacySections.flatMap((section) => section.paragraphs)
 
-export const termsAcceptanceLabel = 'I agree to the Terms and Conditions'
-export const privacyAcceptanceLabel = 'I agree to the Privacy Policy'
+export const termsAcceptancePrefix = 'I agree to the '
+export const termsTitle = 'Terms and Conditions'
+export const privacyTitle = 'Privacy Policy'
+export const termsAcceptanceLabel = `${termsAcceptancePrefix}${termsTitle}`
+export const privacyAcceptanceLabel = `${termsAcceptancePrefix}${privacyTitle}`
+
+export const termsDocument: PolicyDocument = {
+  id: 'terms',
+  title: termsTitle,
+  shortTitle: 'Terms',
+  path: termsPath,
+  acceptancePrefix: termsAcceptancePrefix,
+  acceptanceLabel: termsAcceptanceLabel,
+  sections: termsSections,
+}
+
+export const privacyDocument: PolicyDocument = {
+  id: 'privacy',
+  title: privacyTitle,
+  shortTitle: 'Privacy',
+  path: privacyPath,
+  acceptancePrefix: termsAcceptancePrefix,
+  acceptanceLabel: privacyAcceptanceLabel,
+  sections: privacySections,
+}
+
+export const policyDocuments: readonly PolicyDocument[] = [termsDocument, privacyDocument]
+
+export function getPolicyDocument(id: PolicyDocumentId): PolicyDocument {
+  return id === 'terms' ? termsDocument : privacyDocument
+}
+
+export function otherPolicyDocument(document: PolicyDocument | PolicyDocumentId): PolicyDocument {
+  const id = typeof document === 'string' ? document : document.id
+  return id === 'terms' ? privacyDocument : termsDocument
+}
+
+export function policyCrossLinkLabel(document: PolicyDocument): string {
+  return `Read the ${document.title}`
+}
 
 export const unifiedAcceptanceStatement =
   'I agree to the Terms and Conditions and Privacy Policy above, including storing and using my rounded approximate location for always-on discovery and, if I choose identity verification, storing my ID images and selfie privately for as long as my account exists for user safety, fraud prevention, and incident investigation with OpenAI ID field extraction and human safety review.'

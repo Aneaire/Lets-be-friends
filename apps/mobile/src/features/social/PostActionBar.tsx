@@ -14,7 +14,7 @@ export type PostActionBarProps = {
   commentLabel?: string
   commentDisabled?: boolean
   onLike: () => void
-  onComment: () => void
+  onComment?: () => void
   onSave: () => void
   onShare?: () => void
 }
@@ -42,13 +42,15 @@ export function PostActionBar({
         disabled={disabled}
         onPress={onLike}
       />
-      <PostAction
-        label={commentLabel}
-        icon="chatbubble-outline"
-        count={commentCount}
-        disabled={commentDisabled}
-        onPress={onComment}
-      />
+      {onComment ? (
+        <PostAction
+          label={commentLabel}
+          icon="chatbubble-outline"
+          count={commentCount}
+          disabled={commentDisabled}
+          onPress={onComment}
+        />
+      ) : null}
       <PostAction
         label={saved ? 'Remove post from saved' : 'Save post'}
         icon={saved ? 'bookmark' : 'bookmark-outline'}

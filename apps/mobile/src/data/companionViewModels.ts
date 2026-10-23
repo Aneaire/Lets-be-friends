@@ -31,6 +31,8 @@ export type DiscoveryCompanionViewModel = {
 export type CompanionDetailViewModel = DiscoveryCompanionViewModel & {
   bio?: string
   boundaries: string[]
+  /** `undefined` is a legacy profile; `[]` explicitly pauses new requests. */
+  weeklyAvailability?: Array<{ weekday: number; startMinutes: number; endMinutes: number }>
 }
 
 export type ApprovedCompanionRecord = {
@@ -57,6 +59,7 @@ export type ApprovedCompanionRecord = {
   following?: boolean
   kind?: 'member' | 'companion'
   verified?: boolean
+  weeklyAvailability?: Array<{ weekday: number; startMinutes: number; endMinutes: number }>
 }
 
 export function mapApprovedCompanion(companion: ApprovedCompanionRecord): DiscoveryCompanionViewModel {
@@ -94,6 +97,7 @@ export function mapPublicCompanion(companion: ApprovedCompanionRecord): Companio
     verified: companion.verified ?? true,
     bio: companion.bio,
     boundaries: companion.boundaries ?? [],
+    weeklyAvailability: companion.weeklyAvailability,
   }
 }
 

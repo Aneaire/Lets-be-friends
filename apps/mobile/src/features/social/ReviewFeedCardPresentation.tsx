@@ -22,7 +22,7 @@ export type ReviewFeedCardPresentationProps = {
   commentCount: number
   disabled?: boolean
   onOpenReviewerProfile: () => void
-  onOpenReview: () => void
+  onOpenReview?: () => void
   onLike: () => void
   onSave: () => void
   onShare?: () => void
@@ -78,7 +78,7 @@ export function ReviewFeedCardPresentation({
           <AppText variant="bodyStrong" numberOfLines={1}>{reviewerDisplayName}</AppText>
         </Pressable>
       )}
-      meta={(
+      meta={onOpenReview ? (
         <Pressable
           accessibilityRole="button"
           onPress={onOpenReview}
@@ -87,7 +87,7 @@ export function ReviewFeedCardPresentation({
         >
           <AppText variant="caption" color={theme.colors.socialText}>Experience with {companionName}</AppText>
         </Pressable>
-      )}
+      ) : <AppText variant="caption" color={theme.colors.socialText}>Experience with {companionName}</AppText>}
       metaPlacement="below"
       footer={(
         <PostActionBar

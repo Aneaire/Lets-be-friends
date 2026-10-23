@@ -31,6 +31,7 @@ function normalizePathname(pathname: string): string {
  * Covered website paths (and only these):
  * - /social?postId (plus optional commentId)
  * - /companion-profile?companionProfileId (plus optional reviewId)
+ * - /review?reviewId
  * - /circles and /circles/<id> (plus optional postId/commentId)
  *
  * Safety rules:
@@ -112,6 +113,13 @@ export function normalizeWebSharePath(
   }
 
   if (pathname === '/circles') return '/circles'
+
+  const reviewMatch = pathname.match(/^\/review$/)
+  if (reviewMatch) {
+    const reviewId = cleanId(searchParams.get('reviewId'))
+    if (!reviewId) return null
+    return nativePath(`/review/${encodeURIComponent(reviewId)}`, {})
+  }
 
   const circleMatch = pathname.match(/^\/circles\/([^/]+)$/)
   if (circleMatch) {

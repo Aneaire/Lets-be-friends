@@ -12,7 +12,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 import { PrivacyPolicyPage } from '../../src/routes/privacy-policy'
 import { TermsAndConditionsPage } from '../../src/routes/terms-and-conditions'
-import { AcceptanceCheckboxes, AlreadyAcceptedNotice } from '../../src/features/policy/PolicySummaries'
+import { AcceptanceCheckboxes, AlreadyAcceptedNotice, PolicyLinkList } from '../../src/features/policy/PolicySummaries'
 import { currentPolicyVersion } from '@lets-be-friends/shared'
 
 afterEach(() => {
@@ -71,5 +71,11 @@ describe('dedicated legal pages', () => {
       expect(link.getAttribute('target')).toBe('_blank')
       expect(link.getAttribute('rel')).toContain('noopener')
     }
+  })
+
+  it('renders both policy links from the shared catalog', () => {
+    render(<PolicyLinkList />)
+    expect(screen.getByRole('link', { name: 'Terms and Conditions' }).getAttribute('href')).toBe('/terms-and-conditions')
+    expect(screen.getByRole('link', { name: 'Privacy Policy' }).getAttribute('href')).toBe('/privacy-policy')
   })
 })

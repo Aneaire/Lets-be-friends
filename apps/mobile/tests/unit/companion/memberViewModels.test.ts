@@ -1,4 +1,4 @@
-import { currentPolicyVersion } from '@lets-be-friends/shared'
+import { currentPolicyVersion, identityRejectionGuidance, identityRejectionReasons } from '@lets-be-friends/shared'
 import { initialOnboardingStep, isExemptOnboardingPath, onboardingDecision } from '@/member/onboarding'
 import { isViewerForClerkUser } from '@/member/account'
 import { buildSignedInProfileViewModel } from '@/member/profileViewModel'
@@ -135,5 +135,26 @@ describe('signed-in profile copy', () => {
     )
     expect(result.verificationApproved).toBe(true)
     expect(result.verificationLabel).toBe('Identity verified')
+  })
+
+  it.each(identityRejectionReasons.map((reason) => reason.code))(
+    'tells a rejected member what to fix for %s',
+    (memberReason) => {
+      const result = buildSignedInProfileViewModel(
+        { ...viewer, verificationStatus: 'rejected' },
+        { adminStatus: 'rejected', personaStatus: 'failed', memberReason },
+      )
+      expect(result.verificationApproved).toBe(false)
+      expect(result.verificationLabel).toBe('Identity not approved')
+      expect(result.verificationDetail).toBe(identityRejectionGuidance[memberReason])
+    },
+  )
+
+  it('falls back to honest rejection copy when no member-safe reason is recorded', () => {
+    const result = buildSignedInProfileViewModel(
+      { ...viewer, verificationStatus: 'rejected' },
+      { adminStatus: 'rejected', personaStatus: 'failed' },
+    )
+    expect(result.verificationDetail).toBe('The safety team did not approve this identity attempt. Start a new identity check if another attempt is available.')
   })
 })

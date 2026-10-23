@@ -25,7 +25,10 @@ export function BookingEvidencePanel({
   participantRole: 'member_end' | 'companion_start'
   onDecisionChange?: (ready: boolean) => void
 }) {
-  const canReadEvidence = status === 'accepted' && pricingModel === 'member_wallet_v2'
+  const canReadEvidence =
+    pricingModel === 'member_wallet_v2' &&
+    ['accepted', 'completed', 'review_window', 'closed'].includes(status)
+  const canDecideEvidence = status === 'accepted'
   const evidence = useQuery(mobileApi.bookingEvidence.status, canReadEvidence ? { bookingId } : 'skip')
   const uploadImage = useAction(mobileApi.bookingEvidence.uploadImage)
   const skipEvidence = useMutation(mobileApi.bookingEvidence.skip)
@@ -43,7 +46,7 @@ export function BookingEvidencePanel({
   if (!canReadEvidence) return null
 
   async function chooseAndUpload() {
-    if (busyRef.current || decision) return
+    if (busyRef.current || decision || !canDecideEvidence) return
     setMessage('')
     try {
       if (Platform.OS !== 'web') {
@@ -79,7 +82,7 @@ export function BookingEvidencePanel({
   }
 
   async function skip() {
-    if (busyRef.current || decision) return
+    if (busyRef.current || decision || !canDecideEvidence) return
     busyRef.current = true
     setBusy('skip')
     setMessage('')
@@ -97,7 +100,7 @@ export function BookingEvidencePanel({
   }
 
   function requestSkip() {
-    if (busyRef.current || decision) return
+    if (busyRef.current || decision || !canDecideEvidence) return
     setSkipError('')
     setSkipConfirmationVisible(true)
   }
@@ -112,7 +115,9 @@ export function BookingEvidencePanel({
     <BookingEvidencePresentation
       participantRole={evidence?.role ?? participantRole}
       decision={decision}
+      rows={evidence?.rows}
       loading={evidence === undefined}
+      canDecide={canDecideEvidence}
       busy={busy}
       participantCompletedAt={participantCompletedAt}
       otherParticipantCompletedAt={otherParticipantCompletedAt}

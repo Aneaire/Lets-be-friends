@@ -36,9 +36,30 @@ export function normalizeMapCoordinates(input: CoordinateInput): Coordinates | n
 }
 
 export function roundOriginCoordinates(origin: Coordinates): Coordinates {
+  // Transient search origins only. The device fix, travel-area geocode, and
+  // placed pin are rounded for display and the nearby query, but they are never
+  // stored as the member's location. Saved locations must go through the
+  // shared `fuzzApproximateCoordinates` jitter before any write, so the stored
+  // point stays near the member without labeling their exact spot.
   return {
     latitude: Math.round(origin.latitude * 100) / 100,
     longitude: Math.round(origin.longitude * 100) / 100,
+  }
+}
+
+export class NearbyAccountRequestScope {
+  private generation = 0
+  private memberKey: string | null = null
+
+  switchMember(memberKey: string | null) {
+    this.generation += 1
+    this.memberKey = memberKey
+  }
+
+  begin() {
+    const generation = this.generation
+    const memberKey = this.memberKey
+    return { isCurrent: () => generation === this.generation && memberKey === this.memberKey }
   }
 }
 

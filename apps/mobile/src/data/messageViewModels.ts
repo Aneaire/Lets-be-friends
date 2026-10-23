@@ -44,3 +44,33 @@ export function conversationPreview(body: string | undefined, attachmentCount: n
   if (attachmentCount > 0) return attachmentCount === 1 ? 'Shared a file' : `Shared ${attachmentCount} files`
   return 'No messages yet'
 }
+
+export function conversationBookingCardView(booking: {
+  bookingId: unknown
+  memberId: unknown
+  memberDisplayName: string
+  companionDisplayName: string
+  category: string
+  mode: 'online' | 'in_person'
+  requestedAt: number
+  durationMinutes: number
+  status: BookingStatus
+  memberTotalCentavos?: number
+  companionEarningsCentavos?: number
+}, viewerId: string) {
+  const viewerIsRequester = String(booking.memberId) === viewerId
+  return {
+    id: String(booking.bookingId),
+    participantName: viewerIsRequester ? booking.companionDisplayName : booking.memberDisplayName,
+    participantPreposition: 'with' as const,
+    category: booking.category,
+    mode: booking.mode,
+    requestedAt: booking.requestedAt,
+    durationMinutes: booking.durationMinutes,
+    status: booking.status,
+    memberTotalCentavos: booking.memberTotalCentavos,
+    companionEarningsCentavos: booking.companionEarningsCentavos,
+    viewerIsRequester,
+  }
+}
+import type { BookingStatus } from '@lets-be-friends/shared'

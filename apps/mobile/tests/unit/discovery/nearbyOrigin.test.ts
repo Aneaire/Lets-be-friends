@@ -1,5 +1,6 @@
 import {
   nearbyOriginLabel,
+  NearbyAccountRequestScope,
   normalizeMapCoordinates,
   roundOriginCoordinates,
   sameOrigin,
@@ -54,5 +55,15 @@ describe('nearby search origin', () => {
       expect(candidate.label).toMatch(/^[\d.]+°N [\d.]+°E$/)
       expect(normalizeMapCoordinates([candidate.longitude, candidate.latitude])).toEqual({ latitude: candidate.latitude, longitude: candidate.longitude })
     }
+  })
+
+  it('invalidates in-flight location work when the signed-in member changes', () => {
+    const scope = new NearbyAccountRequestScope()
+    scope.switchMember('member-a')
+    const memberARequest = scope.begin()
+    expect(memberARequest.isCurrent()).toBe(true)
+    scope.switchMember('member-b')
+    expect(memberARequest.isCurrent()).toBe(false)
+    expect(scope.begin().isCurrent()).toBe(true)
   })
 })

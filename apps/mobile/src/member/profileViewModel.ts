@@ -1,3 +1,5 @@
+import { identityRejectionReasonGuidance } from '@lets-be-friends/shared'
+
 export type ProfileViewer = {
   displayName: string
   username?: string
@@ -13,6 +15,7 @@ export type ProfileVerification = {
   adminStatus: 'not_ready' | 'pending' | 'approved' | 'rejected' | 'not_started'
   personaStatus: string
   identityStage?: string
+  memberReason?: string | null
 } | null
 
 export type ProfileViewModel = {
@@ -59,7 +62,7 @@ function verificationCopy(viewer: ProfileViewer, verification: ProfileVerificati
   if (viewer.verificationStatus === 'rejected' || verification?.adminStatus === 'rejected') {
     return {
       label: 'Identity not approved',
-      detail: 'The latest identity review was not approved. No active verification is claimed.',
+      detail: identityRejectionReasonGuidance(verification?.memberReason),
     }
   }
   if (verification?.adminStatus === 'not_ready') {

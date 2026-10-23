@@ -19,6 +19,12 @@ describe('web share link normalization', () => {
       .toBe('/companion-profile/comp_1')
   })
 
+  it('maps a submitted-review permalink to the native review route', () => {
+    expect(normalizeWebSharePath('/review?reviewId=rev_9', configured)).toBe('/review/rev_9')
+    expect(normalizeWebSharePath('/review', configured)).toBeNull()
+    expect(normalizeWebSharePath('/review?reviewId=', configured)).toBeNull()
+  })
+
   it('maps Circle list and detail paths while preserving focus params', () => {
     expect(normalizeWebSharePath('/circles', configured)).toBe('/circles')
     expect(normalizeWebSharePath('/circles/circle_7', configured)).toBe('/circles/circle_7')

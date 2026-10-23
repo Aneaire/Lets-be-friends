@@ -1,5 +1,6 @@
 import {
   maximumOnboardingActivityCategories,
+  roundApproximateCoordinates,
   validateActivityCategories,
 } from '@lets-be-friends/shared'
 
@@ -26,6 +27,10 @@ export class FinalizeError extends Error {
     super(message)
     this.code = code
   }
+}
+
+export function onboardingLocationPreview(location: { latitude: number; longitude: number }) {
+  return roundApproximateCoordinates(location)
 }
 
 export type FinalizeDeps = {
@@ -112,14 +117,17 @@ export async function finalizeOnboarding(
     throw new FinalizeError('application', validatedApplication.message)
   }
 
-  const rounded = {
-    latitude: Math.round(deps.location.latitude * 100) / 100,
-    longitude: Math.round(deps.location.longitude * 100) / 100,
+  // The raw device fix goes to the server, which applies its own jitter
+  // before storing. Rounding here would only quantize the fix without
+  // hiding it, so the preview rounds for display while the save stays raw.
+  const rawFix = {
+    latitude: deps.location.latitude,
+    longitude: deps.location.longitude,
   }
   try {
     if (!deps.viewerUsername) await deps.claimUsername({ username: deps.normalizedUsername })
     await deps.saveOnboardingLocationAndConsent({
-      ...rounded,
+      ...rawFix,
       locationConsent: true,
       termsAccepted: true,
       termsVersion: deps.policyVersion,

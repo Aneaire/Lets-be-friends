@@ -137,6 +137,7 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
         bookingId={booking._id as BookingId}
         status={booking.status}
         viewerHasReviewed={booking.viewerHasReviewed}
+        viewerReviewId={booking.viewerReviewId ? String(booking.viewerReviewId) : undefined}
       />
       <View style={styles.actions}>
         {canEditRequest ? <ActionButton label="Edit request" onPress={() => router.push(`../booking-edit/${String(booking._id)}`)} intent="self" secondary /> : null}

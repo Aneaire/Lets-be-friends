@@ -40,6 +40,7 @@ export function WalletPresentation({
   message,
   topUps,
   onReturn,
+  onOpenWithdrawals,
 }: {
   enabled: boolean
   balances: readonly WalletBalanceItem[]
@@ -55,6 +56,7 @@ export function WalletPresentation({
   message?: string
   topUps: readonly WalletTopUpItem[]
   onReturn: () => void
+  onOpenWithdrawals: () => void
 }) {
   const theme = useAppTheme()
 
@@ -200,6 +202,7 @@ export function WalletPresentation({
           </View>
         ))}
       </View>
+      <ActionButton label="Withdraw funds" onPress={onOpenWithdrawals} intent="self" />
       <ActionButton label="Return to Profile" onPress={onReturn} secondary intent="self" />
     </Screen>
   )

@@ -2,6 +2,7 @@ import {
   MAX_EVIDENCE_IMAGE_BYTES,
   evidenceAssetToArrayBuffer,
   evidenceDecisionCopy,
+  evidenceSharedRowCopy,
   validateEvidenceAsset,
 } from '@/data/evidence'
 
@@ -10,6 +11,18 @@ describe('booking evidence helpers', () => {
     expect(evidenceDecisionCopy('companion_start', 'uploaded')).toEqual({ label: 'Start evidence', detail: 'Private image saved for authorized safety review only.' })
     expect(evidenceDecisionCopy('member_end', 'skipped')).toEqual({ label: 'End evidence', detail: 'Skipped after the strict warning was acknowledged.' })
     expect(evidenceDecisionCopy('member_end', undefined).detail).toContain('explicitly skip')
+  })
+
+  it('labels the shared record for both roles without leaking images', () => {
+    expect(evidenceSharedRowCopy({ role: 'companion_start', isViewer: false, decision: 'uploaded' })).toEqual({
+      label: 'Start',
+      detail: 'Private image saved for authorized safety review only.',
+    })
+    expect(evidenceSharedRowCopy({ role: 'member_end', isViewer: true, decision: 'skipped' })).toEqual({
+      label: 'End (you)',
+      detail: 'Skipped after the strict warning was acknowledged.',
+    })
+    expect(evidenceSharedRowCopy({ role: 'companion_start', isViewer: true, decision: undefined }).detail).toBe('Not decided yet.')
   })
 
   it('accepts backend-supported image types and rejects unsupported or oversized assets', () => {

@@ -100,4 +100,10 @@ describe('unified booking calendar contracts', () => {
       expect(bookingDetailRoute(booking).pathname).toBe('/companion-booking/[id]')
     }
   })
+
+  it('keeps the calendar route on today with an empty combined list when the member has no bookings', () => {
+    const combined = combineCalendarBookings([], [])
+    expect(combined).toEqual([])
+    expect(splitBookingsByPerspective(combined)).toEqual({ member: [], companion: [] })
+  })
 })

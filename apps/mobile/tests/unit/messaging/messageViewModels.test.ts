@@ -1,4 +1,5 @@
 import {
+  conversationBookingCardView,
   MAX_MESSAGE_LENGTH,
   aggregateUnreadCount,
   conversationPreview,
@@ -35,5 +36,22 @@ describe('message view models', () => {
     expect(conversationPreview('', 1)).toBe('Shared a file')
     expect(conversationPreview(undefined, 3)).toBe('Shared 3 files')
     expect(conversationPreview(undefined, 0)).toBe('No messages yet')
+  })
+
+  it('adapts booking snapshots for each participant with the backend earnings field', () => {
+    const snapshot = {
+      bookingId: 'booking-1', memberId: 'member-1', memberDisplayName: 'Maya Member',
+      companionDisplayName: 'Casey Companion', category: 'Coffee', mode: 'in_person' as const,
+      requestedAt: 10, durationMinutes: 60, status: 'request_sent' as const,
+      memberTotalCentavos: 115_000, companionEarningsCentavos: 100_000,
+    }
+    expect(conversationBookingCardView(snapshot, 'member-1')).toMatchObject({
+      participantName: 'Casey Companion', viewerIsRequester: true,
+      memberTotalCentavos: 115_000, companionEarningsCentavos: 100_000,
+    })
+    expect(conversationBookingCardView(snapshot, 'companion-user')).toMatchObject({
+      participantName: 'Maya Member', viewerIsRequester: false,
+      memberTotalCentavos: 115_000, companionEarningsCentavos: 100_000,
+    })
   })
 })

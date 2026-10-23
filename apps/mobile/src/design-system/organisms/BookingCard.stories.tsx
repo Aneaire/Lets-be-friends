@@ -41,6 +41,50 @@ export const IncomingRequest: Story = {
   },
 }
 
+export const MoneySplit: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(/Total /)).toBeInTheDocument()
+    await expect(canvas.getByText(/Includes service fee\./)).toBeInTheDocument()
+  },
+}
+
+export const CompanionEntitlement: Story = {
+  args: {
+    booking: {
+      ...booking,
+      participantName: 'Morgan Lee',
+      participantPreposition: 'from',
+      status: 'accepted',
+      viewerIsRequester: false,
+      companionEarningsCentavos: 95000,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(/Your entitlement/)).toBeInTheDocument()
+    await expect(canvas.getByText(/The member paid .* total, which includes the service fee\./)).toBeInTheDocument()
+  },
+}
+
+export const CompanionEntitlementDark: Story = {
+  globals: { theme: 'dark', viewport: { value: 'mobileSmall', isRotated: false } },
+  args: {
+    booking: {
+      ...booking,
+      participantName: 'Morgan Lee',
+      participantPreposition: 'from',
+      status: 'accepted',
+      viewerIsRequester: false,
+      companionEarningsCentavos: 95000,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(/Your entitlement/)).toBeInTheDocument()
+  },
+}
+
 export const Compact: Story = { args: { compact: true } }
 export const Completed: Story = { args: { booking: { ...booking, status: 'completed' } } }
 export const NoTotal: Story = { args: { booking: { ...booking, memberTotalCentavos: undefined } } }

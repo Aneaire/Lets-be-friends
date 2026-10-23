@@ -1,12 +1,27 @@
+import { Fragment } from 'react'
 import {
   currentPolicyVersion,
-  privacyAcceptanceLabel,
-  privacyPath,
-  termsAcceptanceLabel,
-  termsPath,
+  policyDocuments,
+  privacyDocument,
+  termsDocument,
 } from '@lets-be-friends/shared'
 
 export const unifiedPolicyVersion = currentPolicyVersion
+
+// One list used by the remembered notice, onboarding footer, and settings so
+// both documents keep the same titles and paths everywhere.
+export function PolicyLinkList() {
+  return (
+    <span>
+      {policyDocuments.map((document, index) => (
+        <Fragment key={document.id}>
+          {index > 0 ? ' · ' : null}
+          <a href={document.path} target="_blank" rel="noopener noreferrer">{document.title}</a>
+        </Fragment>
+      ))}
+    </span>
+  )
+}
 
 export function AlreadyAcceptedNotice() {
   return (
@@ -17,7 +32,7 @@ export function AlreadyAcceptedNotice() {
           No need to accept again. Finishing keeps your original acceptance date.
         </p>
         <p>
-          <a href={termsPath} target="_blank" rel="noopener noreferrer">Terms and Conditions</a> · <a href={privacyPath} target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+          <PolicyLinkList />
         </p>
       </div>
     </div>
@@ -39,44 +54,33 @@ export function AcceptanceCheckboxes({
   onPrivacyChange: (checked: boolean) => void
   disabled?: boolean
 }) {
+  const choices = [
+    { document: termsDocument, checked: termsChecked, onChange: onTermsChange },
+    { document: privacyDocument, checked: privacyChecked, onChange: onPrivacyChange },
+  ]
+
   return (
     <>
-      <div className="onboarding-consent-list mt-4">
-        <div className="onboarding-consent-row">
-          <input
-            id="onboarding-accept-terms"
-            type="checkbox"
-            aria-label={termsAcceptanceLabel}
-            checked={termsChecked}
-            disabled={disabled}
-            onChange={(event) => onTermsChange(event.currentTarget.checked)}
-          />
-          <span>
-            <label htmlFor="onboarding-accept-terms">{termsAcceptanceLabel.split('Terms and Conditions')[0]}</label>
-            <a href={termsPath} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
-              Terms and Conditions
-            </a>
-          </span>
+      {choices.map(({ document, checked, onChange }) => (
+        <div key={document.id} className="onboarding-consent-list mt-4">
+          <div className="onboarding-consent-row">
+            <input
+              id={`onboarding-accept-${document.id}`}
+              type="checkbox"
+              aria-label={document.acceptanceLabel}
+              checked={checked}
+              disabled={disabled}
+              onChange={(event) => onChange(event.currentTarget.checked)}
+            />
+            <span>
+              <label htmlFor={`onboarding-accept-${document.id}`}>{document.acceptancePrefix}</label>
+              <a href={document.path} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
+                {document.title}
+              </a>
+            </span>
+          </div>
         </div>
-      </div>
-      <div className="onboarding-consent-list mt-4">
-        <div className="onboarding-consent-row">
-          <input
-            id="onboarding-accept-privacy"
-            type="checkbox"
-            aria-label={privacyAcceptanceLabel}
-            checked={privacyChecked}
-            disabled={disabled}
-            onChange={(event) => onPrivacyChange(event.currentTarget.checked)}
-          />
-          <span>
-            <label htmlFor="onboarding-accept-privacy">{privacyAcceptanceLabel.split('Privacy Policy')[0]}</label>
-            <a href={privacyPath} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
-              Privacy Policy
-            </a>
-          </span>
-        </div>
-      </div>
+      ))}
     </>
   )
 }

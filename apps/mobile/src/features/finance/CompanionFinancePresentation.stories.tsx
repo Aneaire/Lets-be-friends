@@ -111,6 +111,37 @@ export const EmptyActivity: Story = {
   },
 }
 
+export const VerifiedMemberWithoutCompanionProfile: Story = {
+  args: {
+    canAcceptBookings: false,
+    availableEarnings: '₱1,250.00',
+    inTransferEarnings: '₱300.00',
+    pendingEarnings: '₱450.00',
+    hideCompanionFinanceSections: true,
+    payoutMethod: null,
+    obligations: [],
+    ledger: [],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('₱1,250.00')).toBeVisible()
+    await expect(canvas.getByText('₱300.00')).toBeVisible()
+    await expect(canvas.queryByText('Legacy platform fees')).not.toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: 'Set up payout method' }))
+    await expect(setupPayoutMethod).toHaveBeenCalled()
+  },
+}
+
+export const UnverifiedMemberReadOnlyHistory: Story = {
+  args: { identityEligible: false, payoutMethod: null, hideCompanionFinanceSections: true, obligations: [], ledger: [] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('alert')).toHaveTextContent('Complete identity verification first')
+    await expect(canvas.queryByRole('button', { name: 'Review withdrawal' })).not.toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: 'Show withdrawal history' })).toBeVisible()
+  },
+}
+
 export const BookingAcceptancePaused: Story = {
   args: {
     canAcceptBookings: false,

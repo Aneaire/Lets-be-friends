@@ -1,5 +1,4 @@
 import {
-  activityCategoryOptions,
   currentPolicyVersion,
   friendStrengths,
   hasCurrentUnifiedAcceptance,
@@ -7,9 +6,11 @@ import {
   maximumCompanionActivityCategories,
   maximumOnboardingActivityCategories,
   normalizeUsername,
+  policyDocuments,
   usernameBaseFromDisplayName,
   usernameValidationError,
   validateActivityCategories,
+  type PolicyDocument,
 } from '@lets-be-friends/shared'
 import { useMutation, useQuery } from 'convex/react'
 import * as Location from 'expo-location'
@@ -28,6 +29,7 @@ import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useMobileMember } from '@/member/MobileMember'
 import { initialOnboardingStep, onboardingDecision } from '@/member/onboarding'
+import { ActivityCategoryBrowser } from '@/features/companion/ActivityCategoryBrowser'
 import {
   COMPANION_BIO_PLACEHOLDER,
   type CompanionApplicationForm,
@@ -51,6 +53,7 @@ import {
 import {
   FinalizeError,
   finalizeOnboarding,
+  onboardingLocationPreview,
   type FinalizeIntent,
 } from '@/features/companion/onboardingFinalization'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -184,9 +187,10 @@ function ConnectedOnboarding({
         return
       }
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-      const rounded = roundLocation({ latitude: current.coords.latitude, longitude: current.coords.longitude })
-      setLocation(rounded)
-      setLocationMessage('Preview ready. Nothing is saved until you accept in the final step. Your precise device location will not be sent or saved.')
+      // Store the raw fix. The preview below rounds for display, and the
+      // server applies its own jitter before storing anything.
+      setLocation({ latitude: current.coords.latitude, longitude: current.coords.longitude })
+      setLocationMessage('Preview ready. Nothing is sent until you accept in the final step. Then the device fix is sent once so the server can store only a randomized, rounded nearby point. The precise fix is not saved.')
     } catch {
       setLocationMessage('Your location could not be read. Check device location services and try again.')
     } finally {
@@ -373,7 +377,9 @@ function ConnectedOnboarding({
         <View style={[styles.locationCard, { backgroundColor: theme.colors.surface, borderColor: location ? theme.colors.self : theme.colors.border }]}>
           <AppText variant="bodyStrong">Preview your discovery area</AppText>
           {location ? (
-            <AppText variant="caption" color={theme.colors.selfText}>Approximate area preview ready</AppText>
+            <AppText variant="caption" color={theme.colors.selfText}>
+              Approximate preview {onboardingLocationPreview(location).latitude.toFixed(2)}, {onboardingLocationPreview(location).longitude.toFixed(2)}
+            </AppText>
           ) : null}
           <ActionButton
             label={locating ? 'Finding approximate location' : location ? 'Refresh approximate location' : 'Use device location'}
@@ -414,23 +420,16 @@ function ConnectedOnboarding({
               <AppText variant="bodyStrong">What would you like to offer?</AppText>
               <AppText variant="caption" color={theme.colors.textMuted}>Choose up to 6 categories or add your own.</AppText>
             </View>
-            <View style={styles.categoryChips}>
-              {activityCategoryOptions(categories).map((category) => (
-                <Chip
-                  key={category}
-                  label={category}
-                  selected={categories.includes(category)}
-                  accent="self"
-                  onPress={() => {
-                    if (!categories.includes(category) && categories.length >= maximumOnboardingActivityCategories) return
-                    setCategoryError('')
-                    setCategories((current) => current.includes(category)
-                      ? current.filter((value) => value !== category)
-                      : [...current, category])
-                  }}
-                />
-              ))}
-            </View>
+            <ActivityCategoryBrowser
+              selected={categories}
+              onChange={(next) => {
+                setCategoryError('')
+                setCategories(next)
+              }}
+              maximum={maximumOnboardingActivityCategories}
+              disabled={submitting || submitted}
+              label="What would you like to offer?"
+            />
             <TextInput
               accessibilityLabel="Custom onboarding category"
               value={customCategory}
@@ -564,25 +563,13 @@ function ConnectedOnboarding({
             <View style={styles.fieldGroup}>
               <AppText variant="bodyStrong">Everyday help and activities</AppText>
               <AppText variant="caption" color={theme.colors.textMuted}>Choose at least one.</AppText>
-              <View style={styles.chips}>
-                {activityCategoryOptions(applicationForm.categories).map((category) => (
-                  <Chip
-                    key={category}
-                    label={category}
-                    selected={applicationForm.categories.includes(category)}
-                    accent="self"
-                    onPress={() => {
-                      if (!applicationForm.categories.includes(category) && applicationForm.categories.length >= maximumCompanionActivityCategories) return
-                      editApplicationForm((current) => ({
-                        ...current,
-                        categories: current.categories.includes(category)
-                          ? current.categories.filter((value) => value !== category)
-                          : [...current.categories, category],
-                      }))
-                    }}
-                  />
-                ))}
-              </View>
+              <ActivityCategoryBrowser
+                selected={applicationForm.categories}
+                onChange={(categories) => editApplicationForm((current) => ({ ...current, categories }))}
+                maximum={maximumCompanionActivityCategories}
+                disabled={submitting || submitted}
+                label="Everyday help and activities"
+              />
               <TextInput
                 accessibilityLabel="Custom Companion application category"
                 value={customApplicationCategory}
@@ -680,22 +667,18 @@ function ConnectedOnboarding({
           </View>
         ) : (
           <>
-            <LinkedConsentChoice
-              prefix="I agree to the "
-              documentLabel="Terms and Conditions"
-              documentPath="/terms-and-conditions"
-              checked={termsAccepted}
-              onToggle={() => setTermsAccepted((current) => !current)}
-              disabled={submitting || submitted}
-            />
-            <LinkedConsentChoice
-              prefix="I agree to the "
-              documentLabel="Privacy Policy"
-              documentPath="/privacy-policy"
-              checked={privacyAccepted}
-              onToggle={() => setPrivacyAccepted((current) => !current)}
-              disabled={submitting || submitted}
-            />
+            {policyDocuments.map((document) => (
+              <LinkedConsentChoice
+                key={document.id}
+                document={document}
+                checked={document.id === 'terms' ? termsAccepted : privacyAccepted}
+                onToggle={() => {
+                  if (document.id === 'terms') setTermsAccepted((current) => !current)
+                  else setPrivacyAccepted((current) => !current)
+                }}
+                disabled={submitting || submitted}
+              />
+            ))}
           </>
         )}
       </View> : null}
@@ -756,17 +739,14 @@ function PolicyLinks() {
   const theme = useAppTheme()
   return (
     <View style={styles.policyLinks}>
-      {([
-        ['Terms and Conditions', '/terms-and-conditions'],
-        ['Privacy Policy', '/privacy-policy'],
-      ] as const).map(([label, href]) => (
+      {policyDocuments.map((document) => (
         <Pressable
-          key={href}
+          key={document.id}
           accessibilityRole="link"
-          accessibilityLabel={label}
-          onPress={() => router.push(href)}
+          accessibilityLabel={document.title}
+          onPress={() => router.push(document.path)}
           style={({ pressed }) => [pressed && styles.pressed]}>
-          <AppText variant="caption" style={[styles.linkedConsentLink, { color: theme.colors.selfText }]}>{label}</AppText>
+          <AppText variant="caption" style={[styles.linkedConsentLink, { color: theme.colors.selfText }]}>{document.title}</AppText>
         </Pressable>
       ))}
     </View>
@@ -774,16 +754,12 @@ function PolicyLinks() {
 }
 
 function LinkedConsentChoice({
-  prefix,
-  documentLabel,
-  documentPath,
+  document,
   checked,
   onToggle,
   disabled,
 }: {
-  prefix: string
-  documentLabel: string
-  documentPath: '/terms-and-conditions' | '/privacy-policy'
+  document: PolicyDocument
   checked: boolean
   onToggle: () => void
   disabled: boolean
@@ -797,7 +773,7 @@ function LinkedConsentChoice({
       ]}>
       <Pressable
         accessibilityRole="checkbox"
-        accessibilityLabel={`${prefix}${documentLabel}`}
+        accessibilityLabel={document.acceptanceLabel}
         accessibilityState={{ checked, disabled }}
         disabled={disabled}
         onPress={onToggle}
@@ -807,13 +783,13 @@ function LinkedConsentChoice({
         </View>
       </Pressable>
       <AppText style={styles.linkedConsentText}>
-        {prefix}
+        {document.acceptancePrefix}
         <AppText
           accessibilityRole="link"
-          accessibilityLabel={documentLabel}
-          onPress={() => router.push(documentPath)}
+          accessibilityLabel={document.title}
+          onPress={() => router.push(document.path)}
           style={[styles.linkedConsentLink, { color: theme.colors.selfText }]}>
-          {documentLabel}
+          {document.title}
         </AppText>
       </AppText>
     </View>
@@ -856,13 +832,6 @@ function GoalChoice({
       </View>
     </Pressable>
   )
-}
-
-function roundLocation(location: ApproximateLocation): ApproximateLocation {
-  return {
-    latitude: Math.round(location.latitude * 100) / 100,
-    longitude: Math.round(location.longitude * 100) / 100,
-  }
 }
 
 function OnboardingState({
@@ -917,7 +886,6 @@ const styles = StyleSheet.create({
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   goalCopy: { flex: 1, gap: 1 },
   categorySection: { marginTop: 10, gap: 10 },
-  categoryChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   categoryInput: { minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   statusCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
   applicationForm: { gap: 14 },

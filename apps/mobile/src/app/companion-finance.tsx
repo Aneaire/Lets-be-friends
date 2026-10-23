@@ -41,6 +41,7 @@ export default function CompanionFinanceScreen() {
 
 function ReadyCompanionFinance() {
   const dashboard = useQuery(mobileApi.finance.dashboard, {})
+  const memberWallet = useQuery(mobileApi.finance.memberDashboard, {})
   const payouts = useQuery(mobileApi.withdrawals.dashboard, {})
   const listReceivingInstitutions = useAction(mobileApi.withdrawals.listReceivingInstitutions)
   const savePayoutMethod = useAction(mobileApi.withdrawals.savePayoutMethod)
@@ -60,24 +61,23 @@ function ReadyCompanionFinance() {
     return (setup?.institutions ?? []).filter((institution) => !search || institution.name.toLocaleLowerCase().includes(search)).slice(0, 50)
   }, [institutionSearch, setup])
 
-  if (dashboard === undefined || payouts === undefined) return <PageSkeleton variant="finance" />
-  if (dashboard === null) return <FinanceState title="No Companion finance profile" detail="Create a Companion profile before finance balances and obligations are available." action="Open Companion tools" onPress={() => router.replace('/companion')} />
-  if (payouts === null) return <FinanceState title="Companion withdrawals are unavailable" detail="A Companion finance profile is required before payout settings can be loaded." />
-
+  if (dashboard === undefined || payouts === undefined || memberWallet === undefined) return <PageSkeleton variant="finance" />
+  if (payouts === null) return <FinanceState title="Companion withdrawals are unavailable" detail="Withdrawals need account services before payout settings can be loaded." />
+  if (memberWallet === null) return <FinanceState title="Wallet balances are unavailable" detail="Your wallet could not be connected safely." />
   return (
     <View style={styles.container}>
       <CompanionFinancePresentation
-        canAcceptBookings={dashboard.canAcceptBookings}
-        availableEarnings={formatMoney(dashboard.availableEarningsCentavos)}
-        inTransferEarnings={formatMoney(dashboard.inTransferEarningsCentavos)}
-        pendingEarnings={formatMoney(dashboard.pendingEarningsCentavos)}
-        platformFeeBalance={formatMoney(dashboard.availableBalanceCentavos)}
-        dueThisSaturday={formatMoney(dashboard.dueThisSaturdayCentavos)}
-        dueDateLabel={formatDate(dashboard.dueAt)}
-        pastDue={formatMoney(dashboard.pastDueCentavos)}
-        hasPastDue={dashboard.pastDueCentavos > 0}
-        payoutNotice={dashboard.payoutNotice}
-        withdrawalsEnabled={payouts.enabled}
+        canAcceptBookings={dashboard?.canAcceptBookings ?? false}
+        availableEarnings={formatMoney(dashboard?.availableEarningsCentavos ?? payouts.availableEarningsCentavos)}
+        inTransferEarnings={formatMoney(dashboard?.inTransferEarningsCentavos ?? payouts.inTransferEarningsCentavos)}
+        pendingEarnings={formatMoney(dashboard?.pendingEarningsCentavos ?? memberWallet.pendingCentavos)}
+        platformFeeBalance={formatMoney(dashboard?.availableBalanceCentavos ?? 0)}
+        dueThisSaturday={formatMoney(dashboard?.dueThisSaturdayCentavos ?? 0)}
+        dueDateLabel={dashboard ? formatDate(dashboard.dueAt) : ''}
+        pastDue={formatMoney(dashboard?.pastDueCentavos ?? 0)}
+        hasPastDue={(dashboard?.pastDueCentavos ?? 0) > 0}
+        payoutNotice={dashboard?.payoutNotice ?? (payouts.enabled ? memberWallet.enabled ? 'Withdraw available wallet funds to your verified payout account. The platform covers the transfer fee.' : 'Member-wallet bookings are not enabled right now.' : 'Withdrawals are currently disabled by the platform.')}
+        withdrawalsEnabled={payouts.enabled && (dashboard !== null || memberWallet.enabled)}
         payoutMethod={payoutMethodItem(payouts)}
         activeWithdrawal={payouts.activeWithdrawalId !== null}
         withdrawalAmount={withdrawalAmount}
@@ -95,9 +95,11 @@ function ReadyCompanionFinance() {
           setPendingWithdrawal(parsed.amountCentavos)
         }}
         onSetupPayoutMethod={() => { void openPayoutSetup() }}
-        obligations={dashboard.obligations.map(companionFinanceObligation)}
-        ledger={dashboard.ledger.map(companionFinanceLedgerEntry)}
+        obligations={dashboard?.obligations.map(companionFinanceObligation) ?? []}
+        ledger={dashboard?.ledger.map(companionFinanceLedgerEntry) ?? []}
         onBack={goBackOrProfile}
+        hideCompanionFinanceSections={dashboard === null}
+        identityEligible={payouts.identityEligible}
       />
 
       <BottomSheet

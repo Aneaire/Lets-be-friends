@@ -1,5 +1,11 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { currentPolicyVersion, policyEffectiveDate, privacyPath, termsSections } from '@lets-be-friends/shared'
+import {
+  currentPolicyVersion,
+  otherPolicyDocument,
+  policyCrossLinkLabel,
+  policyEffectiveDate,
+  termsDocument,
+} from '@lets-be-friends/shared'
 
 export const Route = createFileRoute('/terms-and-conditions')({
   component: TermsAndConditionsPage,
@@ -9,12 +15,13 @@ export const Route = createFileRoute('/terms-and-conditions')({
 })
 
 export function TermsAndConditionsPage() {
+  const related = otherPolicyDocument(termsDocument)
   return (
     <main className="marketing-page legal-page">
-      <p className="eyebrow">Terms and Conditions</p>
-      <h1 className="text-display mt-4">Terms and Conditions</h1>
+      <p className="eyebrow">{termsDocument.title}</p>
+      <h1 className="text-display mt-4">{termsDocument.title}</h1>
       <p className="text-meta mt-2">Version {currentPolicyVersion}. Effective {policyEffectiveDate}.</p>
-      {termsSections.map((section) => (
+      {termsDocument.sections.map((section) => (
         <section key={section.heading} className="mt-6">
           <h2 className="text-h2">{section.heading}</h2>
           {section.paragraphs.map((paragraph) => (
@@ -23,7 +30,7 @@ export function TermsAndConditionsPage() {
         </section>
       ))}
       <nav className="mt-6" aria-label="Related policy pages">
-        <Link to={privacyPath as '/privacy-policy'} className="btn btn-neutral btn-sm">Read the Privacy Policy</Link>
+        <Link to={related.path} className="btn btn-neutral btn-sm">{policyCrossLinkLabel(related)}</Link>
       </nav>
     </main>
   )

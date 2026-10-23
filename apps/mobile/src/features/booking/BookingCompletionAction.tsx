@@ -5,6 +5,7 @@ import { Alert, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type BookingId } from '@/backend/client'
 import { bookingCompletionCopy } from '@/data/bookingCompletion'
+import { safeProductError } from '@/data/productErrors'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -38,8 +39,8 @@ export function BookingCompletionAction({ bookingId, status, pricingModel, reque
       setMessage(result.awaitingOtherConfirmation
         ? 'Your completion confirmation was recorded. Waiting for the other person.'
         : 'Completion was confirmed by both people. The review window is now available.')
-    } catch {
-      setMessage('Completion could not be confirmed. Check the current booking and evidence state, then try again.')
+    } catch (error) {
+      setMessage(safeProductError('complete_booking', error))
     } finally {
       busyRef.current = false
       setBusy(false)

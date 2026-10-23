@@ -49,11 +49,11 @@ For configured, authenticated members whose mobile member record is ready:
 
 - Public live Companion profiles preserve backend booking eligibility and expose a social-pink booking action only when truthful.
 - Signed-out booking actions route to sign-in. Verification-required and own-profile states explain the restriction without mutating data.
-- Eligible members can submit one booking request with a companion-offered category and format, a Manila-local future schedule, duration, and optional notes.
+- Eligible members can submit one booking request with a Companion-offered category and format, duration, and optional notes. Profiles with configured weekly availability use live, conflict-free Manila slots. Legacy profiles retain Manila date and time input while the server remains authoritative.
 - The booking form shows the Companion hourly rate and member booking balance when available, with a link to the booking wallet. The server calculates the authoritative booking total when the request is sent, and the saved total then appears in booking details.
 - The booking wallet shows available, reserved, and pending balances, recent member top-ups, and provider-confirmed PayMongo QR Ph top-up attempts. It never claims wallet credit before provider confirmation.
 - Home links naturally to real booking history. Booking detail shows status, schedule, format, duration, total, shared-rule member actions, booking reports, and eligible one-time reviews.
-- Members can use Edit request only for their own pending `request_sent` request. The form uses the Companion's current public category and format choices, and the server rechecks future time, eligibility, wallet sufficiency, pricing, and current state. Accepted-booking rescheduling and availability management are not offered.
+- Members can use Edit request only for their own pending `request_sent` request. The form uses the Companion's current public category, format, eligibility, and availability. The server rechecks future time, busy conflicts, wallet sufficiency, pricing, and current state. Accepted-booking rescheduling is not offered.
 - Members and Companions can cancel their own booking only while shared cancellation rules allow it and before either completion confirmation is recorded. Cancellation is irreversible and the optional reason is trimmed.
 - Member and Companion booking details show read-only cancellation facts, participant completion progress, settlement state, settlement eligibility time, and blocked admin-resolution guidance when returned by the backend. Returned funds are described only as returned to the member booking wallet, not as a PayMongo, card, bank, or other external refund. Pending and settled Companion amounts are not described as external payouts or withdrawals.
 - Messages uses the real-time conversation inbox, role-aware booking context cards, read state, keyboard-aware composition, and a 2,000 character text limit. Booking detail opens the exact existing conversation when available and offers the general inbox only as a missing-conversation fallback.
@@ -67,8 +67,8 @@ Authenticated booking, finance, companion, evidence, and conversation APIs are s
 
 - Profile links to Companion application and status tools plus incoming companion bookings.
 - The mobile application uses the existing Companion APIs and shared Strengths and activity categories.
-- Members can submit or update the profile, update the listed hourly rate, and manage nearby discovery visibility.
-- Companion setup does not request GPS. Nearby visibility can be enabled only when the existing Companion profile already has a saved coordinate pair. The separate Nearby screen requests foreground location only after the visitor chooses a current-area search, rounds the search origin, and also supports a typed travel area.
+- Members can submit or update the profile, update the listed hourly rate, manage weekly availability, and manage nearby discovery visibility. Saving an empty weekly schedule intentionally pauses new requests.
+- Companion setup does not request GPS. Nearby visibility can be enabled only when the existing Companion profile already has a saved coordinate pair. The separate Nearby screen requests foreground location only after the member chooses a current-area search. With prior location consent, it sends the device fix to the backend and searches from the returned randomized, rounded saved point. If saving fails, it reports that failure and uses a rounded transient search point. Typed travel areas and placed pins remain transient.
 - Incoming booking detail shows the live request state and requires an explicit confirmation before accepting or declining.
 
 ### Booking evidence and completion

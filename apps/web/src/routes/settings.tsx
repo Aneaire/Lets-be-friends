@@ -1,8 +1,8 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { SignInButton, useAuth, useUser } from '@clerk/react'
 import { useQuery } from 'convex/react'
-import { BadgeDollarSign, Moon, ShieldCheck, Sun, UserRound, UserRoundCog } from 'lucide-react'
-import { formatPhp } from '@lets-be-friends/shared'
+import { BadgeDollarSign, FileText, LockKeyhole, Moon, ShieldCheck, Sun, UserRound, UserRoundCog } from 'lucide-react'
+import { formatPhp, policyDocuments } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { Button } from '../design-system/atoms/Button'
 import { useThemeChoice } from '../design-system/atoms/ThemeToggle'
@@ -127,6 +127,27 @@ export function SettingsPage() {
               actionLabel="Get started"
             />
           )}
+        </SettingsSection>
+
+        <SettingsSection
+          headingId="legal-heading"
+          title="Legal and privacy"
+          description="Read the current Terms and Conditions and Privacy Policy for this account."
+        >
+          {policyDocuments.map((document) => (
+            <SettingsLinkRow
+              key={document.id}
+              link={<Link to={document.path} />}
+              icon={document.id === 'terms'
+                ? <FileText size={19} aria-hidden="true" className="settings-row-icon" />
+                : <LockKeyhole size={19} aria-hidden="true" className="settings-row-icon" />}
+              title={document.title}
+              description={document.id === 'terms'
+                ? 'Rules for using Let\'s Be Friends, bookings, and Companion conduct.'
+                : 'What we collect, why we use it, and how long we keep it.'}
+              actionLabel="Read"
+            />
+          ))}
         </SettingsSection>
       </div>
     </main>

@@ -14,6 +14,8 @@ import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { TextField } from '@/design-system/atoms/Field'
 import { Chip } from '@/design-system/atoms/Chip'
+import { VerifiedBadge } from '@/design-system/atoms/VerifiedBadge'
+import { CompanionAvailabilitySection } from '@/features/companion/CompanionAvailabilitySection'
 import { ReportAction } from '@/features/safety/ReportAction'
 import { MemberSafetyActions } from '@/features/safety/MemberSafetyActions'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
@@ -142,7 +144,7 @@ function CompanionDetail({ companion, reviewId }: { companion: CompanionDetailVi
       <View style={styles.identity}>
         <Avatar uri={companion.imageUrl} name={companion.name} size={88} />
         <View style={styles.identityCopy}>
-          <View style={styles.nameRow}><AppText style={styles.profileName}>{companion.name}</AppText>{companion.verified ? <View accessibilityLabel="Identity verified" style={[styles.verified, { backgroundColor: theme.colors.textMuted }]} /> : null}</View>
+          <View style={styles.nameRow}><AppText style={styles.profileName}>{companion.name}</AppText>{companion.verified ? <VerifiedBadge /> : null}</View>
           <AppText color={theme.colors.textMuted}>{companion.location}</AppText>
           {companion.distanceLabel ? <AppText variant="caption" color={theme.colors.textMuted}>{companion.distanceLabel} approximate</AppText> : null}
           <View style={styles.identityMeta}><AppText variant="caption">{companion.reviewCount ? `★ ${companion.rating?.toFixed(1)} from ${companion.reviewCount}` : 'New Companion'}</AppText><AppText variant="caption">{modeLabels.join(' + ')}</AppText></View>
@@ -167,6 +169,7 @@ function CompanionDetail({ companion, reviewId }: { companion: CompanionDetailVi
           {companion.boundaries.length ? <Detail label="Boundaries" value={companion.boundaries.join(', ')} /> : null}
         </View>
         {companion.rateLabel ? <RateHighlight value={companion.rateLabel} /> : null}
+        <CompanionAvailabilitySection availability={companion.weeklyAvailability} />
       </Section>
 
       <Section>
@@ -579,7 +582,6 @@ const styles = StyleSheet.create({
   profileName: companionProfileTypography.name,
   profileIntro: companionProfileTypography.intro,
   profileBio: companionProfileTypography.bio,
-  verified: { width: 9, height: 9, borderRadius: 5 },
   identityMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 3 },
   actionsRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
   stickyActions: { flexDirection: 'row', gap: 10, width: '100%', maxWidth: 760, alignSelf: 'center' },

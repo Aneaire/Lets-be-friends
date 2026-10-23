@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker'
 import type { BookingStatus } from '@lets-be-friends/shared'
 import { useMutation } from 'convex/react'
+import { router } from 'expo-router'
 import { useRef, useState } from 'react'
 import { Image, Platform, Pressable, StyleSheet, View } from 'react-native'
 
@@ -13,6 +14,7 @@ import {
   validateReviewInput,
 } from '@/data/bookingActions'
 import { preparePostMedia, uploadPostMedia } from '@/features/social/postMediaUpload'
+import { ReviewContent } from '@/features/social/ReviewContent'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -23,10 +25,11 @@ import { FormField } from '@/design-system/molecules/FormField'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { density } from '@/theme/tokens'
 
-export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
+export function BookingSafetyActions({ bookingId, status, viewerHasReviewed, viewerReviewId }: {
   bookingId: BookingId
   status: BookingStatus
   viewerHasReviewed: boolean
+  viewerReviewId?: string
 }) {
   const theme = useAppTheme()
   const createReport = useMutation(mobileApi.reports.create)
@@ -43,10 +46,11 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [reportSubmitted, setReportSubmitted] = useState(false)
-  const [reviewSubmitted, setReviewSubmitted] = useState(false)
+  const [submittedReviewId, setSubmittedReviewId] = useState<string | null>(null)
   const busyRef = useRef(false)
   useAppToastMessage(message)
-  const canReview = canSubmitBookingReview(status, viewerHasReviewed || reviewSubmitted)
+  const canReview = canSubmitBookingReview(status, viewerHasReviewed || submittedReviewId !== null)
+  const publishedReviewId = submittedReviewId ?? (viewerHasReviewed ? viewerReviewId : undefined)
 
   function open(nextForm: 'report' | 'review') {
     if (busyRef.current || (nextForm === 'report' && reportSubmitted)) return
@@ -143,9 +147,9 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
         storageId = await uploadPostMedia(grant.uploadUrl, prepared) as StorageId
         await registerUpload({ uploadId: imageUploadId, storageId })
       }
-      await submitReview({ bookingId, rating: validation.rating, body: validation.body, ...(imageUploadId ? { imageUploadId } : {}) })
+      const reviewId = await submitReview({ bookingId, rating: validation.rating, body: validation.body, ...(imageUploadId ? { imageUploadId } : {}) })
       published = true
-      setReviewSubmitted(true)
+      setSubmittedReviewId(String(reviewId))
       setForm(null)
       setReviewBody('')
       setRating(null)
@@ -167,6 +171,14 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
         <AppText variant="caption" color={theme.colors.textMuted}>Reports are private safety submissions. Reviews are shared only when the booking review window is open.</AppText>
       </View>
       {canReview ? <ActionButton label="Write a review" onPress={() => open('review')} secondary /> : null}
+      {publishedReviewId ? (
+        <ActionButton
+          label="View your review"
+          onPress={() => router.push({ pathname: '/review/[id]', params: { id: publishedReviewId } })}
+          intent="social"
+          secondary
+        />
+      ) : null}
       {reportSubmitted
         ? <ActionButton label="Report sent" onPress={() => undefined} disabled secondary />
         : <ActionButton label="Report this booking" onPress={() => open('report')} secondary />}
@@ -277,6 +289,20 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed }: {
                 ) : null}
                 {photoError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{photoError}</AppText> : null}
               </View>
+              <View style={[styles.preview, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+                <AppText variant="label" color={theme.colors.social}>LIVE PREVIEW</AppText>
+                <ReviewContent
+                  review={{
+                    reviewerDisplayName: 'You',
+                    rating: rating ?? 0,
+                    body: reviewBody.trim() || undefined,
+                    imageUrl: photoAsset?.uri,
+                  }}
+                />
+                <AppText variant="caption" color={theme.colors.textMuted}>
+                  Reviews with a note or a photo are the ones that reach the feed. A rating on its own stays on the booking.
+                </AppText>
+              </View>
             </>
           )}
           {message && form ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{message}</AppText> : null}
@@ -295,6 +321,7 @@ const styles = StyleSheet.create({
   photoSection: { gap: density.cardGap },
   photoPreviewWrap: { position: 'relative', width: 108, },
   photoPreview: { width: 108, height: 81, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10 },
+  preview: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: density.compactCardPadding, gap: density.textStackGap },
   photoRemove: { position: 'absolute', top: 4, right: 4, width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   ratings: { flexDirection: 'row', flexWrap: 'wrap', gap: density.cardGap },
   rating: {

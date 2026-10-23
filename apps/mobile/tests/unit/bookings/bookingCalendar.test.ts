@@ -103,4 +103,22 @@ describe('booking calendar grouping', () => {
   it('falls back to today when there are no active bookings', () => {
     expect(initialSelectedDate([], undefined, now)).toEqual(now)
   })
+
+  it('keeps the full calendar on the current month with no marked days when empty', () => {
+    const bookings: CalendarBooking[] = []
+    const selected = initialSelectedDate(bookings, undefined, now)
+    expect(selected).toEqual(now)
+
+    const visible = startOfMonth(selected)
+    expect(visible).toEqual(new Date(2026, 7, 1))
+    expect(monthLabel(visible.getFullYear(), visible.getMonth())).toBe('August 2026')
+
+    const days = calendarDays(visible.getFullYear(), visible.getMonth())
+    expect(days.length).toBe(42)
+    expect(days.some((day) => dayIsToday(day, now))).toBe(true)
+    expect(days.some((day) => dayIsSelected(day, selected))).toBe(true)
+
+    expect(bookingsByDay(bookings).size).toBe(0)
+    expect(bookingsOnDate(bookings, selected)).toEqual([])
+  })
 })

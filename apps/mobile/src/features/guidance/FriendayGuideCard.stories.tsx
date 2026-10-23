@@ -24,6 +24,7 @@ export const Default: Story = {
 
 export const Actions: Story = {
   args: {
+    onPressGuide: fn(),
     onPressFindCompanion: fn(),
     onPressCreateProfile: fn(),
     onPressSafety: fn(),
@@ -32,9 +33,11 @@ export const Actions: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Find a Companion' }))
     await userEvent.click(canvas.getByRole('button', { name: 'Create Companion profile' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Read the full Frienday guide' }))
     await userEvent.click(canvas.getByRole('button', { name: 'Read safety details' }))
     await expect(args.onPressFindCompanion).toHaveBeenCalledTimes(1)
     await expect(args.onPressCreateProfile).toHaveBeenCalledTimes(1)
+    await expect(args.onPressGuide).toHaveBeenCalledTimes(1)
     await expect(args.onPressSafety).toHaveBeenCalledTimes(1)
   },
 }

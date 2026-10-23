@@ -101,6 +101,7 @@ function SignedInProfile({ profile, bio, role, signOut }: {
       bio={bio}
       hasCompanionTools={hasCompanionTools}
       approvedCompanion={approvedCompanion}
+      fullyVerified={profile.verificationApproved && hasCompanionTools && companionApplication?.status !== 'draft'}
       openingVerification={openingVerification}
       signingOut={signingOut}
       pushNotifications={<PushNotificationSettings />}
@@ -112,10 +113,13 @@ function SignedInProfile({ profile, bio, role, signOut }: {
       onOpenMyPosts={() => router.push('/my-posts' as never)}
       onOpenBookings={() => router.push('/bookings' as never)}
       onOpenWallet={() => router.push('/wallet')}
+      onOpenWithdrawals={() => router.push('/companion-finance' as never)}
       onOpenCompanion={() => router.push('/companion')}
       onOpenIncomingBookings={() => router.push('/companion-bookings')}
       onOpenCompanionFinance={() => router.push('/companion-finance' as never)}
       onOpenSafety={() => router.push('/safety' as never)}
+      onOpenTerms={() => router.push('/terms-and-conditions')}
+      onOpenPrivacy={() => router.push('/privacy-policy')}
       onSignOut={() => void handleSignOut()}
     />
   )

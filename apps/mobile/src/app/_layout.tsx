@@ -51,6 +51,7 @@ function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
         <Stack.Screen name="auth/callback" options={{ animation: 'none' }} />
         <Stack.Screen name="terms-and-conditions" />
         <Stack.Screen name="privacy-policy" />
+        <Stack.Screen name="frienday-guide" />
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="auth" />
         </Stack.Protected>

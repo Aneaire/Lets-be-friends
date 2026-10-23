@@ -1,6 +1,7 @@
 import { defaultOnboardingCompanionForm } from '@/features/companion/onboardingCompanionApplication'
 import {
   finalizeOnboarding,
+  onboardingLocationPreview,
   type FinalizeDeps,
 } from '@/features/companion/onboardingFinalization'
 
@@ -42,6 +43,18 @@ describe('mobile onboarding finalization', () => {
     const result = await finalizeOnboarding('submit-profile', d)
     expect(result).toEqual({ submittedApplication: true })
     expect(d.calls).toEqual(['claimUsername', 'save', 'updateProfile', 'submitApplication', 'completeOnboarding'])
+  })
+
+  it('sends the raw fix for server jitter while exposing only a rounded preview', async () => {
+    const payloads: unknown[] = []
+    const location = { latitude: 10.315678, longitude: 123.891234 }
+    const d = deps({
+      goal: 'member', categories: [], location,
+      saveOnboardingLocationAndConsent: async (payload) => { payloads.push(payload); d.calls.push('save') },
+    })
+    await finalizeOnboarding('complete', d)
+    expect(payloads[0]).toMatchObject(location)
+    expect(onboardingLocationPreview(location)).toEqual({ latitude: 10.32, longitude: 123.89 })
   })
 
   it('rejects a failed Companion submission before completion and keeps the error observable', async () => {

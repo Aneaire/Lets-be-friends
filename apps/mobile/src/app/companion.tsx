@@ -1,5 +1,4 @@
 import {
-  activityCategoryOptions,
   friendStrengths,
   maximumActivityCategoryLength,
   maximumCompanionActivityCategories,
@@ -29,6 +28,8 @@ import {
   validateCompanionApplication,
   validateHourlyRate,
 } from '@/data/companionTools'
+import { WeeklyAvailabilityEditor } from '@/features/companion/WeeklyAvailabilityEditor'
+import { ActivityCategoryBrowser } from '@/features/companion/ActivityCategoryBrowser'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -184,6 +185,7 @@ function ReadyCompanionScreen() {
               </AppText>
             </View>
           </View>
+          <WeeklyAvailabilityEditor initialWindows={(application as { weeklyAvailability?: Array<{ weekday: number; startMinutes: number; endMinutes: number }> }).weeklyAvailability} />
         </Section>
       ) : null}
 
@@ -200,7 +202,12 @@ function ReadyCompanionScreen() {
         {setupStep === 1 ? <>
           <AppText variant="caption" color={theme.colors.textMuted}>Choose the everyday Strengths and activities you feel comfortable offering.</AppText>
           <SelectionGroup label="Strengths" options={friendStrengths} selected={form.strengths} onChange={(strengths) => editForm((current) => ({ ...current, strengths }))} disabled={busy !== null} />
-          <SelectionGroup label="Activities" options={activityCategoryOptions(form.categories)} selected={form.categories} onChange={(categories) => editForm((current) => ({ ...current, categories }))} disabled={busy !== null} maximum={maximumCompanionActivityCategories} />
+          <ActivityCategoryBrowser
+            selected={form.categories}
+            onChange={(categories) => editForm((current) => ({ ...current, categories }))}
+            maximum={maximumCompanionActivityCategories}
+            disabled={busy !== null}
+          />
           <CustomCategoryInput
             selected={form.categories}
             onChange={(categories) => editForm((current) => ({ ...current, categories }))}
