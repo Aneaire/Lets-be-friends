@@ -9255,24 +9255,8 @@ textarea.field {
   display: flex;
   width: 100%;
   align-items: start;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 1rem;
-}
-
-.avatar-cropper-heading > div {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.avatar-cropper-heading strong {
-  color: var(--text);
-  font-size: 0.9375rem;
-}
-
-.avatar-cropper-heading span {
-  color: var(--text-soft);
-  font-size: 0.8125rem;
-  line-height: 1.4;
 }
 
 .avatar-cropper-reset {

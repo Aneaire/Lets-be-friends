@@ -90,10 +90,6 @@ export function AvatarCropper({
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, style]}>
       <View style={styles.heading}>
-        <View style={styles.headingCopy}>
-          <AppText variant="bodyStrong">Choose your profile view</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>Drag the photo to position it inside the circle.</AppText>
-        </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Reset avatar position"
@@ -187,8 +183,7 @@ function ZoomStepButton({ label, icon, disabled, onPress }: { label: string; ico
 
 const styles = StyleSheet.create({
   container: { gap: density.cardGap, borderWidth: 1, borderRadius: density.controlRadius, padding: density.compactCardPadding },
-  heading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: density.cardGap },
-  headingCopy: { flex: 1, gap: 1 },
+  heading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-end', gap: density.cardGap },
   reset: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 32, paddingHorizontal: 2 },
   frame: { alignSelf: 'center', overflow: 'hidden', borderRadius: 999, borderWidth: 1 },
   imageLayer: { position: 'absolute', top: 0, left: 0 },

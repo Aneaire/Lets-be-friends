@@ -69,12 +69,8 @@ export function AvatarCropper({
   }
 
   return (
-    <section className="avatar-cropper" aria-labelledby="avatar-cropper-title">
+    <section className="avatar-cropper" aria-label="Profile photo framing">
       <div className="avatar-cropper-heading">
-        <div>
-          <strong id="avatar-cropper-title">Choose your profile view</strong>
-          <span>Drag the photo to position it inside the circle.</span>
-        </div>
         <button
           type="button"
           className="btn btn-ghost btn-sm avatar-cropper-reset"
