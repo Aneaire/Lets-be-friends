@@ -1,4 +1,4 @@
-import { Platform, StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Avatar } from '@/design-system/atoms/Avatar'
@@ -8,8 +8,6 @@ import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { FormField } from '@/design-system/molecules/FormField'
 import { Screen } from '@/design-system/templates/Screen'
 import { useAppTheme } from '@/theme/ThemeProvider'
-import { AvatarCropper } from './AvatarCropper'
-import type { AvatarCrop } from './avatarCrop'
 import { PROFILE_BIO_MAX, PROFILE_NAME_MAX } from './profileEditFields'
 
 export function ProfileEditContent({
@@ -19,16 +17,13 @@ export function ProfileEditContent({
   bio,
   busy,
   canSave,
-  imagePicked,
-  crop,
   nameHint,
   nameError,
   bioHint,
   bioError,
   onChangeName,
   onChangeBio,
-  onChoosePhoto,
-  onCropChange,
+  onOpenPhoto,
   onSave,
   onCancel,
 }: {
@@ -38,16 +33,13 @@ export function ProfileEditContent({
   bio: string
   busy: boolean
   canSave: boolean
-  imagePicked: boolean
-  crop: AvatarCrop
   nameHint: string
   nameError?: string
   bioHint: string
   bioError?: string
   onChangeName: (text: string) => void
   onChangeBio: (text: string) => void
-  onChoosePhoto: () => void
-  onCropChange: (crop: AvatarCrop) => void
+  onOpenPhoto: () => void
   onSave: () => void
   onCancel: () => void
 }) {
@@ -58,17 +50,19 @@ export function ProfileEditContent({
     <Screen contentStyle={styles.content}>
       <AppHeader title="Edit profile" back onBack={onCancel} />
       <View style={styles.photoSection}>
-        <Avatar uri={avatarUri} name={avatarName} size={88} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Update profile picture"
+          onPress={onOpenPhoto}
+          hitSlop={4}>
+          <Avatar uri={avatarUri} name={avatarName} size={88} />
+        </Pressable>
         <View style={styles.photoCopy}>
           <AppText variant="bodyStrong">Profile photo</AppText>
-          <AppText variant="caption" color={colors.textMuted}>Choose an existing image up to 5 MB.</AppText>
-          <ActionButton label={imagePicked ? 'Choose another photo' : 'Choose photo'} onPress={onChoosePhoto} intent="self" secondary disabled={busy} style={styles.compactButton} />
+          <AppText variant="caption" color={colors.textMuted}>Choose an existing image up to 5 MB. A new photo is also shared as a post.</AppText>
+          <ActionButton label="Update profile picture" onPress={onOpenPhoto} intent="self" secondary style={styles.compactButton} />
         </View>
       </View>
-
-      {Platform.OS === 'web' && imagePicked && avatarUri ? (
-        <AvatarCropper uri={avatarUri} crop={crop} onChange={onCropChange} />
-      ) : null}
 
       <FormField label="Display name" hint={nameHint} error={nameError}>
         <TextField accessibilityLabel="Display name" value={displayName} onChangeText={onChangeName} maxLength={PROFILE_NAME_MAX + 1} autoCapitalize="words" />

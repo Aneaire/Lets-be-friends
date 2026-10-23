@@ -412,3 +412,22 @@ describe('approximate location updates', () => {
     expect(user?.approximateLatitude).toBe(10.31)
   })
 })
+
+describe('profile field updates', () => {
+  it('keeps the current profile picture when name and bio are saved', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await insertUser(t, 'name-bio-user', 'Old Name', 'name_bio_user')
+    const storageId = await t.run(async (ctx) => ctx.storage.store(new Blob(['photo'], { type: 'image/webp' })))
+    await t.run(async (ctx) => ctx.db.patch(userId, { profileImageStorageId: storageId }))
+
+    await t.withIdentity({ subject: 'name-bio-user' }).mutation(api.users.updateProfile, {
+      displayName: 'New Name',
+      bio: 'A new introduction.',
+    })
+
+    const user = await t.run(async (ctx) => ctx.db.get(userId))
+    expect(user?.displayName).toBe('New Name')
+    expect(user?.bio).toBe('A new introduction.')
+    expect(user?.profileImageStorageId).toBe(storageId)
+  })
+})

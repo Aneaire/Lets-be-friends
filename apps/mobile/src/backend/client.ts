@@ -137,6 +137,7 @@ export const mobileApi = {
     commentPage: generatedApi.social.commentPage,
     mentionLookup: generatedApi.social.mentionLookup,
     createPost: generatedApi.social.createPost,
+    updateProfilePicture: generatedApi.social.updateProfilePicture,
     mediaUploadUsage: generatedApi.social.mediaUploadUsage,
     generatePostMediaUploadUrl: generatedApi.social.generatePostMediaUploadUrl,
     registerPostMediaUpload: generatedApi.social.registerPostMediaUpload,

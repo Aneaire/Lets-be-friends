@@ -42,6 +42,7 @@ const MAX_CIRCLE_POST_MEDIA = 3
 const MEDIA_UPLOAD_WINDOW_MS = 24 * 60 * 60 * 1000
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024
+const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024
 const FOR_YOU_PAGE_SIZE = 20
 const MAX_INSTRUMENTATION_BATCH = 20
 const FEED_ALGORITHM_VERSION = FEED_V2_ALGORITHM_VERSION
@@ -680,6 +681,73 @@ export const createPost = mutation({
     }
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'post.created', targetType: 'post', targetId: String(postId) })
     return postId
+  },
+})
+
+/**
+ * Saves a new profile picture. By default the photo is also published as a
+ * feed post, and both writes happen together. When sharing is turned off the
+ * avatar changes without creating a post. The previous picture stays in storage
+ * because an earlier update post may still link to it.
+ */
+export const updateProfilePicture = mutation({
+  args: {
+    profileImageStorageId: v.id('_storage'),
+    caption: v.optional(v.string()),
+    shareToFeed: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const shareToFeed = args.shareToFeed ?? true
+    const caption = shareToFeed ? (args.caption ?? '').trim() : ''
+    if (caption.length > 1000) throw new ConvexError('Caption is too long')
+    if (viewer.profileImageStorageId === args.profileImageStorageId) {
+      throw new ConvexError('This is already your profile picture')
+    }
+    const media = await validatedMediaStorage(ctx, args.profileImageStorageId)
+    if (media.kind !== 'image') throw new ConvexError('Profile picture must be an image')
+    if (media.size > MAX_PROFILE_IMAGE_SIZE) throw new ConvexError('Profile picture must be 5 MB or smaller')
+
+    const now = Date.now()
+    let postId: Id<'posts'> | undefined
+    if (shareToFeed) {
+      await consumeRateLimit(ctx, viewer._id, 'create_post')
+      const mentions = await resolveMentions(ctx, viewer._id, caption, MAX_MENTIONS_PER_POST, 'post')
+      postId = await ctx.db.insert('posts', {
+        authorId: viewer._id,
+        body: caption,
+        media: [{
+          storageId: args.profileImageStorageId,
+          kind: media.kind,
+          contentType: media.contentType,
+          size: media.size,
+        }],
+        mentions: mentions.length > 0 ? mentions : undefined,
+        profilePictureUpdate: true,
+        reportable: true,
+        hidden: false,
+        likeCount: 0,
+        commentCount: 0,
+        savedCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await Promise.all(mentions.map((mention) => createNotification(ctx, {
+        recipientUserId: mention.userId,
+        actorUserId: viewer._id,
+        kind: 'mention',
+        priority: 'standard',
+        postId: postId!,
+        dedupeKey: `post-mention:${postId}:${mention.userId}`,
+      })))
+      await writeAudit(ctx, { actorUserId: viewer._id, action: 'post.created', targetType: 'post', targetId: String(postId) })
+    }
+    await ctx.db.patch(viewer._id, {
+      profileImageStorageId: args.profileImageStorageId,
+      profileImageUrl: undefined,
+      updatedAt: now,
+    })
+    return { postId: postId ?? null, profileImageStorageId: args.profileImageStorageId, sharedToFeed: shareToFeed }
   },
 })
 

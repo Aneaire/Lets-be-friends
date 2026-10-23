@@ -1,5 +1,5 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { CalendarCheck, Pencil, Sparkles, User } from 'lucide-react'
+import { CalendarCheck, Camera, Pencil, Sparkles, User } from 'lucide-react'
 import { SignInButton, useAuth, useUser } from '@clerk/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
@@ -9,10 +9,11 @@ import { formatPhp } from '@lets-be-friends/shared'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification'
 import { useIdentityVerification } from '../features/identity/IdentityVerificationFlow'
 import { ActionMenu, type ActionMenuItem } from '../design-system/molecules/ActionMenu'
+import { Dialog } from '../design-system/molecules/Dialog'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { ProfileContentPanel } from '../features/profile/ProfileContentPanel'
-import { AvatarCropper } from '../features/profile/AvatarCropper'
-import { createCroppedAvatarFile, defaultAvatarCrop, type AvatarCrop } from '../features/profile/avatarCrop';
+import { ProfilePhotoComposerDialog } from '../features/profile/ProfilePhotoComposerDialog'
+import { createCroppedAvatarFile, type AvatarCrop } from '../features/profile/avatarCrop'
 import { describeConvexError } from '../lib/convexErrors'
 
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
@@ -31,6 +32,7 @@ function ProfilePage() {
   const reviews = useQuery(api.reviews.forCompanion, application ? { companionProfileId: application._id } : 'skip') as ProfileReview[] | undefined
   const identityFlow = useIdentityVerification('member')
   const updateProfile = useMutation(api.users.updateProfile)
+  const updateProfilePicture = useMutation(api.social.updateProfilePicture)
   const generateProfileImageUploadUrl = useMutation(api.users.generateProfileImageUploadUrl)
   const toggleLikeReview = useMutation(api.reviews.toggleLike)
   const createReviewComment = useMutation(api.reviews.createComment)
@@ -44,19 +46,9 @@ function ProfilePage() {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [editOpen, setEditOpen] = useState(false)
+  const [photoOpen, setPhotoOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [selectedProfileImage, setSelectedProfileImage] = useState<File | null>(null)
-  const [avatarCrop, setAvatarCrop] = useState<AvatarCrop>(defaultAvatarCrop)
-  const closeEdit = () => {
-    setEditOpen(false)
-    setSelectedProfileImage(null)
-    setAvatarCrop(defaultAvatarCrop)
-  }
-
-  const selectProfileImage = (file: File | null) => {
-    setSelectedProfileImage(file)
-    setAvatarCrop(defaultAvatarCrop)
-  }
+  const closeEdit = () => setEditOpen(false)
 
   if (!isSignedIn) {
     return (
@@ -120,6 +112,26 @@ function ProfilePage() {
     },
   ]
 
+  // The photo saves on its own, like a post, so name and bio edits never block
+  // the crop the member just chose.
+  async function saveProfilePhoto({
+    file,
+    crop,
+    caption,
+    shareToFeed,
+  }: {
+    file: File
+    crop: AvatarCrop
+    caption: string
+    shareToFeed: boolean
+  }) {
+    const croppedProfileImage = await createCroppedAvatarFile(file, crop)
+    const profileImageStorageId = await uploadProfileImage(croppedProfileImage, generateProfileImageUploadUrl)
+    if (!profileImageStorageId) throw new Error('Profile image upload failed.')
+    await updateProfilePicture({ profileImageStorageId, caption, shareToFeed })
+    setNotice(shareToFeed ? 'Profile photo posted.' : 'Profile photo updated.')
+  }
+
   return (
     <main className="profile-page">
       {(notice || identityFlow.message) && (
@@ -137,7 +149,12 @@ function ProfilePage() {
 
       <section className="profile-hero-panel">
         <div className="profile-hero-body">
-          <ProfilePhoto imageUrl={profileImageUrl} name={displayName} size="xl" />
+          <ProfilePhoto
+            imageUrl={profileImageUrl}
+            name={displayName}
+            size="xl"
+            onSelect={() => setPhotoOpen(true)}
+          />
           <div className="profile-hero-copy">
             <h1 className="text-h1">{displayName}</h1>
             {username && <p className="text-meta">@{username}</p>}
@@ -341,109 +358,70 @@ function ProfilePage() {
         onOpenPostComments={(post) => void navigate({ to: '/social', search: { postId: post._id } })}
       />
 
-      {editOpen && (
-        <div
-          className="profile-dialog-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeEdit()
+      <Dialog
+        open={editOpen}
+        onClose={saving ? () => undefined : closeEdit}
+        title="Edit profile"
+        description="Name and bio do not need review. Update your picture from your profile photo."
+        size="medium"
+        className="profile-edit-dialog"
+        busy={saving}
+        footer={(
+          <>
+            <button type="button" className="btn btn-neutral" onClick={closeEdit} disabled={saving}>Cancel</button>
+            <button type="submit" form="edit-profile-form" className="btn btn-self" disabled={saving}>
+              {saving ? 'Saving…' : 'Save profile'}
+            </button>
+          </>
+        )}
+      >
+        <form
+          id="edit-profile-form"
+          className="profile-edit-form"
+          onSubmit={async (event) => {
+            event.preventDefault()
+            setSaving(true)
+            setError('')
+            try {
+              const form = new FormData(event.currentTarget)
+              await updateProfile({
+                displayName: String(form.get('displayName') || fallbackName),
+                bio: String(form.get('bio') || ''),
+              })
+              setNotice('Profile saved.')
+              closeEdit()
+            } catch (profileError) {
+              setError(profileError instanceof Error ? describeConvexError(profileError) : 'Profile could not be saved.')
+            } finally {
+              setSaving(false)
+            }
           }}
         >
-          <section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-profile-title">
-            <form
-              onSubmit={async (event) => {
-                event.preventDefault()
-                setSaving(true)
-                setError('')
-                try {
-                  const form = new FormData(event.currentTarget)
-                  const croppedProfileImage = selectedProfileImage
-                    ? await createCroppedAvatarFile(selectedProfileImage, avatarCrop)
-                    : null
-                  const profileImageStorageId = await uploadProfileImage(
-                    croppedProfileImage ?? form.get('profileImage'),
-                    generateProfileImageUploadUrl,
-                  )
-                  await updateProfile({
-                    displayName: String(form.get('displayName') || fallbackName),
-                    profileImageStorageId,
-                    bio: String(form.get('bio') || ''),
-                  })
-                  setNotice('Profile saved.')
-                  closeEdit()
-                } catch (profileError) {
-                  setError(profileError instanceof Error ? describeConvexError(profileError) : 'Profile could not be saved.')
-                } finally {
-                  setSaving(false)
-                }
-              }}
-            >
-              <div className="profile-dialog-header">
-                <div>
-                  <h2 id="edit-profile-title" className="text-h2">Edit profile</h2>
-                  <p className="text-meta mt-1">Name, picture, and bio do not need review.</p>
-                </div>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={closeEdit}>
-                  Cancel
-                </button>
-              </div>
-              <div className="profile-dialog-body">
-                <label
-                  className="profile-upload-card"
-                  onDragOver={(event) => {
-                    event.preventDefault()
-                    event.currentTarget.dataset.dragging = 'true'
-                  }}
-                  onDragLeave={(event) => {
-                    delete event.currentTarget.dataset.dragging
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault()
-                    delete event.currentTarget.dataset.dragging
-                    selectProfileImage(event.dataTransfer.files.item(0))
-                  }}
-                >
-                  <span className="profile-upload-card-icon" aria-hidden="true">+</span>
-                  <span className="profile-upload-card-title">Select or drop an image</span>
-                  <span className="profile-upload-card-meta">
-                    {selectedProfileImage ? selectedProfileImage.name : 'PNG, JPG, or GIF. 5 MB max.'}
-                  </span>
-                  <input
-                    name="profileImage"
-                    type="file"
-                    accept="image/*"
-                    className="profile-upload-input"
-                    onChange={(event) => selectProfileImage(event.currentTarget.files?.item(0) ?? null)}
-                  />
-                </label>
-                {selectedProfileImage && selectedProfileImage.type.startsWith('image/') ? (
-                  <AvatarCropper file={selectedProfileImage} crop={avatarCrop} onChange={setAvatarCrop} />
-                ) : null}
-                <label className="field-row">
-                  <span className="label">Name</span>
-                  <input name="displayName" required defaultValue={displayName} className="field" />
-                </label>
-                <label className="field-row">
-                  <span className="label">Bio <span className="label-aux">required</span></span>
-                  <textarea
-                    name="bio"
-                    required
-                    defaultValue={bio}
-                    className="field min-h-32"
-                    maxLength={500}
-                    placeholder="For example: I can help you practice a new language, and I make everyday errands more fun."
-                  />
-                </label>
-              </div>
-              <div className="profile-dialog-footer">
-                <button type="button" className="btn btn-neutral btn-sm" onClick={closeEdit}>
-                  Close
-                </button>
-                <button disabled={saving} className="btn btn-self btn-sm">{saving ? 'Saving...' : 'Save profile'}</button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
+          <label className="field-row">
+            <span className="label">Name</span>
+            <input name="displayName" required defaultValue={displayName} className="field" />
+          </label>
+          <label className="field-row">
+            <span className="label">Bio <span className="label-aux">required</span></span>
+            <textarea
+              name="bio"
+              required
+              defaultValue={bio}
+              className="field min-h-32"
+              maxLength={500}
+              placeholder="For example: I can help you practice a new language, and I make everyday errands more fun."
+            />
+          </label>
+        </form>
+      </Dialog>
+
+      <ProfilePhotoComposerDialog
+        open={photoOpen}
+        onClose={() => setPhotoOpen(false)}
+        authorName={displayName}
+        authorImageUrl={profileImageUrl || undefined}
+        onSave={saveProfilePhoto}
+      />
     </main>
   )
 }
@@ -467,8 +445,33 @@ async function uploadProfileImage(
   return storageId as Id<'_storage'>
 }
 
-function ProfilePhoto({ imageUrl, name, size }: { imageUrl?: string; name: string; size?: 'lg' | 'xl' }) {
+function ProfilePhoto({
+  imageUrl,
+  name,
+  size,
+  onSelect,
+}: {
+  imageUrl?: string
+  name: string
+  size?: 'lg' | 'xl'
+  onSelect?: () => void
+}) {
   const className = size === 'xl' ? 'profile-photo profile-photo-xl' : size === 'lg' ? 'profile-photo profile-photo-lg' : 'profile-photo'
+
+  if (onSelect) {
+    return (
+      <button
+        type="button"
+        className={`${className} profile-photo-button`}
+        onClick={onSelect}
+        aria-label="Update profile picture"
+      >
+        {imageUrl ? <img src={imageUrl} alt="" /> : <User aria-hidden="true" />}
+        <span className="profile-photo-edit-badge" aria-hidden="true"><Camera size={18} /></span>
+      </button>
+    )
+  }
+
   return (
     <span className={className} aria-hidden={imageUrl ? undefined : true}>
       {imageUrl ? <OpenableImage src={imageUrl} alt={`${name} profile photo`} /> : <User aria-hidden="true" />}

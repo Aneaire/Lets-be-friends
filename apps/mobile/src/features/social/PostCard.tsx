@@ -15,6 +15,7 @@ export function PostCard({
   authorAction,
   meta,
   metaPlacement = 'inline',
+  context,
   headerAction,
   children,
   footer,
@@ -27,6 +28,7 @@ export function PostCard({
   authorAction?: ReactNode
   meta?: ReactNode
   metaPlacement?: 'inline' | 'below'
+  context?: ReactNode
   headerAction?: ReactNode
   children: ReactNode
   footer?: ReactNode
@@ -55,6 +57,7 @@ export function PostCard({
             {username ? <AppText variant="caption" color={theme.colors.textMuted}>·</AppText> : null}
             <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{timestamp}</AppText>
           </View>
+          {context ? <View style={styles.contextLine}>{context}</View> : null}
           {metaPlacement === 'below' && meta ? <View style={styles.metaBelow}>{meta}</View> : null}
         </View>
         {headerAction ? <View style={styles.headerAction}>{headerAction}</View> : null}
@@ -95,6 +98,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'baseline',
+    gap: 4,
+  },
+  contextLine: {
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
   },
   metaBelow: {

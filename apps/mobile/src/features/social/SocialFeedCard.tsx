@@ -254,6 +254,9 @@ function ConnectedPostCard({ item, signedIn, following, followBusy, onToggleFoll
           onPress={() => void follow()}
         />
       ) : undefined}
+      context={post.profilePictureUpdate ? (
+        <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>Profile picture update</AppText>
+      ) : undefined}
       headerAction={signedIn ? (
         <IconButton
           label="Post options"

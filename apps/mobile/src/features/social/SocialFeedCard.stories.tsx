@@ -103,3 +103,25 @@ export const SignedOutReadOnly: Story = {
     await expect(canvas.queryByRole('button', { name: 'Post options' })).not.toBeInTheDocument()
   },
 }
+
+export const ProfilePictureUpdate: Story = {
+  args: {
+    item: {
+      ...photoPost,
+      itemKey: 'post:story-profile-picture',
+      post: {
+        ...photoPostBody,
+        _id: 'story-profile-picture',
+        body: 'A new season, a new photo.',
+        media: [{ storageId: 'story-profile-picture', kind: 'image', url: photo }],
+        poll: undefined,
+        profilePictureUpdate: true,
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Profile picture update')).toBeVisible()
+    await expect(canvas.getByText('A new season, a new photo.')).toBeVisible()
+  },
+}

@@ -1,6 +1,6 @@
 import type { StoredMention } from '@lets-be-friends/shared'
 import { Link } from '@tanstack/react-router'
-import { forwardRef, useState, type ReactNode } from 'react'
+import { forwardRef, Fragment, useState, type ReactNode } from 'react'
 import { Avatar } from '../../design-system/atoms/Avatar'
 import { ConfirmationDialog } from '../../design-system/molecules/Dialog'
 import { describeConvexError } from '../../lib/convexErrors'
@@ -36,6 +36,7 @@ export type SocialPostView = {
   commentCount: number
   saved: boolean
   experienceBookingId?: string | null
+  profilePictureUpdate?: boolean
 }
 
 export type SocialPostCardProps = {
@@ -166,6 +167,10 @@ export const SocialPostCard = forwardRef<HTMLElement, SocialPostCardProps>(funct
 
   const showMenu = viewerReady && Boolean(onEdit || onDelete || onReport)
   const shareAction = viewerReady && onShareToFeed ? () => setShareOpen(true) : undefined
+  const metaLabels = [
+    post.profilePictureUpdate ? 'Profile picture update' : null,
+    post.experienceBookingId ? 'Experience post' : null,
+  ].filter((label): label is string => Boolean(label))
 
   return (
     <>
@@ -180,10 +185,14 @@ export const SocialPostCard = forwardRef<HTMLElement, SocialPostCardProps>(funct
         dateTime={new Date(post.createdAt).toISOString()}
         authorAction={authorAction}
         avatarAction={avatarAction}
-        meta={post.experienceBookingId ? (
+        meta={metaLabels.length > 0 ? (
           <>
-            <span className="ds-post-meta-separator" aria-hidden="true">·</span>
-            <span>Experience post</span>
+            {metaLabels.map((label) => (
+              <Fragment key={label}>
+                <span className="ds-post-meta-separator" aria-hidden="true">·</span>
+                <span>{label}</span>
+              </Fragment>
+            ))}
           </>
         ) : undefined}
         actions={showMenu ? (
@@ -225,7 +234,13 @@ export const SocialPostCard = forwardRef<HTMLElement, SocialPostCardProps>(funct
           </form>
         ) : post.body ? <MentionText body={post.body} mentions={post.mentions} className="ds-post-copy" /> : null}
         {actionError && <p className="text-meta social-comment-error mt-2" role="alert">{actionError}</p>}
-        {post.media.length > 0 && <PostMediaGrid media={post.media} onOpenAt={onOpenMedia} />}
+        {post.media.length > 0 && (
+          <PostMediaGrid
+            media={post.media}
+            onOpenAt={onOpenMedia}
+            className={post.profilePictureUpdate ? 'profile-picture-post-media' : undefined}
+          />
+        )}
         {post.poll && (
           <PollCard
             poll={post.poll}

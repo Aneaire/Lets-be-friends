@@ -300,7 +300,6 @@ export const updateProfile = mutation({
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
     onboardingCategories: v.optional(v.array(v.string())),
-    profileImageStorageId: v.optional(v.id('_storage')),
     bio: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -320,7 +319,6 @@ export const updateProfile = mutation({
 
     const bio = normalizeOptional(args.bio, 500)
     const existing = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId)).unique()
-    if (args.profileImageStorageId) await requireImageStorage(ctx, args.profileImageStorageId)
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -328,15 +326,11 @@ export const updateProfile = mutation({
         ...(args.firstName !== undefined ? { firstName } : {}),
         ...(args.lastName !== undefined ? { lastName } : {}),
         ...(args.onboardingCategories !== undefined ? { onboardingCategories } : {}),
-        ...(args.profileImageStorageId ? { profileImageStorageId: args.profileImageStorageId, profileImageUrl: undefined } : {}),
         bio,
         updatedAt: now,
       })
       const companionProfile = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', existing._id)).first()
       if (companionProfile) await ctx.db.patch(companionProfile._id, { displayName, updatedAt: now })
-      if (args.profileImageStorageId && existing.profileImageStorageId && existing.profileImageStorageId !== args.profileImageStorageId) {
-        await ctx.storage.delete(existing.profileImageStorageId)
-      }
       return existing._id
     }
 
@@ -347,7 +341,6 @@ export const updateProfile = mutation({
       firstName,
       lastName,
       onboardingCategories,
-      profileImageStorageId: args.profileImageStorageId,
       bio,
       role: existingAdmin ? 'member' : 'admin',
       verificationStatus: 'not_started',
@@ -395,13 +388,4 @@ function validateCoordinates(latitude?: number, longitude?: number) {
 async function profileImageUrl(ctx: any, user: { profileImageStorageId?: any; profileImageUrl?: string }) {
   if (!user.profileImageStorageId) return user.profileImageUrl
   return await ctx.storage.getUrl(user.profileImageStorageId) ?? user.profileImageUrl
-}
-
-async function requireImageStorage(ctx: any, storageId: any) {
-  const metadata = await ctx.db.system.get('_storage', storageId)
-  if (!metadata) throw new ConvexError('Uploaded profile image was not found')
-  if (metadata.size > 5 * 1024 * 1024) throw new ConvexError('Profile image must be 5 MB or smaller')
-  if (metadata.contentType && !metadata.contentType.startsWith('image/')) {
-    throw new ConvexError('Profile image must be an image file')
-  }
 }

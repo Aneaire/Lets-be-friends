@@ -93,7 +93,7 @@ export function PostComposerView({
         author={authorName}
         imageUrl={authorImageUrl}
         timestamp="Just now"
-        className="social-post post-editor-card"
+        className="post-editor-card"
         aria-label="Write your post"
       >
         {bodyField}

@@ -102,3 +102,39 @@ export const OwnerPost: Story = {
     await expect(canvas.getByRole('menuitem', { name: 'Delete post' })).toBeVisible()
   },
 }
+
+const profilePicturePost: SocialPostView = {
+  ...ownPost,
+  _id: 'post-profile-picture',
+  body: 'New season, new photo.',
+  profilePictureUpdate: true,
+  media: [{
+    storageId: 'storage-profile-picture',
+    kind: 'image',
+    url: '/images/marketing/celebrate-with-someone-768.webp',
+  }],
+}
+
+export const ProfilePictureUpdate: Story = {
+  render: () => (
+    <StoryRouter>
+      <div className="social-feed">
+        <SocialPostCard
+          post={profilePicturePost}
+          viewerReady
+          onToggleComments={fn()}
+          onLike={fn()}
+          onSave={fn()}
+          onEdit={fn()}
+          onDelete={fn()}
+        />
+      </div>
+    </StoryRouter>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Profile picture update')).toBeVisible()
+    await expect(canvas.getByText('New season, new photo.')).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Open post image 1' })).toBeVisible()
+  },
+}

@@ -7,6 +7,7 @@ import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native'
 import { mobileApi, type StorageId } from '@/backend/client'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { ProfileEditContent } from '@/member/ProfileEditContent'
+import { ProfilePhotoComposer } from '@/member/ProfilePhotoComposer'
 import { canSaveProfileEdit, profileEditFieldCopy } from '@/member/profileEditFields'
 import { cropProfileImage } from '@/member/cropProfileImage'
 import { defaultAvatarCrop, normalizeAvatarCrop, type AvatarCrop } from '@/member/avatarCrop'
@@ -33,11 +34,15 @@ export default function ProfileEditScreen() {
 function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMobileMember>, { status: 'ready' }>['viewer'] }) {
   const theme = useAppTheme()
   const updateProfile = useMutation(mobileApi.users.updateProfile)
+  const updateProfilePicture = useMutation(mobileApi.social.updateProfilePicture)
   const generateUploadUrl = useMutation(mobileApi.users.generateProfileImageUploadUrl)
   const [displayName, setDisplayName] = useState(viewer.displayName)
   const [bio, setBio] = useState(viewer.bio ?? '')
   const [imageAsset, setImageAsset] = useState<ImagePicker.ImagePickerAsset | null>(null)
   const [avatarCrop, setAvatarCrop] = useState<AvatarCrop>(defaultAvatarCrop)
+  const [photoComposerOpen, setPhotoComposerOpen] = useState(false)
+  const [photoCaption, setPhotoCaption] = useState('')
+  const [photoShareToFeed, setPhotoShareToFeed] = useState(true)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   useAppToastMessage(message)
@@ -83,28 +88,68 @@ function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMob
     return preparePostMedia({ uri: asset.uri, mimeType: asset.mimeType || 'image/jpeg' })
   }
 
+  function openPhotoComposer() {
+    setMessage('')
+    setPhotoCaption('')
+    setPhotoShareToFeed(true)
+    setPhotoComposerOpen(true)
+  }
+
+  function closePhotoComposer() {
+    if (busyRef.current) return
+    setPhotoComposerOpen(false)
+    setImageAsset(null)
+    setAvatarCrop(defaultAvatarCrop)
+    setPhotoCaption('')
+    setPhotoShareToFeed(true)
+    setMessage('')
+  }
+
+  // The photo saves by itself, like a post, so an unfinished name or bio edit
+  // never blocks the crop the member just chose.
+  async function savePhoto() {
+    if (!imageAsset || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    setMessage('')
+    try {
+      const uploadUrl = await generateUploadUrl({})
+      const prepared = await prepareProfileImage(imageAsset)
+      if (prepared.fileSize > MAX_PROFILE_IMAGE_BYTES) throw new Error('Image is too large')
+      const profileImageStorageId = await uploadPostMedia(uploadUrl, prepared) as StorageId
+
+      await updateProfilePicture({
+        profileImageStorageId,
+        caption: photoCaption.trim(),
+        shareToFeed: photoShareToFeed,
+      })
+      setPhotoComposerOpen(false)
+      setImageAsset(null)
+      setAvatarCrop(defaultAvatarCrop)
+      setPhotoCaption('')
+      setPhotoShareToFeed(true)
+      setMessage(photoShareToFeed ? 'Profile photo posted.' : 'Profile photo updated.')
+    } catch {
+      setMessage('Your profile photo could not be posted. Check the image and try again.')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
   async function save() {
     if (!canSave || busyRef.current) return
     busyRef.current = true
     setBusy(true)
     setMessage('')
     try {
-      let profileImageStorageId: StorageId | undefined
-      if (imageAsset) {
-        const uploadUrl = await generateUploadUrl({})
-        const prepared = await prepareProfileImage(imageAsset)
-        if (prepared.fileSize > MAX_PROFILE_IMAGE_BYTES) throw new Error('Image is too large')
-        profileImageStorageId = await uploadPostMedia(uploadUrl, prepared) as StorageId
-      }
-
       await updateProfile({
         displayName: displayName.trim(),
         bio: bio.trim(),
-        ...(profileImageStorageId ? { profileImageStorageId } : {}),
       })
       goBackOrProfile()
     } catch {
-      setMessage('Your profile could not be saved. Check the name, bio, and image, then try again.')
+      setMessage('Your profile could not be saved. Check the name and bio, then try again.')
     } finally {
       busyRef.current = false
       setBusy(false)
@@ -112,30 +157,45 @@ function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMob
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.kav, { backgroundColor: theme.colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ProfileEditContent
-        avatarUri={imageAsset?.uri ?? viewer.profileImageUrl ?? undefined}
-        avatarName={displayName || viewer.displayName}
-        displayName={displayName}
-        bio={bio}
-        busy={busy}
-        canSave={canSave}
-        imagePicked={Boolean(imageAsset)}
+    <>
+      <KeyboardAvoidingView
+        style={[styles.kav, { backgroundColor: theme.colors.background }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ProfileEditContent
+          avatarUri={viewer.profileImageUrl ?? undefined}
+          avatarName={displayName || viewer.displayName}
+          displayName={displayName}
+          bio={bio}
+          busy={busy}
+          canSave={canSave}
+          nameHint={nameHint}
+          nameError={nameError}
+          bioHint={bioHint}
+          bioError={bioError}
+          onChangeName={(value) => { setDisplayName(value); setMessage('') }}
+          onChangeBio={(value) => { setBio(value); setMessage('') }}
+          onOpenPhoto={openPhotoComposer}
+          onSave={() => void save()}
+          onCancel={goBackOrProfile}
+        />
+      </KeyboardAvoidingView>
+      <ProfilePhotoComposer
+        visible={photoComposerOpen}
+        authorName={displayName || viewer.displayName}
+        currentImageUri={viewer.profileImageUrl ?? undefined}
+        selectedImageUri={imageAsset?.uri}
         crop={avatarCrop}
-        nameHint={nameHint}
-        nameError={nameError}
-        bioHint={bioHint}
-        bioError={bioError}
-        onChangeName={(value) => { setDisplayName(value); setMessage('') }}
-        onChangeBio={(value) => { setBio(value); setMessage('') }}
+        caption={photoCaption}
+        shareToFeed={photoShareToFeed}
+        busy={busy}
         onChoosePhoto={() => void chooseImage()}
         onCropChange={setAvatarCrop}
-        onSave={() => void save()}
-        onCancel={goBackOrProfile}
+        onCaptionChange={setPhotoCaption}
+        onShareToFeedChange={setPhotoShareToFeed}
+        onSave={() => void savePhoto()}
+        onClose={closePhotoComposer}
       />
-    </KeyboardAvoidingView>
+    </>
   )
 }
 

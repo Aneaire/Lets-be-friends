@@ -109,6 +109,9 @@ export function AvatarCropper({
         accessibilityLabel="Avatar preview. Drag to position the photo."
         accessibilityHint="Drag the photo inside the circle. Use the zoom controls to adjust the crop."
         accessibilityValue={{ min: AVATAR_ZOOM_MIN, max: AVATAR_ZOOM_MAX, now: crop.zoom }}
+        aria-valuemin={AVATAR_ZOOM_MIN}
+        aria-valuemax={AVATAR_ZOOM_MAX}
+        aria-valuenow={crop.zoom}
         {...panResponder.panHandlers}
         style={[styles.frame, { width: frameWidth, height: frameWidth, backgroundColor: theme.colors.surfaceRaised }]}
         onLayout={(event: LayoutChangeEvent) => setFrameWidth(event.nativeEvent.layout.width)}>
@@ -128,7 +131,7 @@ export function AvatarCropper({
           />
           {!imageReady ? (
             <View style={[styles.loading, { backgroundColor: theme.colors.border }]}>
-              <ActivityIndicator color={theme.colors.textMuted} />
+              <ActivityIndicator accessibilityLabel="Loading profile photo" color={theme.colors.textMuted} />
             </View>
           ) : null}
         </View>

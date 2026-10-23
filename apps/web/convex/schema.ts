@@ -857,6 +857,9 @@ export default defineSchema({
     mentions: v.optional(v.array(mentionEntry)),
     poll: v.optional(pollDefinition),
     experienceBookingId: v.optional(v.id('bookings')),
+    // A profile picture update is a normal post with one photo, marked so the
+    // feed can say what changed instead of treating it as an ordinary upload.
+    profilePictureUpdate: v.optional(v.boolean()),
     // Share-to-feed references. At most one is set. A share carries the sharer's
     // optional message in body and never owns the original's media or poll.
     sharedPostId: v.optional(v.id('posts')),

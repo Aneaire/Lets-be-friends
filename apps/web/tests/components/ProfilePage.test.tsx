@@ -27,6 +27,7 @@ vi.mock('../../convex/_generated/api', () => ({
       editPost: 'social.editPost',
       deletePost: 'social.deletePost',
       createPost: 'social.createPost',
+      updateProfilePicture: 'social.updateProfilePicture',
       voteOnPoll: 'social.voteOnPoll',
     },
     reviews: {
@@ -141,6 +142,17 @@ describe('profile hero actions menu', () => {
 
     expect(screen.queryByRole('menuitem', { name: 'Edit profile' })).toBeNull()
     expect(screen.getByRole('dialog', { name: 'Edit profile' })).toBeTruthy()
+    expect(document.querySelector('input[type="file"]')).toBeNull()
+  })
+
+  it('opens the post-style photo composer from the profile picture', () => {
+    render(<ProfilePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Update profile picture' }))
+
+    expect(screen.getByRole('dialog', { name: 'Update profile picture' })).toBeTruthy()
+    expect(screen.getByRole('article', { name: 'Profile photo preview' })).toBeTruthy()
+    expect(screen.getByText('Post')).toBeTruthy()
   })
 
   it('routes bookings and the Companion profile through the same menu', () => {

@@ -1878,3 +1878,120 @@ describe('review feed v2', () => {
     )
   })
 })
+
+describe('profile picture updates', () => {
+  async function storeImage(t: ReturnType<typeof convexTest>, type = 'image/webp', size?: number) {
+    return await t.run(async (ctx) => {
+      const storageId = await ctx.storage.store(new Blob(['profile-photo'], { type }))
+      await (ctx.db as any).patch(storageId, {
+        contentType: type,
+        ...(size === undefined ? {} : { size }),
+      })
+      return storageId
+    })
+  }
+
+  it('updates the profile picture and publishes it as a post', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'profile-picture-owner')
+    const owner = t.withIdentity({ subject: 'profile-picture-owner' })
+    const storageId = await storeImage(t)
+
+    const result = await owner.mutation(api.social.updateProfilePicture, {
+      profileImageStorageId: storageId,
+      caption: '  New season, new photo.  ',
+    })
+
+    const post = await t.run(async (ctx) => ctx.db.get(result.postId!))
+    expect(post).toMatchObject({
+      authorId: userId,
+      body: 'New season, new photo.',
+      profilePictureUpdate: true,
+      hidden: false,
+    })
+    expect(post?.media).toEqual([{
+      storageId,
+      kind: 'image',
+      contentType: 'image/webp',
+      size: expect.any(Number),
+    }])
+    expect((await t.run(async (ctx) => ctx.db.get(userId)))?.profileImageStorageId).toBe(storageId)
+
+    const listed = await t.query(api.social.byUser, { userId })
+    expect(listed).toHaveLength(1)
+    expect(listed[0]).toMatchObject({
+      body: 'New season, new photo.',
+      profilePictureUpdate: true,
+      media: [expect.objectContaining({ storageId, kind: 'image' })],
+    })
+  })
+
+  it('updates the photo without creating a feed post when private', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'profile-picture-private')
+    const owner = t.withIdentity({ subject: 'profile-picture-private' })
+    const storageId = await storeImage(t)
+
+    const result = await owner.mutation(api.social.updateProfilePicture, {
+      profileImageStorageId: storageId,
+      caption: 'This caption is not stored.',
+      shareToFeed: false,
+    })
+
+    expect(result.postId).toBeNull()
+    expect(result.sharedToFeed).toBe(false)
+    expect((await t.run(async (ctx) => ctx.db.get(userId)))?.profileImageStorageId).toBe(storageId)
+    const posts = await t.run(async (ctx) => ctx.db.query('posts').withIndex('by_author', (q) => q.eq('authorId', userId)).collect())
+    expect(posts).toHaveLength(0)
+  })
+
+  it('keeps the previous photo available to its own update post', async () => {
+    const t = createTest()
+    const userId = await insertUser(t, 'profile-picture-repeat')
+    const owner = t.withIdentity({ subject: 'profile-picture-repeat' })
+    const firstStorageId = await storeImage(t)
+    const secondStorageId = await storeImage(t)
+
+    const first = await owner.mutation(api.social.updateProfilePicture, { profileImageStorageId: firstStorageId })
+    await owner.mutation(api.social.updateProfilePicture, {
+      profileImageStorageId: secondStorageId,
+      caption: 'A newer look.',
+    })
+
+    expect(await t.run(async (ctx) => ctx.db.system.get('_storage', firstStorageId))).not.toBeNull()
+    expect((await t.run(async (ctx) => ctx.db.get(first.postId!)))?.media?.[0].storageId).toBe(firstStorageId)
+    expect((await t.run(async (ctx) => ctx.db.get(userId)))?.profileImageStorageId).toBe(secondStorageId)
+    const posts = await t.run(async (ctx) => ctx.db.query('posts').withIndex('by_author', (q) => q.eq('authorId', userId)).collect())
+    expect(posts.filter((post) => post.profilePictureUpdate)).toHaveLength(2)
+  })
+
+  it('rejects a photo that is not an image, is too large, or repeats the current picture', async () => {
+    const t = createTest()
+    await insertUser(t, 'profile-picture-guard')
+    const owner = t.withIdentity({ subject: 'profile-picture-guard' })
+    const videoId = await storeImage(t, 'video/mp4')
+    const oversizedId = await storeImage(t, 'image/png', 5 * 1024 * 1024 + 1)
+    const imageId = await storeImage(t)
+
+    await expect(owner.mutation(api.social.updateProfilePicture, { profileImageStorageId: videoId }))
+      .rejects.toThrow('must be an image')
+    await expect(owner.mutation(api.social.updateProfilePicture, { profileImageStorageId: oversizedId }))
+      .rejects.toThrow('5 MB or smaller')
+
+    await owner.mutation(api.social.updateProfilePicture, { profileImageStorageId: imageId })
+    await expect(owner.mutation(api.social.updateProfilePicture, { profileImageStorageId: imageId }))
+      .rejects.toThrow('already your profile picture')
+  })
+
+  it('rejects a caption longer than a post body', async () => {
+    const t = createTest()
+    await insertUser(t, 'profile-picture-caption')
+    const owner = t.withIdentity({ subject: 'profile-picture-caption' })
+    const storageId = await storeImage(t)
+
+    await expect(owner.mutation(api.social.updateProfilePicture, {
+      profileImageStorageId: storageId,
+      caption: 'x'.repeat(1001),
+    })).rejects.toThrow('Caption is too long')
+  })
+})
