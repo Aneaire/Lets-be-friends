@@ -24,7 +24,7 @@ These choices follow patterns documented by [Airbnb](https://www.airbnb.com/help
 Enabling the PayMongo Wallet is required, but it is not the entire application rollout:
 
 1. Confirm the Wallet is activated for the intended test or live mode.
-2. Keep enough Wallet balance for the withdrawal amount plus the provider fee. The app refuses to submit when the provider reports less available balance than amount plus fee, and releases the reserved earnings with `insufficient_wallet_balance`. Monitor available versus pending balance on the Wallet Dashboard plus the 10-minute reconciliation cron.
+2. Keep enough Wallet balance for the withdrawal amount plus the provider fee. The app refuses to submit when the provider reports less available balance than amount plus fee, and releases the reserved earnings with `insufficient_wallet_balance`. Monitor available versus pending balance on the Wallet Dashboard plus the 10-minute reconciliation cron. Net-of-fee payout math is in `docs/paymongo-payouts-research.md`, and funding withdrawals from a manual wallet top-up is in `docs/paymongo-topups-research.md`.
 3. Configure matching PayMongo secret and public keys, mode, and webhook secret in the Convex deployment.
 4. Register the existing `https://<convex-site>/paymongo/webhook` endpoint for `transfer.outward.successful` and `transfer.outward.failed` events. For API transfers, also set `PAYMONGO_TRANSFER_CALLBACK_URL` to that same public HTTPS URL so PayMongo posts per-transfer status updates in addition to the Dashboard webhook subscription.
 5. Generate a 32-byte payout encryption key with `openssl rand -base64 32` and store it as `PAYOUT_ACCOUNT_ENCRYPTION_KEY` in Convex. Keep this key stable.
