@@ -20,3 +20,6 @@ apps/*/.env.*
 storybook-static/
 storybook-static-mobile/
 .playwright-mcp/
+
+# Locally built Android release artifacts
+artifacts/*.apk
