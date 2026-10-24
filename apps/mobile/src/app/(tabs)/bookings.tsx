@@ -15,6 +15,8 @@ import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { EmptyState } from '@/design-system/molecules/FeedbackState'
 import { BookingsCalendarView } from '@/features/booking/BookingsCalendarView'
+import { WalletActivityList } from '@/features/finance/WalletActivityList'
+import { bookingActivityRow } from '@/data/walletActivity'
 import type { BookingsViewMode } from '@/data/bookingCalendar'
 import { useMobileMember } from '@/member/MobileMember'
 import {
@@ -29,21 +31,40 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 
 type MemberBooking = FunctionReturnType<typeof mobileApi.bookings.mine>[number]
 type CompanionBooking = FunctionReturnType<typeof mobileApi.bookings.forCompanion>[number]
+type MemberBookingTransaction = FunctionReturnType<typeof mobileApi.finance.memberBookingTransactions>[number]
 
 export default function BookingHistoryScreen() {
   const member = useMobileMember()
   const memberBookings = useQuery(mobileApi.bookings.mine, member.status === 'ready' ? {} : 'skip')
   const companionBookings = useQuery(mobileApi.bookings.forCompanion, member.status === 'ready' ? {} : 'skip')
+  const recentTransactions = useQuery(
+    mobileApi.finance.memberBookingTransactions,
+    member.status === 'ready' ? { limit: 5 } : 'skip',
+  )
 
   if (member.status === 'signed_out') return <BookingState title="Sign in to see your bookings" action="Sign in" onPress={() => router.push('/auth')} />
   if (member.status === 'unconfigured') return <BookingState title="Bookings need account services" detail="Connect your account to view booking activity." />
   if (member.status === 'unavailable' || member.status === 'error') return <BookingState title="Bookings are unavailable" detail={member.message} />
   if (member.status !== 'ready' || memberBookings === undefined || companionBookings === undefined) return <PageSkeleton variant="bookings" />
 
-  return <BookingsList memberBookings={memberBookings} companionBookings={companionBookings} />
+  return (
+    <BookingsList
+      memberBookings={memberBookings}
+      companionBookings={companionBookings}
+      recentTransactions={recentTransactions}
+    />
+  )
 }
 
-function BookingsList({ memberBookings, companionBookings }: { memberBookings: MemberBooking[]; companionBookings: CompanionBooking[] }) {
+function BookingsList({
+  memberBookings,
+  companionBookings,
+  recentTransactions,
+}: {
+  memberBookings: MemberBooking[]
+  companionBookings: CompanionBooking[]
+  recentTransactions: MemberBookingTransaction[] | undefined
+}) {
   const theme = useAppTheme()
   const [view, setView] = useState<BookingsViewMode>('calendar')
   const [filter, setFilter] = useState<MemberBookingFilter>('active')
@@ -143,6 +164,36 @@ function BookingsList({ memberBookings, companionBookings }: { memberBookings: M
           </View>
         </>
       )}
+      <View style={[styles.transactions, { borderTopColor: theme.colors.border }]}>
+        <View style={styles.transactionsHeader}>
+          <View style={styles.transactionsCopy}>
+            <AppText variant="heading">Recent transactions</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted}>
+              Holds, payments, and refunds from your bookings.
+            </AppText>
+          </View>
+          {recentTransactions && recentTransactions.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View all wallet transactions"
+              onPress={() => router.push('/wallet')}
+              style={({ pressed }) => pressed && styles.pressed}>
+              <AppText variant="label" color={theme.colors.socialText}>VIEW ALL</AppText>
+            </Pressable>
+          ) : null}
+        </View>
+        {recentTransactions === undefined ? (
+          <AppText variant="caption" color={theme.colors.textMuted} accessibilityLiveRegion="polite">
+            Loading transactions
+          </AppText>
+        ) : (
+          <WalletActivityList
+            rows={recentTransactions.map(bookingActivityRow)}
+            emptyMessage="No booking transactions yet."
+            onOpenBooking={(bookingId) => router.push(`/booking/${bookingId}` as never)}
+          />
+        )}
+      </View>
       <Pressable accessibilityRole="button" accessibilityLabel="Open Companion incoming bookings" onPress={() => router.push('/companion-bookings')} style={styles.companionLink}>
         <AppText variant="label" color={theme.colors.social}>COMPANION INCOMING BOOKINGS</AppText>
       </Pressable>
@@ -165,5 +216,9 @@ const styles = StyleSheet.create({
   filters: { marginBottom: 16 },
   list: { gap: 10 },
   companionSection: { gap: 8, marginTop: 20 },
+  transactions: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 20, paddingTop: 16, gap: 10 },
+  transactionsHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  transactionsCopy: { flex: 1, gap: 4 },
+  pressed: { opacity: 0.7 },
   companionLink: { minHeight: 48, justifyContent: 'center', alignItems: 'center', marginTop: 18 },
 })

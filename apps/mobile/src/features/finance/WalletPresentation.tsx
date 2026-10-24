@@ -3,8 +3,10 @@ import { Image, StyleSheet, TextInput, View } from 'react-native'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { Screen } from '@/design-system/templates/Screen'
+import type { WalletActivityRow } from '@/data/walletActivity'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
+import { WalletActivityList } from './WalletActivityList'
 
 export type WalletBalanceItem = {
   key: 'available' | 'reserved' | 'pending'
@@ -38,7 +40,9 @@ export function WalletPresentation({
   refreshBusy = false,
   onRefresh,
   message,
-  topUps,
+  activity,
+  activityLoading = false,
+  onOpenBooking,
   onReturn,
   onOpenWithdrawals,
 }: {
@@ -54,7 +58,9 @@ export function WalletPresentation({
   refreshBusy?: boolean
   onRefresh: () => void
   message?: string
-  topUps: readonly WalletTopUpItem[]
+  activity: readonly WalletActivityRow[]
+  activityLoading?: boolean
+  onOpenBooking?: (bookingId: string) => void
   onReturn: () => void
   onOpenWithdrawals: () => void
 }) {
@@ -185,22 +191,25 @@ export function WalletPresentation({
       ) : null}
 
       <View style={styles.history}>
-        <AppText variant="heading">Recent top-ups</AppText>
-        {topUps.length === 0 ? (
-          <AppText color={theme.colors.textMuted}>No member-wallet top-ups yet.</AppText>
-        ) : topUps.map((topUp) => (
-          <View key={topUp.id} style={[styles.row, { borderColor: theme.colors.border }]}>
-            <View style={styles.rowCopy}>
-              <AppText variant="bodyStrong">{topUp.amountLabel}</AppText>
-              <AppText variant="caption" color={theme.colors.textMuted}>{topUp.createdLabel}</AppText>
-            </View>
-            <AppText
+        <View style={styles.copy}>
+          <AppText variant="heading">Recent transactions</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>
+            Holds, payments, top-ups, and refunds from your wallet.
+          </AppText>
+        </View>
+        {activityLoading
+          ? <AppText
               variant="caption"
-              color={topUp.payable ? theme.colors.socialText : theme.colors.textMuted}>
-              {topUp.statusLabel}
+              color={theme.colors.textMuted}
+              accessibilityLiveRegion="polite">
+              Loading transactions
             </AppText>
-          </View>
-        ))}
+          : (
+              <WalletActivityList
+                rows={activity}
+                onOpenBooking={onOpenBooking}
+              />
+            )}
       </View>
       <ActionButton label="Withdraw funds" onPress={onOpenWithdrawals} intent="self" />
       <ActionButton label="Return to Profile" onPress={onReturn} secondary intent="self" />
@@ -221,6 +230,4 @@ const styles = StyleSheet.create({
   status: { borderRadius: 999, paddingHorizontal: density.cardGap, paddingVertical: density.textPairGap },
   qr: { width: '100%', aspectRatio: 1, borderRadius: 14, backgroundColor: '#FFFFFF' },
   history: { gap: density.cardGap },
-  row: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: density.compactCardPadding, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: density.cardPadding },
-  rowCopy: { flex: 1, gap: density.textPairGap },
 })

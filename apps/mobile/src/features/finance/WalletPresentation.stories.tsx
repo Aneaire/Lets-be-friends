@@ -3,9 +3,18 @@ import { useState } from 'react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 
 import {
+  bookingActivityRow,
+  topUpActivityRow,
+  type MemberBookingTransaction,
+  type MemberTopUpRecord,
+} from '@/data/walletActivity'
+
+import {
   WalletPresentation,
   type WalletTopUpItem,
 } from './WalletPresentation'
+
+const NOW = Date.parse('2026-08-24T01:42:00.000Z')
 
 const balances = [
   { key: 'available' as const, label: 'Available balance', value: '₱2,450.00' },
@@ -36,10 +45,51 @@ const awaitingTopUp: WalletTopUpItem = {
   canRefresh: true,
 }
 
+const paidTopUpRecord: MemberTopUpRecord = {
+  _id: 'paid-1',
+  amountCentavos: 100_000,
+  status: 'paid',
+  createdAt: NOW - 86_400_000,
+  paidAt: NOW - 86_400_000,
+}
+
+const awaitingTopUpRecord: MemberTopUpRecord = {
+  _id: 'awaiting-1',
+  amountCentavos: 100_000,
+  status: 'awaiting_payment',
+  createdAt: NOW,
+  expiresAt: NOW + 3_600_000,
+}
+
+const bookingTransaction: MemberBookingTransaction = {
+  _id: 'transaction-1',
+  kind: 'booking_reserve',
+  amountCentavos: 50_000,
+  createdAt: NOW - 7_200_000,
+  bookingId: 'booking-1',
+  category: 'Coffee and a walk',
+  companionDisplayName: 'Mika Santos',
+}
+
+const closedBookingTransaction: MemberBookingTransaction = {
+  ...bookingTransaction,
+  _id: 'transaction-2',
+  kind: 'booking_complete',
+  createdAt: NOW - 3_600_000,
+}
+
+const activity = [
+  bookingActivityRow(bookingTransaction),
+  bookingActivityRow(closedBookingTransaction),
+  topUpActivityRow(paidTopUpRecord, NOW),
+  topUpActivityRow(awaitingTopUpRecord, NOW),
+]
+
 const createTopUp = fn()
 const refreshTopUp = fn()
 const returnToProfile = fn()
 const changeAmount = fn()
+const openBooking = fn()
 
 const meta = {
   title: 'Mobile/Finance/Booking wallet',
@@ -54,7 +104,8 @@ const meta = {
     createDisabled: false,
     onCreate: createTopUp,
     onRefresh: refreshTopUp,
-    topUps: [],
+    activity: [],
+    onOpenBooking: openBooking,
     onReturn: returnToProfile,
     onOpenWithdrawals: fn(),
   },
@@ -67,7 +118,7 @@ export const ReadyNoHistory: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('₱2,450.00')).toBeVisible()
-    await expect(canvas.getByText('No member-wallet top-ups yet.')).toBeVisible()
+    await expect(canvas.getByText('No wallet activity yet.')).toBeVisible()
     await userEvent.click(
       canvas.getByRole('button', { name: 'Create QR Ph top-up' }),
     )
@@ -91,7 +142,7 @@ function AmountEntryStory() {
       createDisabled={false}
       onCreate={createTopUp}
       onRefresh={refreshTopUp}
-      topUps={[]}
+      activity={[]}
       onReturn={returnToProfile}
       onOpenWithdrawals={fn()}
     />
@@ -112,18 +163,44 @@ export const AmountEntry: Story = {
 export const CurrentQrAttempt: Story = {
   args: {
     currentTopUp: awaitingTopUp,
-    topUps: [awaitingTopUp, paidTopUp],
+    activity: [
+      topUpActivityRow(awaitingTopUpRecord, NOW),
+      topUpActivityRow(paidTopUpRecord, NOW),
+    ],
     createLabel: 'A QR attempt is still active',
     createDisabled: true,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getAllByText('Awaiting payment')).toHaveLength(2)
+    await expect(canvas.getByText('Awaiting payment')).toBeVisible()
+    await expect(canvas.getAllByText('Top-up pending')).toHaveLength(1)
     await expect(canvas.getByText(/Expires Aug 24/)).toBeVisible()
     await userEvent.click(
       canvas.getByRole('button', { name: 'Refresh provider status' }),
     )
     await expect(refreshTopUp).toHaveBeenCalledOnce()
+  },
+}
+
+export const BookingActivity: Story = {
+  args: { activity },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Reserved for booking')).toBeVisible()
+    await expect(canvas.getByText('Booking completed')).toBeVisible()
+    await expect(canvas.getByText('−₱500.00')).toBeVisible()
+    await expect(canvas.getByText('+₱1,000.00')).toBeVisible()
+    await userEvent.click(
+      canvas.getByRole('button', { name: /Reserved for booking/ }),
+    )
+    await expect(openBooking).toHaveBeenCalledWith('booking-1')
+  },
+}
+
+export const LoadingActivity: Story = {
+  args: { activityLoading: true },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText('Loading transactions')).toBeVisible()
   },
 }
 
@@ -141,7 +218,7 @@ export const CreatingTopUp: Story = {
 export const RefreshingProvider: Story = {
   args: {
     currentTopUp: awaitingTopUp,
-    topUps: [awaitingTopUp],
+    activity: [topUpActivityRow(awaitingTopUpRecord, NOW)],
     createLabel: 'A QR attempt is still active',
     createDisabled: true,
     refreshBusy: true,
@@ -157,12 +234,12 @@ export const TopUpsUnavailable: Story = {
   args: {
     enabled: false,
     createDisabled: true,
-    topUps: [paidTopUp],
+    activity: [topUpActivityRow(paidTopUpRecord, NOW)],
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('New wallet top-ups are unavailable')).toBeVisible()
-    await expect(canvas.getByText('Paid')).toBeVisible()
+    await expect(canvas.getByText('Wallet top-up')).toBeVisible()
   },
 }
 
@@ -170,7 +247,7 @@ export const ConfirmationMessage: Story = {
   args: {
     message: 'QR Ph top-up for ₱1,000.00 is ready to scan.',
     currentTopUp: awaitingTopUp,
-    topUps: [awaitingTopUp],
+    activity: [topUpActivityRow(awaitingTopUpRecord, NOW)],
     createLabel: 'A QR attempt is still active',
     createDisabled: true,
   },
@@ -179,14 +256,14 @@ export const ConfirmationMessage: Story = {
 export const LongHistoryAt320: Story = {
   globals: { viewport: { value: 'mobileSmall', isRotated: false } },
   args: {
-    topUps: [
-      paidTopUp,
+    activity: [
+      ...activity,
       {
-        ...paidTopUp,
-        id: 'failed-2',
+        ...topUpActivityRow(paidTopUpRecord, NOW),
+        key: 'top-up-failed-2',
+        label: 'Top-up failed',
         amountLabel: '₱100,000.00',
-        createdLabel: 'Sunday, August 24, 2026 at 11:48 PM',
-        statusLabel: 'Provider confirmation could not be completed',
+        timeLabel: 'Sunday, August 24, 2026 at 11:48 PM',
       },
     ],
   },
@@ -199,5 +276,5 @@ export const LongHistoryAt320: Story = {
 
 export const Dark: Story = {
   globals: { theme: 'dark' },
-  args: { topUps: [paidTopUp] },
+  args: { activity },
 }

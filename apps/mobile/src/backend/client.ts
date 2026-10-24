@@ -48,6 +48,8 @@ export const mobileApi = {
   finance: {
     dashboard: generatedApi.finance.dashboard,
     memberDashboard: generatedApi.finance.memberDashboard,
+    memberBookingTransactions: generatedApi.finance.memberBookingTransactions,
+    memberTopUps: generatedApi.finance.memberTopUps,
   },
   withdrawals: {
     dashboard: generatedApi.withdrawals.dashboard,

@@ -18,6 +18,7 @@ import {
   topUpPresentation,
   walletBalanceRows,
 } from '@/data/wallet'
+import { walletActivityRows } from '@/data/walletActivity'
 import {
   WalletPresentation,
   type WalletTopUpItem,
@@ -39,12 +40,28 @@ export default function WalletScreen() {
 
 function ReadyWalletScreen() {
   const wallet = useQuery(mobileApi.finance.memberDashboard, {})
+  const bookingTransactions = useQuery(mobileApi.finance.memberBookingTransactions, { limit: 50 })
+  const topUps = useQuery(mobileApi.finance.memberTopUps, { limit: 50 })
   if (wallet === undefined) return <PageSkeleton variant="wallet" />
   if (wallet === null) return <WalletState title="Booking wallet is unavailable" detail="Your wallet could not be connected safely." />
-  return <WalletView wallet={wallet} />
+  return (
+    <WalletView
+      wallet={wallet}
+      bookingTransactions={bookingTransactions}
+      topUps={topUps}
+    />
+  )
 }
 
-function WalletView({ wallet }: { wallet: Wallet }) {
+function WalletView({
+  wallet,
+  bookingTransactions,
+  topUps,
+}: {
+  wallet: Wallet
+  bookingTransactions: FunctionReturnType<typeof mobileApi.finance.memberBookingTransactions> | undefined
+  topUps: FunctionReturnType<typeof mobileApi.finance.memberTopUps> | undefined
+}) {
   const createTopUp = useAction(mobileApi.paymongo.createMemberTopUp)
   const refreshTopUp = useAction(mobileApi.paymongo.refreshMemberTopUp)
   const [amount, setAmount] = useState('1000')
@@ -56,6 +73,8 @@ function WalletView({ wallet }: { wallet: Wallet }) {
   const activeTopUp = wallet.topUps.find((topUp) => topUpPresentation(topUp.status, topUp.expiresAt, clockNow).active)
   const displayTopUp = activeTopUp ?? wallet.topUps[0]
   const waitingForCreatedTopUp = pendingCreatedTopUpId !== null
+  const activity = walletActivityRows(bookingTransactions ?? [], topUps ?? [], clockNow)
+  const activityLoading = bookingTransactions === undefined || topUps === undefined
 
   useEffect(() => {
     const timer = setInterval(() => setClockNow(Date.now()), 30_000)
@@ -140,7 +159,9 @@ function WalletView({ wallet }: { wallet: Wallet }) {
         if (displayTopUp) void refresh(displayTopUp._id as PaymongoTopUpId)
       }}
       message={message}
-      topUps={wallet.topUps.map((topUp) => walletTopUpItem(topUp, clockNow))}
+      activity={activity}
+      activityLoading={activityLoading}
+      onOpenBooking={(bookingId) => router.push(`/booking/${bookingId}` as never)}
       onReturn={() => router.replace('/profile')}
       onOpenWithdrawals={() => router.push('/companion-finance')}
     />
