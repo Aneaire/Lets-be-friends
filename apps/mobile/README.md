@@ -29,7 +29,7 @@ With the Convex and Clerk values configured, the app provides secure Clerk sessi
 
 ### Google OAuth
 
-The credentials screen supports browser-based Google OAuth for both sign-in and sign-up. Clerk transfers the flow as needed, so a Google login using the same verified email as a website account resolves through Clerk's account linking rather than creating a separate mobile-only account.
+The account screen offers browser-based Google OAuth as its only method, for both sign-in and sign-up. There is no email, password, recovery, or separate account form. Clerk transfers the flow as needed, so a Google login using the same verified email as a website account resolves through Clerk's account linking rather than creating a separate mobile-only account.
 
 Add this exact entry to the Clerk Native applications redirect allowlist:
 

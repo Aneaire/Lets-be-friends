@@ -24,6 +24,15 @@ export const PublicProfile: Story = {
   },
 }
 
+export const Auth: Story = {
+  args: { variant: 'auth' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('progressbar', { name: 'Loading sign in' })).toBeVisible()
+    await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
+  },
+}
+
 export const Explore: Story = {
   args: { variant: 'explore' },
   play: async ({ canvasElement }) => {

@@ -42,7 +42,7 @@ function SignedOutProfile() {
         eyebrow="YOUR ACCOUNT"
         title="Bring your member profile with you"
         detail="Sign in to view and edit your real profile, account status, bookings, wallet, and notification settings."
-        actionLabel="Sign in or create account"
+        actionLabel="Sign in"
         onAction={() => router.push('/auth')}
         intent="self"
       />

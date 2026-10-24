@@ -207,13 +207,17 @@ function SectionSkeleton({ rows = 2 }: { rows?: number }) {
 
 function AuthSkeleton() {
   return (
-    <View style={styles.auth}>
-      <View style={styles.brandMark}><Skeleton width={54} height={54} radius={18} /></View>
-      <TitleSkeleton />
-      <View style={styles.form}>
+    <View style={styles.authFrame}>
+      <View style={styles.authBrand}>
+        <Skeleton width={76} height={84} radius={18} />
+        <View style={styles.authBrandCopy}>
+          <Skeleton width={150} height={24} radius={7} />
+          <Skeleton width={220} height={14} radius={7} />
+        </View>
+      </View>
+      <View style={styles.authAction}>
         <Skeleton height={50} radius={14} />
-        <Skeleton height={50} radius={14} />
-        <Skeleton width="58%" height={13} style={styles.centered} />
+        <Skeleton width="46%" height={13} style={styles.centered} />
       </View>
     </View>
   )
@@ -427,8 +431,10 @@ const styles = StyleSheet.create({
   cardActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
   section: { flex: 1, gap: density.cardGap },
   sectionRow: { gap: 5 },
-  auth: { flex: 1, justifyContent: 'center', gap: density.contentGap, paddingBottom: 48 },
-  brandMark: { alignItems: 'flex-start', marginBottom: 4 },
+  authFrame: { flex: 1, width: '100%', maxWidth: 420, alignSelf: 'center', justifyContent: 'center', alignItems: 'center', gap: 32 },
+  authBrand: { alignItems: 'center', gap: 14 },
+  authBrandCopy: { alignItems: 'center', gap: 8 },
+  authAction: { width: '100%', gap: 14 },
   stepRow: { flexDirection: 'row', justifyContent: 'space-between' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   messageList: { flex: 1, justifyContent: 'flex-end', gap: 14, paddingVertical: 12 },
