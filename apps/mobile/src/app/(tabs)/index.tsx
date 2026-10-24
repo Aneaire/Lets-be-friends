@@ -14,7 +14,7 @@ import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
-import { Brand } from '@/design-system/atoms/Brand'
+import { Brand, BRAND_TAGLINE } from '@/design-system/atoms/Brand'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { Screen } from '@/design-system/templates/Screen'
 import { PostComposer } from '@/features/social/PostComposer'
@@ -32,8 +32,6 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { dedupeFeedItems, maximumPostMediaItems, postMediaValidationError } from '@/data/discovery'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
-import { CurrentCircleContextCard } from '@/features/guidance/CurrentCircleContextCard'
-import { FriendayGuideCard } from '@/features/guidance/FriendayGuideCard'
 
 type FeedFilter = 'for_you' | 'following' | 'saved'
 type FeedItem = FunctionReturnType<typeof mobileApi.social.feedPage>['page'][number]
@@ -325,7 +323,7 @@ function ConnectedHome() {
             }}
         ListHeaderComponent={<>
       <View style={styles.topBar}>
-        <View style={styles.titleCopy}><Brand compact /><AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>Everyday help, useful ideas, and real connections</AppText></View>
+        <View style={styles.titleCopy}><Brand size="sm" /><AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{BRAND_TAGLINE}</AppText></View>
         <View style={styles.topActions}>
           {signedIn ? <Pressable accessibilityRole="button" accessibilityLabel={unread ? `Open notifications, ${unread} unread` : 'Open notifications'} onPress={() => router.push('/notifications')} style={[styles.iconButton, { borderColor: theme.colors.border }]}><AppIcon name={unread ? 'notifications' : 'notifications-outline'} color={theme.colors.text} />{unread ? <View style={[styles.badge, { backgroundColor: theme.colors.socialControl }]}><AppText variant="caption" color={theme.colors.accentText}>{unread > 99 ? '99+' : unread}</AppText></View> : null}</Pressable> : null}
           <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={() => router.navigate('/profile')} style={styles.profileButton}><Avatar uri={accountImage} name={accountName ?? 'Account'} size={38} /></Pressable>
@@ -365,13 +363,7 @@ function ConnectedHome() {
           onSelectMention={insertMention}
           onPublish={() => void publish()}
         />
-      ) : (
-        <View style={[styles.signInCard, { borderColor: theme.colors.border }]}><AppText variant="bodyStrong">Join the conversation</AppText><AppText variant="caption" color={theme.colors.textMuted}>{auth.status === 'unconfigured' ? 'Account services are not configured in this build. Public For You activity remains read only.' : 'Sign in to post, follow, save, comment, and shape your feed.'}</AppText>{auth.status === 'signed_out' ? <ActionButton label="Sign in" onPress={() => router.push('/auth')} secondary /> : null}</View>
-      )}
-
-      <FriendayGuideCard />
-
-      {signedIn ? <CurrentCircleContextCard /> : null}
+      ) : null}
 
       <SegmentedControl
         label="Community feed"
@@ -382,11 +374,9 @@ function ConnectedHome() {
         style={styles.feedFilter}
       />
         </>}
-        ListEmptyComponent={!canQuery
-          ? <StateView embedded title={`Sign in to view ${filter}`} detail="This feed uses your real account relationships and saved posts." actionLabel={auth.status === 'signed_out' ? 'Sign in' : undefined} onAction={auth.status === 'signed_out' ? () => router.push('/auth') : undefined} />
-          : feedPage.status === 'LoadingFirstPage'
-            ? <View style={styles.skeletonList}><FeedSkeleton /><FeedSkeleton /><FeedSkeleton /></View>
-            : <StateView embedded title={filter === 'following' ? 'No posts from followed members yet' : filter === 'saved' ? 'No saved posts yet' : 'No community posts yet'} detail={filter === 'for_you' ? 'Approved Companion recommendations and guidance appear when available.' : 'Use For You and Explore to find people and posts that matter to you.'} />}
+        ListEmptyComponent={feedPage.status === 'LoadingFirstPage'
+          ? <View style={styles.skeletonList}><FeedSkeleton /><FeedSkeleton /><FeedSkeleton /></View>
+          : <StateView embedded title={filter === 'following' ? 'No posts from followed members yet' : filter === 'saved' ? 'No saved posts yet' : 'No community posts yet'} detail={filter === 'for_you' ? 'Approved Companion recommendations and guidance appear when available.' : 'Use For You and Explore to find people and posts that matter to you.'} />}
         ListFooterComponent={feedPage.status === 'CanLoadMore' ? <View style={styles.loadMore}><ActionButton label="Load more updates" onPress={() => loadMoreFeed('manual')} intent="social" secondary /></View> : feedPage.status === 'LoadingMore' ? <View style={styles.loadMore}><AppText variant="caption" color={theme.colors.textMuted}>Loading more updates.</AppText></View> : feedPage.status === 'Exhausted' && visibleFeedItems.length > 0 ? <View style={styles.loadMore}><AppText variant="caption" color={theme.colors.textMuted}>You are caught up.</AppText></View> : null}
           />
         </Screen>
@@ -419,7 +409,6 @@ const styles = StyleSheet.create({
   iconButton: { position: 'relative', width: 44, height: 44, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   profileButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   badge: { position: 'absolute', top: -4, right: -4, minWidth: 19, height: 19, borderRadius: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
-  signInCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8, marginTop: 10 },
   feedFilter: { marginVertical: 10 },
   skeletonList: { gap: 8 },
   feed: { gap: 10 },

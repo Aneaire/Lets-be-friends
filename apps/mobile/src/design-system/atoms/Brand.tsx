@@ -4,18 +4,34 @@ import { AppText } from '@/design-system/atoms/Typography'
 
 const brandMark = require('../../../assets/images/brand-mark.png')
 
-export function Brand({ compact = false }: { compact?: boolean }) {
+export const BRAND_TAGLINE = 'Everyday help, useful ideas, and real connections'
+
+const sizes = {
+  sm: { mark: { width: 22, height: 25 }, rowGap: 8, stackGap: 6, minHeight: 34, text: 'bodyStrong' as const },
+  md: { mark: { width: 28, height: 31 }, rowGap: 10, stackGap: 8, minHeight: 48, text: 'heading' as const },
+  lg: { mark: { width: 76, height: 84 }, rowGap: 16, stackGap: 14, minHeight: 92, text: 'title' as const },
+}
+
+export function Brand({ size = 'md', layout = 'row' }: { size?: 'sm' | 'md' | 'lg'; layout?: 'row' | 'stacked' }) {
+  const preset = sizes[size]
+  const stacked = layout === 'stacked'
+
   return (
-    <View accessibilityLabel="Let's Be Friends" style={[styles.row, compact && styles.compactRow]}>
-      <Image source={brandMark} resizeMode="contain" style={[styles.mark, compact && styles.compactMark]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
-      <AppText variant={compact ? 'bodyStrong' : 'heading'} numberOfLines={1}>Let's Be Friends</AppText>
+    <View
+      accessibilityLabel="Let's Be Friends"
+      style={[
+        stacked ? styles.stacked : styles.row,
+        stacked ? { gap: preset.stackGap } : { minHeight: preset.minHeight, gap: preset.rowGap },
+      ]}
+    >
+      <Image source={brandMark} resizeMode="contain" style={[styles.mark, preset.mark]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+      <AppText variant={preset.text} numberOfLines={1}>Let's Be Friends</AppText>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  mark: { width: 28, height: 31 },
-  compactRow: { minHeight: 34, gap: 8 },
-  compactMark: { width: 22, height: 25 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  stacked: { alignItems: 'center' },
+  mark: { flexShrink: 0 },
 })

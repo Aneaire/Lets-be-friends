@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native'
 
-import { Brand } from '@/design-system/atoms/Brand'
+import { Brand, BRAND_TAGLINE } from '@/design-system/atoms/Brand'
 import { FeedSkeleton, HomeHeaderActionsSkeleton, PostComposerSkeleton } from '@/design-system/atoms/Skeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
@@ -21,9 +21,9 @@ export function HomeFeedLoadingScreen() {
       <View style={styles.content}>
         <View style={styles.topBar}>
           <View style={styles.titleCopy}>
-            <Brand compact />
+            <Brand size="sm" />
             <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>
-              Everyday help, useful ideas, and real connections
+              {BRAND_TAGLINE}
             </AppText>
           </View>
           <HomeHeaderActionsSkeleton />
