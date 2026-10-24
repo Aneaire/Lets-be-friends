@@ -16,7 +16,7 @@ vi.mock('../../convex/_generated/api', () => ({
   api: {
     users: { viewer: 'users.viewer', latestMemberVerification: 'users.latestMemberVerification' },
     bookings: { mine: 'bookings.mine', forCompanion: 'bookings.forCompanion', createDraft: 'bookings.createDraft', cancel: 'bookings.cancel', markCompleted: 'bookings.markCompleted', companionDecision: 'bookings.companionDecision', editRequest: 'bookings.editRequest', availableSlots: 'bookings.availableSlots' },
-    finance: { memberDashboard: 'finance.memberDashboard' },
+    finance: { memberDashboard: 'finance.memberDashboard', memberBookingTransactions: 'finance.memberBookingTransactions' },
     companions: { listApproved: 'companions.listApproved', getPublic: 'companions.getPublic', bookingAvailability: 'companions.bookingAvailability' },
     reviews: { submit: 'reviews.submit' },
     reports: { create: 'reports.create' },
@@ -38,6 +38,7 @@ vi.mock('convex/react', () => ({
     if (query === 'users.latestMemberVerification') return null
     if (query === 'bookings.mine' || query === 'bookings.forCompanion') return []
     if (query === 'finance.memberDashboard') return { availableCentavos: 100_000 }
+    if (query === 'finance.memberBookingTransactions') return []
     if (query === 'companions.listApproved') return state.listApproved
     if (query === 'companions.bookingAvailability') return state.availability
     if (query === 'bookings.availableSlots') return { timezone: 'Asia/Manila', scheduleConfigured: true, days: [] }

@@ -29,6 +29,7 @@ import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SocialRouteImport } from './routes/social'
 import { Route as TermsAndConditionsRouteImport } from './routes/terms-and-conditions'
+import { Route as TransactionsRouteImport } from './routes/transactions'
 import { Route as VerifiedRouteImport } from './routes/verified'
 import { Route as VerifyIdentityRouteImport } from './routes/verify-identity'
 import { Route as WalletRouteImport } from './routes/wallet'
@@ -135,6 +136,11 @@ const TermsAndConditionsRoute = TermsAndConditionsRouteImport.update({
   path: '/terms-and-conditions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TransactionsRoute = TransactionsRouteImport.update({
+  id: '/transactions',
+  path: '/transactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VerifiedRoute = VerifiedRouteImport.update({
   id: '/verified',
   path: '/verified',
@@ -182,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
   '/terms-and-conditions': typeof TermsAndConditionsRoute
+  '/transactions': typeof TransactionsRoute
   '/verified': typeof VerifiedRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
@@ -208,6 +215,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
   '/terms-and-conditions': typeof TermsAndConditionsRoute
+  '/transactions': typeof TransactionsRoute
   '/verified': typeof VerifiedRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
@@ -236,6 +244,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/social': typeof SocialRoute
   '/terms-and-conditions': typeof TermsAndConditionsRoute
+  '/transactions': typeof TransactionsRoute
   '/verified': typeof VerifiedRoute
   '/verify-identity': typeof VerifyIdentityRoute
   '/wallet': typeof WalletRoute
@@ -265,6 +274,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/social'
     | '/terms-and-conditions'
+    | '/transactions'
     | '/verified'
     | '/verify-identity'
     | '/wallet'
@@ -291,6 +301,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/social'
     | '/terms-and-conditions'
+    | '/transactions'
     | '/verified'
     | '/verify-identity'
     | '/wallet'
@@ -318,6 +329,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/social'
     | '/terms-and-conditions'
+    | '/transactions'
     | '/verified'
     | '/verify-identity'
     | '/wallet'
@@ -346,6 +358,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SocialRoute: typeof SocialRoute
   TermsAndConditionsRoute: typeof TermsAndConditionsRoute
+  TransactionsRoute: typeof TransactionsRoute
   VerifiedRoute: typeof VerifiedRoute
   VerifyIdentityRoute: typeof VerifyIdentityRoute
   WalletRoute: typeof WalletRoute
@@ -493,6 +506,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsAndConditionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/transactions': {
+      id: '/transactions'
+      path: '/transactions'
+      fullPath: '/transactions'
+      preLoaderRoute: typeof TransactionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/verified': {
       id: '/verified'
       path: '/verified'
@@ -565,6 +585,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SocialRoute: SocialRoute,
   TermsAndConditionsRoute: TermsAndConditionsRoute,
+  TransactionsRoute: TransactionsRoute,
   VerifiedRoute: VerifiedRoute,
   VerifyIdentityRoute: VerifyIdentityRoute,
   WalletRoute: WalletRoute,

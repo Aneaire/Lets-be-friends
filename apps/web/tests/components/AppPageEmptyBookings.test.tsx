@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   } as Record<string, unknown> | null,
   memberBookings: [] as Array<Record<string, unknown>> | undefined,
   companionBookings: [] as Array<Record<string, unknown>> | undefined,
+  transactions: [] as Array<Record<string, unknown>> | undefined,
 }))
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() }, Toaster: () => null }))
@@ -23,7 +24,7 @@ vi.mock('../../convex/_generated/api', () => ({
   api: {
     users: { viewer: 'users.viewer', latestMemberVerification: 'users.latestMemberVerification' },
     bookings: { mine: 'bookings.mine', forCompanion: 'bookings.forCompanion', createDraft: 'bookings.createDraft', cancel: 'bookings.cancel', markCompleted: 'bookings.markCompleted', companionDecision: 'bookings.companionDecision', editRequest: 'bookings.editRequest', availableSlots: 'bookings.availableSlots' },
-    finance: { memberDashboard: 'finance.memberDashboard' },
+    finance: { memberDashboard: 'finance.memberDashboard', memberBookingTransactions: 'finance.memberBookingTransactions' },
     companions: { listApproved: 'companions.listApproved', getPublic: 'companions.getPublic', bookingAvailability: 'companions.bookingAvailability' },
     reviews: { submit: 'reviews.submit' },
     reports: { create: 'reports.create' },
@@ -37,6 +38,7 @@ vi.mock('convex/react', () => ({
     if (query === 'bookings.mine') return state.memberBookings
     if (query === 'bookings.forCompanion') return state.companionBookings
     if (query === 'finance.memberDashboard') return { availableCentavos: 100_000 }
+    if (query === 'finance.memberBookingTransactions') return state.transactions
     if (query === 'companions.listApproved') return []
     if (query === 'companions.bookingAvailability') return 'available'
     if (query === 'bookings.availableSlots') return { timezone: 'Asia/Manila', scheduleConfigured: true, days: [] }
@@ -84,6 +86,7 @@ beforeEach(() => {
   }
   state.memberBookings = []
   state.companionBookings = []
+  state.transactions = []
 })
 
 afterEach(cleanup)
@@ -134,6 +137,24 @@ describe('member /app calendar for a loaded account without bookings', () => {
 
     expect(screen.getByText('New booking')).toBeTruthy()
     expect(screen.getByRole('dialog', { name: 'Book a time' })).toBeTruthy()
+  })
+
+  it('shows the latest booking transactions at the bottom with a View more text link', () => {
+    state.transactions = [{
+      _id: 'transaction-1',
+      kind: 'booking_complete',
+      amountCentavos: 57_500,
+      createdAt: Date.UTC(2026, 9, 20, 13, 30),
+      bookingId: 'booking-1',
+      category: 'Coffee and conversation',
+      companionDisplayName: 'Dana Cruz',
+    }]
+
+    render(<AppPage />)
+
+    expect(screen.getByRole('heading', { name: 'Recent transactions' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'View more' }).getAttribute('href')).toBe('/transactions')
+    expect(screen.getByRole('link', { name: /Booking completed/ }).getAttribute('href')).toBe('/app')
   })
 
   it('keeps the skeleton with no live grid while the member bookings query is incomplete', () => {

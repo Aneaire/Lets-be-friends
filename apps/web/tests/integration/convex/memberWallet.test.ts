@@ -602,3 +602,109 @@ describe('member-wallet booking ledger', () => {
     })).rejects.toThrow('conflicting outcome')
   })
 })
+
+describe('member booking transaction history', () => {
+  it('returns the latest member booking events and hides top-ups, settlements, and other members', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const bookingFields = {
+      companionProfileId: ids.companionProfileId,
+      category: 'Coffee or meal companion',
+      mode: 'in_person' as const,
+      requestedAt: ids.now + 86_400_000,
+      durationMinutes: 60,
+      status: 'accepted' as const,
+      createdAt: ids.now,
+      updatedAt: ids.now,
+    }
+    const olderBookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
+      ...bookingFields,
+      memberId: ids.memberId,
+    }))
+    const newerBookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
+      ...bookingFields,
+      memberId: ids.memberId,
+    }))
+    const outsiderBookingId = await t.run(async (ctx) => ctx.db.insert('bookings', {
+      ...bookingFields,
+      memberId: ids.outsiderId,
+    }))
+    await t.run(async (ctx) => {
+      await ctx.db.insert('walletTransactions', {
+        kind: 'booking_reserve', idempotencyKey: 'history-old-reserve', bookingId: olderBookingId,
+        actorUserId: ids.memberId, amountCentavos: TOTAL, currency: 'PHP', createdAt: 1_000,
+      })
+      await ctx.db.insert('walletTransactions', {
+        kind: 'booking_reserve', idempotencyKey: 'history-new-reserve', bookingId: newerBookingId,
+        actorUserId: ids.memberId, amountCentavos: TOTAL, currency: 'PHP', createdAt: 2_000,
+      })
+      await ctx.db.insert('walletTransactions', {
+        kind: 'booking_complete', idempotencyKey: 'history-new-complete', bookingId: newerBookingId,
+        actorUserId: ids.companionUserId, amountCentavos: TOTAL, currency: 'PHP', createdAt: 3_000,
+      })
+      await ctx.db.insert('walletTransactions', {
+        kind: 'paymongo_member_credit', idempotencyKey: 'history-top-up', actorUserId: ids.memberId,
+        amountCentavos: TOTAL, currency: 'PHP', createdAt: 4_000,
+      })
+      await ctx.db.insert('walletTransactions', {
+        kind: 'booking_settle', idempotencyKey: 'history-settle', bookingId: newerBookingId,
+        amountCentavos: TOTAL, currency: 'PHP', createdAt: 5_000,
+      })
+      await ctx.db.insert('walletTransactions', {
+        kind: 'booking_reserve', idempotencyKey: 'history-outsider', bookingId: outsiderBookingId,
+        actorUserId: ids.outsiderId, amountCentavos: TOTAL, currency: 'PHP', createdAt: 6_000,
+      })
+    })
+
+    const member = t.withIdentity({ subject: 'wallet-member' })
+    const rows = await member.query(api.finance.memberBookingTransactions, { limit: 5 })
+    expect(rows.map((row) => row.kind)).toEqual(['booking_complete', 'booking_reserve', 'booking_reserve'])
+    expect(rows[0]).toMatchObject({
+      bookingId: newerBookingId,
+      companionDisplayName: 'Wallet Companion',
+      category: 'Coffee or meal companion',
+    })
+
+    const latest = await member.query(api.finance.memberBookingTransactions, { limit: 1 })
+    expect(latest).toHaveLength(1)
+    expect(latest[0].kind).toBe('booking_complete')
+  })
+})
+
+describe('member wallet top-up history', () => {
+  it('lists only member top-ups that have left the creation stage', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const base = {
+      currency: 'PHP' as const,
+      mode: 'test' as const,
+      updatedAt: ids.now,
+    }
+    await t.run(async (ctx) => {
+      await ctx.db.insert('paymongoTopUps', {
+        ...base, beneficiaryUserId: ids.memberId, purpose: 'member_booking_balance',
+        amountCentavos: 100_000, status: 'paid', paidAt: ids.now + 3_000, createdAt: ids.now,
+      })
+      await ctx.db.insert('paymongoTopUps', {
+        ...base, beneficiaryUserId: ids.memberId, purpose: 'member_booking_balance',
+        amountCentavos: 50_000, status: 'expired', expiresAt: ids.now - 1_000, createdAt: ids.now - 1_000,
+      })
+      await ctx.db.insert('paymongoTopUps', {
+        ...base, beneficiaryUserId: ids.memberId, purpose: 'member_booking_balance',
+        amountCentavos: 25_000, status: 'creating', createdAt: ids.now - 2_000,
+      })
+      await ctx.db.insert('paymongoTopUps', {
+        ...base, companionUserId: ids.companionUserId, purpose: 'legacy_companion_fee',
+        amountCentavos: 75_000, status: 'paid', paidAt: ids.now, createdAt: ids.now - 3_000,
+      })
+      await ctx.db.insert('paymongoTopUps', {
+        ...base, beneficiaryUserId: ids.outsiderId, purpose: 'member_booking_balance',
+        amountCentavos: 90_000, status: 'paid', paidAt: ids.now, createdAt: ids.now - 4_000,
+      })
+    })
+
+    const rows = await t.withIdentity({ subject: 'wallet-member' }).query(api.finance.memberTopUps, { limit: 5 })
+    expect(rows.map((row) => row.status)).toEqual(['paid', 'expired'])
+    expect(rows[0].amountCentavos).toBe(100_000)
+  })
+})

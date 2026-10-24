@@ -8,6 +8,17 @@ import { getViewer, writeAudit } from './lib'
 const COLLECTION_BATCH_SIZE = 200
 const SETTLEMENT_BATCH_SIZE = 100
 const PLATFORM_REVENUE_ACCOUNT_KEY = 'platform:booking-revenue'
+const MAX_BOOKING_TRANSACTION_HISTORY = 100
+const MAX_TRANSACTION_BOOKINGS_SCAN = 50
+const MEMBER_BOOKING_TRANSACTION_KINDS = [
+  'booking_reserve',
+  'booking_complete',
+  'booking_release',
+  'booking_admin_refund',
+] as const
+
+type MemberBookingTransactionKind = typeof MEMBER_BOOKING_TRANSACTION_KINDS[number]
+type MemberTopUpStatus = 'awaiting_payment' | 'processing' | 'paid' | 'failed' | 'expired'
 
 type WalletBucket = 'available' | 'reserved' | 'pending'
 type WalletAccountType = 'member_booking' | 'companion_earnings' | 'platform_revenue'
@@ -101,6 +112,94 @@ export const memberDashboard = query({
       pendingCentavos: account.pendingCentavos,
       topUps: topUps.filter((topUp) => topUp.purpose === 'member_booking_balance'),
     }
+  },
+})
+
+/**
+ * The member-facing booking ledger. Booking transactions are linked from their
+ * booking row, so the read starts with the member's bookings and keeps only the
+ * kinds that move member funds. The dashboard asks for five and the history
+ * page for the full bounded list.
+ */
+export const memberBookingTransactions = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const viewer = await getViewer(ctx)
+    if (!viewer) return []
+    if (viewer.suspended) throw new ConvexError('Account is suspended')
+    const requestedLimit = Number.isFinite(args.limit) ? Math.floor(args.limit!) : 20
+    const limit = Math.min(Math.max(requestedLimit, 1), MAX_BOOKING_TRANSACTION_HISTORY)
+    const bookings = await ctx.db.query('bookings')
+      .withIndex('by_member', (q) => q.eq('memberId', viewer._id))
+      .order('desc')
+      .take(MAX_TRANSACTION_BOOKINGS_SCAN)
+    const rows: Array<{ booking: Doc<'bookings'>; transaction: Doc<'walletTransactions'> }> = []
+    for (const booking of bookings) {
+      const transactions = await ctx.db.query('walletTransactions')
+        .withIndex('by_booking', (q) => q.eq('bookingId', booking._id))
+        .order('desc')
+        .collect()
+      for (const transaction of transactions) {
+        if (!MEMBER_BOOKING_TRANSACTION_KINDS.includes(transaction.kind as MemberBookingTransactionKind)) continue
+        rows.push({ booking, transaction })
+      }
+    }
+    rows.sort((left, right) => right.transaction.createdAt - left.transaction.createdAt)
+    const companionCache = new Map<string, { displayName: string }>()
+    return await Promise.all(rows.slice(0, limit).map(async ({ booking, transaction }) => {
+      const cacheKey = String(booking.companionProfileId)
+      let companion = companionCache.get(cacheKey)
+      if (!companion) {
+        companion = await memberTransactionCompanion(ctx, booking.companionProfileId)
+        companionCache.set(cacheKey, companion)
+      }
+      return {
+        _id: transaction._id,
+        kind: transaction.kind as MemberBookingTransactionKind,
+        amountCentavos: transaction.amountCentavos,
+        createdAt: transaction.createdAt,
+        bookingId: booking._id,
+        category: booking.category,
+        companionDisplayName: companion.displayName,
+      }
+    }))
+  },
+})
+
+async function memberTransactionCompanion(
+  ctx: any,
+  companionProfileId: Id<'companionProfiles'>,
+): Promise<{ displayName: string }> {
+  const companion = await ctx.db.get(companionProfileId)
+  if (!companion) return { displayName: 'Companion' }
+  const user = await ctx.db.get(companion.userId)
+  return { displayName: user?.displayName ?? companion.displayName }
+}
+
+/** Member wallet top-ups that have left the transient creation stage. */
+export const memberTopUps = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const viewer = await getViewer(ctx)
+    if (!viewer) return []
+    if (viewer.suspended) throw new ConvexError('Account is suspended')
+    const requestedLimit = Number.isFinite(args.limit) ? Math.floor(args.limit!) : 20
+    const limit = Math.min(Math.max(requestedLimit, 1), MAX_BOOKING_TRANSACTION_HISTORY)
+    const rows = await ctx.db.query('paymongoTopUps')
+      .withIndex('by_beneficiary_created_at', (q) => q.eq('beneficiaryUserId', viewer._id))
+      .order('desc')
+      .take(Math.min(limit + 5, MAX_BOOKING_TRANSACTION_HISTORY))
+    return rows
+      .filter((topUp) => topUp.purpose === 'member_booking_balance' && topUp.status !== 'creating')
+      .slice(0, limit)
+      .map((topUp) => ({
+        _id: topUp._id,
+        amountCentavos: topUp.amountCentavos,
+        status: topUp.status as MemberTopUpStatus,
+        createdAt: topUp.createdAt,
+        paidAt: topUp.paidAt,
+        expiresAt: topUp.expiresAt,
+      }))
   },
 })
 

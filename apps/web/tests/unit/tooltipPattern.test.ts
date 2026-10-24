@@ -24,6 +24,19 @@ describe('shared tooltip pattern', () => {
     expect(styles).toMatch(/\[data-tooltip-position="below-right"\]::after\s*\{[^}]*right:\s*-0\.35rem;/s)
   })
 
+  it('waits 1.5s of hover before revealing the chip, and exits immediately', () => {
+    const hover = styles.match(/\[data-tooltip\]:hover::after\s*\{[^}]*\}/s)?.[0] ?? ''
+    const focus = styles.match(/\[data-tooltip\]:focus-visible::after\s*\{[^}]*\}/s)?.[0] ?? ''
+    const base = styles.match(/\[data-tooltip\]::after\s*\{[^}]*\}/s)?.[0] ?? ''
+
+    expect(hover).toContain('opacity: 1;')
+    expect(hover).toContain('transition-delay: 1.5s;')
+    expect(focus).toContain('opacity: 1;')
+    expect(focus).not.toContain('transition-delay')
+    expect(base).toContain('opacity: 0;')
+    expect(base).not.toContain('transition-delay')
+  })
+
   it('no longer hardcodes the verified badge copy in the badge rule', () => {
     expect(styles).not.toMatch(/\.account-avatar-badge::after/)
     expect(styles).not.toContain('content: "Verified"')

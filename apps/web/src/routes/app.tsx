@@ -10,6 +10,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { WorkspaceShell } from '../design-system/templates/AppShell'
 import { BookingDialog, type ApprovedCompanionOption } from '../features/booking/BookingDialog'
+import { BookingTransactionsPreview } from '../features/booking/BookingTransactionList'
 import { BookingRequestEditor, type EditableBookingRequest } from '../features/booking/BookingRequestEditor'
 import { BookingActionsMenu } from '../features/booking/BookingActionsMenu'
 import { AppPageSkeleton } from '../features/booking/AppPageSkeleton'
@@ -65,6 +66,7 @@ function AppPage() {
   const latestMemberVerification = useQuery(api.users.latestMemberVerification, viewer ? {} : 'skip')
   const bookings = useQuery(api.bookings.mine, viewer ? {} : 'skip')
   const companionBookings = useQuery(api.bookings.forCompanion, viewer ? {} : 'skip')
+  const recentBookingTransactions = useQuery(api.finance.memberBookingTransactions, viewer ? { limit: 5 } : 'skip')
   const memberFinance = useQuery(api.finance.memberDashboard, viewer ? {} : 'skip')
   const identityFlow = useIdentityVerification('member')
   const createDraft = useMutation(api.bookings.createDraft)
@@ -503,6 +505,8 @@ function AppPage() {
           />
         )}
       </section>
+
+      <BookingTransactionsPreview transactions={recentBookingTransactions} />
 
       {canBook && bookingDialogOpen && (
         <BookingDialog

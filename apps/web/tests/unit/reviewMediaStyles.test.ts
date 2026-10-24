@@ -24,4 +24,17 @@ describe('review media layout styles', () => {
     expect(openImageRule?.[1]).not.toContain('aspect-ratio')
     expect(openImageRule?.[1]).toContain('height: 100%')
   })
+
+  it('lets a profile review photo fill the card width like a post photo', () => {
+    expect(styles).toMatch(
+      /\.profile-review-image\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
+    )
+    expect(styles).not.toMatch(/\.profile-review-image\s*\{[^}]*width:\s*min\(100%,\s*38rem\)/s)
+  })
+
+  it('keeps the profile review card compact between identity, stars, body, and media', () => {
+    expect(styles).toMatch(
+      /\.profile-review-card\s*\{[^}]*gap:\s*0\.5rem;[^}]*padding:\s*1rem;/s,
+    )
+  })
 })

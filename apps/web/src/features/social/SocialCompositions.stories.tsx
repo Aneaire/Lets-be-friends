@@ -64,6 +64,8 @@ const profileReviews: ProfileContentReview[] = [
     body: 'The photo walk was comfortable and easy to follow.',
     createdAt: Date.UTC(2026, 7, 19, 14, 13),
     rating: 5,
+    imageUrl: '/images/marketing/photography-walk-768.webp',
+    imageUrls: ['/images/marketing/photography-walk-768.webp'],
     reviewerId: 'user-angelo',
     reviewerDisplayName: 'Angelo Santiago',
     reviewerProfileImageUrl: null,
@@ -193,9 +195,12 @@ function PostComposition({
   )
 }
 
-function ProfileComposition({ interactive = true }: { interactive?: boolean }) {
+function ProfileComposition({ interactive = true, wide = false }: { interactive?: boolean; wide?: boolean }) {
   return (
-    <div className="social-story-timeline">
+    <div
+      className="social-story-timeline"
+      style={wide ? { width: 'min(100%, 62rem)' } : undefined}
+    >
       <ProfileContentPanel
         ownerName="Mara Reyes"
         ownerImageUrl={ownerImageUrl}
@@ -246,6 +251,17 @@ export const ProfileLight320: Story = {
     await userEvent.click(canvas.getByRole('tab', { name: 'Reviews' }))
     await expect(canvas.getByText('Angelo Santiago')).toBeVisible()
     await expect(canvas.getByLabelText('5 out of 5 stars')).toBeVisible()
+  },
+}
+
+export const ProfileDesktop: Story = {
+  globals: { theme: 'dark', viewport: { value: 'desktop', isRotated: false } },
+  render: () => <ProfileComposition wide />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('tab', { name: 'Reviews' }))
+    await expect(canvas.getByText('Angelo Santiago')).toBeVisible()
+    await expect(canvas.getByAltText("Photo shared with Angelo Santiago's review")).toBeVisible()
   },
 }
 
