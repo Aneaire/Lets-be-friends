@@ -17,6 +17,11 @@ export type ProductMapProps = {
   points?: ProductMapPoint[]
   onSelectPoint?: (id: string) => void
   onPickLocation?: (origin: { latitude: number; longitude: number }) => void
+  /**
+   * Native only: reports when a finger is on the map so an enclosing list can
+   * stop scrolling and let the map pan and pinch.
+   */
+  onInteractionChange?: (active: boolean) => void
   pinMode?: boolean
   expanded?: boolean
 }

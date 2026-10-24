@@ -31,6 +31,7 @@ export default function NearbyScreen() {
   const member = useMobileMember()
   const updateApproximateLocation = useMutation(mobileApi.users.updateApproximateLocation)
   const [radiusKm, setRadiusKm] = useState<NearbyRadius>(25)
+  const [mapInteracting, setMapInteracting] = useState(false)
   const [overrideOrigin, setOverrideOrigin] = useState<{ latitude: number; longitude: number } | null>(null)
   const [pinMode, setPinMode] = useState(false)
   const [locating, setLocating] = useState(false)
@@ -164,11 +165,11 @@ export default function NearbyScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
       <View style={styles.headerWrap}><AppHeader title="Nearby Companions" subtitle="Approximate results only" back onBack={() => goBack()} /></View>
       {!origin ? (
-        <ScrollView contentContainerStyle={styles.prompt} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.prompt} showsVerticalScrollIndicator={false} scrollEnabled={!mapInteracting}>
           {pinMode ? (
             <>
               <View style={styles.pinMap}>
-                <ProductMap onPickLocation={(coords) => handlePickLocation(coords)} pinMode radiusKm={radiusKm} />
+                <ProductMap onPickLocation={(coords) => handlePickLocation(coords)} onInteractionChange={setMapInteracting} pinMode radiusKm={radiusKm} />
               </View>
               <AppText variant="title">Place a search pin</AppText>
               <AppText color={theme.colors.textMuted}>Tap the map to set the center of your nearby search. The map uses approximate areas, not precise meeting locations.</AppText>
@@ -176,7 +177,7 @@ export default function NearbyScreen() {
             </>
           ) : (
             <>
-              <ProductMap />
+              <ProductMap onInteractionChange={setMapInteracting} />
               <AppText variant="title">Find Companions near you</AppText>
               {consentedSavedOrigin ? (
                 <AppText color={theme.colors.textMuted}>Searching from your saved approximate area. No foreground location is needed. Use your current location below to move the saved area.</AppText>
@@ -200,8 +201,9 @@ export default function NearbyScreen() {
           renderItem={({ item }) => <CompanionCard companion={item} />}
           ItemSeparatorComponent={() => <View style={styles.gap} />}
           contentContainerStyle={styles.list}
+          scrollEnabled={!mapInteracting}
           ListHeaderComponent={<View style={styles.listHeader}>
-            <ProductMap center={origin} radiusKm={radiusKm} points={mapPoints} onSelectPoint={openCompanion} expanded />
+            <ProductMap center={origin} radiusKm={radiusKm} points={mapPoints} onSelectPoint={openCompanion} onInteractionChange={setMapInteracting} expanded />
             <View style={styles.mapSummary}>
               <View style={styles.mapSummaryCopy}>
                 <AppText variant="bodyStrong">Around {originLabel}</AppText>
