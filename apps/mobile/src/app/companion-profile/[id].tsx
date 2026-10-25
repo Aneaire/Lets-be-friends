@@ -23,14 +23,12 @@ import { Screen, Section } from '@/design-system/templates/Screen'
 import { PageSkeleton, ProfileContentSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
-import { PostCard } from '@/features/social/PostCard'
-import { PostContent } from '@/features/social/PostContent'
 import { PostImageViewer, type PostViewerImage } from '@/features/social/PostImageViewer'
-import { NativeVideoViewer } from '@/features/media/NativeVideoViewer'
 import { ReviewContent } from '@/features/social/ReviewContent'
 import { ShareSheet } from '@/features/social/ShareSheet'
 import { reviewShareUrl } from '@/features/social/shareLinks'
 import { companionContentTabHeader, companionContentTabs, companionProfileTypography, companionRatePresentation, defaultCompanionContentTab, type CompanionContentTab } from '@/features/companion/companionProfilePresentation'
+import { CompanionProfilePostList } from '@/features/companion/CompanionProfilePostList'
 import { validateReviewComment } from '@/data/bookingActions'
 import { mapPublicCompanion, resolveCompanionBookingAction, type ApprovedCompanionRecord, type CompanionDetailViewModel } from '@/data/companionViewModels'
 import { formatMessageTimestamp } from '@/data/messageViewModels'
@@ -39,7 +37,6 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
 
 type Review = FunctionReturnType<typeof mobileApi.reviews.forCompanion>[number]
-type Post = FunctionReturnType<typeof mobileApi.social.byUser>[number]
 
 export default function CompanionProfileScreen() {
   const params = useLocalSearchParams<{ id?: string; reviewId?: string }>()
@@ -118,13 +115,20 @@ function CompanionDetail({ companion, reviewId }: { companion: CompanionDetailVi
   }
 
   async function followProfile() {
-    if (!signedIn || !companion.userId || busy) return
+    return updateFollowing(companion.userId ? String(companion.userId) : '')
+  }
+
+  async function updateFollowing(authorId: string) {
+    if (!signedIn || !companion.userId || busy || String(companion.userId) !== authorId) return undefined
     setBusy('follow')
     setMessage('')
     try {
-      setFollowing(await toggleFollow({ userId: companion.userId as UserId }))
+      const next = await toggleFollow({ userId: companion.userId as UserId })
+      setFollowing(next)
+      return next
     } catch {
       setMessage('Following could not be updated. Please try again.')
+      return undefined
     } finally {
       setBusy(null)
     }
@@ -191,7 +195,7 @@ function CompanionDetail({ companion, reviewId }: { companion: CompanionDetailVi
               <AppText variant="caption" color={theme.colors.textMuted}>{contentHeader.description}</AppText>
             </View>
           </View>
-          {posts === undefined ? <ProfileContentSkeleton /> : posts.length ? <View style={styles.cardList}>{posts.map((post) => <View key={post._id} style={[styles.postCard, { borderColor: theme.colors.border }]}><ProfilePost post={post} companionName={companion.name} imageUrl={companion.imageUrl} /></View>)}</View> : <AppText color={theme.colors.textMuted}>No public posts yet.</AppText>}
+          {posts === undefined ? <ProfileContentSkeleton /> : posts.length ? <View style={styles.cardList}><CompanionProfilePostList posts={posts} signedIn={signedIn} following={following} followBusy={busy === 'follow'} onToggleFollow={signedIn && !ownProfile && companion.userId ? updateFollowing : undefined} onOpenImage={setViewerImage} /></View> : <AppText color={theme.colors.textMuted}>No public posts yet.</AppText>}
         </View>
       ) : (
         <View style={styles.tabPanel}>
@@ -511,23 +515,6 @@ function TextCount({ count, limit }: { count: number; limit: number }) {
   return <AppText variant="caption" color={count > limit ? theme.colors.danger : theme.colors.textMuted} style={styles.textCount}>{count}/{limit}</AppText>
 }
 
-function ProfilePost({ post, companionName, imageUrl }: { post: Post; companionName: string; imageUrl?: string }) {
-  const theme = useAppTheme()
-  const [mediaError, setMediaError] = useState('')
-  const [videoUrl, setVideoUrl] = useState<string | null>(null)
-
-  function openVideo(url: string) {
-    setMediaError('')
-    setVideoUrl(url)
-  }
-
-  return <PostCard author={companionName} imageUrl={imageUrl} timestamp={formatMessageTimestamp(post.createdAt)} meta={<AppText variant="caption" color={theme.colors.textMuted}>· {post.likeCount} likes · {post.commentCount} comments</AppText>}>
-    <PostContent body={post.body} media={post.media} onOpenVideo={(url) => openVideo(url)} />
-    {mediaError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{mediaError}</AppText> : null}
-    <NativeVideoViewer url={videoUrl} onClose={() => setVideoUrl(null)} />
-  </PostCard>
-}
-
 function Detail({ label, value }: { label: string; value: string }) {
   const theme = useAppTheme()
   return <View style={styles.detailRow}><AppText variant="caption" color={theme.colors.textMuted}>{label}</AppText><AppText variant="bodyStrong" style={styles.detailValue}>{value}</AppText></View>
@@ -601,7 +588,6 @@ const styles = StyleSheet.create({
   panelHeaderCopy: { flex: 1, gap: 2 },
   ratingSummary: { flexShrink: 0, textAlign: 'right' },
   cardList: { gap: 10 },
-  postCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: density.controlRadius, overflow: 'hidden' },
   reviewCard: { gap: density.textStackGap, paddingHorizontal: density.compactCardPadding, paddingVertical: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: density.controlRadius },
   reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: density.cardGap },
   reviewIdentity: { flex: 1, minWidth: 0, gap: 1 },
