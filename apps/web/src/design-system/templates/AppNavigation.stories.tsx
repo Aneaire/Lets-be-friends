@@ -70,10 +70,10 @@ function ShellChrome({ verified = false }: { verified?: boolean }) {
           <CalendarCheck size={20} aria-hidden="true" />
           <span>Bookings</span>
         </a>
-        <button type="button" className="mobile-primary-nav-item">
+        <a className="mobile-primary-nav-item" href="#profile">
           <UserRound size={20} aria-hidden="true" />
           <span>Account</span>
-        </button>
+        </a>
       </nav>
     </div>
   )
@@ -136,5 +136,6 @@ export const MobileHeader: Story = {
     for (const label of ['Home', 'Explore', 'Messages', 'Bookings', 'Account']) {
       await expect(within(tabs).getByText(label)).toBeVisible()
     }
+    await expect(within(tabs).getByRole('link', { name: 'Account' })).toHaveAttribute('href', '#profile')
   },
 }

@@ -146,6 +146,53 @@ export function pushInstallMarkerKey() {
   return pushSecureStorageKey('install-marker')
 }
 
+export type PushOptInPromptState = {
+  handled: boolean
+}
+
+export function pushOptInPromptKey(clerkUserId: string, installationId: string) {
+  return pushSecureStorageKey('optin', `${clerkUserId}:${installationId}`)
+}
+
+export function parsePushOptInPrompt(value: string | null): PushOptInPromptState {
+  if (!value) return { handled: false }
+  try {
+    const parsed = JSON.parse(value) as Partial<PushOptInPromptState>
+    return { handled: parsed.handled === true }
+  } catch {
+    return { handled: false }
+  }
+}
+
+export function serializePushOptInPrompt(value: PushOptInPromptState) {
+  return JSON.stringify({ handled: value.handled === true })
+}
+
+export function shouldShowPushOptInPrompt(input: {
+  nativeAvailable: boolean
+  memberReady: boolean
+  bootstrapStatus: 'idle' | 'loading' | 'ready' | 'error'
+  accountMatches: boolean
+  backendAvailable: boolean
+  backendRegistered: boolean
+  optedIn: boolean
+  pendingDisable: boolean
+  permission: 'granted' | 'denied' | 'undetermined' | 'unavailable'
+  optInHandled: boolean
+  optInLoaded: boolean
+}) {
+  if (!input.optInLoaded) return false
+  if (input.optInHandled) return false
+  if (!input.nativeAvailable) return false
+  if (!input.memberReady) return false
+  if (input.bootstrapStatus !== 'ready' || !input.accountMatches) return false
+  if (!input.backendAvailable) return false
+  if (input.backendRegistered) return false
+  if (input.optedIn || input.pendingDisable) return false
+  if (input.permission === 'denied' || input.permission === 'unavailable') return false
+  return true
+}
+
 function pushSecureStorageKey(namespace: string, scope?: string) {
   const encodedScope = scope
     ? Array.from(scope, (character) => character.codePointAt(0)!.toString(16)).join('-')

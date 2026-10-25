@@ -9,6 +9,7 @@ export type ProductMapPoint = {
   latitude: number
   longitude: number
   name: string
+  imageUrl?: string
 }
 
 export type ProductMapProps = {

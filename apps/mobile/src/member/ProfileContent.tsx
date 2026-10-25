@@ -1,173 +1,351 @@
-import type { ReactNode } from 'react'
-import { StyleSheet, View } from 'react-native'
-import { privacyDocument, termsDocument } from '@lets-be-friends/shared'
+import { useState } from 'react'
+import { Pressable, StyleSheet, View } from 'react-native'
+
+import { formatPhp } from '@lets-be-friends/shared'
 
 import { Avatar } from '@/design-system/atoms/Avatar'
+import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { AppText } from '@/design-system/atoms/Typography'
+import { Chip } from '@/design-system/atoms/Chip'
+import { StatusBadge } from '@/design-system/atoms/StatusBadge'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { IconButton } from '@/design-system/atoms/IconButton'
 import { VerifiedBadge } from '@/design-system/atoms/VerifiedBadge'
-import { SettingsRow } from '@/design-system/molecules/SettingsRow'
+import { ActionSheet } from '@/design-system/molecules/ActionSheet'
+import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
+import { StateView } from '@/design-system/molecules/StateView'
 import { Screen } from '@/design-system/templates/Screen'
-import { type ProfileViewModel } from '@/member/profileViewModel'
+import { MemberProfilePosts } from '@/member/MemberProfilePosts'
+import { ReviewFeedCard } from '@/features/social/ReviewFeedCard'
+import { memberContentTabLabel, toOwnReviewFeedItem, type MemberPost } from '@/member/memberContent'
+import { companionModeLabel, companionStatusLabel, companionStatusTone, profileActionLabels } from '@/member/profileSections'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
+export type ProfileCompanionDetails = {
+  status: string
+  intro: string
+  categories: string[]
+  strengths: string[]
+  boundaries: string[]
+  mode: string
+  city?: string | null
+  hourlyRateCentavos?: number | null
+  rating?: number | null
+  reviewCount?: number | null
+  publicProfileId?: string | null
+}
+
+export type ProfileReviewsStatus = 'loading' | 'needs_companion' | 'empty' | 'ready'
+
 export function SignedInProfileContent({
-  profile,
+  displayName,
+  username,
   bio,
-  hasCompanionTools,
-  approvedCompanion,
-  fullyVerified,
+  imageUrl,
+  interests,
+  memberSince,
+  roleLabel,
+  verificationLabel,
+  verificationDetail,
+  verificationApproved,
+  verificationAction,
   openingVerification,
-  signingOut,
-  pushNotifications,
-  appearanceSettings,
+  discoveryArea,
+  companion,
+  hasApplication,
+  fullyVerified,
+  posts,
+  reviews,
+  reviewsStatus,
+  rating,
+  reviewCount,
   onEditProfile,
-  onFinishWelcomeGuide,
-  onOpenVerification,
-  onOpenNotificationCenter,
   onOpenBookings,
-  onOpenWallet,
-  onOpenWithdrawals,
   onOpenCompanion,
-  onOpenIncomingBookings,
-  onOpenCompanionFinance,
-  onOpenSafety,
-  onOpenMyPosts,
-  onOpenTerms,
-  onOpenPrivacy,
-  onSignOut,
+  onOpenVerification,
+  onCreateBooking,
+  onOpenPublicProfile,
+  onOpenSettings,
 }: {
-  profile: ProfileViewModel
-  bio?: string
-  hasCompanionTools: boolean
-  approvedCompanion: boolean
-  /** Identity approved plus a saved Companion profile, matching the web header badge. */
-  fullyVerified: boolean
+  displayName: string
+  username: string
+  bio: string
+  imageUrl?: string
+  interests: string[]
+  memberSince: string
+  roleLabel: string
+  verificationLabel: string
+  verificationDetail: string
+  verificationApproved: boolean
+  verificationAction: 'verify' | 'continue' | 'retry' | 'none'
   openingVerification: boolean
-  signingOut: boolean
-  pushNotifications?: ReactNode
-  appearanceSettings?: ReactNode
+  discoveryArea: string
+  companion: ProfileCompanionDetails | null
+  hasApplication: boolean
+  fullyVerified: boolean
+  posts: MemberPost[] | undefined
+  reviews: Array<{ _id: string; [key: string]: unknown }> | undefined
+  reviewsStatus: ProfileReviewsStatus
+  rating?: number | null
+  reviewCount?: number | null
   onEditProfile: () => void
-  onFinishWelcomeGuide: () => void
-  onOpenVerification: () => void
-  onOpenNotificationCenter: () => void
   onOpenBookings: () => void
-  onOpenWallet: () => void
-  onOpenWithdrawals: () => void
   onOpenCompanion: () => void
-  onOpenIncomingBookings: () => void
-  onOpenCompanionFinance: () => void
-  onOpenSafety: () => void
-  onOpenMyPosts: () => void
-  onOpenTerms: () => void
-  onOpenPrivacy: () => void
-  onSignOut: () => void
+  onOpenVerification: () => void
+  onCreateBooking: () => void
+  onOpenPublicProfile: () => void
+  onOpenSettings: () => void
 }) {
   const theme = useAppTheme()
-  const { colors } = theme
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const [tab, setTab] = useState<'posts' | 'reviews'>('posts')
+  const actions = profileActionLabels(hasApplication)
 
   return (
     <Screen contentStyle={styles.content}>
-      <View style={styles.header}>
-        <AppText variant="title">Profile</AppText>
-        <AppText variant="caption" color={colors.textMuted}>Your member account and settings</AppText>
+      <View style={[styles.hero, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+        <View style={styles.heroTop}>
+          <IconButton label="Open settings" icon="settings-outline" tone="self" onPress={onOpenSettings} />
+          <View style={styles.avatarWrap}>
+            <Avatar uri={imageUrl} name={displayName} size={88} />
+            {fullyVerified ? (
+              <View style={styles.avatarBadge}>
+                <VerifiedBadge label="Identity and Companion profile verified" />
+              </View>
+            ) : null}
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Profile actions"
+            accessibilityHint="Edit profile, bookings, and Companion profile options"
+            onPress={() => setActionsOpen(true)}
+            style={({ pressed }) => [styles.actionsButton, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
+            <AppIcon name="ellipsis-horizontal" color={theme.colors.text} size={22} />
+          </Pressable>
+        </View>
+        <View style={styles.heroCopy}>
+          <AppText variant="title" style={styles.center}>{displayName}</AppText>
+          {username ? <AppText variant="caption" color={theme.colors.textMuted} style={styles.center}>{username}</AppText> : null}
+          <AppText variant="caption" color={theme.colors.textMuted} style={styles.center}>{memberSince} · {roleLabel}</AppText>
+          {fullyVerified ? <AppText variant="caption" color={theme.colors.textMuted} style={styles.center}>Identity and Companion profile verified.</AppText> : null}
+          <AppText color={theme.colors.text} style={styles.center}>{bio || 'No bio added yet.'}</AppText>
+        </View>
       </View>
 
-      <View style={styles.identityRow}>
-        <View style={styles.avatarWrap}>
-          <Avatar uri={profile.imageUrl} name={profile.name} size={72} />
-          {fullyVerified ? (
-            <View style={styles.avatarBadge}>
-              <VerifiedBadge label="Identity and Companion profile verified" />
+      <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
+        <AppText variant="heading">About</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>What other members can see about you.</AppText>
+        <View style={styles.facts}>
+          <View style={styles.fact}>
+            <AppText variant="label" color={theme.colors.textMuted}>BIO</AppText>
+            <AppText>{bio || 'No bio added yet.'}</AppText>
+          </View>
+          {interests.length > 0 ? (
+            <View style={styles.fact}>
+              <AppText variant="label" color={theme.colors.textMuted}>INTERESTED IN</AppText>
+              <View style={styles.chips}>
+                {interests.map((interest) => <Chip key={interest} label={interest} />)}
+              </View>
             </View>
           ) : null}
         </View>
-        <View style={styles.identityCopy}>
-          <AppText variant="heading">{profile.name}</AppText>
-          <AppText color={colors.textMuted}>{profile.username}</AppText>
-          <AppText variant="caption" color={colors.textMuted}>{profile.memberSince} · {profile.role}</AppText>
-          {fullyVerified ? (
-            <AppText variant="caption" color={colors.textMuted}>Identity and Companion profile verified.</AppText>
+      </View>
+
+      <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
+        <AppText variant="heading">Account status</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>Identity verification, and where Nearby places you.</AppText>
+        <View style={styles.statusRow}>
+          <AppText variant="caption" color={theme.colors.textMuted} style={styles.statusLabel}>Identity verification</AppText>
+          <View style={styles.statusValue}>
+            <StatusBadge label={verificationLabel} tone={verificationApproved ? 'success' : verificationLabel.includes('pending') || verificationLabel.includes('Pending') ? 'warning' : 'self'} />
+          </View>
+        </View>
+        <AppText color={theme.colors.textMuted}>{verificationDetail}</AppText>
+        {verificationAction !== 'none' ? (
+          <ActionButton
+            label={openingVerification ? 'Opening identity check' : verificationAction === 'continue' ? 'Continue identity check' : verificationAction === 'retry' ? 'Start a new identity check' : 'Verify identity'}
+            onPress={onOpenVerification}
+            intent="self"
+            disabled={openingVerification}
+          />
+        ) : null}
+        {verificationApproved ? <ActionButton label="Create booking" onPress={onCreateBooking} intent="social" /> : null}
+        <View style={styles.statusRow}>
+          <AppText variant="caption" color={theme.colors.textMuted} style={styles.statusLabel}>Discovery area</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted} style={styles.statusValueText}>{discoveryArea || 'Not saved'}</AppText>
+        </View>
+        <AppText variant="caption" color={theme.colors.textMuted}>
+          This is the rounded device location Nearby measures distances from, to two decimals. An approved Companion profile also appears on the nearby map at this area.
+        </AppText>
+        {!companion ? (
+          <View style={styles.companionEmpty}>
+            <View style={styles.statusRow}>
+              <AppText variant="caption" color={theme.colors.textMuted} style={styles.statusLabel}>Companion profile</AppText>
+              <View style={styles.statusValue}>
+                <StatusBadge label={companionStatusLabel('not started')} tone={companionStatusTone('not started')} />
+              </View>
+            </View>
+            <AppText color={theme.colors.textMuted}>
+              A Companion profile adds the session format, area, listed rate, and everyday help you want to offer. Identity verification is the only review.
+            </AppText>
+            <ActionButton label="Become a Companion" onPress={onOpenCompanion} intent="self" secondary />
+          </View>
+        ) : null}
+      </View>
+
+      {companion ? (
+        <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
+          <View style={styles.statusRow}>
+            <View style={styles.cardHeading}>
+              <AppText variant="heading">Companion profile</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>The details members read on your public Companion profile.</AppText>
+            </View>
+            <View style={styles.statusValue}>
+              <StatusBadge label={companionStatusLabel(companion.status)} tone={companionStatusTone(companion.status)} />
+            </View>
+          </View>
+          <View style={styles.facts}>
+            <View style={styles.fact}>
+              <AppText variant="label" color={theme.colors.textMuted}>WHAT YOU OFFER</AppText>
+              <AppText>{companion.intro}</AppText>
+            </View>
+            {companion.categories.length > 0 ? (
+              <View style={styles.fact}>
+                <AppText variant="label" color={theme.colors.textMuted}>EVERYDAY HELP AND ACTIVITIES</AppText>
+                <View style={styles.chips}>
+                  {companion.categories.map((category) => <Chip key={category} label={category} />)}
+                </View>
+              </View>
+            ) : null}
+            {companion.strengths.length > 0 ? (
+              <View style={styles.fact}>
+                <AppText variant="label" color={theme.colors.textMuted}>STRENGTHS</AppText>
+                <View style={styles.chips}>
+                  {companion.strengths.map((strength) => <Chip key={strength} label={strength} />)}
+                </View>
+              </View>
+            ) : null}
+            {companion.boundaries.length > 0 ? (
+              <View style={styles.fact}>
+                <AppText variant="label" color={theme.colors.textMuted}>BOUNDARIES</AppText>
+                {companion.boundaries.map((boundary) => <AppText key={boundary}>· {boundary}</AppText>)}
+              </View>
+            ) : null}
+            <View style={styles.fact}>
+              <AppText variant="label" color={theme.colors.textMuted}>SESSION FORMAT</AppText>
+              <AppText>{companionModeLabel(companion.mode)}</AppText>
+            </View>
+            <View style={styles.fact}>
+              <AppText variant="label" color={theme.colors.textMuted}>AREA MEMBERS READ</AppText>
+              <AppText>{companion.city || 'Not set'}</AppText>
+            </View>
+            <View style={styles.fact}>
+              <AppText variant="label" color={theme.colors.textMuted}>LISTED HOURLY RATE</AppText>
+              <AppText>{typeof companion.hourlyRateCentavos === 'number' ? `${formatPhp(companion.hourlyRateCentavos)} per hour` : 'Not set'}</AppText>
+            </View>
+          </View>
+          {companion.status === 'approved' && !companion.publicProfileId ? (
+            <AppText variant="caption" color={theme.colors.textMuted}>
+              Your profile appears in Explore and on the nearby map once your identity check is approved.
+            </AppText>
           ) : null}
+          <View style={styles.companionActions}>
+            {companion.publicProfileId ? <ActionButton label="View public profile" onPress={onOpenPublicProfile} intent="neutral" secondary /> : null}
+            <ActionButton label="Edit Companion profile" onPress={onOpenCompanion} intent="self" />
+          </View>
         </View>
+      ) : null}
+
+      <View style={styles.contentSection}>
+        <SegmentedControl
+          label={`${displayName} profile content`}
+          value={tab}
+          onChange={setTab}
+          tone="social"
+          options={(['posts', 'reviews'] as const).map((value) => ({ value, label: memberContentTabLabel(value) }))}
+        />
+        {tab === 'posts' ? (
+          <MemberProfilePosts
+            ownerName={displayName}
+            posts={posts}
+            signedIn
+            showSignInPrompt={false}
+            emptyDescription="Share a post from Home when you are ready."
+          />
+        ) : (
+          <View style={styles.reviews}>
+            <AppText variant="heading">Reviews of your Companion profile</AppText>
+            {typeof rating === 'number' && typeof reviewCount === 'number' ? (
+              <AppText variant="caption" color={theme.colors.textMuted} accessibilityLabel={`${rating.toFixed(1)} out of 5 from ${reviewCount} reviews`}>
+                {rating.toFixed(1)} out of 5 from {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+              </AppText>
+            ) : null}
+            {reviewsStatus === 'loading' ? (
+              <AppText variant="caption" color={theme.colors.textMuted}>Loading reviews.</AppText>
+            ) : reviewsStatus === 'needs_companion' ? (
+              <StateView
+                embedded
+                title="Reviews appear after you become a Companion"
+                detail="Members can leave a review after a completed plan."
+                actionLabel="Create Companion profile"
+                onAction={onOpenCompanion}
+                intent="self"
+              />
+            ) : reviewsStatus === 'empty' ? (
+              <StateView embedded title="No reviews yet" detail="Reviews will appear here after members complete plans with you." />
+            ) : (
+              <View style={styles.reviewList}>
+                {(reviews ?? []).map((review) => (
+                  <ReviewFeedCard key={String(review._id)} item={toOwnReviewFeedItem(review, displayName) as never} signedIn onAction={() => undefined} />
+                ))}
+              </View>
+            )}
+          </View>
+        )}
       </View>
-      {bio ? <AppText color={colors.textMuted}>{bio}</AppText> : null}
 
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-      <View style={styles.trustLine}>
-        <View style={[styles.trustMark, { backgroundColor: profile.verificationApproved ? colors.self : colors.background, borderColor: colors.self }]}>
-          <AppText variant="label" color={profile.verificationApproved ? colors.accentText : colors.selfText}>{profile.verificationApproved ? '✓' : '?'}</AppText>
-        </View>
-        <View style={styles.identityCopy}>
-          <AppText variant="bodyStrong">{profile.verificationLabel}</AppText>
-          <AppText variant="caption" color={colors.textMuted}>{profile.verificationDetail}</AppText>
-        </View>
-      </View>
-
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-      <SettingsGroup title="Account">
-        <SettingsRow icon="person-outline" label="Edit profile" detail="Update your display name, bio, and profile photo" onPress={onEditProfile} />
-        {!profile.onboardingComplete ? <SettingsRow icon="sparkles-outline" label="Finish welcome guide" detail={profile.onboardingLabel} onPress={onFinishWelcomeGuide} /> : null}
-        {!profile.verificationApproved ? <SettingsRow icon="shield-checkmark-outline" label={openingVerification ? 'Opening identity verification' : 'Identity verification'} detail="Continue to secure identity verification" onPress={onOpenVerification} /> : <SettingsRow icon="shield-checkmark" label="Identity verification" detail="Current approval is active" value="Approved" />}
-        <SettingsRow icon="notifications-outline" label="Notification center" detail="Booking, social, account, and safety updates" onPress={onOpenNotificationCenter} />
-        {pushNotifications ? <View style={styles.pushSettings}>{pushNotifications}</View> : null}
-        {appearanceSettings ? <View style={styles.pushSettings}>{appearanceSettings}</View> : null}
-      </SettingsGroup>
-
-      <SettingsGroup title="Your content">
-        <SettingsRow icon="document-text-outline" label="My posts and reviews" detail="View your public posts and Companion reviews" onPress={onOpenMyPosts} />
-      </SettingsGroup>
-
-      <SettingsGroup title="Bookings and money">
-        <SettingsRow icon="calendar-outline" label="Bookings" detail="Upcoming, requests, and past experiences" onPress={onOpenBookings} />
-        <SettingsRow icon="wallet-outline" label="Booking wallet" detail="Available, reserved, and pending member balance" onPress={onOpenWallet} />
-        {profile.verificationApproved ? <SettingsRow icon="cash-outline" label="Withdraw funds" detail="Move available wallet funds to your verified payout account" onPress={onOpenWithdrawals} /> : null}
-      </SettingsGroup>
-
-      <SettingsGroup title="Companion">
-        {hasCompanionTools ? <SettingsRow icon="people-outline" label="Companion tools" detail="What you offer, your public profile, Strengths, and rate" onPress={onOpenCompanion} /> : <SettingsRow icon="person-add-outline" label="Become a Companion" detail="Share everyday Strengths, help someone, and earn on your terms" onPress={onOpenCompanion} />}
-        {approvedCompanion ? <SettingsRow icon="mail-open-outline" label="Incoming bookings" detail="Review and respond to member requests" onPress={onOpenIncomingBookings} /> : null}
-        {approvedCompanion ? <SettingsRow icon="stats-chart-outline" label="Companion finance" detail="Earnings, fees, obligations, and history" onPress={onOpenCompanionFinance} /> : null}
-      </SettingsGroup>
-
-      <SettingsGroup title="Safety and support">
-        <SettingsRow icon="shield-outline" label="Safety Center" detail="Meeting guidance, reports, blocked members, and muted members" onPress={onOpenSafety} />
-      </SettingsGroup>
-
-      <SettingsGroup title="Legal and privacy">
-        <SettingsRow icon="document-text-outline" label={termsDocument.title} detail="Rules for using Let's Be Friends, bookings, and Companion conduct" onPress={onOpenTerms} />
-        <SettingsRow icon="lock-closed-outline" label={privacyDocument.title} detail="What we collect, why we use it, and how long we keep it" onPress={onOpenPrivacy} />
-      </SettingsGroup>
-
-      <SettingsGroup title="Session">
-        <SettingsRow icon="log-out-outline" label={signingOut ? 'Signing out' : 'Sign out'} detail="End this session on this device" danger onPress={onSignOut} />
-      </SettingsGroup>
+      <ActionSheet
+        visible={actionsOpen}
+        title="Profile actions"
+        description="Manage your member profile, bookings, and Companion profile."
+        onClose={() => setActionsOpen(false)}
+        items={actions.map((action) => ({
+          label: action.label,
+          icon: action.id === 'edit' ? 'pencil-outline' : action.id === 'bookings' ? 'calendar-outline' : 'sparkles-outline',
+          tone: action.id === 'bookings' ? 'social' : 'self',
+          onPress: () => {
+            if (action.id === 'edit') onEditProfile()
+            else if (action.id === 'bookings') onOpenBookings()
+            else onOpenCompanion()
+          },
+        } as const))}
+      />
     </Screen>
-  )
-}
-
-function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
-  const theme = useAppTheme()
-  return (
-    <View style={styles.group}>
-      <AppText variant="label" color={theme.colors.textMuted}>{title.toUpperCase()}</AppText>
-      <View style={styles.rows}>{children}</View>
-    </View>
   )
 }
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 32, gap: 16 },
-  header: { paddingTop: 12, gap: 2 },
-  identityRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatarWrap: { position: 'relative' },
+  hero: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 12, alignItems: 'center' },
+  heroTop: { width: '100%', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  heroCopy: { width: '100%', gap: 4, alignItems: 'center' },
+  center: { textAlign: 'center' },
+  avatarWrap: { position: 'relative', alignItems: 'center' },
   avatarBadge: { position: 'absolute', right: -2, bottom: -2 },
-  identityCopy: { flex: 1, gap: 2 },
-  trustLine: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  trustMark: { width: 32, height: 32, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 2 },
-  group: { gap: 8, marginTop: 4 },
-  rows: { gap: 0 },
-  pushSettings: { paddingVertical: 8 },
+  actionsButton: { width: 44, height: 44, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.62 },
+  card: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 10 },
+  cardHeading: { flex: 1, minWidth: 0, gap: 2 },
+  facts: { gap: 12 },
+  fact: { gap: 6 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  statusLabel: { flex: 1, minWidth: 0 },
+  statusValue: { flexShrink: 0, maxWidth: '62%' },
+  statusValueText: { flexShrink: 0, maxWidth: '62%', textAlign: 'right' },
+  companionEmpty: { gap: 10 },
+  companionActions: { gap: 10, marginTop: 4 },
+  contentSection: { gap: 12 },
+  reviews: { gap: 10 },
+  reviewList: { gap: 10 },
 })

@@ -9,6 +9,10 @@ export type ProfileViewer = {
   profileImageUrl?: string | null
   verificationStatus: 'not_started' | 'pending' | 'approved' | 'rejected'
   identityEligible: boolean
+  bio?: string | null
+  onboardingCategories?: string[] | null
+  approximateLatitude?: number | null
+  approximateLongitude?: number | null
 }
 
 export type ProfileVerification = {

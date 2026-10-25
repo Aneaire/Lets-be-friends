@@ -5,20 +5,22 @@ import { useEffect, useMemo, useState } from 'react'
 import { FlatList, ScrollView, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { mobileApi } from '@/backend/client'
+import { mobileApi, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { IconButton } from '@/design-system/atoms/IconButton'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
-import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { showAppToast, useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { SearchField } from '@/design-system/molecules/SearchField'
 import { CompanionCard } from '@/design-system/organisms/CompanionCard'
 import { ProductMap } from '@/design-system/organisms/ProductMap'
 import { ListRowsSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
-import { mapApprovedCompanion, type ApprovedCompanionRecord } from '@/data/companionViewModels'
+import { mapApprovedCompanion, type ApprovedCompanionRecord, type DiscoveryCompanionViewModel } from '@/data/companionViewModels'
 import { defaultDiscoveryFilters, discoveryCategoryOptions, filterDiscoveryCompanions, nearbySearchOptionsLabel, type DiscoveryFilters } from '@/data/discovery'
+import { NearbyCompanionSheet } from '@/features/discovery/NearbyCompanionSheet'
+import { nearbyMapPoints } from '@/features/discovery/nearbyMapSelection'
 import { NearbySearchOptionsSheet, type NearbyRadius } from '@/features/discovery/NearbySearchOptionsSheet'
 import { readCurrentCoordinates } from '@/features/discovery/nearbyLocation'
 import { NearbyAccountRequestScope, normalizeMapCoordinates, roundOriginCoordinates } from '@/features/discovery/nearbyOrigin'
@@ -30,8 +32,12 @@ export default function NearbyScreen() {
   const theme = useAppTheme()
   const member = useMobileMember()
   const updateApproximateLocation = useMutation(mobileApi.users.updateApproximateLocation)
+  const startConversation = useMutation(mobileApi.conversations.start)
   const [radiusKm, setRadiusKm] = useState<NearbyRadius>(25)
   const [mapInteracting, setMapInteracting] = useState(false)
+  const [selectedCompanion, setSelectedCompanion] = useState<DiscoveryCompanionViewModel | null>(null)
+  const [companionSheetOpen, setCompanionSheetOpen] = useState(false)
+  const [messagingCompanion, setMessagingCompanion] = useState(false)
   const [overrideOrigin, setOverrideOrigin] = useState<{ latitude: number; longitude: number } | null>(null)
   const [pinMode, setPinMode] = useState(false)
   const [locating, setLocating] = useState(false)
@@ -154,12 +160,31 @@ export default function NearbyScreen() {
     return <NearbyShell><StateView title="Nearby discovery is unavailable" detail="This build cannot connect to nearby discovery." /></NearbyShell>
   }
 
-  const mapPoints = companions.flatMap((companion) => (
-    typeof companion.latitude === 'number' && typeof companion.longitude === 'number'
-      ? [{ id: companion.id, latitude: companion.latitude, longitude: companion.longitude, name: companion.name }]
-      : []
-  ))
-  const openCompanion = (id: string) => router.push({ pathname: '/companion-profile/[id]', params: { id } })
+  const mapPoints = nearbyMapPoints(companions)
+  const openCompanionPreview = (id: string) => {
+    const companion = companions.find((item) => item.id === id)
+    if (!companion) return
+    setSelectedCompanion(companion)
+    setCompanionSheetOpen(true)
+  }
+  const openCompanion = () => {
+    if (!selectedCompanion) return
+    setCompanionSheetOpen(false)
+    router.push({ pathname: '/companion-profile/[id]', params: { id: selectedCompanion.id } })
+  }
+  async function messageCompanion() {
+    if (!selectedCompanion?.userId || member.status !== 'ready' || messagingCompanion) return
+    setMessagingCompanion(true)
+    try {
+      const conversationId = await startConversation({ otherUserId: selectedCompanion.userId as UserId })
+      setCompanionSheetOpen(false)
+      router.push({ pathname: '/conversation/[id]', params: { id: String(conversationId) } })
+    } catch {
+      showAppToast('A conversation could not be opened. Please try again.', 'error')
+    } finally {
+      setMessagingCompanion(false)
+    }
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
@@ -203,7 +228,7 @@ export default function NearbyScreen() {
           contentContainerStyle={styles.list}
           scrollEnabled={!mapInteracting}
           ListHeaderComponent={<View style={styles.listHeader}>
-            <ProductMap center={origin} radiusKm={radiusKm} points={mapPoints} onSelectPoint={openCompanion} onInteractionChange={setMapInteracting} expanded />
+            <ProductMap center={origin} radiusKm={radiusKm} points={mapPoints} onSelectPoint={openCompanionPreview} onInteractionChange={setMapInteracting} expanded />
             <View style={styles.mapSummary}>
               <View style={styles.mapSummaryCopy}>
                 <AppText variant="bodyStrong">Around {originLabel}</AppText>
@@ -223,6 +248,15 @@ export default function NearbyScreen() {
           ListEmptyComponent={result === undefined ? <ListRowsSkeleton count={3} /> : <StateView embedded title="No live Companions in this radius" detail="Try a larger radius or return to Explore for online sessions." />}
         />
       )}
+      <NearbyCompanionSheet
+        visible={companionSheetOpen}
+        companion={selectedCompanion}
+        signedIn={member.status === 'ready'}
+        messaging={messagingCompanion}
+        onMessage={() => void messageCompanion()}
+        onViewProfile={openCompanion}
+        onClose={() => setCompanionSheetOpen(false)}
+      />
       <NearbySearchOptionsSheet
         visible={optionsVisible}
         radiusKm={radiusKm}

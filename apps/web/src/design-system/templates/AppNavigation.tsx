@@ -151,8 +151,6 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
           <DesktopPrimaryNavigation activeItem={activeItem} />
           <MobilePrimaryNavigation
             activeItem={activeItem}
-            accountOpen={accountOpen}
-            onOpenAccount={openAccount}
             accountActive={isAccountPath(pathname)}
           />
         </>
@@ -415,14 +413,10 @@ export function DesktopPrimaryNavigation({ activeItem }: { activeItem: ReturnTyp
 
 export function MobilePrimaryNavigation({
   activeItem,
-  accountOpen,
   accountActive,
-  onOpenAccount,
 }: {
   activeItem: ReturnType<typeof activePrimaryNavigation>
-  accountOpen: boolean
   accountActive: boolean
-  onOpenAccount: (opener: HTMLButtonElement) => void
 }) {
   const conversations = useQuery(api.conversations.list, {})
   const messagesUnread = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0
@@ -441,17 +435,14 @@ export function MobilePrimaryNavigation({
           {item.id === 'messages' && messagesUnread > 0 && <span className="mobile-nav-badge tabular" aria-label={`${messagesUnread} unread messages`}>{messagesUnread > 99 ? '99+' : messagesUnread}</span>}
         </Link>
       ))}
-      <button
-        type="button"
+      <Link
+        to="/profile"
         className="mobile-primary-nav-item"
-        data-active={accountOpen || accountActive}
-        aria-expanded={accountOpen}
-        aria-controls="account-navigation-panel"
-        onClick={(event) => onOpenAccount(event.currentTarget)}
+        aria-current={accountActive ? 'page' : undefined}
       >
         <UserRound size={20} aria-hidden="true" />
         <span>Account</span>
-      </button>
+      </Link>
     </nav>
   )
 }

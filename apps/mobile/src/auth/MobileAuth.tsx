@@ -16,6 +16,7 @@ export type MobileAuthState =
       clerkConfigured: true
       clerkUserId: string
       displayName: string
+      email?: string
       signOut: () => Promise<void>
     }
 
@@ -68,6 +69,7 @@ export function ClerkAuthBridge({ children }: PropsWithChildren) {
     const identity = {
       clerkUserId: user.id,
       displayName,
+      email: user.primaryEmailAddress?.emailAddress ?? undefined,
     }
 
     return {

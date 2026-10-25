@@ -37,12 +37,12 @@ describe('mobile legal policy surfaces', () => {
     expect(source('app/privacy-policy.tsx')).toContain('documentId="privacy"')
   })
 
-  it('uses shared document metadata in onboarding and profile links', () => {
+  it('uses shared document metadata in onboarding and settings links', () => {
     expect(source('app/onboarding.tsx')).toContain('policyDocuments.map')
     expect(source('app/onboarding.tsx')).toContain('document.acceptanceLabel')
-    expect(source('member/ProfileContent.tsx')).toContain('termsDocument.title')
-    expect(source('member/ProfileContent.tsx')).toContain('privacyDocument.title')
-    expect(source('app/(tabs)/profile.tsx')).toContain('router.push(\'/terms-and-conditions\')')
-    expect(source('app/(tabs)/profile.tsx')).toContain('router.push(\'/privacy-policy\')')
+    expect(source('features/settings/SettingsContent.tsx')).toContain('termsDocument.title')
+    expect(source('features/settings/SettingsContent.tsx')).toContain('privacyDocument.title')
+    expect(source('app/settings.tsx')).toContain('router.push(\'/terms-and-conditions\')')
+    expect(source('app/settings.tsx')).toContain('router.push(\'/privacy-policy\')')
   })
 })

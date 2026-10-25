@@ -18,7 +18,7 @@ import {
   topUpPresentation,
   walletBalanceRows,
 } from '@/data/wallet'
-import { walletActivityRows } from '@/data/walletActivity'
+import { transactionsActivityState, transactionsPreviewRows, TRANSACTIONS_ROUTE } from '@/features/finance/transactions'
 import {
   WalletPresentation,
   type WalletTopUpItem,
@@ -73,8 +73,9 @@ function WalletView({
   const activeTopUp = wallet.topUps.find((topUp) => topUpPresentation(topUp.status, topUp.expiresAt, clockNow).active)
   const displayTopUp = activeTopUp ?? wallet.topUps[0]
   const waitingForCreatedTopUp = pendingCreatedTopUpId !== null
-  const activity = walletActivityRows(bookingTransactions ?? [], topUps ?? [], clockNow)
-  const activityLoading = bookingTransactions === undefined || topUps === undefined
+  const activityState = transactionsActivityState({ bookingTransactions, topUps, now: clockNow })
+  const activity = activityState.state === 'ready' ? transactionsPreviewRows(activityState.rows) : []
+  const activityLoading = activityState.state === 'loading'
 
   useEffect(() => {
     const timer = setInterval(() => setClockNow(Date.now()), 30_000)
@@ -162,6 +163,7 @@ function WalletView({
       activity={activity}
       activityLoading={activityLoading}
       onOpenBooking={(bookingId) => router.push(`/booking/${bookingId}` as never)}
+      onOpenTransactions={() => router.push(TRANSACTIONS_ROUTE as never)}
       onReturn={() => router.replace('/profile')}
       onOpenWithdrawals={() => router.push('/companion-finance')}
     />

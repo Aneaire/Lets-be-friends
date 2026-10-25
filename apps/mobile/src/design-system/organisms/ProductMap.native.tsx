@@ -1,7 +1,7 @@
 import { Camera, GeoJSONSource, Layer, Map, Marker, type CameraRef } from '@maplibre/maplibre-react-native'
 import { productMapInitialView, productMapStyleUrl, productMapZoomForRadius } from '@lets-be-friends/shared'
 import { useEffect, useRef, useState } from 'react'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Image, Pressable, StyleSheet, View } from 'react-native'
 
 import type { ProductMapProps } from './ProductMap'
 import { createMapInteractionTracker } from './productMapInteraction'
@@ -91,10 +91,20 @@ export function ProductMap({ center, radiusKm, points = [], onSelectPoint, onPic
               </Marker>
             ) : null}
             {points.map((point) => (
-              <Marker key={point.id} id={`companion-${point.id}`} lngLat={[point.longitude, point.latitude]}>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Open ${point.name}'s profile`} onPress={() => onSelectPoint?.(point.id)} style={[styles.personMarker, { backgroundColor: theme.colors.socialControl }]}>
-                  <AppText variant="label" color={theme.colors.accentText}>{initials(point.name)}</AppText>
-                </Pressable>
+              <Marker
+                key={point.id}
+                id={`companion-${point.id}`}
+                lngLat={[point.longitude, point.latitude]}
+                onPress={() => onSelectPoint?.(point.id)}>
+                <View
+                  accessible
+                  accessibilityRole="button"
+                  accessibilityLabel={`Show ${point.name}'s details`}
+                  style={[styles.personMarker, { backgroundColor: theme.colors.socialControl, borderColor: theme.colors.surfaceRaised }]}>
+                  {point.imageUrl
+                    ? <Image accessibilityLabel={`Portrait of ${point.name}`} source={{ uri: point.imageUrl }} style={styles.personPhoto} />
+                    : <AppText variant="label" color={theme.colors.accentText}>{initials(point.name)}</AppText>}
+                </View>
               </Marker>
             ))}
           </Map>
@@ -165,5 +175,19 @@ const styles = StyleSheet.create({
   failure: { flex: 1, padding: 18, alignItems: 'flex-start', justifyContent: 'center', gap: 8 },
   originMarker: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#1093ED', alignItems: 'center', justifyContent: 'center' },
   originDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#1093ED' },
-  personMarker: { minWidth: 48, height: 48, paddingHorizontal: 9, borderRadius: 24, borderWidth: 3, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  personMarker: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+    shadowColor: '#000000',
+    shadowOpacity: 0.24,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  personPhoto: { width: 40, height: 40 },
 })

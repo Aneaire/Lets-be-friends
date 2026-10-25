@@ -1,0 +1,26 @@
+import { verificationActionFor, type VerificationAction } from '@/member/profileSections'
+
+/**
+ * Pure model behind the Settings verification row and gated sections.
+ * An approved identity needs no new flow: the row is display-only and only
+ * verify, continue, and retry actions open the web handoff (with busy guard).
+ */
+export function settingsAccountModel(input: {
+  verificationStatus: string
+  verification: { adminStatus?: string | null; personaStatus?: string | null; identityStage?: string | null } | null | undefined
+  identityEligible: boolean
+  applicationStatus?: string | null
+}): {
+  verificationAction: VerificationAction
+  showVerificationFlow: boolean
+  showWithdrawals: boolean
+  showCompanionSections: boolean
+} {
+  const verificationAction = verificationActionFor(input.verificationStatus, input.verification, input.identityEligible)
+  return {
+    verificationAction,
+    showVerificationFlow: verificationAction !== 'none',
+    showWithdrawals: input.identityEligible,
+    showCompanionSections: input.applicationStatus === 'approved',
+  }
+}

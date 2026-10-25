@@ -41,7 +41,8 @@ vi.mock('@clerk/react', () => ({
   useUser: () => ({ user: { fullName: 'Gelo Santiago', username: 'gelo' } }),
 }))
 
-import { AccountAvatar, AccountNavigation, DesktopPrimaryNavigation, HeaderPrimaryActions, HeaderSearch, MobilePrimaryNavigation, NotificationNavigation, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
+import { AccountAvatar, AccountNavigation, DesktopPrimaryNavigation, HeaderPrimaryActions, HeaderSearch, MobilePrimaryNavigation, NotificationNavigation, SignedInApplicationChrome, type HeaderSearchPerson } from '../../src/design-system/templates/AppNavigation'
+import { useRouterState } from '@tanstack/react-router'
 
 afterEach(() => {
   cleanup()
@@ -230,22 +231,79 @@ describe('primary navigation surfaces', () => {
     expect(screen.getByRole('link', { name: 'Circles' }).getAttribute('aria-current')).toBe('page')
 
     cleanup()
-    render(<MobilePrimaryNavigation activeItem="circles" accountOpen={false} accountActive={false} onOpenAccount={() => {}} />)
-    expect(screen.getByRole('navigation', { name: /mobile primary navigation/i }).querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(4)
+    render(<MobilePrimaryNavigation activeItem="circles" accountActive={false} />)
+    expect(screen.getByRole('navigation', { name: /mobile primary navigation/i }).querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(5)
     expect(screen.queryByRole('link', { name: 'Circles' })).toBeNull()
   })
 
   it('keeps Messages and Bookings in the mobile bottom tabs', () => {
-    render(<MobilePrimaryNavigation activeItem="messages" accountOpen={false} accountActive={false} onOpenAccount={() => {}} />)
+    render(<MobilePrimaryNavigation activeItem="messages" accountActive={false} />)
 
     const nav = screen.getByRole('navigation', { name: /mobile primary navigation/i })
-    expect(nav.querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(4)
+    expect(nav.querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(5)
     expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Explore' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Circles' })).toBeNull()
     expect(screen.getByRole('link', { name: 'Messages' }).getAttribute('aria-current')).toBe('page')
     expect(screen.getByRole('link', { name: 'Bookings' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Account' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Account' }).getAttribute('href')).toBe('/profile')
+  })
+
+  it('navigates the mobile Account tab directly to the profile instead of opening the account menu', () => {
+    render(<MobilePrimaryNavigation activeItem={null} accountActive={false} />)
+
+    const account = screen.getByRole('link', { name: 'Account' })
+    expect(account.getAttribute('href')).toBe('/profile')
+    expect(account.getAttribute('aria-current')).toBeNull()
+    expect(account.hasAttribute('aria-expanded')).toBe(false)
+    expect(account.hasAttribute('aria-controls')).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Account' })).toBeNull()
+  })
+
+  it('marks the mobile Account tab current on account paths', () => {
+    render(<MobilePrimaryNavigation activeItem={null} accountActive={true} />)
+
+    expect(screen.getByRole('link', { name: 'Account' }).getAttribute('aria-current')).toBe('page')
+  })
+})
+
+describe('signed-in chrome', () => {
+  function renderChrome(pathname: string) {
+    vi.mocked(useRouterState).mockImplementation(((options: { select: (state: { location: { pathname: string } }) => string }) =>
+      options.select({ location: { pathname } })) as never)
+    navigationMocks.query.mockReturnValue(undefined)
+    navigationMocks.mutation.mockReturnValue(vi.fn())
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockReturnValue({
+        matches: false,
+        media: '',
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    })
+    return render(<SignedInApplicationChrome onboarding={false} />)
+  }
+
+  it('keeps the bottom Account tab as a profile link while the header avatar still opens the account sheet', () => {
+    renderChrome('/social')
+
+    const tabs = screen.getByRole('navigation', { name: /mobile primary navigation/i })
+    const accountTab = screen.getByRole('link', { name: 'Account' })
+    expect(tabs.contains(accountTab)).toBe(true)
+    expect(accountTab.getAttribute('href')).toBe('/profile')
+    expect(screen.queryByRole('navigation', { name: 'Account navigation' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open account navigation' }))
+
+    expect(screen.getByRole('navigation', { name: 'Account navigation' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Account' }).getAttribute('href')).toBe('/profile')
+  })
+
+  it('marks the bottom Account tab current on the profile route', () => {
+    renderChrome('/profile')
+
+    expect(screen.getByRole('link', { name: 'Account' }).getAttribute('aria-current')).toBe('page')
   })
 })
 

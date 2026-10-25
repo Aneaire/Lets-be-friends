@@ -7,9 +7,11 @@ import { mobileApi } from '@/backend/client'
 import { mobileNotificationRoute, type MobileNotificationDestination } from '@/data/notifications'
 import { useMobileMember } from '@/member/MobileMember'
 
-import { createPushRegistrationCoordinator, foregroundPermissionAction, parsePushPayload, resolvePushTap, resolvePushUiState, responseEventKey, revokePushRegistration, shouldApplyBadge, shouldRequestPermission, shouldRevokeOnSignOut, shouldSilentlyRefresh, type PushPreference, type PushUiState } from './logic'
+import { createPushRegistrationCoordinator, foregroundPermissionAction, parsePushPayload, resolvePushTap, resolvePushUiState, responseEventKey, revokePushRegistration, shouldApplyBadge, shouldRequestPermission, shouldRevokeOnSignOut, shouldShowPushOptInPrompt, shouldSilentlyRefresh, type PushPreference, type PushUiState } from './logic'
 import { nativePushAdapter } from './nativeAdapter'
-import { readPushPreference, writePushPreference } from './preferences'
+import { readPushOptInPrompt, readPushPreference, writePushOptInPrompt, writePushPreference } from './preferences'
+import { runPushEnableFlow, runPushOptInAccept, runPushOptInDismiss, type PushOptInSession } from './pushOptInOrchestration'
+import { PushOptInPrompt } from './PushOptInPromptPresentation'
 
 type PushContextValue = {
   state: PushUiState
@@ -19,6 +21,9 @@ type PushContextValue = {
   retryDisable: () => Promise<void>
   retryAvailability: () => Promise<void>
   cleanupForSignOut: () => Promise<void>
+  optInVisible: boolean
+  acceptOptIn: () => Promise<void>
+  dismissOptIn: () => Promise<void>
 }
 
 const PushContext = createContext<PushContextValue>({
@@ -29,6 +34,9 @@ const PushContext = createContext<PushContextValue>({
   retryDisable: async () => {},
   retryAvailability: async () => {},
   cleanupForSignOut: async () => {},
+  optInVisible: false,
+  acceptOptIn: async () => {},
+  dismissOptIn: async () => {},
 })
 
 export function PushNotificationsProvider({ children }: PropsWithChildren) {
@@ -48,8 +56,17 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
   const [failed, setFailed] = useState(false)
   const [bootstrap, setBootstrap] = useState<{ accountId: string | null; status: 'idle' | 'loading' | 'ready' | 'error' }>({ accountId: null, status: 'idle' })
   const [backendTimedOut, setBackendTimedOut] = useState(false)
+  const [optInHandled, setOptInHandled] = useState(false)
+  const [optInLoaded, setOptInLoaded] = useState(false)
   const bootstrapGeneration = useRef(0)
+  const optInGeneration = useRef(0)
+  const sessionGeneration = useRef(0)
+  const mountedRef = useRef(true)
+  const liveAccountRef = useRef<string | null>(null)
+  const liveInstallationRef = useRef<string | null>(null)
+  const optInActionRef = useRef(false)
   const loadedAccount = useRef<string | null>(null)
+  const optInLoadedKey = useRef<string | null>(null)
   const launchRetryAccount = useRef<string | null>(null)
   const handledResponses = useRef(new Set<string>())
   const pendingResponse = useRef<{ data: unknown; responseIdentifier?: string } | null>(null)
@@ -59,11 +76,14 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
     const generation = ++bootstrapGeneration.current
     loadedAccount.current = null
     launchRetryAccount.current = null
+    optInLoadedKey.current = null
     setPreference({ optedIn: false, pendingDisable: false })
     setPermission('unavailable')
     setInstallationId(null)
     setFailed(false)
     setBackendTimedOut(false)
+    setOptInHandled(false)
+    setOptInLoaded(false)
     setBootstrap({ accountId: targetAccountId, status: 'loading' })
     try {
       const [saved, currentPermission, installation] = await Promise.all([
@@ -91,8 +111,45 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
   }, [])
 
   useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      sessionGeneration.current += 1
+      bootstrapGeneration.current += 1
+      optInGeneration.current += 1
+      loadedAccount.current = null
+      optInLoadedKey.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    liveAccountRef.current = accountId
+    liveInstallationRef.current = installationId
+  }, [accountId, installationId])
+
+  const captureOptInSession = useCallback((): PushOptInSession | null => {
+    const currentAccount = liveAccountRef.current
+    const currentInstallation = liveInstallationRef.current
+    if (!currentAccount || !currentInstallation) return null
+    return { accountId: currentAccount, installationId: currentInstallation, generation: sessionGeneration.current }
+  }, [])
+
+  const isCurrentOptInSession = useCallback((session: PushOptInSession) => {
+    if (!mountedRef.current) return false
+    const live = { accountId: liveAccountRef.current, installationId: liveInstallationRef.current, generation: sessionGeneration.current }
+    return live.generation === session.generation
+      && live.accountId === session.accountId
+      && live.installationId === session.installationId
+      && loadedAccount.current === session.accountId
+  }, [])
+
+  useEffect(() => {
+    sessionGeneration.current += 1
     bootstrapGeneration.current += 1
+    optInGeneration.current += 1
     loadedAccount.current = null
+    optInLoadedKey.current = null
+    optInActionRef.current = false
     setBootstrap({ accountId, status: accountId ? 'loading' : 'idle' })
     if (accountId) void bootstrapAccount(accountId)
     else {
@@ -102,8 +159,17 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
       setInstallationId(null)
       setFailed(false)
       setBackendTimedOut(false)
+      setOptInHandled(false)
+      setOptInLoaded(false)
     }
-    return () => { bootstrapGeneration.current += 1 }
+    return () => {
+      bootstrapGeneration.current += 1
+      optInGeneration.current += 1
+      sessionGeneration.current += 1
+      loadedAccount.current = null
+      optInLoadedKey.current = null
+      optInActionRef.current = false
+    }
   }, [accountId, bootstrapAccount])
 
   useEffect(() => {
@@ -120,32 +186,68 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
     await bootstrapAccount(accountId)
   }, [accountId, bootstrapAccount])
 
+  useEffect(() => {
+    if (!accountId || !installationId || bootstrap.status !== 'ready' || bootstrap.accountId !== accountId || loadedAccount.current !== accountId) return
+    const loadKey = `${accountId}:${installationId}`
+    if (optInLoadedKey.current === loadKey) return
+    const generation = ++optInGeneration.current
+    let cancelled = false
+    void readPushOptInPrompt(accountId, installationId).then((saved) => {
+      if (cancelled || optInGeneration.current !== generation) return
+      if (loadedAccount.current !== accountId) return
+      optInLoadedKey.current = loadKey
+      setOptInHandled(saved.handled)
+      setOptInLoaded(true)
+    }).catch(() => {
+      if (cancelled || optInGeneration.current !== generation) return
+      if (loadedAccount.current !== accountId) return
+      optInLoadedKey.current = loadKey
+      setOptInHandled(false)
+      setOptInLoaded(true)
+    })
+    return () => { cancelled = true }
+  }, [accountId, bootstrap.accountId, bootstrap.status, installationId])
+
   const currentInstallationId = useCallback(async () => {
-    if (installationId) return installationId
+    if (liveInstallationRef.current) return liveInstallationRef.current
+    if (!mountedRef.current) throw new Error('Push provider unmounted')
+    const generation = sessionGeneration.current
     const installation = await nativePushAdapter.ensureInstallation()
+    if (!mountedRef.current || sessionGeneration.current !== generation) throw new Error('Push session changed')
     setInstallationId(installation.installationId)
+    liveInstallationRef.current = installation.installationId
     return installation.installationId
-  }, [installationId])
+  }, [])
 
   const registerCurrentDevice = useCallback(async () => {
-    if (!accountId || !ready || !nativePushAdapter.available || serverState?.available !== true || preference.pendingDisable) return false
+    const liveAccount = liveAccountRef.current
+    const liveGeneration = sessionGeneration.current
+    if (!liveAccount || !mountedRef.current) return false
+    if (!ready || !nativePushAdapter.available || serverState?.available !== true || preference.pendingDisable) return false
+    if (loadedAccount.current !== liveAccount) return false
     return registrationCoordinator.register(
-      accountId,
+      liveAccount,
       async () => {
+        if (!mountedRef.current || sessionGeneration.current !== liveGeneration || liveAccountRef.current !== liveAccount) return null
         const registration = await nativePushAdapter.getRegistration()
+        if (!mountedRef.current || sessionGeneration.current !== liveGeneration || liveAccountRef.current !== liveAccount) return null
         if (!registration) return null
         const currentId = await currentInstallationId()
+        if (!mountedRef.current || sessionGeneration.current !== liveGeneration || liveAccountRef.current !== liveAccount) return null
         return { installationId: currentId, ...registration }
       },
       async (candidate) => {
+        if (!mountedRef.current || sessionGeneration.current !== liveGeneration || liveAccountRef.current !== liveAccount) throw new Error('Push session changed')
         await registerDevice(candidate)
+        if (!mountedRef.current || sessionGeneration.current !== liveGeneration || liveAccountRef.current !== liveAccount) throw new Error('Push session changed')
         const next = { optedIn: true, pendingDisable: false }
-        await writePushPreference(accountId, next)
+        await writePushPreference(liveAccount, next)
+        if (!mountedRef.current || sessionGeneration.current !== liveGeneration || liveAccountRef.current !== liveAccount) return
         setPreference(next)
         setPermission('granted')
       },
     )
-  }, [accountId, currentInstallationId, preference.pendingDisable, ready, registerDevice, registrationCoordinator, serverState?.available])
+  }, [currentInstallationId, preference.pendingDisable, ready, registerDevice, registrationCoordinator, serverState?.available])
 
   const revoke = useCallback(async (nextOptedIn: boolean) => {
     if (!accountId) {
@@ -211,33 +313,163 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
     await nativePushAdapter.setBadgeCount(0).catch(() => {})
   }, [accountId, preference.optedIn, preference.pendingDisable, revoke, serverState?.registered])
 
-  const enable = useCallback(async () => {
-    if (preference.pendingDisable || !shouldRequestPermission({ explicit: true, memberReady: ready, backendAvailable: serverState?.available === true })) return
+  const tryEnable = useCallback(async () => {
+    if (optInActionRef.current) return false
+    const session = captureOptInSession()
+    if (!session || !isCurrentOptInSession(session)) return false
+    if (preference.pendingDisable || !shouldRequestPermission({ explicit: true, memberReady: ready, backendAvailable: serverState?.available === true })) return false
+    optInActionRef.current = true
     setBusy(true)
     setFailed(false)
     try {
-      const current = await nativePushAdapter.getPermissionState()
-      if (current === 'denied') {
-        setPermission('denied')
-        return
-      }
-      await nativePushAdapter.ensureNotificationChannel()
-      const nextPermission = current === 'granted' ? current : await nativePushAdapter.requestPermission()
-      setPermission(nextPermission)
-      if (nextPermission !== 'granted' || !await registerCurrentDevice()) setFailed(nextPermission === 'granted')
+      const outcome = await runPushEnableFlow({
+        session,
+        isCurrent: isCurrentOptInSession,
+        memberReady: ready,
+        backendAvailable: serverState?.available === true,
+        pendingDisable: preference.pendingDisable,
+        getPermissionState: () => nativePushAdapter.getPermissionState(),
+        ensureNotificationChannel: () => nativePushAdapter.ensureNotificationChannel(),
+        requestPermission: () => nativePushAdapter.requestPermission(),
+        getRegistration: () => nativePushAdapter.getRegistration(),
+        getInstallationId: () => currentInstallationId(),
+        registerOnServer: (candidate) => registerDevice(candidate),
+        saveOptedInPreference: async () => {
+          const next = { optedIn: true, pendingDisable: false }
+          await writePushPreference(session.accountId, next)
+          if (!isCurrentOptInSession(session)) return
+          setPreference(next)
+          setPermission('granted')
+        },
+        onPermissionState: (nextPermission) => {
+          if (!isCurrentOptInSession(session)) return
+          setPermission(nextPermission)
+        },
+        onFailure: (failed) => {
+          if (!isCurrentOptInSession(session)) return
+          setFailed(failed)
+        },
+      })
+      return outcome === 'registered'
     } catch {
-      setFailed(true)
+      if (isCurrentOptInSession(session)) setFailed(true)
+      return false
     } finally {
-      setBusy(false)
+      optInActionRef.current = false
+      if (isCurrentOptInSession(session)) setBusy(false)
+      else if (mountedRef.current) setBusy(false)
     }
-  }, [preference.pendingDisable, ready, registerCurrentDevice, serverState?.available])
+  }, [captureOptInSession, currentInstallationId, isCurrentOptInSession, preference.pendingDisable, ready, registerDevice, serverState?.available])
+
+  const enable = useCallback(async () => {
+    await tryEnable()
+  }, [tryEnable])
+
+  const markOptInHandled = useCallback(async (session: PushOptInSession) => {
+    try {
+      await writePushOptInPrompt(session.accountId, session.installationId, { handled: true })
+    } catch {
+      // Best effort. The in-memory flag still hides the prompt for this session.
+    }
+  }, [])
+
+  const dismissOptIn = useCallback(async () => {
+    if (optInActionRef.current) return
+    const session = captureOptInSession()
+    if (!session || !isCurrentOptInSession(session)) return
+    optInActionRef.current = true
+    try {
+      await runPushOptInDismiss({
+        session,
+        isCurrent: isCurrentOptInSession,
+        persistHandled: () => markOptInHandled(session),
+        onHidden: () => {
+          if (!isCurrentOptInSession(session)) return
+          optInLoadedKey.current = `${session.accountId}:${session.installationId}`
+          setOptInHandled(true)
+          setOptInLoaded(true)
+        },
+      })
+    } finally {
+      optInActionRef.current = false
+    }
+  }, [captureOptInSession, isCurrentOptInSession, markOptInHandled])
+
+  const acceptOptIn = useCallback(async () => {
+    if (optInActionRef.current) return
+    const session = captureOptInSession()
+    if (!session || !isCurrentOptInSession(session)) return
+    optInActionRef.current = true
+    setBusy(true)
+    setFailed(false)
+    try {
+      const outcome = await runPushOptInAccept({
+        session,
+        isCurrent: isCurrentOptInSession,
+        runEnable: () => runPushEnableFlow({
+          session,
+          isCurrent: isCurrentOptInSession,
+          memberReady: ready,
+          backendAvailable: serverState?.available === true,
+          pendingDisable: preference.pendingDisable,
+          getPermissionState: () => nativePushAdapter.getPermissionState(),
+          ensureNotificationChannel: () => nativePushAdapter.ensureNotificationChannel(),
+          requestPermission: () => nativePushAdapter.requestPermission(),
+          getRegistration: () => nativePushAdapter.getRegistration(),
+          getInstallationId: () => currentInstallationId(),
+          registerOnServer: (candidate) => registerDevice(candidate),
+          saveOptedInPreference: async () => {
+            const next = { optedIn: true, pendingDisable: false }
+            await writePushPreference(session.accountId, next)
+            if (!isCurrentOptInSession(session)) return
+            setPreference(next)
+            setPermission('granted')
+          },
+          onPermissionState: (nextPermission) => {
+            if (!isCurrentOptInSession(session)) return
+            setPermission(nextPermission)
+          },
+          onFailure: (failed) => {
+            if (!isCurrentOptInSession(session)) return
+            setFailed(failed)
+          },
+        }),
+        persistHandled: () => markOptInHandled(session),
+        onHidden: () => {
+          if (!isCurrentOptInSession(session)) return
+          optInLoadedKey.current = `${session.accountId}:${session.installationId}`
+          setOptInHandled(true)
+          setOptInLoaded(true)
+        },
+      })
+      if (outcome !== 'registered' && isCurrentOptInSession(session)) {
+        // Failure/denied keeps the prompt mounted for retry. The flow already reported failure state.
+      }
+    } catch {
+      if (isCurrentOptInSession(session)) setFailed(true)
+    } finally {
+      optInActionRef.current = false
+      if (mountedRef.current) setBusy(false)
+    }
+  }, [captureOptInSession, currentInstallationId, isCurrentOptInSession, markOptInHandled, preference.pendingDisable, ready, registerDevice, serverState?.available])
+
+  useEffect(() => {
+    if (!accountId || !installationId || !preference.optedIn || optInHandled) return
+    if (loadedAccount.current !== accountId) return
+    if (liveAccountRef.current !== accountId || liveInstallationRef.current !== installationId) return
+    optInLoadedKey.current = `${accountId}:${installationId}`
+    setOptInHandled(true)
+    setOptInLoaded(true)
+    void markOptInHandled({ accountId, installationId, generation: sessionGeneration.current })
+  }, [accountId, installationId, markOptInHandled, optInHandled, preference.optedIn])
 
   const openSettings = useCallback(async () => {
     await nativePushAdapter.openSettings().catch(() => setFailed(true))
   }, [])
 
   const refreshIfEligible = useCallback(() => {
-    if (!accountId || loadedAccount.current !== accountId || preference.pendingDisable) return
+    const liveAccount = liveAccountRef.current
+    if (!liveAccount || !mountedRef.current || loadedAccount.current !== liveAccount || preference.pendingDisable) return
     if (!shouldSilentlyRefresh({
       optedIn: preference.optedIn,
       permissionGranted: permission === 'granted',
@@ -245,8 +477,8 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
       memberReady: ready,
       backendAvailable: serverState?.available === true,
     })) return
-    void registerCurrentDevice().catch(() => setFailed(true))
-  }, [accountId, permission, preference.optedIn, preference.pendingDisable, ready, registerCurrentDevice, serverState?.available])
+    void registerCurrentDevice().catch(() => { if (mountedRef.current) setFailed(true) })
+  }, [permission, preference.optedIn, preference.pendingDisable, ready, registerCurrentDevice, serverState?.available])
 
   const handleResponse = useCallback(async (response: { data: unknown; responseIdentifier?: string }) => {
     const payload = parsePushPayload(response.data)
@@ -269,12 +501,16 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
   }, [auth, openNotification, ready])
 
   const refreshPermissionOnForeground = useCallback(async () => {
-    if (!accountId || loadedAccount.current !== accountId) return
+    const liveAccount = liveAccountRef.current
+    const liveGeneration = sessionGeneration.current
+    if (!liveAccount || !mountedRef.current || loadedAccount.current !== liveAccount) return
     try {
       const currentPermission = await nativePushAdapter.getPermissionState()
+      if (!mountedRef.current || sessionGeneration.current !== liveGeneration || liveAccountRef.current !== liveAccount) return
       setPermission(currentPermission)
       if (preference.pendingDisable) {
         const acknowledged = await revoke(preference.optedIn)
+        if (!mountedRef.current || sessionGeneration.current !== liveGeneration || liveAccountRef.current !== liveAccount) return
         setFailed(!acknowledged)
       } else {
         const action = foregroundPermissionAction({
@@ -287,14 +523,15 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
         if (action === 'register') await registerCurrentDevice()
         else if (action === 'disable') {
           const acknowledged = await revoke(true)
+          if (!mountedRef.current || sessionGeneration.current !== liveGeneration || liveAccountRef.current !== liveAccount) return
           setFailed(!acknowledged)
         }
       }
     } catch {
-      setFailed(true)
+      if (mountedRef.current && sessionGeneration.current === liveGeneration && liveAccountRef.current === liveAccount) setFailed(true)
     }
     if (pendingResponse.current) await handleResponse(pendingResponse.current)
-  }, [accountId, handleResponse, permission, preference.optedIn, preference.pendingDisable, ready, registerCurrentDevice, revoke, serverState?.available])
+  }, [handleResponse, permission, preference.optedIn, preference.pendingDisable, ready, registerCurrentDevice, revoke, serverState?.available])
 
   useEffect(() => registerSignOutCleanup(cleanupForSignOut), [cleanupForSignOut])
 
@@ -347,7 +584,29 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
     preference,
   }), [accountId, backendTimedOut, bootstrap.accountId, bootstrap.status, busy, failed, permission, preference, ready, serverState])
 
-  return <PushContext.Provider value={{ state, enable, disable, openSettings, retryDisable, retryAvailability, cleanupForSignOut }}>{children}</PushContext.Provider>
+  const optInVisible = shouldShowPushOptInPrompt({
+    nativeAvailable: nativePushAdapter.available,
+    memberReady: ready,
+    bootstrapStatus: bootstrap.status,
+    accountMatches: bootstrap.accountId === accountId && loadedAccount.current === accountId,
+    backendAvailable: serverState?.available === true,
+    backendRegistered: serverState?.registered === true,
+    optedIn: preference.optedIn,
+    pendingDisable: preference.pendingDisable,
+    permission,
+    optInHandled,
+    optInLoaded,
+  })
+
+  return (
+    <PushContext.Provider
+      value={{ state, enable, disable, openSettings, retryDisable, retryAvailability, cleanupForSignOut, optInVisible, acceptOptIn, dismissOptIn }}>
+      {children}
+      {optInVisible ? (
+        <PushOptInPrompt visible={optInVisible} busy={busy} failed={failed} onEnable={() => { void acceptOptIn() }} onDismiss={() => { void dismissOptIn() }} />
+      ) : null}
+    </PushContext.Provider>
+  )
 }
 
 export function usePushNotifications() {

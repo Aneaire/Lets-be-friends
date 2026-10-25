@@ -13,6 +13,14 @@ import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
+import { AccountSheet } from '@/features/account/AccountSheet'
+import {
+  resolveAccountAvatarAction,
+  selectAccountSheetItem,
+  type AccountSheetItem,
+} from '@/features/account/accountSheet'
+import { homeAccountModel } from '@/features/account/homeAccountModel'
+import { useAccountSignOut } from '@/features/account/useAccountSignOut'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Brand, BRAND_TAGLINE } from '@/design-system/atoms/Brand'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
@@ -264,8 +272,52 @@ function ConnectedHome() {
     }).catch(() => undefined)
   }
 
-  const accountName = signedIn ? member.viewer.displayName : auth.status === 'signed_in' ? auth.displayName : undefined
-  const accountImage = signedIn ? member.viewer.profileImageUrl : undefined
+  const companionApplication = useQuery(mobileApi.companions.myApplication, signedIn ? {} : 'skip')
+  const account = homeAccountModel({
+    signedIn,
+    authStatus: auth.status,
+    clerkUserId: auth.status === 'signed_in' ? auth.clerkUserId : null,
+    displayName: signedIn ? member.viewer.displayName : undefined,
+    authDisplayName: auth.status === 'signed_in' ? auth.displayName : undefined,
+    profileImageUrl: signedIn ? member.viewer.profileImageUrl : null,
+    email: auth.status === 'signed_in' ? auth.email : undefined,
+    role: signedIn ? member.viewer.role : undefined,
+    identityEligible: signedIn ? member.viewer.identityEligible : false,
+    application: companionApplication === undefined ? undefined : companionApplication ? { _id: String(companionApplication._id), status: companionApplication.status } : null,
+  })
+  const accountName = account.accountName
+  const accountImage = account.accountImage
+  const accountEmail = account.accountEmail
+  const identityKey = account.identityKey
+  const [accountOpen, setAccountOpen] = useState(false)
+  const { signingOut, signOutError, runSignOut } = useAccountSignOut({
+    accountId: identityKey,
+    signOut: auth.status === 'signed_in' ? auth.signOut : null,
+    onSignedOut: () => setAccountOpen(false),
+  })
+  useEffect(() => {
+    setAccountOpen(false)
+  }, [identityKey])
+
+  function openAccount() {
+    if (resolveAccountAvatarAction(signedIn) === 'sign_in') {
+      router.push('/auth')
+      return
+    }
+    setAccountOpen(true)
+  }
+
+  function closeAccount() {
+    if (signingOut) return
+    setAccountOpen(false)
+  }
+
+  function selectAccountItem(item: AccountSheetItem) {
+    selectAccountSheetItem(item, {
+      close: () => setAccountOpen(false),
+      navigate: (route) => router.push(route as never),
+    })
+  }
 
   const visibleFeedItems = useMemo(() => {
     if (!canQuery) return []
@@ -326,7 +378,7 @@ function ConnectedHome() {
         <View style={styles.titleCopy}><Brand size="sm" /><AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{BRAND_TAGLINE}</AppText></View>
         <View style={styles.topActions}>
           {signedIn ? <Pressable accessibilityRole="button" accessibilityLabel={unread ? `Open notifications, ${unread} unread` : 'Open notifications'} onPress={() => router.push('/notifications')} style={[styles.iconButton, { borderColor: theme.colors.border }]}><AppIcon name={unread ? 'notifications' : 'notifications-outline'} color={theme.colors.text} />{unread ? <View style={[styles.badge, { backgroundColor: theme.colors.socialControl }]}><AppText variant="caption" color={theme.colors.accentText}>{unread > 99 ? '99+' : unread}</AppText></View> : null}</Pressable> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={() => router.navigate('/profile')} style={styles.profileButton}><Avatar uri={accountImage} name={accountName ?? 'Account'} size={38} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={signedIn ? 'Open account' : 'Sign in'} onPress={openAccount} style={styles.profileButton}><Avatar uri={accountImage} name={accountName ?? 'Account'} size={38} /></Pressable>
         </View>
       </View>
 
@@ -382,6 +434,21 @@ function ConnectedHome() {
         </Screen>
       </BlurTargetView>
       <PostImageViewer image={viewerImage} blurTarget={blurTarget} onClose={() => setViewerImage(null)} />
+      {signedIn ? (
+        <AccountSheet
+          visible={accountOpen}
+          name={accountName ?? 'Account'}
+          email={accountEmail ?? undefined}
+          imageUrl={accountImage ?? undefined}
+          fullyVerified={account.fullyVerified}
+          items={account.items}
+          signingOut={signingOut}
+          signOutError={signOutError}
+          onSelect={selectAccountItem}
+          onSignOut={() => void runSignOut()}
+          onClose={closeAccount}
+        />
+      ) : null}
     </View>
   )
 }

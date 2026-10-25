@@ -90,6 +90,7 @@ const refreshTopUp = fn()
 const returnToProfile = fn()
 const changeAmount = fn()
 const openBooking = fn()
+const openTransactions = fn()
 
 const meta = {
   title: 'Mobile/Finance/Booking wallet',
@@ -196,6 +197,21 @@ export const BookingActivity: Story = {
     await expect(openBooking).toHaveBeenCalledWith('booking-1')
   },
 }
+
+export const RecentPreviewWithViewMore: Story = {
+  args: {
+    activity,
+    onOpenTransactions: openTransactions,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Recent transactions')).toBeVisible()
+    await expect(canvas.getByText('Reserved for booking')).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'View more transactions' }))
+    await expect(openTransactions).toHaveBeenCalledTimes(1)
+    await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth + 1)
+  },
+};
 
 export const LoadingActivity: Story = {
   args: { activityLoading: true },

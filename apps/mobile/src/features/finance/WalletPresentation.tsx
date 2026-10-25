@@ -1,4 +1,4 @@
-import { Image, StyleSheet, TextInput, View } from 'react-native'
+import { Image, Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -43,6 +43,7 @@ export function WalletPresentation({
   activity,
   activityLoading = false,
   onOpenBooking,
+  onOpenTransactions,
   onReturn,
   onOpenWithdrawals,
 }: {
@@ -61,6 +62,7 @@ export function WalletPresentation({
   activity: readonly WalletActivityRow[]
   activityLoading?: boolean
   onOpenBooking?: (bookingId: string) => void
+  onOpenTransactions?: () => void
   onReturn: () => void
   onOpenWithdrawals: () => void
 }) {
@@ -191,11 +193,22 @@ export function WalletPresentation({
       ) : null}
 
       <View style={styles.history}>
-        <View style={styles.copy}>
-          <AppText variant="heading">Recent transactions</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>
-            Holds, payments, top-ups, and refunds from your wallet.
-          </AppText>
+        <View style={styles.historyHeader}>
+          <View style={styles.copy}>
+            <AppText variant="heading">Recent transactions</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted}>
+              Holds, payments, top-ups, and refunds from your wallet.
+            </AppText>
+          </View>
+          {!activityLoading && activity.length > 0 && onOpenTransactions ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View more transactions"
+              onPress={onOpenTransactions}
+              style={({ pressed }) => [styles.viewMore, pressed && styles.pressed]}>
+              <AppText variant="label" color={theme.colors.socialText}>VIEW MORE</AppText>
+            </Pressable>
+          ) : null}
         </View>
         {activityLoading
           ? <AppText
@@ -230,4 +243,7 @@ const styles = StyleSheet.create({
   status: { borderRadius: 999, paddingHorizontal: density.cardGap, paddingVertical: density.textPairGap },
   qr: { width: '100%', aspectRatio: 1, borderRadius: 14, backgroundColor: '#FFFFFF' },
   history: { gap: density.cardGap },
+  historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: density.cardGap },
+  viewMore: { minHeight: 44, justifyContent: 'center', alignItems: 'center', paddingHorizontal: density.cardGap },
+  pressed: { opacity: 0.7 },
 })

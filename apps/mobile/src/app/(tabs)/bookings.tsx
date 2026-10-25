@@ -15,6 +15,8 @@ import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { EmptyState } from '@/design-system/molecules/FeedbackState'
 import { BookingsCalendarView } from '@/features/booking/BookingsCalendarView'
+import { BOOKINGS_WALLET_ROUTE, BookingsHeader, bookingsWalletQueryArgs, type BookingsWallet } from '@/features/booking/BookingsHeader'
+import { TRANSACTIONS_ROUTE } from '@/features/finance/transactions'
 import { WalletActivityList } from '@/features/finance/WalletActivityList'
 import { bookingActivityRow } from '@/data/walletActivity'
 import type { BookingsViewMode } from '@/data/bookingCalendar'
@@ -41,6 +43,7 @@ export default function BookingHistoryScreen() {
     mobileApi.finance.memberBookingTransactions,
     member.status === 'ready' ? { limit: 5 } : 'skip',
   )
+  const wallet = useQuery(mobileApi.finance.memberDashboard, bookingsWalletQueryArgs(member.status))
 
   if (member.status === 'signed_out') return <BookingState title="Sign in to see your bookings" action="Sign in" onPress={() => router.push('/auth')} />
   if (member.status === 'unconfigured') return <BookingState title="Bookings need account services" detail="Connect your account to view booking activity." />
@@ -52,6 +55,7 @@ export default function BookingHistoryScreen() {
       memberBookings={memberBookings}
       companionBookings={companionBookings}
       recentTransactions={recentTransactions}
+      wallet={wallet}
     />
   )
 }
@@ -60,10 +64,12 @@ function BookingsList({
   memberBookings,
   companionBookings,
   recentTransactions,
+  wallet,
 }: {
   memberBookings: MemberBooking[]
   companionBookings: CompanionBooking[]
   recentTransactions: MemberBookingTransaction[] | undefined
+  wallet: BookingsWallet
 }) {
   const theme = useAppTheme()
   const [view, setView] = useState<BookingsViewMode>('calendar')
@@ -106,10 +112,7 @@ function BookingsList({
 
   return (
     <Screen contentStyle={styles.content}>
-      <View style={styles.header}>
-        <AppText variant="title">Bookings</AppText>
-        <AppText color={theme.colors.textMuted}>Scan requests, upcoming plans, and history.</AppText>
-      </View>
+      <BookingsHeader wallet={wallet} onOpenWallet={() => router.push(BOOKINGS_WALLET_ROUTE as never)} />
       <SegmentedControl
         label="Booking view"
         value={view}
@@ -175,10 +178,10 @@ function BookingsList({
           {recentTransactions && recentTransactions.length > 0 ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="View all wallet transactions"
-              onPress={() => router.push('/wallet')}
-              style={({ pressed }) => pressed && styles.pressed}>
-              <AppText variant="label" color={theme.colors.socialText}>VIEW ALL</AppText>
+              accessibilityLabel="View more transactions"
+              onPress={() => router.push(TRANSACTIONS_ROUTE as never)}
+              style={({ pressed }) => [styles.viewMore, pressed && styles.pressed]}>
+              <AppText variant="label" color={theme.colors.socialText}>VIEW MORE</AppText>
             </Pressable>
           ) : null}
         </View>
@@ -212,13 +215,13 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 32 },
   state: { paddingHorizontal: 16 },
-  header: { paddingTop: 16, gap: 5, marginBottom: 16 },
   filters: { marginBottom: 16 },
   list: { gap: 10 },
   companionSection: { gap: 8, marginTop: 20 },
   transactions: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 20, paddingTop: 16, gap: 10 },
-  transactionsHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  transactionsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   transactionsCopy: { flex: 1, gap: 4 },
+  viewMore: { minHeight: 44, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 },
   pressed: { opacity: 0.7 },
   companionLink: { minHeight: 48, justifyContent: 'center', alignItems: 'center', marginTop: 18 },
 })
