@@ -1,9 +1,11 @@
 import type { StoredMention } from '@lets-be-friends/shared'
 import { Link } from '@tanstack/react-router'
 import { forwardRef, Fragment, useState, type ReactNode } from 'react'
+import { toast } from 'sonner'
 import { Avatar } from '../../design-system/atoms/Avatar'
 import { ConfirmationDialog } from '../../design-system/molecules/Dialog'
 import { describeConvexError } from '../../lib/convexErrors'
+import { postMuteAnnouncement } from './notificationMutes'
 import { FeaturedComment, type FeaturedCommentView } from './FeaturedComment'
 import { MentionText } from './MentionText'
 import { PollCard, type PollView } from './PollCard'
@@ -50,6 +52,8 @@ export type SocialPostCardProps = {
   onToggleComments: () => void
   onLike: () => Promise<void>
   onSave?: () => Promise<void>
+  notificationsMuted?: boolean
+  onToggleNotificationsMuted?: () => Promise<void>
   onEdit?: (body: string) => Promise<void>
   onDelete?: () => Promise<void>
   onReport?: () => Promise<void>
@@ -74,6 +78,8 @@ export const SocialPostCard = forwardRef<HTMLElement, SocialPostCardProps>(funct
   onToggleComments,
   onLike,
   onSave,
+  notificationsMuted = false,
+  onToggleNotificationsMuted,
   onEdit,
   onDelete,
   onReport,
@@ -130,8 +136,10 @@ export const SocialPostCard = forwardRef<HTMLElement, SocialPostCardProps>(funct
     setActionError('')
     try {
       await action()
+      return true
     } catch (error) {
       setActionError(error instanceof Error ? describeConvexError(error) : fallback)
+      return false
     } finally {
       setActionPending('')
     }
@@ -165,7 +173,14 @@ export const SocialPostCard = forwardRef<HTMLElement, SocialPostCardProps>(funct
     void runAction('report', onReport, 'Post could not be reported.')
   }
 
-  const showMenu = viewerReady && Boolean(onEdit || onDelete || onReport)
+  async function toggleNotificationsFromOptions() {
+    if (!onToggleNotificationsMuted) return
+    const muted = !notificationsMuted
+    const saved = await runAction('notifications', onToggleNotificationsMuted, 'The notification setting could not be updated.')
+    if (saved) toast.success(postMuteAnnouncement(muted))
+  }
+
+  const showMenu = viewerReady && Boolean(onEdit || onDelete || onReport || onToggleNotificationsMuted)
   const shareAction = viewerReady && onShareToFeed ? () => setShareOpen(true) : undefined
   const metaLabels = [
     post.profilePictureUpdate ? 'Profile picture update' : null,
@@ -199,6 +214,8 @@ export const SocialPostCard = forwardRef<HTMLElement, SocialPostCardProps>(funct
           <PostActionsMenu
             ownedByViewer={Boolean(post.ownPost)}
             disabled={Boolean(actionPending)}
+            notificationsMuted={notificationsMuted}
+            onToggleNotifications={onToggleNotificationsMuted ? () => void toggleNotificationsFromOptions() : undefined}
             onEdit={post.ownPost && onEdit ? () => setEditing((value) => !value) : undefined}
             onDelete={post.ownPost && onDelete ? () => setDeleteConfirmOpen(true) : undefined}
             onReport={!post.ownPost && onReport ? reportFromOptions : undefined}

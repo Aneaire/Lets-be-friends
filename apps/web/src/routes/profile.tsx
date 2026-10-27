@@ -14,6 +14,7 @@ import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { ProfileContentPanel } from '../features/profile/ProfileContentPanel'
 import { ProfilePhotoComposerDialog } from '../features/profile/ProfilePhotoComposerDialog'
 import { createCroppedAvatarFile, type AvatarCrop } from '../features/profile/avatarCrop'
+import { usePostNotificationMute } from '../features/social/usePostNotificationMute'
 import { describeConvexError } from '../lib/convexErrors'
 
 export const Route = createFileRoute('/profile')({ component: ProfilePage })
@@ -43,6 +44,7 @@ function ProfilePage() {
   const deletePost = useMutation(api.social.deletePost)
   const createPost = useMutation(api.social.createPost)
   const voteOnPoll = useMutation(api.social.voteOnPoll)
+  const { isPostMuted, togglePostMute } = usePostNotificationMute(Boolean(isSignedIn))
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [editOpen, setEditOpen] = useState(false)
@@ -355,6 +357,8 @@ function ProfilePage() {
           await createPost({ body: message, sharedPostId: post._id as Id<'posts'> })
           setNotice('Post shared to your feed.')
         }}
+        isPostNotificationsMuted={(post) => isPostMuted(post._id)}
+        onTogglePostNotifications={(post) => togglePostMute(post._id)}
         onOpenPostComments={(post) => void navigate({ to: '/social', search: { postId: post._id } })}
       />
 

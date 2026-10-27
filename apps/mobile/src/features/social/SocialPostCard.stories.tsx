@@ -89,6 +89,19 @@ export const CompanionOwnPostOptions: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Post options' }))
     await expect(await page.findByRole('button', { name: 'Edit post' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Delete post' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Mute notifications for this post' })).toBeVisible()
+  },
+}
+
+export const OtherMemberPostOptions: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
+    await userEvent.click(canvas.getByRole('button', { name: 'Post options' }))
+    const sheet = await page.findByRole('dialog', { name: 'Post options' })
+    await expect(within(sheet).getByRole('button', { name: 'Mute notifications for this post' })).toBeVisible()
+    await expect(within(sheet).getByRole('button', { name: 'Report post' })).toBeVisible()
+    await expect(within(sheet).getByRole('button', { name: 'Share post' })).toBeVisible()
   },
 }
 

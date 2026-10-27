@@ -4,6 +4,7 @@ import { useQuery } from 'convex/react'
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi } from '@/backend/client'
 import { AppearanceSettings } from '@/features/settings/AppearanceSettings'
+import { NotificationPreferences } from '@/features/settings/NotificationPreferences'
 import { PushNotificationSettings } from '@/features/settings/PushNotificationSettings'
 import { SettingsContent } from '@/features/settings/SettingsContent'
 import { useAccountSignOut } from '@/features/account/useAccountSignOut'
@@ -64,6 +65,7 @@ export function ReadySettings({
   return (
     <SettingsContent
         pushNotifications={<PushNotificationSettings />}
+        notificationPreferences={<NotificationPreferences />}
         appearanceSettings={<AppearanceSettings />}
         verificationValue={profile.verificationLabel}
         verificationDetail={profile.verificationDetail}

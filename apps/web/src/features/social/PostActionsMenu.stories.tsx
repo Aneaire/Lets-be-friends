@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, userEvent, within } from 'storybook/test'
 
 import { PostActionsMenu } from './PostActionsMenu'
 
@@ -29,4 +30,29 @@ export const ViewerOptions: Story = {}
 
 export const OwnerOptions: Story = {
   args: { ownedByViewer: true },
+}
+
+export const MutedNotifications: Story = {
+  args: {
+    notificationsMuted: true,
+    onToggleNotifications: () => undefined,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Post options' }))
+    await expect(canvas.getByRole('menuitem', { name: 'Unmute notifications for this post' })).toBeVisible()
+    await expect(canvas.getByRole('menuitem', { name: 'Report post' })).toBeVisible()
+  },
+}
+
+export const ActiveNotifications: Story = {
+  args: {
+    notificationsMuted: false,
+    onToggleNotifications: () => undefined,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Post options' }))
+    await expect(canvas.getByRole('menuitem', { name: 'Mute notifications for this post' })).toBeVisible()
+  },
 }

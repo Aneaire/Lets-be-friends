@@ -171,6 +171,14 @@ export const mobileApi = {
     registerDevice: generatedApi.pushNotifications.registerDevice,
     disableDevice: generatedApi.pushNotifications.disableDevice,
   },
+  notificationPreferences: {
+    mine: generatedApi.notificationPreferences.mine,
+    update: generatedApi.notificationPreferences.update,
+  },
+  notificationMutes: {
+    mine: generatedApi.notificationMutes.mine,
+    setMuted: generatedApi.notificationMutes.setMuted,
+  },
   conversations: {
     list: generatedApi.conversations.list,
     between: generatedApi.conversations.between,

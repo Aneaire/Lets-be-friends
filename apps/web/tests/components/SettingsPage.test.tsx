@@ -8,15 +8,36 @@ const state = vi.hoisted(() => ({
   signedIn: true,
   email: 'maya@example.com' as string | undefined,
   application: null as null | { _id: string; status: string; hourlyRateCentavos?: number },
+  notificationPreferences: {
+    socialReactions: true,
+    socialComments: true,
+    socialFollows: true,
+    circleActivity: true,
+    quietHoursEnabled: false,
+    quietHoursStartMinute: 1320,
+    quietHoursEndMinute: 420,
+    timeZone: 'UTC',
+    digestEnabled: false,
+    digestHourMinute: 1080,
+  },
   setTheme: vi.fn(),
 }))
 
 vi.mock('../../convex/_generated/api', () => ({
-  api: { companions: { myApplication: 'companions.myApplication' } },
+  api: {
+    companions: { myApplication: 'companions.myApplication' },
+    notificationPreferences: {
+      mine: 'notificationPreferences.mine',
+      update: 'notificationPreferences.update',
+    },
+  },
 }))
 
 vi.mock('convex/react', () => ({
-  useQuery: (query: string) => query === 'companions.myApplication' ? state.application : undefined,
+  useQuery: (query: string) => query === 'companions.myApplication'
+    ? state.application
+    : query === 'notificationPreferences.mine' ? state.notificationPreferences : undefined,
+  useMutation: () => vi.fn(async () => undefined),
 }))
 
 vi.mock('@clerk/react', () => ({
@@ -67,6 +88,15 @@ describe('settings route', () => {
 
     fireEvent.click(dark)
     expect(state.setTheme).toHaveBeenCalledWith('dark')
+  })
+
+  it('shows notification preferences next to appearance', () => {
+    render(<SettingsPage />)
+
+    expect(screen.getByRole('region', { name: 'Appearance' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Notifications' })).toBeTruthy()
+    expect(screen.getByRole('switch', { name: 'Reactions' })).toBeTruthy()
+    expect(screen.getByText('Bookings, messages, and safety notices are always delivered. You cannot turn them off here.')).toBeTruthy()
   })
 
   it('routes members without a profile to the Companion start path', () => {

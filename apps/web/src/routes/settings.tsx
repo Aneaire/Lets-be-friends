@@ -7,6 +7,7 @@ import { api } from '../../convex/_generated/api'
 import { Button } from '../design-system/atoms/Button'
 import { useThemeChoice } from '../design-system/atoms/ThemeToggle'
 import { SettingsLinkRow, SettingsSection } from '../features/presentation/SettingsPresentation'
+import { NotificationPreferencesSection } from '../features/settings/NotificationPreferencesSection'
 
 export const Route = createFileRoute('/settings')({ component: SettingsPage })
 
@@ -72,6 +73,8 @@ export function SettingsPage() {
             </div>
           </div>
         </SettingsSection>
+
+        <NotificationPreferencesSection />
 
         <SettingsSection
           headingId="account-heading"

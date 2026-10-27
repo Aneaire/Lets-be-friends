@@ -10,6 +10,7 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 
 export function SettingsContent({
   pushNotifications,
+  notificationPreferences,
   appearanceSettings,
   verificationValue,
   verificationDetail,
@@ -38,6 +39,7 @@ export function SettingsContent({
   onBack,
 }: {
   pushNotifications?: ReactNode
+  notificationPreferences?: ReactNode
   appearanceSettings?: ReactNode
   verificationValue?: string
   verificationDetail: string
@@ -86,9 +88,15 @@ export function SettingsContent({
           onPress={onOpenVerification}
         />
         <SettingsRow icon="notifications-outline" label="Notification center" detail="Booking, social, account, and safety updates" onPress={onOpenNotificationCenter} />
-        {pushNotifications ? <View style={styles.embedded}>{pushNotifications}</View> : null}
         {appearanceSettings ? <View style={styles.embedded}>{appearanceSettings}</View> : null}
       </SettingsGroup>
+
+      {notificationPreferences || pushNotifications ? (
+        <SettingsGroup title="Notifications">
+          {pushNotifications ? <View style={styles.embedded}>{pushNotifications}</View> : null}
+          {notificationPreferences ? <View style={styles.embedded}>{notificationPreferences}</View> : null}
+        </SettingsGroup>
+      ) : null}
 
       <SettingsGroup title="Your content">
         <SettingsRow icon="document-text-outline" label="My posts and reviews" detail="View your public posts and Companion reviews" onPress={onOpenMyPosts} />

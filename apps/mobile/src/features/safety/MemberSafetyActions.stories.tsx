@@ -35,6 +35,9 @@ type Story = StoryObj<typeof meta>
 export const Available: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    await expect(canvas.getByText(
+      'Muting a member hides their posts and stops their notifications. Blocking also stops new contact and booking requests.',
+    )).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Mute' }))
     await userEvent.click(canvas.getByRole('button', { name: 'Block member' }))
     await expect(toggleMute).toHaveBeenCalledOnce()

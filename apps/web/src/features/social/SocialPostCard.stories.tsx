@@ -66,6 +66,8 @@ export const MemberPost: Story = {
           onSave={fn()}
           onReport={fn()}
           onShareToFeed={fn()}
+          notificationsMuted={false}
+          onToggleNotificationsMuted={fn()}
         />
       </div>
     </StoryRouter>
@@ -74,7 +76,31 @@ export const MemberPost: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Post options' }))
     await expect(canvas.getByRole('menuitem', { name: 'Report post' })).toBeVisible()
+    await expect(canvas.getByRole('menuitem', { name: 'Mute notifications for this post' })).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Share post' })).toBeVisible()
+  },
+}
+
+export const MemberPostNotificationsMuted: Story = {
+  render: () => (
+    <StoryRouter>
+      <div className="social-feed">
+        <SocialPostCard
+          post={memberPost}
+          viewerReady
+          onToggleComments={fn()}
+          onLike={fn()}
+          onReport={fn()}
+          notificationsMuted
+          onToggleNotificationsMuted={fn()}
+        />
+      </div>
+    </StoryRouter>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Post options' }))
+    await expect(canvas.getByRole('menuitem', { name: 'Unmute notifications for this post' })).toBeVisible()
   },
 }
 

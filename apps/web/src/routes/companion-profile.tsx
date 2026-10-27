@@ -10,6 +10,7 @@ import type { Id } from '../../convex/_generated/dataModel'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { BookingDialog, type ApprovedCompanionOption } from '../features/booking/BookingDialog'
 import { ProfileContentPanel } from '../features/profile/ProfileContentPanel';
+import { usePostNotificationMute } from '../features/social/usePostNotificationMute';
 import { describeConvexError } from '../lib/convexErrors'
 
 const NO_DISCOVERY_COMPANIONS: ApprovedCompanionOption[] = []
@@ -55,6 +56,7 @@ function CompanionProfilePage() {
   const report = useMutation(api.reports.create)
   const startConversation = useMutation(api.conversations.start)
   const createDraft = useMutation(api.bookings.createDraft)
+  const { isPostMuted, togglePostMute } = usePostNotificationMute(Boolean(isSignedIn))
   const [notice, setNotice] = useState('')
   const [messageError, setMessageError] = useState('')
   const [startingMessage, setStartingMessage] = useState(false)
@@ -257,6 +259,8 @@ function CompanionProfilePage() {
           await createPost({ body: message, sharedPostId: post._id as Id<'posts'> })
           setNotice('Post shared to your feed.')
         } : undefined}
+        isPostNotificationsMuted={isSignedIn ? (post) => isPostMuted(post._id) : undefined}
+        onTogglePostNotifications={isSignedIn ? (post) => togglePostMute(post._id) : undefined}
         onOpenPostComments={(post) => void navigate({ to: '/social', search: { postId: post._id } })}
         reviewAction={(review) => isSignedIn ? (
           <button

@@ -187,6 +187,7 @@ export function CircleWorkspacePage({ circleId, postId, commentId, section }: { 
               {tabs.map((item, index) => <button key={item.id} ref={(node) => { tabRefs.current[index] = node }} type="button" role="tab" id={`circle-tab-${item.id}`} aria-controls={`circle-panel-${item.id}`} aria-selected={tab === item.id} tabIndex={tab === item.id ? 0 : -1} onKeyDown={(event) => onTabKeyDown(event, index)} onClick={() => setTab(item.id)}>{item.label}</button>)}
             </div>
             <div className="circle-member-actions">
+              <p className="text-meta circle-mute-caption">Mute a Circle to stop its notifications.</p>
               <ActionMenu label="Circle options" items={circleOptions} />
             </div>
           </div>

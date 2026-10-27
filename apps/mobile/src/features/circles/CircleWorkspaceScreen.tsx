@@ -22,7 +22,7 @@ import { PostMediaGrid } from '@/features/social/PostMediaGrid'
 import type { PostViewerImage } from '@/features/social/PostImageViewer'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
-import { canAccessCirclePendingQueue, canRequestCircleMembership, circleAccessPresentation, circleActionError, circleComposerApprovalNotice, circleFeedPageRequestKey, circleJoinLabel, circleMembershipMessage, circlePreviewSections, circlePrivacySummary, circleWorkspaceTabs, dedupeCirclePosts, isNearCircleFeedEnd, mergeCircleRequestedPost, previewDiscussionItems, registerCircleFeedScrollHandler, resolveCirclePrivacySettings, shouldRequestCircleFeedPage, syncCircleFeedRequestState, type CircleFeedRequestState, type CircleWorkspaceTab } from './circlePresentation'
+import { canAccessCirclePendingQueue, canRequestCircleMembership, circleAccessPresentation, circleActionError, circleComposerApprovalNotice, circleFeedPageRequestKey, circleJoinLabel, circleMembershipMessage, circleMuteCaption, circlePreviewSections, circlePrivacySummary, circleWorkspaceTabs, dedupeCirclePosts, isNearCircleFeedEnd, mergeCircleRequestedPost, previewDiscussionItems, registerCircleFeedScrollHandler, resolveCirclePrivacySettings, shouldRequestCircleFeedPage, syncCircleFeedRequestState, type CircleFeedRequestState, type CircleWorkspaceTab } from './circlePresentation'
 import { CircleComposer } from './CircleComposer'
 import { CircleEventsSection } from './CircleEventsSection'
 import { CircleFeedFooter } from './CircleFeedFooter'
@@ -198,6 +198,7 @@ function MemberCircle({ detail, circleId, initialPostId, focusCommentId, section
     setTab(circleNotificationTab(section, detail.canModerate))
   }, [circleId, section, initialPostId, focusCommentId, detail.canModerate])
   const options = tabs.map((value) => ({ value, label: workspaceTabLabels[value] }))
+  const muteCaption = circleMuteCaption(detail.membershipState)
 
   async function run(action: () => Promise<unknown>) { setBusy(true); setError(''); try { await action() } catch (cause) { setError(circleActionError(cause, 'The Circle action could not be completed.')) } finally { setBusy(false) } }
   const feedScrollHandler = useRef<((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | null>(null)
@@ -216,6 +217,7 @@ function MemberCircle({ detail, circleId, initialPostId, focusCommentId, section
     {error ? <InlineNotice title="Circle action failed" tone="danger">{error}</InlineNotice> : null}
     {detail.pendingTransferForViewer ? <InlineNotice title="Host invitation" tone="neutral">You have been invited to host this Circle.<ActionButton label="Accept ownership" intent="neutral" compact onPress={() => Alert.alert('Accept Circle ownership?', 'You will become responsible for membership, rules, and moderation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Accept ownership', onPress: () => void run(() => acceptTransfer({ circleId })) }])} /></InlineNotice> : null}
     <View style={styles.row}><ActionButton compact label={detail.muted ? 'Unmute' : 'Mute'} intent="neutral" secondary loading={busy} onPress={() => void run(() => setMuted({ circleId, muted: !detail.muted }))} />{!detail.isCanonicalHost ? <ActionButton compact label="Leave Circle" intent="danger" secondary disabled={busy} onPress={() => Alert.alert('Leave this Circle?', 'You will lose access to discussions and the member list.', [{ text: 'Stay', style: 'cancel' }, { text: 'Leave Circle', style: 'destructive', onPress: () => void run(() => leave({ circleId })) }])} /> : null}</View>
+    {muteCaption ? <AppText variant="caption" color={theme.colors.textMuted}>{muteCaption}</AppText> : null}
     <SegmentedControl label="Circle sections" options={options} value={tab} onChange={setTab} tone={tab === 'manage' ? 'self' : 'social'} />
     {tab === 'discussions' ? <CircleDiscussions circleId={circleId} canWrite={detail.canWrite} canModerate={detail.canModerate} circleState={detail.circleState} pinnedPostIds={detail.pinnedPostIds} postApproval={detail.settings?.postApproval} initialPostId={initialPostId} focusCommentId={focusCommentId} scrollRef={scrollRef} onScrollReady={registerFeedScroll} /> : null}
     {tab === 'about' ? <CircleAbout detail={detail} circleId={circleId} /> : null}

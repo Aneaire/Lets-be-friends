@@ -251,6 +251,7 @@
 .circle-tabs button[aria-selected="true"] { border-bottom-color: var(--accent-social); color: var(--text); }
 .circle-tabs button:focus-visible { outline: 2px solid var(--accent-social); outline-offset: -3px; }
 .circle-member-actions { display: flex; gap: 0.35rem; }
+.circle-mute-caption { margin: 0; align-self: center; text-align: right; }
 
 .circle-discussion-layout { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: 2rem; align-items: start; margin-top: 2rem; }
 .circle-discussion-layout-single { grid-template-columns: minmax(0, 1fr); }
@@ -1992,6 +1993,111 @@
 
 .settings-error {
   color: var(--danger) !important;
+}
+
+.settings-note {
+  margin: 0;
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface-sunk);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.settings-error-note {
+  margin: 0;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--rule);
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.settings-toggle {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.35rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.settings-toggle-track {
+  position: relative;
+  width: 2.25rem;
+  height: 1.25rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-sunk);
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.settings-toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  background: var(--text-soft);
+  transition: transform 140ms ease, background-color 140ms ease;
+}
+
+.settings-toggle[aria-checked="true"] {
+  color: var(--accent-self);
+}
+
+.settings-toggle[aria-checked="true"] .settings-toggle-track {
+  border-color: var(--accent-self-button);
+  background: var(--accent-self-button);
+}
+
+.settings-toggle[aria-checked="true"] .settings-toggle-track::after {
+  background: var(--accent-control-foreground);
+  transform: translateX(1.05rem);
+}
+
+.settings-toggle:focus-visible {
+  outline: 2px solid var(--accent-self);
+  outline-offset: 2px;
+}
+
+.settings-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.settings-time-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings-time-field {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.settings-time-field .field {
+  width: auto;
+  min-width: 7.5rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.settings-time-field .field:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .settings-inline-link,

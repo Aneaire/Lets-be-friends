@@ -13,6 +13,12 @@ import { Avatar } from '@/design-system/atoms/Avatar'
 import { IconButton } from '@/design-system/atoms/IconButton'
 import { ActionSheet, type ActionSheetItem } from '@/design-system/molecules/ActionSheet'
 import { useAppToastMessage, showAppToast } from '@/design-system/molecules/AppToast'
+import {
+  POST_MUTE_ERROR,
+  postMuteActionLabel,
+  postMuteToastMessage,
+} from '@/notifications/notificationMutes'
+import { usePostNotificationMute } from '@/notifications/usePostNotificationMute'
 import { ReportAction } from '@/features/safety/ReportAction'
 import { AppText } from '@/design-system/atoms/Typography'
 
@@ -57,6 +63,7 @@ export function SocialPostCard({ post, signedIn, following, followBusy = false, 
   const editPost = useMutation(mobileApi.social.editPost)
   const deletePost = useMutation(mobileApi.social.deletePost)
   const createPost = useMutation(mobileApi.social.createPost)
+  const postMute = usePostNotificationMute(String(post._id), signedIn)
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -175,14 +182,37 @@ export function SocialPostCard({ post, signedIn, following, followBusy = false, 
     showAppToast('Shared to your feed.', 'success')
   }
 
+  async function togglePostMute() {
+    if (busy) return
+    const next = !postMute.muted
+    setBusy(true)
+    try {
+      await postMute.setMuted(next)
+      showAppToast(postMuteToastMessage(next), 'success')
+    } catch {
+      showAppToast(POST_MUTE_ERROR, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const muteItem: ActionSheetItem = {
+    label: postMuteActionLabel(postMute.muted),
+    icon: postMute.muted ? 'notifications-outline' : 'notifications-off-outline',
+    tone: post.ownPost ? 'self' : 'social',
+    onPress: () => void togglePostMute(),
+  }
+
   const optionItems: ActionSheetItem[] = post.ownPost
     ? [
         { label: 'Share post', icon: 'share-social-outline', tone: 'self', onPress: openShare },
+        muteItem,
         { label: 'Edit post', icon: 'create-outline', tone: 'self', onPress: editFromOptions },
         { label: 'Delete post', icon: 'trash-outline', tone: 'danger', onPress: deleteFromOptions },
       ]
     : [
         { label: 'Share post', icon: 'share-social-outline', tone: 'social', onPress: openShare },
+        muteItem,
         { label: 'Report post', icon: 'flag-outline', tone: 'danger', onPress: reportFromOptions },
       ]
 

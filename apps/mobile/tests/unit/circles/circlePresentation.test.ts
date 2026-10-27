@@ -3,6 +3,7 @@ import {
   circleAccessPresentation,
   circleJoinLabel,
   circleMembershipMessage,
+  circleMuteCaption,
   circleNotificationRoute,
   circleIndexPresentation,
   circleActionError,
@@ -43,6 +44,13 @@ describe('mobile Circle access presentation', () => {
     expect(circleMembershipMessage('removed')).toContain('membership ended')
     expect(circleMembershipMessage('banned')).toContain('cannot request access')
     expect(circleMembershipMessage(null)).toBeUndefined()
+  })
+
+  it('explains Circle notification muting only to active members', () => {
+    expect(circleMuteCaption('active')).toBe('Mute a Circle to stop its notifications.')
+    expect(circleMuteCaption('requested')).toBeUndefined()
+    expect(circleMuteCaption('removed')).toBeUndefined()
+    expect(circleMuteCaption(null)).toBeUndefined()
   })
 })
 

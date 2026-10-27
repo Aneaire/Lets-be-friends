@@ -87,6 +87,13 @@ export function circleMembershipMessage(state: CircleMembershipState) {
   }
 }
 
+export const CIRCLE_MUTE_CAPTION = 'Mute a Circle to stop its notifications.'
+
+/** Only active members can mute a Circle, so only they see the mute caption. */
+export function circleMuteCaption(state: CircleMembershipState) {
+  return state === 'active' ? CIRCLE_MUTE_CAPTION : undefined
+}
+
 export function circleNotificationRoute(destination: { type: string; circleId?: string; postId?: string; commentId?: string }) {
   if (destination.type !== 'circle' || !destination.circleId) return undefined
   return {

@@ -6,6 +6,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { ProfileContentPanel } from '../features/profile/ProfileContentPanel'
+import { usePostNotificationMute } from '../features/social/usePostNotificationMute'
 
 export const Route = createFileRoute('/member-profile')({
   validateSearch: (search: Record<string, unknown>): { userId?: string } => (
@@ -30,6 +31,7 @@ function MemberProfilePage() {
   const createPost = useMutation(api.social.createPost)
   const voteOnPoll = useMutation(api.social.voteOnPoll)
   const report = useMutation(api.reports.create)
+  const { isPostMuted, togglePostMute } = usePostNotificationMute(Boolean(isSignedIn))
 
   if (!userId) return <UnavailableProfile detail="Choose someone from Explore first." />
   if (profile === undefined) return <main className="marketing-page"><div className="empty-state">Loading profile...</div></main>
@@ -96,6 +98,8 @@ function MemberProfilePage() {
         onReportPost={isSignedIn ? (post) => report({ targetType: 'post', targetId: post._id, reason: 'Post needs safety review' }) : undefined}
         onVotePoll={isSignedIn ? (post, optionId) => voteOnPoll({ postId: post._id as Id<'posts'>, optionId }) : undefined}
         onSharePostToFeed={isSignedIn ? async (post, message) => { await createPost({ body: message, sharedPostId: post._id as Id<'posts'> }) } : undefined}
+        isPostNotificationsMuted={isSignedIn ? (post) => isPostMuted(post._id) : undefined}
+        onTogglePostNotifications={isSignedIn ? (post) => togglePostMute(post._id) : undefined}
         onOpenPostComments={(post) => void navigate({ to: '/social', search: { postId: post._id } })}
       />
     </main>

@@ -17,6 +17,7 @@ import { MentionText } from './MentionText'
 import { PostActionBar } from './PostActionBar'
 import { SocialLightbox } from './SocialLightbox'
 import { SocialPostCard } from './SocialPostCard'
+import { usePostNotificationMute } from './usePostNotificationMute'
 import { discardRegisteredUploads, mediaKind, uploadPostMedia, type SelectedMedia } from './postMediaUpload'
 import { PollCard } from './PollCard'
 import { MentionField } from './MentionField'
@@ -78,6 +79,7 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
   const recordFeedImpressions = useMutation(api.social.recordFeedImpressions)
   const recordFeedAction = useMutation(api.social.recordFeedAction)
   const report = useMutation(api.reports.create)
+  const { isPostMuted, togglePostMute } = usePostNotificationMute(Boolean(viewer))
   const feedSessionId = useRef(`feed-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const impressedItemKeys = useRef(new Set<string>())
   const recordedActionKeys = useRef(new Set<string>())
@@ -372,6 +374,10 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
                     recordAction(item, 'report')
                     setNotice('Report sent to safety review.')
                   }}
+                  notificationsMuted={isPostMuted(post._id)}
+                  onToggleNotificationsMuted={async () => {
+                    await togglePostMute(post._id)
+                  }}
                   onEditComment={async (commentId, body) => {
                     await editComment({ commentId, body })
                     setNotice('Comment updated.')
@@ -504,6 +510,8 @@ export function PostRow({
   onLike,
   onSave,
   onReport,
+  notificationsMuted,
+  onToggleNotificationsMuted,
   onEditComment,
   onDeleteComment,
   onLikeComment,
@@ -521,6 +529,8 @@ export function PostRow({
   onLike: () => Promise<void>
   onSave: () => Promise<void>
   onReport: () => Promise<void>
+  notificationsMuted?: boolean
+  onToggleNotificationsMuted?: () => Promise<void>
   onEditComment: (commentId: Id<'postComments'>, body: string) => Promise<void>
   onDeleteComment: (commentId: Id<'postComments'>) => Promise<void>
   onLikeComment: (commentId: Id<'postComments'>) => Promise<void>
@@ -608,6 +618,8 @@ export function PostRow({
         onEdit={onEdit}
         onDelete={onDelete}
         onReport={onReport}
+        notificationsMuted={notificationsMuted}
+        onToggleNotificationsMuted={onToggleNotificationsMuted}
         onVotePoll={onVotePoll}
         onShareToFeed={onShareToFeed}
         onOpenMedia={openLightbox}

@@ -90,6 +90,8 @@ export function ProfileContentPanel({
   onReportPost,
   onVotePoll,
   onSharePostToFeed,
+  isPostNotificationsMuted,
+  onTogglePostNotifications,
   onOpenPostComments,
   onLikeReview,
   onCommentReview,
@@ -118,6 +120,8 @@ export function ProfileContentPanel({
   onReportPost?: (post: ProfileContentPost) => Promise<unknown>
   onVotePoll?: (post: ProfileContentPost, optionId: string) => Promise<unknown>
   onSharePostToFeed?: (post: ProfileContentPost, message: string) => Promise<unknown>
+  isPostNotificationsMuted?: (post: ProfileContentPost) => boolean
+  onTogglePostNotifications?: (post: ProfileContentPost) => Promise<unknown>
   onOpenPostComments?: (post: ProfileContentPost) => void
   onLikeReview?: (review: ProfileContentReview) => Promise<unknown>
   onCommentReview?: (review: ProfileContentReview, body: string) => Promise<unknown>
@@ -232,6 +236,8 @@ export function ProfileContentPanel({
                   onEdit={onEditPost ? async (body) => { await onEditPost(post, body) } : undefined}
                   onDelete={onDeletePost ? async () => { await onDeletePost(post) } : undefined}
                   onReport={onReportPost ? async () => { await onReportPost(post) } : undefined}
+                  notificationsMuted={isPostNotificationsMuted?.(post) ?? false}
+                  onToggleNotificationsMuted={onTogglePostNotifications ? async () => { await onTogglePostNotifications(post) } : undefined}
                   onVotePoll={onVotePoll ? async (optionId) => { await onVotePoll(post, optionId) } : undefined}
                   onShareToFeed={onSharePostToFeed ? async (message) => { await onSharePostToFeed(post, message) } : undefined}
                   onOpenMedia={(index) => setPostLightbox({ post, index })}

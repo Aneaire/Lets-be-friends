@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../../convex/_generated/api', () => ({
   api: {
     users: { publicProfile: 'users.publicProfile' },
+    notificationMutes: { mine: 'notificationMutes.mine', setMuted: 'notificationMutes.setMuted' },
     social: {
       byUser: 'social.byUser',
       toggleFollow: 'social.toggleFollow',

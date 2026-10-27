@@ -50,7 +50,7 @@ export function MemberSafetyActionsPresentation({
   return (
     <View style={styles.container}>
       <AppText variant="caption" color={theme.colors.textMuted}>
-        Muting removes this member from your feed and noncritical updates. Blocking also stops new contact and booking requests.
+        Muting a member hides their posts and stops their notifications. Blocking also stops new contact and booking requests.
       </AppText>
 
       {loading ? (

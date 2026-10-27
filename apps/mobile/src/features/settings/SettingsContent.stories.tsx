@@ -1,10 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
 
+import type { NotificationPreferenceValues } from '@/notifications/notificationPreferences'
+
+import { NotificationPreferencesPresentation } from './NotificationPreferencesPresentation'
 import { SettingsContent } from './SettingsContent'
 
 const baseArgs = {
   pushNotifications: null,
+  notificationPreferences: null,
   appearanceSettings: null,
   verificationValue: 'Approved',
   verificationDetail: 'Your current identity approval is active for member booking.',
@@ -96,5 +100,51 @@ export const SettingsActions: Story = {
     await expect(args.onOpenVerification).toHaveBeenCalledOnce()
     await userEvent.click(canvas.getByRole('button', { name: 'Sign out' }))
     await expect(args.onSignOut).toHaveBeenCalledOnce()
+  },
+}
+
+const notificationPreferenceValues: NotificationPreferenceValues = {
+  socialReactions: true,
+  socialComments: true,
+  socialFollows: true,
+  circleActivity: false,
+  quietHoursEnabled: true,
+  quietHoursStartMinute: 1320,
+  quietHoursEndMinute: 420,
+  timeZone: 'Asia/Manila',
+  digestEnabled: false,
+  digestHourMinute: 1080,
+}
+
+const toggleNotificationPreference = fn()
+
+const notificationPreferencesNode = (
+  <NotificationPreferencesPresentation
+    values={notificationPreferenceValues}
+    onToggle={toggleNotificationPreference}
+    onSelectTime={fn()}
+  />
+)
+
+export const NotificationPreferencesGroup: Story = {
+  args: {
+    ...baseArgs,
+    notificationPreferences: notificationPreferencesNode,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('NOTIFICATIONS')).toBeVisible()
+    await expect(canvas.getByRole('switch', { name: 'Circle activity' })).toHaveAttribute('aria-checked', 'false')
+    await userEvent.click(canvas.getByRole('switch', { name: 'Circle activity' }))
+    await expect(toggleNotificationPreference).toHaveBeenCalledWith('circleActivity')
+    await expect(canvas.getByRole('button', { name: 'Quiet hours start, 10:00 PM' })).toBeVisible()
+  },
+}
+
+export const NotificationPreferencesGroupDark: Story = {
+  globals: { viewport: { value: 'mobileDefault', isRotated: false }, theme: 'dark' },
+  args: {
+    ...baseArgs,
+    notificationPreferences: notificationPreferencesNode,
   },
 }

@@ -45,6 +45,7 @@ vi.mock('../../convex/_generated/api', () => ({
   api: {
     users: { viewer: 'users.viewer', latestMemberVerification: 'users.latestMemberVerification' },
     bookings: { createDraft: 'bookings.createDraft', availableSlots: 'bookings.availableSlots' },
+    notificationMutes: { mine: 'notificationMutes.mine', setMuted: 'notificationMutes.setMuted' },
     companions: {
       getPublic: 'companions.getPublic',
       bookingAvailability: 'companions.bookingAvailability',

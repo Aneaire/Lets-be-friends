@@ -20,6 +20,7 @@ vi.mock('../../convex/_generated/api', () => ({
       generateProfileImageUploadUrl: 'users.generateProfileImageUploadUrl',
     },
     companions: { myApplication: 'companions.myApplication' },
+    notificationMutes: { mine: 'notificationMutes.mine', setMuted: 'notificationMutes.setMuted' },
     social: {
       byUser: 'social.byUser',
       toggleLike: 'social.toggleLike',
