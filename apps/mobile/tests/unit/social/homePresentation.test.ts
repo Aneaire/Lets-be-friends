@@ -12,6 +12,12 @@ describe('home account presentation', () => {
     expect(homeAccountPresentation('signed_in', 'ready')).toBe('ready')
   })
 
+  it('shows a connection failure instead of an endless loading skeleton', () => {
+    expect(homeAccountPresentation('signed_in', 'error')).toBe('account_error')
+    expect(homeAccountPresentation('signed_in', 'unavailable')).toBe('account_error')
+    expect(homeAccountPresentation('signed_out', 'error')).toBe('signed_out')
+  })
+
   it('shows the sign-in prompt only after signed-out state is known', () => {
     expect(homeAccountPresentation('signed_out', 'signed_out')).toBe('signed_out')
   })

@@ -83,7 +83,7 @@ export function SettingsContent({
           label={openingVerification ? 'Opening identity verification' : 'Identity verification'}
           detail={verificationDetail}
           value={verificationValue}
-          onPress={verificationAction === 'none' ? undefined : onOpenVerification}
+          onPress={onOpenVerification}
         />
         <SettingsRow icon="notifications-outline" label="Notification center" detail="Booking, social, account, and safety updates" onPress={onOpenNotificationCenter} />
         {pushNotifications ? <View style={styles.embedded}>{pushNotifications}</View> : null}

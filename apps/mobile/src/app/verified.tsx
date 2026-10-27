@@ -39,7 +39,7 @@ function goVerifiedTarget(target: VerifiedTarget) {
     case 'safety': return router.push('/safety')
     case 'companion': return router.push('/companion')
     case 'profile': return router.push('/profile')
-    case 'status': return router.push('/profile')
+    case 'status': return router.push('/get-verified')
   }
 }
 

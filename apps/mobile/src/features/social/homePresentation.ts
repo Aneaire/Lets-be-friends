@@ -3,6 +3,7 @@ export function homeAccountPresentation(
   memberStatus: string,
 ) {
   if (memberStatus === 'ready') return 'ready' as const
+  if (authStatus === 'signed_in' && (memberStatus === 'error' || memberStatus === 'unavailable')) return 'account_error' as const
   if (authStatus === 'loading' || authStatus === 'signed_in') return 'account_loading' as const
   return 'signed_out' as const
 }

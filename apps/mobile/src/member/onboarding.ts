@@ -33,7 +33,7 @@ export function initialOnboardingStep(viewer: {
     && isRoundedCoordinate(viewer.approximateLatitude)
     && isRoundedCoordinate(viewer.approximateLongitude)
     && !hasCurrentUnifiedAcceptance(viewer)
-  ) return 4
+  ) return 5
   return 0
 }
 

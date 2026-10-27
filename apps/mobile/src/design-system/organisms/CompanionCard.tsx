@@ -31,7 +31,7 @@ export function CompanionCard({ companion }: { companion: DiscoveryCompanionView
           {companion.verified ? <VerifiedBadge /> : null}
         </View>
         <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{isCompanion ? [companion.location, format, companion.distanceLabel].filter(Boolean).join(' · ') : 'Member'}</AppText>
-        {intro ? <AppText numberOfLines={1} style={styles.intro}>{intro}</AppText> : null}
+        {intro ? <AppText numberOfLines={1}>{intro}</AppText> : null}
         {isCompanion ? (
           <View style={styles.meta}>
             <AppText variant="caption" color={theme.colors.textMuted}>{typeof companion.rating === 'number' && companion.reviewCount ? `★ ${companion.rating.toFixed(1)} (${companion.reviewCount})` : 'New Companion'}</AppText>
@@ -47,7 +47,6 @@ const styles = StyleSheet.create({
   row: { borderWidth: 1, borderRadius: 12, padding: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   content: { flex: 1, gap: density.textPairGap },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  intro: { fontSize: 14, lineHeight: 19 },
   meta: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: density.textPairGap },
   rate: { fontWeight: '700' },
   pressed: { opacity: 0.68 },

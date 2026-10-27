@@ -4,7 +4,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { mutation, query, type MutationCtx } from './_generated/server'
 import { requireViewer } from './lib'
-import { buildInAppNotificationCopy, notificationDefinition, type NotificationKind as CatalogNotificationKind } from './notificationCatalog'
+import { buildInAppNotificationCopy, notificationDefinition, type BookingReminderWindow, type NotificationKind as CatalogNotificationKind } from './notificationCatalog'
 import { areUsersBlocked, isHiddenByPreference, preference } from './safety'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { isCircleParticipantRole } from './circleAuthorization'
@@ -18,11 +18,14 @@ export type NotificationPriority = Doc<'notifications'>['priority']
 // expired or been replaced, and lands on the account overview instead.
 export type IdentityDestinationOutcome = 'verified' | 'status'
 
+export type CircleNotificationSection = 'joinRequests' | 'pendingPosts' | 'members' | 'hostTransfer'
+
 export type NotificationDestination =
   | { type: 'booking'; audience: 'member' | 'companion'; bookingId: string }
   | { type: 'conversation'; conversationId: string; messageId?: string }
   | { type: 'post'; postId: string; commentId?: string }
-  | { type: 'circle'; circleId: string; postId?: string; commentId?: string }
+  | { type: 'circle'; circleId: string; postId?: string; commentId?: string; section?: CircleNotificationSection }
+  | { type: 'review'; reviewId: string; companionProfileId?: string; bookingId?: string; commentId?: string }
   | { type: 'companion' }
   | { type: 'identity'; outcome: IdentityDestinationOutcome }
   | { type: 'profile'; userId: string }
@@ -34,12 +37,14 @@ export type CreateNotificationInput = {
   actorUserId?: Id<'users'>
   kind: NotificationKind
   priority: NotificationPriority
+  reminderWindow?: BookingReminderWindow
   dedupeKey: string
   bookingId?: Id<'bookings'>
   conversationId?: Id<'directConversations'>
   messageId?: Id<'directMessages'>
   postId?: Id<'posts'>
   commentId?: Id<'postComments'>
+  reviewCommentId?: Id<'reviewComments'>
   circleId?: Id<'circles'>
   reviewId?: Id<'reviews'>
   companionProfileId?: Id<'companionProfiles'>
@@ -164,8 +169,17 @@ export const markAllRead = mutation({
   },
 })
 
-async function requireOwnedNotification(ctx: { db: any }, notificationId: Id<'notifications'>, viewerId: Id<'users'>) {
-  const notification = await ctx.db.get(notificationId) as Doc<'notifications'> | null
+function circleSectionForKind(kind: NotificationKind): CircleNotificationSection | undefined {
+  switch (kind) {
+    case 'circle_join_requested': return 'joinRequests'
+    case 'circle_post_review_requested': return 'pendingPosts'
+    case 'circle_role_changed': return 'members'
+    case 'circle_host_transfer': return 'hostTransfer'
+    default: return undefined
+  }
+}
+
+async function requireOwnedNotification(ctx: { db: any }, notificationId: Id<'notifications'>, viewerId: Id<'users'>) {  const notification = await ctx.db.get(notificationId) as Doc<'notifications'> | null
   if (!notification) throw new ConvexError('Notification not found')
   if (notification.recipientUserId !== viewerId) throw new ConvexError('Not your notification')
   return notification
@@ -185,6 +199,7 @@ async function presentNotification(ctx: { db: any }, notification: Doc<'notifica
     targetAvailable: target.available,
     category: target.category,
     isComment: Boolean(notification.commentId),
+    reminderWindow: notification.reminderWindow,
   })
   return {
     id: String(notification._id),
@@ -234,7 +249,7 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
         if (comment.authorId !== viewerId && await isHiddenByPreference(ctx, viewerId, comment.authorId)) return { available: false, destination: { type: 'notifications' } }
       }
     }
-    return { available: true, destination: { type: 'circle', circleId: String(circle._id), ...(notification.postId ? { postId: String(notification.postId) } : {}), ...(notification.commentId ? { commentId: String(notification.commentId) } : {}) } }
+    return { available: true, destination: { type: 'circle', circleId: String(circle._id), ...(notification.postId ? { postId: String(notification.postId) } : {}), ...(notification.commentId ? { commentId: String(notification.commentId) } : {}), ...(circleSectionForKind(notification.kind) ? { section: circleSectionForKind(notification.kind) } : {}) } }
   }
   if (destination === 'booking') {
     if (!notification.bookingId) return { available: false, destination: { type: 'notifications' } }
@@ -316,6 +331,29 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
     return notification.reportId
       ? { available: true, destination: { type: 'safety' } }
       : { available: false, destination: { type: 'notifications' } }
+  }
+  if (destination === 'review') {
+    if (!notification.reviewId) return { available: false, destination: { type: 'notifications' } }
+    const review = await ctx.db.get(notification.reviewId) as Doc<'reviews'> | null
+    if (!review || review.hidden) return { available: false, destination: { type: 'notifications' } }
+    const reviewer = await ctx.db.get(review.reviewerId) as Doc<'users'> | null
+    if (!reviewer || reviewer.suspended) return { available: false, destination: { type: 'notifications' } }
+    if (notification.reviewCommentId) {
+      const comment = await ctx.db.get(notification.reviewCommentId) as Doc<'reviewComments'> | null
+      if (!comment || comment.reviewId !== review._id || comment.hidden) {
+        return { available: false, destination: { type: 'notifications' } }
+      }
+    }
+    return {
+      available: true,
+      destination: {
+        type: 'review',
+        reviewId: String(review._id),
+        bookingId: String(review.bookingId),
+        ...(review.companionProfileId ? { companionProfileId: String(review.companionProfileId) } : {}),
+        ...(notification.reviewCommentId ? { commentId: String(notification.reviewCommentId) } : {}),
+      },
+    }
   }
   if (destination === 'profile' && notification.actorUserId) {
     const actor = await ctx.db.get(notification.actorUserId) as Doc<'users'> | null

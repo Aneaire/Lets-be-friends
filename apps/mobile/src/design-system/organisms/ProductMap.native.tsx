@@ -1,9 +1,10 @@
 import { Camera, GeoJSONSource, Layer, Map, Marker, type CameraRef } from '@maplibre/maplibre-react-native'
-import { productMapInitialView, productMapStyleUrl, productMapZoomForRadius } from '@lets-be-friends/shared'
-import { useEffect, useRef, useState } from 'react'
+import { productMapBoundsForRadius, productMapStyleUrl } from '@lets-be-friends/shared'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Image, Pressable, StyleSheet, View } from 'react-native'
 
 import type { ProductMapProps } from './ProductMap'
+import { productMapBoundsPadding, productMapCameraView } from './productMapCamera'
 import { createMapInteractionTracker } from './productMapInteraction'
 import { normalizeMapCoordinates } from '@/features/discovery/nearbyOrigin'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -14,19 +15,25 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 const zoomStep = 1
 const minimumInteractiveZoom = 2
 const maximumInteractiveZoom = 19
+const cameraBoundsPadding = {
+  top: productMapBoundsPadding,
+  right: productMapBoundsPadding,
+  bottom: productMapBoundsPadding,
+  left: productMapBoundsPadding,
+}
 
-export function ProductMap({ center, radiusKm, points = [], onSelectPoint, onPickLocation, onInteractionChange, pinMode = false, expanded = false }: ProductMapProps) {
+export function ProductMap({ center, radiusKm, points = [], onSelectPoint, onPickLocation, onInteractionChange, pinMode = false, expanded = false, mapLabel = 'Nearby Companion map' }: ProductMapProps) {
   const theme = useAppTheme()
   const [failed, setFailed] = useState(false)
   const [mapKey, setMapKey] = useState(0)
   const cameraRef = useRef<CameraRef>(null)
-  const mapCenter = center
-    ? [center.longitude, center.latitude] as [number, number]
-    : [...productMapInitialView.center] as [number, number]
-  const mapZoom = pinMode ? 8 : center ? productMapZoomForRadius(radiusKm) : productMapInitialView.zoom
+  const cameraView = useMemo(
+    () => productMapCameraView({ center, radiusKm, pinMode }),
+    [center?.latitude, center?.longitude, radiusKm, pinMode],
+  )
   // Zoom buttons read the live zoom from a ref so gestures never re-render the
   // map and re-apply the declarative camera stop.
-  const currentZoom = useRef(mapZoom)
+  const currentZoom = useRef(cameraView.zoom)
   const onInteractionChangeRef = useRef(onInteractionChange)
   const interaction = useRef(createMapInteractionTracker((active) => onInteractionChangeRef.current?.(active)))
   const radius = center && radiusKm ? circleFeature(center, radiusKm) : null
@@ -36,8 +43,8 @@ export function ProductMap({ center, radiusKm, points = [], onSelectPoint, onPic
   }, [onInteractionChange])
 
   useEffect(() => {
-    currentZoom.current = mapZoom
-  }, [mapZoom])
+    currentZoom.current = cameraView.zoom
+  }, [cameraView.zoom])
 
   useEffect(() => () => interaction.current.reset(), [])
 
@@ -54,7 +61,7 @@ export function ProductMap({ center, radiusKm, points = [], onSelectPoint, onPic
   }
 
   return (
-    <View style={[styles.frame, expanded && styles.expandedFrame]} accessibilityLabel="Nearby Companion map">
+    <View style={[styles.frame, expanded && styles.expandedFrame]} accessibilityLabel={mapLabel}>
       {!failed ? (
         <View
           style={styles.mapSurface}
@@ -78,7 +85,14 @@ export function ProductMap({ center, radiusKm, points = [], onSelectPoint, onPic
               if (origin) onPickLocation?.(origin)
             } : undefined}
           >
-            <Camera ref={cameraRef} center={mapCenter} zoom={mapZoom} duration={350} easing="ease" />
+            <Camera
+              ref={cameraRef}
+              duration={350}
+              easing="ease"
+              {...(cameraView.bounds
+                ? { bounds: cameraView.bounds, padding: cameraBoundsPadding }
+                : { center: cameraView.center, zoom: cameraView.zoom })}
+            />
             {radius ? (
               <GeoJSONSource id="search-radius" data={radius}>
                 <Layer id="search-radius-fill" type="fill" paint={{ 'fill-color': '#C1519C', 'fill-opacity': 0.12 }} />
@@ -148,8 +162,9 @@ function initials(name: string) {
 
 function circleFeature(center: { latitude: number; longitude: number }, radiusKm: number) {
   const coordinates: [number, number][] = []
-  const latitudeRadius = radiusKm / 110.574
-  const longitudeRadius = radiusKm / (111.32 * Math.cos(center.latitude * Math.PI / 180))
+  const bounds = productMapBoundsForRadius(center, radiusKm)
+  const latitudeRadius = bounds.north - center.latitude
+  const longitudeRadius = bounds.east - center.longitude
   for (let index = 0; index <= 64; index += 1) {
     const angle = index / 64 * Math.PI * 2
     coordinates.push([

@@ -1,4 +1,4 @@
-import { identityRejectionReasonGuidance } from '@lets-be-friends/shared'
+import { mobileIdentityPresentation, type LatestIdentityVerification } from '@/features/verification/identityPresentation'
 
 export type ProfileViewer = {
   displayName: string
@@ -15,12 +15,7 @@ export type ProfileViewer = {
   approximateLongitude?: number | null
 }
 
-export type ProfileVerification = {
-  adminStatus: 'not_ready' | 'pending' | 'approved' | 'rejected' | 'not_started'
-  personaStatus: string
-  identityStage?: string
-  memberReason?: string | null
-} | null
+export type ProfileVerification = LatestIdentityVerification
 
 export type ProfileViewModel = {
   name: string
@@ -57,39 +52,8 @@ export function buildSignedInProfileViewModel(
 }
 
 function verificationCopy(viewer: ProfileViewer, verification: ProfileVerification) {
-  if (viewer.identityEligible) {
-    return {
-      label: 'Identity verified',
-      detail: 'Your current identity approval is active for member booking.',
-    }
-  }
-  if (viewer.verificationStatus === 'rejected' || verification?.adminStatus === 'rejected') {
-    return {
-      label: 'Identity not approved',
-      detail: identityRejectionReasonGuidance(verification?.memberReason),
-    }
-  }
-  if (verification?.adminStatus === 'not_ready') {
-    return {
-      label: 'Identity status unavailable',
-      detail: 'Your identity status cannot be confirmed right now. Please try again later.',
-    }
-  }
-  if (
-    viewer.verificationStatus === 'pending'
-    || verification?.adminStatus === 'pending'
-    || ['created', 'in_progress', 'processing', 'completed', 'pending'].includes(verification?.personaStatus ?? '')
-    || ['extracting', 'confirmation_required', 'ready_for_review'].includes(verification?.identityStage ?? '')
-  ) {
-    return {
-      label: 'Identity review pending',
-      detail: 'Your latest identity check is still in progress and is not approved yet.',
-    }
-  }
-  return {
-    label: 'Identity not verified',
-    detail: 'No active identity approval is recorded for this account.',
-  }
+  const status = mobileIdentityPresentation(viewer.verificationStatus, verification, viewer.identityEligible)
+  return { label: status.label, detail: status.guidance }
 }
 
 function roleLabel(role: ProfileViewer['role']) {

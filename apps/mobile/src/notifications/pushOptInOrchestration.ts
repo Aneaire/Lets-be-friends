@@ -112,7 +112,6 @@ export type PushOptInAcceptDeps = {
   session: PushOptInSession
   isCurrent: (session: PushOptInSession) => boolean
   runEnable: () => Promise<PushEnableFlowOutcome>
-  persistHandled: () => Promise<void>
   onHidden: () => void
 }
 
@@ -121,12 +120,6 @@ export async function runPushOptInAccept(deps: PushOptInAcceptDeps): Promise<Pus
   const outcome = await deps.runEnable()
   if (outcome !== 'registered') return outcome
   if (!deps.isCurrent(deps.session)) return 'stale'
-  try {
-    await deps.persistHandled()
-  } catch {
-    // Best effort. The in-memory flag still hides the prompt for this session.
-  }
-  if (!deps.isCurrent(deps.session)) return 'stale'
   deps.onHidden()
   return 'registered'
 }
@@ -134,18 +127,11 @@ export async function runPushOptInAccept(deps: PushOptInAcceptDeps): Promise<Pus
 export type PushOptInDismissDeps = {
   session: PushOptInSession
   isCurrent: (session: PushOptInSession) => boolean
-  persistHandled: () => Promise<void>
   onHidden: () => void
 }
 
 export async function runPushOptInDismiss(deps: PushOptInDismissDeps): Promise<'hidden' | 'stale'> {
   if (!deps.isCurrent(deps.session)) return 'stale'
   deps.onHidden()
-  try {
-    await deps.persistHandled()
-  } catch {
-    // Best effort. The prompt is already hidden for this session.
-  }
-  if (!deps.isCurrent(deps.session)) return 'stale'
   return 'hidden'
 }

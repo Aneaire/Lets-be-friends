@@ -34,7 +34,7 @@ function StoryReportAction() {
       onPress={reportMessage}
       style={styles.reportAction}
     >
-      <AppText variant="caption" color={theme.colors.danger}>Report message</AppText>
+      <AppText variant="caption" color={theme.colors.danger}>…</AppText>
     </Pressable>
   )
 }
@@ -57,7 +57,9 @@ export const HeaderLongIdentityAt320: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Private member conversation')).toBeVisible()
+    await expect(canvas.getByText('Alexandria Marisol Rivera-Santos')).toBeVisible()
+    await expect(canvas.queryByText('Private member conversation')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Conversation paused')).not.toBeInTheDocument()
     await userEvent.click(canvas.getByRole('button', { name: 'Back to conversations' }))
     await userEvent.click(canvas.getByRole('button', { name: 'Safety options for Alexandria Marisol Rivera-Santos' }))
     await expect(goBack).toHaveBeenCalledOnce()
@@ -92,10 +94,32 @@ export const AuthorizedBookingMessageAt320: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /Open Coffee, conversation, and neighborhood orientation booking/ }))
-    await userEvent.click(canvas.getByRole('button', { name: 'Report message' }))
+    await expect(canvas.queryByText('A booking update was added to this private conversation.')).not.toBeInTheDocument()
+    const card = canvas.getByRole('button', { name: /Open Coffee, conversation, and neighborhood orientation booking/ })
+    const report = canvas.getByRole('button', { name: 'Report message' })
+    expect(card.clientWidth).toBeGreaterThanOrEqual(260)
+    expect(report.getBoundingClientRect().top).toBeGreaterThanOrEqual(card.getBoundingClientRect().bottom - 1)
+    await userEvent.click(card)
+    await userEvent.click(report)
     await expect(openBooking).toHaveBeenCalledOnce()
     await expect(reportMessage).toHaveBeenCalledOnce()
+  },
+}
+
+export const CancelledBookingKeepsReasonAt320: Story = {
+  render: () => (
+    <BookingMessageShell
+      body="The Companion (Alexandria Marisol Rivera-Santos) cancelled this Coffee request. Reason: Unexpected schedule change."
+      showBody
+      category={booking.category}
+      booking={<BookingCard compact booking={{ ...booking, status: 'cancelled' }} onPress={openBooking} />}
+      reportAction={<StoryReportAction />}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(/Reason: Unexpected schedule change/)).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Report message' })).toBeVisible()
   },
 }
 
@@ -109,6 +133,7 @@ export const UnverifiedBookingRoleAt320: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    await expect(canvas.getByText('A booking update remains in the conversation record.')).toBeVisible()
     await expect(canvas.getByText('Booking details are not linked because your role in this booking could not be verified.')).toBeVisible()
     await expect(canvas.queryByRole('button', { name: /Open .* booking/ })).not.toBeInTheDocument()
     await expect(canvas.getByRole('button', { name: 'Report message' })).toBeVisible()
@@ -117,7 +142,9 @@ export const UnverifiedBookingRoleAt320: Story = {
 
 const styles = StyleSheet.create({
   reportAction: {
+    minWidth: 44,
     minHeight: 44,
+    alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
   },

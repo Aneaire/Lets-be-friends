@@ -132,6 +132,40 @@ describe('direct conversations', () => {
     expect(page.page[0].attachments[0].url).toBeTypeOf('string')
   })
 
+  it('sends message text and a registered file in one message', async () => {
+    const t = convexTest(schema, modules)
+    await insertUser(t, 'alex')
+    const samId = await insertUser(t, 'sam')
+    const alex = t.withIdentity({ subject: 'alex' })
+    const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
+    const { uploadId, storageId } = await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', 'alex')).unique()
+      const uploadId = await ctx.db.insert('directMessageUploads', { userId: user!._id, createdAt: Date.now() - 1_000 })
+      const storageId = await ctx.storage.store(new Blob(['hello'], { type: 'text/plain' }))
+      await (ctx.db as any).patch(storageId, { contentType: 'text/plain' })
+      return { uploadId, storageId }
+    })
+    await alex.mutation(api.conversations.registerAttachmentUpload, {
+      uploadId,
+      storageId,
+      fileName: 'hello.txt',
+      originalSize: 5,
+      compressionPercent: 0,
+    })
+    await alex.mutation(api.conversations.sendMessage, {
+      conversationId,
+      body: 'Here is the file you asked for.',
+      attachmentUploadIds: [uploadId],
+    })
+
+    const thread = await alex.query(api.conversations.messages, { conversationId })
+    expect(thread.messages).toHaveLength(1)
+    expect(thread.messages[0]).toMatchObject({
+      body: 'Here is the file you asked for.',
+      attachments: [{ fileName: 'hello.txt', kind: 'file', size: 5, originalSize: 5, compressionPercent: 0 }],
+    })
+  })
+
   it('keeps the initial message page bounded and terminates through earlier history', async () => {
     const t = convexTest(schema, modules)
     const alexId = await insertUser(t, 'alex')

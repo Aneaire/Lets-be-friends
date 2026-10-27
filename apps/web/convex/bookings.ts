@@ -14,13 +14,14 @@ import {
   validateBookingDurationMinutes,
   validateCompanionHourlyRateCentavos,
 } from '@lets-be-friends/shared'
-import { mutation, query } from './_generated/server'
+import { internalMutation, mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { ConvexError, v } from 'convex/values'
 import { canChatForStatus, getViewer, requireViewer, writeAudit } from './lib'
 import { ensureConversationBetween, sendBookingMessage } from './conversations'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { createNotification } from './notifications'
+import type { BookingReminderWindow } from './notificationCatalog'
 import { areUsersBlocked, requireNotBlocked } from './safety'
 import { consumeRateLimit } from './rateLimit'
 import {
@@ -360,6 +361,7 @@ export const companionDecision = mutation({
     const now = Date.now()
     await ctx.db.patch(args.bookingId, {
       status: args.decision,
+      acceptedAt: args.decision === 'accepted' ? (booking.acceptedAt ?? now) : booking.acceptedAt,
       companionDecisionNote: args.note,
       settlementState:
         booking.pricingModel === MEMBER_WALLET_PRICING_MODEL && args.decision === 'accepted'
@@ -621,6 +623,79 @@ async function notifyReviewWindowOpened(
     dedupeKey: `booking:${bookingId}:review-window`,
   })
 }
+
+const BOOKING_REMINDER_GRACE_MS = 10 * 60 * 1_000
+const BOOKING_REMINDER_WINDOWS: ReadonlyArray<{
+  window: BookingReminderWindow
+  offsetMs: number
+  priority: 'standard' | 'attention'
+}> = [
+  { window: '1_day', offsetMs: 24 * 60 * 60 * 1_000, priority: 'standard' },
+  { window: '5_hours', offsetMs: 5 * 60 * 60 * 1_000, priority: 'standard' },
+  { window: '1_hour', offsetMs: 60 * 60 * 1_000, priority: 'attention' },
+]
+
+/**
+ * Confirmed bookings get three reminders at 1 day, 5 hours, and 1 hour before
+ * the session. A status-based sweep is used instead of stored scheduler ids so
+ * cancellations, admin refunds, and completions stop reminders automatically.
+ * The dedupe key makes each window idempotent.
+ */
+export const sendDueBookingReminders = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now()
+    const horizon = now + 24 * 60 * 60 * 1_000 + BOOKING_REMINDER_GRACE_MS
+    const bookings = await ctx.db.query('bookings')
+      .withIndex('by_status_requested_at', (q) => (
+        q.eq('status', 'accepted').gte('requestedAt', now).lte('requestedAt', horizon)
+      ))
+      .collect()
+    let created = 0
+    for (const booking of bookings) {
+      if (booking.requestedAt <= now) continue
+      // A booking accepted after a reminder window began never had that window.
+      // Legacy accepted bookings fall back to their creation time.
+      const acceptedAt = booking.acceptedAt ?? booking.createdAt
+      const companion = await ctx.db.get(booking.companionProfileId)
+      if (!companion) continue
+      const [member, companionUser] = await Promise.all([
+        ctx.db.get(booking.memberId),
+        ctx.db.get(companion.userId),
+      ])
+      if (!member || !companionUser || member.suspended || companionUser.suspended) continue
+      for (const reminder of BOOKING_REMINDER_WINDOWS) {
+        const target = booking.requestedAt - reminder.offsetMs
+        if (target < acceptedAt) continue
+        // Only send inside a small window after the target so a late cron run
+        // never turns "starts in 1 hour" into a misleading message.
+        if (now < target || now >= target + BOOKING_REMINDER_GRACE_MS) continue
+        const recipients = [
+          { userId: member._id, actorUserId: companionUser._id },
+          { userId: companionUser._id, actorUserId: member._id },
+        ]
+        for (const recipient of recipients) {
+          const dedupeKey = `booking:${booking._id}:reminder:${reminder.window}`
+          const existing = await ctx.db.query('notifications')
+            .withIndex('by_recipient_dedupe', (q) => q.eq('recipientUserId', recipient.userId).eq('dedupeKey', dedupeKey))
+            .unique()
+          if (existing) continue
+          await createNotification(ctx, {
+            recipientUserId: recipient.userId,
+            actorUserId: recipient.actorUserId,
+            kind: 'booking_reminder',
+            priority: reminder.priority,
+            reminderWindow: reminder.window,
+            bookingId: booking._id,
+            dedupeKey,
+          })
+          created += 1
+        }
+      }
+    }
+    return { created }
+  },
+})
 
 export const messages = query({
   args: { bookingId: v.id('bookings') },

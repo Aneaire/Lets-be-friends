@@ -15,8 +15,9 @@ import { describeConvexError } from '../lib/convexErrors'
 const NO_DISCOVERY_COMPANIONS: ApprovedCompanionOption[] = []
 
 export const Route = createFileRoute('/companion-profile')({
-  validateSearch: (search: Record<string, unknown>): { companionProfileId?: string; reviewId?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { companionProfileId?: string; reviewId?: string; commentId?: string } => ({
     ...(typeof search.companionProfileId === 'string' ? { companionProfileId: search.companionProfileId } : {}),
+    ...(typeof search.commentId === 'string' ? { commentId: search.commentId } : {}),
     ...(typeof search.reviewId === 'string' ? { reviewId: search.reviewId } : {}),
   }),
   component: CompanionProfilePage,
@@ -27,17 +28,17 @@ type CompanionReview = NonNullable<ReturnType<typeof useQuery<typeof api.reviews
 type CompanionPost = NonNullable<ReturnType<typeof useQuery<typeof api.social.byUser>>>[number]
 
 function CompanionProfilePage() {
-  const { companionProfileId, reviewId } = Route.useSearch()
+  const { companionProfileId, reviewId, commentId } = Route.useSearch()
   const navigate = useNavigate()
   const { isSignedIn } = useAuth()
   const companion = useQuery(api.companions.getPublic, companionProfileId ? { companionProfileId: companionProfileId as Id<'companionProfiles'> } : 'skip') as CompanionProfile | null | undefined
   const reviews = useQuery(api.reviews.forCompanion, companionProfileId ? { companionProfileId: companionProfileId as Id<'companionProfiles'> } : 'skip') as CompanionReview[] | undefined
-  const requestedReview = useQuery(api.reviews.requested, reviewId ? { reviewId: reviewId as Id<'reviews'> } : 'skip') as CompanionReview | null | undefined
+  const requestedReview = useQuery(api.reviews.requested, reviewId ? { reviewId: reviewId as Id<'reviews'>, commentId: commentId as Id<'reviewComments'> | undefined } : 'skip') as CompanionReview | null | undefined
   const displayedReviews = useMemo(() => {
     if (!reviews) return reviews
-    if (!requestedReview || reviews.some((review) => String(review._id) === String(requestedReview._id))) return reviews
-    return [requestedReview, ...reviews]
-  }, [reviews, requestedReview])
+    if (!requestedReview || String(requestedReview.companionProfileId) !== companionProfileId) return reviews
+    return [requestedReview, ...reviews.filter((review) => review._id !== requestedReview._id)]
+  }, [reviews, requestedReview, companionProfileId])
   const posts = useQuery(api.social.byUser, companion?.userId ? { userId: companion.userId } : 'skip') as CompanionPost[] | undefined
   const toggleSaveProfile = useMutation(api.companions.toggleSaveProfile)
   const toggleFollow = useMutation(api.social.toggleFollow)
@@ -234,6 +235,7 @@ function CompanionProfilePage() {
         posts={posts}
         reviews={displayedReviews}
         focusedReviewId={reviewId}
+        focusedCommentId={commentId}
         rating={companion.rating}
         reviewCount={companion.reviewCount}
         emptyPostsDescription="This member has not shared a post yet."

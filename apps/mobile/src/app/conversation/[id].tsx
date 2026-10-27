@@ -6,6 +6,7 @@ import * as Linking from 'expo-linking'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { AppState, FlatList, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { extractConvexErrorMessage } from '@lets-be-friends/shared'
 
 import { mobileApi, type ConversationId, type DirectMessageUploadId, type StorageId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -24,6 +25,7 @@ import {
   attachmentSelectionError,
   canSubmitConversationMessage,
   chatAttachmentKind,
+  chatUploadRegistration,
   describeChatAttachment,
   MAX_CHAT_ATTACHMENTS,
   needsCompressionBeforeSend,
@@ -36,6 +38,7 @@ import {
   formatMessageTimestamp,
   conversationBookingCardView,
   messageCounter,
+  shouldShowMessageCounter,
   validateMessageBody,
 } from '@/data/messageViewModels'
 import { useMobileMember } from '@/member/MobileMember'
@@ -201,8 +204,7 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
           uploadId: tracked.uploadId,
           storageId,
           fileName: normalizeAttachmentFileName(attachment.fileName),
-          originalSize: attachment.originalSize,
-          compressionPercent: 0,
+          ...chatUploadRegistration(prepared.fileSize),
         })
       }
       await sendMessage({
@@ -215,7 +217,7 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
       setBody('')
     } catch (caught) {
       await Promise.allSettled(grants.filter((grant) => !grant.claimed).map((grant) => discardUpload({ uploadId: grant.uploadId, storageId: grant.storageId }).catch(() => undefined)))
-      setError(caught instanceof Error ? caught.message : 'Your message could not be sent. Please try again.')
+      setError(extractConvexErrorMessage(caught, 'Your message could not be sent. Please try again.'))
     } finally {
       sendingRef.current = false
       setSending(false)
@@ -325,7 +327,6 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
         />
         {suspended || contactUnavailable ? <View style={[styles.suspended, { borderTopColor: theme.colors.border }]}><AppText color={theme.colors.textMuted}>{contactUnavailable ? 'New contact is stopped for this member connection. Existing messages and booking records remain available.' : 'This conversation is paused and cannot receive new messages.'}</AppText></View> : (
           <View style={[styles.composer, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
-            <AppText variant="caption" color={theme.colors.textMuted}>Use messages to keep plans and important context together.</AppText>
             <CompactComposer
               value={body}
               onChange={setBody}
@@ -339,7 +340,6 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
               attachDisabled={attachments.length >= MAX_CHAT_ATTACHMENTS}
               attachLoading={picking}
               onAttachPress={onAttach}
-              hint="Photos and videos under 3 MB send in original quality. Larger media needs a smaller copy first."
               attachments={attachments.length ? (
                 <>
                   {attachments.map((attachment) => (
@@ -357,7 +357,9 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
                 </>
               ) : undefined}
             />
-            <AppText variant="caption" color={counter.overLimit ? theme.colors.danger : theme.colors.textMuted}>{counter.count.toLocaleString()}/2,000 characters</AppText>
+            {shouldShowMessageCounter(counter.count) ? (
+              <AppText variant="caption" color={counter.overLimit ? theme.colors.danger : theme.colors.textMuted}>{counter.count.toLocaleString()}/2,000 characters</AppText>
+            ) : null}
           </View>
         )}
       </KeyboardAvoidingView>
@@ -393,6 +395,7 @@ function MessageItem({ message, otherName, viewerId }: {
     return (
       <BookingMessageShell
         body={message.body}
+        showBody={message.booking.status === 'cancelled'}
         category={message.booking.category}
         booking={destination ? (
           <BookingCard
@@ -401,7 +404,7 @@ function MessageItem({ message, otherName, viewerId }: {
             onPress={() => router.push(destination)}
           />
         ) : undefined}
-        reportAction={!message.sentByViewer ? <ReportAction targetType="message" targetId={String(message._id)} label="Report message" compact /> : undefined}
+        reportAction={!message.sentByViewer ? <ReportAction targetType="message" targetId={String(message._id)} label="Report message" compact iconOnly /> : undefined}
       />
     )
   }
@@ -429,10 +432,8 @@ function MessageItem({ message, otherName, viewerId }: {
             )
           })}
         </> : undefined}
-      footer={<>
-        {attachmentError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{attachmentError}</AppText> : null}
-        {!message.sentByViewer ? <ReportAction targetType="message" targetId={String(message._id)} label="Report message" compact /> : null}
-      </>}
+      sideAction={!message.sentByViewer ? <ReportAction targetType="message" targetId={String(message._id)} label="Report message" compact iconOnly /> : undefined}
+      footer={attachmentError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{attachmentError}</AppText> : undefined}
     />
   )
 }

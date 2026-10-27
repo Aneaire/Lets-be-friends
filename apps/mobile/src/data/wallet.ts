@@ -41,7 +41,7 @@ export function topUpPresentation(status: WalletTopUpStatus, expiresAt?: number,
     case 'awaiting_payment':
       return { label: 'Awaiting payment', detail: 'Scan the QR Ph code. Balance is credited only after provider confirmation.', active: true, payable: true }
     case 'processing':
-      return { label: 'Confirming payment', detail: 'PayMongo is confirming this payment. Check the refreshed balance and recent top-up status for the recorded result.', active: true, payable: false }
+      return { label: 'Confirming payment', detail: 'PayMongo is confirming this payment. Your balance and recent top-ups update automatically after confirmation.', active: true, payable: false }
     case 'paid':
       return { label: 'Paid', detail: 'Provider confirmation was received and the wallet credit was recorded.', active: false, payable: false }
     case 'failed':
@@ -67,6 +67,18 @@ export function formatQrExpiry(expiresAt: number, now = Date.now()) {
   return `Expires ${formatWalletTimestamp(expiresAt)}`
 }
 
+export function qrImageFileName(topUpId: string) {
+  const safeId = topUpId.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 64)
+  return `lets-be-friends-qr-ph-${safeId || 'top-up'}.png`
+}
+
+export function saveQrImageMessage(result: { ok: boolean; reason?: string }) {
+  if (result.ok) return 'QR Ph code saved to your photos.'
+  return result.reason === 'permission'
+    ? 'Allow photo access to save the QR Ph code.'
+    : 'The QR Ph code could not be saved. Take a screenshot of the code instead.'
+}
+
 export function isUnambiguousTopUpCreationError(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : ''
   return message.includes('top-ups are not enabled')
@@ -75,4 +87,23 @@ export function isUnambiguousTopUpCreationError(error: unknown) {
     || message.includes('profile sync required')
     || message.includes('account is suspended')
     || message.includes('unresolved qr ph top-up is already active')
+}
+
+export function walletTopUpCreationState(input: {
+  amount: string
+  activeTopUp?: { status: WalletTopUpStatus; amountCentavos: number }
+  busy: boolean
+  waiting: boolean
+  enabled: boolean
+}) {
+  const parsed = parseWalletAmount(input.amount)
+  const active = input.activeTopUp
+  const replacing = active?.status === 'awaiting_payment'
+  const unchanged = replacing && parsed.ok && parsed.amountCentavos === active.amountCentavos
+  const locked = input.busy || input.waiting || !input.enabled || Boolean(active && !replacing)
+  return {
+    editable: !locked,
+    disabled: locked || Boolean(unchanged),
+    label: input.busy || input.waiting ? 'Preparing QR' : active && !replacing ? 'Confirming current top-up' : unchanged ? 'Edit amount to create a new QR' : replacing ? 'Create QR for updated amount' : 'Create QR Ph top-up',
+  }
 }

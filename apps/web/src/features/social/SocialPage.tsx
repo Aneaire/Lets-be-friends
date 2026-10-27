@@ -1,4 +1,4 @@
-import { activeMentionQuery, arrangeCommentThreads, pollValidationError, withoutLeadingReplyMention, type CommentThreadPosition, type FeedInstrumentationAction } from '@lets-be-friends/shared'
+import { activeMentionQuery, arrangeCommentThreads, NOTIFICATION_HIGHLIGHT_MS, pollValidationError, withoutLeadingReplyMention, type CommentThreadPosition, type FeedInstrumentationAction } from '@lets-be-friends/shared'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
@@ -532,6 +532,7 @@ export function PostRow({
   const [commenting, setCommenting] = useState(false)
   const [commentError, setCommentError] = useState('')
   const [commentBody, setCommentBody] = useState('')
+  const [highlighted, setHighlighted] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [lightboxShareOpen, setLightboxShareOpen] = useState(false)
   const [lightboxPending, setLightboxPending] = useState('')
@@ -546,9 +547,21 @@ export function PostRow({
 
   useEffect(() => {
     if (!focusComments) return
-    setCommentsOpen(true)
+    // A like opens the post itself. A comment or mention also expands the
+    // thread so the target comment can be scrolled into view.
+    if (focusCommentId) setCommentsOpen(true)
     requestAnimationFrame(() => rowRef.current?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }))
-  }, [focusComments])
+  }, [focusCommentId, focusComments])
+
+  useEffect(() => {
+    if (!focusComments || focusCommentId) {
+      setHighlighted(false)
+      return
+    }
+    setHighlighted(true)
+    const timer = window.setTimeout(() => setHighlighted(false), NOTIFICATION_HIGHLIGHT_MS)
+    return () => window.clearTimeout(timer)
+  }, [focusCommentId, focusComments])
 
   useEffect(() => {
     if (!focusCommentId || commentsStatus === 'LoadingFirstPage') return
@@ -584,6 +597,7 @@ export function PostRow({
       <SocialPostCard
         ref={rowRef}
         id={`post-${post._id}`}
+        className={highlighted ? 'notification-target-highlight' : ''}
         tabIndex={focusComments ? -1 : undefined}
         post={post}
         viewerReady={viewerReady}
@@ -824,6 +838,17 @@ export function CommentRow({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [actionPending, setActionPending] = useState<'delete' | 'edit' | 'like' | 'reply' | 'report' | ''>('')
   const [actionError, setActionError] = useState('')
+  const [highlighted, setHighlighted] = useState(false)
+
+  useEffect(() => {
+    if (!focused) {
+      setHighlighted(false)
+      return
+    }
+    setHighlighted(true)
+    const timer = window.setTimeout(() => setHighlighted(false), NOTIFICATION_HIGHLIGHT_MS)
+    return () => window.clearTimeout(timer)
+  }, [focused])
 
   function beginEditing() {
     setEditBody(comment.body)
@@ -867,6 +892,7 @@ export function CommentRow({
   return (
     <CommentBubble
       id={`comment-${comment._id}`}
+      className={highlighted ? 'notification-target-highlight' : undefined}
       tabIndex={focused ? -1 : undefined}
       author={comment.authorDisplayName}
       imageUrl={comment.authorProfileImageUrl}

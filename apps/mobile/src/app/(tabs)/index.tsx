@@ -5,11 +5,12 @@ import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-rout
 import * as ImagePicker from 'expo-image-picker'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, Platform, Pressable, StyleSheet, View } from 'react-native'
-import { activeMentionQuery } from '@lets-be-friends/shared'
+import { activeMentionQuery, NOTIFICATION_HIGHLIGHT_MS } from '@lets-be-friends/shared'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi, type PostMediaUploadId, type StorageId, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
+import { useConvexConnectionRecovery } from '@/backend/convexTokenDiagnostics'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
@@ -63,6 +64,7 @@ function ConnectedHome() {
   const theme = useAppTheme()
   const auth = useMobileAuth()
   const member = useMobileMember()
+  const { retryConnection } = useConvexConnectionRecovery()
   const params = useLocalSearchParams<{ postId?: string }>()
   const requestedPostId = typeof params.postId === 'string' ? params.postId : ''
   const [filter, setFilter] = useState<FeedFilter>('for_you')
@@ -102,6 +104,10 @@ function ConnectedHome() {
   const feedQueryKey = `${filter}:${member.status === 'ready' ? String(member.viewer._id) : 'signed-out'}`
   const feedPageRequest = useRef<FeedPageRequestState>({ queryKey: feedQueryKey, inFlightKey: null, observedLoading: false })
   const feedScrollStarted = useRef(false)
+  const listRef = useRef<FlatList<FeedItem>>(null)
+  const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null)
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handledRequestedPostId = useRef<string | null>(null)
 
   useEffect(() => {
     impressionKey.current = ''
@@ -332,6 +338,41 @@ function ConnectedHome() {
     return dedupeFeedItems([focusedItem, ...feedItems])
   }, [canQuery, feedItems, requestedPost, requestedPostId])
 
+  useEffect(() => () => {
+    if (highlightTimer.current) clearTimeout(highlightTimer.current)
+  }, [])
+
+  useEffect(() => {
+    if (!requestedPost || !requestedPostId) {
+      handledRequestedPostId.current = null
+      setHighlightedPostId(null)
+      return
+    }
+    if (handledRequestedPostId.current === requestedPostId) return
+    if (!visibleFeedItems.some((item) => item.kind === 'post' && String(item.post._id) === requestedPostId)) return
+    handledRequestedPostId.current = requestedPostId
+    const scrollTimer = setTimeout(() => {
+      listRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 })
+      setHighlightedPostId(requestedPostId)
+      // Keep the highlight visible for the same window on every surface.
+      if (highlightTimer.current) clearTimeout(highlightTimer.current)
+      highlightTimer.current = setTimeout(() => setHighlightedPostId(null), NOTIFICATION_HIGHLIGHT_MS)
+    }, 120)
+    return () => clearTimeout(scrollTimer)
+  }, [requestedPost, requestedPostId, visibleFeedItems])
+
+  if (accountPresentation === 'account_error' && (member.status === 'error' || member.status === 'unavailable')) {
+    const signOutForRecovery = auth.status === 'signed_in' ? auth.signOut : undefined
+    const sessionRecoveredBySignIn = member.status === 'error' && member.connectionReference === 'AUTH-SESSION' && signOutForRecovery !== undefined
+    return (
+      <HomeState
+        title="Home is unavailable"
+        detail={member.message}
+        onRetry={member.status === 'error' && member.canRetryConnection && !sessionRecoveredBySignIn ? retryConnection : undefined}
+        onSignInAgain={sessionRecoveredBySignIn ? signOutForRecovery as () => void : undefined}
+      />
+    )
+  }
   if (accountLoading) return <HomeFeedLoadingScreen />
 
   function loadMoreFeed(source: 'viewport' | 'manual') {
@@ -358,12 +399,14 @@ function ConnectedHome() {
       >
         <Screen scroll={false} contentStyle={styles.listScreen}>
           <FlatList
+            ref={listRef}
             data={visibleFeedItems}
             keyExtractor={(item) => item.itemKey}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
             onScrollBeginDrag={() => { feedScrollStarted.current = true }}
+            onScrollToIndexFailed={() => listRef.current?.scrollToOffset({ offset: 0, animated: true })}
             onEndReached={() => loadMoreFeed('viewport')}
             onEndReachedThreshold={0.5}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -371,7 +414,11 @@ function ConnectedHome() {
               const authorId = item.kind === 'post' ? item.post.authorId : undefined
               const following = item.kind === 'post' ? item.post.followingAuthor : undefined
               const authorKey = authorId ? String(authorId) : undefined
-              return <SocialFeedCard item={item} signedIn={signedIn} following={following} followBusy={authorKey ? Boolean(authorFollowBusy[authorKey]) : false} onToggleFollow={authorId && following !== undefined ? () => updateFollowing(authorId) : undefined} onOpenImage={setViewerImage} onAction={(action) => instrument(item, action)} />
+              const highlighted = item.kind === 'post' && String(item.post._id) === highlightedPostId
+              const card = <SocialFeedCard item={item} signedIn={signedIn} following={following} followBusy={authorKey ? Boolean(authorFollowBusy[authorKey]) : false} onToggleFollow={authorId && following !== undefined ? () => updateFollowing(authorId) : undefined} onOpenImage={setViewerImage} onAction={(action) => instrument(item, action)} />
+              return highlighted
+                ? <View style={[styles.feedHighlight, { borderColor: theme.colors.socialText, backgroundColor: theme.colors.socialSoft }]}>{card}</View>
+                : card
             }}
         ListHeaderComponent={<>
       <View style={styles.topBar}>
@@ -453,8 +500,18 @@ function ConnectedHome() {
   )
 }
 
-function HomeState({ title, detail }: { title: string; detail?: string }) {
-  return <Screen scroll={false} contentStyle={styles.state}><StateView eyebrow="HOME" title={title} detail={detail} /></Screen>
+function HomeState({ title, detail, onRetry, onSignInAgain }: { title: string; detail?: string; onRetry?: () => void; onSignInAgain?: () => void }) {
+  return (
+    <Screen scroll={false} contentStyle={styles.state}>
+      <StateView
+        eyebrow="HOME"
+        title={title}
+        detail={detail}
+        actionLabel={onSignInAgain ? 'Sign in again' : onRetry ? 'Retry connection' : undefined}
+        onAction={onSignInAgain ?? onRetry}
+      />
+    </Screen>
+  )
 }
 
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
@@ -479,4 +536,5 @@ const styles = StyleSheet.create({
   feedFilter: { marginVertical: 10 },
   skeletonList: { gap: 8 },
   feed: { gap: 10 },
+  feedHighlight: { borderWidth: 2, borderRadius: 12, overflow: 'hidden' },
 })

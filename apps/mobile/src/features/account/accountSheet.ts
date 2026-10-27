@@ -1,7 +1,9 @@
+import { companionSetupState, verificationNudge } from '@/features/verification/verificationNudge'
 import { companionIsPublic } from '@/member/profileSections'
 
 export type AccountSheetRoute =
   | { pathname: '/profile' }
+  | { pathname: '/get-verified' }
   | { pathname: '/companion-profile/[id]'; params: { id: string } }
   | { pathname: '/companion' }
   | { pathname: '/wallet' }
@@ -10,6 +12,7 @@ export type AccountSheetRoute =
   | { pathname: '/auth' }
 
 export type AccountSheetItemId =
+  | 'verification'
   | 'profile'
   | 'public-profile'
   | 'companion'
@@ -20,6 +23,7 @@ export type AccountSheetItemId =
 export type AccountSheetItem = {
   id: AccountSheetItemId
   label: string
+  highlight?: boolean
   detail?: string
   icon: 'person-outline' | 'people-outline' | 'wallet-outline' | 'settings-outline' | 'shield-outline' | 'eye-outline'
   route: AccountSheetRoute
@@ -27,6 +31,7 @@ export type AccountSheetItem = {
 
 export function accountSheetRoutes(): Record<AccountSheetItemId, (args: { companionProfileId?: string }) => AccountSheetRoute> {
   return {
+    verification: () => ({ pathname: '/get-verified' }),
     profile: () => ({ pathname: '/profile' }),
     'public-profile': (args) => ({ pathname: '/companion-profile/[id]', params: { id: String(args.companionProfileId ?? '') } }),
     companion: () => ({ pathname: '/companion' }),
@@ -44,16 +49,17 @@ export type AccountSheetInput = {
 }
 
 /**
- * Builds the Account sheet rows in web AccountNavigation order, minus the
- * web-only Get verified entry (verification lives on Profile and Settings).
+ * Builds Account navigation with a shared verification and earnings nudge.
  * The public Companion profile row appears only when the profile is actually
  * public: approved application plus current identity approval.
  */
 export function buildAccountSheetItems(input: AccountSheetInput): AccountSheetItem[] {
   const routes = accountSheetRoutes()
+  const nudge = verificationNudge({ state: input.identityEligible ? 'approved' : 'not_started' }, companionSetupState(input.applicationStatus))
   const items: AccountSheetItem[] = [
     { id: 'profile', label: 'Profile', detail: 'Name, photo, bio, posts, and reviews', icon: 'person-outline', route: routes.profile({}) },
   ]
+  items.push({ id: 'verification', label: nudge.highlight ? nudge.label : 'Verification', highlight: nudge.highlight, detail: 'Identity check and Companion profile progress', icon: 'shield-outline', route: nudge.label === 'Unlock earnings' ? routes.companion({}) : routes.verification({}) })
   if (companionIsPublic(input.applicationStatus ?? null, input.identityEligible) && input.applicationId) {
     items.push({
       id: 'public-profile',

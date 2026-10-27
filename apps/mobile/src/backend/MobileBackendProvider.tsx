@@ -2,12 +2,20 @@ import { ClerkProvider, useAuth } from '@clerk/expo'
 import { tokenCache } from '@clerk/expo/token-cache'
 import { ConvexProvider, ConvexReactClient } from 'convex/react'
 import { ConvexProviderWithClerk } from 'convex/react-clerk'
-import { createContext, type PropsWithChildren, useContext, useEffect, useMemo } from 'react'
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
 
 import { ClerkAuthBridge, MobileAuthStateProvider } from '@/auth/MobileAuth'
 import { MemberDataBoundary } from '@/member/MemberDataBoundary'
 import { AuthenticatedMemberProvider, MobileMemberStateProvider } from '@/member/MobileMember'
 import { PushNotificationsProvider } from '@/notifications/PushNotifications'
+
+import {
+  ConvexTokenDiagnosticProvider,
+  useConvexConnectionRecovery,
+  useConvexTokenFailure,
+  useDiagnosticClerkGetToken,
+  type TokenFailureCategory,
+} from './convexTokenDiagnostics'
 
 import {
   resolveMobileBackendConfiguration,
@@ -75,14 +83,46 @@ export function useMobileBackendConfiguration() {
   return useContext(MobileBackendContext)
 }
 
+function useDiagnosticClerkAuth() {
+  const auth = useAuth()
+  const getTokenRef = useRef(auth.getToken)
+  getTokenRef.current = auth.getToken
+  const baseGetToken = useCallback(
+    (options?: { template?: string; skipCache?: boolean }) => getTokenRef.current(options),
+    [],
+  )
+  const getToken = useDiagnosticClerkGetToken(baseGetToken)
+  return useMemo(() => ({
+    ...auth,
+    getToken,
+  }), [auth, getToken])
+}
+
 function AuthenticatedBackend({ client, children }: PropsWithChildren<{ client: ConvexReactClient }>) {
   const { sessionId, userId } = useAuth()
   const accountKey = `${sessionId ?? 'no-session'}:${userId ?? 'no-user'}`
 
   return (
-    <ConvexProviderWithClerk client={client} useAuth={useAuth}>
+    <ConvexTokenDiagnosticProvider key={accountKey}>
+      <AuthenticatedBackendInner client={client} accountKey={accountKey}>
+        {children}
+      </AuthenticatedBackendInner>
+    </ConvexTokenDiagnosticProvider>
+  )
+}
+
+function AuthenticatedBackendInner({
+  client,
+  accountKey,
+  children,
+}: PropsWithChildren<{ client: ConvexReactClient; accountKey: string }>) {
+  const tokenFailure: TokenFailureCategory | null = useConvexTokenFailure()
+  const { retryVersion } = useConvexConnectionRecovery()
+
+  return (
+    <ConvexProviderWithClerk key={retryVersion} client={client} useAuth={useDiagnosticClerkAuth}>
       <MemberDataBoundary resetKey={accountKey}>
-        <AuthenticatedMemberProvider key={accountKey}>
+        <AuthenticatedMemberProvider key={accountKey} tokenFailureCategory={tokenFailure}>
           <PushNotificationsProvider>{children}</PushNotificationsProvider>
         </AuthenticatedMemberProvider>
       </MemberDataBoundary>

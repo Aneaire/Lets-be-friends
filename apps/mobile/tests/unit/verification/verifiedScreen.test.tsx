@@ -69,7 +69,7 @@ describe('verification congratulations screen', () => {
     const element = VerifiedScreen()
 
     expect(element.props.approved).toBe(false)
-    expect(element.props.verificationLabel).toBe('Identity review pending')
+    expect(element.props.verificationLabel).toBe('Verification renewal needed')
   })
 
   it('celebrates a member with a current approval', () => {
@@ -78,7 +78,7 @@ describe('verification congratulations screen', () => {
     const element = VerifiedScreen()
 
     expect(element.props.approved).toBe(true)
-    expect(element.props.verificationLabel).toBe('Identity verified')
+    expect(element.props.verificationLabel).toBe('Identity approved')
   })
 
   it('routes each celebration step to its own mobile screen', () => {
@@ -97,7 +97,7 @@ describe('verification congratulations screen', () => {
       ['/safety'],
       ['/companion'],
       ['/profile'],
-      ['/profile'],
+      ['/get-verified'],
     ])
   })
 

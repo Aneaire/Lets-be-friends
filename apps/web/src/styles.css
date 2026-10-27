@@ -11615,6 +11615,13 @@ textarea.field {
   gap: 0;
 }
 
+.notification-target-highlight {
+  background: var(--accent-social-soft);
+  outline: 2px solid var(--accent-social);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
 .social-comment-load-more {
   justify-self: center;
   margin-top: 0.5rem;

@@ -119,6 +119,31 @@ describe('SocialPage comment interactions', () => {
     expect(scrollIntoView).toHaveBeenCalled()
   })
 
+  it('opens a liked post without expanding its comments', () => {
+    render(
+      <PostRow
+        post={post}
+        focusComments
+        viewerReady
+        onComment={vi.fn().mockResolvedValue(undefined)}
+        onEdit={vi.fn().mockResolvedValue(undefined)}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+        onLike={vi.fn().mockResolvedValue(undefined)}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+        onReport={vi.fn().mockResolvedValue(undefined)}
+        onEditComment={vi.fn().mockResolvedValue(undefined)}
+        onDeleteComment={vi.fn().mockResolvedValue(undefined)}
+        onLikeComment={vi.fn().mockResolvedValue(undefined)}
+        onReportComment={vi.fn().mockResolvedValue(undefined)}
+        onVotePoll={vi.fn().mockResolvedValue(undefined)}
+      />,
+    )
+
+    expect(scrollIntoView).toHaveBeenCalled()
+    expect(document.getElementById('post-post-1')?.className).toContain('notification-target-highlight')
+    expect(document.getElementById('comment-comment-1')).toBeNull()
+  })
+
   it('opens comments, creates a comment, edits, likes, and deletes without an update-depth loop', async () => {
     const updateDepthErrors: string[] = []
     const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {

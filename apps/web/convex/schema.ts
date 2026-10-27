@@ -1,7 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { identityRejectionReasonValidator } from './identityVerification'
-import { notificationKindValidator, notificationPriorityValidator } from './notificationCatalog'
+import { bookingReminderWindowValidator, notificationKindValidator, notificationPriorityValidator } from './notificationCatalog'
 import { weeklyAvailabilityValidator } from './availabilityRules'
 
 const role = v.union(
@@ -455,6 +455,7 @@ export default defineSchema({
     memberCompletedAt: v.optional(v.number()),
     companionCompletedAt: v.optional(v.number()),
     jointlyCompletedAt: v.optional(v.number()),
+    acceptedAt: v.optional(v.number()),
     verificationRequestId: v.optional(v.id('verificationRequests')),
     companionDecisionNote: v.optional(v.string()),
     cancelledByUserId: v.optional(v.id('users')),
@@ -466,6 +467,7 @@ export default defineSchema({
     .index('by_member', ['memberId'])
     .index('by_companion', ['companionProfileId'])
     .index('by_status', ['status'])
+    .index('by_status_requested_at', ['status', 'requestedAt'])
     .index('by_settlement_state_eligible_at', ['settlementState', 'settlementEligibleAt']),
   commissionObligations: defineTable({
     bookingId: v.id('bookings'),
@@ -713,11 +715,13 @@ export default defineSchema({
     actorUserId: v.optional(v.id('users')),
     kind: notificationKindValidator,
     priority: notificationPriorityValidator,
+    reminderWindow: v.optional(bookingReminderWindowValidator),
     bookingId: v.optional(v.id('bookings')),
     conversationId: v.optional(v.id('directConversations')),
     messageId: v.optional(v.id('directMessages')),
     postId: v.optional(v.id('posts')),
     commentId: v.optional(v.id('postComments')),
+    reviewCommentId: v.optional(v.id('reviewComments')),
     circleId: v.optional(v.id('circles')),
     reviewId: v.optional(v.id('reviews')),
     companionProfileId: v.optional(v.id('companionProfiles')),

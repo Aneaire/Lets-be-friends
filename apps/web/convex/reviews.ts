@@ -24,14 +24,14 @@ export const forCompanion = query({
 })
 
 export const requested = query({
-  args: { reviewId: v.id('reviews') },
+  args: { reviewId: v.id('reviews'), commentId: v.optional(v.id('reviewComments')) },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx).catch(() => null)
     const review = await ctx.db.get(args.reviewId)
     if (!review || !isModerationVisible(review) || !review.companionProfileId) return null
     const companion = await ctx.db.get(review.companionProfileId)
     if (!companion || companion.status !== 'approved') return null
-    return await enrichReview(ctx, review, viewer, { includeComments: true })
+    return await enrichReview(ctx, review, viewer, { includeComments: true, commentId: args.commentId })
   },
 })
 
@@ -69,7 +69,7 @@ export async function enrichReview(
   ctx: any,
   review: Doc<'reviews'>,
   viewer: Doc<'users'> | null,
-  options: { includeComments?: boolean } = {},
+  options: { includeComments?: boolean; commentId?: Id<'reviewComments'> } = {},
 ) {
   const includeComments = options.includeComments ?? false
   const reviewer = await ctx.db.get(review.reviewerId)
@@ -89,7 +89,11 @@ export async function enrichReview(
   // freshly submitted comment is never hidden behind older ones.
   let visibleComments: Doc<'reviewComments'>[] = []
   if (includeComments) {
-    const comments = await ctx.db.query('reviewComments').withIndex('by_review', (q: any) => q.eq('reviewId', review._id)).order('desc').take(MAX_REVIEW_COMMENTS)
+    const comments: Doc<'reviewComments'>[] = await ctx.db.query('reviewComments').withIndex('by_review', (q: any) => q.eq('reviewId', review._id)).order('desc').take(MAX_REVIEW_COMMENTS)
+    if (options.commentId && !comments.some((comment) => comment._id === options.commentId)) {
+      const target = await ctx.db.get(options.commentId)
+      if (target && target.reviewId === review._id && isModerationVisible(target)) comments.push(target)
+    }
     visibleComments = comments.filter(isModerationVisible).sort((a: Doc<'reviewComments'>, b: Doc<'reviewComments'>) => a.createdAt - b.createdAt)
   }
   return {
@@ -195,8 +199,17 @@ export const toggleLike = mutation({
       await ctx.db.patch(review._id, { likeCount: adjustCounter(review.likeCount, -1) })
       return false
     }
-    await ctx.db.insert('reviewReactions', { userId: viewer._id, reviewId: args.reviewId, reaction: 'like', createdAt: Date.now() })
+    const reactionId = await ctx.db.insert('reviewReactions', { userId: viewer._id, reviewId: args.reviewId, reaction: 'like', createdAt: Date.now() })
     await ctx.db.patch(review._id, { likeCount: adjustCounter(review.likeCount, 1) })
+    await createNotification(ctx, {
+      recipientUserId: review.reviewerId,
+      actorUserId: viewer._id,
+      kind: 'review_liked',
+      priority: 'standard',
+      reviewId: review._id,
+      bookingId: review.bookingId,
+      dedupeKey: `review-like:${reactionId}:created`,
+    })
     return true
   },
 })
@@ -223,6 +236,16 @@ export const createComment = mutation({
     })
     await ctx.db.patch(review._id, { commentCount: adjustCounter(review.commentCount, 1) })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'review.comment.created', targetType: 'review', targetId: String(args.reviewId) })
+    await createNotification(ctx, {
+      recipientUserId: review.reviewerId,
+      actorUserId: viewer._id,
+      kind: 'review_commented',
+      priority: 'standard',
+      reviewId: review._id,
+      reviewCommentId: commentId,
+      bookingId: review.bookingId,
+      dedupeKey: `review-comment:${commentId}:created`,
+    })
     return commentId
   },
 })

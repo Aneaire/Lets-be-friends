@@ -25,6 +25,8 @@ export type ProductMapProps = {
   onInteractionChange?: (active: boolean) => void
   pinMode?: boolean
   expanded?: boolean
+  /** Accessibility label for the map frame. Defaults to the Nearby label. */
+  mapLabel?: string
 }
 
 export function ProductMap({ expanded = false, pinMode = false, onPickLocation }: ProductMapProps) {

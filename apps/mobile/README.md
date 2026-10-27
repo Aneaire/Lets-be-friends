@@ -31,10 +31,11 @@ With the Convex and Clerk values configured, the app provides secure Clerk sessi
 
 The account screen offers browser-based Google OAuth as its only method, for both sign-in and sign-up. There is no email, password, recovery, or separate account form. Clerk transfers the flow as needed, so a Google login using the same verified email as a website account resolves through Clerk's account linking rather than creating a separate mobile-only account.
 
-Add this exact entry to the Clerk Native applications redirect allowlist:
+Add both entries to the Clerk Native applications redirect allowlist. Expo can emit either form, and Clerk treats them as separate values:
 
 ```text
 letsbefriends://auth/callback
+letsbefriends:///auth/callback
 ```
 
 Google OAuth uses `expo-auth-session` and `expo-web-browser`. A fresh development build must be created and installed after adding these native modules. Restarting Metro or using Fast Refresh is not sufficient for the first run with the new native dependencies.
@@ -117,6 +118,23 @@ pnpm dlx eas-cli@latest build --platform android --profile production
 ```
 
 Install the development APK from the authorized EAS build result. Ordinary TypeScript, React, and StyleSheet changes then use Fast Refresh through `pnpm dev`. Rebuild the development APK after adding or changing a native dependency or native configuration.
+
+### Local release APK
+
+Local Android builds follow one fixed rule: the only local artifact is `app-release.apk`, and it always uses production variables. Use the repo script instead of invoking Gradle directly:
+
+```bash
+pnpm build:apk
+```
+
+`scripts/mobile/build-local-apk.mjs` enforces the rule:
+
+- It builds the release variant only and writes `android/app/build/outputs/apk/release/app-release.apk`. It never builds debug APKs, app bundles, or any other variant.
+- It reads the production `EXPO_PUBLIC_CONVEX_URL`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, and `EXPO_PUBLIC_WEB_APP_URL` values from `eas.json` (`build.production.env`). `.env.local` is moved aside for the build and restored afterwards.
+- It verifies the finished JavaScript bundle contains every production value and none of the local `.env.local` values, then copies the APK to `artifacts/lets-be-friends-<version>-production.apk` and prints its size and SHA-256.
+- It regenerates React Native codegen before assembling. Do not run `./gradlew clean` for a local release build, because it deletes MapLibre codegen output and breaks the app's CMake configure.
+
+Bump `expo.version` and `expo.android.versionCode` in `app.json` before a new local release. Local builds use the debug signing certificate currently configured for release, so they are for internal distribution, not Play Store upload. Cloud store builds remain the EAS `production` profile.
 
 ## Native push notification credentials
 

@@ -28,6 +28,10 @@ import {
   validateCompanionApplication,
   validateHourlyRate,
 } from '@/data/companionTools'
+import { canOpenCompanionProfile, identityActionLabel, mobileIdentityPresentation } from '@/features/verification/identityPresentation'
+import { CompanionDraftController, hydrateCompanionForm } from '@/features/companion/companionDraft'
+import { getCompanionDraftStorage } from '@/features/companion/companionDraftStorage'
+import { companionIsPublic, companionModeLabel } from '@/member/profileSections'
 import { WeeklyAvailabilityEditor } from '@/features/companion/WeeklyAvailabilityEditor'
 import { ActivityCategoryBrowser } from '@/features/companion/ActivityCategoryBrowser'
 import { useMobileMember } from '@/member/MobileMember'
@@ -41,10 +45,10 @@ export default function CompanionScreen() {
   if (member.status === 'unconfigured') return <CompanionState title="Companion tools need account services" action="Return to Profile" onPress={() => router.replace('/profile')} />
   if (member.status === 'unavailable' || member.status === 'error') return <CompanionState title="Companion tools are unavailable" detail="Your member account could not be connected safely." />
   if (member.status !== 'ready') return <PageSkeleton variant="companionTools" />
-  return <ReadyCompanionScreen />
+  return <ReadyCompanionScreen key={String(member.viewer._id)} member={member} />
 }
 
-function ReadyCompanionScreen() {
+function ReadyCompanionScreen({ member }: { member: Extract<ReturnType<typeof useMobileMember>, { status: 'ready' }> }) {
   const theme = useAppTheme()
   const application = useQuery(mobileApi.companions.myApplication, {})
   const submitApplication = useMutation(mobileApi.companions.submitApplication)
@@ -54,33 +58,46 @@ function ReadyCompanionScreen() {
   const [busy, setBusy] = useState<'application' | 'rate' | 'verification' | null>(null)
   const [message, setMessage] = useState('')
   useAppToastMessage(message)
+  const [saved, setSaved] = useState(false)
+  const [availabilityVisible, setAvailabilityVisible] = useState(false)
+  const [draftReady, setDraftReady] = useState(false)
+  const draftController = useRef(new CompanionDraftController(getCompanionDraftStorage())).current
   const [setupStep, setSetupStep] = useState(0)
   const busyRef = useRef(false)
   const formDirtyRef = useRef(false)
-  const hydratedApplicationIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!application) return
-    const applicationId = String(application._id)
-    if (formDirtyRef.current && hydratedApplicationIdRef.current === applicationId) return
-    setForm(initialCompanionApplicationForm(application))
-    setQuickRate(String((application.hourlyRateCentavos ?? 50_000) / 100))
-    hydratedApplicationIdRef.current = applicationId
-    formDirtyRef.current = false
-  }, [application?._id, application?.updatedAt])
+    if (application === undefined) return
+    let active = true
+    void draftController.switchAccount(String(member.viewer._id), (draft) => {
+      if (!active) return
+      setForm(hydrateCompanionForm(application, draft))
+      setQuickRate(String((application?.hourlyRateCentavos ?? 50_000) / 100))
+      setDraftReady(true)
+    })
+    return () => { active = false; void draftController.switchAccount(null, () => {}) }
+  }, [member.viewer._id, application === undefined])
+
+  useEffect(() => {
+    if (draftReady && formDirtyRef.current) void draftController.save(form)
+  }, [form, draftReady, draftController])
 
   function editForm(update: (current: CompanionApplicationForm) => CompanionApplicationForm) {
     formDirtyRef.current = true
+    setSaved(false)
     setForm(update)
   }
 
-  if (application === undefined) return <PageSkeleton variant="companionTools" />
+  if (application === undefined || !draftReady) return <PageSkeleton variant="companionTools" />
 
+  const identity = mobileIdentityPresentation(member.viewer.verificationStatus, member.verification, member.viewer.identityEligible)
+  const unlocked = canOpenCompanionProfile(member.viewer.identityEligible, member.verification)
   const status = application ? companionApplicationStatusCopy[application.status as CompanionApplicationStatus] : null
   const verificationUrl = buildMobileWebHandoffUrl(resolveMobileWebAppConfiguration(), { intent: 'companion_application', mobileReturn: 'companion' })
 
   async function run(action: 'application' | 'rate' | 'verification') {
     if (busyRef.current) return
+    if ((action === 'application' || action === 'rate') && !unlocked) return
     if (action === 'application') {
       const validated = validateCompanionApplication(form)
       if (!validated.ok) {
@@ -93,7 +110,9 @@ function ReadyCompanionScreen() {
       try {
         await submitApplication(validated.value)
         formDirtyRef.current = false
-        setMessage('Companion profile saved. Your changes are live.')
+        await draftController.clear(String(member.viewer._id))
+        setSaved(true)
+        setMessage(member.viewer.identityEligible ? 'Companion profile saved. Your changes are live.' : 'Companion profile saved. It stays hidden from discovery until identity approval.')
       } catch {
         setMessage('Your Companion profile could not be saved. Review the details and try again.')
       } finally {
@@ -152,17 +171,15 @@ function ReadyCompanionScreen() {
       <View style={[styles.statusCard, { backgroundColor: theme.colors.selfSoft, borderColor: theme.colors.self }]}>
         <AppText variant="heading">{status?.label ?? 'Not started'}</AppText>
         <AppText variant="caption" color={theme.colors.textMuted}>{status?.detail ?? 'Create a profile to apply as a Companion.'}</AppText>
-        {application && !application.identityEligible ? (
-          <>
-            <AppText variant="caption" color={theme.colors.textMuted}>Identity approval is separate and must be current before the profile can be live or a booking can be accepted.</AppText>
-            <ActionButton label={busy === 'verification' ? 'Opening verification' : 'Continue identity verification on web'} onPress={() => void run('verification')} intent="self" secondary disabled={busy !== null} />
-          </>
-        ) : null}
+        <AppText variant="caption" color={theme.colors.textMuted}>{identity.guidance}</AppText>
+        {identity.action !== 'none' ? <ActionButton label={busy === 'verification' ? 'Opening verification' : identityActionLabel(identity.action)} onPress={() => void run('verification')} intent="self" secondary disabled={busy !== null} /> : null}
+        <ActionButton label="View verification status" onPress={() => router.push('/get-verified')} intent="self" secondary />
+
       </View>
 
       {application?.status === 'approved' ? <ActionButton label="View incoming bookings" onPress={() => router.push('/companion-bookings')} intent="social" icon="calendar-outline" /> : null}
 
-      {application ? (
+      {application && unlocked && !saved ? (
         <Section>
           <AppText variant="heading">Live profile controls</AppText>
           <View style={styles.fieldGroup}>
@@ -189,15 +206,31 @@ function ReadyCompanionScreen() {
         </Section>
       ) : null}
 
-      <Section>
+      {!unlocked ? <Section>
+        <AppText variant="label" color={theme.colors.selfText}>Identity check required</AppText>
+        <AppText variant="heading">Complete your identity check first</AppText>
+        <AppText>Submit your government ID and current selfie for safety review before creating a Companion profile. Your profile stays hidden from discovery until identity approval.</AppText>
+        <AppText color={theme.colors.textMuted}>{identity.guidance}</AppText>
+        <ActionButton label={identityActionLabel(identity.action)} intent="self" disabled={busy !== null} onPress={() => identity.action === 'none' ? router.push('/get-verified') : void run('verification')} />
+        <ActionButton label="Back" intent="self" secondary onPress={() => router.replace('/profile')} />
+      </Section> : saved ? <Section>
+        <AppText variant="heading">Your Companion profile is saved</AppText>
+        <AppText>{member.viewer.identityEligible ? 'Your profile is live while identity approval is current.' : 'Your profile stays hidden from discovery until identity approval.'}</AppText>
+        <AppText variant="bodyStrong">{member.verification?.adminStatus === 'pending' || member.verification?.personaDecision === 'declined' ? 'Next: safety review' : 'Next: identity verification'}</AppText>
+        <AppText color={theme.colors.textMuted}>{identity.guidance}</AppText>
+        {!member.viewer.identityEligible ? <ActionButton label="View verification status" intent="self" onPress={() => router.push('/get-verified')} /> : null}
+        <ActionButton label="Set your availability" intent="self" onPress={() => setAvailabilityVisible(true)} />
+        <ActionButton label="Edit Companion profile" intent="self" secondary onPress={() => setSaved(false)} />
+        <ActionButton label="Return to Profile" intent="self" secondary onPress={() => router.replace('/profile')} />
+      </Section> : <Section>
         <View style={styles.stepHeading}><View><AppText variant="heading">{application ? 'Edit Companion profile' : 'Create your Companion profile'}</AppText><AppText variant="caption" color={theme.colors.textMuted}>Step {setupStep + 1} of 4</AppText></View></View>
         <View accessibilityLabel={`Companion setup step ${setupStep + 1} of 4`} style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}><View style={[styles.progressValue, { width: `${(setupStep + 1) * 25}%`, backgroundColor: theme.colors.self }]} /></View>
         {setupStep === 0 ? <>
           <AppText variant="caption" color={theme.colors.textMuted}>Describe the everyday help, activity, or company members can expect.</AppText>
           <ModePicker value={form.mode} onChange={(mode) => editForm((current) => ({ ...current, mode }))} disabled={busy !== null} />
-          <FormField label="How can you help or spend the time?" value={form.intro} onChange={(intro) => editForm((current) => ({ ...current, intro }))} theme={theme} multiline maxLength={500} hint={`${form.intro.length}/500 characters, minimum 40`} />
-          <FormField label="Tell me about yourself" value={form.bio} onChange={(bio) => editForm((current) => ({ ...current, bio }))} theme={theme} multiline maxLength={500} placeholder={COMPANION_BIO_PLACEHOLDER} hint="Required. Your member profile bio, shown on your public profile." />
-          <FormField label={form.mode === 'online' ? 'Timezone or broad region, optional' : 'City'} value={form.city} onChange={(city) => editForm((current) => ({ ...current, city }))} theme={theme} />
+          <FormField label="How can you help or spend the time?" value={form.intro} onChange={(intro) => editForm((current) => ({ ...current, intro }))} theme={theme} disabled={busy !== null} multiline maxLength={500} hint={`${form.intro.length}/500 characters, minimum 40`} />
+          <FormField label="Tell me about yourself" value={form.bio} onChange={(bio) => editForm((current) => ({ ...current, bio }))} theme={theme} disabled={busy !== null} multiline maxLength={500} placeholder={COMPANION_BIO_PLACEHOLDER} hint="Required. Your member profile bio, shown on your public profile." />
+          <FormField label={form.mode === 'online' ? 'Timezone or broad region, optional' : 'City'} value={form.city} onChange={(city) => editForm((current) => ({ ...current, city }))} theme={theme} disabled={busy !== null} />
         </> : null}
         {setupStep === 1 ? <>
           <AppText variant="caption" color={theme.colors.textMuted}>Choose the everyday Strengths and activities you feel comfortable offering.</AppText>
@@ -216,12 +249,12 @@ function ReadyCompanionScreen() {
         </> : null}
         {setupStep === 2 ? <>
           <AppText variant="caption" color={theme.colors.textMuted}>Clear boundaries help both people plan a comfortable experience.</AppText>
-          <FormField label="Boundaries, one per line" value={form.boundaries} onChange={(boundaries) => editForm((current) => ({ ...current, boundaries }))} theme={theme} multiline />
-          <FormField label="Additional note, optional" value={form.applicationNote} onChange={(applicationNote) => editForm((current) => ({ ...current, applicationNote }))} theme={theme} multiline />
+          <FormField label="Boundaries, one per line" value={form.boundaries} onChange={(boundaries) => editForm((current) => ({ ...current, boundaries }))} theme={theme} disabled={busy !== null} multiline />
+          <FormField label="Additional note, optional" value={form.applicationNote} onChange={(applicationNote) => editForm((current) => ({ ...current, applicationNote }))} theme={theme} disabled={busy !== null} multiline />
         </> : null}
         {setupStep === 3 ? <>
           <AppText variant="caption" color={theme.colors.textMuted}>Set your rate, then review your details before sending them.</AppText>
-          <FormField label="Listed hourly rate in PHP" value={form.hourlyRatePesos} onChange={(hourlyRatePesos) => editForm((current) => ({ ...current, hourlyRatePesos }))} theme={theme} keyboardType="decimal-pad" />
+          <FormField label="Listed hourly rate in PHP" value={form.hourlyRatePesos} onChange={(hourlyRatePesos) => editForm((current) => ({ ...current, hourlyRatePesos }))} theme={theme} disabled={busy !== null} keyboardType="decimal-pad" />
           <View style={[styles.reviewCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}><AppText variant="bodyStrong">Profile summary</AppText><AppText>{form.mode === 'both' ? 'Online and in-person sessions' : form.mode === 'online' ? 'Online sessions' : 'In-person sessions'}</AppText><AppText variant="caption" color={theme.colors.textMuted}>{form.strengths.length} Strengths · {form.categories.length} activities · {form.boundaries.split('\n').filter(Boolean).length} boundaries</AppText></View>
         </> : null}
         <View style={styles.stepActions}>
@@ -230,7 +263,19 @@ function ReadyCompanionScreen() {
             : <ActionButton label="Continue" onPress={() => setSetupStep((current) => Math.min(3, current + 1))} intent="self" icon="arrow-forward" disabled={busy !== null || (setupStep === 0 && (form.intro.trim().length < 40 || (form.mode !== 'online' && !form.city.trim()))) || (setupStep === 1 && (!form.strengths.length || !form.categories.length))} />}
           {setupStep > 0 ? <ActionButton label="Back" onPress={() => setSetupStep((current) => Math.max(0, current - 1))} intent="self" secondary disabled={busy !== null} /> : null}
         </View>
-      </Section>
+      </Section>}
+
+      {saved && availabilityVisible && application ? <Section><AppText variant="heading">Weekly availability</AppText><WeeklyAvailabilityEditor initialWindows={application.weeklyAvailability} /></Section> : null}
+
+      {unlocked ? <Section>
+        <AppText variant="heading">Member preview</AppText>
+        <AppText variant="bodyStrong">{application?.displayName || member.viewer.displayName}</AppText>
+        <AppText>{companionModeLabel(form.mode)}{form.city.trim() ? ` · ${form.city.trim()}` : ''}</AppText>
+        <AppText>{form.intro.trim() || 'Describe the experience members can expect.'}</AppText>
+        <AppText>{form.categories.slice(0, 4).join(' · ')}</AppText>
+        <AppText>You receive {new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(form.hourlyRatePesos) || 0)} per hour</AppText>
+        {application && companionIsPublic(application.status, member.viewer.identityEligible) ? <ActionButton label="View live profile" intent="self" secondary onPress={() => router.push({ pathname: '/companion-profile/[id]', params: { id: String(application._id) } })} /> : null}
+      </Section> : null}
 
       <ActionButton label="Return to Profile" onPress={() => router.replace('/profile')} intent="self" secondary />
     </Screen>
@@ -319,7 +364,7 @@ function CustomCategoryInput({ selected, onChange, disabled }: {
   )
 }
 
-function FormField({ label, value, onChange, theme, multiline = false, maxLength, hint, keyboardType, placeholder }: {
+function FormField({ label, value, onChange, theme, multiline = false, maxLength, hint, keyboardType, placeholder, disabled = false }: {
   label: string
   value: string
   onChange: (value: string) => void
@@ -329,6 +374,7 @@ function FormField({ label, value, onChange, theme, multiline = false, maxLength
   hint?: string
   keyboardType?: 'default' | 'decimal-pad'
   placeholder?: string
+  disabled?: boolean
 }) {
   return (
     <View style={styles.fieldGroup}>
@@ -337,6 +383,7 @@ function FormField({ label, value, onChange, theme, multiline = false, maxLength
         accessibilityLabel={label}
         value={value}
         onChangeText={onChange}
+        editable={!disabled}
         multiline={multiline}
         maxLength={maxLength}
         keyboardType={keyboardType}

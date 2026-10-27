@@ -1,12 +1,8 @@
-import * as Linking from 'expo-linking'
 import { router, type ErrorBoundaryProps } from 'expo-router'
-import { useState } from 'react'
 import { useQuery } from 'convex/react'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
-import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/backend/config'
 import { mobileApi } from '@/backend/client'
-import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { AppearanceSettings } from '@/features/settings/AppearanceSettings'
 import { PushNotificationSettings } from '@/features/settings/PushNotificationSettings'
 import { SettingsContent } from '@/features/settings/SettingsContent'
@@ -43,14 +39,9 @@ export function ReadySettings({
   viewer: Extract<ReturnType<typeof useMobileMember>, { status: 'ready' }>['viewer']
   verification: Extract<ReturnType<typeof useMobileMember>, { status: 'ready' }>['verification']
 }) {
-  const [message, setMessage] = useState('')
-  useAppToastMessage(message)
-  const [openingVerification, setOpeningVerification] = useState(false)
-  const verificationUrl = buildMobileWebHandoffUrl(resolveMobileWebAppConfiguration(), { intent: 'member', mobileReturn: 'profile' })
   const application = useQuery(mobileApi.companions.myApplication, {})
   const profile = buildSignedInProfileViewModel(viewer, verification)
-  // Approved identity needs no new flow: the row stays display-only and the
-  // web handoff only opens for verify, continue, and retry actions.
+  // Settings opens the consolidated status screen, which owns identity handoff actions.
   const accountModel = settingsAccountModel({
     verificationStatus: viewer.verificationStatus,
     verification,
@@ -64,23 +55,6 @@ export function ReadySettings({
     onSignedOut: () => router.replace('/profile'),
   })
 
-  async function openVerification() {
-    if (verificationAction === 'none' || openingVerification) return
-    if (!verificationUrl) {
-      setMessage('Identity verification on the web is unavailable in this build.')
-      return
-    }
-    setOpeningVerification(true)
-    setMessage('')
-    try {
-      await Linking.openURL(verificationUrl)
-    } catch {
-      setMessage('Identity verification on the web could not be opened. Please try again.')
-    } finally {
-      setOpeningVerification(false)
-    }
-  }
-
   function goBack() {
     if (router.canGoBack()) router.back()
     else router.replace('/profile')
@@ -90,10 +64,10 @@ export function ReadySettings({
     <SettingsContent
         pushNotifications={<PushNotificationSettings />}
         appearanceSettings={<AppearanceSettings />}
-        verificationValue={profile.verificationApproved ? 'Approved' : undefined}
+        verificationValue={profile.verificationLabel}
         verificationDetail={profile.verificationDetail}
         verificationAction={verificationAction}
-        openingVerification={openingVerification}
+        openingVerification={false}
         signingOut={signingOut}
         signOutError={signOutError}
         showWithdrawals={accountModel.showWithdrawals}
@@ -101,7 +75,7 @@ export function ReadySettings({
         showCompanionFinance={accountModel.showCompanionSections}
         onEditProfile={() => router.push('/profile-edit' as never)}
         onFinishWelcomeGuide={() => router.push('/onboarding')}
-        onOpenVerification={() => void openVerification()}
+        onOpenVerification={() => router.push('/get-verified')}
         onOpenNotificationCenter={() => router.push('/notifications')}
         onOpenMyPosts={() => router.push('/my-posts' as never)}
         onOpenBookings={() => router.push('/bookings' as never)}

@@ -3,6 +3,7 @@ import {
   attachmentSelectionError,
   canSubmitConversationMessage,
   chatAttachmentKind,
+  chatUploadRegistration,
   describeChatAttachment,
   MAX_CHAT_ATTACHMENTS,
   needsCompressionBeforeSend,
@@ -28,6 +29,10 @@ describe('chat attachment kinds', () => {
     expect(actualCompressionPercent(1000, 800)).toBe(20)
     expect(actualCompressionPercent(1000, 1000)).toBe(0)
     expect(actualCompressionPercent(0, 0)).toBe(0)
+  })
+
+  it('registers the prepared upload size so the server compression check matches the stored file', () => {
+    expect(chatUploadRegistration(1_946_368)).toEqual({ originalSize: 1_946_368, compressionPercent: 0 })
   })
 })
 

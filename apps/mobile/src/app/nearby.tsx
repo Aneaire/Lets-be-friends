@@ -22,8 +22,8 @@ import { defaultDiscoveryFilters, discoveryCategoryOptions, filterDiscoveryCompa
 import { NearbyCompanionSheet } from '@/features/discovery/NearbyCompanionSheet'
 import { nearbyMapPoints } from '@/features/discovery/nearbyMapSelection'
 import { NearbySearchOptionsSheet, type NearbyRadius } from '@/features/discovery/NearbySearchOptionsSheet'
-import { readCurrentCoordinates } from '@/features/discovery/nearbyLocation'
 import { NearbyAccountRequestScope, normalizeMapCoordinates, roundOriginCoordinates } from '@/features/discovery/nearbyOrigin'
+import { readDeviceLocation, type DeviceLocationFailureReason } from '@/features/location/deviceLocation'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -89,16 +89,18 @@ export default function NearbyScreen() {
     setLocationError('')
     setLocationNotice('')
     try {
-      const permission = await Location.requestForegroundPermissionsAsync()
+      const outcome = await readDeviceLocation({
+        getPermission: () => Location.getForegroundPermissionsAsync(),
+        requestPermission: () => Location.requestForegroundPermissionsAsync(),
+        ensureAccurateLocation: () => Location.enableNetworkProviderAsync(),
+        getCurrentPosition: (options) => Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced, ...options }),
+      })
       if (!request.isCurrent()) return
-      if (!permission.granted) {
-        setLocationError('Foreground location permission is needed to search nearby. You can continue using regular Explore without it.')
+      if (outcome.status === 'unavailable') {
+        setLocationError(deviceLocationFailureMessage(outcome.reason))
         return
       }
-      const coordinates = await readCurrentCoordinates(() => (
-        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-      ))
-      if (!request.isCurrent()) return
+      const coordinates = outcome.coordinates
       const canSave =
         member.status === 'ready' &&
         member.viewer.approximateLocationConsentedAt !== undefined &&
@@ -287,6 +289,19 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 function goBack() {
   if (router.canGoBack()) router.back()
   else router.replace('/explore')
+}
+
+function deviceLocationFailureMessage(reason: DeviceLocationFailureReason): string {
+  switch (reason) {
+    case 'permission_denied':
+      return 'Foreground location permission is needed to search nearby. You can continue using regular Explore without it.'
+    case 'permission_blocked':
+      return 'Location is off for this app. Enable it in device settings to search nearby, or continue with regular Explore.'
+    case 'accuracy_declined':
+      return 'Location Accuracy is off, so your current area could not be read. Turn it on to search nearby, or continue with regular Explore.'
+    default:
+      return 'Your current location could not be read. Try again outdoors or continue with regular Explore.'
+  }
 }
 
 const styles = StyleSheet.create({

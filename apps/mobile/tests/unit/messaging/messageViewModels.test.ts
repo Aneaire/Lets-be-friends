@@ -1,10 +1,15 @@
 import {
+  COMPACT_COUNTER_THRESHOLD,
+  COMPOSER_MAX_HEIGHT,
+  COMPOSER_MIN_HEIGHT,
+  clampComposerHeight,
   conversationBookingCardView,
   MAX_MESSAGE_LENGTH,
   aggregateUnreadCount,
   conversationPreview,
   formatFileSize,
   messageCounter,
+  shouldShowMessageCounter,
   validateMessageBody,
 } from '@/data/messageViewModels'
 
@@ -53,5 +58,24 @@ describe('message view models', () => {
       participantName: 'Maya Member', viewerIsRequester: false,
       memberTotalCentavos: 115_000, companionEarningsCentavos: 100_000,
     })
+  })
+
+  it('shows the compact character counter only near the 2,000 limit', () => {
+    expect(COMPACT_COUNTER_THRESHOLD).toBe(1_800)
+    expect(shouldShowMessageCounter(0)).toBe(false)
+    expect(shouldShowMessageCounter(1_799)).toBe(false)
+    expect(shouldShowMessageCounter(1_800)).toBe(true)
+    expect(shouldShowMessageCounter(2_001)).toBe(true)
+  })
+
+  it('bounds the compact composer between 44px and 112px', () => {
+    expect(COMPOSER_MIN_HEIGHT).toBe(44)
+    expect(COMPOSER_MAX_HEIGHT).toBe(112)
+    expect(clampComposerHeight(20)).toBe(44)
+    expect(clampComposerHeight(44)).toBe(44)
+    expect(clampComposerHeight(72.4)).toBe(72)
+    expect(clampComposerHeight(112)).toBe(112)
+    expect(clampComposerHeight(400)).toBe(112)
+    expect(clampComposerHeight(Number.NaN)).toBe(44)
   })
 })

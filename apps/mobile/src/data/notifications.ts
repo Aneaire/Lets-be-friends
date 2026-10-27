@@ -1,8 +1,9 @@
 export type MobileNotificationDestination =
   | { type: 'booking'; audience: 'member' | 'companion'; bookingId: string }
-  | { type: 'conversation'; conversationId: string }
-  | { type: 'post'; postId: string }
-  | { type: 'circle'; circleId: string; postId?: string; commentId?: string }
+  | { type: 'conversation'; conversationId: string; messageId?: string }
+  | { type: 'post'; postId: string; commentId?: string }
+  | { type: 'circle'; circleId: string; postId?: string; commentId?: string; section?: 'joinRequests' | 'pendingPosts' | 'members' | 'hostTransfer' }
+  | { type: 'review'; reviewId: string; companionProfileId?: string; bookingId?: string; commentId?: string }
   | { type: 'companion' }
   | { type: 'identity'; outcome: 'verified' | 'status' }
   | { type: 'profile'; userId: string }
@@ -20,14 +21,21 @@ export function mobileNotificationRoute(destination: MobileNotificationDestinati
     case 'booking': return destination.audience === 'companion'
       ? { pathname: '/companion-booking/[id]' as const, params: { id: destination.bookingId } }
       : { pathname: '/booking/[id]' as const, params: { id: destination.bookingId } }
-    case 'conversation': return { pathname: '/conversation/[id]' as const, params: { id: destination.conversationId } }
+    case 'conversation': return { pathname: '/conversation/[id]' as const, params: { id: destination.conversationId, ...(destination.messageId ? { messageId: destination.messageId } : {}) } }
     case 'companion': return { pathname: '/companion' as const }
     case 'identity': return destination.outcome === 'verified'
       ? { pathname: '/verified' as const }
-      : { pathname: '/profile' as const }
+      : { pathname: '/get-verified' as const }
     case 'profile': return { pathname: '/member-profile/[id]' as const, params: { id: destination.userId } }
-    case 'post': return { pathname: '/' as const, params: { postId: destination.postId } }
-    case 'circle': return { pathname: '/circles/[id]' as const, params: { id: destination.circleId, ...(destination.postId ? { postId: destination.postId } : {}), ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
+    case 'post': return destination.commentId
+      ? { pathname: '/post-comments/[id]' as const, params: { id: destination.postId, commentId: destination.commentId } }
+      : { pathname: '/' as const, params: { postId: destination.postId } }
+    case 'circle': return { pathname: '/circles/[id]' as const, params: { id: destination.circleId, ...(destination.postId ? { postId: destination.postId } : {}), ...(destination.commentId ? { commentId: destination.commentId } : {}), ...(destination.section ? { section: destination.section } : {}) } }
+    case 'review': return destination.companionProfileId
+      ? { pathname: '/companion-profile/[id]' as const, params: { id: destination.companionProfileId, reviewId: destination.reviewId, ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
+      : destination.bookingId
+        ? { pathname: '/booking/[id]' as const, params: { id: destination.bookingId } }
+        : { pathname: '/notifications' as const }
     case 'safety': return { pathname: '/safety' as const }
     case 'notifications': return { pathname: '/notifications' as const }
   }

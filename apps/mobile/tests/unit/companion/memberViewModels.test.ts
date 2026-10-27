@@ -82,7 +82,7 @@ describe('member onboarding decisions', () => {
       identityConsentVersion: currentPolicyVersion,
     }
     expect(initialOnboardingStep(accepted)).toBe(0)
-    expect(initialOnboardingStep({ ...accepted, termsVersion: '2026-08-13' })).toBe(4)
+    expect(initialOnboardingStep({ ...accepted, termsVersion: '2026-08-13' })).toBe(5)
     expect(initialOnboardingStep({})).toBe(0)
     expect(initialOnboardingStep({ username: 'alexrivera' })).toBe(0)
   })
@@ -106,7 +106,7 @@ describe('signed-in profile copy', () => {
   it('does not claim verification without active eligibility', () => {
     const result = buildSignedInProfileViewModel(viewer, null)
     expect(result.verificationApproved).toBe(false)
-    expect(result.verificationLabel).toBe('Identity not verified')
+    expect(result.verificationLabel).toBe('Identity not started')
     expect(result.username).toBe('@alexrivera')
   })
 
@@ -116,7 +116,7 @@ describe('signed-in profile copy', () => {
       { adminStatus: 'pending', personaStatus: 'processing' },
     )
     expect(result.verificationApproved).toBe(false)
-    expect(result.verificationLabel).toBe('Identity review pending')
+    expect(result.verificationLabel).toBe('Safety review pending')
   })
 
   it('distinguishes an unavailable identity result', () => {
@@ -125,7 +125,7 @@ describe('signed-in profile copy', () => {
       { adminStatus: 'not_ready', personaStatus: 'pending' },
     )
     expect(result.verificationApproved).toBe(false)
-    expect(result.verificationLabel).toBe('Identity status unavailable')
+    expect(result.verificationLabel).toBe('Identity not started')
   })
 
   it('shows approval only from the authoritative eligibility flag', () => {
@@ -134,7 +134,7 @@ describe('signed-in profile copy', () => {
       { adminStatus: 'approved', personaStatus: 'approved' },
     )
     expect(result.verificationApproved).toBe(true)
-    expect(result.verificationLabel).toBe('Identity verified')
+    expect(result.verificationLabel).toBe('Identity approved')
   })
 
   it.each(identityRejectionReasons.map((reason) => reason.code))(
@@ -145,7 +145,7 @@ describe('signed-in profile copy', () => {
         { adminStatus: 'rejected', personaStatus: 'failed', memberReason },
       )
       expect(result.verificationApproved).toBe(false)
-      expect(result.verificationLabel).toBe('Identity not approved')
+      expect(result.verificationLabel).toBe('Not approved')
       expect(result.verificationDetail).toBe(identityRejectionGuidance[memberReason])
     },
   )

@@ -32,7 +32,7 @@ export const Empty: Story = {
 export const WithCircles: Story = {
   args: {
     mine: [
-      { _id: 'circle-coffee', name: 'Cebu Coffee Friends', memberCount: 24, mode: 'both', role: 'host', membershipState: 'active' },
+      { _id: 'circle-coffee', name: 'Cebu Coffee Friends', memberCount: 24, mode: 'both', role: 'host', membershipState: 'active', iconUrl: 'data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="64" height="64"%3E%3Crect width="64" height="64" fill="%23C1519C"/%3E%3C/svg%3E' },
       { _id: 'circle-walks', name: 'Weekend Walks', memberCount: 12, mode: 'in_person', membershipState: 'active' },
       { _id: 'circle-requested', name: 'Pending Circle', memberCount: 3, mode: 'online', membershipState: 'requested' },
     ],
@@ -40,6 +40,8 @@ export const WithCircles: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: 'Open Cebu Coffee Friends Circle' })).toBeVisible()
+    await expect(canvas.getByRole('img', { name: 'Cebu Coffee Friends Circle icon' })).toBeInTheDocument()
+    await expect(canvas.getByRole('img', { name: 'Weekend Walks Circle mark' })).toBeVisible()
     await expect(canvas.getByText('24 members · Online and in person · host')).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Open Weekend Walks Circle' })).toBeVisible()
     await expect(canvas.queryByText('Pending Circle')).not.toBeInTheDocument()

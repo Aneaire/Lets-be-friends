@@ -4,6 +4,7 @@ import { Image, Pressable, StyleSheet, View } from 'react-native'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
+import { CircleMarker } from './CircleMarker'
 import { circlePreviewCardSummary, type CirclePreviewCardView } from './circlePresentation'
 
 export function CirclePreviewCard({ circle }: { circle: CirclePreviewCardView }) {
@@ -17,7 +18,7 @@ export function CirclePreviewCard({ circle }: { circle: CirclePreviewCardView })
       onPress={() => router.push({ pathname: '/circles/[id]', params: { id: circle._id } } as never)}
       style={({ pressed }) => [styles.card, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }, pressed && styles.pressed]}>
       <View style={styles.titleRow}>
-        <View style={[styles.marker, { backgroundColor: theme.colors.socialControl }]} />
+        <CircleMarker iconUrl={circle.iconUrl} name={circle.name} />
         <AppText variant="bodyStrong" style={styles.title}>{circle.name}</AppText>
         {summary.openJoin ? <AppText variant="caption" color={theme.colors.socialText}>Open join</AppText> : null}
         {summary.archived ? <AppText variant="caption" color={theme.colors.textMuted}>Archived</AppText> : null}
@@ -37,7 +38,6 @@ export function CirclePreviewCover({ uri, label }: { uri?: string; label: string
 const styles = StyleSheet.create({
   card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, padding: 14, gap: 6 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  marker: { width: 10, height: 10, borderRadius: 5 },
   title: { flex: 1 },
   cover: { width: '100%', aspectRatio: 4, borderRadius: 12 },
   pressed: { opacity: 0.72 },

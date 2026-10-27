@@ -8,6 +8,7 @@ import {
   parsePushPreference,
   pushInstallationKey,
   pushInstallMarkerKey,
+  permissionStateFromNative,
   pushSettingsAction,
   pushPreferenceKey,
   resolvePushTap,
@@ -99,6 +100,16 @@ describe('push notification pure logic', () => {
     expect(pushSettingsAction('loading')).toBe('none')
     expect(pushSettingsAction('disabled')).toBe('enable')
     expect(pushSettingsAction('error')).toBe('enable')
+  })
+
+  it('treats a requestable denial as undetermined instead of a hard block', () => {
+    // Android 13+ reports a never-requested POST_NOTIFICATIONS permission as
+    // denied with canAskAgain still true. Treating that as blocked suppressed
+    // the opt-in prompt and never registered the device.
+    expect(permissionStateFromNative({ granted: false, status: 'denied', canAskAgain: true })).toBe('undetermined')
+    expect(permissionStateFromNative({ granted: false, status: 'undetermined', canAskAgain: true })).toBe('undetermined')
+    expect(permissionStateFromNative({ granted: false, status: 'denied', canAskAgain: false })).toBe('denied')
+    expect(permissionStateFromNative({ granted: true, status: 'granted', canAskAgain: true })).toBe('granted')
   })
 
   it('strictly accepts only the opaque versioned payload', () => {

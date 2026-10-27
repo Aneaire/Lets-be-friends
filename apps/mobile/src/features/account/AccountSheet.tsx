@@ -104,7 +104,7 @@ export function AccountSheetContent({
             accessibilityHint={item.detail}
             disabled={signingOut}
             onPress={() => onSelect(item)}
-            style={({ pressed }) => [styles.row, { borderBottomColor: theme.colors.border }, pressed && styles.pressed]}>
+            style={({ pressed }) => [styles.row, { borderBottomColor: theme.colors.border, backgroundColor: item.highlight ? theme.colors.selfSoft : undefined }, pressed && styles.pressed]}>
             <AppIcon name={item.icon} color={theme.colors.selfText} size={22} />
             <View style={styles.rowCopy}>
               <AppText variant="bodyStrong">{item.label}</AppText>

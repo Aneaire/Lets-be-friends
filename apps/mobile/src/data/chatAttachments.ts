@@ -98,6 +98,16 @@ export function describeChatAttachment(input: { fileSize: number; originalSize: 
   return 'Original quality, no compression applied'
 }
 
+/**
+ * The mobile sender uploads the prepared file without re-encoding it. Convex
+ * checks the registered size against the uploaded bytes, and the picker can
+ * report a size that differs from the file it hands back. Register the prepared
+ * size so text and file messages are not rejected after a successful upload.
+ */
+export function chatUploadRegistration(preparedSize: number) {
+  return { originalSize: preparedSize, compressionPercent: 0 }
+}
+
 export function canSubmitConversationMessage(input: {
   body: string
   readyAttachmentCount: number

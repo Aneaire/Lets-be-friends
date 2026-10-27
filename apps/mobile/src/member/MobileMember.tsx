@@ -3,9 +3,12 @@ import { useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { type PropsWithChildren, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
+import type { ConnectionReference, TokenFailureCategory } from '@/backend/convexTokenDiagnostics'
+import { buildMemberConnectionMessage } from '@/backend/convexTokenDiagnostics'
 import { mobileApi } from '@/backend/client'
 
 import { isViewerForClerkUser } from './account'
+import { memberViewerQueryArgs } from './authenticatedQueries'
 import { MobileMemberStateProvider } from './MobileMemberContext'
 
 export { MobileMemberStateProvider, useMobileMember } from './MobileMemberContext'
@@ -17,14 +20,19 @@ export type MobileMemberState =
   | { status: 'unconfigured' }
   | { status: 'signed_out' }
   | { status: 'loading' | 'syncing' }
-  | { status: 'unavailable' | 'error'; message: string }
+  | { status: 'unavailable'; message: string }
+  | { status: 'error'; message: string; canRetryConnection?: boolean; connectionReference?: ConnectionReference }
   | { status: 'ready'; viewer: Viewer; verification: MemberVerification }
 
-export function AuthenticatedMemberProvider({ children }: PropsWithChildren) {
+export function AuthenticatedMemberProvider({
+  children,
+  tokenFailureCategory = null,
+}: PropsWithChildren<{ tokenFailureCategory?: TokenFailureCategory | null }>) {
   const auth = useMobileAuth()
   const convexAuth = useConvexAuth()
-  const canReadViewer = auth.status === 'signed_in' && convexAuth.isAuthenticated
-  const viewer = useQuery(mobileApi.users.viewer, canReadViewer ? {} : 'skip')
+  const viewerArgs = memberViewerQueryArgs(auth.status === 'signed_in', convexAuth.isAuthenticated)
+  const canReadViewer = viewerArgs !== 'skip'
+  const viewer = useQuery(mobileApi.users.viewer, viewerArgs)
   const viewerMatchesAccount = auth.status === 'signed_in' && isViewerForClerkUser(viewer, auth.clerkUserId)
   const verification = useQuery(mobileApi.users.latestMemberVerification, canReadViewer && viewerMatchesAccount ? {} : 'skip')
   const ensureViewer = useMutation(mobileApi.users.ensureViewer)
@@ -75,7 +83,9 @@ export function AuthenticatedMemberProvider({ children }: PropsWithChildren) {
     if (!convexAuth.isAuthenticated) {
       return {
         status: 'error',
-        message: 'Your member profile could not be connected. Please try again later.',
+        message: buildMemberConnectionMessage(tokenFailureCategory),
+        canRetryConnection: true,
+        connectionReference: tokenFailureCategory ?? 'AUTH-BACKEND',
       }
     }
     if (viewer === undefined) return { status: 'loading' }
@@ -89,7 +99,7 @@ export function AuthenticatedMemberProvider({ children }: PropsWithChildren) {
     if (viewer.suspended) return { status: 'error', message: 'This account is not available for member actions.' }
     if (verification === undefined) return { status: 'loading' }
     return { status: 'ready', viewer, verification }
-  }, [auth, convexAuth.isAuthenticated, convexAuth.isLoading, syncingUserId, syncErrorUserId, verification, viewer])
+  }, [auth, convexAuth.isAuthenticated, convexAuth.isLoading, syncingUserId, syncErrorUserId, tokenFailureCategory, verification, viewer])
 
   return <MobileMemberStateProvider value={value}>{children}</MobileMemberStateProvider>
 }

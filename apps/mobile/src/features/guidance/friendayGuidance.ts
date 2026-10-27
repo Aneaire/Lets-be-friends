@@ -8,6 +8,7 @@ export type GuidanceCircle = {
   role?: string | null
   muted?: boolean | null
   membershipState?: string | null
+  iconUrl?: string
 }
 
 export const FRIENDAY_GUIDANCE_TITLE = 'How a Frienday works'

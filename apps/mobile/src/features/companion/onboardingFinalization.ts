@@ -16,6 +16,7 @@ export type FinalizeErrorCode =
   | 'username'
   | 'location'
   | 'acceptance'
+  | 'profile'
   | 'categories'
   | 'persistence'
   | 'application'
@@ -33,6 +34,36 @@ export function onboardingLocationPreview(location: { latitude: number; longitud
   return roundApproximateCoordinates(location)
 }
 
+// Name step validation shared by the welcome guide screen (early feedback on
+// the name step) and the finalizer (last defense before persistence). Mirrors
+// the web profile step: first and last name for every new account, plus a
+// short bio for members. Companions keep their introduction in the
+// application form instead.
+export type OnboardingProfileValidation =
+  | { ok: true; cleanFirstName: string; cleanLastName: string; cleanBio: string }
+  | { ok: false; message: string }
+
+export function validateOnboardingProfile(input: {
+  goal: OnboardingGoal
+  firstName: string
+  lastName: string
+  bio?: string
+}): OnboardingProfileValidation {
+  const cleanFirstName = input.firstName.trim()
+  const cleanLastName = input.lastName.trim()
+  if (!cleanFirstName || !cleanLastName) {
+    return { ok: false, message: 'Enter your first and last name.' }
+  }
+  const cleanBio = input.bio?.trim() ?? ''
+  if (input.goal !== 'companion' && !cleanBio) {
+    return {
+      ok: false,
+      message: 'Add a short bio about the skills, talents, or everyday help you can share.',
+    }
+  }
+  return { ok: true, cleanFirstName, cleanLastName, cleanBio }
+}
+
 export type FinalizeDeps = {
   viewerUsername?: string
   usernameReady: boolean
@@ -45,11 +76,14 @@ export type FinalizeDeps = {
   // save policies and complete only, never validate or touch the profile.
   policyOnly: boolean
   goal: OnboardingGoal
+  firstName: string
+  lastName: string
+  // Public member introduction collected in the name step. Companions keep
+  // their introduction inside the Companion application instead.
+  bio?: string
   categories: string[]
   applicationForm: CompanionApplicationForm
   hasApplication: boolean
-  displayName: string
-  viewerBio?: string
   claimUsername: (args: { username: string }) => Promise<unknown>
   saveOnboardingLocationAndConsent: (args: {
     latitude: number
@@ -64,6 +98,8 @@ export type FinalizeDeps = {
   }) => Promise<unknown>
   updateProfile: (args: {
     displayName: string
+    firstName: string
+    lastName: string
     bio?: string
     onboardingCategories?: string[]
   }) => Promise<unknown>
@@ -110,6 +146,20 @@ export async function finalizeOnboarding(
     )
   }
 
+  // Name step validation mirrors the web welcome guide. Policy-only
+  // reacceptance never touches the profile, so it skips this validation.
+  let savedProfile: OnboardingProfileValidation | null = null
+  if (!deps.policyOnly) {
+    const validation = validateOnboardingProfile({
+      goal: deps.goal,
+      firstName: deps.firstName,
+      lastName: deps.lastName,
+      bio: deps.bio,
+    })
+    if (!validation.ok) throw new FinalizeError('profile', validation.message)
+    savedProfile = validation
+  }
+
   const wantsSubmit = normalizedIntent === 'submit-profile' && deps.goal === 'companion' && !deps.hasApplication && !deps.policyOnly
   const mergedForm = wantsSubmit ? mergeOnboardingCategoriesIntoForm(deps.applicationForm, deps.categories) : deps.applicationForm
   const validatedApplication = wantsSubmit ? validateCompanionApplication(mergedForm) : null
@@ -136,11 +186,16 @@ export async function finalizeOnboarding(
       identityAccepted: true,
       identityVersion: deps.policyVersion,
     })
-    if (categoryResult?.ok) {
+    // Every non-policy-only save composes the public display name from the
+    // confirmed name step, mirroring the web profile step. Members also save
+    // their bio here; Companions keep theirs in the application payload.
+    if (!deps.policyOnly && savedProfile && savedProfile.ok) {
       await deps.updateProfile({
-        displayName: deps.displayName,
-        ...(deps.viewerBio !== undefined ? { bio: deps.viewerBio } : {}),
-        onboardingCategories: categoryResult.value,
+        displayName: `${savedProfile.cleanFirstName} ${savedProfile.cleanLastName}`,
+        firstName: savedProfile.cleanFirstName,
+        lastName: savedProfile.cleanLastName,
+        ...(deps.goal === 'member' ? { bio: deps.bio?.trim() } : {}),
+        ...(categoryResult?.ok ? { onboardingCategories: categoryResult.value } : {}),
       })
     }
   } catch (error) {

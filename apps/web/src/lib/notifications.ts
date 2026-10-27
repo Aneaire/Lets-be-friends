@@ -2,7 +2,8 @@ export type NotificationDestination =
   | { type: 'booking'; audience: 'member' | 'companion'; bookingId: string }
   | { type: 'conversation'; conversationId: string; messageId?: string }
   | { type: 'post'; postId: string; commentId?: string }
-  | { type: 'circle'; circleId: string; postId?: string; commentId?: string }
+  | { type: 'circle'; circleId: string; postId?: string; commentId?: string; section?: 'joinRequests' | 'pendingPosts' | 'members' | 'hostTransfer' }
+  | { type: 'review'; reviewId: string; companionProfileId?: string; bookingId?: string; commentId?: string }
   | { type: 'companion' }
   | { type: 'identity'; outcome: 'verified' | 'status' }
   | { type: 'profile'; userId: string }
@@ -19,7 +20,12 @@ export function webDestination(destination: NotificationDestination) {
       return { to: '/app' as const, search: { bookingId: destination.bookingId } }
     case 'conversation': return { to: '/messages' as const, search: { conversationId: destination.conversationId, ...(destination.messageId ? { messageId: destination.messageId } : {}) } }
     case 'post': return { to: '/social' as const, search: { postId: destination.postId, ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
-    case 'circle': return { to: '/circles/$circleId' as const, params: { circleId: destination.circleId }, search: { ...(destination.postId ? { postId: destination.postId } : {}), ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
+    case 'circle': return { to: '/circles/$circleId' as const, params: { circleId: destination.circleId }, search: { ...(destination.postId ? { postId: destination.postId } : {}), ...(destination.commentId ? { commentId: destination.commentId } : {}), ...(destination.section ? { section: destination.section } : {}) } }
+    case 'review': return destination.companionProfileId
+      ? { to: '/companion-profile' as const, search: { companionProfileId: destination.companionProfileId, reviewId: destination.reviewId, ...(destination.commentId ? { commentId: destination.commentId } : {}) } }
+      : destination.bookingId
+        ? { to: '/app' as const, search: { bookingId: destination.bookingId } }
+        : { to: '/notifications' as const, search: {} }
     case 'companion': return { to: '/companion' as const, search: {} }
     case 'identity': return destination.outcome === 'verified'
       ? { to: '/verified' as const, search: {} }

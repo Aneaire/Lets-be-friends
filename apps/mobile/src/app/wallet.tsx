@@ -2,8 +2,8 @@ import { formatPhp } from '@lets-be-friends/shared'
 import type { FunctionReturnType } from 'convex/server'
 import { useAction, useQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
-import { StyleSheet } from 'react-native'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { AppState, StyleSheet } from 'react-native'
 
 import { mobileApi, type PaymongoTopUpId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -13,16 +13,19 @@ import { AppText } from '@/design-system/atoms/Typography'
 import {
   formatQrExpiry,
   formatWalletTimestamp,
-  isUnambiguousTopUpCreationError,
   parseWalletAmount,
+  saveQrImageMessage,
   topUpPresentation,
   walletBalanceRows,
+  walletTopUpCreationState,
 } from '@/data/wallet'
 import { transactionsActivityState, transactionsPreviewRows, TRANSACTIONS_ROUTE } from '@/features/finance/transactions'
 import {
   WalletPresentation,
   type WalletTopUpItem,
 } from '@/features/finance/WalletPresentation'
+import { useTopUpReconciliation } from '@/features/finance/useTopUpReconciliation'
+import { saveQrImageToPhotos } from '@/features/finance/saveQrImage'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -64,8 +67,15 @@ function WalletView({
 }) {
   const createTopUp = useAction(mobileApi.paymongo.createMemberTopUp)
   const refreshTopUp = useAction(mobileApi.paymongo.refreshMemberTopUp)
-  const [amount, setAmount] = useState('1000')
+  const reconcile = useCallback((topUpId: string) => refreshTopUp({ topUpId: topUpId as PaymongoTopUpId }), [refreshTopUp])
+  const unresolvedTopUp = wallet.topUps.find((topUp) => topUp.providerIntentId && ['awaiting_payment', 'processing'].includes(topUp.status))
+  useTopUpReconciliation(unresolvedTopUp ? String(unresolvedTopUp._id) : undefined, reconcile)
+  const [amount, setAmount] = useState(() => {
+    const current = wallet.topUps.find((topUp) => topUpPresentation(topUp.status, topUp.expiresAt).active)
+    return current ? String(current.amountCentavos / 100) : '1000'
+  })
   const [busy, setBusy] = useState<'create' | string | null>(null)
+  const [savingQr, setSavingQr] = useState(false)
   const [message, setMessage] = useState('')
   const [pendingCreatedTopUpId, setPendingCreatedTopUpId] = useState<string | null>(null)
   const [clockNow, setClockNow] = useState(() => Date.now())
@@ -73,6 +83,7 @@ function WalletView({
   const activeTopUp = wallet.topUps.find((topUp) => topUpPresentation(topUp.status, topUp.expiresAt, clockNow).active)
   const displayTopUp = activeTopUp ?? wallet.topUps[0]
   const waitingForCreatedTopUp = pendingCreatedTopUpId !== null
+  const creation = walletTopUpCreationState({ amount, activeTopUp, busy: busy !== null, waiting: waitingForCreatedTopUp, enabled: wallet.enabled })
   const activityState = transactionsActivityState({ bookingTransactions, topUps, now: clockNow })
   const activity = activityState.state === 'ready' ? transactionsPreviewRows(activityState.rows) : []
   const activityLoading = activityState.state === 'loading'
@@ -88,8 +99,15 @@ function WalletView({
     }
   }, [pendingCreatedTopUpId, wallet.topUps])
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') setClockNow(Date.now()) })
+    const nextExpiry = wallet.topUps.filter((topUp) => topUp.status === 'awaiting_payment' && topUp.expiresAt !== undefined && topUp.expiresAt > clockNow).map((topUp) => topUp.expiresAt!)
+    const timer = nextExpiry.length ? setTimeout(() => setClockNow(Date.now()), Math.max(0, Math.min(...nextExpiry) - Date.now()) + 25) : undefined
+    return () => { subscription.remove(); if (timer !== undefined) clearTimeout(timer) }
+  }, [wallet.topUps, clockNow])
+
   async function create() {
-    if (busyRef.current || activeTopUp || waitingForCreatedTopUp || !wallet.enabled) return
+    if (busyRef.current || creation.disabled) return
     const validation = parseWalletAmount(amount)
     if (!validation.ok) {
       setMessage(validation.message)
@@ -104,38 +122,26 @@ function WalletView({
       setMessage(result.qrImageUrl
         ? `QR Ph top-up for ${formatPhp(result.amountCentavos)} is ready to scan.`
         : 'PayMongo is confirming the QR Ph setup. Your wallet will update only after provider confirmation.')
-    } catch (error) {
-      if (isUnambiguousTopUpCreationError(error)) {
-        setPendingCreatedTopUpId(null)
-        setMessage('The QR Ph top-up could not be started. Review the amount and current wallet status before trying again.')
-      } else {
-        setPendingCreatedTopUpId('unconfirmed')
-        setMessage('The top-up result could not be confirmed. Refresh or reload this screen and check recent top-ups before starting another attempt.')
-      }
+    } catch {
+      setPendingCreatedTopUpId(null)
+      setMessage('The QR could not be prepared. Check recent top-ups before trying again.')
     } finally {
       busyRef.current = false
       setBusy(null)
     }
   }
 
-  async function refresh(topUpId: PaymongoTopUpId) {
-    if (busyRef.current) return
-    busyRef.current = true
-    setBusy(String(topUpId))
+  async function saveQr(qrImageUrl: string) {
+    if (!displayTopUp || savingQr) return
+    setSavingQr(true)
     setMessage('')
     try {
-      const result = await refreshTopUp({ topUpId })
-      const providerStatus = result.providerStatus.toLowerCase()
-      setMessage(['succeeded', 'paid'].includes(providerStatus)
-        ? 'Refresh requested. Check the refreshed available balance and recent top-up status for the recorded result.'
-        : ['failed', 'cancelled', 'expired'].includes(providerStatus)
-          ? 'Refresh requested. The provider returned a terminal unpaid status. Check recent top-ups for the recorded result.'
-          : 'Refresh requested. Check the refreshed balance and recent top-up status for the latest result.')
+      const result = await saveQrImageToPhotos(qrImageUrl, String(displayTopUp._id))
+      setMessage(saveQrImageMessage(result))
     } catch {
-      setMessage('The provider refresh could not be confirmed. Reload this screen and rely on the balance and recent top-up status shown there.')
+      setMessage(saveQrImageMessage({ ok: false, reason: 'unavailable' }))
     } finally {
-      busyRef.current = false
-      setBusy(null)
+      setSavingQr(false)
     }
   }
 
@@ -148,17 +154,15 @@ function WalletView({
         setAmount(value)
         setMessage('')
       }}
-      createLabel={activeTopUp || waitingForCreatedTopUp
-        ? 'A QR attempt is still active'
-        : 'Create QR Ph top-up'}
-      createDisabled={busy !== null || Boolean(activeTopUp) || waitingForCreatedTopUp || !wallet.enabled}
+      createLabel={creation.label}
+      createDisabled={creation.disabled}
+      amountEditable={creation.editable}
       createBusy={busy === 'create'}
+      qrPreparing={busy === 'create' || waitingForCreatedTopUp || displayTopUp?.status === 'creating' || Boolean(displayTopUp?.status === 'awaiting_payment' && !displayTopUp.qrImageUrl)}
       onCreate={() => void create()}
       currentTopUp={displayTopUp ? walletTopUpItem(displayTopUp, clockNow) : undefined}
-      refreshBusy={Boolean(displayTopUp && busy === String(displayTopUp._id))}
-      onRefresh={() => {
-        if (displayTopUp) void refresh(displayTopUp._id as PaymongoTopUpId)
-      }}
+      saveQrBusy={savingQr}
+      onSaveQr={(qrImageUrl) => void saveQr(qrImageUrl)}
       message={message}
       activity={activity}
       activityLoading={activityLoading}
@@ -184,7 +188,6 @@ function walletTopUpItem(topUp: TopUp, now: number): WalletTopUpItem {
       ? formatQrExpiry(topUp.expiresAt, now)
       : undefined,
     qrImageUrl: topUp.qrImageUrl ?? undefined,
-    canRefresh: Boolean(topUp.providerIntentId && presentation.active),
   }
 }
 

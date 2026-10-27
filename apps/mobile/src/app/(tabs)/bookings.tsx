@@ -5,6 +5,8 @@ import { useMemo, useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
+import { useConvexConnectionRecovery } from '@/backend/convexTokenDiagnostics'
+import { useMobileAuth } from '@/auth/MobileAuth'
 import { BookingCard } from '@/design-system/organisms/BookingCard'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
@@ -37,6 +39,8 @@ type MemberBookingTransaction = FunctionReturnType<typeof mobileApi.finance.memb
 
 export default function BookingHistoryScreen() {
   const member = useMobileMember()
+  const auth = useMobileAuth()
+  const { retryConnection } = useConvexConnectionRecovery()
   const memberBookings = useQuery(mobileApi.bookings.mine, member.status === 'ready' ? {} : 'skip')
   const companionBookings = useQuery(mobileApi.bookings.forCompanion, member.status === 'ready' ? {} : 'skip')
   const recentTransactions = useQuery(
@@ -47,7 +51,23 @@ export default function BookingHistoryScreen() {
 
   if (member.status === 'signed_out') return <BookingState title="Sign in to see your bookings" action="Sign in" onPress={() => router.push('/auth')} />
   if (member.status === 'unconfigured') return <BookingState title="Bookings need account services" detail="Connect your account to view booking activity." />
-  if (member.status === 'unavailable' || member.status === 'error') return <BookingState title="Bookings are unavailable" detail={member.message} />
+  if (member.status === 'unavailable' || member.status === 'error') {
+    const signOutForRecovery = auth.status === 'signed_in' ? auth.signOut : undefined
+    const sessionRecoveredBySignIn = member.status === 'error' && member.connectionReference === 'AUTH-SESSION' && signOutForRecovery !== undefined
+    const recoveryAction = sessionRecoveredBySignIn
+      ? { label: 'Sign in again', onPress: signOutForRecovery as () => void }
+      : member.status === 'error' && member.canRetryConnection
+        ? { label: 'Retry connection', onPress: retryConnection }
+        : null
+    return (
+      <BookingState
+        title="Bookings are unavailable"
+        detail={member.message}
+        action={recoveryAction?.label}
+        onPress={recoveryAction?.onPress}
+      />
+    )
+  }
   if (member.status !== 'ready' || memberBookings === undefined || companionBookings === undefined) return <PageSkeleton variant="bookings" />
 
   return (

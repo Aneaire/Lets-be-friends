@@ -12,6 +12,18 @@ const sizes = {
   lg: { mark: { width: 76, height: 84 }, rowGap: 16, stackGap: 14, minHeight: 92, text: 'title' as const },
 }
 
+export function BrandMark({ width = 28, height = 31 }: { width?: number; height?: number }) {
+  return (
+    <Image
+      source={brandMark}
+      resizeMode="contain"
+      style={{ width, height }}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    />
+  )
+}
+
 export function Brand({ size = 'md', layout = 'row' }: { size?: 'sm' | 'md' | 'lg'; layout?: 'row' | 'stacked' }) {
   const preset = sizes[size]
   const stacked = layout === 'stacked'
@@ -24,7 +36,7 @@ export function Brand({ size = 'md', layout = 'row' }: { size?: 'sm' | 'md' | 'l
         stacked ? { gap: preset.stackGap } : { minHeight: preset.minHeight, gap: preset.rowGap },
       ]}
     >
-      <Image source={brandMark} resizeMode="contain" style={[styles.mark, preset.mark]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+      <View style={styles.mark}><BrandMark {...preset.mark} /></View>
       <AppText variant={preset.text} numberOfLines={1}>Let's Be Friends</AppText>
     </View>
   )

@@ -50,6 +50,7 @@ describe('home account model', () => {
     expect(model.identityKey).toBe('signed_in:user-a')
     expect(model.items.map((item) => item.id)).toEqual([
       'profile',
+      'verification',
       'public-profile',
       'companion',
       'wallet',

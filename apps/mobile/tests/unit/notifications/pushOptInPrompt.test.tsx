@@ -1,21 +1,9 @@
 import {
-  parsePushOptInPrompt,
-  pushOptInPromptKey,
-  serializePushOptInPrompt,
   shouldRequestPermission,
   shouldShowPushOptInPrompt,
 } from '@/notifications/logic'
 import { PUSH_OPT_IN_DESCRIPTION, PUSH_OPT_IN_TITLE, PushOptInPromptPresentation } from '@/notifications/PushOptInPromptPresentation'
 import { runPushEnableFlow, runPushOptInAccept, runPushOptInDismiss, type PushOptInSession } from '@/notifications/pushOptInOrchestration'
-
-jest.mock('expo-secure-store', () => {
-  const store = new Map<string, string>()
-  return {
-    __store: store,
-    getItemAsync: jest.fn(async (key: string) => store.get(key) ?? null),
-    setItemAsync: jest.fn(async (key: string, value: string) => { store.set(key, value) }),
-  }
-})
 
 function eligibleInput() {
   return {
@@ -28,8 +16,7 @@ function eligibleInput() {
     optedIn: false,
     pendingDisable: false,
     permission: 'undetermined' as const,
-    optInHandled: false,
-    optInLoaded: true,
+    dismissedThisSession: false,
   }
 }
 
@@ -39,9 +26,9 @@ describe('push opt-in prompt eligibility', () => {
     expect(shouldShowPushOptInPrompt({ ...eligibleInput(), permission: 'granted' })).toBe(true)
   })
 
-  it('hides the prompt after it was handled or before the handled flag loads', () => {
-    expect(shouldShowPushOptInPrompt({ ...eligibleInput(), optInHandled: true })).toBe(false)
-    expect(shouldShowPushOptInPrompt({ ...eligibleInput(), optInLoaded: false })).toBe(false)
+  it('hides the prompt for the rest of the session after Not now, then asks again next session', () => {
+    expect(shouldShowPushOptInPrompt({ ...eligibleInput(), dismissedThisSession: true })).toBe(false)
+    expect(shouldShowPushOptInPrompt({ ...eligibleInput(), dismissedThisSession: false })).toBe(true)
   })
 
   it('excludes opted-in, pending disable, denied permission, and unavailable backends or platforms', () => {
@@ -65,52 +52,6 @@ describe('push opt-in prompt eligibility', () => {
   it('never authorizes an OS permission request without an explicit enable action', () => {
     expect(shouldRequestPermission({ explicit: false, memberReady: true, backendAvailable: true })).toBe(false)
     expect(shouldRequestPermission({ explicit: true, memberReady: true, backendAvailable: true })).toBe(true)
-  })
-})
-
-describe('push opt-in prompt persistence', () => {
-  it('scopes the handled flag to one account on one install with storage-safe keys', () => {
-    const first = pushOptInPromptKey('user-a', 'install-1')
-    expect(first).not.toBe(pushOptInPromptKey('user-b', 'install-1'))
-    expect(first).not.toBe(pushOptInPromptKey('user-a', 'install-2'))
-    expect(first).toBe(pushOptInPromptKey('user-a', 'install-1'))
-    expect(first).toMatch(/^[A-Za-z0-9._-]+$/)
-    expect(pushOptInPromptKey('user:with/slash', 'install:with/slash')).toMatch(/^[A-Za-z0-9._-]+$/)
-  })
-
-  it('round-trips the handled flag and treats invalid storage as unhandled', () => {
-    expect(parsePushOptInPrompt(serializePushOptInPrompt({ handled: true }))).toEqual({ handled: true })
-    expect(parsePushOptInPrompt(serializePushOptInPrompt({ handled: false }))).toEqual({ handled: false })
-    expect(parsePushOptInPrompt(null)).toEqual({ handled: false })
-    expect(parsePushOptInPrompt('invalid')).toEqual({ handled: false })
-    expect(parsePushOptInPrompt(JSON.stringify({ handled: 'yes' }))).toEqual({ handled: false })
-  })
-
-  it('treats each installation key independently so reinstalls prompt again', () => {
-    expect(pushOptInPromptKey('user-a', 'install-1')).not.toBe(pushOptInPromptKey('user-a', 'install-2'))
-  })
-
-  it('persists handled state across relaunch and sign-out via the native store', async () => {
-    const secureStore = require('expo-secure-store') as {
-      getItemAsync: jest.Mock
-      setItemAsync: jest.Mock
-      __store: Map<string, string>
-    }
-    secureStore.__store.clear()
-    secureStore.getItemAsync.mockClear()
-    secureStore.setItemAsync.mockClear()
-    const { readPushOptInPrompt, writePushOptInPrompt } = require('@/notifications/preferences.native') as typeof import('@/notifications/preferences.native')
-
-    expect(await readPushOptInPrompt('user-a', 'install-1')).toEqual({ handled: false })
-    await writePushOptInPrompt('user-a', 'install-1', { handled: true })
-    expect(await readPushOptInPrompt('user-a', 'install-1')).toEqual({ handled: true })
-    expect(await readPushOptInPrompt('user-a', 'install-2')).toEqual({ handled: false })
-    expect(await readPushOptInPrompt('user-b', 'install-1')).toEqual({ handled: false })
-
-    secureStore.setItemAsync.mockClear()
-    await writePushOptInPrompt('user-a', '', { handled: true })
-    expect(secureStore.setItemAsync).not.toHaveBeenCalled()
-    expect(await readPushOptInPrompt('user-a', '')).toEqual({ handled: false })
   })
 })
 
@@ -190,7 +131,6 @@ describe('push opt-in orchestration session safety', () => {
     const permissionRequested = deferred<void>()
     const registerOnServer = jest.fn(async () => undefined)
     const saveOptedInPreference = jest.fn(async () => undefined)
-    const persistHandled = jest.fn(async () => undefined)
     const onHidden = jest.fn()
     const onPermissionState = jest.fn()
     const onFailure = jest.fn()
@@ -214,7 +154,6 @@ describe('push opt-in orchestration session safety', () => {
         onPermissionState,
         onFailure,
       }),
-      persistHandled,
       onHidden,
     })
 
@@ -224,7 +163,6 @@ describe('push opt-in orchestration session safety', () => {
     await expect(flow).resolves.toBe('stale')
     expect(registerOnServer).not.toHaveBeenCalled()
     expect(saveOptedInPreference).not.toHaveBeenCalled()
-    expect(persistHandled).not.toHaveBeenCalled()
     expect(onHidden).not.toHaveBeenCalled()
   })
 
@@ -234,7 +172,6 @@ describe('push opt-in orchestration session safety', () => {
     const permissionGate = deferred<'granted' | 'denied' | 'undetermined' | 'unavailable'>()
     const permissionRequested = deferred<void>()
     const registerOnServer = jest.fn(async () => undefined)
-    const persistHandled = jest.fn(async () => undefined)
 
     const flow = runPushOptInAccept({
       session: sessionA,
@@ -255,7 +192,6 @@ describe('push opt-in orchestration session safety', () => {
         onPermissionState: () => undefined,
         onFailure: () => undefined,
       }),
-      persistHandled,
       onHidden: () => undefined,
     })
 
@@ -265,14 +201,12 @@ describe('push opt-in orchestration session safety', () => {
     permissionGate.resolve('granted')
     await expect(flow).resolves.toBe('stale')
     expect(registerOnServer).not.toHaveBeenCalled()
-    expect(persistHandled).not.toHaveBeenCalled()
   })
 
   it('retries successfully with the new session after a stale abort', async () => {
     const controller = liveSessionController({ accountId: 'user-a', installationId: 'install-1', generation: 1 })
     const registerOnServer = jest.fn(async () => undefined)
     const saveOptedInPreference = jest.fn(async () => undefined)
-    const persistHandled = jest.fn(async () => undefined)
     const hidden: string[] = []
 
     const staleSession: PushOptInSession = { accountId: 'user-a', installationId: 'install-1', generation: 1 }
@@ -315,21 +249,18 @@ describe('push opt-in orchestration session safety', () => {
         onPermissionState: () => undefined,
         onFailure: () => undefined,
       }),
-      persistHandled,
       onHidden: () => { hidden.push('hidden') },
     })).resolves.toBe('registered')
     expect(registerOnServer).toHaveBeenCalledTimes(1)
     expect(saveOptedInPreference).toHaveBeenCalledTimes(1)
-    expect(persistHandled).toHaveBeenCalledTimes(1)
     expect(hidden).toEqual(['hidden'])
   })
 
-  it('keeps failed registration retryable without persisting a successful opt-in', async () => {
+  it('keeps failed registration retryable until registration succeeds', async () => {
     const session: PushOptInSession = { accountId: 'user-a', installationId: 'install-1', generation: 1 }
     const controller = liveSessionController(session)
     const registerOnServer = jest.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
     const saveOptedInPreference = jest.fn(async () => undefined)
-    const persistHandled = jest.fn(async () => undefined)
     const onHidden = jest.fn()
     const onFailure = jest.fn()
     const enable = () => runPushEnableFlow({
@@ -349,53 +280,37 @@ describe('push opt-in orchestration session safety', () => {
       onFailure,
     })
     const accept = () => runPushOptInAccept({
-      session, isCurrent: controller.isCurrent, runEnable: enable, persistHandled, onHidden,
+      session, isCurrent: controller.isCurrent, runEnable: enable, onHidden,
     })
 
     await expect(accept()).resolves.toBe('failed')
     expect(onFailure).toHaveBeenCalledWith(true)
     expect(saveOptedInPreference).not.toHaveBeenCalled()
-    expect(persistHandled).not.toHaveBeenCalled()
     expect(onHidden).not.toHaveBeenCalled()
     await expect(accept()).resolves.toBe('registered')
     expect(saveOptedInPreference).toHaveBeenCalledTimes(1)
-    expect(persistHandled).toHaveBeenCalledTimes(1)
     expect(onHidden).toHaveBeenCalledTimes(1)
   })
 
-  it('hides Not now promptly before storage settles and tolerates storage failure', async () => {
+  it('hides Not now for the current session and ignores a stale session', async () => {
     const session: PushOptInSession = { accountId: 'user-a', installationId: 'install-1', generation: 1 }
     const controller = liveSessionController(session)
-    const order: string[] = []
-    const persistGate = deferred<void>()
     const hidden: string[] = []
 
-    const pending = runPushOptInDismiss({
-      session,
-      isCurrent: controller.isCurrent,
-      persistHandled: async () => {
-        order.push('persist-start')
-        await persistGate.promise
-        order.push('persist-end')
-      },
-      onHidden: () => {
-        order.push('hidden')
-        hidden.push('hidden')
-      },
-    })
-    await Promise.resolve()
-    expect(order).toEqual(['hidden', 'persist-start'])
-    expect(hidden).toEqual(['hidden'])
-    persistGate.resolve()
-    await expect(pending).resolves.toBe('hidden')
-
-    const failedHidden: string[] = []
     await expect(runPushOptInDismiss({
       session,
       isCurrent: controller.isCurrent,
-      persistHandled: async () => { throw new Error('secure store unavailable') },
-      onHidden: () => { failedHidden.push('hidden') },
+      onHidden: () => { hidden.push('hidden') },
     })).resolves.toBe('hidden')
-    expect(failedHidden).toEqual(['hidden'])
+    expect(hidden).toEqual(['hidden'])
+
+    controller.switchAccount({ accountId: 'user-b', installationId: 'install-1', generation: 2 })
+    const staleHidden: string[] = []
+    await expect(runPushOptInDismiss({
+      session,
+      isCurrent: controller.isCurrent,
+      onHidden: () => { staleHidden.push('hidden') },
+    })).resolves.toBe('stale')
+    expect(staleHidden).toEqual([])
   })
 })

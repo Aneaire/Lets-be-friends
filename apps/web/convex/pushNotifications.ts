@@ -584,6 +584,8 @@ export function nativePushPresentation(input: {
   messageAttachmentCount?: number
   commentBody?: string
   isComment?: boolean
+  category?: string
+  reminderWindow?: Doc<'notifications'>['reminderWindow']
 }): NativePushPresentation {
   return buildNativePushPresentation(input.kind, input)
 }
@@ -594,6 +596,30 @@ export function nativePushBody(kind: Doc<'notifications'>['kind']): NativePushBo
 
 async function notificationPushPresentation(ctx: { db: any }, notification: Doc<'notifications'>): Promise<NativePushPresentation> {
   if (notification.circleId) return nativePushPresentation({ kind: notification.kind })
+  if (notification.kind === 'booking_reminder') {
+    const [actor, booking] = await Promise.all([
+      notification.actorUserId ? ctx.db.get(notification.actorUserId) as Promise<Doc<'users'> | null> : null,
+      notification.bookingId ? ctx.db.get(notification.bookingId) as Promise<Doc<'bookings'> | null> : null,
+    ])
+    return nativePushPresentation({
+      kind: notification.kind,
+      actorName: actor && !actor.suspended ? actor.displayName : undefined,
+      category: booking?.category,
+      reminderWindow: notification.reminderWindow,
+    })
+  }
+  if (notification.kind === 'review_commented' && notification.reviewCommentId) {
+    const [actor, comment] = await Promise.all([
+      notification.actorUserId ? ctx.db.get(notification.actorUserId) as Promise<Doc<'users'> | null> : null,
+      ctx.db.get(notification.reviewCommentId) as Promise<Doc<'reviewComments'> | null>,
+    ])
+    return nativePushPresentation({
+      kind: notification.kind,
+      actorName: actor && !actor.suspended ? actor.displayName : undefined,
+      commentBody: comment && !comment.hidden ? comment.body : undefined,
+      isComment: true,
+    })
+  }
   const [actor, message, comment] = await Promise.all([
     notification.actorUserId ? ctx.db.get(notification.actorUserId) as Promise<Doc<'users'> | null> : null,
     notification.messageId ? ctx.db.get(notification.messageId) as Promise<Doc<'directMessages'> | null> : null,

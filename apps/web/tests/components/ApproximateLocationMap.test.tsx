@@ -3,17 +3,30 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect } from 'react'
+import { productMapBoundsForRadius } from '@lets-be-friends/shared'
 import { ApproximateLocationMap } from '../../src/design-system/organisms/ApproximateLocationMap'
 import ApproximateLocationMapClient from '../../src/design-system/organisms/ApproximateLocationMap.client'
 
 let stubMapMounts = 0
+let stubMapProps: Array<{
+  bounds?: unknown
+  zoom?: number
+  center?: unknown
+  onInitialLoadError?: () => void
+}> = []
 
 vi.mock('../../src/design-system/primitives/map.client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/design-system/primitives/map.client')>()
   return {
     ...actual,
-    Map: (props: { onInitialLoadError?: () => void }) => {
+    Map: (props: {
+      bounds?: unknown
+      zoom?: number
+      center?: unknown
+      onInitialLoadError?: () => void
+    }) => {
       stubMapMounts += 1
+      stubMapProps.push(props)
       const mountIndex = stubMapMounts
       useEffect(() => {
         // Only the first map mount fails, so a retry can succeed.
@@ -26,6 +39,7 @@ vi.mock('../../src/design-system/primitives/map.client', async (importOriginal) 
 
 beforeEach(() => {
   stubMapMounts = 0
+  stubMapProps = []
 })
 
 afterEach(cleanup)
@@ -39,6 +53,36 @@ describe('ApproximateLocationMap', () => {
 
     rerender(<ApproximateLocationMap location={null} pinnable />)
     expect(container.querySelector('figure')?.getAttribute('data-pinnable')).toBe('false')
+  })
+
+  it('fits the map to the search radius so the circle fills the frame', () => {
+    const location = { latitude: 15.03, longitude: 120.68 }
+    render(
+      <ApproximateLocationMapClient
+        location={location}
+        radiusKm={25}
+        tone="social"
+        interactive={false}
+        pinnable={false}
+      />,
+    )
+
+    expect(stubMapProps.at(-1)?.bounds).toEqual(productMapBoundsForRadius(location, 25))
+  })
+
+  it('keeps the fixed close-up view when no radius is supplied', () => {
+    const location = { latitude: 15.03, longitude: 120.68 }
+    render(
+      <ApproximateLocationMapClient
+        location={location}
+        tone="self"
+        interactive={false}
+        pinnable={false}
+      />,
+    )
+
+    expect(stubMapProps.at(-1)?.bounds).toBeNull()
+    expect(stubMapProps.at(-1)?.zoom).toBe(11.5)
   })
 
   it('offers to try again when the map fails to load', () => {

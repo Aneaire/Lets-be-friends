@@ -81,6 +81,7 @@ export function ProfileContentPanel({
   emptyReviewsDescription = 'Reviews will appear here after members complete plans together.',
   reviewAction,
   focusedReviewId,
+  focusedCommentId,
   onLikePost,
   onSavePost,
   onEditPost,
@@ -108,6 +109,7 @@ export function ProfileContentPanel({
   emptyReviewsDescription?: string
   reviewAction?: (review: ProfileContentReview) => ReactNode
   focusedReviewId?: string
+  focusedCommentId?: string
   onLikePost?: (post: ProfileContentPost) => Promise<unknown>
   onSavePost?: (post: ProfileContentPost) => Promise<unknown>
   onEditPost?: (post: ProfileContentPost, body: string) => Promise<unknown>
@@ -143,16 +145,21 @@ export function ProfileContentPanel({
     if (focus) (tab === 'posts' ? postsTabRef : reviewsTabRef).current?.focus()
   }
 
+  const targetReview = reviews?.find((review) => review._id === focusedReviewId)
+  const targetReviewLoaded = Boolean(targetReview)
+  const targetCommentLoaded = Boolean(targetReview?.comments?.some((comment) => comment._id === focusedCommentId))
+
   useEffect(() => {
     if (!focusedReviewId) return
     setSelectedTab('reviews')
+    if (focusedCommentId) setOpenComments((current) => new Set([...current, focusedReviewId]))
     const frame = window.requestAnimationFrame(() => {
-      const target = document.getElementById(`review-${focusedReviewId}`)
+      const target = (focusedCommentId && targetCommentLoaded ? document.getElementById(`review-comment-${focusedCommentId}`) : null) ?? document.getElementById(`review-${focusedReviewId}`)
       target?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
       target?.focus({ preventScroll: true })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [focusedReviewId])
+  }, [focusedReviewId, focusedCommentId, targetReviewLoaded, targetCommentLoaded])
 
   return (
     <section className={rootClassName}>
@@ -298,7 +305,7 @@ export function ProfileContentPanel({
                   {openComments.has(review._id) && (
                     <div className="profile-review-comments">
                       {review.comments?.map((comment) => (
-                        <div key={comment._id} className="profile-review-comment">
+                        <div key={comment._id} id={`review-comment-${comment._id}`} tabIndex={focusedCommentId === comment._id ? -1 : undefined} className={`profile-review-comment${focusedCommentId === comment._id ? ' profile-review-card-focused' : ''}`}>
                           <Link to="/member-profile" search={{ userId: comment.authorId }} className="profile-review-author-link" aria-label={`View ${comment.authorDisplayName}'s profile`}>
                             <Avatar name={comment.authorDisplayName} src={comment.authorProfileImageUrl} size="small" decorative />
                           </Link>

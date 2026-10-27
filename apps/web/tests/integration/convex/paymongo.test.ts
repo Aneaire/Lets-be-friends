@@ -201,7 +201,7 @@ describe('PayMongo trust boundary', () => {
     expect(state.ledger.filter((entry) => entry.kind === 'top_up_credit')).toHaveLength(1)
   })
 
-  it('credits a provider-verified member top-up once without using the legacy companion ledger', async () => {
+  it.each(['processing', 'expired'] as const)('credits a provider-verified member top-up from %s once without using the legacy companion ledger', async (status) => {
     const t = createTest()
     const { memberId, topUpId } = await t.run(async (ctx) => {
       const now = Date.now()
@@ -220,7 +220,7 @@ describe('PayMongo trust boundary', () => {
         amountCentavos: 25_000,
         currency: 'PHP',
         mode: 'test',
-        status: 'processing',
+        status,
         providerIntentId: 'pi_member_wallet',
         createdAt: now,
         updatedAt: now,
@@ -304,6 +304,18 @@ describe('PayMongo trust boundary', () => {
       expect(state.previous?.expiredAt).toBeTypeOf('number')
       expect(state.created).toMatchObject({ beneficiaryUserId: memberId, amountCentavos: 50_000, status: 'creating' })
       expect(state.topUps).toHaveLength(2)
+      const intent = { id: 'pi_regenerate_old', amountCentavos: 25_000, currency: 'PHP', status: 'succeeded', mode: 'test' as const, methodTypes: ['qrph'] }
+      await t.mutation(internal.paymongo.applyReconciliation, { topUpId: activeTopUpId, intent })
+      await t.mutation(internal.paymongo.applyReconciliation, { topUpId: activeTopUpId, intent })
+      const settled = await t.run(async (ctx) => ({
+        account: await ctx.db.query('walletAccounts').withIndex('by_owner_type', (q) => q.eq('ownerUserId', memberId).eq('accountType', 'member_booking')).unique(),
+        transactions: await ctx.db.query('walletTransactions').collect(),
+        replacement: await ctx.db.get(prepared.topUpId),
+      }))
+      expect(settled.account?.availableCentavos).toBe(25_000)
+      expect(settled.transactions.filter((row) => row.kind === 'paymongo_member_credit')).toHaveLength(1)
+      expect(settled.replacement?.status).toBe('creating')
+
     } finally {
       if (previous === undefined) delete process.env.MEMBER_WALLET_V2_ENABLED
       else process.env.MEMBER_WALLET_V2_ENABLED = previous

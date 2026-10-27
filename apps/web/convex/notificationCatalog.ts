@@ -7,16 +7,24 @@ const MAX_PUSH_TITLE_LENGTH = 80
 export type NotificationPriority = 'attention' | 'standard'
 export type NotificationTone = 'social' | 'danger' | 'self'
 export type NotificationFamily = 'booking' | 'messaging' | 'social' | 'circle' | 'companion_account' | 'identity' | 'safety'
-export type NotificationDestinationKind = 'booking' | 'conversation' | 'post' | 'circle' | 'profile' | 'companion' | 'identity' | 'safety'
+export type NotificationDestinationKind = 'booking' | 'conversation' | 'post' | 'circle' | 'review' | 'profile' | 'companion' | 'identity' | 'safety'
 export type NotificationPrivacy = 'generic' | 'actor_action' | 'message_preview' | 'comment_preview'
+export type BookingReminderWindow = '1_day' | '5_hours' | '1_hour'
 export type NativePushBody = 'You have a new message.' | 'Someone mentioned you.' | 'You have a booking update.' | 'You have a Circle update.' | 'Your identity approval expires soon.' | 'Your identity approval has expired.' | 'You have a new update.'
 export type NativePushPresentation = { title: string; body: string }
+
+export const bookingReminderWindowValidator = v.union(
+  v.literal('1_day'),
+  v.literal('5_hours'),
+  v.literal('1_hour'),
+)
 
 export type NotificationCopyContext = {
   actorName: string
   targetAvailable: boolean
   category?: string
   isComment: boolean
+  reminderWindow?: BookingReminderWindow
 }
 
 export type NativePushContext = {
@@ -25,6 +33,8 @@ export type NativePushContext = {
   messageAttachmentCount?: number
   commentBody?: string
   isComment?: boolean
+  category?: string
+  reminderWindow?: BookingReminderWindow
 }
 
 type PushPolicy =
@@ -33,6 +43,7 @@ type PushPolicy =
   | { mode: 'actor_action'; action: string; fallbackBody: NativePushBody }
   | { mode: 'comment_preview'; action: string; prefix: string; fallbackBody: NativePushBody }
   | { mode: 'mention'; fallbackBody: NativePushBody }
+  | { mode: 'booking_reminder'; fallbackBody: NativePushBody }
 
 export type NotificationDefinition = {
   family: NotificationFamily
@@ -91,6 +102,18 @@ export const notificationCatalog = {
     family: 'booking', status: 'active', triggers: ['bookings.markCompleted'], recipient: 'Other booking participant', destination: 'booking', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One review-window notification per booking', push: { mode: 'generic', body: 'You have a booking update.' },
     inAppCopy: (context) => ({ title: 'Review window open', body: `Both participants confirmed the experience. You can now leave a review.${unavailableSuffix(context.targetAvailable)}`, tone: 'social' }),
   },
+  booking_reminder: {
+    family: 'booking', status: 'active', triggers: ['bookings.sendDueBookingReminders'], recipient: 'Both booking participants', destination: 'booking', allowedPriorities: ['standard', 'attention'], privacy: 'actor_action', respectsSocialPreferences: false, dedupe: 'One reminder per booking and reminder window', push: { mode: 'booking_reminder', fallbackBody: 'You have a booking update.' },
+    inAppCopy: (context) => {
+      const label = bookingReminderLabel(context.reminderWindow)
+      const category = context.category ? `${context.category} ` : ''
+      return {
+        title: `Session in ${label}`,
+        body: `Your ${category}session with ${context.actorName} starts in ${label}.${unavailableSuffix(context.targetAvailable)}`,
+        tone: 'social',
+      }
+    },
+  },
   direct_message: {
     family: 'messaging', status: 'active', triggers: ['conversations.sendMessage'], recipient: 'Other conversation participant', destination: 'conversation', allowedPriorities: ['standard'], privacy: 'message_preview', respectsSocialPreferences: true, dedupe: 'One notification per direct message ID', push: { mode: 'message_preview', fallbackBody: 'You have a new message.' },
     inAppCopy: actorCopy('New message', 'sent you a message'),
@@ -102,6 +125,14 @@ export const notificationCatalog = {
   post_commented: {
     family: 'social', status: 'active', triggers: ['social.createComment'], recipient: 'Post author', destination: 'post', allowedPriorities: ['standard'], privacy: 'comment_preview', respectsSocialPreferences: true, dedupe: 'One notification per created comment', push: { mode: 'comment_preview', action: 'Commented on your post.', prefix: 'Commented: ', fallbackBody: 'You have a new update.' },
     inAppCopy: actorCopy('New comment', 'commented on your post'),
+  },
+  comment_reply: {
+    family: 'social', status: 'active', triggers: ['social.createComment'], recipient: 'Parent comment author', destination: 'post', allowedPriorities: ['standard'], privacy: 'comment_preview', respectsSocialPreferences: true, dedupe: 'One notification per reply and parent comment', push: { mode: 'comment_preview', action: 'Replied to your comment.', prefix: 'Replied: ', fallbackBody: 'You have a new update.' },
+    inAppCopy: actorCopy('New reply', 'replied to your comment'),
+  },
+  comment_liked: {
+    family: 'social', status: 'active', triggers: ['social.toggleCommentLike'], recipient: 'Comment author', destination: 'post', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One notification per comment like reaction', push: { mode: 'actor_action', action: 'Liked your comment.', fallbackBody: 'You have a new update.' },
+    inAppCopy: actorCopy('New comment like', 'liked your comment'),
   },
   mention: {
     family: 'social', status: 'active', triggers: ['social.createPost', 'social.editPost', 'social.createComment', 'social.editComment'], recipient: 'Mentioned member', destination: 'post', allowedPriorities: ['standard'], privacy: 'comment_preview', respectsSocialPreferences: true, dedupe: 'One notification per mentioned member and source record', push: { mode: 'mention', fallbackBody: 'Someone mentioned you.' },
@@ -153,6 +184,10 @@ export const notificationCatalog = {
     family: 'circle', status: 'active', triggers: ['social.toggleLike'], recipient: 'Circle post author', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: true, dedupe: 'One notification per Circle reaction', push: { mode: 'generic', body: 'You have a Circle update.' },
     inAppCopy: actorCopy('New Circle reaction', 'reacted to your Circle post'),
   },
+  circle_comment_liked: {
+    family: 'circle', status: 'active', triggers: ['social.toggleCommentLike'], recipient: 'Circle comment author', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: true, dedupe: 'One notification per Circle comment reaction', push: { mode: 'generic', body: 'You have a Circle update.' },
+    inAppCopy: actorCopy('New Circle comment reaction', 'reacted to your comment'),
+  },
   circle_member_removed: {
     family: 'circle', status: 'active', triggers: ['circles.moderateMember'], recipient: 'Removed Circle member', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per removal', push: { mode: 'generic', body: 'You have a Circle update.' },
     inAppCopy: systemCopy('Circle membership changed', 'You were removed from a Circle.', 'danger'),
@@ -174,8 +209,16 @@ export const notificationCatalog = {
     inAppCopy: systemCopy('Circle status changed', 'A Circle you joined changed status.', 'self'),
   },
   review_received: {
-    family: 'social', status: 'active', triggers: ['reviews.submit'], recipient: 'Other booking participant', destination: 'booking', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: false, dedupe: 'One notification per submitted review', push: { mode: 'actor_action', action: 'Left you a review.', fallbackBody: 'You have a new update.' },
+    family: 'social', status: 'active', triggers: ['reviews.submit'], recipient: 'Other booking participant', destination: 'review', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: false, dedupe: 'One notification per submitted review', push: { mode: 'actor_action', action: 'Left you a review.', fallbackBody: 'You have a new update.' },
     inAppCopy: actorCopy('Review received', 'left you a review'),
+  },
+  review_commented: {
+    family: 'social', status: 'active', triggers: ['reviews.createComment'], recipient: 'Review author', destination: 'review', allowedPriorities: ['standard'], privacy: 'comment_preview', respectsSocialPreferences: true, dedupe: 'One notification per review comment', push: { mode: 'comment_preview', action: 'Commented on your review.', prefix: 'Commented: ', fallbackBody: 'You have a new update.' },
+    inAppCopy: actorCopy('New review comment', 'commented on your review'),
+  },
+  review_liked: {
+    family: 'social', status: 'active', triggers: ['reviews.toggleLike'], recipient: 'Review author', destination: 'review', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One notification per review like reaction', push: { mode: 'actor_action', action: 'Liked your review.', fallbackBody: 'You have a new update.' },
+    inAppCopy: actorCopy('New review like', 'liked your review'),
   },
   companion_application_approved: {
     family: 'companion_account', status: 'active', triggers: ['admin.decideCompanionApplication'], recipient: 'Companion applicant', destination: 'companion', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per application and approval decision', push: { mode: 'generic', body: 'You have a new update.' },
@@ -243,6 +286,14 @@ export function buildNativePushPresentation(kind: NotificationKind, context: Nat
     }
   }
   if (policy.mode === 'actor_action') return { title: actorName, body: policy.action }
+  if (policy.mode === 'booking_reminder') {
+    const label = bookingReminderLabel(context.reminderWindow)
+    const category = boundedPushText(context.category, 60)
+    return {
+      title: `Session in ${label}`,
+      body: `Your ${category ? `${category} ` : ''}session with ${actorName} starts in ${label}.`,
+    }
+  }
   if (policy.mode === 'comment_preview') {
     const commentPreview = boundedPushText(context.commentBody, MAX_PUSH_PREVIEW_LENGTH - policy.prefix.length)
     return { title: actorName, body: commentPreview ? `${policy.prefix}${commentPreview}` : policy.action }
@@ -271,4 +322,11 @@ function boundedPushText(value: string | undefined, maximum: number) {
   const characters = Array.from(normalized)
   if (characters.length <= maximum) return normalized
   return `${characters.slice(0, Math.max(0, maximum - 1)).join('')}…`
+}
+
+function bookingReminderLabel(window: BookingReminderWindow | undefined) {
+  if (window === '1_day') return '1 day'
+  if (window === '5_hours') return '5 hours'
+  if (window === '1_hour') return '1 hour'
+  return 'a moment'
 }

@@ -1,5 +1,7 @@
 export * from './availability'
+export * from './convexErrors'
 export * from './feed'
+export * from './notificationTargets'
 export * from './finance'
 export * from './frienday'
 export * from './identity'

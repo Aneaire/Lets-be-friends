@@ -443,3 +443,15 @@ describe('ProfileContentPanel', () => {
     expect(screen.getByLabelText('4 out of 5 stars')).toBeTruthy()
   })
 })
+
+it('opens and focuses the notified comment after review data loads', async () => {
+  const scroll = vi.fn()
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scroll })
+  vi.stubGlobal('matchMedia', () => ({ matches: false }))
+  const { rerender } = render(<ProfileContentPanel ownerName="Mara" posts={[]} reviews={undefined} focusedReviewId="review-1" focusedCommentId="comment-1" />)
+  rerender(<ProfileContentPanel ownerName="Mara" posts={[]} reviews={reviews} focusedReviewId="review-1" focusedCommentId="comment-1" />)
+  await waitFor(() => expect(document.activeElement?.id).toBe('review-comment-comment-1'))
+  expect(screen.getByText('This sounds like a thoughtful plan.')).toBeTruthy()
+  expect(scroll).toHaveBeenCalled()
+  vi.unstubAllGlobals()
+})

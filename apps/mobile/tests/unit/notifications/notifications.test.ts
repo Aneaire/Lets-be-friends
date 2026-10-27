@@ -28,8 +28,8 @@ describe('mobile notification helpers', () => {
     expect(mobileNotificationRoute({ type: 'identity', outcome: 'verified' })).toEqual({ pathname: '/verified' })
   })
 
-  it('keeps every other identity notification on the profile status', () => {
-    expect(mobileNotificationRoute({ type: 'identity', outcome: 'status' })).toEqual({ pathname: '/profile' })
+  it('keeps every other identity notification on Get verified', () => {
+    expect(mobileNotificationRoute({ type: 'identity', outcome: 'status' })).toEqual({ pathname: '/get-verified' })
   })
 
   it('preserves post and profile IDs and routes safety updates to the Safety Center', () => {
@@ -37,6 +37,13 @@ describe('mobile notification helpers', () => {
     expect(mobileNotificationRoute({ type: 'profile', userId: 'user-1' })).toEqual({ pathname: '/member-profile/[id]', params: { id: 'user-1' } })
     expect(mobileNotificationRoute({ type: 'safety' })).toEqual({ pathname: '/safety' })
     expect(mobileNotificationRoute({ type: 'notifications' })).toEqual({ pathname: '/notifications' })
+  })
+
+  it('opens a commented post on the comment thread so the comment can be anchored', () => {
+    expect(mobileNotificationRoute({ type: 'post', postId: 'post-1', commentId: 'comment-1' })).toEqual({
+      pathname: '/post-comments/[id]',
+      params: { id: 'post-1', commentId: 'comment-1' },
+    })
   })
 
   it('opens Circle notifications at the private Circle destination', () => {
@@ -54,4 +61,9 @@ describe('mobile notification helpers', () => {
     expect(notificationGroup({ priority: 'standard', readAt: 1 }, now)).toBe('earlier')
     expect(notificationAge(now - 2 * 60 * 60 * 1000, now)).toBe('2h')
   })
+})
+
+it('preserves Circle management sections and exact review comment targets', () => {
+  expect(mobileNotificationRoute({ type: 'circle', circleId: 'circle-1', section: 'pendingPosts' })).toEqual({ pathname: '/circles/[id]', params: { id: 'circle-1', section: 'pendingPosts' } })
+  expect(mobileNotificationRoute({ type: 'review', reviewId: 'review-1', companionProfileId: 'companion-1', commentId: 'comment-1' })).toEqual({ pathname: '/companion-profile/[id]', params: { id: 'companion-1', reviewId: 'review-1', commentId: 'comment-1' } })
 })

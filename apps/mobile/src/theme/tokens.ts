@@ -40,12 +40,12 @@ export const radii = {
 } as const
 
 export const typography = {
-  display: { fontSize: 42, lineHeight: 44, fontWeight: '800' as const, letterSpacing: -1.4 },
-  title: { fontSize: 28, lineHeight: 32, fontWeight: '800' as const, letterSpacing: -0.6 },
-  heading: { fontSize: 20, lineHeight: 25, fontWeight: '700' as const },
-  body: { fontSize: 16, lineHeight: 23, fontWeight: '400' as const },
-  bodyStrong: { fontSize: 16, lineHeight: 23, fontWeight: '700' as const },
-  label: { fontSize: 13, lineHeight: 17, fontWeight: '700' as const, letterSpacing: 0.5 },
+  display: { fontSize: 32, lineHeight: 38, fontWeight: '800' as const, letterSpacing: -0.8 },
+  title: { fontSize: 24, lineHeight: 29, fontWeight: '800' as const, letterSpacing: -0.4 },
+  heading: { fontSize: 18, lineHeight: 24, fontWeight: '700' as const },
+  body: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
+  bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '700' as const },
+  label: { fontSize: 12, lineHeight: 16, fontWeight: '700' as const, letterSpacing: 0.6 },
   caption: { fontSize: 13, lineHeight: 18, fontWeight: '400' as const },
 } as const
 

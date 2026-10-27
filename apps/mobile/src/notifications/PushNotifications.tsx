@@ -9,7 +9,7 @@ import { useMobileMember } from '@/member/MobileMember'
 
 import { createPushRegistrationCoordinator, foregroundPermissionAction, parsePushPayload, resolvePushTap, resolvePushUiState, responseEventKey, revokePushRegistration, shouldApplyBadge, shouldRequestPermission, shouldRevokeOnSignOut, shouldShowPushOptInPrompt, shouldSilentlyRefresh, type PushPreference, type PushUiState } from './logic'
 import { nativePushAdapter } from './nativeAdapter'
-import { readPushOptInPrompt, readPushPreference, writePushOptInPrompt, writePushPreference } from './preferences'
+import { readPushPreference, writePushPreference } from './preferences'
 import { runPushEnableFlow, runPushOptInAccept, runPushOptInDismiss, type PushOptInSession } from './pushOptInOrchestration'
 import { PushOptInPrompt } from './PushOptInPromptPresentation'
 
@@ -56,17 +56,14 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
   const [failed, setFailed] = useState(false)
   const [bootstrap, setBootstrap] = useState<{ accountId: string | null; status: 'idle' | 'loading' | 'ready' | 'error' }>({ accountId: null, status: 'idle' })
   const [backendTimedOut, setBackendTimedOut] = useState(false)
-  const [optInHandled, setOptInHandled] = useState(false)
-  const [optInLoaded, setOptInLoaded] = useState(false)
+  const [dismissedThisSession, setDismissedThisSession] = useState(false)
   const bootstrapGeneration = useRef(0)
-  const optInGeneration = useRef(0)
   const sessionGeneration = useRef(0)
   const mountedRef = useRef(true)
   const liveAccountRef = useRef<string | null>(null)
   const liveInstallationRef = useRef<string | null>(null)
   const optInActionRef = useRef(false)
   const loadedAccount = useRef<string | null>(null)
-  const optInLoadedKey = useRef<string | null>(null)
   const launchRetryAccount = useRef<string | null>(null)
   const handledResponses = useRef(new Set<string>())
   const pendingResponse = useRef<{ data: unknown; responseIdentifier?: string } | null>(null)
@@ -76,14 +73,11 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
     const generation = ++bootstrapGeneration.current
     loadedAccount.current = null
     launchRetryAccount.current = null
-    optInLoadedKey.current = null
     setPreference({ optedIn: false, pendingDisable: false })
     setPermission('unavailable')
     setInstallationId(null)
     setFailed(false)
     setBackendTimedOut(false)
-    setOptInHandled(false)
-    setOptInLoaded(false)
     setBootstrap({ accountId: targetAccountId, status: 'loading' })
     try {
       const [saved, currentPermission, installation] = await Promise.all([
@@ -116,9 +110,7 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
       mountedRef.current = false
       sessionGeneration.current += 1
       bootstrapGeneration.current += 1
-      optInGeneration.current += 1
       loadedAccount.current = null
-      optInLoadedKey.current = null
     }
   }, [])
 
@@ -146,10 +138,9 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     sessionGeneration.current += 1
     bootstrapGeneration.current += 1
-    optInGeneration.current += 1
     loadedAccount.current = null
-    optInLoadedKey.current = null
     optInActionRef.current = false
+    setDismissedThisSession(false)
     setBootstrap({ accountId, status: accountId ? 'loading' : 'idle' })
     if (accountId) void bootstrapAccount(accountId)
     else {
@@ -159,15 +150,11 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
       setInstallationId(null)
       setFailed(false)
       setBackendTimedOut(false)
-      setOptInHandled(false)
-      setOptInLoaded(false)
     }
     return () => {
       bootstrapGeneration.current += 1
-      optInGeneration.current += 1
       sessionGeneration.current += 1
       loadedAccount.current = null
-      optInLoadedKey.current = null
       optInActionRef.current = false
     }
   }, [accountId, bootstrapAccount])
@@ -185,28 +172,6 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
     if (!accountId) return
     await bootstrapAccount(accountId)
   }, [accountId, bootstrapAccount])
-
-  useEffect(() => {
-    if (!accountId || !installationId || bootstrap.status !== 'ready' || bootstrap.accountId !== accountId || loadedAccount.current !== accountId) return
-    const loadKey = `${accountId}:${installationId}`
-    if (optInLoadedKey.current === loadKey) return
-    const generation = ++optInGeneration.current
-    let cancelled = false
-    void readPushOptInPrompt(accountId, installationId).then((saved) => {
-      if (cancelled || optInGeneration.current !== generation) return
-      if (loadedAccount.current !== accountId) return
-      optInLoadedKey.current = loadKey
-      setOptInHandled(saved.handled)
-      setOptInLoaded(true)
-    }).catch(() => {
-      if (cancelled || optInGeneration.current !== generation) return
-      if (loadedAccount.current !== accountId) return
-      optInLoadedKey.current = loadKey
-      setOptInHandled(false)
-      setOptInLoaded(true)
-    })
-    return () => { cancelled = true }
-  }, [accountId, bootstrap.accountId, bootstrap.status, installationId])
 
   const currentInstallationId = useCallback(async () => {
     if (liveInstallationRef.current) return liveInstallationRef.current
@@ -365,14 +330,6 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
     await tryEnable()
   }, [tryEnable])
 
-  const markOptInHandled = useCallback(async (session: PushOptInSession) => {
-    try {
-      await writePushOptInPrompt(session.accountId, session.installationId, { handled: true })
-    } catch {
-      // Best effort. The in-memory flag still hides the prompt for this session.
-    }
-  }, [])
-
   const dismissOptIn = useCallback(async () => {
     if (optInActionRef.current) return
     const session = captureOptInSession()
@@ -382,18 +339,15 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
       await runPushOptInDismiss({
         session,
         isCurrent: isCurrentOptInSession,
-        persistHandled: () => markOptInHandled(session),
         onHidden: () => {
           if (!isCurrentOptInSession(session)) return
-          optInLoadedKey.current = `${session.accountId}:${session.installationId}`
-          setOptInHandled(true)
-          setOptInLoaded(true)
+          setDismissedThisSession(true)
         },
       })
     } finally {
       optInActionRef.current = false
     }
-  }, [captureOptInSession, isCurrentOptInSession, markOptInHandled])
+  }, [captureOptInSession, isCurrentOptInSession])
 
   const acceptOptIn = useCallback(async () => {
     if (optInActionRef.current) return
@@ -434,12 +388,9 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
             setFailed(failed)
           },
         }),
-        persistHandled: () => markOptInHandled(session),
         onHidden: () => {
           if (!isCurrentOptInSession(session)) return
-          optInLoadedKey.current = `${session.accountId}:${session.installationId}`
-          setOptInHandled(true)
-          setOptInLoaded(true)
+          setDismissedThisSession(false)
         },
       })
       if (outcome !== 'registered' && isCurrentOptInSession(session)) {
@@ -451,17 +402,7 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
       optInActionRef.current = false
       if (mountedRef.current) setBusy(false)
     }
-  }, [captureOptInSession, currentInstallationId, isCurrentOptInSession, markOptInHandled, preference.pendingDisable, ready, registerDevice, serverState?.available])
-
-  useEffect(() => {
-    if (!accountId || !installationId || !preference.optedIn || optInHandled) return
-    if (loadedAccount.current !== accountId) return
-    if (liveAccountRef.current !== accountId || liveInstallationRef.current !== installationId) return
-    optInLoadedKey.current = `${accountId}:${installationId}`
-    setOptInHandled(true)
-    setOptInLoaded(true)
-    void markOptInHandled({ accountId, installationId, generation: sessionGeneration.current })
-  }, [accountId, installationId, markOptInHandled, optInHandled, preference.optedIn])
+  }, [captureOptInSession, currentInstallationId, isCurrentOptInSession, preference.pendingDisable, ready, registerDevice, serverState?.available])
 
   const openSettings = useCallback(async () => {
     await nativePushAdapter.openSettings().catch(() => setFailed(true))
@@ -594,8 +535,7 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
     optedIn: preference.optedIn,
     pendingDisable: preference.pendingDisable,
     permission,
-    optInHandled,
-    optInLoaded,
+    dismissedThisSession,
   })
 
   return (

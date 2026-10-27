@@ -2,7 +2,7 @@
   "expo": {
     "name": "Let's Be Friends",
     "slug": "lets-be-friends",
-    "version": "0.1.0",
+    "version": "0.1.2",
     "orientation": "portrait",
     "icon": "./assets/images/official-app-icon.png",
     "scheme": "letsbefriends",
@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.letsbefriends.mobile",
+      "versionCode": 3,
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
@@ -67,6 +68,14 @@
           "photosPermission": "Allow Let's Be Friends to choose a profile photo, community post media, or optional private booking evidence.",
           "cameraPermission": false,
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Let's Be Friends to access your photos for profile and community images.",
+          "savePhotosPermission": "Allow Let's Be Friends to save your QR Ph payment code to your photos.",
+          "isAccessMediaLocationEnabled": false
         }
       ],
       "@react-native-community/datetimepicker"

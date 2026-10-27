@@ -30,6 +30,20 @@ export function messageCounter(value: string) {
   }
 }
 
+export const COMPACT_COUNTER_THRESHOLD = 1_800
+
+export function shouldShowMessageCounter(count: number) {
+  return count >= COMPACT_COUNTER_THRESHOLD
+}
+
+export const COMPOSER_MIN_HEIGHT = 44
+export const COMPOSER_MAX_HEIGHT = 112
+
+export function clampComposerHeight(measured: number) {
+  if (!Number.isFinite(measured)) return COMPOSER_MIN_HEIGHT
+  return Math.min(COMPOSER_MAX_HEIGHT, Math.max(COMPOSER_MIN_HEIGHT, Math.round(measured)))
+}
+
 export function formatMessageTimestamp(timestamp: number, now = Date.now()) {
   const date = new Date(timestamp)
   const today = new Date(now)

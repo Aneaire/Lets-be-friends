@@ -6,7 +6,6 @@ import { formatPhp } from '@lets-be-friends/shared'
 import { Avatar } from '@/design-system/atoms/Avatar'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { AppText } from '@/design-system/atoms/Typography'
-import { Chip } from '@/design-system/atoms/Chip'
 import { StatusBadge } from '@/design-system/atoms/StatusBadge'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { IconButton } from '@/design-system/atoms/IconButton'
@@ -20,6 +19,7 @@ import { ReviewFeedCard } from '@/features/social/ReviewFeedCard'
 import { memberContentTabLabel, toOwnReviewFeedItem, type MemberPost } from '@/member/memberContent'
 import { companionModeLabel, companionStatusLabel, companionStatusTone, profileActionLabels } from '@/member/profileSections'
 import { useAppTheme } from '@/theme/ThemeProvider'
+import { typography } from '@/theme/tokens'
 
 export type ProfileCompanionDetails = {
   status: string
@@ -103,64 +103,61 @@ export function SignedInProfileContent({
 
   return (
     <Screen contentStyle={styles.content}>
-      <View style={[styles.hero, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-        <View style={styles.heroTop}>
-          <IconButton label="Open settings" icon="settings-outline" tone="self" onPress={onOpenSettings} />
+      <View style={[styles.header, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+        <View style={styles.headerTop}>
           <View style={styles.avatarWrap}>
-            <Avatar uri={imageUrl} name={displayName} size={88} />
+            <Avatar uri={imageUrl} name={displayName} size={72} />
             {fullyVerified ? (
               <View style={styles.avatarBadge}>
                 <VerifiedBadge label="Identity and Companion profile verified" />
               </View>
             ) : null}
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Profile actions"
-            accessibilityHint="Edit profile, bookings, and Companion profile options"
-            onPress={() => setActionsOpen(true)}
-            style={({ pressed }) => [styles.actionsButton, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
-            <AppIcon name="ellipsis-horizontal" color={theme.colors.text} size={22} />
-          </Pressable>
-        </View>
-        <View style={styles.heroCopy}>
-          <AppText variant="title" style={styles.center}>{displayName}</AppText>
-          {username ? <AppText variant="caption" color={theme.colors.textMuted} style={styles.center}>{username}</AppText> : null}
-          <AppText variant="caption" color={theme.colors.textMuted} style={styles.center}>{memberSince} · {roleLabel}</AppText>
-          {fullyVerified ? <AppText variant="caption" color={theme.colors.textMuted} style={styles.center}>Identity and Companion profile verified.</AppText> : null}
-          <AppText color={theme.colors.text} style={styles.center}>{bio || 'No bio added yet.'}</AppText>
-        </View>
-      </View>
-
-      <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
-        <AppText variant="heading">About</AppText>
-        <AppText variant="caption" color={theme.colors.textMuted}>What other members can see about you.</AppText>
-        <View style={styles.facts}>
-          <View style={styles.fact}>
-            <AppText variant="label" color={theme.colors.textMuted}>BIO</AppText>
-            <AppText>{bio || 'No bio added yet.'}</AppText>
+          <View style={styles.headerActions}>
+            <IconButton label="Open settings" icon="settings-outline" tone="self" onPress={onOpenSettings} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Profile actions"
+              accessibilityHint="Edit profile, bookings, and Companion profile options"
+              onPress={() => setActionsOpen(true)}
+              style={({ pressed }) => [styles.actionsButton, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
+              <AppIcon name="ellipsis-horizontal" color={theme.colors.text} size={22} />
+            </Pressable>
           </View>
-          {interests.length > 0 ? (
-            <View style={styles.fact}>
-              <AppText variant="label" color={theme.colors.textMuted}>INTERESTED IN</AppText>
-              <View style={styles.chips}>
-                {interests.map((interest) => <Chip key={interest} label={interest} />)}
-              </View>
-            </View>
-          ) : null}
+        </View>
+        <View style={styles.identityCopy}>
+          <AppText style={styles.profileName}>{displayName}</AppText>
+          {username ? <AppText style={styles.profileMeta} color={theme.colors.textMuted}>{username}</AppText> : null}
+          <AppText style={styles.profileMeta} color={theme.colors.textMuted}>{memberSince} · {roleLabel}</AppText>
         </View>
       </View>
 
       <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
-        <AppText variant="heading">Account status</AppText>
-        <AppText variant="caption" color={theme.colors.textMuted}>Identity verification, and where Nearby places you.</AppText>
+        <AppText style={styles.sectionTitle}>About</AppText>
+        <AppText style={styles.profileBody}>{bio || 'No bio added yet.'}</AppText>
+        {interests.length > 0 ? (
+          <View style={styles.fact}>
+            <AppText style={styles.fieldLabel} color={theme.colors.textMuted}>INTERESTED IN</AppText>
+            <View style={styles.tagList}>
+              {interests.map((interest) => (
+                <View key={interest} style={[styles.profileTag, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+                  <AppText style={styles.profileTagText}>{interest}</AppText>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
+        <AppText style={styles.sectionTitle}>Account status</AppText>
         <View style={styles.statusRow}>
-          <AppText variant="caption" color={theme.colors.textMuted} style={styles.statusLabel}>Identity verification</AppText>
+          <AppText style={styles.statusMeta} color={theme.colors.textMuted}>Identity verification</AppText>
           <View style={styles.statusValue}>
             <StatusBadge label={verificationLabel} tone={verificationApproved ? 'success' : verificationLabel.includes('pending') || verificationLabel.includes('Pending') ? 'warning' : 'self'} />
           </View>
         </View>
-        <AppText color={theme.colors.textMuted}>{verificationDetail}</AppText>
+        <AppText style={styles.profileBody} color={theme.colors.textMuted}>{verificationDetail}</AppText>
         {verificationAction !== 'none' ? (
           <ActionButton
             label={openingVerification ? 'Opening identity check' : verificationAction === 'continue' ? 'Continue identity check' : verificationAction === 'retry' ? 'Start a new identity check' : 'Verify identity'}
@@ -171,22 +168,22 @@ export function SignedInProfileContent({
         ) : null}
         {verificationApproved ? <ActionButton label="Create booking" onPress={onCreateBooking} intent="social" /> : null}
         <View style={styles.statusRow}>
-          <AppText variant="caption" color={theme.colors.textMuted} style={styles.statusLabel}>Discovery area</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted} style={styles.statusValueText}>{discoveryArea || 'Not saved'}</AppText>
+          <AppText style={styles.statusMeta} color={theme.colors.textMuted}>Discovery area</AppText>
+          <AppText style={styles.statusMetaValue} color={theme.colors.textMuted}>{discoveryArea || 'Not saved'}</AppText>
         </View>
-        <AppText variant="caption" color={theme.colors.textMuted}>
-          This is the rounded device location Nearby measures distances from, to two decimals. An approved Companion profile also appears on the nearby map at this area.
+        <AppText style={styles.profileMeta} color={theme.colors.textMuted}>
+          Rounded device location Nearby uses for distances, to two decimals. An approved Companion profile also appears on the nearby map here.
         </AppText>
         {!companion ? (
           <View style={styles.companionEmpty}>
             <View style={styles.statusRow}>
-              <AppText variant="caption" color={theme.colors.textMuted} style={styles.statusLabel}>Companion profile</AppText>
+              <AppText style={styles.statusMeta} color={theme.colors.textMuted}>Companion profile</AppText>
               <View style={styles.statusValue}>
                 <StatusBadge label={companionStatusLabel('not started')} tone={companionStatusTone('not started')} />
               </View>
             </View>
-            <AppText color={theme.colors.textMuted}>
-              A Companion profile adds the session format, area, listed rate, and everyday help you want to offer. Identity verification is the only review.
+            <AppText style={styles.profileBody} color={theme.colors.textMuted}>
+              A Companion profile adds the session format, area, listed rate, and everyday help you want to offer.
             </AppText>
             <ActionButton label="Become a Companion" onPress={onOpenCompanion} intent="self" secondary />
           </View>
@@ -197,8 +194,7 @@ export function SignedInProfileContent({
         <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
           <View style={styles.statusRow}>
             <View style={styles.cardHeading}>
-              <AppText variant="heading">Companion profile</AppText>
-              <AppText variant="caption" color={theme.colors.textMuted}>The details members read on your public Companion profile.</AppText>
+              <AppText style={styles.sectionTitle}>Companion profile</AppText>
             </View>
             <View style={styles.statusValue}>
               <StatusBadge label={companionStatusLabel(companion.status)} tone={companionStatusTone(companion.status)} />
@@ -206,46 +202,54 @@ export function SignedInProfileContent({
           </View>
           <View style={styles.facts}>
             <View style={styles.fact}>
-              <AppText variant="label" color={theme.colors.textMuted}>WHAT YOU OFFER</AppText>
-              <AppText>{companion.intro}</AppText>
+              <AppText style={styles.fieldLabel} color={theme.colors.textMuted}>WHAT YOU OFFER</AppText>
+              <AppText style={styles.profileBody}>{companion.intro}</AppText>
             </View>
             {companion.categories.length > 0 ? (
               <View style={styles.fact}>
-                <AppText variant="label" color={theme.colors.textMuted}>EVERYDAY HELP AND ACTIVITIES</AppText>
-                <View style={styles.chips}>
-                  {companion.categories.map((category) => <Chip key={category} label={category} />)}
+                <AppText style={styles.fieldLabel} color={theme.colors.textMuted}>EVERYDAY HELP AND ACTIVITIES</AppText>
+                <View style={styles.tagList}>
+                  {companion.categories.map((category) => (
+                    <View key={category} style={[styles.profileTag, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+                      <AppText style={styles.profileTagText}>{category}</AppText>
+                    </View>
+                  ))}
                 </View>
               </View>
             ) : null}
             {companion.strengths.length > 0 ? (
               <View style={styles.fact}>
-                <AppText variant="label" color={theme.colors.textMuted}>STRENGTHS</AppText>
-                <View style={styles.chips}>
-                  {companion.strengths.map((strength) => <Chip key={strength} label={strength} />)}
+                <AppText style={styles.fieldLabel} color={theme.colors.textMuted}>STRENGTHS</AppText>
+                <View style={styles.tagList}>
+                  {companion.strengths.map((strength) => (
+                    <View key={strength} style={[styles.profileTag, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+                      <AppText style={styles.profileTagText}>{strength}</AppText>
+                    </View>
+                  ))}
                 </View>
               </View>
             ) : null}
             {companion.boundaries.length > 0 ? (
               <View style={styles.fact}>
-                <AppText variant="label" color={theme.colors.textMuted}>BOUNDARIES</AppText>
-                {companion.boundaries.map((boundary) => <AppText key={boundary}>· {boundary}</AppText>)}
+                <AppText style={styles.fieldLabel} color={theme.colors.textMuted}>BOUNDARIES</AppText>
+                {companion.boundaries.map((boundary) => <AppText key={boundary} style={styles.profileBody}>· {boundary}</AppText>)}
               </View>
             ) : null}
             <View style={styles.fact}>
-              <AppText variant="label" color={theme.colors.textMuted}>SESSION FORMAT</AppText>
-              <AppText>{companionModeLabel(companion.mode)}</AppText>
+              <AppText style={styles.fieldLabel} color={theme.colors.textMuted}>SESSION FORMAT</AppText>
+              <AppText style={styles.profileBody}>{companionModeLabel(companion.mode)}</AppText>
             </View>
             <View style={styles.fact}>
-              <AppText variant="label" color={theme.colors.textMuted}>AREA MEMBERS READ</AppText>
-              <AppText>{companion.city || 'Not set'}</AppText>
+              <AppText style={styles.fieldLabel} color={theme.colors.textMuted}>AREA MEMBERS READ</AppText>
+              <AppText style={styles.profileBody}>{companion.city || 'Not set'}</AppText>
             </View>
             <View style={styles.fact}>
-              <AppText variant="label" color={theme.colors.textMuted}>LISTED HOURLY RATE</AppText>
-              <AppText>{typeof companion.hourlyRateCentavos === 'number' ? `${formatPhp(companion.hourlyRateCentavos)} per hour` : 'Not set'}</AppText>
+              <AppText style={styles.fieldLabel} color={theme.colors.textMuted}>LISTED HOURLY RATE</AppText>
+              <AppText style={styles.profileBody}>{typeof companion.hourlyRateCentavos === 'number' ? `${formatPhp(companion.hourlyRateCentavos)} per hour` : 'Not set'}</AppText>
             </View>
           </View>
           {companion.status === 'approved' && !companion.publicProfileId ? (
-            <AppText variant="caption" color={theme.colors.textMuted}>
+            <AppText style={styles.profileMeta} color={theme.colors.textMuted}>
               Your profile appears in Explore and on the nearby map once your identity check is approved.
             </AppText>
           ) : null}
@@ -274,14 +278,14 @@ export function SignedInProfileContent({
           />
         ) : (
           <View style={styles.reviews}>
-            <AppText variant="heading">Reviews of your Companion profile</AppText>
+            <AppText style={styles.sectionTitle}>Reviews of your Companion profile</AppText>
             {typeof rating === 'number' && typeof reviewCount === 'number' ? (
-              <AppText variant="caption" color={theme.colors.textMuted} accessibilityLabel={`${rating.toFixed(1)} out of 5 from ${reviewCount} reviews`}>
+              <AppText style={styles.profileMeta} color={theme.colors.textMuted} accessibilityLabel={`${rating.toFixed(1)} out of 5 from ${reviewCount} reviews`}>
                 {rating.toFixed(1)} out of 5 from {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
               </AppText>
             ) : null}
             {reviewsStatus === 'loading' ? (
-              <AppText variant="caption" color={theme.colors.textMuted}>Loading reviews.</AppText>
+              <AppText style={styles.profileMeta} color={theme.colors.textMuted}>Loading reviews.</AppText>
             ) : reviewsStatus === 'needs_companion' ? (
               <StateView
                 embedded
@@ -326,23 +330,30 @@ export function SignedInProfileContent({
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 32, gap: 16 },
-  hero: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 12, alignItems: 'center' },
-  heroTop: { width: '100%', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  heroCopy: { width: '100%', gap: 4, alignItems: 'center' },
-  center: { textAlign: 'center' },
-  avatarWrap: { position: 'relative', alignItems: 'center' },
+  header: { borderWidth: 1, borderRadius: 18, padding: 14, gap: 10 },
+  headerTop: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  identityCopy: { width: '100%', minWidth: 0, gap: 2 },
+  profileName: { ...typography.title },
+  profileMeta: { ...typography.caption },
+  headerActions: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 2 },
+  avatarWrap: { position: 'relative', alignItems: 'center', flexShrink: 0 },
   avatarBadge: { position: 'absolute', right: -2, bottom: -2 },
-  actionsButton: { width: 44, height: 44, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  actionsButton: { width: 48, height: 48, borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.62 },
   card: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 10 },
   cardHeading: { flex: 1, minWidth: 0, gap: 2 },
+  sectionTitle: { ...typography.heading },
+  profileBody: { ...typography.body },
+  fieldLabel: { ...typography.label },
+  profileTagText: { ...typography.caption },
   facts: { gap: 12 },
   fact: { gap: 6 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tagList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  profileTag: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, flexShrink: 1 },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  statusLabel: { flex: 1, minWidth: 0 },
+  statusMeta: { flex: 1, minWidth: 0, ...typography.caption },
   statusValue: { flexShrink: 0, maxWidth: '62%' },
-  statusValueText: { flexShrink: 0, maxWidth: '62%', textAlign: 'right' },
+  statusMetaValue: { flexShrink: 1, minWidth: 0, maxWidth: '62%', textAlign: 'right', ...typography.caption },
   companionEmpty: { gap: 10 },
   companionActions: { gap: 10, marginTop: 4 },
   contentSection: { gap: 12 },

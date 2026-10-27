@@ -56,7 +56,7 @@ describe('profile sections mirror web profile rules', () => {
     expect(verificationActionFor('approved', null, true)).toBe('none')
     expect(verificationActionFor('rejected', null, false)).toBe('retry')
     expect(verificationActionFor('not_started', { adminStatus: 'rejected' }, false)).toBe('retry')
-    expect(verificationActionFor('pending', null, false)).toBe('none')
+    expect(verificationActionFor('pending', null, false)).toBe('continue')
     expect(verificationActionFor('not_started', { adminStatus: 'pending' }, false)).toBe('none')
     expect(verificationActionFor('not_started', { personaStatus: 'created' }, false)).toBe('continue')
     expect(verificationActionFor('not_started', { identityStage: 'confirmation_required' }, false)).toBe('continue')

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
 import { AppText } from '@/design-system/atoms/Typography'
+import { CircleMarker } from '@/features/circles/CircleMarker'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 import {
@@ -71,7 +72,7 @@ export function CurrentCircleContextPresentation({ mine }: { mine: GuidanceCircl
         onPress={() => router.push(guidanceCircleDestination(top._id) as never)}
         style={({ pressed }) => [styles.hero, pressed && styles.pressed]}
       >
-        <View style={[styles.marker, { backgroundColor: theme.colors.socialControl }]} />
+        <CircleMarker iconUrl={top.iconUrl} name={top.name} joined size={32} />
         <View style={styles.copy}>
           <AppText variant="bodyStrong" numberOfLines={1}>
             {top.name}
@@ -89,7 +90,7 @@ export function CurrentCircleContextPresentation({ mine }: { mine: GuidanceCircl
           onPress={() => router.push(guidanceCircleDestination(circle._id) as never)}
           style={({ pressed }) => [styles.row, pressed && styles.pressed]}
         >
-          <View style={[styles.marker, { backgroundColor: theme.colors.socialControl }]} />
+          <CircleMarker iconUrl={circle.iconUrl} name={circle.name} joined size={28} />
           <View style={styles.copy}>
             <AppText numberOfLines={1}>{circle.name}</AppText>
             <AppText variant="caption" color={theme.colors.textMuted}>
@@ -115,7 +116,6 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   hero: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8 },
   row: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  marker: { width: 9, height: 9, borderRadius: 5 },
   copy: { flex: 1, minWidth: 0 },
   pressed: { opacity: 0.72 },
 })

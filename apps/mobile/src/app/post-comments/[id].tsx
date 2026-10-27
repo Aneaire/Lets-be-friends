@@ -1,12 +1,13 @@
-import { activeMentionQuery, arrangeCommentThreads, withoutLeadingReplyMention, type CommentThreadPosition } from '@lets-be-friends/shared'
+import { activeMentionQuery, arrangeCommentThreads, NOTIFICATION_HIGHLIGHT_MS, withoutLeadingReplyMention, type CommentThreadEntry, type CommentThreadPosition } from '@lets-be-friends/shared'
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { BlurTargetView } from 'expo-blur'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
-import { useMemo, useRef, useState } from 'react'
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AccessibilityInfo, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { mobileApi, type CommentId, type PostId } from '@/backend/client'
+import { commentAnchorIndex, shouldLoadMoreForCommentAnchor } from '@/data/commentNotificationAnchor'
 import { formatMessageTimestamp } from '@/data/messageViewModels'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
@@ -30,17 +31,18 @@ type RequestedPost = NonNullable<FunctionReturnType<typeof mobileApi.social.requ
 type PostComment = FunctionReturnType<typeof mobileApi.social.commentPage>['page'][number]
 
 export default function PostCommentsScreen() {
-  const params = useLocalSearchParams<{ id?: string }>()
+  const params = useLocalSearchParams<{ id?: string; commentId?: string }>()
   const postId = typeof params.id === 'string' ? params.id : ''
+  const commentId = typeof params.commentId === 'string' ? params.commentId : ''
 
   if (!postId) {
     return <CommentsState title="Comments are unavailable" action="Return home" onPress={() => router.replace('/')} />
   }
 
-  return <ReadyPostComments postId={postId as PostId} />
+  return <ReadyPostComments postId={postId as PostId} commentId={commentId || undefined} />
 }
 
-function ReadyPostComments({ postId }: { postId: PostId }) {
+function ReadyPostComments({ postId, commentId }: { postId: PostId; commentId?: string }) {
   const theme = useAppTheme()
   const post = useQuery(mobileApi.social.requestedPost, { postId: String(postId) })
   const { results: comments, status, loadMore } = usePaginatedQuery(mobileApi.social.commentPage, { postId }, { initialNumItems: 20 })
@@ -58,6 +60,52 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const threadedComments = useMemo(() => arrangeCommentThreads(comments), [comments])
+  const listRef = useRef<FlatList<CommentThreadEntry<PostComment>>>(null)
+  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null)
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handledCommentId = useRef<string | null>(null)
+  const paginationAttempts = useRef(0)
+
+  useEffect(() => {
+    handledCommentId.current = null
+    paginationAttempts.current = 0
+    setHighlightedCommentId(null)
+    if (highlightTimer.current) {
+      clearTimeout(highlightTimer.current)
+      highlightTimer.current = null
+    }
+  }, [commentId])
+
+  useEffect(() => () => {
+    if (highlightTimer.current) clearTimeout(highlightTimer.current)
+  }, [])
+
+  useEffect(() => {
+    if (!commentId || handledCommentId.current === commentId) return
+    const index = commentAnchorIndex(threadedComments, commentId)
+    if (index === -1) {
+      // The comment might be on a page that is not loaded yet. Bound the
+      // catch-up so an old or deleted comment cannot keep loading forever.
+      if (shouldLoadMoreForCommentAnchor({
+        commentId,
+        index,
+        status,
+        attempts: paginationAttempts.current,
+      })) {
+        paginationAttempts.current += 1
+        loadMore(20)
+      }
+      return
+    }
+    handledCommentId.current = commentId
+    const scrollTimer = setTimeout(() => {
+      listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 })
+      setHighlightedCommentId(commentId)
+      AccessibilityInfo.announceForAccessibility('Comment opened from a notification')
+    }, 120)
+    if (highlightTimer.current) clearTimeout(highlightTimer.current)
+    highlightTimer.current = setTimeout(() => setHighlightedCommentId(null), 120 + NOTIFICATION_HIGHLIGHT_MS)
+  }, [commentId, loadMore, status, threadedComments])
 
   function openVideo(url: string) {
     setError('')
@@ -143,11 +191,16 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
               </View>
             </View>
             <FlatList
+              ref={listRef}
               style={styles.commentScroll}
               contentContainerStyle={styles.commentList}
               keyboardShouldPersistTaps="handled"
               data={threadedComments}
               keyExtractor={({ comment }) => String(comment._id)}
+              onScrollToIndexFailed={(info) => {
+                listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true })
+                setTimeout(() => listRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 }), 320)
+              }}
               onEndReached={() => { if (status === 'CanLoadMore') loadMore(20) }}
               onEndReachedThreshold={0.4}
               ListHeaderComponent={(
@@ -174,6 +227,7 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
                   comment={comment}
                   threadPosition={position}
                   isLastReply={isLastReply}
+                  highlighted={highlightedCommentId === String(comment._id)}
                   onReply={(nextBody) => createComment({ postId, parentCommentId: comment._id as CommentId, body: nextBody })}
                   onLike={() => toggleCommentLike({ commentId: comment._id as CommentId })}
                   onEdit={(nextBody) => editComment({ commentId: comment._id as CommentId, body: nextBody })}
@@ -191,10 +245,11 @@ function ReadyPostComments({ postId }: { postId: PostId }) {
   )
 }
 
-function CommentThreadRow({ comment, threadPosition, isLastReply, onReply, onLike, onEdit, onDelete }: {
+function CommentThreadRow({ comment, threadPosition, isLastReply, highlighted, onReply, onLike, onEdit, onDelete }: {
   comment: PostComment
   threadPosition: CommentThreadPosition
   isLastReply: boolean
+  highlighted: boolean
   onReply: (body: string) => Promise<unknown>
   onLike: () => Promise<unknown>
   onEdit: (body: string) => Promise<unknown>
@@ -250,6 +305,7 @@ function CommentThreadRow({ comment, threadPosition, isLastReply, onReply, onLik
       timestamp={formatMessageTimestamp(comment.createdAt)}
       threadPosition={threadPosition}
       isLastReply={isLastReply}
+      highlighted={highlighted}
       replyContext={comment.parentCommentId && comment.replyToAuthorId ? (
         <AppText variant="caption" color={theme.colors.textMuted}>
           Replying to{' '}

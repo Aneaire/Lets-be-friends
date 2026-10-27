@@ -12,6 +12,7 @@ const mapHarness = vi.hoisted(() => ({
   instances: [] as Array<{
     handlers: Map<string, Set<MapHandler>>
     fire: (type: string, event?: unknown) => void
+    fitBoundsCalls: Array<{ bounds: unknown; options?: unknown }>
   }>,
   workerUrls: [] as string[],
 }))
@@ -19,11 +20,13 @@ const mapHarness = vi.hoisted(() => ({
 vi.mock('maplibre-gl', () => {
   class FakeMap {
     handlers = new Map<string, Set<MapHandler>>()
+    fitBoundsCalls: Array<{ bounds: unknown; options?: unknown }> = []
 
     constructor() {
       const handlers = this.handlers
       mapHarness.instances.push({
         handlers,
+        fitBoundsCalls: this.fitBoundsCalls,
         fire: (type: string, event?: unknown) => {
           handlers.get(type)?.forEach((handler) => handler(event))
         },
@@ -47,6 +50,10 @@ vi.mock('maplibre-gl', () => {
     }
 
     jumpTo() {}
+
+    fitBounds(bounds: unknown, options?: unknown) {
+      this.fitBoundsCalls.push({ bounds, options })
+    }
 
     resize() {}
 
@@ -74,11 +81,15 @@ beforeEach(() => {
       disconnect() {}
     },
   )
+  // jsdom reports zero-size elements, which the map treats as unmounted.
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(640)
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(420)
 })
 
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 
@@ -87,6 +98,39 @@ function lastMap() {
   if (!instance) throw new Error('expected the map to be created')
   return instance
 }
+
+describe('Map search bounds', () => {
+  it('fits the camera to the search circle so it fills the frame', () => {
+    render(
+      <ProductMap
+        center={[120.68, 15.03]}
+        zoom={11.5}
+        bounds={{ west: 120.5, south: 14.9, east: 120.86, north: 15.16 }}
+        boundsPadding={24}
+        styleUrl="https://tiles.openfreemap.org/styles/liberty"
+      />,
+    )
+
+    expect(lastMap().fitBoundsCalls).toEqual([
+      {
+        bounds: [[120.5, 14.9], [120.86, 15.16]],
+        options: { padding: 24, animate: false },
+      },
+    ])
+  })
+
+  it('keeps the camera on the fixed view when no search circle is active', () => {
+    render(
+      <ProductMap
+        center={[121.774, 12.8797]}
+        zoom={5.2}
+        styleUrl="https://tiles.openfreemap.org/styles/liberty"
+      />,
+    )
+
+    expect(lastMap().fitBoundsCalls).toEqual([])
+  })
+})
 
 describe('Map initial load errors', () => {
   it('points maplibre at the vendored worker bundle', () => {

@@ -31,6 +31,13 @@ The logo accents are semantic, not decorative:
 
 Admin approve/resolve actions are neutral. Reject/report/suspend actions are danger. Do not use pink just because an admin action involves another user.
 
+## Local Android Builds
+
+- Build local Android artifacts only with `pnpm build:apk`. It is the single supported local build path and is enforced by `scripts/mobile/build-local-apk.mjs`.
+- A local build always produces the release-variant APK at `android/app/build/outputs/apk/release/app-release.apk`, copied to `artifacts/lets-be-friends-<version>-production.apk`. Never produce debug APKs, app bundles, or any other APK variant locally.
+- A local build always embeds the production `EXPO_PUBLIC_*` values from `apps/mobile/eas.json` (`build.production.env`). Never build a local APK with `.env.local` values. The script hides `.env.local`, restores it afterwards, and fails if the finished bundle contains a local value.
+- Do not run `./gradlew clean` before a local release build. It deletes MapLibre codegen output and breaks the app's CMake configure. The script regenerates codegen and then assembles release.
+
 ## Verification
 
 Read `docs/testing.md` before changing behavior. Add or update tests for every behavior that is created, edited, or fixed. Run focused tests while working, then run the full gates below. Disclose any behavior that was verified only manually, including installed-device and live-provider checks.

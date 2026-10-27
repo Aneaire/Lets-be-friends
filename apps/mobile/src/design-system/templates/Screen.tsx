@@ -1,4 +1,4 @@
-import type { PropsWithChildren, ReactNode } from 'react'
+import type { PropsWithChildren, ReactNode, Ref } from 'react'
 import {
   ScrollView,
   StyleSheet,
@@ -22,7 +22,7 @@ export function screenSafeAreaPadding(insets: EdgeInsets): ViewStyle {
   return { paddingTop: insets.top, paddingRight: insets.right, paddingLeft: insets.left }
 }
 
-export function Screen({ children, scroll = true, contentStyle, footer, ...props }: PropsWithChildren<ScrollViewProps & { scroll?: boolean; contentStyle?: ViewStyle; footer?: ReactNode }>) {
+export function Screen({ children, scroll = true, contentStyle, footer, scrollRef, ...props }: PropsWithChildren<ScrollViewProps & { scroll?: boolean; contentStyle?: ViewStyle; footer?: ReactNode; scrollRef?: Ref<ScrollView> }>) {
   const theme = useAppTheme()
   const { width } = useWindowDimensions()
   const insets = useSafeAreaInsets()
@@ -32,6 +32,7 @@ export function Screen({ children, scroll = true, contentStyle, footer, ...props
     <View style={[styles.safe, screenSafeAreaPadding(insets), { backgroundColor: theme.colors.background }]}>
       {scroll ? (
         <ScrollView
+          ref={scrollRef}
           {...props}
           contentContainerStyle={[styles.content, responsiveStyle, contentStyle]}
           showsVerticalScrollIndicator={false}

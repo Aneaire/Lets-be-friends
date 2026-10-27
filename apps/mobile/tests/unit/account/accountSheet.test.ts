@@ -26,7 +26,7 @@ describe('account sheet model', () => {
     const base = { identityEligible: true, hasCompanionContext: true }
     expect(
       buildAccountSheetItems({ ...base, applicationStatus: 'approved', applicationId: 'cp-1' }).map((item) => item.id),
-    ).toEqual(['profile', 'public-profile', 'companion', 'wallet', 'settings', 'safety'])
+    ).toEqual(['profile', 'verification', 'public-profile', 'companion', 'wallet', 'settings', 'safety'])
 
     expect(
       buildAccountSheetItems({ ...base, applicationStatus: 'approved', applicationId: 'cp-1', identityEligible: false }).map((item) => item.id),
@@ -51,7 +51,7 @@ describe('account sheet model', () => {
     const publicItem = tools.find((item) => item.id === 'public-profile')
     expect(publicItem?.route).toEqual({ pathname: '/companion-profile/[id]', params: { id: 'cp-1' } })
     for (const item of [...setup, ...tools]) {
-      expect(item.route.pathname).toMatch(/^\/(profile|companion|companion-profile\/\[id\]|wallet|settings|safety)$/)
+      expect(item.route.pathname).toMatch(/^\/(get-verified|profile|companion|companion-profile\/\[id\]|wallet|settings|safety)$/)
     }
   })
 

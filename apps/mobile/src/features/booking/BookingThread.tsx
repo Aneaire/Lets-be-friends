@@ -14,7 +14,7 @@ import {
   buildTrustThreadItems,
   validateBookingMessageBody,
 } from '@/data/bookingMessages'
-import { formatMessageTimestamp, messageCounter } from '@/data/messageViewModels'
+import { formatMessageTimestamp, messageCounter, shouldShowMessageCounter } from '@/data/messageViewModels'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
 import type { BookingStatus } from '@lets-be-friends/shared'
@@ -100,11 +100,12 @@ export function BookingThread({
             canSubmit={Boolean(body.trim()) && !counter.overLimit && !sending}
             onChange={(value) => { setBody(value); setError('') }}
             onSubmit={() => void send()}
-            hint="Keep plans and important context in this booking thread."
           />
-          <AppText variant="caption" color={counter.overLimit ? theme.colors.danger : theme.colors.textMuted}>
-            {counter.count.toLocaleString()}/2,000 characters
-          </AppText>
+          {shouldShowMessageCounter(counter.count) ? (
+            <AppText variant="caption" color={counter.overLimit ? theme.colors.danger : theme.colors.textMuted}>
+              {counter.count.toLocaleString()}/2,000 characters
+            </AppText>
+          ) : null}
         </View>
       ) : (
         <AppText color={theme.colors.textMuted}>{availability.lockedCopy}</AppText>

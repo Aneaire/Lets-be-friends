@@ -6,6 +6,9 @@ const mockBack = jest.fn()
 const mockCanGoBack = jest.fn()
 const mockRetry = jest.fn()
 
+jest.mock('convex/react', () => ({ useQuery: () => null }))
+jest.mock('@/features/account/useAccountSignOut', () => ({ useAccountSignOut: () => ({ signingOut: false, signOutError: false, runSignOut: jest.fn() }) }))
+
 jest.mock('@/auth/MobileAuth', () => ({ useMobileAuth: () => mockUseMobileAuth() }))
 jest.mock('@/member/MobileMember', () => ({ useMobileMember: () => mockUseMobileMember() }))
 jest.mock('expo-router', () => ({
@@ -76,4 +79,17 @@ describe('mobile settings screen', () => {
     state.props.onAction()
     expect(mockRetry).toHaveBeenCalledTimes(1)
   })
+})
+
+ it('links Settings verification status and renewal guidance to Get verified', () => {
+  mockPush.mockReset()
+  const element = ReadySettings({
+    signOut: jest.fn(),
+    viewer: { _id: 'a', displayName: 'Alex', role: 'member', createdAt: 0, verificationStatus: 'approved', identityEligible: false } as never,
+    verification: { adminStatus: 'approved' } as never,
+  })
+  expect(element.props.verificationValue).toBe('Verification renewal needed')
+  expect(element.props.verificationAction).toBe('retry')
+  element.props.onOpenVerification()
+  expect(mockPush).toHaveBeenCalledWith('/get-verified')
 })

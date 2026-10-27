@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { Image, Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { Skeleton } from '@/design-system/atoms/Skeleton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { Screen } from '@/design-system/templates/Screen'
 import type { WalletActivityRow } from '@/data/walletActivity'
@@ -24,7 +26,6 @@ export type WalletTopUpItem = {
   payable: boolean
   expiryLabel?: string
   qrImageUrl?: string
-  canRefresh: boolean
 }
 
 export function WalletPresentation({
@@ -37,8 +38,10 @@ export function WalletPresentation({
   createBusy = false,
   onCreate,
   currentTopUp,
-  refreshBusy = false,
-  onRefresh,
+  amountEditable = true,
+  qrPreparing = false,
+  saveQrBusy = false,
+  onSaveQr,
   message,
   activity,
   activityLoading = false,
@@ -56,8 +59,10 @@ export function WalletPresentation({
   createBusy?: boolean
   onCreate: () => void
   currentTopUp?: WalletTopUpItem
-  refreshBusy?: boolean
-  onRefresh: () => void
+  amountEditable?: boolean
+  qrPreparing?: boolean
+  saveQrBusy?: boolean
+  onSaveQr: (qrImageUrl: string) => void
   message?: string
   activity: readonly WalletActivityRow[]
   activityLoading?: boolean
@@ -122,7 +127,7 @@ export function WalletPresentation({
           placeholder="1000.00"
           placeholderTextColor={theme.colors.textMuted}
           inputMode="decimal"
-          editable={!createDisabled}
+          editable={amountEditable && enabled && !createBusy}
           style={[
             styles.input,
             theme.typography.body,
@@ -142,7 +147,7 @@ export function WalletPresentation({
         />
       </View>
 
-      {currentTopUp ? (
+      {qrPreparing ? <QrLoading /> : currentTopUp ? (
         <View style={[styles.section, { borderTopColor: theme.colors.border }]}>
           <View style={styles.currentHeader}>
             <View style={styles.copy}>
@@ -165,22 +170,9 @@ export function WalletPresentation({
             <AppText variant="caption" color={theme.colors.textMuted}>{currentTopUp.expiryLabel}</AppText>
           ) : null}
           {currentTopUp.payable && currentTopUp.qrImageUrl ? (
-            <Image
-              accessibilityLabel={`QR Ph code for ${currentTopUp.amountLabel} top-up`}
-              source={{ uri: currentTopUp.qrImageUrl }}
-              resizeMode="contain"
-              style={styles.qr}
-            />
-          ) : null}
-          {currentTopUp.canRefresh ? (
-            <ActionButton
-              label="Refresh provider status"
-              onPress={onRefresh}
-              loading={refreshBusy}
-              secondary
-              intent="self"
-            />
-          ) : null}
+            <WalletQrImage key={`${currentTopUp.id}:${currentTopUp.qrImageUrl}`} imageUrl={currentTopUp.qrImageUrl} amountLabel={currentTopUp.amountLabel} saving={saveQrBusy} onSave={() => onSaveQr(currentTopUp.qrImageUrl!)} />
+          ) : currentTopUp.active && currentTopUp.statusLabel === 'Preparing QR' ? <QrLoading /> : null}
+
         </View>
       ) : null}
 
@@ -230,6 +222,26 @@ export function WalletPresentation({
   )
 }
 
+function QrLoading() {
+  return <View accessibilityLabel="Preparing QR code" accessibilityLiveRegion="polite" style={styles.qrLoading}>
+    <AppText variant="caption">Preparing your QR code...</AppText>
+    <Skeleton style={{ width: '100%', aspectRatio: 1, height: undefined }} radius={14} />
+  </View>
+}
+
+export function WalletQrImage({ imageUrl, amountLabel, saving, onSave }: { imageUrl: string; amountLabel: string; saving: boolean; onSave: () => void }) {
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [attempt, setAttempt] = useState(0)
+  return <View style={styles.qrLoading}>
+    <View style={styles.qrFrame}>
+      {state === 'loading' ? <View accessibilityLabel="Loading QR image" style={StyleSheet.absoluteFill}><Skeleton style={{ width: '100%', aspectRatio: 1, height: undefined }} radius={14} /></View> : null}
+      <Image key={attempt} accessibilityLabel={`QR Ph code for ${amountLabel} top-up`} source={{ uri: imageUrl }} resizeMode="contain" onLoad={() => setState('ready')} onError={() => setState('error')} style={[styles.qr, state !== 'ready' && { opacity: 0 }]} />
+    </View>
+    {state === 'error' ? <><AppText>The QR image could not be loaded.</AppText><ActionButton label="Retry image" onPress={() => { setState('loading'); setAttempt((value) => value + 1) }} secondary intent="self" /></> : null}
+    <ActionButton label="Save QR" icon="download-outline" onPress={onSave} disabled={state !== 'ready'} loading={saving} secondary intent="self" />
+  </View>
+}
+
 const styles = StyleSheet.create({
   content: { paddingTop: density.contentGap, paddingBottom: density.screenBottom, gap: density.contentGap },
   header: { gap: density.textSectionGap },
@@ -242,6 +254,8 @@ const styles = StyleSheet.create({
   currentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: density.compactCardPadding },
   status: { borderRadius: 999, paddingHorizontal: density.cardGap, paddingVertical: density.textPairGap },
   qr: { width: '100%', aspectRatio: 1, borderRadius: 14, backgroundColor: '#FFFFFF' },
+  qrLoading: { gap: density.cardGap },
+  qrFrame: { width: '100%', aspectRatio: 1 },
   history: { gap: density.cardGap },
   historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: density.cardGap },
   viewMore: { minHeight: 44, justifyContent: 'center', alignItems: 'center', paddingHorizontal: density.cardGap },

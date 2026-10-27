@@ -4,6 +4,8 @@ import { router, type ErrorBoundaryProps } from 'expo-router'
 import { StyleSheet, View } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
+import { useConvexConnectionRecovery } from '@/backend/convexTokenDiagnostics'
+import { useMobileAuth } from '@/auth/MobileAuth'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
@@ -17,11 +19,29 @@ type Conversation = FunctionReturnType<typeof mobileApi.conversations.list>[numb
 
 export default function MessagesScreen() {
   const member = useMobileMember()
+  const auth = useMobileAuth()
+  const { retryConnection } = useConvexConnectionRecovery()
   const conversations = useQuery(mobileApi.conversations.list, member.status === 'ready' ? {} : 'skip')
 
   if (member.status === 'unconfigured') return <MessagesState title="Messages need account services" detail="Connect your account to load private conversations." />
   if (member.status === 'signed_out') return <MessagesState title="Sign in to view messages" detail="Your private member conversations will appear here." action="Sign in" onPress={() => router.push('/auth')} />
-  if (member.status === 'unavailable' || member.status === 'error') return <MessagesState title="Messages are unavailable" detail={member.message} />
+  if (member.status === 'unavailable' || member.status === 'error') {
+    const signOutForRecovery = auth.status === 'signed_in' ? auth.signOut : undefined
+    const sessionRecoveredBySignIn = member.status === 'error' && member.connectionReference === 'AUTH-SESSION' && signOutForRecovery !== undefined
+    const recoveryAction = sessionRecoveredBySignIn
+      ? { label: 'Sign in again', onPress: signOutForRecovery as () => void }
+      : member.status === 'error' && member.canRetryConnection
+        ? { label: 'Retry connection', onPress: retryConnection }
+        : null
+    return (
+      <MessagesState
+        title="Messages are unavailable"
+        detail={member.message}
+        action={recoveryAction?.label}
+        onPress={recoveryAction?.onPress}
+      />
+    )
+  }
   if (member.status !== 'ready' || conversations === undefined) return <PageSkeleton variant="messages" />
   return <ConversationInbox conversations={conversations} />
 }

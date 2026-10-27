@@ -20,9 +20,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+import type { ProductMapBounds } from '@lets-be-friends/shared'
 import { Map as MapLibreMap, Marker, setWorkerUrl, type MapMouseEvent, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { circleCoordinates, type Coordinates } from '../../lib/geo'
 
@@ -45,6 +46,8 @@ export function useMap() {
 export function Map({
   center,
   zoom,
+  bounds,
+  boundsPadding = 0,
   styleUrl,
   children,
   interactive = false,
@@ -54,6 +57,13 @@ export function Map({
 }: {
   center: [longitude: number, latitude: number]
   zoom: number
+  /**
+   * When present, the camera fits these bounds instead of using `zoom`, so a
+   * search circle fills the frame at any rendered size.
+   */
+  bounds?: ProductMapBounds | null
+  /** Screen-space gap kept between the bounds and the frame edge, in pixels. */
+  boundsPadding?: number
   styleUrl: string
   children?: ReactNode
   interactive?: boolean
@@ -64,7 +74,24 @@ export function Map({
   const containerRef = useRef<HTMLDivElement>(null)
   const onInitialLoadErrorRef = useRef(onInitialLoadError)
   const onClickRef = useRef(onClick)
+  const boundsRef = useRef(bounds)
+  const boundsPaddingRef = useRef(boundsPadding)
   const [map, setMap] = useState<MapLibreMap | null>(null)
+
+  boundsRef.current = bounds
+  boundsPaddingRef.current = boundsPadding
+
+  const fitBounds = useCallback((instance: MapLibreMap) => {
+    const next = boundsRef.current
+    const container = containerRef.current
+    if (!next || !container || !container.clientWidth || !container.clientHeight) return
+    instance.fitBounds(
+      [[next.west, next.south], [next.east, next.north]],
+      { padding: boundsPaddingRef.current, animate: false },
+    )
+  }, [])
+
+  const hasBounds = bounds != null
 
   useEffect(() => {
     onInitialLoadErrorRef.current = onInitialLoadError
@@ -72,9 +99,14 @@ export function Map({
   }, [onClick, onInitialLoadError])
 
   useEffect(() => {
-    if (!map) return
+    if (!map || hasBounds) return
     map.jumpTo({ center, zoom })
-  }, [center[0], center[1], map, zoom])
+  }, [center[0], center[1], map, zoom, hasBounds])
+
+  useEffect(() => {
+    if (!map || !bounds) return
+    fitBounds(map)
+  }, [map, bounds?.west, bounds?.south, bounds?.east, bounds?.north, boundsPadding, fitBounds])
 
   useEffect(() => {
     if (!map) return
@@ -154,7 +186,10 @@ export function Map({
     canvas.addEventListener('keydown', handleKeyDown)
     setMap(instance)
 
-    const resizeObserver = new ResizeObserver(() => instance.resize())
+    const resizeObserver = new ResizeObserver(() => {
+      instance.resize()
+      fitBounds(instance)
+    })
     resizeObserver.observe(container)
 
     return () => {
@@ -166,7 +201,7 @@ export function Map({
       canvas.removeEventListener('keydown', handleKeyDown)
       instance.remove()
     }
-  }, [interactive, styleUrl])
+  }, [fitBounds, interactive, styleUrl])
 
   return (
     <MapContext.Provider value={map}>

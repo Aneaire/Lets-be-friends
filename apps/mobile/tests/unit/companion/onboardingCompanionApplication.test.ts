@@ -4,29 +4,50 @@ import {
   defaultOnboardingCompanionForm,
   hasSubmittedCompanionApplication,
   mergeOnboardingCategoriesIntoForm,
+  onboardingCompanionEarningCopy,
   onboardingCompanionHeroCopy,
   onboardingCompanionHeroTitle,
   onboardingCompanionIdentityFollowupCopy,
+  onboardingCompanionJourney,
   onboardingCompanionReviewNotice,
   onboardingCompanionStatusPresentation,
   onboardingMaxStep,
+  onboardingMemberJourney,
   onboardingTotalSteps,
 } from '@/features/companion/onboardingCompanionApplication'
 
 describe('Mobile onboarding Companion application step', () => {
-  it('keeps exactly five steps for both member and companion tracks with the final step for acceptance', () => {
-    expect(onboardingTotalSteps('member')).toBe(5)
-    expect(onboardingMaxStep('member')).toBe(4)
-    expect(onboardingTotalSteps('companion')).toBe(5)
-    expect(onboardingMaxStep('companion')).toBe(4)
+  it('keeps exactly six steps for both member and companion tracks with the final step for acceptance', () => {
+    expect(onboardingTotalSteps('member')).toBe(6)
+    expect(onboardingMaxStep('member')).toBe(5)
+    expect(onboardingTotalSteps('companion')).toBe(6)
+    expect(onboardingMaxStep('companion')).toBe(5)
   })
 
-  it('clamps the active step within the five-step flow', () => {
-    expect(clampOnboardingStep(4, 'member')).toBe(4)
-    expect(clampOnboardingStep(4, 'companion')).toBe(4)
+  it('clamps the active step within the six-step flow', () => {
+    expect(clampOnboardingStep(5, 'member')).toBe(5)
+    expect(clampOnboardingStep(5, 'companion')).toBe(5)
     expect(clampOnboardingStep(-1, 'companion')).toBe(0)
     expect(clampOnboardingStep(2, 'member')).toBe(2)
-    expect(clampOnboardingStep(9, 'member')).toBe(4)
+    expect(clampOnboardingStep(9, 'member')).toBe(5)
+  })
+
+  it('mirrors the web journey explainers with the member list before the companion list', () => {
+    expect(onboardingMemberJourney.map(([title]) => title)).toEqual([
+      'Complete identity verification',
+      'Receive safety-team approval',
+      'Discover an approved Companion',
+      'Send a booking request',
+      'Have the experience and leave a review',
+    ])
+    expect(onboardingCompanionJourney.map(([title]) => title)).toEqual([
+      'Set up your Companion profile',
+      'Complete identity and safety review',
+      'Receive approval for public discovery',
+      'Help, earn, and connect',
+    ])
+    expect(onboardingMemberJourney.every(([, copy]) => copy.length > 0)).toBe(true)
+    expect(onboardingCompanionJourney.every(([, copy]) => copy.length > 0)).toBe(true)
   })
 
   it('treats an existing application or a just-submitted form as submitted, without duplicating the form', () => {
@@ -134,6 +155,7 @@ describe('Mobile onboarding Companion application step', () => {
     for (const copy of [
       onboardingCompanionReviewNotice,
       onboardingCompanionIdentityFollowupCopy,
+      onboardingCompanionEarningCopy,
       onboardingCompanionHeroTitle,
       onboardingCompanionHeroCopy,
     ]) {
@@ -141,6 +163,8 @@ describe('Mobile onboarding Companion application step', () => {
     }
     expect(onboardingCompanionReviewNotice).toContain('Only identity is reviewed')
     expect(onboardingCompanionIdentityFollowupCopy).toContain('on web')
+    expect(onboardingCompanionEarningCopy).toContain('becomes visible to members')
+    expect(onboardingCompanionEarningCopy).toContain('start earning')
   })
 
   it('keeps Companion onboarding copy free of policy consent and retention prose', () => {

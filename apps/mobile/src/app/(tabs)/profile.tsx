@@ -7,6 +7,8 @@ import { StyleSheet } from 'react-native'
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/backend/config'
 import { mobileApi } from '@/backend/client'
+import { useConvexConnectionRecovery } from '@/backend/convexTokenDiagnostics'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { SignedInProfileContent } from '@/member/ProfileContent'
 import { ownReviewsQueryArgs } from '@/member/memberContent'
@@ -20,6 +22,7 @@ import { AppText } from '@/design-system/atoms/Typography'
 export default function ProfileScreen() {
   const auth = useMobileAuth()
   const member = useMobileMember()
+  const { retryConnection } = useConvexConnectionRecovery()
 
   if (auth.status === 'unconfigured') return <ProfileState title="Account services unavailable" detail="This build cannot connect to your member profile." />
   if (auth.status === 'setup_error') return <ProfileState title="Account services unavailable" detail="Account access is unavailable in this build." />
@@ -27,7 +30,18 @@ export default function ProfileScreen() {
   if (auth.status === 'signed_out') return <SignedOutProfile />
   if (auth.status === 'needs_task') return <SignedInUnavailableProfile title="Member profile unavailable" message="Complete the required account security step before continuing." signOut={auth.signOut} />
   if (member.status === 'loading' || member.status === 'syncing') return <PageSkeleton variant="profile" />
-  if (member.status === 'unavailable' || member.status === 'error') return <SignedInUnavailableProfile title="Member profile unavailable" message={member.message} signOut={auth.signOut} />
+  if (member.status === 'unavailable' || member.status === 'error') {
+    const sessionRecoveredBySignIn = member.status === 'error' && member.connectionReference === 'AUTH-SESSION'
+    return (
+      <SignedInUnavailableProfile
+        title="Member profile unavailable"
+        message={member.message}
+        signOut={auth.status === 'signed_in' ? auth.signOut : undefined}
+        onRetry={member.status === 'error' && member.canRetryConnection && !sessionRecoveredBySignIn ? retryConnection : undefined}
+        signInAgain={sessionRecoveredBySignIn}
+      />
+    )
+  }
   if (member.status !== 'ready') return <ProfileState title="Member profile unavailable" detail="Sign in again to reconnect your member profile." />
 
   return <ReadyProfile viewer={member.viewer} verification={member.verification} />
@@ -120,36 +134,44 @@ function SignedOutProfile() {
   )
 }
 
-function SignedInUnavailableProfile({ title, message, signOut }: { title: string; message: string; signOut: () => Promise<void> }) {
+function SignedInUnavailableProfile({ title, message, signOut, onRetry, signInAgain = false }: { title: string; message: string; signOut?: () => Promise<void>; onRetry?: () => void; signInAgain?: boolean }) {
   const [signingOut, setSigningOut] = useState(false)
   const [signOutError, setSignOutError] = useState(false)
+  const beginSignOut = () => {
+    if (signingOut || !signOut) return
+    setSigningOut(true)
+    setSignOutError(false)
+    void signOut().catch(() => setSignOutError(true)).finally(() => setSigningOut(false))
+  }
+  const signOutPendingLabel = signingOut ? 'Signing out' : signInAgain ? 'Sign in again' : 'Sign out'
+  const showRetry = Boolean(onRetry) && !signInAgain
   return (
     <ProfileState
       title={title}
       detail={message}
-      actionLabel={signingOut ? 'Signing out' : 'Sign out'}
-      onAction={() => {
-        if (signingOut) return
-        setSigningOut(true)
-        setSignOutError(false)
-        void signOut().catch(() => setSignOutError(true)).finally(() => setSigningOut(false))
-      }}
+      actionLabel={showRetry ? 'Retry connection' : signOut ? signOutPendingLabel : undefined}
+      onAction={showRetry ? onRetry : signOut ? beginSignOut : undefined}
+      secondaryActionLabel={showRetry ? signOutPendingLabel : undefined}
+      onSecondaryAction={showRetry ? beginSignOut : undefined}
       footer={signOutError ? 'Sign out could not be completed. Please try again.' : undefined}
     />
   )
 }
 
-function ProfileState({ title, detail, loading = false, actionLabel, onAction, footer }: {
+function ProfileState({ title, detail, loading = false, actionLabel, onAction, secondaryActionLabel, onSecondaryAction, footer }: {
   title: string
   detail: string
   loading?: boolean
   actionLabel?: string
   onAction?: () => void
+  secondaryActionLabel?: string
+  onSecondaryAction?: () => void
   footer?: string
 }) {
   return (
     <Screen scroll={false} contentStyle={styles.state}>
       <StateView eyebrow="YOUR ACCOUNT" title={title} detail={detail} loading={loading} actionLabel={actionLabel} onAction={onAction} intent="self" />
+      {secondaryActionLabel && onSecondaryAction ? <ActionButton label={secondaryActionLabel} onPress={onSecondaryAction} intent="self" secondary /> : null}
       {footer ? <AppText accessibilityRole="alert" variant="caption">{footer}</AppText> : null}
     </Screen>
   )

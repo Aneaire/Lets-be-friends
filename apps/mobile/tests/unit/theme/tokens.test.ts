@@ -54,7 +54,19 @@ describe('semantic theme tokens', () => {
     expect(theme.density.compactControlHeight).toBeGreaterThanOrEqual(44)
     expect(theme.density.controlHeight).toBeGreaterThanOrEqual(theme.density.compactControlHeight)
     expect(theme.spacing.xxs).toBe(4)
-    expect(theme.typography.caption.lineHeight).toBe(18)
-    expect(theme.typography.body.lineHeight).toBe(23)
+  })
+
+  it('keeps the mobile type ramp compact and role-based', () => {
+    const theme = resolveTheme('light')
+
+    expect(theme.typography).toMatchObject({
+      display: { fontSize: 32, lineHeight: 38 },
+      title: { fontSize: 24, lineHeight: 29 },
+      heading: { fontSize: 18, lineHeight: 24 },
+      body: { fontSize: 15, lineHeight: 22 },
+      bodyStrong: { fontSize: 15, lineHeight: 22 },
+      caption: { fontSize: 13, lineHeight: 18 },
+      label: { fontSize: 12, lineHeight: 16 },
+    })
   })
 })

@@ -2,8 +2,8 @@ import { verificationActionFor, type VerificationAction } from '@/member/profile
 
 /**
  * Pure model behind the Settings verification row and gated sections.
- * An approved identity needs no new flow: the row is display-only and only
- * verify, continue, and retry actions open the web handoff (with busy guard).
+ * Settings links to consolidated status. Only verify, continue, and retry
+ * actions need an identity handoff; current approval needs no new check.
  */
 export function settingsAccountModel(input: {
   verificationStatus: string

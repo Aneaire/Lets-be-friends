@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite'
 import { useState } from 'react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+
+import { walletTopUpCreationState } from '@/data/wallet'
 
 import {
   bookingActivityRow,
@@ -30,7 +32,6 @@ const paidTopUp: WalletTopUpItem = {
   detail: 'Provider confirmation was received and the wallet credit was recorded.',
   active: false,
   payable: false,
-  canRefresh: false,
 }
 
 const awaitingTopUp: WalletTopUpItem = {
@@ -42,7 +43,7 @@ const awaitingTopUp: WalletTopUpItem = {
   active: true,
   payable: true,
   expiryLabel: 'Expires Aug 24, 2026, 10:42 AM',
-  canRefresh: true,
+  qrImageUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
 }
 
 const paidTopUpRecord: MemberTopUpRecord = {
@@ -86,7 +87,7 @@ const activity = [
 ]
 
 const createTopUp = fn()
-const refreshTopUp = fn()
+const saveQr = fn()
 const returnToProfile = fn()
 const changeAmount = fn()
 const openBooking = fn()
@@ -104,7 +105,7 @@ const meta = {
     createLabel: 'Create QR Ph top-up',
     createDisabled: false,
     onCreate: createTopUp,
-    onRefresh: refreshTopUp,
+    onSaveQr: saveQr,
     activity: [],
     onOpenBooking: openBooking,
     onReturn: returnToProfile,
@@ -142,7 +143,7 @@ function AmountEntryStory() {
       createLabel="Create QR Ph top-up"
       createDisabled={false}
       onCreate={createTopUp}
-      onRefresh={refreshTopUp}
+      onSaveQr={saveQr}
       activity={[]}
       onReturn={returnToProfile}
       onOpenWithdrawals={fn()}
@@ -168,7 +169,7 @@ export const CurrentQrAttempt: Story = {
       topUpActivityRow(awaitingTopUpRecord, NOW),
       topUpActivityRow(paidTopUpRecord, NOW),
     ],
-    createLabel: 'A QR attempt is still active',
+    createLabel: 'Edit amount to create a new QR',
     createDisabled: true,
   },
   play: async ({ canvasElement }) => {
@@ -176,10 +177,12 @@ export const CurrentQrAttempt: Story = {
     await expect(canvas.getByText('Awaiting payment')).toBeVisible()
     await expect(canvas.getAllByText('Top-up pending')).toHaveLength(1)
     await expect(canvas.getByText(/Expires Aug 24/)).toBeVisible()
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Refresh provider status' }),
-    )
-    await expect(refreshTopUp).toHaveBeenCalledOnce()
+    await expect(canvas.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
+    await expect(canvas.getByLabelText('Top-up amount in PHP')).toBeEnabled()
+    await waitFor(() => expect(canvas.getByRole('button', { name: 'Save QR' })).toBeEnabled())
+    await userEvent.click(canvas.getByRole('button', { name: 'Save QR' }))
+    await expect(saveQr).toHaveBeenCalledWith(awaitingTopUp.qrImageUrl)
+    await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
   },
 }
 
@@ -231,18 +234,17 @@ export const CreatingTopUp: Story = {
   },
 }
 
-export const RefreshingProvider: Story = {
+export const ConfirmingPayment: Story = {
   args: {
-    currentTopUp: awaitingTopUp,
-    activity: [topUpActivityRow(awaitingTopUpRecord, NOW)],
-    createLabel: 'A QR attempt is still active',
+    currentTopUp: { ...awaitingTopUp, payable: false, statusLabel: 'Confirming payment', detail: 'Your payment is being confirmed. Your balance updates automatically.' },
     createDisabled: true,
-    refreshBusy: true,
+    amountEditable: false,
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole('button', {
-      name: 'Refresh provider status',
-    })).toHaveAttribute('aria-busy', 'true')
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Confirming payment')).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Save QR' })).not.toBeInTheDocument()
   },
 }
 
@@ -264,7 +266,7 @@ export const ConfirmationMessage: Story = {
     message: 'QR Ph top-up for ₱1,000.00 is ready to scan.',
     currentTopUp: awaitingTopUp,
     activity: [topUpActivityRow(awaitingTopUpRecord, NOW)],
-    createLabel: 'A QR attempt is still active',
+    createLabel: 'Edit amount to create a new QR',
     createDisabled: true,
   },
 }
@@ -293,4 +295,41 @@ export const LongHistoryAt320: Story = {
 export const Dark: Story = {
   globals: { theme: 'dark' },
   args: { activity },
+}
+
+export const PreparingQr: Story = {
+  args: { qrPreparing: true, createBusy: true, createDisabled: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('Preparing QR code')).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Save QR' })).not.toBeInTheDocument()
+  },
+}
+
+export const ExpiredQr: Story = {
+  args: { currentTopUp: { ...awaitingTopUp, active: false, payable: false, statusLabel: 'Expired', detail: 'This QR has expired. Create a new top-up when ready.', expiryLabel: 'Expired' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.queryByRole('img', { name: /QR Ph code/ })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Save QR' })).not.toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: 'Create QR Ph top-up' })).toBeEnabled()
+  },
+}
+
+function CorrectAmountStory() {
+  const [amount, setAmount] = useState('50')
+  const creation = walletTopUpCreationState({ amount, activeTopUp: { status: 'awaiting_payment', amountCentavos: 5_000 }, busy: false, waiting: false, enabled: true })
+  return <WalletPresentation {...meta.args} amount={amount} onAmountChange={setAmount} createLabel={creation.label} createDisabled={creation.disabled} amountEditable={creation.editable} currentTopUp={{ ...awaitingTopUp, amountLabel: '₱50.00' }} />
+}
+
+export const CorrectActiveQrAmount: Story = {
+  render: () => <CorrectAmountStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.clear(canvas.getByLabelText('Top-up amount in PHP'))
+    await userEvent.type(canvas.getByLabelText('Top-up amount in PHP'), '500')
+    await expect(canvas.getByRole('button', { name: 'Create QR for updated amount' })).toBeEnabled()
+    await userEvent.click(canvas.getByRole('button', { name: 'Create QR for updated amount' }))
+    await expect(createTopUp).toHaveBeenCalledOnce()
+  },
 }

@@ -856,6 +856,17 @@ export const createComment = mutation({
         circleId: post.circleId, postId: post._id, commentId, dedupeKey: `circle-reply:${commentId}:${parentComment.authorId}`,
       })
     }
+    if (!post.circleId && parentComment && parentComment.authorId !== post.authorId && parentComment.authorId !== viewer._id) {
+      await createNotification(ctx, {
+        recipientUserId: parentComment.authorId,
+        actorUserId: viewer._id,
+        kind: 'comment_reply',
+        priority: 'standard',
+        postId: post._id,
+        commentId,
+        dedupeKey: `comment-reply:${commentId}:${parentComment.authorId}`,
+      })
+    }
     return commentId
   },
 })
@@ -943,13 +954,23 @@ export const toggleCommentLike = mutation({
       await ctx.db.patch(comment._id, { likeCount: adjustCounter(comment.likeCount, -1) })
       return false
     }
-    await ctx.db.insert('commentReactions', {
+    const reactionId = await ctx.db.insert('commentReactions', {
       userId: viewer._id,
       commentId: args.commentId,
       reaction: 'like',
       createdAt: Date.now(),
     })
     await ctx.db.patch(comment._id, { likeCount: adjustCounter(comment.likeCount, 1) })
+    await createNotification(ctx, {
+      recipientUserId: comment.authorId,
+      actorUserId: viewer._id,
+      kind: post.circleId ? 'circle_comment_liked' : 'comment_liked',
+      priority: 'standard',
+      postId: post._id,
+      commentId: comment._id,
+      circleId: post.circleId,
+      dedupeKey: `comment-like:${reactionId}:created`,
+    })
     return true
   },
 })

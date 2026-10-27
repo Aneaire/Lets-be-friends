@@ -1,8 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite'
 import { useState } from 'react'
 import { expect, fn, userEvent, within } from 'storybook/test'
+import { Pressable, StyleSheet } from 'react-native'
 
 import { AttachmentMetaRow } from '@/design-system/molecules/AttachmentMetaRow'
+import { AppText } from '@/design-system/atoms/Typography'
+import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { CompactComposer } from './CompactComposer'
 import { MessageBubble } from './MessageBubble'
@@ -206,6 +209,32 @@ export const ComposerSendingLocksDraft: Story = {
   },
 }
 
+export const ComposerPreparingShowsBusy: Story = {
+  render: () => {
+    const [value, setValue] = useState('Preparing an attachment')
+
+    return (
+      <CompactComposer
+        value={value}
+        maxLength={2_100}
+        canSubmit={false}
+        preparing
+        showAttach
+        onAttachPress={() => undefined}
+        onChange={setValue}
+        onSubmit={() => undefined}
+      />
+    )
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const preparingButton = canvas.getByRole('button', { name: 'Preparing' })
+    await expect(preparingButton).toBeDisabled()
+    await expect(preparingButton).toHaveAttribute('aria-busy', 'true')
+    await expect(canvas.getByRole('button', { name: 'Attach files' })).toBeDisabled()
+  },
+}
+
 export const ComposerWithAttachmentTray: Story = {
   render: () => {
     const [value, setValue] = useState('Here is the park map')
@@ -217,7 +246,6 @@ export const ComposerWithAttachmentTray: Story = {
         canSubmit
         showAttach
         onAttachPress={() => undefined}
-        hint="Photos and videos under 3 MB send in original quality."
         onChange={setValue}
         onSubmit={() => undefined}
         attachments={(
@@ -235,8 +263,10 @@ export const ComposerWithAttachmentTray: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: 'Attach files' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Send' })).toBeEnabled()
     await expect(canvas.getByLabelText('Selected files')).toBeVisible()
     await expect(canvas.getByText('park-map.jpg')).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Remove park-map.jpg' })).toBeVisible()
   },
 }
 
@@ -253,3 +283,99 @@ export const ComposerOverLimitAllowsCorrection: Story = {
     await expect(sendButton).toBeEnabled()
   },
 }
+
+function InlineReportAction() {
+  const theme = useAppTheme()
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Report message"
+      onPress={() => undefined}
+      style={inlineStyles.report}
+    >
+      <AppText variant="caption" color={theme.colors.danger}>…</AppText>
+    </Pressable>
+  )
+}
+
+export const IncomingWithInlineReportAt320: Story = {
+  render: () => (
+    <MessageBubble
+      direction="incoming"
+      authorName="Alex Rivera"
+      body="Would 2:30 PM work for the online session?"
+      timestamp="2:24 PM"
+      sideAction={<InlineReportAction />}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const bubbleText = canvas.getByLabelText('Alex Rivera said: Would 2:30 PM work for the online session?')
+    const report = canvas.getByRole('button', { name: 'Report message' })
+    await expect(bubbleText).toBeVisible()
+    await expect(report).toBeVisible()
+    await expect(report).not.toHaveTextContent('Report message')
+    expect(report.clientWidth).toBeGreaterThanOrEqual(44)
+    expect(report.clientHeight).toBeGreaterThanOrEqual(44)
+    const bubbleRect = bubbleText.getBoundingClientRect()
+    const reportRect = report.getBoundingClientRect()
+    expect(reportRect.left).toBeGreaterThan(bubbleRect.left)
+    expect(reportRect.top).toBeGreaterThanOrEqual(bubbleRect.top - 8)
+    expect(reportRect.top).toBeLessThan(bubbleRect.bottom + 8)
+    expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth + 1)
+  },
+}
+
+function BoundedComposerStory() {
+  const [value, setValue] = useState('')
+
+  return (
+    <CompactComposer
+      value={value}
+      maxLength={2_100}
+      canSubmit={Boolean(value.trim())}
+      showAttach
+      onAttachPress={() => undefined}
+      onChange={setValue}
+      onSubmit={() => setValue('')}
+    />
+  )
+}
+
+export const ComposerCompactBoundsAt320: Story = {
+  render: () => <BoundedComposerStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByRole('textbox', { name: 'Message' }) as HTMLElement
+    const attach = canvas.getByRole('button', { name: 'Attach files' })
+    const send = canvas.getByRole('button', { name: 'Send' })
+    await expect(attach).toBeVisible()
+    await expect(send).toBeVisible()
+    expect(input.getAttribute('rows')).toBe('1')
+    const initialHeight = input.clientHeight
+    expect(initialHeight).toBeGreaterThanOrEqual(40)
+    expect(initialHeight).toBeLessThanOrEqual(48)
+    expect(input.clientWidth).toBeGreaterThan(canvasElement.clientWidth * 0.5)
+    await userEvent.type(input, 'Line one\nLine two\nLine three\nLine four\nLine five\nLine six')
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    const grownHeight = (canvas.getByRole('textbox', { name: 'Message' }) as HTMLElement).clientHeight
+    expect(grownHeight).toBeGreaterThan(initialHeight)
+    expect(grownHeight).toBeLessThanOrEqual(112)
+    await userEvent.click(canvas.getByRole('button', { name: 'Send' }))
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    const resetInput = canvas.getByRole('textbox', { name: 'Message' }) as HTMLElement
+    await expect(resetInput).toHaveValue('')
+    expect(resetInput.clientHeight).toBeGreaterThanOrEqual(40)
+    expect(resetInput.clientHeight).toBeLessThanOrEqual(48)
+  },
+}
+
+const inlineStyles = StyleSheet.create({
+  report: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+})

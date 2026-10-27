@@ -114,6 +114,20 @@ export function resolvePushUiState(input: {
   return { status: 'disabled', message: 'Push notifications are off for this account on this device.' }
 }
 
+// Android 13+ reports a never-requested POST_NOTIFICATIONS permission as
+// `denied` because notifications are not enabled yet, even though the app can
+// still show the runtime prompt. `canAskAgain` is what separates a hard block
+// (open device settings) from a requestable state (show the enable action).
+export function permissionStateFromNative(input: {
+  granted: boolean
+  status: string
+  canAskAgain: boolean
+}): 'granted' | 'denied' | 'undetermined' {
+  if (input.granted) return 'granted'
+  if (input.status === 'denied' && input.canAskAgain === false) return 'denied'
+  return 'undetermined'
+}
+
 export function pushSettingsAction(status: PushUiState['status']) {
   if (status === 'availability_error') return 'retry_availability' as const
   if (status === 'disabled' || status === 'error') return 'enable' as const
@@ -146,28 +160,9 @@ export function pushInstallMarkerKey() {
   return pushSecureStorageKey('install-marker')
 }
 
-export type PushOptInPromptState = {
-  handled: boolean
-}
-
-export function pushOptInPromptKey(clerkUserId: string, installationId: string) {
-  return pushSecureStorageKey('optin', `${clerkUserId}:${installationId}`)
-}
-
-export function parsePushOptInPrompt(value: string | null): PushOptInPromptState {
-  if (!value) return { handled: false }
-  try {
-    const parsed = JSON.parse(value) as Partial<PushOptInPromptState>
-    return { handled: parsed.handled === true }
-  } catch {
-    return { handled: false }
-  }
-}
-
-export function serializePushOptInPrompt(value: PushOptInPromptState) {
-  return JSON.stringify({ handled: value.handled === true })
-}
-
+// The ask is session-scoped on purpose. A signed-in member who has not granted
+// notifications sees it once per app session, even if they tapped "Not now"
+// before. Tapping Not now only hides it until the next session.
 export function shouldShowPushOptInPrompt(input: {
   nativeAvailable: boolean
   memberReady: boolean
@@ -178,11 +173,9 @@ export function shouldShowPushOptInPrompt(input: {
   optedIn: boolean
   pendingDisable: boolean
   permission: 'granted' | 'denied' | 'undetermined' | 'unavailable'
-  optInHandled: boolean
-  optInLoaded: boolean
+  dismissedThisSession: boolean
 }) {
-  if (!input.optInLoaded) return false
-  if (input.optInHandled) return false
+  if (input.dismissedThisSession) return false
   if (!input.nativeAvailable) return false
   if (!input.memberReady) return false
   if (input.bootstrapStatus !== 'ready' || !input.accountMatches) return false

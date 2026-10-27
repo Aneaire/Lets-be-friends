@@ -1,9 +1,11 @@
+import { typography } from '@/theme/tokens'
+
 export type CompanionContentTab = 'posts' | 'reviews'
 
 export const companionProfileTypography = {
-  name: { fontSize: 24, lineHeight: 29, fontWeight: '800' as const, letterSpacing: -0.3 },
-  intro: { fontSize: 18, lineHeight: 24, fontWeight: '700' as const },
-  bio: { fontSize: 15, lineHeight: 21, fontWeight: '400' as const },
+  name: typography.title,
+  intro: typography.heading,
+  bio: typography.body,
   rate: { fontSize: 22, lineHeight: 27, fontWeight: '800' as const },
 } as const
 

@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { useEffect, useState } from 'react'
+import { StyleSheet, View, type NativeSyntheticEvent, type TextInputContentSizeChangeEventData } from 'react-native'
 
-import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { TextField } from '@/design-system/atoms/Field'
 import { IconButton } from '@/design-system/atoms/IconButton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
+import { COMPOSER_MAX_HEIGHT, COMPOSER_MIN_HEIGHT, clampComposerHeight } from '@/data/messageViewModels'
 
 export function CompactComposer({
   value,
@@ -45,6 +46,16 @@ export function CompactComposer({
   const busy = sending || preparing
   const submitDisabled = canSubmit !== undefined ? !canSubmit : (disabled || !value.trim())
   const showAttachButton = showAttach && onAttachPress !== undefined
+  const [inputHeight, setInputHeight] = useState(COMPOSER_MIN_HEIGHT)
+
+  useEffect(() => {
+    if (!value) setInputHeight(COMPOSER_MIN_HEIGHT)
+  }, [value])
+
+  function handleContentSizeChange(event: NativeSyntheticEvent<TextInputContentSizeChangeEventData>) {
+    const next = clampComposerHeight(event.nativeEvent.contentSize.height)
+    setInputHeight((current) => (current === next ? current : next))
+  }
 
   return (
     <View style={styles.column}>
@@ -58,7 +69,7 @@ export function CompactComposer({
             disabled={attachDisabled || busy}
             loading={attachLoading}
             onPress={onAttachPress}
-            style={styles.attach}
+            style={styles.iconButton}
           />
         ) : null}
         <TextField
@@ -67,19 +78,23 @@ export function CompactComposer({
           aria-disabled={sending || undefined}
           value={value}
           onChangeText={onChange}
+          onContentSizeChange={handleContentSizeChange}
           placeholder={placeholder}
           multiline
+          numberOfLines={1}
           maxLength={maxLength}
           editable={!sending}
-          style={styles.input}
+          scrollEnabled={inputHeight >= COMPOSER_MAX_HEIGHT}
+          style={[styles.input, { height: inputHeight }]}
         />
-        <ActionButton
+        <IconButton
           label={preparing ? 'Preparing' : 'Send'}
-          onPress={onSubmit}
+          icon="send"
+          tone="social"
           disabled={submitDisabled || busy}
           loading={sending || preparing}
-          compact
-          style={styles.send}
+          onPress={onSubmit}
+          style={styles.iconButton}
         />
       </View>
       {hint ? <AppText variant="caption" color={theme.colors.textMuted}>{hint}</AppText> : null}
@@ -99,15 +114,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: density.cardGap,
   },
-  attach: {
-    width: density.compactControlHeight,
-    height: density.compactControlHeight,
+  iconButton: {
+    width: 44,
+    height: 44,
   },
   input: {
     flex: 1,
-    maxHeight: 112,
-  },
-  send: {
-    minHeight: density.compactControlHeight,
+    minHeight: COMPOSER_MIN_HEIGHT,
+    maxHeight: COMPOSER_MAX_HEIGHT,
   },
 })

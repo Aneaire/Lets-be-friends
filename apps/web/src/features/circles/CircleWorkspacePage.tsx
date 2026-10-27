@@ -1,4 +1,4 @@
-import { pollValidationError } from '@lets-be-friends/shared'
+import { circleNotificationTab, pollValidationError } from '@lets-be-friends/shared'
 import { Link } from '@tanstack/react-router'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import type { FunctionReturnType } from 'convex/server'
@@ -38,7 +38,7 @@ function formatTime(timestamp: number) {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(timestamp)
 }
 
-export function CircleWorkspacePage({ circleId, postId, commentId }: { circleId: string; postId?: string; commentId?: string }) {
+export function CircleWorkspacePage({ circleId, postId, commentId, section }: { circleId: string; postId?: string; commentId?: string; section?: string }) {
   const id = circleId as Id<'circles'>
   const detail = useQuery(api.circles.detail, { circleId: id })
   const [tab, setTab] = useState<CircleTab>('discussions')
@@ -54,6 +54,12 @@ export function CircleWorkspacePage({ circleId, postId, commentId }: { circleId:
   const setMuted = useMutation(api.circles.setMuted)
   const report = useMutation(api.reports.create)
   const acceptHostTransfer = useMutation(api.circles.acceptHostTransfer)
+
+  const canModerate = detail && !detail.unavailable ? detail.canModerate : undefined
+  useEffect(() => {
+    if (canModerate === undefined) return
+    setTab(circleNotificationTab(section, canModerate))
+  }, [circleId, section, postId, commentId, canModerate])
 
   async function run(action: string, callback: () => Promise<unknown>, success: string) {
     setBusy(action)

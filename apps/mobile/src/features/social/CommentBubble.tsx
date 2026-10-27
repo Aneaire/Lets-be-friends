@@ -18,6 +18,7 @@ export function CommentBubble({
   replyContext,
   threadPosition = 'standalone',
   isLastReply = false,
+  highlighted = false,
 }: {
   author: string
   imageUrl?: string | null
@@ -29,6 +30,7 @@ export function CommentBubble({
   replyContext?: ReactNode
   threadPosition?: CommentThreadPosition
   isLastReply?: boolean
+  highlighted?: boolean
 }) {
   const theme = useAppTheme()
   const connected = threadPosition !== 'standalone'
@@ -37,7 +39,12 @@ export function CommentBubble({
 
   return (
     <View
-      style={[styles.comment, threadPosition === 'reply' && styles.reply, { borderBottomColor: showDivider ? theme.colors.border : 'transparent' }]}
+      style={[
+        styles.comment,
+        threadPosition === 'reply' && styles.reply,
+        { borderBottomColor: showDivider ? theme.colors.border : 'transparent' },
+        highlighted && [styles.highlighted, { borderColor: theme.colors.socialText, backgroundColor: theme.colors.socialSoft }],
+      ]}
     >
       <View style={styles.avatarSlot}>
         {threadPosition === 'reply' ? <View style={[styles.replyElbow, { borderColor: theme.colors.border }]} /> : null}
@@ -70,6 +77,11 @@ const styles = StyleSheet.create({
     paddingTop: 7,
     paddingBottom: 7,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  highlighted: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 8,
   },
   reply: {
     marginLeft: 28,

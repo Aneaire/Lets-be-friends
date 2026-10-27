@@ -2,6 +2,7 @@ import type { FunctionReturnType } from 'convex/server'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { BlurTargetView } from 'expo-blur'
 import { router, useLocalSearchParams } from 'expo-router'
+import { circleNotificationTab } from '@lets-be-friends/shared'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Image, Pressable, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import { api as generatedApi } from '../../../../web/convex/_generated/api'
@@ -26,6 +27,7 @@ import { CircleComposer } from './CircleComposer'
 import { CircleEventsSection } from './CircleEventsSection'
 import { CircleFeedFooter } from './CircleFeedFooter'
 import { CircleImageManage } from './CircleImageManage'
+import { CircleMarker } from './CircleMarker'
 import { CirclePendingQueue } from './CirclePendingQueue'
 import { CirclePinnedPostsSection } from './CirclePinnedPostsSection'
 import { CirclePostCard } from './CirclePostCard'
@@ -43,13 +45,13 @@ const workspaceTabLabels: Record<CircleWorkspaceTab, string> = {
 }
 
 export function CircleWorkspaceScreen() {
-  const params = useLocalSearchParams<{ id: string; postId?: string; commentId?: string }>()
+  const params = useLocalSearchParams<{ id: string; postId?: string; commentId?: string; section?: string }>()
   const circleId = params.id as CircleId
   const detail = useQuery(mobileApi.circles.detail, { circleId })
   if (detail === undefined) return <CircleState loading title="Loading Circle" />
   if (detail.unavailable) return <CircleState title="Circle unavailable" detail="This Circle is not open to members right now." />
   const access = circleAccessPresentation({ unavailable: false, membershipState: detail.membershipState, circleState: detail.circleState, canWrite: detail.canWrite })
-  return access === 'preview' ? <CirclePreview detail={detail} circleId={circleId} /> : <MemberCircle detail={detail} circleId={circleId} initialPostId={params.postId} focusCommentId={params.commentId} />
+  return access === 'preview' ? <CirclePreview detail={detail} circleId={circleId} /> : <MemberCircle detail={detail} circleId={circleId} initialPostId={params.postId} focusCommentId={params.commentId} section={params.section} />
 }
 
 function CirclePreview({ detail, circleId }: { detail: CircleDetail; circleId: CircleId }) {
@@ -77,7 +79,7 @@ function CirclePreview({ detail, circleId }: { detail: CircleDetail; circleId: C
   return <Screen contentStyle={styles.screen} onScroll={handleFeedScroll} scrollEventThrottle={160}>
     <AppHeader back title={detail.name} subtitle={`${detail.category} · ${detail.memberCount} members`} />
     {detail.coverUrl ? <Image source={{ uri: detail.coverUrl }} style={styles.cover} accessibilityLabel={`${detail.name} Circle cover`} /> : null}
-    <View style={styles.hero}>{detail.iconUrl ? <Image source={{ uri: detail.iconUrl }} style={styles.icon} accessibilityLabel={`${detail.name} Circle icon`} /> : null}<AppText variant="title">{detail.name}</AppText><AppText color={theme.colors.textMuted}>{detail.purpose}</AppText><AppText variant="caption" color={theme.colors.textMuted}>Hosted by {detail.host?.displayName ?? 'Circle host'}</AppText></View>
+    <View style={styles.hero}><CircleMarker iconUrl={detail.iconUrl} name={detail.name} joined={detail.membershipState === 'active'} size={56} /><AppText variant="title">{detail.name}</AppText><AppText color={theme.colors.textMuted}>{detail.purpose}</AppText><AppText variant="caption" color={theme.colors.textMuted}>Hosted by {detail.host?.displayName ?? 'Circle host'}</AppText></View>
     {error ? <InlineNotice title="Circle action failed" tone="danger">{error}</InlineNotice> : null}
     {circleMembershipMessage(detail.membershipState) ? <InlineNotice title="Membership status" tone={detail.membershipState === 'banned' ? 'danger' : 'neutral'}>{circleMembershipMessage(detail.membershipState)}</InlineNotice> : null}
     <View style={[styles.panel, { borderColor: theme.colors.border }]}><AppText variant="heading">Visibility</AppText><AppText color={theme.colors.textMuted}>{privacy.discoverability}</AppText><AppText color={theme.colors.textMuted}>{privacy.discussion}</AppText><AppText color={theme.colors.textMuted}>{privacy.memberList}</AppText><AppText color={theme.colors.textMuted}>{privacy.join}</AppText></View>
@@ -183,15 +185,18 @@ function useCircleFeedPagination({ circleId, status, resultLength, pageSize, loa
   return useCallback(() => requestPage(true), [requestPage])
 }
 
-function MemberCircle({ detail, circleId, initialPostId, focusCommentId }: { detail: CircleDetail; circleId: CircleId; initialPostId?: string; focusCommentId?: string }) {
+function MemberCircle({ detail, circleId, initialPostId, focusCommentId, section }: { detail: CircleDetail; circleId: CircleId; initialPostId?: string; focusCommentId?: string; section?: string }) {
   const theme = useAppTheme()
-  const [tab, setTab] = useState<CircleWorkspaceTab>('discussions')
+  const [tab, setTab] = useState<CircleWorkspaceTab>(() => circleNotificationTab(section, detail.canModerate))
   const setMuted = useMutation(mobileApi.circles.setMuted)
   const leave = useMutation(mobileApi.circles.leave)
   const acceptTransfer = useMutation(mobileApi.circles.acceptHostTransfer)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const tabs = circleWorkspaceTabs({ canModerate: detail.canModerate, isCanonicalHost: detail.isCanonicalHost })
+  useEffect(() => {
+    setTab(circleNotificationTab(section, detail.canModerate))
+  }, [circleId, section, initialPostId, focusCommentId, detail.canModerate])
   const options = tabs.map((value) => ({ value, label: workspaceTabLabels[value] }))
 
   async function run(action: () => Promise<unknown>) { setBusy(true); setError(''); try { await action() } catch (cause) { setError(circleActionError(cause, 'The Circle action could not be completed.')) } finally { setBusy(false) } }
@@ -206,7 +211,7 @@ function MemberCircle({ detail, circleId, initialPostId, focusCommentId }: { det
   return <Screen contentStyle={styles.screen} onScroll={handleFeedScroll} scrollEventThrottle={160}>
     <AppHeader back title={detail.name} subtitle={`${detail.category} · ${detail.memberCount} members`} />
     {detail.coverUrl ? <Image source={{ uri: detail.coverUrl }} style={styles.cover} accessibilityLabel={`${detail.name} Circle cover`} /> : null}
-    <View style={styles.hero}>{detail.iconUrl ? <Image source={{ uri: detail.iconUrl }} style={styles.icon} accessibilityLabel={`${detail.name} Circle icon`} /> : null}<AppText color={theme.colors.textMuted}>{detail.purpose}</AppText><View style={styles.row}>{detail.circleState === 'archived' ? <AppText variant="caption" color={theme.colors.warning}>Archived, read-only</AppText> : null}{detail.role !== 'member' ? <AppText variant="caption" color={theme.colors.socialText}>{detail.role}</AppText> : null}{detail.joinPolicy === 'open' ? <AppText variant="caption" color={theme.colors.socialText}>Open join</AppText> : null}</View></View>
+    <View style={styles.hero}><CircleMarker iconUrl={detail.iconUrl} name={detail.name} joined={detail.membershipState === 'active'} size={56} /><AppText color={theme.colors.textMuted}>{detail.purpose}</AppText><View style={styles.row}>{detail.circleState === 'archived' ? <AppText variant="caption" color={theme.colors.warning}>Archived, read-only</AppText> : null}{detail.role !== 'member' ? <AppText variant="caption" color={theme.colors.socialText}>{detail.role}</AppText> : null}{detail.joinPolicy === 'open' ? <AppText variant="caption" color={theme.colors.socialText}>Open join</AppText> : null}</View></View>
     {error ? <InlineNotice title="Circle action failed" tone="danger">{error}</InlineNotice> : null}
     {detail.pendingTransferForViewer ? <InlineNotice title="Host invitation" tone="neutral">You have been invited to host this Circle.<ActionButton label="Accept ownership" intent="neutral" compact onPress={() => Alert.alert('Accept Circle ownership?', 'You will become responsible for membership, rules, and moderation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Accept ownership', onPress: () => void run(() => acceptTransfer({ circleId })) }])} /></InlineNotice> : null}
     <View style={styles.row}><ActionButton compact label={detail.muted ? 'Unmute' : 'Mute'} intent="neutral" secondary loading={busy} onPress={() => void run(() => setMuted({ circleId, muted: !detail.muted }))} />{!detail.isCanonicalHost ? <ActionButton compact label="Leave Circle" intent="danger" secondary disabled={busy} onPress={() => Alert.alert('Leave this Circle?', 'You will lose access to discussions and the member list.', [{ text: 'Stay', style: 'cancel' }, { text: 'Leave Circle', style: 'destructive', onPress: () => void run(() => leave({ circleId })) }])} /> : null}</View>
@@ -348,5 +353,4 @@ function CircleState({ title, detail, loading = false }: { title: string; detail
 const styles = StyleSheet.create({
   screen: { gap: 14 }, center: { flexGrow: 1, justifyContent: 'center' }, hero: { gap: 5 }, section: { gap: 12 }, panel: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, padding: 14, gap: 10 }, list: { gap: 8 }, row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }, flex: { flex: 1, minWidth: 0 }, field: { gap: 5 }, comments: { borderWidth: StyleSheet.hairlineWidth, padding: 12, gap: 10 }, comment: { gap: 3 }, member: { minHeight: 52, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 8, gap: 8 }, sectionTitle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   cover: { width: '100%', aspectRatio: 4, borderRadius: 16 },
-  icon: { width: 56, height: 56, borderRadius: 28 },
 })

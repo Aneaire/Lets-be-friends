@@ -32,6 +32,13 @@ crons.interval(
 )
 
 crons.interval(
+  'send confirmed booking reminders',
+  { minutes: 5 },
+  internal.bookings.sendDueBookingReminders,
+  {},
+)
+
+crons.interval(
   'reconcile Expo push deliveries',
   { minutes: 15 },
   internal.pushNotifications.reconcile,

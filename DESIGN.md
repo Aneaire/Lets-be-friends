@@ -36,6 +36,26 @@ The logo provides the only non-neutral brand colors.
 - Do not use gradients as a default surface or hero treatment.
 - Do not use blue/pink because the UI "needs color"; use them only when the action intent matches.
 
+## Typography
+
+Mobile uses one role scale from `apps/mobile/src/theme/tokens.ts`. Do not add screen-specific font sizes.
+
+| Role | Size / line | Weight | Use |
+|---|---|---|---|
+| `display` | 32 / 38 | 800 | Onboarding and first-run hero only |
+| `title` | 24 / 29 | 800 | Tab roots and top-level screen titles |
+| `heading` | 18 / 24 | 700 | Cards, sections, and modal titles |
+| `body` | 15 / 22 | 400 | Feed posts, messages, bios, and descriptions |
+| `bodyStrong` | 15 / 22 | 700 | Names, row titles, and buttons |
+| `caption` | 13 / 18 | 400 | Timestamps, handles, counts, and secondary detail |
+| `label` | 12 / 16 | 700, 0.6 tracking | Short uppercase eyebrows |
+
+- Keep read information at 13 or above. Use `label` only for short uppercase eyebrows.
+- Keep touch targets at 44 by 44 even when the text or icon is smaller.
+- Keep Dynamic Type enabled and test at 2x font scaling.
+- Recheck long names, booking cards, and the composer at 320px in light and dark mode.
+- Web keeps its 16px base and existing rem-based CSS classes.
+
 ## Components
 
 Use semantic classes from `apps/web/src/styles.css` instead of hard-coded Tailwind colors:

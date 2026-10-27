@@ -4,9 +4,13 @@ const mockUseQuery = jest.fn()
 const mockPush = jest.fn()
 const mockReplace = jest.fn()
 const mockRetry = jest.fn()
+const mockRetryConnection = jest.fn()
 
 jest.mock('@/auth/MobileAuth', () => ({ useMobileAuth: () => mockUseMobileAuth() }))
 jest.mock('@/member/MobileMember', () => ({ useMobileMember: () => mockUseMobileMember() }))
+jest.mock('@/backend/convexTokenDiagnostics', () => ({
+  useConvexConnectionRecovery: () => ({ retryConnection: mockRetryConnection, retryVersion: 0 }),
+}))
 jest.mock('convex/react', () => ({ useQuery: (...args: unknown[]) => mockUseQuery(...args) }))
 jest.mock('@/backend/client', () => ({
   mobileApi: {
@@ -42,6 +46,7 @@ describe('mobile profile screen', () => {
     mockPush.mockReset()
     mockReplace.mockReset()
     mockRetry.mockReset()
+    mockRetryConnection.mockReset()
   })
 
   it('sends signed-out members to sign in instead of loading the profile', () => {
@@ -75,6 +80,37 @@ describe('mobile profile screen', () => {
     expect(element.type).toBe(ReadyProfile)
     expect(element.props.viewer).toBe(viewer)
     expect(element.props.verification).toBe(verification)
+  })
+
+  it('offers connection recovery without signing the member out', () => {
+    const signOut = jest.fn()
+    mockUseMobileAuth.mockReturnValue({ status: 'signed_in', clerkUserId: 'user-a', signOut })
+    mockUseMobileMember.mockReturnValue({ status: 'error', message: 'Reference: AUTH-TOKEN-UNKNOWN', canRetryConnection: true })
+
+    const unavailable = ProfileScreen() as any
+
+    expect(unavailable.props.message).toBe('Reference: AUTH-TOKEN-UNKNOWN')
+    unavailable.props.onRetry()
+    expect(mockRetryConnection).toHaveBeenCalledTimes(1)
+    expect(signOut).not.toHaveBeenCalled()
+  })
+
+  it('recovers a broken session through a fresh sign-in instead of a connection retry', () => {
+    const signOut = jest.fn()
+    mockUseMobileAuth.mockReturnValue({ status: 'signed_in', clerkUserId: 'user-a', signOut })
+    mockUseMobileMember.mockReturnValue({
+      status: 'error',
+      message: 'Your sign-in session could not be refreshed. Sign out and sign in again to reconnect your member profile. Reference: AUTH-SESSION',
+      canRetryConnection: true,
+      connectionReference: 'AUTH-SESSION',
+    })
+
+    const unavailable = ProfileScreen() as any
+
+    expect(unavailable.props.signInAgain).toBe(true)
+    expect(unavailable.props.onRetry).toBeUndefined()
+    expect(unavailable.props.signOut).toBe(signOut)
+    expect(mockRetryConnection).not.toHaveBeenCalled()
   })
 
   it('recovers from the error boundary without claiming profile changes', () => {

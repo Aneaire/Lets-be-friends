@@ -17,6 +17,9 @@ function deps(overrides: Partial<FinalizeDeps> = {}): FinalizeDeps & { calls: st
     alreadyAccepted: false,
     policyOnly: false,
     goal: 'companion',
+    firstName: 'Maya',
+    lastName: 'Friend',
+    bio: 'Member bio.',
     categories: ['Coffee and meals'],
     applicationForm: {
       ...defaultOnboardingCompanionForm({ bio: 'Something personal about hobbies, family, and work.', categories: [] }),
@@ -24,8 +27,6 @@ function deps(overrides: Partial<FinalizeDeps> = {}): FinalizeDeps & { calls: st
       city: 'Cebu City',
     },
     hasApplication: false,
-    displayName: 'Maya Friend',
-    viewerBio: 'Member bio.',
     claimUsername: async () => { calls.push('claimUsername') },
     saveOnboardingLocationAndConsent: async () => { calls.push('save') },
     updateProfile: async () => { calls.push('updateProfile') },
@@ -77,12 +78,22 @@ describe('mobile onboarding finalization', () => {
     expect(legacy.calls).toEqual([])
   })
 
-  it('completes a member with both acceptances saved before completion', async () => {
-    const d = deps({ goal: 'member', categories: [] })
+  it('completes a member with the confirmed name, bio, and acceptance saved before completion', async () => {
+    const profiles: unknown[] = []
+    const d = deps({
+      goal: 'member',
+      categories: [],
+      updateProfile: async (payload) => { profiles.push(payload); d.calls.push('updateProfile') },
+    })
     const result = await finalizeOnboarding('complete', d)
     expect(result).toEqual({ submittedApplication: false })
-    expect(d.calls).toEqual(['claimUsername', 'save', 'completeOnboarding'])
-    expect(d.calls).not.toContain('submitApplication')
+    expect(d.calls).toEqual(['claimUsername', 'save', 'updateProfile', 'completeOnboarding'])
+    expect(profiles[0]).toEqual({
+      displayName: 'Maya Friend',
+      firstName: 'Maya',
+      lastName: 'Friend',
+      bio: 'Member bio.',
+    })
   })
 
   it('requires both boxes unless the current acceptance is already remembered', async () => {
@@ -96,13 +107,57 @@ describe('mobile onboarding finalization', () => {
     await expect(finalizeOnboarding('complete', deps({ goal: 'member', categories: [], termsAccepted: false, privacyAccepted: false, alreadyAccepted: true }))).resolves.toEqual({ submittedApplication: false })
   })
 
-  it('lets an existing Companion reaccept policy-only without categories or profile writes', async () => {
-    const d = deps({ categories: [], hasApplication: true })
+  it('saves Companion names without a member bio and keeps categories separate from the profile name save', async () => {
+    const profiles: unknown[] = []
+    const d = deps({
+      updateProfile: async (payload) => { profiles.push(payload); d.calls.push('updateProfile') },
+    })
+    const result = await finalizeOnboarding('submit-profile', d)
+    expect(result).toEqual({ submittedApplication: true })
+    expect(d.calls).toEqual(['claimUsername', 'save', 'updateProfile', 'submitApplication', 'completeOnboarding'])
+    expect(profiles[0]).toEqual({
+      displayName: 'Maya Friend',
+      firstName: 'Maya',
+      lastName: 'Friend',
+      onboardingCategories: ['Coffee and meals'],
+    })
+  })
+
+  it('requires the confirmed name and a member bio before any persistence', async () => {
+    const missingBio = deps({ goal: 'member', categories: [], bio: '   ' })
+    await expect(finalizeOnboarding('complete', missingBio)).rejects.toMatchObject({
+      code: 'profile',
+      message: 'Add a short bio about the skills, talents, or everyday help you can share.',
+    })
+    expect(missingBio.calls).toEqual([])
+    const missingLastName = deps({ goal: 'member', categories: [], lastName: '  ' })
+    await expect(finalizeOnboarding('complete', missingLastName)).rejects.toMatchObject({
+      code: 'profile',
+      message: 'Enter your first and last name.',
+    })
+    expect(missingLastName.calls).toEqual([])
+  })
+
+  it('skips name validation and profile writes entirely for policy-only reacceptance', async () => {
+    const d = deps({ categories: [], hasApplication: true, policyOnly: true, firstName: '', lastName: '', bio: '' })
     const result = await finalizeOnboarding('complete', d)
     expect(result).toEqual({ submittedApplication: false })
     expect(d.calls).toEqual(['claimUsername', 'save', 'completeOnboarding'])
     expect(d.calls).not.toContain('updateProfile')
+  })
+
+  it('lets an existing Companion finish the guide with names saved but no application resubmission', async () => {
+    const profiles: unknown[] = []
+    const d = deps({
+      hasApplication: true,
+      categories: [],
+      updateProfile: async (payload) => { profiles.push(payload); d.calls.push('updateProfile') },
+    })
+    const result = await finalizeOnboarding('complete', d)
+    expect(result).toEqual({ submittedApplication: false })
+    expect(d.calls).toEqual(['claimUsername', 'save', 'updateProfile', 'completeOnboarding'])
     expect(d.calls).not.toContain('submitApplication')
+    expect(profiles[0]).toMatchObject({ firstName: 'Maya', lastName: 'Friend' })
   })
 
   it('treats completed accounts as policy-only even without a profile or categories', async () => {
@@ -115,7 +170,7 @@ describe('mobile onboarding finalization', () => {
   it('skips claiming when the username is already set', async () => {
     const d = deps({ goal: 'member', categories: [], viewerUsername: 'maya_friend' })
     await finalizeOnboarding('complete', d)
-    expect(d.calls).toEqual(['save', 'completeOnboarding'])
+    expect(d.calls).toEqual(['save', 'updateProfile', 'completeOnboarding'])
   })
 
   it('exposes FinalizeError codes for username, location, and categories', async () => {

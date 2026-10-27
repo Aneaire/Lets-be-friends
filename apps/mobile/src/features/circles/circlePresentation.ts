@@ -239,6 +239,7 @@ export type CirclePreviewCardView = {
   memberCount: number
   mode: 'online' | 'in_person' | 'both'
   approximateArea?: string
+  iconUrl?: string
   hostDisplayName?: string | null
   joinPolicy?: 'approval_required' | 'open' | null
   circleState?: string | null

@@ -22,6 +22,7 @@
     "validate:ui:checks": "node scripts/validate-ui.mjs --checks-only",
     "dev:all": "pnpm --parallel --filter @lets-be-friends/web --filter @lets-be-friends/admin dev",
     "build": "pnpm --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile build",
+    "build:apk": "node scripts/mobile/build-local-apk.mjs",
     "test": "node scripts/run-with-node-options.mjs pnpm --filter @lets-be-friends/shared --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile test",
     "typecheck": "pnpm --filter @lets-be-friends/shared --filter @lets-be-friends/web --filter @lets-be-friends/admin --filter @lets-be-friends/mobile typecheck",
     "convex:dev": "pnpm --filter @lets-be-friends/web convex:dev",

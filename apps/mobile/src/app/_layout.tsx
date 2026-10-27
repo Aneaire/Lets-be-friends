@@ -80,6 +80,7 @@ function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
           <Stack.Screen name="transactions" />
           <Stack.Screen name="safety" />
           <Stack.Screen name="verified" />
+          <Stack.Screen name="get-verified" />
         </Stack.Protected>
       </Stack>
     </>

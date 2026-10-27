@@ -9,7 +9,7 @@ import {
 
 describe('notification catalog', () => {
   it('tracks every notification kind with complete active configuration', () => {
-    expect(notificationKinds).toHaveLength(37)
+    expect(notificationKinds).toHaveLength(43)
     expect(new Set(notificationKinds).size).toBe(notificationKinds.length)
     expect(notificationKinds.slice().sort()).toEqual(Object.keys(notificationCatalog).sort())
 
@@ -21,19 +21,19 @@ describe('notification catalog', () => {
       expect(definition.recipient.trim()).not.toBe('')
       expect(definition.allowedPriorities.length).toBeGreaterThan(0)
       expect(definition.dedupe.trim()).not.toBe('')
-      expect(definition.destination).toMatch(/^(booking|conversation|post|circle|profile|companion|identity|safety)$/)
+      expect(definition.destination).toMatch(/^(booking|conversation|post|circle|review|profile|companion|identity|safety)$/)
       expect(definition.privacy).toMatch(/^(generic|actor_action|message_preview|comment_preview)$/)
       const policyPrivacy = definition.push.mode === 'generic'
         ? 'generic'
         : definition.push.mode === 'message_preview'
           ? 'message_preview'
-          : definition.push.mode === 'actor_action'
+          : definition.push.mode === 'actor_action' || definition.push.mode === 'booking_reminder'
             ? 'actor_action'
             : 'comment_preview'
       expect(definition.privacy).toBe(policyPrivacy)
 
-      const inApp = buildInAppNotificationCopy(kind, { actorName: 'Alex', targetAvailable: true, category: 'Coffee', isComment: false })
-      const push = buildNativePushPresentation(kind, { actorName: 'Alex', messageBody: 'Hello', commentBody: 'Nice post' })
+      const inApp = buildInAppNotificationCopy(kind, { actorName: 'Alex', targetAvailable: true, category: 'Coffee', isComment: false, reminderWindow: '1_hour' })
+      const push = buildNativePushPresentation(kind, { actorName: 'Alex', messageBody: 'Hello', commentBody: 'Nice post', category: 'Coffee', reminderWindow: '1_hour' })
       expect(inApp.title.trim()).not.toBe('')
       expect(inApp.body.trim()).not.toBe('')
       expect(push.title.trim()).not.toBe('')
@@ -50,5 +50,27 @@ describe('notification catalog', () => {
       .toEqual({ title: 'Sam', body: 'Commented: Nice photo' })
     expect(buildNativePushPresentation('booking_accepted', { actorName: 'Sam' }))
       .toEqual({ title: "Let's Be Friends", body: 'You have a booking update.' })
+  })
+
+  it('makes confirmed booking reminders specific to the window and category', () => {
+    expect(buildInAppNotificationCopy('booking_reminder', {
+      actorName: 'Sam',
+      targetAvailable: true,
+      category: 'Coffee and meals',
+      isComment: false,
+      reminderWindow: '5_hours',
+    })).toEqual({
+      title: 'Session in 5 hours',
+      body: 'Your Coffee and meals session with Sam starts in 5 hours.',
+      tone: 'social',
+    })
+    expect(buildNativePushPresentation('booking_reminder', {
+      actorName: 'Sam',
+      category: 'Coffee and meals',
+      reminderWindow: '1_hour',
+    })).toEqual({
+      title: 'Session in 1 hour',
+      body: 'Your Coffee and meals session with Sam starts in 1 hour.',
+    })
   })
 })

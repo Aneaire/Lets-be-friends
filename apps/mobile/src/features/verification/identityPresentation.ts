@@ -1,0 +1,172 @@
+import { identityRejectionReasonGuidance } from '@lets-be-friends/shared'
+
+export type MemberVerificationStatus = 'not_started' | 'pending' | 'approved' | 'rejected'
+export type PersonaStatus = 'not_started' | 'created' | 'in_progress' | 'processing' | 'completed' | 'failed' | 'expired' | 'pending' | 'approved' | 'rejected'
+export type PersonaDecision = 'unknown' | 'passed' | 'needs_review' | 'declined'
+export type AdminVerificationStatus = 'not_ready' | 'pending' | 'approved' | 'rejected' | 'not_started'
+
+// Optional fields mirror users.latestMemberVerification, including legacy rows.
+export type LatestIdentityVerification = {
+  _id?: string
+  reason?: string | null
+  personaInquiryId?: string | null
+  isCurrent?: boolean | null
+  attempt?: number | null
+  providerCompletedAt?: number | null
+  adminQueuedAt?: number | null
+  reviewedAt?: number | null
+  providerFailureCode?: string | null
+  createdAt?: number
+  updatedAt?: number
+  personaStatus?: string | null
+  personaDecision?: string | null
+  adminStatus?: string | null
+  verificationSource?: string | null
+  identityStage?: string | null
+  memberReason?: string | null
+} | null
+
+export type MemberVerificationPresentation = {
+  state: 'not_started' | 'action_required' | 'provider_processing' | 'admin_pending' | 'approved' | 'provider_declined' | 'admin_rejected' | 'expired'
+  label: string
+  tone: 'self' | 'success' | 'warning' | 'danger'
+  guidance: string
+  action: 'start' | 'continue' | 'retry' | 'none'
+}
+
+export type CompanionGateVerification = {
+  adminStatus?: string | null
+  verificationSource?: string | null
+  identityStage?: string | null
+  isCurrent?: boolean | null
+  reason?: string | null
+} | null | undefined
+
+// A Companion profile may be opened, submitted, or resubmitted only when the
+// member has a current approved identity or the current identity attempt is
+// ready for admin review. This mirrors isIdentityReadyForAdminReview in
+// apps/web/convex/identityVerification.ts: only adminStatus pending with a
+// current in_app attempt in ready_for_review counts. Incomplete, processing,
+// expired, rejected, and dormant Persona attempts stay locked.
+export function canOpenCompanionProfile(identityEligible: boolean, latest?: CompanionGateVerification) {
+  if (identityEligible) return true
+  if (!latest) return false
+  if (latest.adminStatus !== 'pending') return false
+  if (latest.isCurrent !== true) return false
+  if (latest.reason === 'booking') return false
+  if (latest.verificationSource === 'in_app') return latest.identityStage === 'ready_for_review'
+  return false
+}
+
+// Companion profiles save live and are always editable from the public
+// editor once the member is identity-eligible. Identity verification is the
+// only review step.
+export function identityEntitlementStatus(status: MemberVerificationStatus, identityEligible: boolean) {
+  if (identityEligible) return 'approved' as const
+  return status === 'approved' ? 'not_started' as const : status
+}
+
+export function memberVerificationPresentation(
+  status: MemberVerificationStatus,
+  latestRequest?: LatestIdentityVerification,
+): MemberVerificationPresentation {
+  if (status === 'approved') {
+    return {
+      state: 'approved',
+      label: 'Identity approved',
+      tone: 'success',
+      guidance: 'Your identity check and safety review are approved. You can request bookings with Companions.',
+      action: 'none',
+    }
+  }
+
+  if (latestRequest?.adminStatus === 'approved') {
+    return {
+      state: 'expired',
+      label: 'Verification renewal needed',
+      tone: 'warning',
+      guidance: 'Your previous identity approval is no longer current. Complete a new identity check and safety review before booking or offering Companion experiences again.',
+      action: 'retry',
+    }
+  }
+
+  if (latestRequest?.adminStatus === 'rejected' || status === 'rejected') {
+    return {
+      state: 'admin_rejected',
+      label: 'Not approved',
+      tone: 'danger',
+      // The reviewer's internal note stays private. When they picked a reason the
+      // member is told exactly what to fix; otherwise fall back to the generic copy.
+      guidance: identityRejectionReasonGuidance(latestRequest?.memberReason),
+      action: 'retry',
+    }
+  }
+
+  if (latestRequest?.adminStatus === 'pending') {
+    if (latestRequest.personaDecision === 'declined') {
+      return {
+        state: 'provider_declined',
+        label: 'Review required',
+        tone: 'danger',
+        guidance: 'The identity provider could not verify this identity. The safety team will review the result before closing the attempt.',
+        action: 'none',
+      }
+    }
+    return {
+      state: 'admin_pending',
+      label: 'Safety review pending',
+      tone: 'warning',
+      guidance: 'Your identity submission is complete. Every identity is reviewed by the safety team before access is approved.',
+      action: 'none',
+    }
+  }
+
+  if (
+    latestRequest?.personaStatus === 'processing'
+    || (latestRequest?.personaStatus === 'completed' && latestRequest.adminStatus === 'not_ready')
+  ) {
+    return {
+      state: 'provider_processing',
+      label: 'Processing identity',
+      tone: 'warning',
+      guidance: 'Your government ID is being processed. Booking remains locked until processing finishes and a safety reviewer approves it.',
+      action: 'none',
+    }
+  }
+
+  if (latestRequest?.personaStatus === 'expired' || latestRequest?.personaStatus === 'failed') {
+    return {
+      state: 'expired',
+      label: 'New attempt needed',
+      tone: 'danger',
+      guidance: 'This identity attempt could not be completed. Start a new identity check to continue.',
+      action: 'retry',
+    }
+  }
+
+  if (latestRequest?.identityStage === 'draft' || latestRequest?.identityStage === 'extracting' || latestRequest?.identityStage === 'confirmation_required' || latestRequest?.personaStatus === 'created' || latestRequest?.personaStatus === 'in_progress' || status === 'pending') {
+    return {
+      state: 'action_required',
+      label: 'Identity check incomplete',
+      tone: 'self',
+      guidance: 'Continue the private identity flow to confirm your government ID details and take a current selfie for safety review.',
+      action: 'continue',
+    }
+  }
+
+  return {
+    state: 'not_started',
+    label: 'Identity not started',
+    tone: 'self',
+    guidance: 'Complete a private government ID check and current selfie capture. The safety team reviews every submission before booking access is approved.',
+    action: 'start',
+  }
+}
+
+export function mobileIdentityPresentation(viewerStatus: string, latest: LatestIdentityVerification | undefined, identityEligible: boolean) {
+  return memberVerificationPresentation(identityEligible ? 'approved' : viewerStatus === 'approved' ? 'not_started' : viewerStatus as MemberVerificationStatus, latest)
+}
+
+export function identityActionLabel(action: MemberVerificationPresentation['action']) {
+  return action === 'start' ? 'Verify identity' : action === 'continue' ? 'Continue identity check' : action === 'retry' ? 'Start a new identity check' : 'Check identity status'
+}

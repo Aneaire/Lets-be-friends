@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Star, User } from 'lucide-react'
-import { productMapInitialView, productMapStyleUrl, productMapZoomForRadius } from '@lets-be-friends/shared'
+import { productMapBoundsForRadius, productMapFocusZoom, productMapInitialView, productMapStyleUrl } from '@lets-be-friends/shared'
 import { clampCoordinates, type Coordinates } from '../../lib/geo'
 import { Map, MapMarker, MapRadius, useMap } from '../primitives/map.client'
 import type { MapPerson } from './ApproximateLocationMap'
@@ -13,6 +13,9 @@ const mapStyles: Record<ThemeChoice, string> = {
   light: productMapStyleUrl,
   dark: productMapStyleUrl,
 }
+
+// Keeps the search circle off the frame edge without shrinking it away from it.
+const mapBoundsPadding = 24
 
 const philippinesInitialView = {
   center: [...productMapInitialView.center] as [longitude: number, latitude: number],
@@ -91,11 +94,16 @@ export default function ApproximateLocationMapClient({
   const center: [number, number] = location
     ? [location.longitude, location.latitude]
     : philippinesInitialView.center
+  const radiusBounds = location && radiusKm
+    ? productMapBoundsForRadius(location, radiusKm)
+    : null
 
   return (
     <Map
       center={center}
-      zoom={location ? productMapZoomForRadius(radiusKm) : philippinesInitialView.zoom}
+      zoom={location ? productMapFocusZoom : philippinesInitialView.zoom}
+      bounds={radiusBounds}
+      boundsPadding={mapBoundsPadding}
       styleUrl={mapStyles[theme]}
       interactive={interactive}
       ariaLabel={pinnable

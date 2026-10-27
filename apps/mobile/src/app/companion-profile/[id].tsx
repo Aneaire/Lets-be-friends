@@ -2,8 +2,8 @@ import type { FunctionReturnType } from 'convex/server'
 import { useMutation, useQuery } from 'convex/react'
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import { BlurTargetView } from 'expo-blur'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Image, Pressable, Share, StyleSheet, View } from 'react-native'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { Alert, Image, Pressable, Share, StyleSheet, View, type ScrollView } from 'react-native'
 
 import { mobileApi, type CompanionProfileId, type ReviewCommentId, type ReviewId, type UserId } from '@/backend/client'
 import { useMobileBackendConfiguration } from '@/backend/MobileBackendProvider'
@@ -24,6 +24,7 @@ import { PageSkeleton, ProfileContentSkeleton } from '@/design-system/templates/
 import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { PostImageViewer, type PostViewerImage } from '@/features/social/PostImageViewer'
+import { ReviewCommentAnchor } from '@/features/companion/ReviewCommentAnchor'
 import { ReviewContent } from '@/features/social/ReviewContent'
 import { ShareSheet } from '@/features/social/ShareSheet'
 import { reviewShareUrl } from '@/features/social/shareLinks'
@@ -39,44 +40,47 @@ import { density } from '@/theme/tokens'
 type Review = FunctionReturnType<typeof mobileApi.reviews.forCompanion>[number]
 
 export default function CompanionProfileScreen() {
-  const params = useLocalSearchParams<{ id?: string; reviewId?: string }>()
+  const params = useLocalSearchParams<{ id?: string; reviewId?: string; commentId?: string }>()
   const configuration = useMobileBackendConfiguration()
   const id = typeof params.id === 'string' ? params.id : ''
   const reviewId = typeof params.reviewId === 'string' ? params.reviewId : undefined
+  const commentId = typeof params.commentId === 'string' ? params.commentId : undefined
 
   if (configuration.status !== 'configured') return <ProfileState title="Companion profiles need member services" detail="This build cannot connect to approved profiles." />
   if (!id) return <ProfileState title="Companion not found" detail="This profile link is incomplete." />
-  return <ConnectedCompanionProfile id={id} reviewId={reviewId} />
+  return <ConnectedCompanionProfile id={id} reviewId={reviewId} commentId={commentId} />
 }
 
-function ConnectedCompanionProfile({ id, reviewId }: { id: string; reviewId?: string }) {
+function ConnectedCompanionProfile({ id, reviewId, commentId }: { id: string; reviewId?: string; commentId?: string }) {
   const directory = useQuery(mobileApi.companions.listApproved, {})
   const record = directory?.find((item: ApprovedCompanionRecord) => String(item._id) === id)
   const result = useQuery(mobileApi.companions.getPublic, record ? { companionProfileId: id as CompanionProfileId } : 'skip')
 
   if (directory === undefined || (record && result === undefined)) return <PageSkeleton variant="publicProfile" />
   if (!record || result === null) return <ProfileState title="Companion not found" detail="This approved profile is no longer available." action="Return to Explore" onPress={() => router.replace('/nearby')} />
-  return <CompanionDetail companion={mapPublicCompanion(result as ApprovedCompanionRecord)} reviewId={reviewId} />
+  return <CompanionDetail companion={mapPublicCompanion(result as ApprovedCompanionRecord)} reviewId={reviewId} commentId={commentId} />
 }
 
-function CompanionDetail({ companion, reviewId }: { companion: CompanionDetailViewModel; reviewId?: string }) {
+function CompanionDetail({ companion, reviewId, commentId }: { companion: CompanionDetailViewModel; reviewId?: string; commentId?: string }) {
   const theme = useAppTheme()
   const member = useMobileMember()
   const startConversation = useMutation(mobileApi.conversations.start)
   const toggleSave = useMutation(mobileApi.companions.toggleSaveProfile)
   const toggleFollow = useMutation(mobileApi.social.toggleFollow)
   const reviews = useQuery(mobileApi.reviews.forCompanion, { companionProfileId: companion.id as CompanionProfileId })
-  const requestedReview = useQuery(mobileApi.reviews.requested, reviewId ? { reviewId: reviewId as ReviewId } : 'skip')
+  const requestedReview = useQuery(mobileApi.reviews.requested, reviewId ? { reviewId: reviewId as ReviewId, commentId: commentId as ReviewCommentId | undefined } : 'skip')
   const displayedReviews = useMemo(() => {
     if (!reviews) return reviews
-    if (!requestedReview || reviews.some((review) => String(review._id) === String(requestedReview._id))) return reviews
-    return [requestedReview, ...reviews]
-  }, [reviews, requestedReview])
+    if (!requestedReview || String(requestedReview.companionProfileId) !== companion.id) return reviews
+    return [requestedReview, ...reviews.filter((review) => review._id !== requestedReview._id)]
+  }, [reviews, requestedReview, companion.id])
   const posts = useQuery(mobileApi.social.byUser, companion.userId ? { userId: companion.userId as UserId } : 'skip')
   const bookingAction = resolveCompanionBookingAction(companion)
   const [saved, setSaved] = useState(Boolean(companion.saved))
   const [following, setFollowing] = useState(Boolean(companion.following))
+  const scrollRef = useRef<ScrollView>(null)
   const [contentTab, setContentTab] = useState<CompanionContentTab>(reviewId ? 'reviews' : defaultCompanionContentTab())
+  useEffect(() => { if (reviewId) setContentTab('reviews') }, [reviewId, commentId])
   const [busy, setBusy] = useState<'message' | 'save' | 'follow' | null>(null)
   const [message, setMessage] = useState('')
   const blurTarget = useRef<View>(null)
@@ -143,7 +147,7 @@ function CompanionDetail({ companion, reviewId }: { companion: CompanionDetailVi
   return (
     <View style={styles.route}>
       <BlurTargetView ref={blurTarget} importantForAccessibility={viewerImage ? 'no-hide-descendants' : 'auto'} style={styles.blurTarget}>
-        <Screen contentStyle={styles.content} footer={!ownProfile ? <View style={styles.stickyActions}><ActionButton label={busy === 'message' ? 'Opening' : 'Message'} onPress={() => void messageCompanion()} disabled={!signedIn || !companion.userId || busy !== null} intent="social" secondary icon="chatbubble-outline" style={styles.flexAction} /><ActionButton label={bookingAction.kind === 'book' ? 'Book' : bookingAction.label} onPress={bookingPress} disabled={bookingAction.kind === 'own_profile' || bookingAction.kind === 'unavailable'} intent="social" icon="calendar-outline" style={styles.flexAction} /></View> : undefined}>
+        <Screen scrollRef={scrollRef} contentStyle={styles.content} footer={!ownProfile ? <View style={styles.stickyActions}><ActionButton label={busy === 'message' ? 'Opening' : 'Message'} onPress={() => void messageCompanion()} disabled={!signedIn || !companion.userId || busy !== null} intent="social" secondary icon="chatbubble-outline" style={styles.flexAction} /><ActionButton label={bookingAction.kind === 'book' ? 'Book' : bookingAction.label} onPress={bookingPress} disabled={bookingAction.kind === 'own_profile' || bookingAction.kind === 'unavailable'} intent="social" icon="calendar-outline" style={styles.flexAction} /></View> : undefined}>
       <AppHeader title="Companion profile" back onBack={goBackOrExplore} />
       <View style={styles.identity}>
         <Avatar uri={companion.imageUrl} name={companion.name} size={88} />
@@ -206,7 +210,7 @@ function CompanionDetail({ companion, reviewId }: { companion: CompanionDetailVi
             </View>
             {contentHeader.ratingSummary ? <AppText variant="bodyStrong" color={theme.colors.socialText} style={styles.ratingSummary}>{contentHeader.ratingSummary}</AppText> : null}
           </View>
-          {displayedReviews === undefined ? <ProfileContentSkeleton /> : displayedReviews.length ? <ReviewList reviews={displayedReviews} signedIn={signedIn} companionProfileId={companion.id} focusedReviewId={reviewId} onOpenImage={setViewerImage} /> : <AppText color={theme.colors.textMuted}>No public reviews yet.</AppText>}
+          {displayedReviews === undefined ? <ProfileContentSkeleton /> : displayedReviews.length ? <ReviewList reviews={displayedReviews} signedIn={signedIn} companionProfileId={companion.id} focusedReviewId={reviewId} focusedCommentId={commentId} scrollRef={scrollRef} onOpenImage={setViewerImage} /> : <AppText color={theme.colors.textMuted}>No public reviews yet.</AppText>}
         </View>
       )}
 
@@ -222,7 +226,7 @@ function CompanionDetail({ companion, reviewId }: { companion: CompanionDetailVi
   )
 }
 
-function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, onOpenImage }: { reviews: Review[]; signedIn: boolean; companionProfileId: string; focusedReviewId?: string; onOpenImage: (image: PostViewerImage) => void }) {
+function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, focusedCommentId, scrollRef, onOpenImage }: { reviews: Review[]; signedIn: boolean; companionProfileId: string; focusedReviewId?: string; focusedCommentId?: string; scrollRef: RefObject<ScrollView | null>; onOpenImage: (image: PostViewerImage) => void }) {
   const toggleSave = useMutation(mobileApi.reviews.toggleSave)
   const toggleLike = useMutation(mobileApi.reviews.toggleLike)
   const createComment = useMutation(mobileApi.reviews.createComment)
@@ -231,6 +235,9 @@ function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, on
   const [savedOverrides, setSavedOverrides] = useState<Record<string, boolean>>({})
   const [likeOverrides, setLikeOverrides] = useState<Record<string, { liked: boolean; likeCount: number }>>({})
   const [openComments, setOpenComments] = useState<Set<string>>(() => new Set())
+  useEffect(() => {
+    if (focusedReviewId && focusedCommentId) setOpenComments((current) => new Set([...current, focusedReviewId]))
+  }, [focusedReviewId, focusedCommentId])
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
   const [commentBusy, setCommentBusy] = useState<string | null>(null)
   const [shareReview, setShareReview] = useState<Review | null>(null)
@@ -371,6 +378,8 @@ function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, on
           review={review}
           signedIn={signedIn}
           focused={String(review._id) === focusedReviewId}
+          focusedCommentId={String(review._id) === focusedReviewId ? focusedCommentId : undefined}
+          scrollRef={scrollRef}
           saved={savedFor(review)}
           liked={likeFor(review).liked}
           likeCount={likeFor(review).likeCount}
@@ -405,10 +414,12 @@ function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, on
   )
 }
 
-function ReviewCard({ review, signedIn, focused = false, saved, liked, likeCount, commentsOpen, commentBusy, commentDraft, onToggleSave, onToggleLike, onShare, onToggleComments, onChangeCommentDraft, onSubmitComment, onDeleteComment, onOpenImage }: {
+function ReviewCard({ review, signedIn, focused = false, focusedCommentId, scrollRef, saved, liked, likeCount, commentsOpen, commentBusy, commentDraft, onToggleSave, onToggleLike, onShare, onToggleComments, onChangeCommentDraft, onSubmitComment, onDeleteComment, onOpenImage }: {
   review: Review
   signedIn: boolean
   focused?: boolean
+  focusedCommentId?: string
+  scrollRef: RefObject<ScrollView | null>
   saved: boolean
   liked: boolean
   likeCount: number
@@ -470,7 +481,7 @@ function ReviewCard({ review, signedIn, focused = false, saved, liked, likeCount
     {commentsOpen ? (
       <View style={styles.reviewComments}>
         {review.comments?.map((comment) => (
-          <View key={comment._id} style={styles.reviewComment}>
+          <ReviewCommentAnchor key={comment._id} focused={String(comment._id) === focusedCommentId} scrollRef={scrollRef}>
             <Avatar uri={comment.authorProfileImageUrl ?? undefined} name={comment.authorDisplayName} size={24} />
             <View style={styles.reviewCommentCopy}>
               <AppText variant="bodyStrong" numberOfLines={1}>{comment.authorDisplayName}</AppText>
@@ -487,7 +498,7 @@ function ReviewCard({ review, signedIn, focused = false, saved, liked, likeCount
                 </Pressable>
               ) : null}
             </View>
-          </View>
+          </ReviewCommentAnchor>
         ))}
         {signedIn ? (
           <View style={styles.reviewCommentForm}>
@@ -595,7 +606,6 @@ const styles = StyleSheet.create({
   textAction: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 5, justifyContent: 'center' },
   reviewReport: { flexDirection: 'row', alignItems: 'center', minHeight: 34 },
   reviewComments: { gap: density.cardGap, paddingTop: 2 },
-  reviewComment: { flexDirection: 'row', alignItems: 'flex-start', gap: density.cardGap },
   reviewCommentCopy: { flex: 1, minWidth: 0, gap: 1 },
   reviewCommentDelete: { alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' },
   reviewCommentForm: { gap: density.textStackGap },

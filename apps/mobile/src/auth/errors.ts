@@ -17,6 +17,15 @@ const invalidCode = new Set([
   'verification_failed',
 ])
 
+const configurationRejected = new Set([
+  'resource_missmatch',
+  'redirect_url_invalid',
+  'redirect_url_mismatch',
+  'origin_invalid',
+  'native_api_disabled',
+  'native_api_not_enabled',
+])
+
 export function safeAuthErrorMessage(error: unknown, context: AuthErrorContext): string {
   const codes = collectErrorCodes(error)
 
@@ -30,6 +39,9 @@ export function safeAuthErrorMessage(error: unknown, context: AuthErrorContext):
   if (codes.includes('session_exists')) return 'You are already signed in.'
   if (codes.some((code) => code.includes('rate_limit') || code.includes('too_many'))) {
     return 'Too many attempts. Wait a moment and try again.'
+  }
+  if (codes.some((code) => configurationRejected.has(code))) {
+    return 'Account access is not configured for this app build. Please update the app or contact support.'
   }
 
   if (context === 'verification') return 'Verification could not be completed. Please try again.'

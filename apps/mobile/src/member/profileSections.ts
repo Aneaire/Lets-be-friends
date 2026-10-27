@@ -1,3 +1,5 @@
+import { mobileIdentityPresentation } from '@/features/verification/identityPresentation'
+
 export type CompanionStatus =
   | 'approved'
   | 'pending_review'
@@ -61,25 +63,6 @@ export function verificationActionFor(
   verification: { adminStatus?: string | null; personaStatus?: string | null; identityStage?: string | null } | null | undefined,
   approved: boolean,
 ): VerificationAction {
-  if (approved) return 'none'
-  if (viewerStatus === 'rejected' || verification?.adminStatus === 'rejected') return 'retry'
-  if (verification?.personaStatus === 'failed' || verification?.personaStatus === 'expired') return 'retry'
-  if (
-    viewerStatus === 'pending'
-    || verification?.adminStatus === 'pending'
-    || ['created', 'in_progress', 'processing', 'completed', 'pending'].includes(verification?.personaStatus ?? '')
-    || ['extracting', 'confirmation_required', 'ready_for_review'].includes(verification?.identityStage ?? '')
-  ) {
-    if (
-      verification?.identityStage === 'extracting'
-      || verification?.identityStage === 'confirmation_required'
-      || verification?.personaStatus === 'created'
-      || verification?.personaStatus === 'in_progress'
-    ) {
-      return 'continue'
-    }
-    return 'none'
-  }
-  if (verification?.adminStatus === 'not_ready') return 'none'
-  return 'verify'
+  const action = mobileIdentityPresentation(viewerStatus, verification, approved).action
+  return action === 'start' ? 'verify' : action
 }

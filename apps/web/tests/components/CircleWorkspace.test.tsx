@@ -809,3 +809,25 @@ describe('Circle workspace', () => {
     expect(screen.queryByRole('menuitem', { name: 'Leave' })).toBeNull()
   })
 })
+
+describe('Circle notification navigation', () => {
+  it.each([
+    ['joinRequests', true, 'Members'],
+    ['pendingPosts', true, 'Pending'],
+    ['members', false, 'Members'],
+    ['hostTransfer', false, 'About'],
+    ['pendingPosts', false, 'Discussions'],
+  ])('opens %s with current moderation access %s', async (section, canModerate, label) => {
+    mocks.query.mockImplementation((fn) => {
+      if (fn === 'circles.detail') return { ...preview, membershipState: 'active', canRead: true, canWrite: true, canModerate, pendingTransferForViewer: section === 'hostTransfer' }
+      if (fn === 'circles.members' || fn === 'circles.joinRequests' || fn === 'circles.pendingCirclePosts') return []
+      return undefined
+    })
+    mocks.mutation.mockReturnValue(vi.fn())
+    const { rerender } = render(<CircleWorkspacePage circleId="circle-1" />)
+    // A notification can arrive while this Circle is already open.
+    rerender(<CircleWorkspacePage circleId="circle-1" section={String(section)} />)
+    await waitFor(() => expect(screen.getByRole('tab', { name: String(label) }).getAttribute('aria-selected')).toBe('true'))
+    if (section === 'hostTransfer') expect(screen.getByRole('button', { name: 'Accept host transfer' })).toBeTruthy()
+  })
+})

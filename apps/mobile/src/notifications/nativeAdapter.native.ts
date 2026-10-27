@@ -6,7 +6,7 @@ import * as Notifications from 'expo-notifications'
 import * as SecureStore from 'expo-secure-store'
 import { AppState, Linking, Platform } from 'react-native'
 
-import { ANDROID_NOTIFICATION_CHANNEL_ID, androidNotificationChannelSettings, installationBoundary, pushInstallationKey, pushInstallMarkerKey } from './logic'
+import { ANDROID_NOTIFICATION_CHANNEL_ID, androidNotificationChannelSettings, installationBoundary, permissionStateFromNative, pushInstallationKey, pushInstallMarkerKey } from './logic'
 import type { NativePermissionState, NativePushAdapter, NativePushResponse } from './nativeAdapter'
 
 const INSTALLATION_KEY = pushInstallationKey()
@@ -109,9 +109,11 @@ async function ensureAndroidChannel() {
 }
 
 function permissionState(permission: Notifications.NotificationPermissionsStatus): NativePermissionState {
-  if (permission.granted) return 'granted'
-  if (permission.status === Notifications.PermissionStatus.DENIED) return 'denied'
-  return 'undetermined'
+  return permissionStateFromNative({
+    granted: permission.granted,
+    status: permission.status,
+    canAskAgain: permission.canAskAgain,
+  })
 }
 
 function nativeResponse(response: Notifications.NotificationResponse): NativePushResponse {

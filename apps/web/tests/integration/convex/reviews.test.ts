@@ -347,6 +347,23 @@ describe('review engagement counters and rate limits', () => {
     // The bounded set is chronological (ascending), exactly comments 1..20.
     const indices = bodies.map((body: string) => Number(body.replace('comment ', '')))
     expect(indices).toEqual(Array.from({ length: 20 }, (_, index) => index + 1))
+    const oldest = await t.run(async (ctx) => ctx.db.query('reviewComments').withIndex('by_review', (q) => q.eq('reviewId', reviewId)).first())
+    const requested = await t.query(api.reviews.requested, { reviewId, commentId: oldest!._id })
+    expect(requested?.comments).toHaveLength(21)
+    expect(requested?.comments[0].body).toBe('comment 0')
+    expect(requested?.commentCount).toBe(21)
+    await t.run(async (ctx) => ctx.db.patch(oldest!._id, { hidden: true }))
+    const hidden = await t.query(api.reviews.requested, { reviewId, commentId: oldest!._id })
+    expect(hidden?.comments.some((comment) => comment._id === oldest!._id)).toBe(false)
+    await t.run(async (ctx) => {
+      const { _id, _creationTime, ...data } = (await ctx.db.get(reviewId))!
+      const otherReview = await ctx.db.insert('reviews', data)
+      await ctx.db.patch(oldest!._id, { hidden: false, reviewId: otherReview })
+    })
+    const unrelated = await t.query(api.reviews.requested, { reviewId, commentId: oldest!._id })
+    expect(unrelated?.comments.some((comment) => comment._id === oldest!._id)).toBe(false)
+
+
   })
 })
 

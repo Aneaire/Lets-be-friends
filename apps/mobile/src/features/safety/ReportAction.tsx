@@ -6,6 +6,7 @@ import { mobileApi } from '@/backend/client'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { IconButton } from '@/design-system/atoms/IconButton'
 import { TextField } from '@/design-system/atoms/Field'
 import { AppText } from '@/design-system/atoms/Typography'
 import { BottomSheet } from '@/design-system/molecules/BottomSheet'
@@ -14,11 +15,12 @@ import { density } from '@/theme/tokens'
 
 type ReportTarget = 'profile' | 'message' | 'review' | 'post' | 'comment' | 'user'
 
-export function ReportAction({ targetType, targetId, label, compact = false, open: controlledOpen, onOpenChange, showTrigger = true, onReported }: {
+export function ReportAction({ targetType, targetId, label, compact = false, iconOnly = false, open: controlledOpen, onOpenChange, showTrigger = true, onReported }: {
   targetType: ReportTarget
   targetId: string
   label: string
   compact?: boolean
+  iconOnly?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
   showTrigger?: boolean
@@ -74,7 +76,15 @@ export function ReportAction({ targetType, targetId, label, compact = false, ope
 
   return (
     <>
-      {showTrigger && compact ? (
+      {showTrigger && compact && iconOnly ? (
+        <IconButton
+          label={reported ? 'Report sent' : label}
+          icon={reported ? 'checkmark' : 'ellipsis-horizontal'}
+          tone="danger"
+          disabled={reported}
+          onPress={() => { setMessage(''); setOpen(true) }}
+        />
+      ) : showTrigger && compact ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={reported ? 'Report sent' : label}
