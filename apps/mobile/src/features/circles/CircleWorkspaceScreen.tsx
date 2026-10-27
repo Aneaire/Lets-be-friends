@@ -3,8 +3,8 @@ import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { BlurTargetView } from 'expo-blur'
 import { router, useLocalSearchParams } from 'expo-router'
 import { circleNotificationTab } from '@lets-be-friends/shared'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Image, Pressable, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { Alert, Image, Pressable, ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import { api as generatedApi } from '../../../../web/convex/_generated/api'
 
 import { mobileApi, type CircleId, type CircleMembershipId, type PostId } from '@/backend/client'
@@ -207,8 +207,9 @@ function MemberCircle({ detail, circleId, initialPostId, focusCommentId, section
   }, [])
 
   const showPendingQueue = tab === 'pending' && canAccessCirclePendingQueue({ canModerate: detail.canModerate, circleState: detail.circleState })
+  const scrollRef = useRef<ScrollView>(null)
 
-  return <Screen contentStyle={styles.screen} onScroll={handleFeedScroll} scrollEventThrottle={160}>
+  return <Screen scrollRef={scrollRef} contentStyle={styles.screen} onScroll={handleFeedScroll} scrollEventThrottle={160}>
     <AppHeader back title={detail.name} subtitle={`${detail.category} · ${detail.memberCount} members`} />
     {detail.coverUrl ? <Image source={{ uri: detail.coverUrl }} style={styles.cover} accessibilityLabel={`${detail.name} Circle cover`} /> : null}
     <View style={styles.hero}><CircleMarker iconUrl={detail.iconUrl} name={detail.name} joined={detail.membershipState === 'active'} size={56} /><AppText color={theme.colors.textMuted}>{detail.purpose}</AppText><View style={styles.row}>{detail.circleState === 'archived' ? <AppText variant="caption" color={theme.colors.warning}>Archived, read-only</AppText> : null}{detail.role !== 'member' ? <AppText variant="caption" color={theme.colors.socialText}>{detail.role}</AppText> : null}{detail.joinPolicy === 'open' ? <AppText variant="caption" color={theme.colors.socialText}>Open join</AppText> : null}</View></View>
@@ -216,7 +217,7 @@ function MemberCircle({ detail, circleId, initialPostId, focusCommentId, section
     {detail.pendingTransferForViewer ? <InlineNotice title="Host invitation" tone="neutral">You have been invited to host this Circle.<ActionButton label="Accept ownership" intent="neutral" compact onPress={() => Alert.alert('Accept Circle ownership?', 'You will become responsible for membership, rules, and moderation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Accept ownership', onPress: () => void run(() => acceptTransfer({ circleId })) }])} /></InlineNotice> : null}
     <View style={styles.row}><ActionButton compact label={detail.muted ? 'Unmute' : 'Mute'} intent="neutral" secondary loading={busy} onPress={() => void run(() => setMuted({ circleId, muted: !detail.muted }))} />{!detail.isCanonicalHost ? <ActionButton compact label="Leave Circle" intent="danger" secondary disabled={busy} onPress={() => Alert.alert('Leave this Circle?', 'You will lose access to discussions and the member list.', [{ text: 'Stay', style: 'cancel' }, { text: 'Leave Circle', style: 'destructive', onPress: () => void run(() => leave({ circleId })) }])} /> : null}</View>
     <SegmentedControl label="Circle sections" options={options} value={tab} onChange={setTab} tone={tab === 'manage' ? 'self' : 'social'} />
-    {tab === 'discussions' ? <CircleDiscussions circleId={circleId} canWrite={detail.canWrite} canModerate={detail.canModerate} circleState={detail.circleState} pinnedPostIds={detail.pinnedPostIds} postApproval={detail.settings?.postApproval} initialPostId={initialPostId} focusCommentId={focusCommentId} onScrollReady={registerFeedScroll} /> : null}
+    {tab === 'discussions' ? <CircleDiscussions circleId={circleId} canWrite={detail.canWrite} canModerate={detail.canModerate} circleState={detail.circleState} pinnedPostIds={detail.pinnedPostIds} postApproval={detail.settings?.postApproval} initialPostId={initialPostId} focusCommentId={focusCommentId} scrollRef={scrollRef} onScrollReady={registerFeedScroll} /> : null}
     {tab === 'about' ? <CircleAbout detail={detail} circleId={circleId} /> : null}
     {tab === 'members' ? <CircleMembers circleId={circleId} canModerate={detail.canModerate} /> : null}
     {showPendingQueue ? <CirclePendingQueue circleId={circleId} /> : null}
@@ -225,7 +226,7 @@ function MemberCircle({ detail, circleId, initialPostId, focusCommentId, section
   </Screen>
 }
 
-function CircleDiscussions({ circleId, canWrite, canModerate, circleState, pinnedPostIds, postApproval, initialPostId, focusCommentId, onScrollReady }: {
+function CircleDiscussions({ circleId, canWrite, canModerate, circleState, pinnedPostIds, postApproval, initialPostId, focusCommentId, scrollRef, onScrollReady }: {
   circleId: CircleId
   canWrite: boolean
   canModerate: boolean
@@ -234,6 +235,7 @@ function CircleDiscussions({ circleId, canWrite, canModerate, circleState, pinne
   postApproval?: 'off' | 'approval_required'
   initialPostId?: string
   focusCommentId?: string
+  scrollRef: RefObject<ScrollView | null>
   onScrollReady?: (handler: ((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | null) => void
 }) {
   const feed = usePaginatedQuery(mobileApi.social.circleFeed, { circleId }, { initialNumItems: 15 })
@@ -279,7 +281,7 @@ function CircleDiscussions({ circleId, canWrite, canModerate, circleState, pinne
     />
     {error ? <InlineNotice title="Post action failed" tone="danger">{error}</InlineNotice> : null}
     {initialPostId && requested === null ? <InlineNotice title="Requested post unavailable" tone="neutral">That post is no longer visible. It may have been removed or not approved.</InlineNotice> : null}
-    {feed.status === 'LoadingFirstPage' ? <StateView embedded loading title="Loading discussions" /> : posts.length === 0 ? <StateView embedded title="No discussions yet" detail={canWrite ? 'Start the first conversation.' : 'This Circle has no visible posts.'} /> : <View style={styles.list}>{posts.map((post) => <CirclePostCard key={post._id} post={post} canWrite={canWrite} canModerate={canModerate} pinned={pinnedPostIds.some((id) => id === String(post._id))} onTogglePin={() => void togglePin(post._id as PostId, pinnedPostIds.some((id) => id === String(post._id)))} expanded={selectedPost === String(post._id)} focusCommentId={selectedPost === String(post._id) && String(post._id) === initialPostId ? focusCommentId : undefined} onToggleComments={() => setSelectedPost((current) => current === String(post._id) ? null : String(post._id))} />)}</View>}
+    {feed.status === 'LoadingFirstPage' ? <StateView embedded loading title="Loading discussions" /> : posts.length === 0 ? <StateView embedded title="No discussions yet" detail={canWrite ? 'Start the first conversation.' : 'This Circle has no visible posts.'} /> : <View style={styles.list}>{posts.map((post) => <CirclePostCard key={post._id} post={post} canWrite={canWrite} canModerate={canModerate} pinned={pinnedPostIds.some((id) => id === String(post._id))} scrollRef={scrollRef} onTogglePin={() => void togglePin(post._id as PostId, pinnedPostIds.some((id) => id === String(post._id)))} expanded={selectedPost === String(post._id)} focusCommentId={selectedPost === String(post._id) && String(post._id) === initialPostId ? focusCommentId : undefined} onToggleComments={() => setSelectedPost((current) => current === String(post._id) ? null : String(post._id))} />)}</View>}
     <CircleFeedFooter status={feed.status} loadLabel="Load more discussions" onLoadMore={requestNextPage} />
   </View>
 }

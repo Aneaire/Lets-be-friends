@@ -15,6 +15,19 @@ describe('web notification helpers', () => {
       params: { circleId: 'circle-1' },
       search: { postId: 'post-2', commentId: 'comment-2' },
     })
+    expect(webDestination({ type: 'circle', circleId: 'circle-1', section: 'joinRequests' })).toEqual({
+      to: '/circles/$circleId',
+      params: { circleId: 'circle-1' },
+      search: { section: 'joinRequests' },
+    })
+    expect(webDestination({ type: 'review', reviewId: 'review-1', companionProfileId: 'companion-1', commentId: 'comment-3' })).toEqual({
+      to: '/companion-profile',
+      search: { companionProfileId: 'companion-1', reviewId: 'review-1', commentId: 'comment-3' },
+    })
+    expect(webDestination({ type: 'review', reviewId: 'review-1', bookingId: 'booking-3' })).toEqual({
+      to: '/app',
+      search: { bookingId: 'booking-3' },
+    })
   })
 
   it('opens booking notifications on the home workspace for both perspectives', () => {

@@ -61,6 +61,7 @@ const meta = {
       destinationLabel: 'BDO Unibank · •••• 4321',
       dateLabel: 'Aug 30, 2026, 8:15 PM',
       statusLabel: 'In transfer',
+      statusTone: 'warning' as const,
       detail: 'PayMongo accepted the transfer and is waiting for final status.',
       danger: false,
     }],
@@ -194,4 +195,26 @@ export const LargeValuesAt320: Story = {
 
 export const Dark: Story = {
   globals: { theme: 'dark' },
+}
+
+export const WithdrawalStatusColors: Story = {
+  args: {
+    withdrawalMessage: '₱40.00 is now in transfer. Track its final status below.',
+    withdrawalMessageTone: 'warning',
+    withdrawals: [
+      { ...meta.args.withdrawals[0], id: 'pending', statusLabel: 'In transfer', statusTone: 'warning' },
+      { ...meta.args.withdrawals[0], id: 'received', statusLabel: 'Received', statusTone: 'success', detail: 'The destination account received this withdrawal.' },
+      { ...meta.args.withdrawals[0], id: 'returned', statusLabel: 'Returned', statusTone: 'danger', danger: true },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Show withdrawal history' }))
+    const pending = canvas.getAllByText('In transfer', { exact: true }).at(-1)!
+    const received = canvas.getByText('Received', { exact: true })
+    const returned = canvas.getByText('Returned', { exact: true })
+    await expect(getComputedStyle(pending).color).not.toBe(getComputedStyle(received).color)
+    await expect(getComputedStyle(returned).color).not.toBe(getComputedStyle(received).color)
+    await expect(getComputedStyle(canvas.getByText('₱40.00 is now in transfer. Track its final status below.')).color).toBe(getComputedStyle(pending).color)
+  },
 }

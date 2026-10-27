@@ -1,8 +1,10 @@
 import { useMutation, usePaginatedQuery } from 'convex/react'
 import { router, type ErrorBoundaryProps } from 'expo-router'
+import { useState } from 'react'
 import { StyleSheet } from 'react-native'
 
 import { mobileApi } from '@/backend/client'
+import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { StateView } from '@/design-system/molecules/StateView'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
@@ -25,6 +27,8 @@ function ReadyNotifications() {
     {},
     { initialNumItems: 30 },
   )
+  const [notice, setNotice] = useState('')
+  useAppToastMessage(notice)
   const notifications = notificationPage.results
   const markRead = useMutation(mobileApi.notifications.markRead)
   const openNotification = useMutation(mobileApi.notifications.open)
@@ -55,7 +59,10 @@ function ReadyNotifications() {
         const source = notifications.find((item) => item.id === notification.id)
         if (!source) return
         const opened = await openNotification({ notificationId: source.id })
-        if (opened.status !== 'ready') throw new Error('Notification destination unavailable')
+        if (opened.status !== 'ready') {
+          setNotice('That update is no longer available.')
+          return
+        }
         router.push(
           mobileNotificationRoute(
             opened.destination as MobileNotificationDestination,

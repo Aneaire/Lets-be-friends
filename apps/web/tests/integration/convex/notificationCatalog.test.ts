@@ -27,7 +27,7 @@ describe('notification catalog', () => {
         ? 'generic'
         : definition.push.mode === 'message_preview'
           ? 'message_preview'
-          : definition.push.mode === 'actor_action' || definition.push.mode === 'booking_reminder'
+          : definition.push.mode === 'actor_action' || definition.push.mode === 'booking_reminder' || definition.push.mode === 'social_aggregate'
             ? 'actor_action'
             : 'comment_preview'
       expect(definition.privacy).toBe(policyPrivacy)

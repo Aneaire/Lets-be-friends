@@ -1,6 +1,7 @@
 export type PushPayload = { version: 1; notificationId: string }
 
 export const ANDROID_NOTIFICATION_CHANNEL_ID = 'account-updates-v2'
+export const ANDROID_SOCIAL_CHANNEL_ID = 'social-updates'
 
 export function androidNotificationChannelSettings<TImportance, TVisibility>(input: {
   highImportance: TImportance
@@ -13,6 +14,22 @@ export function androidNotificationChannelSettings<TImportance, TVisibility>(inp
     sound: 'default' as const,
     vibrationPattern: [0, 180],
     enableLights: false,
+    showBadge: true,
+  }
+}
+
+export function androidSocialChannelSettings<TImportance, TVisibility>(input: {
+  defaultImportance: TImportance
+  privateVisibility: TVisibility
+}) {
+  return {
+    name: 'Social updates',
+    importance: input.defaultImportance,
+    lockscreenVisibility: input.privateVisibility,
+    sound: null,
+    vibrationPattern: [0, 0],
+    enableLights: false,
+    enableVibrate: false,
     showBadge: true,
   }
 }

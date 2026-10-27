@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppState, StyleSheet } from 'react-native'
 
 import { mobileApi, type PaymongoTopUpId } from '@/backend/client'
+import { showAppToast } from '@/design-system/molecules/AppToast'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
@@ -137,9 +138,9 @@ function WalletView({
     setMessage('')
     try {
       const result = await saveQrImageToPhotos(qrImageUrl, String(displayTopUp._id))
-      setMessage(saveQrImageMessage(result))
+      showAppToast(saveQrImageMessage(result), result.ok ? 'success' : 'error')
     } catch {
-      setMessage(saveQrImageMessage({ ok: false, reason: 'unavailable' }))
+      showAppToast(saveQrImageMessage({ ok: false, reason: 'unavailable' }), 'error')
     } finally {
       setSavingQr(false)
     }
@@ -162,7 +163,7 @@ function WalletView({
       onCreate={() => void create()}
       currentTopUp={displayTopUp ? walletTopUpItem(displayTopUp, clockNow) : undefined}
       saveQrBusy={savingQr}
-      onSaveQr={(qrImageUrl) => void saveQr(qrImageUrl)}
+      onSaveQr={saveQr}
       message={message}
       activity={activity}
       activityLoading={activityLoading}

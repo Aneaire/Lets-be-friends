@@ -3,6 +3,7 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { ArrowLeft, CircleCheck, FileText, Flag, Image as ImageIcon, LoaderCircle, MessageCircle, ShieldCheck, Video, X } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { NOTIFICATION_HIGHLIGHT_MS } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
 import { ConversationBookingPin } from '../features/booking/ConversationBookingPin'
@@ -81,6 +82,17 @@ export function MessagesPage() {
   const [openImage, setOpenImage] = useState<MessageImage | null>(null)
   const editingCompanion = useQuery(api.companions.getPublic, editingBooking?.companionProfileId ? { companionProfileId: editingBooking.companionProfileId } : 'skip')
   const threadEndRef = useRef<HTMLDivElement>(null)
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!messageId) {
+      setHighlightedMessageId(null)
+      return
+    }
+    setHighlightedMessageId(String(messageId))
+    const timer = window.setTimeout(() => setHighlightedMessageId(null), NOTIFICATION_HIGHLIGHT_MS)
+    return () => window.clearTimeout(timer)
+  }, [messageId])
 
   useEffect(() => {
     const target = messageId ? document.getElementById(`message-${messageId}`) : null
@@ -212,13 +224,14 @@ export function MessagesPage() {
                   <div className="direct-day-divider">{formatMessageDay(message.createdAt)}</div>
                 )}
                 {message.booking ? (
-                  <div id={`message-${message._id}`} className="booking-update-line" data-own={message.sentByViewer}>
+                  <div id={`message-${message._id}`} className={`booking-update-line${highlightedMessageId === String(message._id) ? ' notification-target-highlight' : ''}`} data-own={message.sentByViewer}>
                     <p>{message.body}</p>
                     <time dateTime={new Date(message.createdAt).toISOString()}>{formatMessageTime(message.createdAt)}</time>
                   </div>
                 ) : (
                   <DirectMessageContent
                     id={`message-${message._id}`}
+                    className={highlightedMessageId === String(message._id) ? 'notification-target-highlight' : undefined}
                     direction={message.sentByViewer ? 'outgoing' : 'incoming'}
                     attachments={message.attachments}
                     body={message.body}
@@ -298,6 +311,7 @@ export function MessagesPage() {
 
 function DirectMessageContent({
   id,
+  className,
   direction,
   attachments,
   body,
@@ -307,6 +321,7 @@ function DirectMessageContent({
   actions,
 }: {
   id?: string
+  className?: string
   direction: 'incoming' | 'outgoing'
   attachments: ThreadAttachment[]
   body?: string
@@ -325,6 +340,7 @@ function DirectMessageContent({
   return (
     <MessageBubble
       id={id}
+      className={className}
       direction={direction}
       body={body}
       timestamp={formatMessageTime(createdAt)}

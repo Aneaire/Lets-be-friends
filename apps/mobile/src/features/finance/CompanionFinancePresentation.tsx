@@ -41,6 +41,7 @@ export type CompanionWithdrawalItem = {
   destinationLabel: string
   dateLabel: string
   statusLabel: string
+  statusTone?: 'warning' | 'success' | 'danger'
   detail: string
   danger: boolean
 }
@@ -61,6 +62,7 @@ export function CompanionFinancePresentation({
   activeWithdrawal = false,
   withdrawalAmount = '',
   withdrawalMessage = '',
+  withdrawalMessageTone = 'success',
   withdrawalBusy = false,
   withdrawals = [],
   onWithdrawalAmountChange,
@@ -88,6 +90,7 @@ export function CompanionFinancePresentation({
   activeWithdrawal?: boolean
   withdrawalAmount?: string
   withdrawalMessage?: string
+  withdrawalMessageTone?: 'warning' | 'success'
   withdrawalBusy?: boolean
   withdrawals?: readonly CompanionWithdrawalItem[]
   onWithdrawalAmountChange?: (value: string) => void
@@ -195,7 +198,7 @@ export function CompanionFinancePresentation({
             <AppText variant="caption" color={theme.colors.selfText}>A withdrawal is in transfer. You can start another after it finishes.</AppText>
           </View>
         ) : null}
-        {withdrawalMessage ? <AppText color={withdrawalMessage.startsWith('Error:') ? theme.colors.danger : theme.colors.selfText}>{withdrawalMessage.replace(/^Error:\s*/, '')}</AppText> : null}
+        {withdrawalMessage ? <AppText color={withdrawalMessage.startsWith('Error:') ? theme.colors.danger : theme.colors[withdrawalMessageTone]}>{withdrawalMessage.replace(/^Error:\s*/, '')}</AppText> : null}
 
         {withdrawalsEnabled ? (
           <DisclosureSection
@@ -217,6 +220,7 @@ export function CompanionFinancePresentation({
               label={withdrawal.amountLabel}
               detail={`${withdrawal.destinationLabel} · ${withdrawal.dateLabel}\n${withdrawal.detail}`}
               value={withdrawal.statusLabel}
+              valueTone={withdrawal.statusTone}
               danger={withdrawal.danger}
             />
           ))}

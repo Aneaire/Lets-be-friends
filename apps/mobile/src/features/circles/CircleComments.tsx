@@ -1,8 +1,8 @@
 import { arrangeCommentThreads, withoutLeadingReplyMention, type CommentThreadPosition } from '@lets-be-friends/shared'
 import { useMutation, useQuery } from 'convex/react'
 import { router } from 'expo-router'
-import { useMemo, useState } from 'react'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { useMemo, useState, type RefObject } from 'react'
+import { Pressable, StyleSheet, View, type ScrollView } from 'react-native'
 
 import { mobileApi, type CommentId, type PostId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -13,6 +13,7 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { InlineNotice } from '@/design-system/molecules/FeedbackState'
 import { CommentBubble } from '@/features/social/CommentBubble'
 import { MentionBody } from '@/features/social/MentionBody'
+import { NotificationTargetAnchor } from '@/features/notifications/NotificationTargetAnchor'
 import { openMemberProfile } from '@/features/social/socialNavigation'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -40,11 +41,12 @@ type CircleComment = {
  * Threaded Circle comments with reply context, like counts, and author
  * profile navigation. Moderators remove, other members report.
  */
-export function CircleComments({ postId, canWrite, canModerate, focusCommentId }: {
+export function CircleComments({ postId, canWrite, canModerate, focusCommentId, scrollRef }: {
   postId: PostId
   canWrite: boolean
   canModerate: boolean
   focusCommentId?: string
+  scrollRef: RefObject<ScrollView | null>
 }) {
   const theme = useAppTheme()
   const comments = useQuery(mobileApi.social.commentsForPost, { postId })
@@ -80,19 +82,23 @@ export function CircleComments({ postId, canWrite, canModerate, focusCommentId }
         <AppText color={theme.colors.textMuted}>No comments yet.</AppText>
       ) : (
         threaded.map(({ comment, position, isLastReply }) => (
-          <CircleCommentRow
+          <NotificationTargetAnchor
             key={String(comment._id)}
-            comment={comment}
-            threadPosition={position}
-            isLastReply={isLastReply}
             focused={focusCommentId !== undefined && String(comment._id) === focusCommentId}
-            canWrite={canWrite}
-            canModerate={canModerate}
-            onReply={(replyBody) => create({ postId, parentCommentId: comment._id as CommentId, body: replyBody })}
-            onLike={() => toggleLike({ commentId: comment._id as CommentId })}
-            onRemove={() => remove({ commentId: comment._id as CommentId, removed: true })}
-            onReport={() => report({ targetType: 'comment', targetId: String(comment._id), reason: 'Circle comment needs safety review' })}
-          />
+            scrollRef={scrollRef}
+          >
+            <CircleCommentRow
+              comment={comment}
+              threadPosition={position}
+              isLastReply={isLastReply}
+              canWrite={canWrite}
+              canModerate={canModerate}
+              onReply={(replyBody) => create({ postId, parentCommentId: comment._id as CommentId, body: replyBody })}
+              onLike={() => toggleLike({ commentId: comment._id as CommentId })}
+              onRemove={() => remove({ commentId: comment._id as CommentId, removed: true })}
+              onReport={() => report({ targetType: 'comment', targetId: String(comment._id), reason: 'Circle comment needs safety review' })}
+            />
+          </NotificationTargetAnchor>
         ))
       )}
       {canWrite ? (
@@ -110,11 +116,10 @@ export function CircleComments({ postId, canWrite, canModerate, focusCommentId }
   )
 }
 
-function CircleCommentRow({ comment, threadPosition, isLastReply, focused, canWrite, canModerate, onReply, onLike, onRemove, onReport }: {
+function CircleCommentRow({ comment, threadPosition, isLastReply, canWrite, canModerate, onReply, onLike, onRemove, onReport }: {
   comment: CircleComment
   threadPosition: CommentThreadPosition
   isLastReply: boolean
-  focused: boolean
   canWrite: boolean
   canModerate: boolean
   onReply: (body: string) => Promise<unknown>
@@ -184,9 +189,8 @@ function CircleCommentRow({ comment, threadPosition, isLastReply, focused, canWr
   }
 
   return (
-    <View style={focused ? [styles.focused, { borderColor: theme.colors.socialText }] : undefined}>
-      <CommentBubble
-        author={comment.authorDisplayName}
+    <CommentBubble
+      author={comment.authorDisplayName}
         imageUrl={comment.authorProfileImageUrl}
         timestamp={date}
         threadPosition={threadPosition}
@@ -231,7 +235,6 @@ function CircleCommentRow({ comment, threadPosition, isLastReply, focused, canWr
         ) : undefined}
       >
         <MentionBody body={withoutLeadingReplyMention(comment.body, comment.replyToAuthorUsername)} mentions={comment.mentions} />
-        {focused ? <AppText variant="caption" color={theme.colors.socialText}>Focused from notification</AppText> : null}
         <View style={styles.interactions} accessibilityLabel={`Interactions for ${comment.authorDisplayName}'s comment`}>
           <Pressable
             accessibilityRole="button"
@@ -281,14 +284,12 @@ function CircleCommentRow({ comment, threadPosition, isLastReply, focused, canWr
           </View>
         ) : null}
         {error ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{error}</AppText> : null}
-      </CommentBubble>
-    </View>
+    </CommentBubble>
   )
 }
 
 const styles = StyleSheet.create({
   thread: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: 12, gap: 10 },
-  focused: { borderWidth: 1, borderRadius: 10, padding: 4 },
   composer: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   flex: { flex: 1, minWidth: 0 },
   author: { maxWidth: '45%', flexShrink: 1 },

@@ -1,4 +1,5 @@
 import type { StoredMention } from '@lets-be-friends/shared'
+import { NOTIFICATION_HIGHLIGHT_MS } from '@lets-be-friends/shared'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type Ref, type SetStateAction } from 'react'
 import { Avatar } from '../../design-system/atoms/Avatar'
@@ -131,6 +132,8 @@ export function ProfileContentPanel({
   const [deleteTarget, setDeleteTarget] = useState<{ reviewId: string; commentId: string } | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [highlightedReviewId, setHighlightedReviewId] = useState<string | null>(null)
+  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null)
   const [postActionBusy, setPostActionBusy] = useState<string | null>(null)
   const [postActionErrors, setPostActionErrors] = useState<Record<string, string>>({})
   const [shareReview, setShareReview] = useState<ProfileContentReview | null>(null)
@@ -148,6 +151,22 @@ export function ProfileContentPanel({
   const targetReview = reviews?.find((review) => review._id === focusedReviewId)
   const targetReviewLoaded = Boolean(targetReview)
   const targetCommentLoaded = Boolean(targetReview?.comments?.some((comment) => comment._id === focusedCommentId))
+
+  useEffect(() => {
+    if (!focusedReviewId) {
+      setHighlightedReviewId(null)
+      setHighlightedCommentId(null)
+      return
+    }
+    if (focusedCommentId) {
+      setHighlightedCommentId(focusedCommentId)
+      const timer = window.setTimeout(() => setHighlightedCommentId(null), NOTIFICATION_HIGHLIGHT_MS)
+      return () => window.clearTimeout(timer)
+    }
+    setHighlightedReviewId(focusedReviewId)
+    const timer = window.setTimeout(() => setHighlightedReviewId(null), NOTIFICATION_HIGHLIGHT_MS)
+    return () => window.clearTimeout(timer)
+  }, [focusedReviewId, focusedCommentId])
 
   useEffect(() => {
     if (!focusedReviewId) return
@@ -253,7 +272,7 @@ export function ProfileContentPanel({
                   key={review._id}
                   id={`review-${review._id}`}
                   tabIndex={focusedReviewId === review._id ? -1 : undefined}
-                  className={`worklist-row profile-review-card${focusedReviewId === review._id ? ' profile-review-card-focused' : ''}`}
+                  className={`worklist-row profile-review-card${focusedReviewId === review._id ? ' profile-review-card-focused' : ''}${highlightedReviewId === review._id ? ' notification-target-highlight' : ''}`}
                 >
                   <div className="profile-review-author-row">
                     {review.reviewerId ? (
@@ -305,7 +324,7 @@ export function ProfileContentPanel({
                   {openComments.has(review._id) && (
                     <div className="profile-review-comments">
                       {review.comments?.map((comment) => (
-                        <div key={comment._id} id={`review-comment-${comment._id}`} tabIndex={focusedCommentId === comment._id ? -1 : undefined} className={`profile-review-comment${focusedCommentId === comment._id ? ' profile-review-card-focused' : ''}`}>
+                        <div key={comment._id} id={`review-comment-${comment._id}`} tabIndex={focusedCommentId === comment._id ? -1 : undefined} className={`profile-review-comment${focusedCommentId === comment._id ? ' profile-review-card-focused' : ''}${highlightedCommentId === comment._id ? ' notification-target-highlight' : ''}`}>
                           <Link to="/member-profile" search={{ userId: comment.authorId }} className="profile-review-author-link" aria-label={`View ${comment.authorDisplayName}'s profile`}>
                             <Avatar name={comment.authorDisplayName} src={comment.authorProfileImageUrl} size="small" decorative />
                           </Link>

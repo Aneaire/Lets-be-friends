@@ -6,7 +6,7 @@ import * as Notifications from 'expo-notifications'
 import * as SecureStore from 'expo-secure-store'
 import { AppState, Linking, Platform } from 'react-native'
 
-import { ANDROID_NOTIFICATION_CHANNEL_ID, androidNotificationChannelSettings, installationBoundary, permissionStateFromNative, pushInstallationKey, pushInstallMarkerKey } from './logic'
+import { ANDROID_NOTIFICATION_CHANNEL_ID, ANDROID_SOCIAL_CHANNEL_ID, androidNotificationChannelSettings, androidSocialChannelSettings, installationBoundary, permissionStateFromNative, pushInstallationKey, pushInstallMarkerKey } from './logic'
 import type { NativePermissionState, NativePushAdapter, NativePushResponse } from './nativeAdapter'
 
 const INSTALLATION_KEY = pushInstallationKey()
@@ -35,13 +35,13 @@ export const nativePushAdapter: NativePushAdapter = {
     return await installationPromise
   },
   ensureNotificationChannel: async () => {
-    if (Platform.OS === 'android') await ensureAndroidChannel()
+    if (Platform.OS === 'android') await ensureAndroidChannels()
   },
   getPermissionState: async () => permissionState(await Notifications.getPermissionsAsync()),
   requestPermission: async () => permissionState(await Notifications.requestPermissionsAsync()),
   getRegistration: async () => {
     if (!Device.isDevice || (Platform.OS !== 'ios' && Platform.OS !== 'android')) return null
-    if (Platform.OS === 'android') await ensureAndroidChannel()
+    if (Platform.OS === 'android') await ensureAndroidChannels()
     const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId
     if (typeof projectId !== 'string' || !projectId.trim()) return null
     const token = await Notifications.getExpoPushTokenAsync({ projectId })
@@ -98,14 +98,23 @@ async function ensureInstallation() {
   return { installationId, freshInstall: true }
 }
 
-async function ensureAndroidChannel() {
-  await Notifications.setNotificationChannelAsync(
-    ANDROID_NOTIFICATION_CHANNEL_ID,
-    androidNotificationChannelSettings({
-      highImportance: Notifications.AndroidImportance.HIGH,
-      secretVisibility: Notifications.AndroidNotificationVisibility.SECRET,
-    }),
-  )
+async function ensureAndroidChannels() {
+  await Promise.all([
+    Notifications.setNotificationChannelAsync(
+      ANDROID_NOTIFICATION_CHANNEL_ID,
+      androidNotificationChannelSettings({
+        highImportance: Notifications.AndroidImportance.HIGH,
+        secretVisibility: Notifications.AndroidNotificationVisibility.SECRET,
+      }),
+    ),
+    Notifications.setNotificationChannelAsync(
+      ANDROID_SOCIAL_CHANNEL_ID,
+      androidSocialChannelSettings({
+        defaultImportance: Notifications.AndroidImportance.DEFAULT,
+        privateVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
+      }),
+    ),
+  ])
 }
 
 function permissionState(permission: Notifications.NotificationPermissionsStatus): NativePermissionState {

@@ -1,6 +1,8 @@
 import {
   ANDROID_NOTIFICATION_CHANNEL_ID,
+  ANDROID_SOCIAL_CHANNEL_ID,
   androidNotificationChannelSettings,
+  androidSocialChannelSettings,
   createPushRegistrationCoordinator,
   foregroundPermissionAction,
   installationBoundary,
@@ -91,6 +93,17 @@ describe('push notification pure logic', () => {
       sound: 'default',
       vibrationPattern: [0, 180],
       enableLights: false,
+      showBadge: true,
+    })
+    expect(ANDROID_SOCIAL_CHANNEL_ID).toBe('social-updates')
+    expect(androidSocialChannelSettings({ defaultImportance: 3, privateVisibility: 0 })).toEqual({
+      name: 'Social updates',
+      importance: 3,
+      lockscreenVisibility: 0,
+      sound: null,
+      vibrationPattern: [0, 0],
+      enableLights: false,
+      enableVibrate: false,
       showBadge: true,
     })
   })

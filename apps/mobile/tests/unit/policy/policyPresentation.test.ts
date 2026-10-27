@@ -40,9 +40,10 @@ describe('mobile legal policy surfaces', () => {
   it('uses shared document metadata in onboarding and settings links', () => {
     expect(source('app/onboarding.tsx')).toContain('policyDocuments.map')
     expect(source('app/onboarding.tsx')).toContain('document.acceptanceLabel')
+    expect(source('app/onboarding.tsx')).toContain('openPolicyDocument(document.id)')
     expect(source('features/settings/SettingsContent.tsx')).toContain('termsDocument.title')
     expect(source('features/settings/SettingsContent.tsx')).toContain('privacyDocument.title')
-    expect(source('app/settings.tsx')).toContain('router.push(\'/terms-and-conditions\')')
-    expect(source('app/settings.tsx')).toContain('router.push(\'/privacy-policy\')')
+    expect(source('app/settings.tsx')).toContain("openPolicyDocument('terms')")
+    expect(source('app/settings.tsx')).toContain("openPolicyDocument('privacy')")
   })
 })

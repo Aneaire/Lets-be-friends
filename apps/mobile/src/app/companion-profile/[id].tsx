@@ -25,6 +25,7 @@ import { StateView } from '@/design-system/molecules/StateView'
 import { AppText } from '@/design-system/atoms/Typography'
 import { PostImageViewer, type PostViewerImage } from '@/features/social/PostImageViewer'
 import { ReviewCommentAnchor } from '@/features/companion/ReviewCommentAnchor'
+import { NotificationTargetAnchor } from '@/features/notifications/NotificationTargetAnchor'
 import { ReviewContent } from '@/features/social/ReviewContent'
 import { ShareSheet } from '@/features/social/ShareSheet'
 import { reviewShareUrl } from '@/features/social/shareLinks'
@@ -373,13 +374,14 @@ function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, fo
     <View style={styles.cardList}>
       {reviews.map((review) => {
         const key = String(review._id)
-        return <ReviewCard
-          key={review._id}
-          review={review}
-          signedIn={signedIn}
-          focused={String(review._id) === focusedReviewId}
-          focusedCommentId={String(review._id) === focusedReviewId ? focusedCommentId : undefined}
-          scrollRef={scrollRef}
+        const reviewAnchorFocused = key === focusedReviewId && !focusedCommentId
+        return <NotificationTargetAnchor key={review._id} focused={reviewAnchorFocused} scrollRef={scrollRef}>
+          <ReviewCard
+            review={review}
+            signedIn={signedIn}
+            focused={key === focusedReviewId}
+            focusedCommentId={key === focusedReviewId ? focusedCommentId : undefined}
+            scrollRef={scrollRef}
           saved={savedFor(review)}
           liked={likeFor(review).liked}
           likeCount={likeFor(review).likeCount}
@@ -400,6 +402,7 @@ function ReviewList({ reviews, signedIn, companionProfileId, focusedReviewId, fo
           onDeleteComment={(commentId) => confirmDeleteReviewComment(commentId)}
           onOpenImage={() => review.imageUrl ? onOpenImage({ url: review.imageUrl, index: 0, total: 1 }) : undefined}
         />
+        </NotificationTargetAnchor>
       })}
       <ShareSheet
         visible={Boolean(shareReview)}

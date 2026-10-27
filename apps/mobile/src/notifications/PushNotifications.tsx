@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from 'convex/react'
 import { router } from 'expo-router'
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, Platform } from 'react-native'
 
 import { registerSignOutCleanup, useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi } from '@/backend/client'
@@ -438,6 +439,9 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
     if (result.handled) {
       handledResponses.current.add(key)
       pendingResponse.current = null
+    }
+    if (result.terminal && Platform.OS !== 'web') {
+      Alert.alert('Update unavailable', 'That update is no longer available.')
     }
   }, [auth, openNotification, ready])
 

@@ -13,6 +13,7 @@ import { useMobileMember } from '@/member/MobileMember'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
+import { openPolicyDocument } from '@/features/policy/policyLinks'
 
 export default function SettingsScreen() {
   const auth = useMobileAuth()
@@ -85,8 +86,8 @@ export function ReadySettings({
         onOpenIncomingBookings={() => router.push('/companion-bookings')}
         onOpenCompanionFinance={() => router.push('/companion-finance' as never)}
         onOpenSafety={() => router.push('/safety' as never)}
-        onOpenTerms={() => router.push('/terms-and-conditions')}
-        onOpenPrivacy={() => router.push('/privacy-policy')}
+        onOpenTerms={() => void openPolicyDocument('terms')}
+        onOpenPrivacy={() => void openPolicyDocument('privacy')}
         onSignOut={() => void runSignOut()}
         onBack={goBack}
       />

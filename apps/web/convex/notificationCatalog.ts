@@ -25,6 +25,7 @@ export type NotificationCopyContext = {
   category?: string
   isComment: boolean
   reminderWindow?: BookingReminderWindow
+  aggregateCount?: number
 }
 
 export type NativePushContext = {
@@ -35,6 +36,7 @@ export type NativePushContext = {
   isComment?: boolean
   category?: string
   reminderWindow?: BookingReminderWindow
+  aggregateCount?: number
 }
 
 type PushPolicy =
@@ -44,6 +46,7 @@ type PushPolicy =
   | { mode: 'comment_preview'; action: string; prefix: string; fallbackBody: NativePushBody }
   | { mode: 'mention'; fallbackBody: NativePushBody }
   | { mode: 'booking_reminder'; fallbackBody: NativePushBody }
+  | { mode: 'social_aggregate'; title: string; action: string; fallbackBody: NativePushBody }
 
 export type NotificationDefinition = {
   family: NotificationFamily
@@ -70,6 +73,23 @@ const actorCopy = (title: string, action: string, tone: NotificationTone = 'soci
   body: `${context.actorName} ${action}.${includeUnavailable ? unavailableSuffix(context.targetAvailable) : ''}`,
   tone,
 })
+
+const aggregateActorCopy = (
+  singularTitle: string,
+  pluralTitle: string,
+  action: string,
+  tone: NotificationTone = 'social',
+  includeUnavailable = true,
+) => (context: NotificationCopyContext) => {
+  const count = Math.max(1, Math.floor(context.aggregateCount ?? 1))
+  const suffix = includeUnavailable ? unavailableSuffix(context.targetAvailable) : ''
+  if (count === 1) return { title: singularTitle, body: `${context.actorName} ${action}.${suffix}`, tone }
+  return {
+    title: pluralTitle,
+    body: `${context.actorName} and ${count - 1} other${count - 1 === 1 ? '' : 's'} ${action}.${suffix}`,
+    tone,
+  }
+}
 
 const systemCopy = (title: string, body: string, tone: NotificationTone) => () => ({ title, body, tone })
 
@@ -119,8 +139,8 @@ export const notificationCatalog = {
     inAppCopy: actorCopy('New message', 'sent you a message'),
   },
   post_liked: {
-    family: 'social', status: 'active', triggers: ['social.toggleLike'], recipient: 'Post author', destination: 'post', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One notification per created like reaction', push: { mode: 'actor_action', action: 'Liked your post.', fallbackBody: 'You have a new update.' },
-    inAppCopy: actorCopy('New like', 'liked your post'),
+    family: 'social', status: 'active', triggers: ['social.toggleLike'], recipient: 'Post author', destination: 'post', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One aggregated notification per post and window', push: { mode: 'social_aggregate', title: 'New likes', action: 'liked your post.', fallbackBody: 'You have a new update.' },
+    inAppCopy: aggregateActorCopy('New like', 'New likes', 'liked your post'),
   },
   post_commented: {
     family: 'social', status: 'active', triggers: ['social.createComment'], recipient: 'Post author', destination: 'post', allowedPriorities: ['standard'], privacy: 'comment_preview', respectsSocialPreferences: true, dedupe: 'One notification per created comment', push: { mode: 'comment_preview', action: 'Commented on your post.', prefix: 'Commented: ', fallbackBody: 'You have a new update.' },
@@ -141,8 +161,8 @@ export const notificationCatalog = {
       : actorCopy('You were mentioned', 'mentioned you in a post')(context),
   },
   new_follower: {
-    family: 'social', status: 'active', triggers: ['social.toggleFollow'], recipient: 'Followed member', destination: 'profile', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One notification per created follow record', push: { mode: 'actor_action', action: 'Started following you.', fallbackBody: 'You have a new update.' },
-    inAppCopy: actorCopy('New follower', 'followed you', 'social', false),
+    family: 'social', status: 'active', triggers: ['social.toggleFollow'], recipient: 'Followed member', destination: 'profile', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One aggregated notification per recipient and window', push: { mode: 'social_aggregate', title: 'New followers', action: 'followed you.', fallbackBody: 'You have a new update.' },
+    inAppCopy: aggregateActorCopy('New follower', 'New followers', 'followed you', 'social', false),
   },
   circle_join_requested: {
     family: 'circle', status: 'active', triggers: ['circles.requestToJoin'], recipient: 'Circle leaders', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per request attempt and leader', push: { mode: 'generic', body: 'You have a Circle update.' },
@@ -181,8 +201,8 @@ export const notificationCatalog = {
     inAppCopy: systemCopy('New Circle announcement', 'A Circle you joined has a new announcement.', 'social'),
   },
   circle_reaction: {
-    family: 'circle', status: 'active', triggers: ['social.toggleLike'], recipient: 'Circle post author', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: true, dedupe: 'One notification per Circle reaction', push: { mode: 'generic', body: 'You have a Circle update.' },
-    inAppCopy: actorCopy('New Circle reaction', 'reacted to your Circle post'),
+    family: 'circle', status: 'active', triggers: ['social.toggleLike'], recipient: 'Circle post author', destination: 'circle', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One aggregated notification per Circle post and window', push: { mode: 'social_aggregate', title: 'New Circle reactions', action: 'reacted to your Circle post.', fallbackBody: 'You have a Circle update.' },
+    inAppCopy: aggregateActorCopy('New Circle reaction', 'New Circle reactions', 'reacted to your Circle post'),
   },
   circle_comment_liked: {
     family: 'circle', status: 'active', triggers: ['social.toggleCommentLike'], recipient: 'Circle comment author', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: true, dedupe: 'One notification per Circle comment reaction', push: { mode: 'generic', body: 'You have a Circle update.' },
@@ -263,6 +283,12 @@ export const notificationKinds = Object.freeze(Object.keys(notificationCatalog) 
 export const notificationKindValidator = v.union(...notificationKinds.map((kind) => v.literal(kind)))
 export const notificationPriorityValidator = v.union(v.literal('attention'), v.literal('standard'))
 
+const socialAggregateKinds = new Set<NotificationKind>(['post_liked', 'circle_reaction', 'new_follower'])
+
+export function isSocialAggregateKind(kind: NotificationKind) {
+  return socialAggregateKinds.has(kind)
+}
+
 export function notificationDefinition(kind: NotificationKind): NotificationDefinition {
   return notificationCatalog[kind]
 }
@@ -286,6 +312,15 @@ export function buildNativePushPresentation(kind: NotificationKind, context: Nat
     }
   }
   if (policy.mode === 'actor_action') return { title: actorName, body: policy.action }
+  if (policy.mode === 'social_aggregate') {
+    const count = Math.max(1, Math.floor(context.aggregateCount ?? 1))
+    return {
+      title: policy.title,
+      body: count > 1
+        ? `${actorName} and ${count - 1} other${count - 1 === 1 ? '' : 's'} ${policy.action}`
+        : `${actorName} ${policy.action}`,
+    }
+  }
   if (policy.mode === 'booking_reminder') {
     const label = bookingReminderLabel(context.reminderWindow)
     const category = boundedPushText(context.category, 60)

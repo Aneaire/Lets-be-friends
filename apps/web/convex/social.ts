@@ -31,7 +31,7 @@ import { internalMutation, mutation, query } from './_generated/server'
 import { adjustCounter } from './counters'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { getViewer, requireViewer, writeAudit } from './lib'
-import { createNotification } from './notifications'
+import { createNotification, createOrUpdateNotification } from './notifications'
 import { consumeRateLimit } from './rateLimit'
 import { enrichReview } from './reviews'
 import { isHiddenByPreference, requireNotBlocked } from './safety'
@@ -1108,16 +1108,18 @@ export const toggleLike = mutation({
       await ctx.db.patch(post._id, { likeCount: adjustCounter(post.likeCount, -1) })
       return false
     }
-    const reactionId = await ctx.db.insert('postReactions', { userId: viewer._id, postId: args.postId, reaction: 'like', createdAt: Date.now() })
+    const now = Date.now()
+    await ctx.db.insert('postReactions', { userId: viewer._id, postId: args.postId, reaction: 'like', createdAt: now })
     await ctx.db.patch(post._id, { likeCount: adjustCounter(post.likeCount, 1) })
-    await createNotification(ctx, {
+    const bucketStart = Math.floor(now / (30 * 60 * 1_000)) * (30 * 60 * 1_000)
+    await createOrUpdateNotification(ctx, {
       recipientUserId: post.authorId,
       actorUserId: viewer._id,
       kind: post.circleId ? 'circle_reaction' : 'post_liked',
       priority: 'standard',
       postId: post._id,
       circleId: post.circleId,
-      dedupeKey: `post-like:${reactionId}:created`,
+      dedupeKey: `${post.circleId ? 'circle' : 'post'}:${post._id}:likes:${bucketStart}`,
     })
     return true
   },
@@ -1180,14 +1182,16 @@ export const toggleFollow = mutation({
       await writeAudit(ctx, { actorUserId: viewer._id, action: 'user.unfollowed', targetType: 'user', targetId: String(args.userId) })
       return false
     }
-    const followId = await ctx.db.insert('follows', { followerId: viewer._id, followingId: args.userId, createdAt: Date.now() })
+    const now = Date.now()
+    await ctx.db.insert('follows', { followerId: viewer._id, followingId: args.userId, createdAt: now })
     await writeAudit(ctx, { actorUserId: viewer._id, action: 'user.followed', targetType: 'user', targetId: String(args.userId) })
-    await createNotification(ctx, {
+    const bucketStart = Math.floor(now / (60 * 60 * 1_000)) * (60 * 60 * 1_000)
+    await createOrUpdateNotification(ctx, {
       recipientUserId: args.userId,
       actorUserId: viewer._id,
       kind: 'new_follower',
       priority: 'standard',
-      dedupeKey: `follow:${followId}:created`,
+      dedupeKey: `followers:${args.userId}:${bucketStart}`,
     })
     return true
   },

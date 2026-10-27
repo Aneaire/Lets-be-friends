@@ -150,9 +150,10 @@ Set these values only in the Convex deployment environment:
 EXPO_PUSH_ENABLED=true
 EXPO_PROJECT_ID=a32cb8bc-1021-43b6-82ea-d5376ba33340
 EXPO_PUSH_ACCESS_TOKEN=
+EXPO_SOCIAL_PUSH_CHANNEL_ENABLED=false
 ```
 
-`EXPO_PUSH_ACCESS_TOKEN` is optional and is used only when Expo enhanced push security is enabled. Never place any of these server values, provider credentials, Expo access tokens, APNs credentials, Firebase credentials, or device tokens in `EXPO_PUBLIC_*`. Keep `EXPO_PUSH_ENABLED` unset or false until native credentials are ready. Delivery is enabled only when `EXPO_PUSH_ENABLED` is exactly `true`, and the backend fails closed when the exact project ID is missing.
+`EXPO_PUSH_ACCESS_TOKEN` is optional and is used only when Expo enhanced push security is enabled. `EXPO_SOCIAL_PUSH_CHANNEL_ENABLED` must stay false until the APK that creates the `social-updates` Android channel is installed. Until then, social reactions and follows use the `account-updates-v2` channel. Never place any of these server values, provider credentials, Expo access tokens, APNs credentials, Firebase credentials, or device tokens in `EXPO_PUBLIC_*`. Keep `EXPO_PUSH_ENABLED` unset or false until native credentials are ready. Delivery is enabled only when `EXPO_PUSH_ENABLED` is exactly `true`, and the backend fails closed when the exact project ID is missing.
 
 Push delivery work has a seven-day absolute age limit. Old nonterminal rows are terminalized so they cannot send after a later re-enable, and terminal operational rows are retained for up to 30 days before cleanup.
 

@@ -3,7 +3,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { internalAction, internalMutation, mutation, query } from './_generated/server'
 import { requireViewer } from './lib'
-import { buildNativePushPresentation, fallbackNativePushBody, type NativePushBody, type NativePushPresentation } from './notificationCatalog'
+import { buildNativePushPresentation, fallbackNativePushBody, isSocialAggregateKind, type NativePushBody, type NativePushPresentation } from './notificationCatalog'
 import { canDeliverCircleNotification } from './notifications'
 
 export type { NativePushBody, NativePushPresentation } from './notificationCatalog'
@@ -31,9 +31,14 @@ export type PushMessage = {
   body: string
   data: { version: 1; notificationId: string }
   badge: number
-  sound: 'default'
-  priority: 'high'
-  channelId?: 'account-updates-v2'
+  sound: 'default' | null
+  priority: 'normal' | 'high'
+  channelId?: 'account-updates-v2' | 'social-updates'
+  interruptionLevel?: 'active' | 'passive' | 'time-sensitive'
+  collapseId?: string
+  tag?: string
+  threadId?: string
+  ttl?: number
 }
 
 type PushConfiguration =
@@ -228,7 +233,7 @@ export const claimDeliveries = internalMutation({
       .filter((delivery) => !args.notificationId || delivery.notificationId === args.notificationId)
       .sort((a, b) => a.nextAttemptAt - b.nextAttemptAt)
       .slice(0, MAX_SEND_BATCH)
-    const claimed: Array<{ deliveryId: Id<'pushDeliveries'>; notificationId: Id<'notifications'>; deviceId: Id<'pushDevices'>; expoPushToken: string; platform: 'ios' | 'android'; sendGeneration: number; tokenRevision: number; kind: Doc<'notifications'>['kind']; unreadCount: number; presentation: NativePushPresentation }> = []
+    const claimed: Array<{ deliveryId: Id<'pushDeliveries'>; notificationId: Id<'notifications'>; deviceId: Id<'pushDevices'>; expoPushToken: string; platform: 'ios' | 'android'; sendGeneration: number; tokenRevision: number; kind: Doc<'notifications'>['kind']; unreadCount: number; presentation: NativePushPresentation; dedupeKey: string; threadId?: string }> = []
 
     for (const delivery of candidates) {
       if (delivery.createdAt <= args.now - MAX_DELIVERY_AGE_MS) {
@@ -286,6 +291,8 @@ export const claimDeliveries = internalMutation({
         kind: notification.kind,
         unreadCount: deliverableUnread.length,
         presentation,
+        dedupeKey: notification.dedupeKey,
+        threadId: notification.postId ? `post:${notification.postId}` : notification.circleId ? `circle:${notification.circleId}` : undefined,
       })
     }
     return claimed
@@ -498,6 +505,8 @@ async function sendDueDeliveries(
       kind: row.kind,
       unreadCount: row.unreadCount,
       presentation: row.presentation,
+      dedupeKey: row.dedupeKey,
+      threadId: row.threadId,
     }),
   }))
   let results: Array<{ deliveryId: Id<'pushDeliveries'>; sendGeneration: number; sentTokenRevision: number; status: 'ticket' | 'retry' | 'permanent'; ticketId?: string; errorCode?: string }>
@@ -563,17 +572,28 @@ export function pushMessage(input: {
   kind: Doc<'notifications'>['kind']
   unreadCount: number
   presentation?: NativePushPresentation
+  dedupeKey: string
+  threadId?: string
 }): PushMessage {
   const presentation = input.presentation ?? nativePushPresentation({ kind: input.kind })
+  const social = isSocialAggregateKind(input.kind)
+  const socialChannel = process.env.EXPO_SOCIAL_PUSH_CHANNEL_ENABLED === 'true' ? 'social-updates' as const : 'account-updates-v2' as const
+  const collapseId = social ? input.dedupeKey : undefined
+  const tag = social && input.platform === 'android' ? input.dedupeKey : undefined
+  const threadId = social && input.platform === 'ios' ? input.threadId : undefined
   return {
     to: input.token,
     title: presentation.title,
     body: presentation.body,
     data: { version: 1, notificationId: String(input.notificationId) },
     badge: Math.max(0, Math.floor(input.unreadCount)),
-    sound: 'default',
-    priority: 'high',
-    ...(input.platform === 'android' ? { channelId: 'account-updates-v2' as const } : {}),
+    sound: social ? null : 'default',
+    priority: social ? 'normal' : 'high',
+    ...(social ? { interruptionLevel: 'passive' as const, ttl: 3_600 } : { interruptionLevel: 'active' as const }),
+    ...(input.platform === 'android' ? { channelId: social ? socialChannel : 'account-updates-v2' as const } : {}),
+    ...(collapseId ? { collapseId } : {}),
+    ...(tag ? { tag } : {}),
+    ...(threadId ? { threadId } : {}),
   }
 }
 
@@ -586,6 +606,7 @@ export function nativePushPresentation(input: {
   isComment?: boolean
   category?: string
   reminderWindow?: Doc<'notifications'>['reminderWindow']
+  aggregateCount?: number
 }): NativePushPresentation {
   return buildNativePushPresentation(input.kind, input)
 }
@@ -646,6 +667,7 @@ async function notificationPushPresentation(ctx: { db: any }, notification: Doc<
     messageAttachmentCount: messageMatches ? message!.attachments?.length ?? 0 : 0,
     commentBody: commentMatches ? comment!.body : undefined,
     isComment: Boolean(notification.commentId),
+    aggregateCount: notification.aggregateCount,
   })
 }
 

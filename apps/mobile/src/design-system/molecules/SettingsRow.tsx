@@ -6,12 +6,13 @@ import { density } from '@/theme/tokens'
 import { AppText } from '@/design-system/atoms/Typography'
 import { AppIcon, type AppIconName } from '@/design-system/atoms/AppIcon'
 
-export function SettingsRow({ label, detail, value, onPress, danger = false, icon }: {
+export function SettingsRow({ label, detail, value, onPress, danger = false, valueTone, icon }: {
   label: string
   detail?: string
   value?: string
   onPress?: () => void
   danger?: boolean
+  valueTone?: 'warning' | 'success' | 'danger'
   icon?: AppIconName
 }) {
   const theme = useAppTheme()
@@ -28,7 +29,7 @@ export function SettingsRow({ label, detail, value, onPress, danger = false, ico
         <AppText variant="bodyStrong" color={color}>{label}</AppText>
         {detail ? <AppText variant="caption" color={theme.colors.textMuted}>{detail}</AppText> : null}
       </View>
-      {value ? <AppText variant="caption" color={theme.colors.textMuted}>{value}</AppText> : null}
+      {value ? <AppText variant="caption" color={valueTone ? theme.colors[valueTone] : theme.colors.textMuted}>{value}</AppText> : null}
       {onPress ? <AppIcon name="chevron-forward" color={danger ? theme.colors.danger : theme.colors.textMuted} size={20} /> : null}
     </Pressable>
   )

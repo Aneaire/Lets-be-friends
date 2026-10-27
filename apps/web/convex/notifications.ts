@@ -4,7 +4,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { mutation, query, type MutationCtx } from './_generated/server'
 import { requireViewer } from './lib'
-import { buildInAppNotificationCopy, notificationDefinition, type BookingReminderWindow, type NotificationKind as CatalogNotificationKind } from './notificationCatalog'
+import { buildInAppNotificationCopy, isSocialAggregateKind, notificationDefinition, type BookingReminderWindow, type NotificationKind as CatalogNotificationKind } from './notificationCatalog'
 import { areUsersBlocked, isHiddenByPreference, preference } from './safety'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { isCircleParticipantRole } from './circleAuthorization'
@@ -38,6 +38,9 @@ export type CreateNotificationInput = {
   kind: NotificationKind
   priority: NotificationPriority
   reminderWindow?: BookingReminderWindow
+  aggregateCount?: number
+  aggregateActorIds?: Id<'users'>[]
+  schedulePush?: boolean
   dedupeKey: string
   bookingId?: Id<'bookings'>
   conversationId?: Id<'directConversations'>
@@ -72,11 +75,55 @@ export async function createNotification(ctx: MutationCtx | { db: any; scheduler
     .withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', input.recipientUserId).eq('dedupeKey', input.dedupeKey))
     .unique()
   if (existing) return existing._id
-  const notificationId = await ctx.db.insert('notifications', { ...input, createdAt: Date.now() })
-  if ('scheduler' in ctx && ctx.scheduler) {
+  const { schedulePush = true, ...notification } = input
+  const notificationId = await ctx.db.insert('notifications', { ...notification, createdAt: Date.now() })
+  if (schedulePush && 'scheduler' in ctx && ctx.scheduler) {
     await ctx.scheduler.runAfter(0, internal.pushNotifications.deliverNotification, { notificationId })
   }
   return notificationId
+}
+
+const SOCIAL_PUSH_COOLDOWN_MS = 15 * 60 * 1_000
+
+/**
+ * Social reactions and follows are aggregated per target and window. Updating
+ * the existing row keeps the notification center quiet while preserving the
+ * latest actor and a count. A recipient gets at most one social push per
+ * fifteen minutes across targets; later activity is in-app only.
+ */
+export async function createOrUpdateNotification(
+  ctx: MutationCtx,
+  input: CreateNotificationInput,
+): Promise<Id<'notifications'> | null> {
+  if (input.actorUserId === input.recipientUserId) return null
+  const now = Date.now()
+  const existing = await ctx.db.query('notifications')
+    .withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', input.recipientUserId).eq('dedupeKey', input.dedupeKey))
+    .unique()
+  if (existing) {
+    const actorIds = existing.aggregateActorIds ?? []
+    const actorIsNew = !input.actorUserId || !actorIds.includes(input.actorUserId)
+    if (!actorIsNew) return existing._id
+    await ctx.db.patch(existing._id, {
+      actorUserId: input.actorUserId,
+      aggregateCount: (existing.aggregateCount ?? 1) + 1,
+      aggregateActorIds: input.actorUserId ? [...actorIds, input.actorUserId].slice(-20) : actorIds,
+      updatedAt: now,
+      createdAt: now,
+      readAt: undefined,
+    })
+    return existing._id
+  }
+  const recent = await ctx.db.query('notifications')
+    .withIndex('by_recipient_created_at', (q: any) => q.eq('recipientUserId', input.recipientUserId).gte('createdAt', now - SOCIAL_PUSH_COOLDOWN_MS))
+    .collect()
+  const schedulePush = !recent.some((row: Doc<'notifications'>) => isSocialAggregateKind(row.kind))
+  return await createNotification(ctx, {
+    ...input,
+    aggregateCount: 1,
+    aggregateActorIds: input.actorUserId ? [input.actorUserId] : [],
+    schedulePush,
+  })
 }
 
 export const recent = query({
@@ -200,6 +247,7 @@ async function presentNotification(ctx: { db: any }, notification: Doc<'notifica
     category: target.category,
     isComment: Boolean(notification.commentId),
     reminderWindow: notification.reminderWindow,
+    aggregateCount: notification.aggregateCount,
   })
   return {
     id: String(notification._id),

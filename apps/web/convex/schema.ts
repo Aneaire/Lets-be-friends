@@ -728,6 +728,9 @@ export default defineSchema({
     verificationRequestId: v.optional(v.id('verificationRequests')),
     reportId: v.optional(v.id('reports')),
     dedupeKey: v.string(),
+    aggregateCount: v.optional(v.number()),
+    aggregateActorIds: v.optional(v.array(v.id('users'))),
+    updatedAt: v.optional(v.number()),
     readAt: v.optional(v.number()),
     createdAt: v.number(),
   })

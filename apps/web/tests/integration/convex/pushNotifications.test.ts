@@ -219,7 +219,7 @@ describe('push notification registration and delivery', () => {
       actorName: '  Alex Rivera  ',
       messageBody: 'See you near the station.\nI will arrive at 4 PM.',
     })
-    const direct = pushMessage({ token: tokenOne, platform: 'android', notificationId: 'notification-1', kind: 'direct_message', unreadCount: 3, presentation })
+    const direct = pushMessage({ token: tokenOne, platform: 'android', notificationId: 'notification-1', kind: 'direct_message', unreadCount: 3, presentation, dedupeKey: 'direct:1' })
     expect(direct).toEqual({
       to: tokenOne,
       title: 'Alex Rivera',
@@ -228,12 +228,68 @@ describe('push notification registration and delivery', () => {
       badge: 3,
       sound: 'default',
       priority: 'high',
+      interruptionLevel: 'active',
       channelId: 'account-updates-v2',
     })
     expect(Object.keys(direct.data)).toEqual(['version', 'notificationId'])
     expect(JSON.stringify(direct.data)).not.toMatch(/actor|conversation|booking|route|url|attachment|text|note|location|price|category/i)
     expect(nativePushPresentation({ kind: 'direct_message', actorName: 'Alex', messageAttachmentCount: 1 })).toEqual({ title: 'Alex', body: 'Sent you an attachment.' })
-    expect(nativePushPresentation({ kind: 'post_liked', actorName: 'Sam' })).toEqual({ title: 'Sam', body: 'Liked your post.' })
+    expect(nativePushPresentation({ kind: 'post_liked', actorName: 'Sam' })).toEqual({ title: 'New likes', body: 'Sam liked your post.' })
+    expect(nativePushPresentation({ kind: 'post_liked', actorName: 'Sam', aggregateCount: 3 })).toEqual({ title: 'New likes', body: 'Sam and 2 others liked your post.' })
+    const socialIos = pushMessage({
+      token: tokenOne,
+      platform: 'ios',
+      notificationId: 'notification-like',
+      kind: 'post_liked',
+      unreadCount: 4,
+      dedupeKey: 'post:post-1:likes:123',
+      threadId: 'post:post-1',
+      presentation: nativePushPresentation({ kind: 'post_liked', actorName: 'Sam', aggregateCount: 3 }),
+    })
+    expect(socialIos).toMatchObject({
+      sound: null,
+      priority: 'normal',
+      interruptionLevel: 'passive',
+      collapseId: 'post:post-1:likes:123',
+      threadId: 'post:post-1',
+    })
+    expect(socialIos).not.toHaveProperty('channelId')
+    const previousSocialChannel = process.env.EXPO_SOCIAL_PUSH_CHANNEL_ENABLED
+    process.env.EXPO_SOCIAL_PUSH_CHANNEL_ENABLED = 'true'
+    let socialAndroid: ReturnType<typeof pushMessage>
+    try {
+      socialAndroid = pushMessage({
+        token: tokenOne,
+        platform: 'android',
+        notificationId: 'notification-like',
+        kind: 'post_liked',
+        unreadCount: 4,
+        dedupeKey: 'post:post-1:likes:123',
+        threadId: 'post:post-1',
+        presentation: nativePushPresentation({ kind: 'post_liked', actorName: 'Sam', aggregateCount: 3 }),
+      })
+    } finally {
+      if (previousSocialChannel === undefined) delete process.env.EXPO_SOCIAL_PUSH_CHANNEL_ENABLED
+      else process.env.EXPO_SOCIAL_PUSH_CHANNEL_ENABLED = previousSocialChannel
+    }
+    expect(socialAndroid).toMatchObject({
+      sound: null,
+      priority: 'normal',
+      channelId: 'social-updates',
+      collapseId: 'post:post-1:likes:123',
+      tag: 'post:post-1:likes:123',
+    })
+    const socialAndroidDefault = pushMessage({
+      token: tokenOne,
+      platform: 'android',
+      notificationId: 'notification-like',
+      kind: 'post_liked',
+      unreadCount: 4,
+      dedupeKey: 'post:post-1:likes:123',
+      threadId: 'post:post-1',
+      presentation: nativePushPresentation({ kind: 'post_liked', actorName: 'Sam', aggregateCount: 3 }),
+    })
+    expect(socialAndroidDefault.channelId).toBe('account-updates-v2')
     const longPreview = nativePushPresentation({ kind: 'direct_message', actorName: 'Alex', messageBody: 'x'.repeat(150) }).body
     expect(Array.from(longPreview)).toHaveLength(120)
     expect(longPreview.endsWith('…')).toBe(true)
@@ -241,7 +297,7 @@ describe('push notification registration and delivery', () => {
     expect(nativePushBody('post_commented')).toBe('You have a new update.')
     expect(nativePushBody('identity_verification_expiring')).toBe('Your identity approval expires soon.')
     expect(nativePushBody('identity_verification_expired')).toBe('Your identity approval has expired.')
-    const expiring = pushMessage({ token: tokenOne, platform: 'ios', notificationId: 'notification-expiring', kind: 'identity_verification_expiring', unreadCount: 0 })
+    const expiring = pushMessage({ token: tokenOne, platform: 'ios', notificationId: 'notification-expiring', kind: 'identity_verification_expiring', unreadCount: 0, dedupeKey: 'identity:expiring' })
     expect(expiring.body).toBe('Your identity approval expires soon.')
     expect(expiring).not.toHaveProperty('channelId')
     expect(classifyTicket({ status: 'error', details: { error: 'MessageRateExceeded' } })).toEqual({ status: 'retry', errorCode: 'message_rate_exceeded' })

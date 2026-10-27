@@ -3,10 +3,10 @@ import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { router, useFocusEffect, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import * as Linking from 'expo-linking'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppState, FlatList, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { extractConvexErrorMessage } from '@lets-be-friends/shared'
+import { extractConvexErrorMessage, NOTIFICATION_HIGHLIGHT_MS } from '@lets-be-friends/shared'
 
 import { mobileApi, type ConversationId, type DirectMessageUploadId, type StorageId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -57,8 +57,9 @@ export default function ConversationThreadScreen() {
 }
 
 function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
-  const params = useLocalSearchParams<{ id?: string }>()
+  const params = useLocalSearchParams<{ id?: string; messageId?: string }>()
   const id = typeof params.id === 'string' ? params.id : ''
+  const messageId = typeof params.messageId === 'string' ? params.messageId : ''
   const canRead = Boolean(id)
   const conversation = useQuery(mobileApi.conversations.conversation, canRead ? { conversationId: id as ConversationId } : 'skip')
   const messagePage = usePaginatedQuery(
@@ -253,6 +254,7 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
       onRemoveAttachment={removeAttachment}
       listRef={listRef}
       viewerId={viewerId}
+      focusMessageId={messageId || undefined}
       contactUnavailable={Boolean(relationship?.blocked || relationship?.blockedByOther)}
     />
   )
@@ -270,7 +272,7 @@ type PendingChatAttachment = {
   originalSize: number
 }
 
-function ThreadView({ conversation, messages, paginationStatus, loadMore, body, setBody, sending, picking, attachments, canSubmit, error, onSend, onAttach, onRemoveAttachment, listRef, viewerId, contactUnavailable }: {
+function ThreadView({ conversation, messages, paginationStatus, loadMore, body, setBody, sending, picking, attachments, canSubmit, error, onSend, onAttach, onRemoveAttachment, listRef, viewerId, focusMessageId, contactUnavailable }: {
   conversation: Conversation
   messages: Message[]
   paginationStatus: 'CanLoadMore' | 'LoadingMore' | 'Exhausted'
@@ -287,6 +289,7 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   onRemoveAttachment: (attachmentId: string) => void
   listRef: React.RefObject<FlatList<Message> | null>
   viewerId: string
+  focusMessageId?: string
   contactUnavailable: boolean
 }) {
   const theme = useAppTheme()
@@ -294,6 +297,36 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   const suspended = conversation.otherUserSuspended
   const chronologicalMessages = useMemo(() => [...messages].reverse(), [messages])
   const didInitialScroll = useRef(false)
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
+  const handledFocusMessageId = useRef<string | null>(null)
+  const focusAttempts = useRef(0)
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const focusIndex = focusMessageId
+    ? chronologicalMessages.findIndex((message) => String(message._id) === focusMessageId)
+    : -1
+
+  useEffect(() => () => {
+    if (highlightTimer.current) clearTimeout(highlightTimer.current)
+  }, [])
+
+  useEffect(() => {
+    if (!focusMessageId || handledFocusMessageId.current === focusMessageId) return
+    if (focusIndex === -1) {
+      if (paginationStatus === 'CanLoadMore' && focusAttempts.current < 5) {
+        focusAttempts.current += 1
+        loadMore()
+      }
+      return
+    }
+    handledFocusMessageId.current = focusMessageId
+    const scrollTimer = setTimeout(() => {
+      listRef.current?.scrollToIndex({ index: focusIndex, animated: true, viewPosition: 0.5 })
+      setHighlightedMessageId(focusMessageId)
+      if (highlightTimer.current) clearTimeout(highlightTimer.current)
+      highlightTimer.current = setTimeout(() => setHighlightedMessageId(null), NOTIFICATION_HIGHLIGHT_MS)
+    }, 120)
+    return () => clearTimeout(scrollTimer)
+  }, [focusIndex, focusMessageId, listRef, loadMore, paginationStatus])
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
@@ -309,12 +342,16 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
           ref={listRef}
           data={chronologicalMessages}
           keyExtractor={(message) => message._id}
-          renderItem={({ item }) => <MessageItem message={item} otherName={conversation.otherDisplayName} viewerId={viewerId} />}
+          renderItem={({ item }) => <MessageItem message={item} otherName={conversation.otherDisplayName} viewerId={viewerId} highlighted={highlightedMessageId === String(item._id)} />}
           contentContainerStyle={[styles.messages, messages.length === 0 && styles.messagesEmpty]}
           keyboardShouldPersistTaps="handled"
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          onScrollToIndexFailed={(info) => {
+            listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true })
+            setTimeout(() => listRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 }), 320)
+          }}
           onContentSizeChange={() => {
-            if (didInitialScroll.current) return
+            if (focusMessageId || didInitialScroll.current) return
             didInitialScroll.current = true
             listRef.current?.scrollToEnd({ animated: false })
           }}
@@ -367,10 +404,11 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   )
 }
 
-function MessageItem({ message, otherName, viewerId }: {
+function MessageItem({ message, otherName, viewerId, highlighted = false }: {
   message: Message
   otherName: string
   viewerId: string
+  highlighted?: boolean
 }) {
   const theme = useAppTheme()
   const [attachmentError, setAttachmentError] = useState('')
@@ -415,6 +453,7 @@ function MessageItem({ message, otherName, viewerId }: {
       authorName={otherName}
       body={message.body}
       timestamp={formatMessageTimestamp(message.createdAt)}
+      highlighted={highlighted}
       attachments={message.attachments.length ? <>
           {message.attachments.map((item, index) => {
             const storageId = String(item.storageId)

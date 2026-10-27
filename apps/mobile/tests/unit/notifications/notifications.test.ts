@@ -21,7 +21,26 @@ describe('mobile notification helpers', () => {
     expect(mobileNotificationRoute({ type: 'booking', audience: 'member', bookingId: 'booking-1' })).toEqual({ pathname: '/booking/[id]', params: { id: 'booking-1' } })
     expect(mobileNotificationRoute({ type: 'booking', audience: 'companion', bookingId: 'booking-2' })).toEqual({ pathname: '/companion-booking/[id]', params: { id: 'booking-2' } })
     expect(mobileNotificationRoute({ type: 'conversation', conversationId: 'conversation-1' })).toEqual({ pathname: '/conversation/[id]', params: { id: 'conversation-1' } })
+    expect(mobileNotificationRoute({ type: 'conversation', conversationId: 'conversation-1', messageId: 'message-1' })).toEqual({ pathname: '/conversation/[id]', params: { id: 'conversation-1', messageId: 'message-1' } })
     expect(mobileNotificationRoute({ type: 'companion' })).toEqual({ pathname: '/companion' })
+  })
+
+  it('opens a review on its Companion profile and falls back to the booking', () => {
+    expect(mobileNotificationRoute({ type: 'review', reviewId: 'review-1', companionProfileId: 'companion-1', commentId: 'comment-1' })).toEqual({
+      pathname: '/companion-profile/[id]',
+      params: { id: 'companion-1', reviewId: 'review-1', commentId: 'comment-1' },
+    })
+    expect(mobileNotificationRoute({ type: 'review', reviewId: 'review-1', bookingId: 'booking-1' })).toEqual({
+      pathname: '/booking/[id]',
+      params: { id: 'booking-1' },
+    })
+  })
+
+  it('opens the Circle management section from a notification', () => {
+    expect(mobileNotificationRoute({ type: 'circle', circleId: 'circle-1', section: 'joinRequests' })).toEqual({
+      pathname: '/circles/[id]',
+      params: { id: 'circle-1', section: 'joinRequests' },
+    })
   })
 
   it('opens an approved identity notification on the congratulations screen', () => {

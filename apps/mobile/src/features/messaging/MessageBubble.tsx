@@ -11,6 +11,7 @@ type MessageBubbleProps = {
   timestamp: string
   authorName?: string
   pending?: boolean
+  highlighted?: boolean
   attachments?: ReactNode
   footer?: ReactNode
   sideAction?: ReactNode
@@ -22,6 +23,7 @@ export function MessageBubble({
   timestamp,
   authorName = 'Member',
   pending = false,
+  highlighted = false,
   attachments,
   footer,
   sideAction,
@@ -42,6 +44,7 @@ export function MessageBubble({
               styles.bubble,
               pending && styles.pending,
               { backgroundColor: surfaceColor, borderColor: theme.colors.border },
+              highlighted && [styles.highlighted, { borderColor: theme.colors.socialText, backgroundColor: theme.colors.socialSoft }],
             ]}>
             {!body && attachments ? (
               <AppText
@@ -94,4 +97,5 @@ const styles = StyleSheet.create({
   },
   time: { alignSelf: 'flex-end' },
   pending: { borderStyle: 'dashed' },
+  highlighted: { borderWidth: 1.5 },
 })

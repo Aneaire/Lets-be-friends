@@ -1,8 +1,8 @@
 import type { FunctionReturnType } from 'convex/server'
 import { useMutation } from 'convex/react'
 import { BlurTargetView } from 'expo-blur'
-import { useRef, useState } from 'react'
-import { Alert, Pressable, StyleSheet, View } from 'react-native'
+import { useRef, useState, type RefObject } from 'react'
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type PostId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -27,13 +27,14 @@ export type CirclePost = FunctionReturnType<typeof mobileApi.social.circleFeed>[
  * Circle discussion post with approval labels, media, polls, author links,
  * image viewing, and threaded comments.
  */
-export function CirclePostCard({ post, canWrite, canModerate, pinned, expanded, focusCommentId, onTogglePin, onToggleComments }: {
+export function CirclePostCard({ post, canWrite, canModerate, pinned, expanded, focusCommentId, scrollRef, onTogglePin, onToggleComments }: {
   post: CirclePost
   canWrite: boolean
   canModerate: boolean
   pinned: boolean
   expanded: boolean
   focusCommentId?: string
+  scrollRef: RefObject<ScrollView | null>
   onTogglePin: () => void
   onToggleComments: () => void
 }) {
@@ -137,6 +138,7 @@ export function CirclePostCard({ post, canWrite, canModerate, pinned, expanded, 
               canWrite={canWrite}
               canModerate={canModerate}
               focusCommentId={focusCommentId}
+              scrollRef={scrollRef}
             />
           ) : null}
         </View>

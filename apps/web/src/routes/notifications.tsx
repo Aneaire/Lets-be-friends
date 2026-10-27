@@ -2,6 +2,7 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, usePaginatedQuery } from 'convex/react'
 import { Bell, CheckCheck } from 'lucide-react'
+import { useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { Button } from '../design-system/atoms/Button'
@@ -25,6 +26,7 @@ export function NotificationsPage() {
   const markUnread = useMutation(api.notifications.markUnread)
   const markAllRead = useMutation(api.notifications.markAllRead)
   const navigate = useNavigate()
+  const [notice, setNotice] = useState('')
 
   if (!isSignedIn) {
     return <main className="notifications-page"><div className="notifications-empty"><Bell size={28} aria-hidden="true" /><h1 className="text-h1">Sign in to view notifications</h1><SignInButton mode="modal"><Button intent="self">Sign in</Button></SignInButton></div></main>
@@ -42,6 +44,7 @@ export function NotificationsPage() {
         <div><span className="text-label">IN-APP UPDATES</span><h1 className="text-h1">Notifications</h1><p className="text-meta">Booking, social, account, and safety updates in one calm timeline.</p></div>
         <Button intent="neutral" size="small" leadingIcon={<CheckCheck size={16} aria-hidden="true" />} disabled={!notifications.some((item) => !item.readAt)} onClick={() => void markAllRead()}>Mark all as read</Button>
       </header>
+      {notice ? <p className="notice" role="status">{notice}</p> : null}
       {notificationPage.status === 'LoadingFirstPage' ? <div className="notifications-empty" role="status">Loading notifications...</div> : notifications.length === 0 ? (
         <div className="notifications-empty"><Bell size={28} aria-hidden="true" /><h2 className="text-h2">You are all caught up</h2><p className="text-meta">New booking, social, account, and safety updates will appear here.</p></div>
       ) : <>{sections.map((section) => {
@@ -59,7 +62,12 @@ export function NotificationsPage() {
             unread={!notification.readAt}
             onOpen={async () => {
               const result = await openNotification({ notificationId: notification.id })
-              if (result.status === 'ready') await navigate(webDestination(result.destination as NotificationDestination) as never)
+              if (result.status === 'ready') {
+                setNotice('')
+                await navigate(webDestination(result.destination as NotificationDestination) as never)
+              } else {
+                setNotice('That update is no longer available.')
+              }
             }}
             onToggle={async () => notification.readAt
               ? markUnread({ notificationId: notification.id as Id<'notifications'> })

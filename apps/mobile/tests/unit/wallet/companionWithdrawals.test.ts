@@ -30,3 +30,12 @@ describe('companion withdrawal readiness without payout-method hold', () => {
     }
   })
 })
+
+it('uses yellow for pending transfers, green for received funds, and danger for failures', () => {
+  for (const status of ['queued', 'submitting', 'pending'] as const) {
+    expect(withdrawalStatusPresentation(status).tone).toBe('warning')
+  }
+  expect(withdrawalStatusPresentation('succeeded').tone).toBe('success')
+  expect(withdrawalStatusPresentation('failed').tone).toBe('danger')
+  expect(withdrawalStatusPresentation('needs_review').tone).toBe('danger')
+})

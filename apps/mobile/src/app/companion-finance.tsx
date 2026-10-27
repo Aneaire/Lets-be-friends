@@ -50,6 +50,7 @@ function ReadyCompanionFinance() {
   const [withdrawalAmount, setWithdrawalAmount] = useState('1000')
   const [pendingWithdrawal, setPendingWithdrawal] = useState<number | null>(null)
   const [message, setMessage] = useState('')
+  const [messageTone, setMessageTone] = useState<'warning' | 'success'>('success')
   const [busy, setBusy] = useState(false)
   const [setupVisible, setSetupVisible] = useState(false)
   const [setup, setSetup] = useState<{ accountName: string; institutions: Institution[] } | null>(null)
@@ -82,6 +83,7 @@ function ReadyCompanionFinance() {
         activeWithdrawal={payouts.activeWithdrawalId !== null}
         withdrawalAmount={withdrawalAmount}
         withdrawalMessage={message}
+        withdrawalMessageTone={messageTone}
         withdrawalBusy={busy}
         withdrawals={payouts.withdrawals.map(companionWithdrawalItem)}
         onWithdrawalAmountChange={(value) => { setWithdrawalAmount(value); setMessage('') }}
@@ -201,6 +203,7 @@ function ReadyCompanionFinance() {
     try {
       const result = await savePayoutMethod({ institutionBic: selectedInstitution.bic, accountNumber })
       setSetupVisible(false)
+      setMessageTone('success')
       setMessage(`${result.institutionName} ending in ${result.accountNumberLast4} was saved. You can withdraw to it right away.`)
     } catch (error) {
       setMessage(`Error: ${error instanceof Error ? error.message : 'Payout method could not be saved.'}`)
@@ -215,6 +218,7 @@ function ReadyCompanionFinance() {
     setMessage('')
     try {
       await requestWithdrawal({ amountCentavos: pendingWithdrawal })
+      setMessageTone('warning')
       setMessage(`${formatMoney(pendingWithdrawal)} is now in transfer. Track its final status below.`)
       setPendingWithdrawal(null)
     } catch (error) {
@@ -251,6 +255,7 @@ function companionWithdrawalItem(withdrawal: PayoutDashboard['withdrawals'][numb
     destinationLabel: `${withdrawal.institutionName} · •••• ${withdrawal.accountNumberLast4}`,
     dateLabel: formatDateTime(withdrawal.createdAt),
     statusLabel: status.label,
+    statusTone: status.tone,
     detail: reason ?? status.detail,
     danger: status.danger,
   }

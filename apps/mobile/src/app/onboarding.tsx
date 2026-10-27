@@ -27,6 +27,7 @@ import { Chip } from '@/design-system/atoms/Chip'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
+import { openPolicyDocument } from '@/features/policy/policyLinks'
 import { AppText } from '@/design-system/atoms/Typography'
 import { ProductMap } from '@/design-system/organisms/ProductMap'
 import { useMobileMember } from '@/member/MobileMember'
@@ -916,7 +917,7 @@ function PolicyLinks() {
           key={document.id}
           accessibilityRole="link"
           accessibilityLabel={document.title}
-          onPress={() => router.push(document.path)}
+          onPress={() => void openPolicyDocument(document.id)}
           style={({ pressed }) => [pressed && styles.pressed]}>
           <AppText variant="caption" style={[styles.linkedConsentLink, { color: theme.colors.selfText }]}>{document.title}</AppText>
         </Pressable>
@@ -959,7 +960,7 @@ function LinkedConsentChoice({
         <AppText
           accessibilityRole="link"
           accessibilityLabel={document.title}
-          onPress={() => router.push(document.path)}
+          onPress={() => void openPolicyDocument(document.id)}
           style={[styles.linkedConsentLink, { color: theme.colors.selfText }]}>
           {document.title}
         </AppText>
