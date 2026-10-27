@@ -737,6 +737,31 @@ export default defineSchema({
     .index('by_recipient_created_at', ['recipientUserId', 'createdAt'])
     .index('by_recipient_read_at', ['recipientUserId', 'readAt'])
     .index('by_recipient_dedupe', ['recipientUserId', 'dedupeKey']),
+  notificationPreferences: defineTable({
+    userId: v.id('users'),
+    socialReactions: v.optional(v.boolean()),
+    socialComments: v.optional(v.boolean()),
+    socialFollows: v.optional(v.boolean()),
+    circleActivity: v.optional(v.boolean()),
+    quietHoursEnabled: v.optional(v.boolean()),
+    quietHoursStartMinute: v.optional(v.number()),
+    quietHoursEndMinute: v.optional(v.number()),
+    timeZone: v.optional(v.string()),
+    digestEnabled: v.optional(v.boolean()),
+    digestHourMinute: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_digest_enabled', ['digestEnabled']),
+  notificationMutes: defineTable({
+    userId: v.id('users'),
+    targetType: v.union(v.literal('post'), v.literal('circle')),
+    targetId: v.string(),
+    createdAt: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_user_target', ['userId', 'targetType', 'targetId']),
   pushDevices: defineTable({
     installationId: v.string(),
     userId: v.id('users'),

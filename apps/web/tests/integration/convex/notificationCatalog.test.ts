@@ -9,7 +9,7 @@ import {
 
 describe('notification catalog', () => {
   it('tracks every notification kind with complete active configuration', () => {
-    expect(notificationKinds).toHaveLength(43)
+    expect(notificationKinds).toHaveLength(44)
     expect(new Set(notificationKinds).size).toBe(notificationKinds.length)
     expect(notificationKinds.slice().sort()).toEqual(Object.keys(notificationCatalog).sort())
 
@@ -21,7 +21,7 @@ describe('notification catalog', () => {
       expect(definition.recipient.trim()).not.toBe('')
       expect(definition.allowedPriorities.length).toBeGreaterThan(0)
       expect(definition.dedupe.trim()).not.toBe('')
-      expect(definition.destination).toMatch(/^(booking|conversation|post|circle|review|profile|companion|identity|safety)$/)
+      expect(definition.destination).toMatch(/^(booking|conversation|post|circle|review|profile|companion|identity|safety|notifications)$/)
       expect(definition.privacy).toMatch(/^(generic|actor_action|message_preview|comment_preview)$/)
       const policyPrivacy = definition.push.mode === 'generic'
         ? 'generic'
@@ -50,6 +50,20 @@ describe('notification catalog', () => {
       .toEqual({ title: 'Sam', body: 'Commented: Nice photo' })
     expect(buildNativePushPresentation('booking_accepted', { actorName: 'Sam' }))
       .toEqual({ title: "Let's Be Friends", body: 'You have a booking update.' })
+  })
+
+  it('presents the daily digest with correct singular and plural copy', () => {
+    const context = { actorName: 'Alex', targetAvailable: true, isComment: false }
+    expect(buildInAppNotificationCopy('social_digest', { ...context, aggregateCount: 1 })).toEqual({
+      title: 'Your daily update',
+      body: 'You have 1 new update from your feed and Circles.',
+      tone: 'social',
+    })
+    expect(buildInAppNotificationCopy('social_digest', { ...context, aggregateCount: 3 })).toEqual({
+      title: 'Your daily update',
+      body: 'You have 3 new updates from your feed and Circles.',
+      tone: 'social',
+    })
   })
 
   it('makes confirmed booking reminders specific to the window and category', () => {

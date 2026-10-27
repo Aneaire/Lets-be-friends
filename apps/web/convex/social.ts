@@ -954,14 +954,16 @@ export const toggleCommentLike = mutation({
       await ctx.db.patch(comment._id, { likeCount: adjustCounter(comment.likeCount, -1) })
       return false
     }
-    const reactionId = await ctx.db.insert('commentReactions', {
+    const now = Date.now()
+    await ctx.db.insert('commentReactions', {
       userId: viewer._id,
       commentId: args.commentId,
       reaction: 'like',
-      createdAt: Date.now(),
+      createdAt: now,
     })
     await ctx.db.patch(comment._id, { likeCount: adjustCounter(comment.likeCount, 1) })
-    await createNotification(ctx, {
+    const bucketStart = Math.floor(now / (30 * 60 * 1_000)) * (30 * 60 * 1_000)
+    await createOrUpdateNotification(ctx, {
       recipientUserId: comment.authorId,
       actorUserId: viewer._id,
       kind: post.circleId ? 'circle_comment_liked' : 'comment_liked',
@@ -969,7 +971,7 @@ export const toggleCommentLike = mutation({
       postId: post._id,
       commentId: comment._id,
       circleId: post.circleId,
-      dedupeKey: `comment-like:${reactionId}:created`,
+      dedupeKey: `${post.circleId ? 'circle-comment' : 'comment'}:${comment._id}:likes:${bucketStart}`,
     })
     return true
   },

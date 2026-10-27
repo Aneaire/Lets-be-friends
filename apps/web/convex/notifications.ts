@@ -2,12 +2,22 @@ import { paginationOptsValidator } from 'convex/server'
 import { ConvexError, v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
-import { mutation, query, type MutationCtx } from './_generated/server'
+import { mutation, query, internalMutation, type MutationCtx } from './_generated/server'
 import { requireViewer } from './lib'
 import { buildInAppNotificationCopy, isSocialAggregateKind, notificationDefinition, type BookingReminderWindow, type NotificationKind as CatalogNotificationKind } from './notificationCatalog'
 import { areUsersBlocked, isHiddenByPreference, preference } from './safety'
 import { hasCurrentIdentityApproval } from './identityVerification'
 import { isCircleParticipantRole } from './circleAuthorization'
+import { isNotificationTargetMuted } from './notificationMutes'
+import {
+  isNotificationKindEnabled,
+  localDateKey,
+  localHour,
+  notificationKindCategory,
+  resolveNotificationPreferences,
+  resolveStoredNotificationPreferences,
+  shouldSuppressNotificationPush,
+} from './notificationPreferences'
 
 export type NotificationKind = CatalogNotificationKind
 export type NotificationPriority = Doc<'notifications'>['priority']
@@ -71,12 +81,19 @@ export async function createNotification(ctx: MutationCtx | { db: any; scheduler
     if (await areUsersBlocked(ctx, input.recipientUserId, input.actorUserId)) return null
     if ((await preference(ctx, input.recipientUserId, input.actorUserId))?.mutedAt) return null
   }
+  const now = Date.now()
+  const preferences = await resolveNotificationPreferences(ctx, input.recipientUserId)
+  if (definition.respectsSocialPreferences) {
+    if (!isNotificationKindEnabled(preferences, input.kind)) return null
+    if (await isNotificationTargetMuted(ctx, input.recipientUserId, { postId: input.postId, circleId: input.circleId })) return null
+  }
   const existing = await ctx.db.query('notifications')
     .withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', input.recipientUserId).eq('dedupeKey', input.dedupeKey))
     .unique()
   if (existing) return existing._id
-  const { schedulePush = true, ...notification } = input
-  const notificationId = await ctx.db.insert('notifications', { ...notification, createdAt: Date.now() })
+  const { schedulePush: requestedPush = true, ...notification } = input
+  const schedulePush = requestedPush && !shouldSuppressNotificationPush(preferences, input.kind, now)
+  const notificationId = await ctx.db.insert('notifications', { ...notification, createdAt: now })
   if (schedulePush && 'scheduler' in ctx && ctx.scheduler) {
     await ctx.scheduler.runAfter(0, internal.pushNotifications.deliverNotification, { notificationId })
   }
@@ -101,6 +118,11 @@ export async function createOrUpdateNotification(
     .withIndex('by_recipient_dedupe', (q: any) => q.eq('recipientUserId', input.recipientUserId).eq('dedupeKey', input.dedupeKey))
     .unique()
   if (existing) {
+    if (notificationDefinition(input.kind).respectsSocialPreferences) {
+      const preferences = await resolveNotificationPreferences(ctx, input.recipientUserId)
+      if (!isNotificationKindEnabled(preferences, input.kind)) return null
+      if (await isNotificationTargetMuted(ctx, input.recipientUserId, { postId: input.postId, circleId: input.circleId })) return null
+    }
     const actorIds = existing.aggregateActorIds ?? []
     const actorIsNew = !input.actorUserId || !actorIds.includes(input.actorUserId)
     if (!actorIsNew) return existing._id
@@ -125,6 +147,53 @@ export async function createOrUpdateNotification(
     schedulePush,
   })
 }
+
+/**
+ * One daily social digest per member and local day. The sweep walks stored
+ * preference rows through the digest index, then counts only that member's
+ * unread social and Circle notifications from the last day. The digest itself
+ * has no category, so it never counts toward a later digest, and the dedupe key
+ * makes a second run in the same local day a no-op.
+ */
+export const sendDueSocialDigests = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now()
+    const cutoff = now - 24 * 60 * 60 * 1_000
+    const stored = await ctx.db.query('notificationPreferences')
+      .withIndex('by_digest_enabled', (q) => q.eq('digestEnabled', true))
+      .collect()
+    let created = 0
+    for (const row of stored) {
+      const preferences = resolveStoredNotificationPreferences(row)
+      if (!preferences.digestEnabled) continue
+      if (localHour(now, preferences.timeZone) !== Math.floor(preferences.digestHourMinute / 60)) continue
+      const dedupeKey = `social-digest:${row.userId}:${localDateKey(now, preferences.timeZone)}`
+      const existing = await ctx.db.query('notifications')
+        .withIndex('by_recipient_dedupe', (q) => q.eq('recipientUserId', row.userId).eq('dedupeKey', dedupeKey))
+        .unique()
+      if (existing) continue
+      const recipient = await ctx.db.get(row.userId)
+      if (!recipient || recipient.suspended) continue
+      const unread = await ctx.db.query('notifications')
+        .withIndex('by_recipient_read_at', (q) => q.eq('recipientUserId', row.userId).eq('readAt', undefined))
+        .collect()
+      const count = unread.filter((notification) => (
+        notification.createdAt >= cutoff && notificationKindCategory(notification.kind) !== null
+      )).length
+      if (count === 0) continue
+      const notificationId = await createNotification(ctx, {
+        recipientUserId: row.userId,
+        kind: 'social_digest',
+        priority: 'standard',
+        aggregateCount: count,
+        dedupeKey,
+      })
+      if (notificationId) created += 1
+    }
+    return { created }
+  },
+})
 
 export const recent = query({
   args: { limit: v.optional(v.number()) },
@@ -275,6 +344,7 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
   category?: string
 }> {
   const destination = notificationDefinition(notification.kind).destination
+  if (destination === 'notifications') return { available: true, destination: { type: 'notifications' } }
   if (destination === 'circle') {
     if (!notification.circleId || !await canDeliverCircleNotification(ctx, notification, viewerId)) return { available: false, destination: { type: 'notifications' } }
     const circle = await ctx.db.get(notification.circleId) as Doc<'circles'> | null

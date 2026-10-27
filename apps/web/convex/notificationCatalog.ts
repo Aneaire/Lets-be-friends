@@ -7,7 +7,7 @@ const MAX_PUSH_TITLE_LENGTH = 80
 export type NotificationPriority = 'attention' | 'standard'
 export type NotificationTone = 'social' | 'danger' | 'self'
 export type NotificationFamily = 'booking' | 'messaging' | 'social' | 'circle' | 'companion_account' | 'identity' | 'safety'
-export type NotificationDestinationKind = 'booking' | 'conversation' | 'post' | 'circle' | 'review' | 'profile' | 'companion' | 'identity' | 'safety'
+export type NotificationDestinationKind = 'booking' | 'conversation' | 'post' | 'circle' | 'review' | 'profile' | 'companion' | 'identity' | 'safety' | 'notifications'
 export type NotificationPrivacy = 'generic' | 'actor_action' | 'message_preview' | 'comment_preview'
 export type BookingReminderWindow = '1_day' | '5_hours' | '1_hour'
 export type NativePushBody = 'You have a new message.' | 'Someone mentioned you.' | 'You have a booking update.' | 'You have a Circle update.' | 'Your identity approval expires soon.' | 'Your identity approval has expired.' | 'You have a new update.'
@@ -151,8 +151,8 @@ export const notificationCatalog = {
     inAppCopy: actorCopy('New reply', 'replied to your comment'),
   },
   comment_liked: {
-    family: 'social', status: 'active', triggers: ['social.toggleCommentLike'], recipient: 'Comment author', destination: 'post', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One notification per comment like reaction', push: { mode: 'actor_action', action: 'Liked your comment.', fallbackBody: 'You have a new update.' },
-    inAppCopy: actorCopy('New comment like', 'liked your comment'),
+    family: 'social', status: 'active', triggers: ['social.toggleCommentLike'], recipient: 'Comment author', destination: 'post', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One aggregated notification per comment and window', push: { mode: 'social_aggregate', title: 'New likes', action: 'liked your comment.', fallbackBody: 'You have a new update.' },
+    inAppCopy: aggregateActorCopy('New like', 'New likes', 'liked your comment'),
   },
   mention: {
     family: 'social', status: 'active', triggers: ['social.createPost', 'social.editPost', 'social.createComment', 'social.editComment'], recipient: 'Mentioned member', destination: 'post', allowedPriorities: ['standard'], privacy: 'comment_preview', respectsSocialPreferences: true, dedupe: 'One notification per mentioned member and source record', push: { mode: 'mention', fallbackBody: 'Someone mentioned you.' },
@@ -205,8 +205,8 @@ export const notificationCatalog = {
     inAppCopy: aggregateActorCopy('New Circle reaction', 'New Circle reactions', 'reacted to your Circle post'),
   },
   circle_comment_liked: {
-    family: 'circle', status: 'active', triggers: ['social.toggleCommentLike'], recipient: 'Circle comment author', destination: 'circle', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: true, dedupe: 'One notification per Circle comment reaction', push: { mode: 'generic', body: 'You have a Circle update.' },
-    inAppCopy: actorCopy('New Circle comment reaction', 'reacted to your comment'),
+    family: 'circle', status: 'active', triggers: ['social.toggleCommentLike'], recipient: 'Circle comment author', destination: 'circle', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One aggregated notification per Circle comment and window', push: { mode: 'social_aggregate', title: 'New Circle comment reactions', action: 'reacted to your comment.', fallbackBody: 'You have a Circle update.' },
+    inAppCopy: aggregateActorCopy('New Circle comment reaction', 'New Circle comment reactions', 'reacted to your comment'),
   },
   circle_member_removed: {
     family: 'circle', status: 'active', triggers: ['circles.moderateMember'], recipient: 'Removed Circle member', destination: 'circle', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per removal', push: { mode: 'generic', body: 'You have a Circle update.' },
@@ -276,6 +276,17 @@ export const notificationCatalog = {
     family: 'safety', status: 'active', triggers: ['admin.updateReport'], recipient: 'Report author', destination: 'safety', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per report and dismissed status', push: { mode: 'generic', body: 'You have a new update.' },
     inAppCopy: systemCopy('Report closed', 'The safety team closed your report.', 'danger'),
   },
+  social_digest: {
+    family: 'social', status: 'active', triggers: ['notifications.sendDueSocialDigests'], recipient: 'Member with a daily digest enabled', destination: 'notifications', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One digest per member and local day', push: { mode: 'generic', body: 'You have a new update.' },
+    inAppCopy: (context) => {
+      const count = Math.max(0, Math.floor(context.aggregateCount ?? 0))
+      return {
+        title: 'Your daily update',
+        body: `You have ${count} new update${count === 1 ? '' : 's'} from your feed and Circles.`,
+        tone: 'social',
+      }
+    },
+  },
 } satisfies Record<string, NotificationDefinition>
 
 export type NotificationKind = keyof typeof notificationCatalog
@@ -283,7 +294,7 @@ export const notificationKinds = Object.freeze(Object.keys(notificationCatalog) 
 export const notificationKindValidator = v.union(...notificationKinds.map((kind) => v.literal(kind)))
 export const notificationPriorityValidator = v.union(v.literal('attention'), v.literal('standard'))
 
-const socialAggregateKinds = new Set<NotificationKind>(['post_liked', 'circle_reaction', 'new_follower'])
+const socialAggregateKinds = new Set<NotificationKind>(['post_liked', 'comment_liked', 'circle_reaction', 'circle_comment_liked', 'new_follower'])
 
 export function isSocialAggregateKind(kind: NotificationKind) {
   return socialAggregateKinds.has(kind)

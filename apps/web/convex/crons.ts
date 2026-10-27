@@ -38,6 +38,13 @@ crons.interval(
   {},
 )
 
+crons.hourly(
+  'send due social digests',
+  { minuteUTC: 0 },
+  internal.notifications.sendDueSocialDigests,
+  {},
+)
+
 crons.interval(
   'reconcile Expo push deliveries',
   { minutes: 15 },

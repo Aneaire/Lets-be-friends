@@ -28,6 +28,8 @@ import type * as identityVerification from "../identityVerification.js";
 import type * as lib from "../lib.js";
 import type * as migrations from "../migrations.js";
 import type * as notificationCatalog from "../notificationCatalog.js";
+import type * as notificationMutes from "../notificationMutes.js";
+import type * as notificationPreferences from "../notificationPreferences.js";
 import type * as notifications from "../notifications.js";
 import type * as paymongo from "../paymongo.js";
 import type * as persona from "../persona.js";
@@ -70,6 +72,8 @@ declare const fullApi: ApiFromModules<{
   lib: typeof lib;
   migrations: typeof migrations;
   notificationCatalog: typeof notificationCatalog;
+  notificationMutes: typeof notificationMutes;
+  notificationPreferences: typeof notificationPreferences;
   notifications: typeof notifications;
   paymongo: typeof paymongo;
   persona: typeof persona;
