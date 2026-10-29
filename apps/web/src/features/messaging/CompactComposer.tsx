@@ -1,5 +1,5 @@
 import { LoaderCircle, Paperclip, Send } from 'lucide-react'
-import { useId, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useId, useRef, type ClipboardEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { Textarea } from '../../design-system/atoms/Field'
 
 export type CompactComposerVariant = 'standalone' | 'thread'
@@ -18,6 +18,7 @@ export type CompactComposerProps = {
   attachDisabled?: boolean
   submitLabel?: string
   onFilesSelected?: (files: File[]) => void
+  onPasteFiles?: (files: File[]) => void
   hint?: ReactNode
   onChange: (value: string) => void
   onSubmit: () => void
@@ -37,6 +38,7 @@ export function CompactComposer({
   attachDisabled = false,
   submitLabel = 'Send',
   onFilesSelected,
+  onPasteFiles,
   hint,
   onChange,
   onSubmit,
@@ -69,6 +71,18 @@ export function CompactComposer({
     if (files.length > 0 && onFilesSelected) onFilesSelected(files)
   }
 
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!onPasteFiles) return
+    const fromItems = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file))
+    const files = fromItems.length > 0 ? fromItems : Array.from(event.clipboardData.files ?? []).filter((file) => file.size > 0)
+    if (files.length === 0) return
+    event.preventDefault()
+    onPasteFiles(files)
+  }
+
   const sendContent = (
     <>
       {sending || preparing ? <LoaderCircle className="ds-spinner" size={16} aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}
@@ -90,6 +104,7 @@ export function CompactComposer({
             disabled={disabled || sending}
             onChange={(event) => onChange(event.currentTarget.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             onCompositionStart={() => { composingRef.current = true }}
             onCompositionEnd={() => { composingRef.current = false }}
           />
@@ -140,6 +155,7 @@ export function CompactComposer({
           aria-describedby={hint ? hintId : undefined}
           onChange={(event) => onChange(event.currentTarget.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           onCompositionStart={() => { composingRef.current = true }}
           onCompositionEnd={() => { composingRef.current = false }}
         />

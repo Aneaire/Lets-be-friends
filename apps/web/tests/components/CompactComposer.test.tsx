@@ -143,6 +143,51 @@ describe('CompactComposer', () => {
     expect(input.value).toBe('')
   })
 
+  it('adds a screenshot pasted from the clipboard as an attachment', () => {
+    const onPasteFiles = vi.fn()
+    render(
+      <CompactComposer
+        variant="thread"
+        value=""
+        canSubmit={false}
+        onChange={() => undefined}
+        onSubmit={() => undefined}
+        onPasteFiles={onPasteFiles}
+      />,
+    )
+    const textarea = field(screen.getByLabelText('Message'))
+    const screenshot = new File(['image-bytes'], 'screenshot.png', { type: 'image/png' })
+    fireEvent.paste(textarea, {
+      clipboardData: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => screenshot }],
+      },
+    })
+    expect(onPasteFiles).toHaveBeenCalledTimes(1)
+    expect(onPasteFiles.mock.calls[0][0]).toEqual([screenshot])
+  })
+
+  it('leaves a text-only paste to the message field', () => {
+    const onPasteFiles = vi.fn()
+    render(
+      <CompactComposer
+        variant="thread"
+        value=""
+        canSubmit={false}
+        onChange={() => undefined}
+        onSubmit={() => undefined}
+        onPasteFiles={onPasteFiles}
+      />,
+    )
+    const textarea = field(screen.getByLabelText('Message'))
+    fireEvent.paste(textarea, {
+      clipboardData: {
+        items: [{ kind: 'string', type: 'text/plain' }],
+      },
+    })
+    expect(onPasteFiles).not.toHaveBeenCalled()
+  })
+
+
   it('associates the hint with the message field through aria-describedby', () => {
     const { container } = render(
       <CompactComposer

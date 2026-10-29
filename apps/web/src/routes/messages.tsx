@@ -1023,12 +1023,13 @@ function MessageComposer({
           />
         )) : undefined}
         onFilesSelected={editingMessage ? undefined : (files) => { void addFiles(files) }}
+        onPasteFiles={editingMessage ? undefined : (files) => { void addFiles(files) }}
         attachDisabled={attachments.length >= MAX_CHAT_ATTACHMENTS}
         onChange={setBody}
         onSubmit={() => { void send() }}
         hint={editingMessage
           ? <>Save to update this message · Attachments stay unchanged</>
-          : <>Press Enter to send · Shift+Enter for a new line · Large media is compressed automatically</>}
+          : <>Press Enter to send · Shift+Enter for a new line · Paste a screenshot to attach it</>}
       />
     </div>
   )
