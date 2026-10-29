@@ -16,8 +16,8 @@ import { TextField } from '@/design-system/atoms/Field'
 import { Chip } from '@/design-system/atoms/Chip'
 import { VerifiedBadge } from '@/design-system/atoms/VerifiedBadge'
 import { CompanionAvailabilitySection } from '@/features/companion/CompanionAvailabilitySection'
+import { ProfileSafetyMenu } from '@/features/safety/ProfileSafetyMenu'
 import { ReportAction } from '@/features/safety/ReportAction'
-import { MemberSafetyActions } from '@/features/safety/MemberSafetyActions'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { Screen, Section } from '@/design-system/templates/Screen'
 import { PageSkeleton, ProfileContentSkeleton } from '@/design-system/templates/PageSkeleton'
@@ -149,7 +149,7 @@ function CompanionDetail({ companion, reviewId, commentId }: { companion: Compan
     <View style={styles.route}>
       <BlurTargetView ref={blurTarget} importantForAccessibility={viewerImage ? 'no-hide-descendants' : 'auto'} style={styles.blurTarget}>
         <Screen scrollRef={scrollRef} contentStyle={styles.content} footer={!ownProfile ? <View style={styles.stickyActions}><ActionButton label={busy === 'message' ? 'Opening' : 'Message'} onPress={() => void messageCompanion()} disabled={!signedIn || !companion.userId || busy !== null} intent="social" secondary icon="chatbubble-outline" style={styles.flexAction} /><ActionButton label={bookingAction.kind === 'book' ? 'Book' : bookingAction.label} onPress={bookingPress} disabled={bookingAction.kind === 'own_profile' || bookingAction.kind === 'unavailable'} intent="social" icon="calendar-outline" style={styles.flexAction} /></View> : undefined}>
-      <AppHeader title="Companion profile" back onBack={goBackOrExplore} />
+      <AppHeader title="Profile" back onBack={goBackOrExplore} action={signedIn && !ownProfile && companion.userId ? <ProfileSafetyMenu profileId={companion.id} userId={String(companion.userId)} displayName={companion.name} onNotice={setMessage} /> : undefined} />
       <View style={styles.identity}>
         <Avatar uri={companion.imageUrl} name={companion.name} size={88} />
         <View style={styles.identityCopy}>
@@ -178,7 +178,9 @@ function CompanionDetail({ companion, reviewId, commentId }: { companion: Compan
           {companion.boundaries.length ? <Detail label="Boundaries" value={companion.boundaries.join(', ')} /> : null}
         </View>
         {companion.rateLabel ? <RateHighlight value={companion.rateLabel} /> : null}
-        <CompanionAvailabilitySection availability={companion.weeklyAvailability} />
+        <View style={styles.availability}>
+          <CompanionAvailabilitySection availability={companion.weeklyAvailability} />
+        </View>
       </Section>
 
       <Section>
@@ -217,8 +219,6 @@ function CompanionDetail({ companion, reviewId, commentId }: { companion: Compan
 
       <Section style={styles.bottomSection}>
         <AppText variant="caption" color={theme.colors.textMuted}>{bookingAction.explanation}</AppText>
-        {signedIn ? <ReportAction targetType="profile" targetId={companion.id} label="Report this profile" /> : null}
-        {signedIn && !ownProfile && companion.userId ? <MemberSafetyActions userId={companion.userId} displayName={companion.name} /> : null}
       </Section>
         </Screen>
       </BlurTargetView>
@@ -595,6 +595,7 @@ const styles = StyleSheet.create({
   rateLabel: { fontWeight: '700' },
   rateLine: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   rateAmount: companionProfileTypography.rate,
+  availability: { marginTop: 12 },
   sectionTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   contentTabs: { marginTop: 2 },
   tabPanel: { marginTop: 6, gap: 10 },

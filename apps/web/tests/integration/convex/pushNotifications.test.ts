@@ -110,7 +110,7 @@ describe('push notification registration and delivery', () => {
     const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
     const messageId = await alex.mutation(api.conversations.sendMessage, { conversationId, body: '  Meet me by the library.\nTomorrow works.  ' })
     const notification = await t.run((ctx) => ctx.db.query('notifications')
-      .withIndex('by_recipient_dedupe', (q) => q.eq('recipientUserId', samId).eq('dedupeKey', `direct-message:${messageId}`))
+      .withIndex('by_recipient_dedupe', (q) => q.eq('recipientUserId', samId).eq('dedupeKey', `direct-message:${conversationId}`))
       .unique())
     expect(notification).toMatchObject({ actorUserId: alexId, conversationId, messageId })
     await t.mutation(internal.pushNotifications.prepareDeliveries, { notificationId: notification!._id, projectId })
@@ -118,6 +118,16 @@ describe('push notification registration and delivery', () => {
     const claimed = await t.mutation(internal.pushNotifications.claimDeliveries, { now: Date.now(), projectId, notificationId: notification!._id })
     expect(claimed).toHaveLength(1)
     expect(claimed[0].presentation).toEqual({ title: 'alex', body: 'Meet me by the library. Tomorrow works.' })
+
+    // A second message reuses the conversation notification but still pushes,
+    // with the collapsed copy and the message specific delivery key.
+    const secondMessageId = await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'Plan changed.' })
+    const updated = await t.run((ctx) => ctx.db.get(notification!._id))
+    expect(updated).toMatchObject({ messageId: secondMessageId, aggregateCount: 2 })
+    expect(await t.mutation(internal.pushNotifications.prepareDeliveries, { notificationId: notification!._id, projectId })).toEqual({ created: 1 })
+    const claimedSecond = await t.mutation(internal.pushNotifications.claimDeliveries, { now: Date.now() + 60_000, projectId, notificationId: notification!._id })
+    expect(claimedSecond).toHaveLength(1)
+    expect(claimedSecond[0].presentation).toEqual({ title: 'New messages', body: 'alex sent 2 messages.' })
   })
 
   it('does not reclaim an active send lease and ignores a late first result after reclaim', async () => {
@@ -230,6 +240,8 @@ describe('push notification registration and delivery', () => {
       priority: 'high',
       interruptionLevel: 'active',
       channelId: 'account-updates-v2',
+      collapseId: 'direct:1',
+      tag: 'direct:1',
     })
     expect(Object.keys(direct.data)).toEqual(['version', 'notificationId'])
     expect(JSON.stringify(direct.data)).not.toMatch(/actor|conversation|booking|route|url|attachment|text|note|location|price|category/i)

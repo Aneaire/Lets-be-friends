@@ -17,10 +17,12 @@ export function CompactComposer({
   disabled = false,
   canSubmit,
   preparing = false,
+  contextBanner,
   attachments,
   showAttach = false,
   attachDisabled = false,
   attachLoading = false,
+  submitLabel = 'Send',
   hint,
   onChange,
   onSubmit,
@@ -33,10 +35,12 @@ export function CompactComposer({
   disabled?: boolean
   canSubmit?: boolean
   preparing?: boolean
+  contextBanner?: ReactNode
   attachments?: ReactNode
   showAttach?: boolean
   attachDisabled?: boolean
   attachLoading?: boolean
+  submitLabel?: string
   hint?: string
   onChange: (value: string) => void
   onSubmit: () => void
@@ -59,6 +63,7 @@ export function CompactComposer({
 
   return (
     <View style={styles.column}>
+      {contextBanner}
       {attachments ? <View accessibilityLabel="Selected files" style={styles.tray}>{attachments}</View> : null}
       <View style={styles.row}>
         {showAttachButton ? (
@@ -88,7 +93,7 @@ export function CompactComposer({
           style={[styles.input, { height: inputHeight }]}
         />
         <IconButton
-          label={preparing ? 'Preparing' : 'Send'}
+          label={preparing ? 'Preparing' : submitLabel}
           icon="send"
           tone="social"
           disabled={submitDisabled || busy}

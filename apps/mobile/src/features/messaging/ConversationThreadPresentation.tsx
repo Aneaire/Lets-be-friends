@@ -12,13 +12,15 @@ export function ConversationThreadHeader({
   imageUrl,
   paused = false,
   onBack,
+  onOpenMenu,
   onSafety,
 }: {
   name: string
   imageUrl?: string | null
   paused?: boolean
   onBack: () => void
-  onSafety: () => void
+  onOpenMenu?: () => void
+  onSafety?: () => void
 }) {
   const theme = useAppTheme()
 
@@ -39,13 +41,23 @@ export function ConversationThreadHeader({
           </AppText>
         ) : null}
       </View>
-      <IconButton
-        label={`Safety options for ${name}`}
-        icon="shield-outline"
-        tone="self"
-        onPress={onSafety}
-        style={styles.safetyButton}
-      />
+      {onOpenMenu ? (
+        <IconButton
+          label={`Conversation menu for ${name}`}
+          icon="ellipsis-horizontal"
+          onPress={onOpenMenu}
+          style={styles.safetyButton}
+        />
+      ) : null}
+      {onSafety ? (
+        <IconButton
+          label={`Safety options for ${name}`}
+          icon="shield-outline"
+          tone="self"
+          onPress={onSafety}
+          style={styles.safetyButton}
+        />
+      ) : null}
     </View>
   )
 }

@@ -59,7 +59,9 @@ function ConversationInbox({ conversations }: { conversations: Conversation[] })
 }
 
 function ConversationRow({ conversation }: { conversation: Conversation }) {
-  const preview = `${conversation.lastMessageSentByViewer ? 'You: ' : ''}${conversationPreview(conversation.lastMessageBody, conversation.lastMessageAttachmentCount)}`
+  const preview = conversation.lastMessageDeleted
+    ? 'Message deleted'
+    : `${conversation.lastMessageSentByViewer ? 'You: ' : ''}${conversationPreview(conversation.lastMessageBody, conversation.lastMessageAttachmentCount)}`
   return (
     <ConversationListItem
       name={conversation.otherDisplayName}

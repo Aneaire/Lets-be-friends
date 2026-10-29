@@ -11,7 +11,9 @@ type MessageBubbleProps = {
   timestamp: string
   authorName?: string
   pending?: boolean
+  deleted?: boolean
   highlighted?: boolean
+  quote?: ReactNode
   attachments?: ReactNode
   footer?: ReactNode
   sideAction?: ReactNode
@@ -23,7 +25,9 @@ export function MessageBubble({
   timestamp,
   authorName = 'Member',
   pending = false,
+  deleted = false,
   highlighted = false,
+  quote,
   attachments,
   footer,
   sideAction,
@@ -54,8 +58,16 @@ export function MessageBubble({
                 Attachment from {author}
               </AppText>
             ) : null}
+            {quote}
             {attachments}
-            {body ? <AppText accessibilityLabel={`${author} said: ${body}`}>{body}</AppText> : null}
+            {body ? (
+              <AppText
+                accessibilityLabel={deleted ? 'Message deleted' : `${author} said: ${body}`}
+                color={deleted ? theme.colors.textMuted : undefined}
+                style={deleted ? styles.deletedBody : undefined}>
+                {body}
+              </AppText>
+            ) : null}
             <AppText
               accessibilityLabel={pending ? `Sending, ${timestamp}` : `Sent ${timestamp}`}
               variant="caption"
@@ -68,6 +80,17 @@ export function MessageBubble({
         </View>
         {footer}
       </View>
+    </View>
+  )
+}
+
+export function MessageQuote({ author, preview }: { author: string; preview: string }) {
+  const theme = useAppTheme()
+
+  return (
+    <View style={[styles.quote, { borderLeftColor: theme.colors.socialText, backgroundColor: theme.colors.socialSoft }]}>
+      <AppText variant="caption" color={theme.colors.socialText} numberOfLines={1}>{author}</AppText>
+      <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={2}>{preview}</AppText>
     </View>
   )
 }
@@ -98,4 +121,6 @@ const styles = StyleSheet.create({
   time: { alignSelf: 'flex-end' },
   pending: { borderStyle: 'dashed' },
   highlighted: { borderWidth: 1.5 },
+  quote: { borderLeftWidth: 3, borderRadius: 6, paddingVertical: density.textPairGap, paddingHorizontal: density.cardGap, gap: density.textPairGap },
+  deletedBody: { fontStyle: 'italic' },
 })

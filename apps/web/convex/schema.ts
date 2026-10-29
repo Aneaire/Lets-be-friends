@@ -694,6 +694,9 @@ export default defineSchema({
     lastMessageAt: v.optional(v.number()),
     participantOneLastReadAt: v.optional(v.number()),
     participantTwoLastReadAt: v.optional(v.number()),
+    // Per-member inbox hiding. A new message clears both so the chat returns.
+    participantOneDeletedAt: v.optional(v.number()),
+    participantTwoDeletedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -708,6 +711,12 @@ export default defineSchema({
     reportable: v.boolean(),
     // Present on the automatic booking request and status messages that frame an experience.
     bookingId: v.optional(v.id('bookings')),
+    replyToMessageId: v.optional(v.id('directMessages')),
+    editedAt: v.optional(v.number()),
+    // Soft delete keeps content for safety review and shows a tombstone.
+    deletedAt: v.optional(v.number()),
+    // Unsend removes the message from every member-facing view.
+    unsentAt: v.optional(v.number()),
     createdAt: v.number(),
   }).index('by_conversation_created_at', ['conversationId', 'createdAt']),
   notifications: defineTable({
@@ -1070,7 +1079,7 @@ export default defineSchema({
   }).index('by_dedupe_key', ['dedupeKey']).index('by_user_session', ['userId', 'sessionId']).index('by_created_at', ['createdAt']).index('by_user_item_event_created_at', ['userId', 'itemType', 'eventType', 'createdAt']),
   rateLimits: defineTable({
     userId: v.id('users'),
-    actionFamily: v.union(v.literal('create_post'), v.literal('create_comment'), v.literal('toggle_reaction'), v.literal('vote_poll'), v.literal('create_circle'), v.literal('send_message'), v.literal('create_report'), v.literal('start_identity'), v.literal('create_topup'), v.literal('create_booking')),
+    actionFamily: v.union(v.literal('create_post'), v.literal('create_comment'), v.literal('toggle_reaction'), v.literal('vote_poll'), v.literal('create_circle'), v.literal('send_message'), v.literal('edit_message'), v.literal('create_report'), v.literal('start_identity'), v.literal('create_topup'), v.literal('create_booking')),
     bucketStart: v.number(),
     count: v.number(),
     expiresAt: v.number(),

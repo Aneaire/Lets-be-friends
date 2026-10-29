@@ -11,6 +11,7 @@ export function MessageBubble({
   pending = false,
   media,
   attachments,
+  quote,
   actions,
   ...props
 }: HTMLAttributes<HTMLElement> & {
@@ -22,10 +23,11 @@ export function MessageBubble({
   pending?: boolean
   media?: ReactNode
   attachments?: ReactNode
+  quote?: ReactNode
   actions?: ReactNode
 }) {
   const hasMedia = Boolean(media)
-  const hasBubble = Boolean(body || attachments || !hasMedia)
+  const hasBubble = Boolean(body || attachments || quote || !hasMedia)
   const messageTime = <time dateTime={dateTime}>{timestamp}</time>
 
   return (
@@ -40,6 +42,7 @@ export function MessageBubble({
         {media ? <div className="ds-message-media">{media}</div> : null}
         {hasBubble ? (
           <div className="ds-message-bubble">
+            {quote}
             {attachments}
             {body ? <p>{body}</p> : null}
             {!hasMedia ? messageTime : null}

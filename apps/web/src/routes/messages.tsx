@@ -1,7 +1,7 @@
 import { SignInButton, useAuth } from '@clerk/react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
-import { ArrowLeft, CircleCheck, FileText, Flag, Image as ImageIcon, LoaderCircle, MessageCircle, ShieldCheck, Video, X } from 'lucide-react'
+import { ArrowLeft, CircleCheck, Ellipsis, EyeOff, FileText, Flag, Image as ImageIcon, Link2, LoaderCircle, MessageCircle, Pencil, Reply, ShieldCheck, Trash2, Video, X } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { NOTIFICATION_HIGHLIGHT_MS } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -15,6 +15,8 @@ import { ConversationListItemContent } from '../features/messaging/ConversationL
 import { MessageBubble } from '../features/messaging/MessageBubble'
 import { PendingOutgoingMessageBubble } from '../features/messaging/PendingOutgoingMessageBubble'
 import { AttachmentMetaRow } from '../design-system/molecules/AttachmentMetaRow'
+import { ActionMenu } from '../design-system/molecules/ActionMenu'
+import { ConfirmationDialog, Dialog } from '../design-system/molecules/Dialog'
 import { MessageImageGallery, MessageImageViewer, type MessageImage } from '../design-system/molecules/MessageImages'
 import {
   MAX_CHAT_ATTACHMENTS,
@@ -36,6 +38,9 @@ export const Route = createFileRoute('/messages')({
 type Conversation = NonNullable<ReturnType<typeof useQuery<typeof api.conversations.list>>>[number]
 type Thread = NonNullable<ReturnType<typeof useQuery<typeof api.conversations.messages>>>
 type ThreadAttachment = Thread['messages'][number]['attachments'][number]
+type ThreadMessage = Thread['messages'][number]
+type ThreadReply = NonNullable<Thread['messages'][number]['replyTo']>
+type ConversationAssets = NonNullable<ReturnType<typeof useQuery<typeof api.conversations.assets>>>
 type PendingAttachment = {
   id: string
   source: File
@@ -71,18 +76,61 @@ export function MessagesPage() {
   })
   const currentBookingMessage = thread && currentBooking ? thread.messages[currentBooking.messageIndex] : undefined
   const latestBookingEnded = latestBookingStatus === 'completed' || latestBookingStatus === 'review_window' || latestBookingStatus === 'closed'
+  const canCompose = !thread?.conversation.otherUserSuspended
   const report = useMutation(api.reports.create)
   const decideBooking = useMutation(api.bookings.companionDecision)
   const updateBookingRequest = useMutation(api.bookings.editRequest)
   const markRead = useMutation(api.conversations.markRead)
+  const editMessage = useMutation(api.conversations.editMessage)
+  const deleteMessage = useMutation(api.conversations.deleteMessage)
+  const unsendMessage = useMutation(api.conversations.unsendMessage)
+  const deleteConversation = useMutation(api.conversations.deleteConversation)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [pendingOutgoing, setPendingOutgoing] = useState<PendingOutgoingMessage | null>(null)
   const [editingBooking, setEditingBooking] = useState<EditableBookingRequest | null>(null)
   const [openImage, setOpenImage] = useState<MessageImage | null>(null)
+  const [replyTo, setReplyTo] = useState<ThreadMessage | null>(null)
+  const [editingMessage, setEditingMessage] = useState<ThreadMessage | null>(null)
+  const [actionMessage, setActionMessage] = useState<ThreadMessage | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ThreadMessage | null>(null)
+  const [unsendTarget, setUnsendTarget] = useState<ThreadMessage | null>(null)
+  const [deleteConversationOpen, setDeleteConversationOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [actionBusy, setActionBusy] = useState(false)
   const editingCompanion = useQuery(api.companions.getPublic, editingBooking?.companionProfileId ? { companionProfileId: editingBooking.companionProfileId } : 'skip')
+  const assets = useQuery(
+    api.conversations.assets,
+    isSignedIn && selectedConversationId && detailsOpen ? { conversationId: selectedConversationId } : 'skip',
+  )
   const threadEndRef = useRef<HTMLDivElement>(null)
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setReplyTo(null)
+    setEditingMessage(null)
+    setActionMessage(null)
+    setDeleteTarget(null)
+    setUnsendTarget(null)
+    setDeleteConversationOpen(false)
+    setDetailsOpen(false)
+  }, [selectedConversationId])
+
+  useEffect(() => {
+    if (!thread) return
+    if (editingMessage) {
+      const current = thread.messages.find((message) => message._id === editingMessage._id)
+      if (!current || current.deletedAt) setEditingMessage(null)
+    }
+    if (replyTo) {
+      const current = thread.messages.find((message) => message._id === replyTo._id)
+      if (!current || current.deletedAt) setReplyTo(null)
+    }
+    if (actionMessage) {
+      const current = thread.messages.find((message) => message._id === actionMessage._id)
+      if (!current || current.deletedAt) setActionMessage(null)
+    }
+  }, [thread, editingMessage, replyTo, actionMessage])
 
   useEffect(() => {
     if (!messageId) {
@@ -98,7 +146,7 @@ export function MessagesPage() {
     const target = messageId ? document.getElementById(`message-${messageId}`) : null
     if (target) target.scrollIntoView({ block: 'center' })
     else threadEndRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [messageId, pendingOutgoing, thread?.messages.length])
+  }, [messageId, pendingOutgoing, thread?.messages.length, replyTo, editingMessage])
 
   useEffect(() => {
     setPendingOutgoing(null)
@@ -108,7 +156,9 @@ export function MessagesPage() {
     if (isSignedIn && selectedConversationId) {
       void markRead({ conversationId: selectedConversationId })
     }
-  }, [isSignedIn, markRead, selectedConversationId])
+    // A message that arrives while the chat is open is already being read, so
+    // mark it read too instead of leaving an unread notification behind.
+  }, [isSignedIn, markRead, selectedConversationId, thread?.messages.length])
 
   async function reportMessage(messageTargetId: Id<'directMessages'>) {
     setError('')
@@ -118,6 +168,71 @@ export function MessagesPage() {
     } catch (reportError) {
       setNotice('')
       setError(reportError instanceof Error ? describeConvexError(reportError) : 'Message could not be reported.')
+    }
+  }
+
+  function beginReply(message: ThreadMessage) {
+    setEditingMessage(null)
+    setReplyTo(message)
+    setError('')
+  }
+
+  function beginEdit(message: ThreadMessage) {
+    setReplyTo(null)
+    setEditingMessage(message)
+    setError('')
+  }
+
+  function cancelComposerContext() {
+    setReplyTo(null)
+    setEditingMessage(null)
+  }
+
+  async function confirmDeleteMessage() {
+    if (!deleteTarget || actionBusy) return
+    setActionBusy(true)
+    setError('')
+    try {
+      await deleteMessage({ messageId: deleteTarget._id })
+      if (replyTo && replyTo._id === deleteTarget._id) setReplyTo(null)
+      if (editingMessage && editingMessage._id === deleteTarget._id) setEditingMessage(null)
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? describeConvexError(deleteError) : 'This message could not be deleted.')
+    } finally {
+      setDeleteTarget(null)
+      setActionBusy(false)
+    }
+  }
+
+  async function confirmUnsendMessage() {
+    if (!unsendTarget || actionBusy) return
+    setActionBusy(true)
+    setError('')
+    try {
+      await unsendMessage({ messageId: unsendTarget._id })
+      if (replyTo && replyTo._id === unsendTarget._id) setReplyTo(null)
+      if (editingMessage && editingMessage._id === unsendTarget._id) setEditingMessage(null)
+    } catch (unsendError) {
+      setError(unsendError instanceof Error ? describeConvexError(unsendError) : 'This message could not be unsent.')
+    } finally {
+      setUnsendTarget(null)
+      setActionBusy(false)
+    }
+  }
+
+  async function confirmDeleteConversation() {
+    if (!selectedConversationId || actionBusy) return
+    setActionBusy(true)
+    setError('')
+    try {
+      await deleteConversation({ conversationId: selectedConversationId })
+      setDeleteConversationOpen(false)
+      navigate({ to: '/messages', search: {} })
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? describeConvexError(deleteError) : 'This conversation could not be deleted.')
+      setDeleteConversationOpen(false)
+    } finally {
+      setActionBusy(false)
     }
   }
 
@@ -133,7 +248,7 @@ export function MessagesPage() {
   }
 
   return (
-    <main className="messages-chat" data-thread-open={selectedConversationId ? 'true' : undefined}>
+    <main className="messages-chat" data-thread-open={selectedConversationId ? 'true' : undefined} data-details-open={detailsOpen && thread ? 'true' : undefined}>
       <aside className="messages-chat-rail" aria-label="Conversations">
         <div className="messages-rail-heading">
           <h1>Messages</h1>
@@ -180,6 +295,14 @@ export function MessagesPage() {
               </div>
               <p className="direct-thread-trust"><ShieldCheck size={13} aria-hidden="true" /> Private between members · Messages can be reported</p>
             </div>
+            <ActionMenu
+              label="Conversation options"
+              panelLabel="Conversation options"
+              items={[
+                { label: 'Conversation details', icon: <ImageIcon size={16} aria-hidden="true" />, onSelect: () => setDetailsOpen(true) },
+                { label: 'Delete conversation', icon: <Trash2 size={16} aria-hidden="true" />, tone: 'danger', onSelect: () => setDeleteConversationOpen(true) },
+              ]}
+            />
             <Link to="/safety" className="direct-thread-safety-link">Safety</Link>
           </header>
 
@@ -234,20 +357,16 @@ export function MessagesPage() {
                     className={highlightedMessageId === String(message._id) ? 'notification-target-highlight' : undefined}
                     direction={message.sentByViewer ? 'outgoing' : 'incoming'}
                     attachments={message.attachments}
-                    body={message.body}
+                    body={message.deletedAt ? 'Message deleted' : message.body}
                     createdAt={message.createdAt}
+                    deleted={Boolean(message.deletedAt)}
+                    editedAt={message.editedAt}
+                    otherName={thread.conversation.otherDisplayName}
+                    replyTo={message.replyTo}
                     status={message.sentByViewer ? 'sent' : undefined}
                     onOpenImage={setOpenImage}
-                    actions={(
-                      <button
-                        type="button"
-                        className="direct-message-report"
-                        aria-label="Report message"
-                        title="Report message"
-                        onClick={() => { void reportMessage(message._id) }}
-                      >
-                        <Flag size={14} aria-hidden="true" />
-                      </button>
+                    actions={message.deletedAt ? undefined : (
+                      <DirectMessageActions onOpen={() => setActionMessage(message)} />
                     )}
                   />
                 )}
@@ -269,8 +388,17 @@ export function MessagesPage() {
             <div className="notice notice-warning">This member is not currently available for messages.</div>
           ) : (
             <MessageComposer
+              key={thread.conversation._id}
               conversationId={thread.conversation._id}
               recipientName={thread.conversation.otherDisplayName}
+              replyTo={replyTo ? {
+                messageId: replyTo._id,
+                author: replyTo.sentByViewer ? 'You' : thread.conversation.otherDisplayName,
+                preview: messagePreview(replyTo),
+              } : null}
+              editingMessage={editingMessage ? { messageId: editingMessage._id, body: editingMessage.body } : null}
+              onCancelContext={cancelComposerContext}
+              onEditSaved={() => setEditingMessage(null)}
               onSending={(message) => {
                 setNotice('')
                 setPendingOutgoing(message)
@@ -278,6 +406,7 @@ export function MessagesPage() {
               onSent={(messageId) => {
                 setError('')
                 setNotice('')
+                setReplyTo(null)
                 setPendingOutgoing((current) => current ? { ...current, messageId } : null)
               }}
               onSendFailed={() => setPendingOutgoing(null)}
@@ -291,6 +420,121 @@ export function MessagesPage() {
       ) : (
         <div className="empty-state">Choose a conversation.</div>
       )}
+        <Dialog
+          open={Boolean(actionMessage)}
+          onClose={() => setActionMessage(null)}
+          title="Message options"
+          description={actionMessage?.sentByViewer
+            ? 'Delete keeps a deleted notice. Unsend removes the message for both members.'
+            : 'Choose an action for this message.'}
+          size="small"
+        >
+          {actionMessage ? (
+            <div className="direct-message-option-list">
+              {canCompose ? (
+                <button
+                  type="button"
+                  className="direct-message-option"
+                  data-tone="social"
+                  onClick={() => {
+                    const target = actionMessage
+                    setActionMessage(null)
+                    beginReply(target)
+                  }}
+                >
+                  <Reply size={16} aria-hidden="true" />
+                  <span>Reply</span>
+                </button>
+              ) : null}
+              {actionMessage.sentByViewer ? (
+                <>
+                  {canCompose ? (
+                    <button
+                      type="button"
+                      className="direct-message-option"
+                      data-tone="self"
+                      onClick={() => {
+                        const target = actionMessage
+                        setActionMessage(null)
+                        beginEdit(target)
+                      }}
+                    >
+                      <Pencil size={16} aria-hidden="true" />
+                      <span>Edit message</span>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="direct-message-option"
+                    data-tone="danger"
+                    onClick={() => {
+                      const target = actionMessage
+                      setActionMessage(null)
+                      setDeleteTarget(target)
+                    }}
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                    <span>Delete message</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="direct-message-option"
+                    data-tone="danger"
+                    onClick={() => {
+                      const target = actionMessage
+                      setActionMessage(null)
+                      setUnsendTarget(target)
+                    }}
+                  >
+                    <EyeOff size={16} aria-hidden="true" />
+                    <span>Unsend message</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="direct-message-option"
+                  data-tone="danger"
+                  onClick={() => {
+                    const target = actionMessage
+                    setActionMessage(null)
+                    void reportMessage(target._id)
+                  }}
+                >
+                  <Flag size={16} aria-hidden="true" />
+                  <span>Report message</span>
+                </button>
+              )}
+            </div>
+          ) : null}
+        </Dialog>
+        <ConfirmationDialog
+          open={Boolean(deleteTarget)}
+          title="Delete message?"
+          description='Both members will see "Message deleted" instead. The content stays available only for safety review.'
+          confirmLabel="Delete message"
+          busy={actionBusy}
+          onClose={() => { if (!actionBusy) setDeleteTarget(null) }}
+          onConfirm={() => { void confirmDeleteMessage() }}
+        />
+        <ConfirmationDialog
+          open={Boolean(unsendTarget)}
+          title="Unsend message?"
+          description="This removes the message for both members, including the deleted notice."
+          confirmLabel="Unsend message"
+          busy={actionBusy}
+          onClose={() => { if (!actionBusy) setUnsendTarget(null) }}
+          onConfirm={() => { void confirmUnsendMessage() }}
+        />
+        <ConfirmationDialog
+          open={deleteConversationOpen}
+          title="Delete conversation?"
+          description="This hides the conversation from your Messages list. The other member keeps their copy, and a new message will bring it back."
+          confirmLabel="Delete conversation"
+          busy={actionBusy}
+          onClose={() => { if (!actionBusy) setDeleteConversationOpen(false) }}
+          onConfirm={() => { void confirmDeleteConversation() }}
+        />
         {editingBooking && (
           <BookingRequestEditor
             booking={editingBooking}
@@ -305,6 +549,14 @@ export function MessagesPage() {
         )}
         {openImage && <MessageImageViewer image={openImage} onClose={() => setOpenImage(null)} />}
       </section>
+      {detailsOpen && thread && (
+        <ConversationDetailsSidebar
+          assets={assets}
+          conversation={thread.conversation}
+          onClose={() => setDetailsOpen(false)}
+          onOpenImage={setOpenImage}
+        />
+      )}
     </main>
   )
 }
@@ -316,6 +568,10 @@ function DirectMessageContent({
   attachments,
   body,
   createdAt,
+  deleted = false,
+  editedAt,
+  otherName,
+  replyTo,
   status,
   onOpenImage,
   actions,
@@ -326,6 +582,10 @@ function DirectMessageContent({
   attachments: ThreadAttachment[]
   body?: string
   createdAt: number
+  deleted?: boolean
+  editedAt?: number
+  otherName: string
+  replyTo?: ThreadReply | null
   status?: 'sent'
   onOpenImage: (image: MessageImage) => void
   actions?: ReactNode
@@ -336,6 +596,16 @@ function DirectMessageContent({
       : []
   ))
   const otherAttachments = attachments.filter((attachment) => attachment.kind !== 'image' || !attachment.url)
+  const quote = replyTo ? (
+    <blockquote className="ds-message-quote">
+      <strong>{replyTo.sentByViewer ? 'You' : otherName}</strong>
+      <span>
+        {replyTo.deleted
+          ? 'Message deleted'
+          : replyTo.body || `${replyTo.attachmentCount} attachment${replyTo.attachmentCount === 1 ? '' : 's'}`}
+      </span>
+    </blockquote>
+  ) : undefined
 
   return (
     <MessageBubble
@@ -343,14 +613,113 @@ function DirectMessageContent({
       className={className}
       direction={direction}
       body={body}
-      timestamp={formatMessageTime(createdAt)}
+      timestamp={`${formatMessageTime(createdAt)}${editedAt ? ' · Edited' : ''}`}
       dateTime={new Date(createdAt).toISOString()}
       status={status}
+      quote={quote}
       media={images.length > 0 ? <MessageImageGallery images={images} onOpen={onOpenImage} /> : undefined}
       attachments={otherAttachments.length > 0 ? <MessageAttachments attachments={otherAttachments} /> : undefined}
       actions={actions}
+      data-deleted={deleted || undefined}
     />
   )
+}
+
+function DirectMessageActions({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      className="direct-message-options"
+      aria-label="Message options"
+      aria-haspopup="dialog"
+      data-tooltip="Message options"
+      data-tooltip-position="above"
+      onClick={onOpen}
+    >
+      <Ellipsis size={16} aria-hidden="true" />
+    </button>
+  )
+}
+
+function ConversationDetailsSidebar({ assets, conversation, onClose, onOpenImage }: {
+  assets: ConversationAssets | undefined
+  conversation: Thread['conversation']
+  onClose: () => void
+  onOpenImage: (image: MessageImage) => void
+}) {
+  const media = assets?.media ?? []
+  const images = media.flatMap((item) => (item.kind === 'image' && item.url
+    ? [{ storageId: String(item.storageId), url: item.url, fileName: item.fileName }]
+    : []))
+  const videos = media.filter((item) => item.kind === 'video' && item.url)
+  const files = media.filter((item) => item.kind === 'file' && item.url)
+  const links = assets?.links ?? []
+
+  return (
+    <aside className="direct-details-sidebar" aria-label="Conversation details">
+      <div className="direct-details-heading">
+        <Avatar name={conversation.otherDisplayName} src={conversation.otherProfileImageUrl} decorative />
+        <div className="min-w-0">
+          <h2 className="text-h3">Conversation details</h2>
+          <p className="text-meta">{conversation.otherDisplayName}</p>
+        </div>
+        <button type="button" className="direct-details-close" aria-label="Close conversation details" onClick={onClose}>
+          <X size={16} aria-hidden="true" />
+        </button>
+      </div>
+
+      <section className="direct-details-section">
+        <h3>Photos and videos <span>{images.length + videos.length}</span></h3>
+        {assets === undefined ? <p className="text-meta">Loading shared media…</p> : images.length || videos.length ? (
+          <>
+            {images.length ? <MessageImageGallery images={images} onOpen={onOpenImage} /> : null}
+            {videos.map((video) => (
+              <a key={video.storageId} className="direct-details-row" href={video.url ?? undefined} target="_blank" rel="noreferrer">
+                <Video size={16} aria-hidden="true" />
+                <span>{video.fileName}</span>
+              </a>
+            ))}
+          </>
+        ) : <p className="text-meta">No photos or videos shared yet.</p>}
+      </section>
+
+      <section className="direct-details-section">
+        <h3>Files <span>{files.length}</span></h3>
+        {assets === undefined ? null : files.length ? files.map((file) => (
+          <button
+            key={file.storageId}
+            type="button"
+            className="direct-details-row direct-details-download"
+            aria-label={`Download attachment ${file.fileName}`}
+            onClick={() => { if (file.url) void downloadAttachment(file.url, file.fileName) }}
+          >
+            <FileText size={16} aria-hidden="true" />
+            <span><strong>{file.fileName}</strong><small>{formatFileSize(file.size)} · Download file</small></span>
+          </button>
+        )) : <p className="text-meta">No files shared yet.</p>}
+      </section>
+
+      <section className="direct-details-section">
+        <h3>Links <span>{links.length}</span></h3>
+        {assets === undefined ? null : links.length ? links.map((link) => (
+          <a key={link.url} className="direct-details-row" href={link.url} target="_blank" rel="noreferrer">
+            <Link2 size={16} aria-hidden="true" />
+            <span>{link.url}</span>
+          </a>
+        )) : <p className="text-meta">No links shared yet.</p>}
+      </section>
+    </aside>
+  )
+}
+
+function messagePreview(message: ThreadMessage) {
+  if (message.deletedAt) return 'Message deleted'
+  const body = message.body.trim()
+  if (body) return body
+  const count = message.attachments.length
+  if (count === 1) return '1 attachment'
+  if (count > 1) return `${count} attachments`
+  return 'Message'
 }
 
 function MessageAttachments({ attachments }: { attachments: ThreadAttachment[] }) {
@@ -365,11 +734,19 @@ function MessageAttachments({ attachments }: { attachments: ThreadAttachment[] }
             </div>
           )
         }
+        const url = attachment.url
         return (
-          <a key={attachment.storageId} href={attachment.url ?? undefined} download={attachment.fileName} className="direct-attachment-file">
+          <button
+            key={attachment.storageId}
+            type="button"
+            className="direct-attachment-file"
+            aria-label={`Download attachment ${attachment.fileName}`}
+            disabled={!url}
+            onClick={() => { if (url) void downloadAttachment(url, attachment.fileName) }}
+          >
             <FileText size={20} aria-hidden="true" />
-            <span><strong>{attachment.fileName}</strong><small>{formatFileSize(attachment.size)}</small></span>
-          </a>
+            <span><strong>{attachment.fileName}</strong><small>{url ? `${formatFileSize(attachment.size)} · Download file` : 'Secure link unavailable'}</small></span>
+          </button>
         )
       })}
     </div>
@@ -388,6 +765,10 @@ function AttachmentMeta({ attachment }: { attachment: ThreadAttachment }) {
 function MessageComposer({
   conversationId,
   recipientName,
+  replyTo,
+  editingMessage,
+  onCancelContext,
+  onEditSaved,
   onSending,
   onSent,
   onSendFailed,
@@ -395,6 +776,10 @@ function MessageComposer({
 }: {
   conversationId: Id<'directConversations'>
   recipientName: string
+  replyTo: { messageId: Id<'directMessages'>; author: string; preview: string } | null
+  editingMessage: { messageId: Id<'directMessages'>; body: string } | null
+  onCancelContext: () => void
+  onEditSaved: () => void
   onSending: (message: PendingOutgoingMessage) => void
   onSent: (messageId: Id<'directMessages'>) => void
   onSendFailed: () => void
@@ -404,6 +789,7 @@ function MessageComposer({
   const registerUpload = useMutation(api.conversations.registerAttachmentUpload)
   const discardUpload = useMutation(api.conversations.discardAttachmentUpload)
   const sendMessage = useMutation(api.conversations.sendMessage)
+  const editMessage = useMutation(api.conversations.editMessage)
   const [body, setBody] = useState('')
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const [sending, setSending] = useState(false)
@@ -411,6 +797,7 @@ function MessageComposer({
   const cancelledRef = useRef<Set<string>>(new Set())
   const mountedRef = useRef(true)
   const sendingRef = useRef(false)
+  const previousEditingRef = useRef<Id<'directMessages'> | null>(null)
   attachmentRef.current = attachments
 
   useEffect(() => {
@@ -423,6 +810,22 @@ function MessageComposer({
       })
     }
   }, [])
+
+  const editingId = editingMessage?.messageId ?? null
+  const editingBody = editingMessage?.body ?? ''
+
+  useEffect(() => {
+    if (editingId) {
+      setBody(editingBody)
+      attachmentRef.current.forEach((attachment) => {
+        if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+      })
+      setAttachments([])
+    } else if (previousEditingRef.current) {
+      setBody('')
+    }
+    previousEditingRef.current = editingId
+  }, [editingBody, editingId])
 
   const removeAttachment = (id: string) => {
     if (sendingRef.current) return
@@ -483,10 +886,28 @@ function MessageComposer({
 
   const hasPending = attachments.some((attachment) => attachment.status === 'preparing')
   const hasErrors = attachments.some((attachment) => attachment.status === 'error')
-  const canSend = Boolean(body.trim() || attachments.length > 0) && !hasPending && !hasErrors && !sending
+  const canSend = editingMessage
+    ? Boolean(body.trim()) && !sending
+    : Boolean(body.trim() || attachments.length > 0) && !hasPending && !hasErrors && !sending
 
   const send = async () => {
     if (sendingRef.current || !canSend) return
+    if (editingMessage) {
+      sendingRef.current = true
+      setSending(true)
+      onError('')
+      try {
+        await editMessage({ messageId: editingMessage.messageId, body: body.trim() })
+        setBody('')
+        onEditSaved()
+      } catch (caught) {
+        onError(caught instanceof Error ? describeConvexError(caught) : 'Message could not be saved.')
+      } finally {
+        setSending(false)
+        sendingRef.current = false
+      }
+      return
+    }
     sendingRef.current = true
     setSending(true)
     onError('')
@@ -522,6 +943,7 @@ function MessageComposer({
         conversationId,
         body,
         attachmentUploadIds: grants.map((grant) => grant.uploadId),
+        replyToMessageId: replyTo?.messageId,
       })
       grants.forEach((grant) => { grant.claimed = true })
       attachments.forEach((attachment) => {
@@ -544,48 +966,69 @@ function MessageComposer({
   }
 
   return (
-    <CompactComposer
-      variant="thread"
-      value={body}
-      placeholder={`Message ${recipientName}`}
-      canSubmit={canSend}
-      sending={sending}
-      preparing={hasPending}
-      attachments={attachments.length > 0 ? attachments.map((attachment) => (
-        <AttachmentMetaRow
-          key={attachment.id}
-          leading={<AttachmentPreview attachment={attachment} />}
-          name={attachment.source.name}
-          detail={attachment.status === 'preparing'
-            ? 'Compressing media before upload'
-            : attachment.status === 'error'
-              ? attachment.error
-              : attachment.prepared?.compressionPercent
-                ? `${attachment.prepared.compressionPercent}% smaller · ${formatFileSize(attachment.prepared.file.size)} from ${formatFileSize(attachment.prepared.originalSize)}`
-                : `Original · ${formatFileSize(attachment.source.size)}`}
-          state={attachment.status === 'preparing'
-            ? `${attachment.progress}%`
-            : attachment.status === 'error'
-              ? 'Preparation failed'
-              : 'Ready'}
-          stateTone={attachment.status === 'preparing'
-            ? 'progress'
-            : attachment.status === 'error'
-              ? 'danger'
-              : 'success'}
-          action={(
-            <button type="button" className="ds-compact-composer-remove" onClick={() => removeAttachment(attachment.id)} disabled={sending} aria-label={`Remove ${attachment.source.name}`} data-tooltip="Remove attachment" data-tooltip-position="above">
-              <X size={14} aria-hidden="true" />
-            </button>
-          )}
-        />
-      )) : undefined}
-      onFilesSelected={(files) => { void addFiles(files) }}
-      attachDisabled={attachments.length >= MAX_CHAT_ATTACHMENTS}
-      onChange={setBody}
-      onSubmit={() => { void send() }}
-      hint={<>Press Enter to send · Shift+Enter for a new line · Large media is compressed automatically</>}
-    />
+    <div className="direct-composer-shell">
+      {editingMessage || replyTo ? (
+        <div className="direct-composer-context" data-mode={editingMessage ? 'edit' : 'reply'}>
+          <div className="direct-composer-context-copy">
+            <strong>{editingMessage ? 'Editing message' : `Replying to ${replyTo?.author}`}</strong>
+            <span>{editingMessage ? editingBody : replyTo?.preview}</span>
+          </div>
+          <button
+            type="button"
+            className="direct-composer-context-cancel"
+            aria-label={editingMessage ? 'Cancel editing message' : 'Cancel reply'}
+            onClick={onCancelContext}
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
+      <CompactComposer
+        variant="thread"
+        value={body}
+        placeholder={`Message ${recipientName}`}
+        canSubmit={canSend}
+        sending={sending}
+        preparing={hasPending}
+        submitLabel={editingMessage ? 'Save changes' : 'Send'}
+        attachments={attachments.length > 0 ? attachments.map((attachment) => (
+          <AttachmentMetaRow
+            key={attachment.id}
+            leading={<AttachmentPreview attachment={attachment} />}
+            name={attachment.source.name}
+            detail={attachment.status === 'preparing'
+              ? 'Compressing media before upload'
+              : attachment.status === 'error'
+                ? attachment.error
+                : attachment.prepared?.compressionPercent
+                  ? `${attachment.prepared.compressionPercent}% smaller · ${formatFileSize(attachment.prepared.file.size)} from ${formatFileSize(attachment.prepared.originalSize)}`
+                  : `Original · ${formatFileSize(attachment.source.size)}`}
+            state={attachment.status === 'preparing'
+              ? `${attachment.progress}%`
+              : attachment.status === 'error'
+                ? 'Preparation failed'
+                : 'Ready'}
+            stateTone={attachment.status === 'preparing'
+              ? 'progress'
+              : attachment.status === 'error'
+                ? 'danger'
+                : 'success'}
+            action={(
+              <button type="button" className="ds-compact-composer-remove" onClick={() => removeAttachment(attachment.id)} disabled={sending} aria-label={`Remove ${attachment.source.name}`} data-tooltip="Remove attachment" data-tooltip-position="above">
+                <X size={14} aria-hidden="true" />
+              </button>
+            )}
+          />
+        )) : undefined}
+        onFilesSelected={editingMessage ? undefined : (files) => { void addFiles(files) }}
+        attachDisabled={attachments.length >= MAX_CHAT_ATTACHMENTS}
+        onChange={setBody}
+        onSubmit={() => { void send() }}
+        hint={editingMessage
+          ? <>Save to update this message · Attachments stay unchanged</>
+          : <>Press Enter to send · Shift+Enter for a new line · Large media is compressed automatically</>}
+      />
+    </div>
   )
 }
 
@@ -656,8 +1099,28 @@ function formatMessageTime(timestamp: number) {
   }).format(timestamp)
 }
 
+async function downloadAttachment(url: string, fileName: string) {
+  try {
+    const response = await fetch(url)
+    if (!response.ok) throw new Error('The file could not be downloaded.')
+    const blob = await response.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = objectUrl
+    anchor.download = fileName
+    anchor.rel = 'noopener'
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000)
+  } catch {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+}
+
 function conversationPreview(conversation: Conversation) {
   const viewerPrefix = conversation.lastMessageSentByViewer ? 'You: ' : ''
+  if (conversation.lastMessageDeleted) return `${viewerPrefix}Message deleted`
   if (conversation.lastMessageBody) return `${viewerPrefix}${conversation.lastMessageBody}`
   if (conversation.lastMessageAttachmentCount === 1) return `${viewerPrefix}Sent a file`
   if (conversation.lastMessageAttachmentCount > 1) return `${viewerPrefix}Sent ${conversation.lastMessageAttachmentCount} files`

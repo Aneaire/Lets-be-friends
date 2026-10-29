@@ -149,6 +149,73 @@ export async function createOrUpdateNotification(
 }
 
 /**
+ * Direct messages collapse into one row per conversation. A back and forth
+ * bumps the count, points at the latest message, moves the row to the top, and
+ * reopens it instead of adding another row. Reading the conversation clears it,
+ * and the next message starts the same row again at a count of one.
+ */
+export function directMessageNotificationKey(conversationId: Id<'directConversations'>) {
+  return `direct-message:${conversationId}`
+}
+
+export async function createOrUpdateMessageNotification(
+  ctx: MutationCtx,
+  input: {
+    recipientUserId: Id<'users'>
+    actorUserId: Id<'users'>
+    conversationId: Id<'directConversations'>
+    messageId: Id<'directMessages'>
+    dedupeKey: string
+  },
+): Promise<Id<'notifications'> | null> {
+  if (input.actorUserId === input.recipientUserId) return null
+  if (await areUsersBlocked(ctx, input.recipientUserId, input.actorUserId)) return null
+  if ((await preference(ctx, input.recipientUserId, input.actorUserId))?.mutedAt) return null
+  const now = Date.now()
+  const existing = await ctx.db.query('notifications')
+    .withIndex('by_recipient_dedupe', (q) => q.eq('recipientUserId', input.recipientUserId).eq('dedupeKey', input.dedupeKey))
+    .unique()
+  if (!existing) {
+    return await createNotification(ctx, {
+      recipientUserId: input.recipientUserId,
+      actorUserId: input.actorUserId,
+      kind: 'direct_message',
+      priority: 'standard',
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+      dedupeKey: input.dedupeKey,
+      aggregateCount: 1,
+    })
+  }
+  await ctx.db.patch(existing._id, {
+    actorUserId: input.actorUserId,
+    conversationId: input.conversationId,
+    messageId: input.messageId,
+    aggregateCount: existing.readAt ? 1 : (existing.aggregateCount ?? 1) + 1,
+    priority: 'standard',
+    readAt: undefined,
+    createdAt: now,
+    updatedAt: now,
+  })
+  if ('scheduler' in ctx && ctx.scheduler) {
+    await ctx.scheduler.runAfter(0, internal.pushNotifications.deliverNotification, { notificationId: existing._id })
+  }
+  return existing._id
+}
+
+/** Opening or replying in a conversation clears its notification row. */
+export async function markConversationNotificationRead(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  conversationId: Id<'directConversations'>,
+) {
+  const row = await ctx.db.query('notifications')
+    .withIndex('by_recipient_dedupe', (q) => q.eq('recipientUserId', userId).eq('dedupeKey', directMessageNotificationKey(conversationId)))
+    .unique()
+  if (row && !row.readAt) await ctx.db.patch(row._id, { readAt: Date.now() })
+}
+
+/**
  * One daily social digest per member and local day. The sweep walks stored
  * preference rows through the digest index, then counts only that member's
  * unread social and Circle notifications from the last day. The digest itself
@@ -414,7 +481,7 @@ async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'
     if (!participant) return { available: false, destination: { type: 'notifications' } }
     if (notification.messageId) {
       const message = await ctx.db.get(notification.messageId) as Doc<'directMessages'> | null
-      if (!message || message.conversationId !== conversation._id) {
+      if (!message || message.conversationId !== conversation._id || message.unsentAt) {
         return { available: false, destination: { type: 'notifications' } }
       }
     }

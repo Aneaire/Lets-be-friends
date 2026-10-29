@@ -52,6 +52,18 @@ describe('notification catalog', () => {
       .toEqual({ title: "Let's Be Friends", body: 'You have a booking update.' })
   })
 
+  it('counts a burst of messages in one conversation instead of one row per message', () => {
+    const context = { actorName: 'Alex', targetAvailable: true, isComment: false }
+    expect(buildInAppNotificationCopy('direct_message', { ...context, aggregateCount: 1 }))
+      .toEqual({ title: 'New message', body: 'Alex sent you a message.', tone: 'social' })
+    expect(buildInAppNotificationCopy('direct_message', { ...context, aggregateCount: 4 }))
+      .toEqual({ title: 'New messages', body: 'Alex sent you 4 messages.', tone: 'social' })
+    expect(buildNativePushPresentation('direct_message', { actorName: 'Alex', messageBody: 'Hello there' }))
+      .toEqual({ title: 'Alex', body: 'Hello there' })
+    expect(buildNativePushPresentation('direct_message', { actorName: 'Alex', aggregateCount: 4 }))
+      .toEqual({ title: 'New messages', body: 'Alex sent 4 messages.' })
+  })
+
   it('presents the daily digest with correct singular and plural copy', () => {
     const context = { actorName: 'Alex', targetAvailable: true, isComment: false }
     expect(buildInAppNotificationCopy('social_digest', { ...context, aggregateCount: 1 })).toEqual({

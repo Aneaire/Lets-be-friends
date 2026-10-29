@@ -16,6 +16,7 @@ export type CompactComposerProps = {
   attachments?: ReactNode
   accept?: string
   attachDisabled?: boolean
+  submitLabel?: string
   onFilesSelected?: (files: File[]) => void
   hint?: ReactNode
   onChange: (value: string) => void
@@ -34,6 +35,7 @@ export function CompactComposer({
   attachments,
   accept = 'image/*,video/*,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx',
   attachDisabled = false,
+  submitLabel = 'Send',
   onFilesSelected,
   hint,
   onChange,
@@ -70,7 +72,7 @@ export function CompactComposer({
   const sendContent = (
     <>
       {sending || preparing ? <LoaderCircle className="ds-spinner" size={16} aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}
-      <span>{sending ? 'Sending…' : preparing ? 'Preparing…' : 'Send'}</span>
+      <span>{sending ? 'Sending…' : preparing ? 'Preparing…' : submitLabel}</span>
     </>
   )
 

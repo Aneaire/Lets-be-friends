@@ -3,8 +3,11 @@ import {
   attachmentSelectionError,
   canSubmitConversationMessage,
   chatAttachmentKind,
+  chatDocumentMimeType,
   chatUploadRegistration,
+  CHAT_DOCUMENT_MIME_TYPES,
   describeChatAttachment,
+  isDownloadOnlyAttachment,
   MAX_CHAT_ATTACHMENTS,
   needsCompressionBeforeSend,
   normalizeAttachmentFileName,
@@ -68,6 +71,42 @@ describe('chat attachment validation', () => {
       .toBe('The selected file could not be verified. Please choose it again.')
     expect(validateChatAttachment({ mimeType: 'image/jpeg', fileSize: 1000, fileName: '   ' }))
       .toBe('File name is required.')
+  })
+})
+
+describe('chat document attachments', () => {
+  it('offers the same safe document types the backend accepts', () => {
+    expect(CHAT_DOCUMENT_MIME_TYPES).toContain('application/pdf')
+    expect(CHAT_DOCUMENT_MIME_TYPES).toContain('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    expect(CHAT_DOCUMENT_MIME_TYPES).toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    expect(CHAT_DOCUMENT_MIME_TYPES).not.toContain('application/zip')
+  })
+
+  it('resolves Office file types when the device reports a generic type', () => {
+    expect(chatDocumentMimeType('notes.pdf', 'application/pdf')).toBe('application/pdf')
+    expect(chatDocumentMimeType('plan.docx', 'application/octet-stream'))
+      .toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    expect(chatDocumentMimeType('budget.xlsx', null))
+      .toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    expect(chatDocumentMimeType('slides.pptx', undefined))
+      .toBe('application/vnd.openxmlformats-officedocument.presentationml.presentation')
+    expect(chatDocumentMimeType('archive.zip', 'application/octet-stream')).toBe('application/octet-stream')
+  })
+
+  it('accepts a resolved document type and rejects unknown binaries', () => {
+    expect(validateChatAttachment({
+      mimeType: chatDocumentMimeType('notes.docx', 'application/octet-stream'),
+      fileSize: 1000,
+      fileName: 'notes.docx',
+    })).toBeNull()
+    expect(validateChatAttachment({ mimeType: 'application/zip', fileSize: 1000, fileName: 'archive.zip' }))
+      .toBe('Choose an image, video, PDF, text, Word, Excel, or PowerPoint file.')
+  })
+
+  it('treats documents as download-only and media as previewable', () => {
+    expect(isDownloadOnlyAttachment('file')).toBe(true)
+    expect(isDownloadOnlyAttachment('image')).toBe(false)
+    expect(isDownloadOnlyAttachment('video')).toBe(false)
   })
 })
 

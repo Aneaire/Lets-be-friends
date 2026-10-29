@@ -200,3 +200,44 @@ function ComposerStory() {
 export const ComposerEmptyDisabled: Story = {
   render: () => <div className="ds-story-thread"><ComposerStory /></div>,
 }
+
+export const ReplyQuoteAndEdited: Story = {
+  render: () => (
+    <div className="ds-story-thread">
+      <MessageBubble
+        direction="outgoing"
+        body="That works for me."
+        timestamp="2:40 PM · Edited"
+        quote={(
+          <blockquote className="ds-message-quote">
+            <strong>Alex Rivera</strong>
+            <span>Would 2:30 PM work for the online session?</span>
+          </blockquote>
+        )}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Would 2:30 PM work for the online session?')).toBeVisible()
+    await expect(canvas.getByText('2:40 PM · Edited')).toBeVisible()
+  },
+}
+
+export const ComposerSaveChanges: Story = {
+  render: () => (
+    <CompactComposer
+      variant="thread"
+      value="Meet near the east gate."
+      canSubmit
+      submitLabel="Save changes"
+      onChange={() => undefined}
+      onSubmit={() => undefined}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('button', { name: 'Save changes' })).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
+  },
+}

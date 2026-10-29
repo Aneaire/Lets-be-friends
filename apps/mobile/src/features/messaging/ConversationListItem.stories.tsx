@@ -18,7 +18,13 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const Read: Story = {}
+export const Read: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Would 2:30 PM work for the online session?')).toBeVisible()
+    await expect(canvas.queryByText('Private member conversation')).not.toBeInTheDocument()
+  },
+}
 
 export const Unread: Story = {
   args: { unreadCount: 2 },

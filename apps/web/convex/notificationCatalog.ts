@@ -135,8 +135,13 @@ export const notificationCatalog = {
     },
   },
   direct_message: {
-    family: 'messaging', status: 'active', triggers: ['conversations.sendMessage'], recipient: 'Other conversation participant', destination: 'conversation', allowedPriorities: ['standard'], privacy: 'message_preview', respectsSocialPreferences: true, dedupe: 'One notification per direct message ID', push: { mode: 'message_preview', fallbackBody: 'You have a new message.' },
-    inAppCopy: actorCopy('New message', 'sent you a message'),
+    family: 'messaging', status: 'active', triggers: ['conversations.sendMessage'], recipient: 'Other conversation participant', destination: 'conversation', allowedPriorities: ['standard'], privacy: 'message_preview', respectsSocialPreferences: true, dedupe: 'One notification per conversation until the conversation is read', push: { mode: 'message_preview', fallbackBody: 'You have a new message.' },
+    inAppCopy: (context) => {
+      const count = Math.max(1, Math.floor(context.aggregateCount ?? 1))
+      return count === 1
+        ? { title: 'New message', body: `${context.actorName} sent you a message.`, tone: 'social' }
+        : { title: 'New messages', body: `${context.actorName} sent you ${count} messages.`, tone: 'social' }
+    },
   },
   post_liked: {
     family: 'social', status: 'active', triggers: ['social.toggleLike'], recipient: 'Post author', destination: 'post', allowedPriorities: ['standard'], privacy: 'actor_action', respectsSocialPreferences: true, dedupe: 'One aggregated notification per post and window', push: { mode: 'social_aggregate', title: 'New likes', action: 'liked your post.', fallbackBody: 'You have a new update.' },
@@ -315,6 +320,8 @@ export function buildNativePushPresentation(kind: NotificationKind, context: Nat
     return { title: APP_TITLE, body: policy.mode === 'generic' ? policy.body : policy.fallbackBody }
   }
   if (policy.mode === 'message_preview') {
+    const messageCount = Math.max(1, Math.floor(context.aggregateCount ?? 1))
+    if (messageCount > 1) return { title: 'New messages', body: `${actorName} sent ${messageCount} messages.` }
     const messagePreview = boundedPushText(context.messageBody, MAX_PUSH_PREVIEW_LENGTH)
     const attachmentCount = Math.max(0, Math.floor(context.messageAttachmentCount ?? 0))
     return {

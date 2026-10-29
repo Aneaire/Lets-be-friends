@@ -10,6 +10,7 @@ import { BookingMessageShell, ConversationThreadHeader } from './ConversationThr
 
 const goBack = fn()
 const openSafety = fn()
+const openMenu = fn()
 const openBooking = fn()
 const reportMessage = fn()
 
@@ -149,3 +150,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
 })
+
+export const HeaderWithMenuAt320: Story = {
+  render: () => (
+    <ConversationThreadHeader
+      name="Alexandria Marisol Rivera-Santos"
+      onBack={goBack}
+      onOpenMenu={openMenu}
+      onSafety={openSafety}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    openMenu.mockClear()
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Alexandria Marisol Rivera-Santos')).toBeVisible()
+    await expect(canvas.getByRole('button', { name: /Safety options/ })).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Conversation menu for Alexandria Marisol Rivera-Santos' }))
+    await expect(openMenu).toHaveBeenCalledOnce()
+  },
+}

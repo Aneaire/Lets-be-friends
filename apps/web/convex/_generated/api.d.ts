@@ -26,6 +26,7 @@ import type * as http from "../http.js";
 import type * as identityRecords from "../identityRecords.js";
 import type * as identityVerification from "../identityVerification.js";
 import type * as lib from "../lib.js";
+import type * as messageContent from "../messageContent.js";
 import type * as migrations from "../migrations.js";
 import type * as notificationCatalog from "../notificationCatalog.js";
 import type * as notificationMutes from "../notificationMutes.js";
@@ -70,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   identityRecords: typeof identityRecords;
   identityVerification: typeof identityVerification;
   lib: typeof lib;
+  messageContent: typeof messageContent;
   migrations: typeof migrations;
   notificationCatalog: typeof notificationCatalog;
   notificationMutes: typeof notificationMutes;

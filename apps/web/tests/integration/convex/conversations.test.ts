@@ -221,4 +221,274 @@ describe('direct conversations', () => {
     await expect(alex.mutation(api.conversations.sendMessage, { conversationId, body: '', attachmentUploadIds: [uploadId] }))
       .rejects.toThrow('already been claimed')
   })
+
+  it('quotes the replied message and only lets the sender edit their own message', async () => {
+    const t = convexTest(schema, modules)
+    await insertUser(t, 'alex')
+    const samId = await insertUser(t, 'sam')
+    const alex = t.withIdentity({ subject: 'alex' })
+    const sam = t.withIdentity({ subject: 'sam' })
+    const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
+
+    const originalId = await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'Meet near the park entrance?' })
+    const replyId = await sam.mutation(api.conversations.sendMessage, {
+      conversationId,
+      body: 'That works for me.',
+      replyToMessageId: originalId,
+    })
+
+    const replyThread = await sam.query(api.conversations.messages, { conversationId })
+    expect(replyThread.messages.find((message) => String(message._id) === String(replyId))).toMatchObject({
+      replyTo: {
+        messageId: originalId,
+        body: 'Meet near the park entrance?',
+        sentByViewer: false,
+        deleted: false,
+      },
+    })
+
+    await alex.mutation(api.conversations.editMessage, { messageId: originalId, body: 'Meet near the east gate?' })
+    const editedThread = await sam.query(api.conversations.messages, { conversationId })
+    expect(editedThread.messages.find((message) => String(message._id) === String(originalId))).toMatchObject({
+      body: 'Meet near the east gate?',
+      editedAt: expect.any(Number),
+    })
+
+    await expect(sam.mutation(api.conversations.editMessage, { messageId: originalId, body: 'Changed by someone else' }))
+      .rejects.toThrow('Only the sender can edit this message')
+    await expect(alex.mutation(api.conversations.editMessage, { messageId: originalId, body: '   ' }))
+      .rejects.toThrow('Message cannot be empty')
+
+    const rileyId = await insertUser(t, 'riley')
+    const otherConversationId = await alex.mutation(api.conversations.start, { otherUserId: rileyId })
+    const otherMessageId = await alex.mutation(api.conversations.sendMessage, { conversationId: otherConversationId, body: 'Different conversation' })
+    await expect(sam.mutation(api.conversations.sendMessage, {
+      conversationId,
+      body: 'Cross conversation reply',
+      replyToMessageId: otherMessageId,
+    })).rejects.toThrow('no longer available')
+  })
+
+  it('keeps a tombstone for deleted messages and hides unsent messages from both members', async () => {
+    const t = convexTest(schema, modules)
+    const alexId = await insertUser(t, 'alex')
+    const samId = await insertUser(t, 'sam')
+    const alex = t.withIdentity({ subject: 'alex' })
+    const sam = t.withIdentity({ subject: 'sam' })
+    const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
+
+    const deletedId = await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'This will be deleted' })
+    const deletedReplyId = await sam.mutation(api.conversations.sendMessage, {
+      conversationId,
+      body: 'Replying to the deleted message',
+      replyToMessageId: deletedId,
+    })
+    await alex.mutation(api.conversations.deleteMessage, { messageId: deletedId })
+
+    for (const viewer of [alex, sam]) {
+      const thread = await viewer.query(api.conversations.messages, { conversationId })
+      const deleted = thread.messages.find((message) => String(message._id) === String(deletedId))
+      expect(deleted).toMatchObject({ body: '', attachments: [], deletedAt: expect.any(Number) })
+      expect(thread.messages.find((message) => String(message._id) === String(deletedReplyId))).toMatchObject({
+        replyTo: { deleted: true, body: '' },
+      })
+    }
+    await expect(sam.mutation(api.conversations.deleteMessage, { messageId: deletedId }))
+      .rejects.toThrow('Only the sender can delete this message')
+
+    const unsentId = await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'This will be unsent' })
+    await alex.mutation(api.conversations.unsendMessage, { messageId: unsentId })
+    for (const viewer of [alex, sam]) {
+      const thread = await viewer.query(api.conversations.messages, { conversationId })
+      expect(thread.messages.some((message) => String(message._id) === String(unsentId))).toBe(false)
+      const page = await viewer.query(api.conversations.messagePage, { conversationId, paginationOpts: { cursor: null, numItems: 30 } })
+      expect(page.page.some((message) => String(message._id) === String(unsentId))).toBe(false)
+    }
+    await expect(sam.mutation(api.conversations.sendMessage, {
+      conversationId,
+      body: 'Reply to an unsent message',
+      replyToMessageId: unsentId,
+    })).rejects.toThrow('no longer available')
+    await expect(sam.mutation(api.reports.create, { targetType: 'message', targetId: unsentId, reason: 'Test report' }))
+      .rejects.toThrow('Message not found')
+    expect(alexId).toBeTruthy()
+  })
+
+  it('hides a deleted conversation for one member until the next message', async () => {
+    const t = convexTest(schema, modules)
+    const alexId = await insertUser(t, 'alex')
+    const samId = await insertUser(t, 'sam')
+    const alex = t.withIdentity({ subject: 'alex' })
+    const sam = t.withIdentity({ subject: 'sam' })
+    const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
+    await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'Hello Sam' })
+
+    await alex.mutation(api.conversations.deleteConversation, { conversationId })
+    expect(await alex.query(api.conversations.list, {})).toEqual([])
+    expect(await sam.query(api.conversations.list, {})).toMatchObject([{ _id: conversationId }])
+
+    await sam.mutation(api.conversations.sendMessage, { conversationId, body: 'Still here' })
+    expect(await alex.query(api.conversations.list, {})).toMatchObject([{ _id: conversationId, lastMessageBody: 'Still here' }])
+    expect(alexId).toBeTruthy()
+  })
+
+  it('lists conversation media and links without deleted or unsent content', async () => {
+    const t = convexTest(schema, modules)
+    const alexId = await insertUser(t, 'alex')
+    const samId = await insertUser(t, 'sam')
+    const alex = t.withIdentity({ subject: 'alex' })
+    const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
+
+    await alex.mutation(api.conversations.sendMessage, {
+      conversationId,
+      body: 'Read this guide: https://example.com/guide. Also https://example.com/guide',
+    })
+    const deletedId = await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'https://deleted.example.com' })
+    const unsentId = await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'https://unsent.example.com' })
+    await alex.mutation(api.conversations.deleteMessage, { messageId: deletedId })
+    await alex.mutation(api.conversations.unsendMessage, { messageId: unsentId })
+    await t.run(async (ctx) => {
+      const storageId = await ctx.storage.store(new Blob(['image-bytes'], { type: 'image/jpeg' }))
+      await ctx.db.insert('directMessages', {
+        conversationId,
+        senderId: alexId,
+        body: '',
+        attachments: [{
+          storageId,
+          kind: 'image',
+          fileName: 'park.jpg',
+          contentType: 'image/jpeg',
+          size: 11,
+          originalSize: 11,
+          compressionPercent: 0,
+        }],
+        reportable: true,
+        createdAt: Date.now(),
+      })
+    })
+
+    const details = await alex.query(api.conversations.assets, { conversationId })
+    expect(details.media).toMatchObject([{ kind: 'image', fileName: 'park.jpg', sentByViewer: true }])
+    expect(details.media[0].url).toBeTruthy()
+    expect(details.links.map((link) => link.url)).toEqual(['https://example.com/guide'])
+    expect(JSON.stringify(details)).not.toContain('deleted.example.com')
+    expect(JSON.stringify(details)).not.toContain('unsent.example.com')
+  })
+async function messageNotificationRows(t: ReturnType<typeof convexTest>, subject: string) {
+  return await t.run(async (ctx: any) => {
+    const user = await ctx.db.query('users').withIndex('by_clerk_user_id', (q: any) => q.eq('clerkUserId', subject)).unique()
+    if (!user) return []
+    return await ctx.db.query('notifications')
+      .withIndex('by_recipient_created_at', (q: any) => q.eq('recipientUserId', user._id))
+      .collect()
+  })
+}
+
+describe('message notification noise control', () => {
+  it('keeps one notification per conversation and counts every message', async () => {
+    const t = convexTest(schema, modules)
+    const alexId = await insertUser(t, 'alex')
+    const samId = await insertUser(t, 'sam')
+    const alex = t.withIdentity({ subject: 'alex' })
+    const sam = t.withIdentity({ subject: 'sam' })
+    const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
+
+    await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'First' })
+    await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'Second' })
+    const latestId = await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'Third' })
+
+    const rows = await messageNotificationRows(t, 'sam')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      kind: 'direct_message',
+      recipientUserId: samId,
+      actorUserId: alexId,
+      conversationId,
+      messageId: latestId,
+      aggregateCount: 3,
+    })
+    expect(rows[0].readAt).toBeUndefined()
+    // The sender never gets a notification for their own messages.
+    expect(await messageNotificationRows(t, 'alex')).toHaveLength(0)
+
+    const page = await sam.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(page.page).toMatchObject([{
+      kind: 'direct_message',
+      title: 'New messages',
+      body: 'alex sent you 3 messages.',
+      destination: { type: 'conversation', conversationId },
+    }])
+  })
+
+  it('clears the conversation notification when it is read and restarts the count after', async () => {
+    const t = convexTest(schema, modules)
+    const alexId = await insertUser(t, 'alex')
+    const samId = await insertUser(t, 'sam')
+    const alex = t.withIdentity({ subject: 'alex' })
+    const sam = t.withIdentity({ subject: 'sam' })
+    const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
+
+    await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'Before reading' })
+    await sam.mutation(api.conversations.markRead, { conversationId })
+
+    const read = await messageNotificationRows(t, 'sam')
+    expect(read).toHaveLength(1)
+    expect(read[0].readAt).toEqual(expect.any(Number))
+
+    await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'After reading' })
+    const reopened = await messageNotificationRows(t, 'sam')
+    expect(reopened).toHaveLength(1)
+    expect(reopened[0]).toMatchObject({ conversationId, aggregateCount: 1 })
+    expect(reopened[0].readAt).toBeUndefined()
+    expect(reopened[0].actorUserId).toBe(alexId)
+    expect(reopened[0].recipientUserId).toBe(samId)
+  })
+
+  it('clears the sender row when they reply in the same conversation', async () => {
+    const t = convexTest(schema, modules)
+    await insertUser(t, 'alex')
+    const samId = await insertUser(t, 'sam')
+    const alex = t.withIdentity({ subject: 'alex' })
+    const sam = t.withIdentity({ subject: 'sam' })
+    const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
+
+    await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'Are you free Saturday?' })
+    await sam.mutation(api.conversations.sendMessage, { conversationId, body: 'Yes, afternoon works.' })
+
+    const samRows = await messageNotificationRows(t, 'sam')
+    expect(samRows).toHaveLength(1)
+    expect(samRows[0].readAt).toEqual(expect.any(Number))
+    const alexRows = await messageNotificationRows(t, 'alex')
+    expect(alexRows).toHaveLength(1)
+    expect(alexRows[0].readAt).toBeUndefined()
+    expect(alexRows[0].aggregateCount).toBe(1)
+  })
+
+  it('keeps conversations separate and drops the count when the latest message is unsent', async () => {
+    const t = convexTest(schema, modules)
+    await insertUser(t, 'alex')
+    const samId = await insertUser(t, 'sam')
+    const rileyId = await insertUser(t, 'riley')
+    const alex = t.withIdentity({ subject: 'alex' })
+    const sam = t.withIdentity({ subject: 'sam' })
+
+    const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
+    const otherConversationId = await alex.mutation(api.conversations.start, { otherUserId: rileyId })
+    await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'First' })
+    const secondId = await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'Second' })
+    await alex.mutation(api.conversations.sendMessage, { conversationId: otherConversationId, body: 'Different chat' })
+
+    expect(await messageNotificationRows(t, 'sam')).toHaveLength(1)
+    expect(await messageNotificationRows(t, 'riley')).toHaveLength(1)
+
+    await alex.mutation(api.conversations.unsendMessage, { messageId: secondId })
+    const remaining = await messageNotificationRows(t, 'sam')
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0].aggregateCount).toBe(1)
+    expect(remaining[0].messageId).toBeUndefined()
+    const page = await sam.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
+    expect(page.page[0]).toMatchObject({ body: 'alex sent you a message.' })
+  })
+})
+
 })

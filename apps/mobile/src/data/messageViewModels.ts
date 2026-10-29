@@ -44,6 +44,30 @@ export function clampComposerHeight(measured: number) {
   return Math.min(COMPOSER_MAX_HEIGHT, Math.max(COMPOSER_MIN_HEIGHT, Math.round(measured)))
 }
 
+export const LATEST_MESSAGE_FOLLOW_THRESHOLD = 96
+
+/**
+ * Keeps the newest message in view while the composer grows or the keyboard
+ * opens, but leaves the list alone when the member has scrolled up to read.
+ */
+export function isMessageListAtLatest(input: { offsetY: number; contentHeight: number; viewportHeight: number }) {
+  if (!Number.isFinite(input.contentHeight) || input.viewportHeight <= 0) return true
+  const distanceFromEnd = input.contentHeight - input.viewportHeight - input.offsetY
+  return distanceFromEnd <= LATEST_MESSAGE_FOLLOW_THRESHOLD
+}
+
+/**
+ * Counts messages appended after the message the member last saw. Older pages
+ * that load above it move its index without adding to the count. A missing
+ * previous message means history was removed, not appended.
+ */
+export function countMessagesAfter<T extends { _id: string }>(messages: ReadonlyArray<T>, previousLatestId: string) {
+  if (!previousLatestId) return 0
+  const previousIndex = messages.findIndex((message) => String(message._id) === previousLatestId)
+  if (previousIndex === -1) return 0
+  return Math.max(0, messages.length - previousIndex - 1)
+}
+
 export function formatMessageTimestamp(timestamp: number, now = Date.now()) {
   const date = new Date(timestamp)
   const today = new Date(now)

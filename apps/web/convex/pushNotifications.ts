@@ -200,7 +200,12 @@ export const prepareDeliveries = internalMutation({
     const now = Date.now()
     for (const device of devices) {
       if (device.projectId !== args.projectId) continue
-      const idempotencyKey = `${notification._id}:${device._id}`
+      // A conversation notification is reused for every message, so the message
+      // is part of the key. Otherwise only the first message of a chat would
+      // produce a push. Other notification kinds keep the original key shape.
+      const idempotencyKey = notification.messageId
+        ? `${notification._id}:${notification.messageId}:${device._id}`
+        : `${notification._id}:${device._id}`
       const existing = await ctx.db.query('pushDeliveries').withIndex('by_idempotency_key', (q) => q.eq('idempotencyKey', idempotencyKey)).unique()
       if (existing) continue
       await ctx.db.insert('pushDeliveries', {
@@ -577,10 +582,13 @@ export function pushMessage(input: {
 }): PushMessage {
   const presentation = input.presentation ?? nativePushPresentation({ kind: input.kind })
   const social = isSocialAggregateKind(input.kind)
+  const message = input.kind === 'direct_message'
   const socialChannel = process.env.EXPO_SOCIAL_PUSH_CHANNEL_ENABLED === 'true' ? 'social-updates' as const : 'account-updates-v2' as const
-  const collapseId = social ? input.dedupeKey : undefined
-  const tag = social && input.platform === 'android' ? input.dedupeKey : undefined
-  const threadId = social && input.platform === 'ios' ? input.threadId : undefined
+  // One conversation keeps one visible push, so a rapid exchange replaces the
+  // previous message instead of stacking a tray full of them.
+  const collapseId = social || message ? input.dedupeKey : undefined
+  const tag = (social || message) && input.platform === 'android' ? input.dedupeKey : undefined
+  const threadId = social && input.platform === 'ios' ? input.threadId : message && input.platform === 'ios' ? input.dedupeKey : undefined
   return {
     to: input.token,
     title: presentation.title,
@@ -651,7 +659,9 @@ async function notificationPushPresentation(ctx: { db: any }, notification: Doc<
     actorAvailable
     && message
     && message.senderId === notification.actorUserId
-    && message.conversationId === notification.conversationId,
+    && message.conversationId === notification.conversationId
+    && !message.deletedAt
+    && !message.unsentAt,
   )
   const commentMatches = Boolean(
     actorAvailable

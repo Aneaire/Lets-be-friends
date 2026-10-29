@@ -6,6 +6,18 @@ export const MAX_CHAT_FILE_BYTES = 20 * 1024 * 1024
 
 export type ChatAttachmentKind = 'image' | 'video' | 'file'
 
+export type PendingChatAttachment = {
+  id: string
+  uri: string
+  mimeType: string
+  fileName: string
+  fileSize: number
+  status: 'ready' | 'error'
+  error?: string
+  compressionPercent: number
+  originalSize: number
+}
+
 const allowedDocumentTypes = new Set([
   'application/pdf',
   'application/msword',
@@ -17,6 +29,48 @@ const allowedDocumentTypes = new Set([
   'text/plain',
   'text/csv',
 ])
+
+/** Document picker filters the same safe files the backend accepts. */
+export const CHAT_DOCUMENT_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/csv',
+]
+
+const documentTypeByExtension: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  txt: 'text/plain',
+  csv: 'text/csv',
+}
+
+/**
+ * Device pickers sometimes report application/octet-stream for Office files.
+ * Resolve the accepted type from the file name so the upload keeps its real
+ * content type and the backend can validate it.
+ */
+export function chatDocumentMimeType(fileName: string, reported?: string | null) {
+  const normalized = (reported ?? '').toLowerCase()
+  if (allowedDocumentTypes.has(normalized)) return normalized
+  const extension = fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? ''
+  return documentTypeByExtension[extension] ?? (normalized || 'application/octet-stream')
+}
+
+/** Documents are never rendered inline. Members tap them to download. */
+export function isDownloadOnlyAttachment(kind: ChatAttachmentKind) {
+  return kind === 'file'
+}
 
 export function chatAttachmentKind(mimeType: string): ChatAttachmentKind {
   if (mimeType.startsWith('image/')) return 'image'

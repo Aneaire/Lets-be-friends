@@ -52,9 +52,9 @@ export function ConversationListItem({
           color={suspended ? theme.colors.textMuted : hasUnread ? theme.colors.text : theme.colors.textMuted}>
           {displayedPreview}
         </AppText>
-        <AppText variant="caption" color={suspended ? theme.colors.danger : theme.colors.textMuted}>
-          {suspended ? 'Conversation paused for safety' : 'Private member conversation'}
-        </AppText>
+        {suspended ? (
+          <AppText variant="caption" color={theme.colors.danger}>Conversation paused for safety</AppText>
+        ) : null}
       </View>
       {hasUnread ? (
         <View

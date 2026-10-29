@@ -8,12 +8,32 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { CompactComposer } from './CompactComposer'
-import { MessageBubble } from './MessageBubble'
+import { MessageAttachmentMedia, PendingAttachmentTray } from './ChatAttachmentPreview'
+import { ComposerContextBanner } from './ComposerContextBanner'
+import { MessageActionsSheetPresentation } from './MessageActionsSheet'
+import { MessageBubble, MessageQuote } from './MessageBubble'
+import { NewMessagesPill } from './NewMessagesPill'
 
 const submitMessage = fn()
 const openAttachment = fn()
+const openMediaAttachment = fn()
+const removeAttachment = fn()
+const scrollToNewMessages = fn()
+const cancelComposerContext = fn()
+const replyFromMenu = fn()
+const editFromMenu = fn()
+const deleteFromMenu = fn()
+const unsendFromMenu = fn()
+const reportFromMenu = fn()
 const lightTheme = { theme: 'light' }
 const darkTheme = { theme: 'dark' }
+const SAMPLE_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+const SAMPLE_PENDING = [
+  { id: 'photo', uri: SAMPLE_IMAGE, mimeType: 'image/jpeg', fileName: 'park-sunset.jpg', fileSize: 820_000, status: 'ready' as const, compressionPercent: 0, originalSize: 820_000 },
+  { id: 'clip', uri: 'file:///clip.mp4', mimeType: 'video/mp4', fileName: 'walk.mp4', fileSize: 1_400_000, status: 'ready' as const, compressionPercent: 0, originalSize: 1_400_000 },
+  { id: 'notes', uri: 'file:///notes.pdf', mimeType: 'application/pdf', fileName: 'session-notes.pdf', fileSize: 240_000, status: 'ready' as const, compressionPercent: 0, originalSize: 240_000 },
+  { id: 'too-large', uri: 'file:///huge.jpg', mimeType: 'image/jpeg', fileName: 'huge.jpg', fileSize: 9_000_000, status: 'error' as const, error: 'Large media needs compression before sending.', compressionPercent: 0, originalSize: 9_000_000 },
+]
 
 function ComposerStory({
   initialValue = '',
@@ -379,3 +399,240 @@ const inlineStyles = StyleSheet.create({
     justifyContent: 'center',
   },
 })
+
+export const ComposerPendingAttachmentPreviews: Story = {
+  name: 'Composer attachment previews / light',
+  globals: lightTheme,
+  render: () => (
+    <CompactComposer
+      value=""
+      showAttach
+      onAttachPress={() => undefined}
+      onChange={() => undefined}
+      onSubmit={() => undefined}
+      attachments={<PendingAttachmentTray attachments={SAMPLE_PENDING} onRemove={removeAttachment} />}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    removeAttachment.mockClear()
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('park-sunset.jpg, ready to send')).toBeVisible()
+    await expect(canvas.getByText('walk.mp4')).toBeVisible()
+    await expect(canvas.getByText('session-notes.pdf')).toBeVisible()
+    await expect(canvas.getByRole('alert')).toHaveTextContent('Large media needs compression before sending.')
+    await userEvent.click(canvas.getByRole('button', { name: 'Remove park-sunset.jpg' }))
+    await expect(removeAttachment).toHaveBeenCalledWith('photo')
+  },
+}
+
+export const ComposerPendingAttachmentPreviewsDark: Story = {
+  ...ComposerPendingAttachmentPreviews,
+  name: 'Composer attachment previews / dark',
+  globals: darkTheme,
+}
+
+export const SentMediaAttachments: Story = {
+  name: 'Sent photo and video / light',
+  globals: lightTheme,
+  render: () => (
+    <MessageBubble
+      direction="outgoing"
+      timestamp="8:24 PM"
+      attachments={(
+        <MessageAttachmentMedia
+          attachments={[
+            { storageId: 'photo-1', fileName: '158714.jpg', kind: 'image', url: SAMPLE_IMAGE },
+            { storageId: 'clip-1', fileName: 'walk.mp4', kind: 'video', url: 'https://example.com/walk.mp4' },
+          ]}
+          onOpen={openMediaAttachment}
+        />
+      )}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    openMediaAttachment.mockClear()
+    const canvas = within(canvasElement)
+    const photo = canvas.getByRole('button', { name: 'Open photo 158714.jpg' })
+    const video = canvas.getByRole('button', { name: 'Open video walk.mp4' })
+    await expect(photo).toBeVisible()
+    await expect(video).toBeVisible()
+    await userEvent.click(photo)
+    await expect(openMediaAttachment).toHaveBeenCalledWith(SAMPLE_IMAGE)
+    await userEvent.click(video)
+    await expect(openMediaAttachment).toHaveBeenCalledWith('https://example.com/walk.mp4')
+    expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth + 1)
+  },
+}
+
+export const SentMediaAttachmentsDark: Story = {
+  ...SentMediaAttachments,
+  name: 'Sent photo and video / dark',
+  globals: darkTheme,
+}
+
+export const NewMessages: Story = {
+  name: 'New message jump / light',
+  globals: lightTheme,
+  render: () => <NewMessagesPill count={1} onPress={scrollToNewMessages} />,
+  play: async ({ canvasElement }) => {
+    scrollToNewMessages.mockClear()
+    const canvas = within(canvasElement)
+    const jump = canvas.getByRole('button', { name: 'Scroll to the new message' })
+    await expect(jump).toHaveTextContent('New message')
+    await userEvent.click(jump)
+    await expect(scrollToNewMessages).toHaveBeenCalledOnce()
+  },
+}
+
+export const NewMessagesDark: Story = {
+  ...NewMessages,
+  name: 'New message jump / dark',
+  globals: darkTheme,
+}
+
+export const ManyNewMessages: Story = {
+  name: 'Several new messages / light',
+  globals: lightTheme,
+  render: () => <NewMessagesPill count={4} onPress={scrollToNewMessages} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const jump = canvas.getByRole('button', { name: 'Scroll to 4 new messages' })
+    await expect(jump).toHaveTextContent('4 new messages')
+  },
+}
+
+export const ComposerReplyContext: Story = {
+  name: 'Composer reply context / light',
+  globals: lightTheme,
+  render: () => (
+    <CompactComposer
+      value=""
+      showAttach
+      onAttachPress={() => undefined}
+      onChange={() => undefined}
+      onSubmit={() => undefined}
+      contextBanner={<ComposerContextBanner mode="reply" title="Replying to Alex Rivera" preview="Would 2:30 PM work for the online session?" onCancel={cancelComposerContext} />}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    cancelComposerContext.mockClear()
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Replying to Alex Rivera')).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Cancel reply' }))
+    await expect(cancelComposerContext).toHaveBeenCalledOnce()
+  },
+}
+
+export const ComposerEditContext: Story = {
+  name: 'Composer edit context / light',
+  globals: lightTheme,
+  render: () => (
+    <CompactComposer
+      value="Yes. I will send the final booking details here."
+      showAttach={false}
+      submitLabel="Save changes"
+      onChange={() => undefined}
+      onSubmit={() => undefined}
+      contextBanner={<ComposerContextBanner mode="edit" title="Editing message" preview="Yes. I will send the final booking details here." onCancel={cancelComposerContext} />}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Editing message')).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Save changes' })).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Attach files' })).not.toBeInTheDocument()
+  },
+}
+
+export const MessageWithReplyQuote: Story = {
+  name: 'Message with reply quote / light',
+  globals: lightTheme,
+  render: () => (
+    <MessageBubble
+      direction="outgoing"
+      body="That works for me."
+      timestamp="2:34 PM"
+      quote={<MessageQuote author="Alex Rivera" preview="Would 2:30 PM work for the online session?" />}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Would 2:30 PM work for the online session?')).toBeVisible()
+    await expect(canvas.getByLabelText('You said: That works for me.')).toBeVisible()
+  },
+}
+
+export const EditedMessage: Story = {
+  name: 'Edited message / light',
+  globals: lightTheme,
+  render: () => (
+    <MessageBubble direction="outgoing" body="Meet near the east gate." timestamp="2:40 PM · Edited" />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Meet near the east gate.')).toBeVisible()
+    await expect(canvas.getByText('2:40 PM · Edited')).toBeVisible()
+  },
+}
+
+export const DeletedMessage: Story = {
+  name: 'Deleted message / light',
+  globals: lightTheme,
+  render: () => (
+    <MessageBubble direction="incoming" authorName="Alex Rivera" body="Message deleted" deleted timestamp="2:42 PM" />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('Message deleted')).toBeVisible()
+    await expect(canvas.getByText('2:42 PM')).toBeVisible()
+  },
+}
+
+export const MessageMenuForOwnMessage: Story = {
+  name: 'Own message menu / light',
+  globals: lightTheme,
+  render: () => (
+    <MessageActionsSheetPresentation
+      message={{ id: 'message-1', sentByViewer: true, deleted: false, booking: false }}
+      onClose={() => undefined}
+      onReply={replyFromMenu}
+      onEdit={editFromMenu}
+      onDelete={deleteFromMenu}
+      onUnsend={unsendFromMenu}
+      onReport={reportFromMenu}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    editFromMenu.mockClear()
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('dialog', { name: 'Message options' })).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: 'Reply' })).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: 'Delete message' })).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: 'Unsend message' })).toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: 'Edit message' }))
+    await expect(editFromMenu).toHaveBeenCalledOnce()
+  },
+}
+
+export const MessageMenuForIncomingMessage: Story = {
+  name: 'Incoming message menu / light',
+  globals: lightTheme,
+  render: () => (
+    <MessageActionsSheetPresentation
+      message={{ id: 'message-2', sentByViewer: false, deleted: false, booking: false }}
+      onClose={() => undefined}
+      onReply={replyFromMenu}
+      onEdit={editFromMenu}
+      onDelete={deleteFromMenu}
+      onUnsend={unsendFromMenu}
+      onReport={reportFromMenu}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    reportFromMenu.mockClear()
+    const canvas = within(canvasElement)
+    await expect(canvas.queryByRole('button', { name: 'Edit message' })).not.toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: 'Report message' }))
+    await expect(reportFromMenu).toHaveBeenCalledOnce()
+  },
+}

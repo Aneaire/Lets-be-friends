@@ -3,9 +3,10 @@ import { paginationOptsValidator } from 'convex/server'
 import type { Doc, Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
 import { requireViewer, writeAudit } from './lib'
-import { createNotification } from './notifications'
+import { createOrUpdateMessageNotification, directMessageNotificationKey, markConversationNotificationRead } from './notifications'
 import { requireNotBlocked } from './safety'
 import { consumeRateLimit } from './rateLimit'
+import { extractMessageLinks, MAX_CONVERSATION_LINKS } from './messageContent'
 
 const MAX_MESSAGE_LENGTH = 2_000
 const MAX_ATTACHMENTS_PER_MESSAGE = 4
@@ -15,6 +16,9 @@ const NO_COMPRESSION_BELOW_BYTES = 3 * 1024 * 1024
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024
 const MAX_FILE_BYTES = 20 * 1024 * 1024
+const MAX_REPLY_PREVIEW_LENGTH = 160
+const MAX_CONVERSATION_ASSETS = 100
+const MAX_CONVERSATION_MESSAGES_FOR_DETAILS = 500
 const allowedFileContentTypes = new Set([
   'application/pdf',
   'application/msword',
@@ -35,21 +39,25 @@ export const list = query({
       ctx.db.query('directConversations').withIndex('by_participant_one', (q) => q.eq('participantOneId', viewer._id)).collect(),
       ctx.db.query('directConversations').withIndex('by_participant_two', (q) => q.eq('participantTwoId', viewer._id)).collect(),
     ])
-    const conversations = [...asFirst, ...asSecond].sort((a, b) => b.updatedAt - a.updatedAt)
+    const visible = [...asFirst, ...asSecond]
+      .filter((conversation) => (conversation.participantOneId === viewer._id
+        ? conversation.participantOneDeletedAt
+        : conversation.participantTwoDeletedAt) === undefined)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
 
-    return await Promise.all(conversations.map(async (conversation) => {
+    return await Promise.all(visible.map(async (conversation) => {
       const otherUserId = conversation.participantOneId === viewer._id
         ? conversation.participantTwoId
         : conversation.participantOneId
       const viewerLastReadAt = conversation.participantOneId === viewer._id
         ? conversation.participantOneLastReadAt
         : conversation.participantTwoLastReadAt
-      const [otherUser, lastMessage, messagesSinceRead] = await Promise.all([
+      const [otherUser, recentMessages, messagesSinceRead] = await Promise.all([
         ctx.db.get(otherUserId),
         ctx.db.query('directMessages')
           .withIndex('by_conversation_created_at', (q) => q.eq('conversationId', conversation._id))
           .order('desc')
-          .first(),
+          .take(50),
         viewerLastReadAt
           ? ctx.db.query('directMessages')
             .withIndex('by_conversation_created_at', (q) => q.eq('conversationId', conversation._id).gt('createdAt', viewerLastReadAt))
@@ -58,17 +66,21 @@ export const list = query({
             .withIndex('by_conversation_created_at', (q) => q.eq('conversationId', conversation._id))
             .collect(),
       ])
+      const lastMessage = recentMessages.find((message) => !message.unsentAt)
       return {
         ...conversation,
         otherUserId,
         otherDisplayName: otherUser?.displayName ?? 'Member',
         otherProfileImageUrl: await profileImageUrl(ctx, otherUser),
         otherUserSuspended: otherUser?.suspended ?? true,
-        lastMessageBody: lastMessage?.body,
-        lastMessageAttachmentCount: lastMessage?.attachments?.length ?? 0,
+        lastMessageBody: lastMessage?.deletedAt ? '' : lastMessage?.body,
+        lastMessageDeleted: Boolean(lastMessage?.deletedAt),
+        lastMessageAttachmentCount: lastMessage?.deletedAt ? 0 : lastMessage?.attachments?.length ?? 0,
         lastMessageSentByViewer: lastMessage?.senderId === viewer._id,
         lastMessageCreatedAt: lastMessage?.createdAt,
-        unreadCount: messagesSinceRead.reduce((count, message) => count + (message.senderId !== viewer._id && !message.bookingId ? 1 : 0), 0),
+        unreadCount: messagesSinceRead.reduce((count, message) => count + (
+          message.senderId !== viewer._id && !message.bookingId && !message.deletedAt && !message.unsentAt ? 1 : 0
+        ), 0),
       }
     }))
   },
@@ -83,6 +95,7 @@ export const markRead = mutation({
       ? { participantOneLastReadAt: Date.now() }
       : { participantTwoLastReadAt: Date.now() }
     await ctx.db.patch(conversation._id, update)
+    await markConversationNotificationRead(ctx, viewer._id, conversation._id)
   },
 })
 
@@ -119,15 +132,9 @@ export const messages = query({
         otherProfileImageUrl: await profileImageUrl(ctx, otherUser),
         otherUserSuspended: otherUser?.suspended ?? true,
       },
-      messages: await Promise.all(messages.map(async (message) => ({
-        ...message,
-        attachments: await Promise.all((message.attachments ?? []).map(async (attachment) => ({
-          ...attachment,
-          url: await ctx.storage.getUrl(attachment.storageId),
-        }))),
-        booking: message.bookingId ? await bookingSnapshot(ctx, message.bookingId) : null,
-        sentByViewer: message.senderId === viewer._id,
-      }))),
+      messages: await Promise.all(messages
+        .filter((message) => !message.unsentAt)
+        .map((message) => messageView(ctx, message, viewer._id))),
     }
   },
 })
@@ -166,15 +173,67 @@ export const messagePage = query({
 
     return {
       ...result,
-      page: await Promise.all(result.page.map(async (message) => ({
-        ...message,
-        attachments: await Promise.all((message.attachments ?? []).map(async (attachment) => ({
-          ...attachment,
+      page: await Promise.all(result.page
+        .filter((message) => !message.unsentAt)
+        .map((message) => messageView(ctx, message, viewer._id))),
+    }
+  },
+})
+
+export const assets = query({
+  args: { conversationId: v.id('directConversations') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    await requireParticipant(ctx, args.conversationId, viewer._id)
+    const messages = await ctx.db.query('directMessages')
+      .withIndex('by_conversation_created_at', (q) => q.eq('conversationId', args.conversationId))
+      .order('desc')
+      .take(MAX_CONVERSATION_MESSAGES_FOR_DETAILS)
+
+    const media: Array<{
+      messageId: Id<'directMessages'>
+      storageId: Id<'_storage'>
+      kind: 'image' | 'video' | 'file'
+      fileName: string
+      size: number
+      createdAt: number
+      sentByViewer: boolean
+      url: string | null
+    }> = []
+    const linksByUrl = new Map<string, {
+      messageId: Id<'directMessages'>
+      url: string
+      createdAt: number
+      sentByViewer: boolean
+    }>()
+
+    for (const message of messages) {
+      if (message.unsentAt || message.deletedAt) continue
+      for (const attachment of message.attachments ?? []) {
+        media.push({
+          messageId: message._id,
+          storageId: attachment.storageId,
+          kind: attachment.kind,
+          fileName: attachment.fileName,
+          size: attachment.size,
+          createdAt: message.createdAt,
+          sentByViewer: message.senderId === viewer._id,
           url: await ctx.storage.getUrl(attachment.storageId),
-        }))),
-        booking: message.bookingId ? await bookingSnapshot(ctx, message.bookingId) : null,
-        sentByViewer: message.senderId === viewer._id,
-      }))),
+        })
+      }
+      for (const url of extractMessageLinks(message.body)) {
+        linksByUrl.set(url, {
+          messageId: message._id,
+          url,
+          createdAt: message.createdAt,
+          sentByViewer: message.senderId === viewer._id,
+        })
+      }
+    }
+
+    return {
+      media: media.slice(0, MAX_CONVERSATION_ASSETS),
+      links: Array.from(linksByUrl.values()).slice(0, MAX_CONVERSATION_LINKS),
     }
   },
 })
@@ -216,6 +275,7 @@ export const sendMessage = mutation({
     conversationId: v.id('directConversations'),
     body: v.string(),
     attachmentUploadIds: v.optional(v.array(v.id('directMessageUploads'))),
+    replyToMessageId: v.optional(v.id('directMessages')),
   },
   handler: async (ctx, args) => {
     const viewer = await requireViewer(ctx)
@@ -234,6 +294,12 @@ export const sendMessage = mutation({
     if (body.length > MAX_MESSAGE_LENGTH) throw new ConvexError(`Messages can be up to ${MAX_MESSAGE_LENGTH} characters`)
     if (attachmentUploadIds.length > MAX_ATTACHMENTS_PER_MESSAGE) throw new ConvexError('Messages can include up to 4 files')
     if (new Set(attachmentUploadIds.map(String)).size !== attachmentUploadIds.length) throw new ConvexError('Each upload can be attached only once')
+    if (args.replyToMessageId) {
+      const replyTarget = await ctx.db.get(args.replyToMessageId)
+      if (!replyTarget || replyTarget.conversationId !== args.conversationId || replyTarget.unsentAt || replyTarget.deletedAt) {
+        throw new ConvexError('The message you replied to is no longer available')
+      }
+    }
     const uploads = await Promise.all(attachmentUploadIds.map((uploadId) => ctx.db.get(uploadId)))
     for (const upload of uploads) {
       if (!upload || upload.userId !== viewer._id) throw new ConvexError('File upload is not owned by this account')
@@ -265,20 +331,126 @@ export const sendMessage = mutation({
       body,
       attachments,
       reportable: true,
+      replyToMessageId: args.replyToMessageId,
       createdAt: now,
     })
     await Promise.all(attachmentUploadIds.map((uploadId) => ctx.db.patch(uploadId, { messageId })))
-    await ctx.db.patch(args.conversationId, { lastMessageAt: now, updatedAt: now })
-    await createNotification(ctx, {
+    await ctx.db.patch(args.conversationId, {
+      lastMessageAt: now,
+      updatedAt: now,
+      participantOneDeletedAt: undefined,
+      participantTwoDeletedAt: undefined,
+    })
+    // Sending in a conversation means the sender has read it.
+    await markConversationNotificationRead(ctx, viewer._id, conversation._id)
+    await createOrUpdateMessageNotification(ctx, {
       recipientUserId: otherUserId,
       actorUserId: viewer._id,
-      kind: 'direct_message',
-      priority: 'standard',
       conversationId: conversation._id,
       messageId,
-      dedupeKey: `direct-message:${messageId}`,
+      dedupeKey: directMessageNotificationKey(conversation._id),
     })
     return messageId
+  },
+})
+
+export const editMessage = mutation({
+  args: { messageId: v.id('directMessages'), body: v.string() },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const message = await ctx.db.get(args.messageId)
+    if (!message || message.senderId !== viewer._id) throw new ConvexError('Only the sender can edit this message')
+    await requireParticipant(ctx, message.conversationId, viewer._id)
+    if (message.bookingId) throw new ConvexError('Booking messages cannot be edited')
+    if (message.deletedAt || message.unsentAt) throw new ConvexError('This message is no longer available')
+    const body = args.body.trim()
+    if (!body) throw new ConvexError('Message cannot be empty')
+    if (body.length > MAX_MESSAGE_LENGTH) throw new ConvexError(`Messages can be up to ${MAX_MESSAGE_LENGTH} characters`)
+    if (body === message.body) return
+    await consumeRateLimit(ctx, viewer._id, 'edit_message')
+    await ctx.db.patch(args.messageId, { body, editedAt: Date.now() })
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'message.edited',
+      targetType: 'directMessage',
+      targetId: String(args.messageId),
+    })
+  },
+})
+
+export const deleteMessage = mutation({
+  args: { messageId: v.id('directMessages') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const message = await ctx.db.get(args.messageId)
+    if (!message || message.senderId !== viewer._id) throw new ConvexError('Only the sender can delete this message')
+    await requireParticipant(ctx, message.conversationId, viewer._id)
+    if (message.bookingId) throw new ConvexError('Booking messages cannot be deleted')
+    if (message.deletedAt || message.unsentAt) return
+    await ctx.db.patch(args.messageId, { deletedAt: Date.now(), reportable: false })
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'message.deleted',
+      targetType: 'directMessage',
+      targetId: String(args.messageId),
+    })
+  },
+})
+
+export const unsendMessage = mutation({
+  args: { messageId: v.id('directMessages') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const message = await ctx.db.get(args.messageId)
+    if (!message || message.senderId !== viewer._id) throw new ConvexError('Only the sender can unsend this message')
+    const conversation = await requireParticipant(ctx, message.conversationId, viewer._id)
+    if (message.bookingId) throw new ConvexError('Booking messages cannot be unsent')
+    if (message.unsentAt) return
+
+    const otherUserId = conversation.participantOneId === viewer._id
+      ? conversation.participantTwoId
+      : conversation.participantOneId
+    // The conversation row points at the latest message. Unsending that message
+    // removes it from the count, and drops the row once nothing is left.
+    const row = await ctx.db.query('notifications')
+      .withIndex('by_recipient_dedupe', (q) => q.eq('recipientUserId', otherUserId).eq('dedupeKey', directMessageNotificationKey(message.conversationId)))
+      .unique()
+    if (row && row.messageId === args.messageId) {
+      const remaining = (row.aggregateCount ?? 1) - 1
+      if (remaining <= 0) await ctx.db.delete(row._id)
+      else await ctx.db.patch(row._id, { aggregateCount: remaining, messageId: undefined })
+    }
+
+    await ctx.db.patch(args.messageId, { unsentAt: Date.now(), reportable: false })
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'message.unsent',
+      targetType: 'directMessage',
+      targetId: String(args.messageId),
+    })
+  },
+})
+
+export const deleteConversation = mutation({
+  args: { conversationId: v.id('directConversations') },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewer(ctx)
+    const conversation = await requireParticipant(ctx, args.conversationId, viewer._id)
+    const now = Date.now()
+    if (conversation.participantOneId === viewer._id) {
+      if (conversation.participantOneDeletedAt) return
+      await ctx.db.patch(args.conversationId, { participantOneDeletedAt: now })
+    } else {
+      if (conversation.participantTwoDeletedAt) return
+      await ctx.db.patch(args.conversationId, { participantTwoDeletedAt: now })
+    }
+    await markConversationNotificationRead(ctx, viewer._id, args.conversationId)
+    await writeAudit(ctx, {
+      actorUserId: viewer._id,
+      action: 'conversation.deleted',
+      targetType: 'directConversation',
+      targetId: String(args.conversationId),
+    })
   },
 })
 
@@ -341,6 +513,46 @@ export const discardAttachmentUpload = mutation({
     await ctx.db.patch(args.uploadId, { discardedAt: Date.now() })
   },
 })
+
+async function messageView(
+  ctx: { db: any; storage: { getUrl: (id: Id<'_storage'>) => Promise<string | null> } },
+  message: Doc<'directMessages'>,
+  viewerId: Id<'users'>,
+) {
+  const deleted = Boolean(message.deletedAt)
+  const attachments = deleted ? [] : message.attachments ?? []
+  return {
+    ...message,
+    body: deleted ? '' : message.body,
+    attachments: await Promise.all(attachments.map(async (attachment) => ({
+      ...attachment,
+      url: await ctx.storage.getUrl(attachment.storageId),
+    }))),
+    booking: message.bookingId ? await bookingSnapshot(ctx, message.bookingId) : null,
+    sentByViewer: message.senderId === viewerId,
+    editedAt: deleted ? undefined : message.editedAt,
+    replyToMessageId: deleted ? undefined : message.replyToMessageId,
+    replyTo: !deleted && message.replyToMessageId
+      ? await replyPreview(ctx, message.replyToMessageId, viewerId)
+      : null,
+  }
+}
+
+async function replyPreview(
+  ctx: { db: any },
+  messageId: Id<'directMessages'>,
+  viewerId: Id<'users'>,
+) {
+  const target = await ctx.db.get(messageId) as Doc<'directMessages'> | null
+  if (!target || target.unsentAt) return null
+  return {
+    messageId: target._id,
+    body: target.deletedAt ? '' : target.body.slice(0, MAX_REPLY_PREVIEW_LENGTH),
+    sentByViewer: target.senderId === viewerId,
+    attachmentCount: target.deletedAt ? 0 : target.attachments?.length ?? 0,
+    deleted: Boolean(target.deletedAt),
+  }
+}
 
 async function requireParticipant(
   ctx: { db: any },

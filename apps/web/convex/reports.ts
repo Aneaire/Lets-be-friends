@@ -41,7 +41,7 @@ export const create = mutation({
       }
     } else if (args.targetType === 'message') {
       const message = await safeGet(ctx, 'directMessages', args.targetId)
-      if (!message || !message.reportable) throw new ConvexError('Message not found')
+      if (!message || !message.reportable || message.deletedAt || message.unsentAt) throw new ConvexError('Message not found')
       const conversation = await ctx.db.get(message.conversationId)
       const participant = conversation && (conversation.participantOneId === viewer._id || conversation.participantTwoId === viewer._id)
       if (!participant) throw new ConvexError('Only a conversation participant can report this message')

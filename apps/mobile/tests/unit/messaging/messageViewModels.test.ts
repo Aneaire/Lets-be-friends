@@ -2,8 +2,11 @@ import {
   COMPACT_COUNTER_THRESHOLD,
   COMPOSER_MAX_HEIGHT,
   COMPOSER_MIN_HEIGHT,
+  LATEST_MESSAGE_FOLLOW_THRESHOLD,
   clampComposerHeight,
   conversationBookingCardView,
+  countMessagesAfter,
+  isMessageListAtLatest,
   MAX_MESSAGE_LENGTH,
   aggregateUnreadCount,
   conversationPreview,
@@ -77,5 +80,31 @@ describe('message view models', () => {
     expect(clampComposerHeight(112)).toBe(112)
     expect(clampComposerHeight(400)).toBe(112)
     expect(clampComposerHeight(Number.NaN)).toBe(44)
+  })
+
+  it('follows the latest message only while the list is at the end', () => {
+    expect(LATEST_MESSAGE_FOLLOW_THRESHOLD).toBe(96)
+    expect(isMessageListAtLatest({ offsetY: 1_200, contentHeight: 1_800, viewportHeight: 600 })).toBe(true)
+    expect(isMessageListAtLatest({ offsetY: 1_120, contentHeight: 1_800, viewportHeight: 600 })).toBe(true)
+    expect(isMessageListAtLatest({ offsetY: 900, contentHeight: 1_800, viewportHeight: 600 })).toBe(false)
+  })
+
+  it('treats a list shorter than the viewport as already at the latest message', () => {
+    expect(isMessageListAtLatest({ offsetY: 0, contentHeight: 240, viewportHeight: 600 })).toBe(true)
+    expect(isMessageListAtLatest({ offsetY: 0, contentHeight: 240, viewportHeight: 0 })).toBe(true)
+    expect(isMessageListAtLatest({ offsetY: 0, contentHeight: Number.NaN, viewportHeight: 600 })).toBe(true)
+  })
+
+  it('counts the messages appended after the last one the member saw', () => {
+    const messages = [{ _id: 'a' }, { _id: 'b' }, { _id: 'c' }, { _id: 'd' }]
+    expect(countMessagesAfter(messages, 'b')).toBe(2)
+    expect(countMessagesAfter(messages, 'd')).toBe(0)
+    expect(countMessagesAfter(messages, 'missing')).toBe(0)
+    expect(countMessagesAfter(messages, '')).toBe(0)
+  })
+
+  it('does not count older pages loaded above the last seen message', () => {
+    const loadedOlder = [{ _id: 'older-1' }, { _id: 'older-2' }, { _id: 'a' }, { _id: 'b' }]
+    expect(countMessagesAfter(loadedOlder, 'b')).toBe(0)
   })
 })
