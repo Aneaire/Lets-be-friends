@@ -112,6 +112,7 @@ export function ModalPresentation({
   const titleId = useId()
   const descriptionId = useId()
   const isBottomSheet = placement === 'bottom'
+  const singleLineSheetHeader = isBottomSheet && !description
   const horizontalPadding = {
     paddingLeft: Math.max(density.sheetPadding, (insets?.left ?? 0) + density.cardGap),
     paddingRight: Math.max(density.sheetPadding, (insets?.right ?? 0) + density.cardGap),
@@ -168,6 +169,7 @@ export function ModalPresentation({
           style={[
             styles.header,
             isBottomSheet && styles.bottomSheetHeader,
+            singleLineSheetHeader && styles.bottomSheetHeaderTight,
             horizontalPadding,
             !children && !footer && { paddingBottom: bottomPadding },
           ]}>
@@ -337,6 +339,7 @@ const styles = StyleSheet.create({
   handle: { width: 38, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 8, marginBottom: 2 },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: density.cardGap, paddingTop: density.sheetPadding, paddingBottom: density.compactCardPadding },
   bottomSheetHeader: { paddingTop: density.cardGap },
+  bottomSheetHeaderTight: { alignItems: 'center', paddingBottom: density.textStackGap },
   copy: { flex: 1, minWidth: 0, gap: density.textPairGap },
   body: { minHeight: 0, flexShrink: 1 },
   bodyContent: { paddingTop: density.textStackGap },

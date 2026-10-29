@@ -1,4 +1,9 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { modalSurfaceAccessibility } from '@/design-system/molecules/ModalPresentation'
+
+const modalSource = readFileSync(join(process.cwd(), 'src/design-system/molecules/ModalPresentation.tsx'), 'utf8')
 
 describe('modal presentation accessibility contract', () => {
   it('exposes a labelled dialog landmark for every modal overlay', () => {
@@ -27,5 +32,13 @@ describe('modal presentation accessibility contract', () => {
       'aria-describedby': 'description-2',
       'aria-busy': true,
     })
+  })
+})
+
+describe('bottom sheet header spacing', () => {
+  it('tightens the gap above a title-only option list', () => {
+    expect(modalSource).toContain('const singleLineSheetHeader = isBottomSheet && !description')
+    expect(modalSource).toContain('singleLineSheetHeader && styles.bottomSheetHeaderTight')
+    expect(modalSource).toContain("bottomSheetHeaderTight: { alignItems: 'center', paddingBottom: density.textStackGap }")
   })
 })

@@ -10,6 +10,7 @@ import type { Id } from '../../convex/_generated/dataModel'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { BookingDialog, type ApprovedCompanionOption } from '../features/booking/BookingDialog'
 import { ProfileContentPanel } from '../features/profile/ProfileContentPanel';
+import { ProfileOptionsMenu } from '../features/safety/ProfileOptionsMenu';
 import { usePostNotificationMute } from '../features/social/usePostNotificationMute';
 import { describeConvexError } from '../lib/convexErrors'
 
@@ -84,6 +85,35 @@ function CompanionProfilePage() {
     )
   }
 
+  const profile = companion
+
+  async function followCompanion() {
+    try {
+      await toggleFollow({ userId: profile.userId })
+      setNotice(profile.following ? 'Member unfollowed.' : 'Member followed.')
+    } catch (error) {
+      setMessageError(error instanceof Error ? describeConvexError(error) : 'Following could not be updated.')
+    }
+  }
+
+  async function saveCompanionProfile() {
+    try {
+      await toggleSaveProfile({ companionProfileId: profile._id })
+      setNotice(profile.saved ? 'Profile removed from saved.' : 'Profile saved.')
+    } catch (error) {
+      setMessageError(error instanceof Error ? describeConvexError(error) : 'The saved profile could not be updated.')
+    }
+  }
+
+  async function reportCompanionProfile() {
+    try {
+      await report({ targetType: 'profile', targetId: profile._id, reason: 'Profile needs safety review' })
+      setNotice('Report sent to safety review.')
+    } catch (error) {
+      setMessageError(error instanceof Error ? describeConvexError(error) : 'The report could not be sent.')
+    }
+  }
+
   return (
     <main className="profile-page companion-profile-page">
       {(notice || messageError) && (
@@ -112,6 +142,21 @@ function CompanionProfilePage() {
                   </span>
                 </div>
               </div>
+              {isSignedIn && companion.viewerBookingEligibility !== 'own_profile' ? (
+                <div className="companion-profile-overflow">
+                  <ProfileOptionsMenu
+                    userId={companion.userId}
+                    displayName={companion.displayName}
+                    following={companion.following}
+                    saved={companion.saved}
+                    onToggleFollow={followCompanion}
+                    onToggleSave={saveCompanionProfile}
+                    onReport={reportCompanionProfile}
+                    onNotice={setNotice}
+                    onError={setMessageError}
+                  />
+                </div>
+              ) : null}
             </div>
             <p className="companion-profile-intro">{companion.intro}</p>
             {companion.bio && <p className="companion-profile-bio">{companion.bio}</p>}
@@ -144,53 +189,24 @@ function CompanionProfilePage() {
                     onBook={() => setBookingDialogOpen(true)}
                   />
                   {isSignedIn ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={startingMessage}
-                        onClick={async () => {
-                          setStartingMessage(true)
-                          setMessageError('')
-                          try {
-                            const conversationId = await startConversation({ otherUserId: companion.userId })
-                            await navigate({ to: '/messages', search: { conversationId } })
-                          } catch (error) {
-                            setMessageError(error instanceof Error ? describeConvexError(error) : 'Conversation could not be opened.')
-                            setStartingMessage(false)
-                          }
-                        }}
-                        className="btn btn-social btn-sm"
-                      >
-                        {startingMessage ? 'Opening…' : 'Message'}
-                      </button>
-                      <button
-                        onClick={async () => {
-                          await toggleFollow({ userId: companion.userId })
-                          setNotice(companion.following ? 'Member unfollowed.' : 'Member followed.')
-                        }}
-                        className="btn btn-social-quiet btn-sm"
-                      >
-                        {companion.following ? 'Following' : 'Follow'}
-                      </button>
-                      <button
-                        onClick={async () => {
-                          await toggleSaveProfile({ companionProfileId: companion._id })
-                          setNotice(companion.saved ? 'Profile removed from saved.' : 'Profile saved.')
-                        }}
-                        className="btn btn-neutral btn-sm"
-                      >
-                        {companion.saved ? 'Saved profile' : 'Save profile'}
-                      </button>
-                      <button
-                        onClick={async () => {
-                          await report({ targetType: 'profile', targetId: companion._id, reason: 'Profile needs safety review' })
-                          setNotice('Report sent to safety review.')
-                        }}
-                        className="btn btn-danger btn-sm"
-                      >
-                        Report
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      disabled={startingMessage}
+                      onClick={async () => {
+                        setStartingMessage(true)
+                        setMessageError('')
+                        try {
+                          const conversationId = await startConversation({ otherUserId: companion.userId })
+                          await navigate({ to: '/messages', search: { conversationId } })
+                        } catch (error) {
+                          setMessageError(error instanceof Error ? describeConvexError(error) : 'Conversation could not be opened.')
+                          setStartingMessage(false)
+                        }
+                      }}
+                      className="btn btn-social btn-sm"
+                    >
+                      {startingMessage ? 'Opening…' : 'Message'}
+                    </button>
                   ) : (
                     <SignInButton mode="modal">
                       <button className="btn btn-self btn-sm">Sign in to save</button>

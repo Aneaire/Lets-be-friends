@@ -71,6 +71,11 @@ vi.mock('../../convex/_generated/api', () => ({
     },
     reports: { create: 'reports.create' },
     conversations: { start: 'conversations.start' },
+    safety: {
+      relationship: 'safety.relationship',
+      setMuted: 'safety.setMuted',
+      setBlocked: 'safety.setBlocked',
+    },
   },
 }))
 

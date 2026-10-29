@@ -16,17 +16,19 @@ import { useMemberSafetyControls } from './useMemberSafetyControls'
  * Compact profile options: report, mute, and block live behind the header
  * overflow menu instead of trailing buttons at the end of the profile.
  */
-export function ProfileSafetyMenu({ profileId, userId, displayName, onNotice }: {
+export function ProfileSafetyMenu({ profileId, userId, displayName, reportTarget = 'profile', onNotice }: {
   profileId: string
   userId: string
   displayName: string
+  /** Member screens report a member instead of a Companion profile. */
+  reportTarget?: 'profile' | 'member'
   onNotice?: (message: string) => void
 }) {
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const safety = useMemberSafetyControls({ userId, displayName, onNotice })
   const relationship: ProfileSafetyMenuRelationship | undefined = safety.relationship
-  const entries = profileSafetyMenuEntries({ relationship, busy: safety.busy })
+  const entries = profileSafetyMenuEntries({ relationship, busy: safety.busy, reportTarget })
 
   function beginReporting() {
     setTimeout(() => setReportOpen(true), 220)
@@ -65,7 +67,7 @@ export function ProfileSafetyMenu({ profileId, userId, displayName, onNotice }: 
         onClose={() => setOptionsOpen(false)}
       />
       <ReportAction
-        targetType="profile"
+        targetType={reportTarget === 'member' ? 'user' : 'profile'}
         targetId={profileId}
         label="Report this profile"
         open={reportOpen}

@@ -20,9 +20,10 @@ export type ProfileSafetyMenuEntry = {
  * Keeps the profile overflow menu truthful: block and mute mirror the current
  * relationship, and stay disabled until that relationship is known.
  */
-export function profileSafetyMenuEntries({ relationship, busy = null }: {
+export function profileSafetyMenuEntries({ relationship, busy = null, reportTarget = 'profile' }: {
   relationship?: ProfileSafetyMenuRelationship
   busy?: 'block' | 'mute' | null
+  reportTarget?: 'profile' | 'member'
 }): ProfileSafetyMenuEntry[] {
   const disabled = relationship === undefined || busy !== null
   const muted = Boolean(relationship?.muted)
@@ -31,7 +32,7 @@ export function profileSafetyMenuEntries({ relationship, busy = null }: {
   return [
     {
       kind: 'report',
-      label: 'Report this profile',
+      label: reportTarget === 'member' ? 'Report this member' : 'Report this profile',
       icon: 'flag-outline',
       tone: 'danger',
       disabled: busy !== null,

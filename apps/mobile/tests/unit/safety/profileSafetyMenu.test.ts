@@ -40,4 +40,9 @@ describe('profile safety menu', () => {
 
     expect(busy.every((entry) => entry.disabled)).toBe(true)
   })
+
+  it('names the report action for the screen that opens it', () => {
+    expect(profileSafetyMenuEntries({ relationship: connected, reportTarget: 'member' })[0].label).toBe('Report this member')
+    expect(profileSafetyMenuEntries({ relationship: connected, reportTarget: 'profile' })[0].label).toBe('Report this profile')
+  })
 })

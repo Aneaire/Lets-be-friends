@@ -15859,9 +15859,14 @@ textarea.field {
     line-height: 1.4;
   }
 
+  .companion-profile-overflow {
+    margin-left: auto;
+    align-self: flex-start;
+  }
+
   .companion-profile-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 0.45rem;
   }
 
