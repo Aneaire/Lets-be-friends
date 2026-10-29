@@ -8,6 +8,7 @@ import {
   installationBoundary,
   parsePushPayload,
   parsePushPreference,
+  presentedNotificationIdentifiers,
   pushInstallationKey,
   pushInstallMarkerKey,
   permissionStateFromNative,
@@ -309,4 +310,19 @@ describe('push notification pure logic', () => {
     await expect(nativePushAdapter.openSettings()).resolves.toBeUndefined()
     await expect(nativePushAdapter.setBadgeCount(5)).resolves.toBeUndefined()
   })
+})
+
+describe('presented notification dismissal', () => {
+  it('targets only the pushes that belong to the notification being read', () => {
+    const presented = [
+      { identifier: 'push-a', data: { version: 1, notificationId: 'notification-1' } },
+      { identifier: 'push-b', data: { version: 1, notificationId: 'notification-2' } },
+      { identifier: 'push-c', data: null },
+    ]
+    expect(presentedNotificationIdentifiers(presented, 'notification-1')).toEqual(['push-a'])
+    expect(presentedNotificationIdentifiers(presented, 'notification-2')).toEqual(['push-b'])
+    expect(presentedNotificationIdentifiers(presented, 'notification-3')).toEqual([])
+    expect(presentedNotificationIdentifiers(presented, '')).toEqual([])
+  })
+
 })

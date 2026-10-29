@@ -208,11 +208,15 @@ export async function markConversationNotificationRead(
   ctx: MutationCtx,
   userId: Id<'users'>,
   conversationId: Id<'directConversations'>,
-) {
+): Promise<Id<'notifications'> | null> {
   const row = await ctx.db.query('notifications')
     .withIndex('by_recipient_dedupe', (q) => q.eq('recipientUserId', userId).eq('dedupeKey', directMessageNotificationKey(conversationId)))
     .unique()
-  if (row && !row.readAt) await ctx.db.patch(row._id, { readAt: Date.now() })
+  if (row && !row.readAt) {
+    await ctx.db.patch(row._id, { readAt: Date.now() })
+    return row._id
+  }
+  return null
 }
 
 /**

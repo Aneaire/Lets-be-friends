@@ -95,7 +95,8 @@ export const markRead = mutation({
       ? { participantOneLastReadAt: Date.now() }
       : { participantTwoLastReadAt: Date.now() }
     await ctx.db.patch(conversation._id, update)
-    await markConversationNotificationRead(ctx, viewer._id, conversation._id)
+    const notificationId = await markConversationNotificationRead(ctx, viewer._id, conversation._id)
+    return { notificationId: notificationId ? String(notificationId) : null }
   },
 })
 

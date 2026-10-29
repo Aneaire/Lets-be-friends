@@ -1,4 +1,5 @@
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { useEffect, useState } from 'react'
+import { Image, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -11,7 +12,7 @@ import { formatFileSize } from '@/data/messageViewModels'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density, radii } from '@/theme/tokens'
 
-import { PendingVideoThumbnail } from './PendingVideoThumbnail'
+import { VideoThumbnail } from './VideoThumbnail'
 
 const PENDING_TILE_SIZE = 76
 const SENT_TILE_SIZE = 148
@@ -51,7 +52,7 @@ export function PendingAttachmentTray({ attachments, onRemove, disabled = false 
                   />
                 ) : kind === 'video' ? (
                   <>
-                    <PendingVideoThumbnail uri={attachment.uri} label={`${attachment.fileName}, ready to send`} />
+                    <VideoThumbnail uri={attachment.uri} label={`${attachment.fileName}, ready to send`} />
                     <View style={styles.playBadge}>
                       <AppIcon name="play" size={16} color={OVERLAY_ICON} />
                     </View>
@@ -158,6 +159,96 @@ export function MessageAttachmentMedia({ attachments, onOpen, tileSize = SENT_TI
   )
 }
 
+export function MessageMediaBubble({ attachments, onOpen }: {
+  attachments: SentChatAttachment[]
+  onOpen: (attachment: SentChatAttachment, index: number, total: number) => void
+}) {
+  const { width: windowWidth } = useWindowDimensions()
+  const availableWidth = Math.min(Math.max(180, windowWidth - 104), 340)
+  const single = attachments.length === 1
+  const tileWidth = single ? availableWidth : (availableWidth - density.textSectionGap) / 2
+
+  return (
+    <View style={styles.bubbleGrid}>
+      {attachments.map((attachment, index) => (
+        <FluidMediaTile
+          key={attachment.storageId}
+          attachment={attachment}
+          single={single}
+          width={tileWidth}
+          onOpen={() => onOpen(attachment, index, attachments.length)}
+        />
+      ))}
+    </View>
+  )
+}
+
+function FluidMediaTile({ attachment, single, width, onOpen }: {
+  attachment: SentChatAttachment
+  single: boolean
+  width: number
+  onOpen: () => void
+}) {
+  const theme = useAppTheme()
+  const { height: windowHeight } = useWindowDimensions()
+  const canOpen = Boolean(attachment.url)
+  const [ratio, setRatio] = useState(attachment.kind === 'video' ? 16 / 9 : 4 / 3)
+
+  useEffect(() => {
+    if (attachment.kind !== 'image' || !attachment.url) return
+    let active = true
+    Image.getSize(attachment.url, (imageWidth, imageHeight) => {
+      if (active && imageWidth > 0 && imageHeight > 0) setRatio(imageWidth / imageHeight)
+    }, () => undefined)
+    return () => { active = false }
+  }, [attachment.kind, attachment.url])
+
+  const maxHeight = single ? Math.min(windowHeight * 0.72, 640) : 300
+  const height = Math.min(maxHeight, Math.max(112, width / ratio))
+  const frameWidth = Math.min(width, height * ratio)
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={canOpen ? `Open ${kindNoun(attachment.kind)} ${attachment.fileName}` : `${kindNoun(attachment.kind)} ${attachment.fileName} is unavailable`}
+      accessibilityState={{ disabled: !canOpen }}
+      disabled={!canOpen}
+      onPress={onOpen}
+      style={({ pressed }) => [
+        styles.bubbleFrame,
+        { width: frameWidth, height, backgroundColor: theme.colors.background, borderColor: canOpen ? theme.colors.border : theme.colors.danger },
+        pressed && styles.pressed,
+      ]}>
+      {attachment.kind === 'image' && attachment.url ? (
+        <Image
+          accessible={false}
+          accessibilityIgnoresInvertColors
+          resizeMode="cover"
+          source={{ uri: attachment.url }}
+          style={styles.fill}
+        />
+      ) : attachment.kind === 'video' && attachment.url ? (
+        <>
+          <VideoThumbnail uri={attachment.url} label={`Video ${attachment.fileName}`} onRatio={setRatio} />
+          <View style={styles.playBadge}>
+            <AppIcon name="play" size={22} color={OVERLAY_ICON} />
+          </View>
+        </>
+      ) : (
+        <View style={styles.placeholder}>
+          <View style={styles.playBadge}>
+            <AppIcon name={placeholderIcon(attachment.kind)} size={24} color={OVERLAY_ICON} />
+          </View>
+          <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>
+            {canOpen ? kindLabel(attachment.kind) : 'Secure link unavailable'}
+          </AppText>
+        </View>
+      )}
+    </Pressable>
+  )
+}
+
+
 function placeholderIcon(kind: ChatAttachmentKind) {
   if (kind === 'video') return 'play-circle-outline' as const
   if (kind === 'image') return 'image-outline' as const
@@ -202,6 +293,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: density.textSectionGap,
+  },
+  bubbleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: density.textSectionGap,
+    maxWidth: '100%',
+  },
+  bubbleFrame: {
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+    maxWidth: '100%',
   },
   sentFrame: {
     maxWidth: '100%',

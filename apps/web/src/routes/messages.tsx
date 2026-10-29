@@ -2,7 +2,7 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { ArrowLeft, CircleCheck, Ellipsis, EyeOff, FileText, Flag, Image as ImageIcon, Link2, LoaderCircle, MessageCircle, Pencil, Reply, ShieldCheck, Trash2, Video, X } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { NOTIFICATION_HIGHLIGHT_MS } from '@lets-be-friends/shared'
 import type { Id } from '../../convex/_generated/dataModel'
 import { api } from '../../convex/_generated/api'
@@ -41,6 +41,8 @@ type ThreadAttachment = Thread['messages'][number]['attachments'][number]
 type ThreadMessage = Thread['messages'][number]
 type ThreadReply = NonNullable<Thread['messages'][number]['replyTo']>
 type ConversationAssets = NonNullable<ReturnType<typeof useQuery<typeof api.conversations.assets>>>
+
+const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 type PendingAttachment = {
   id: string
   source: File
@@ -142,7 +144,7 @@ export function MessagesPage() {
     return () => window.clearTimeout(timer)
   }, [messageId])
 
-  useEffect(() => {
+  useBrowserLayoutEffect(() => {
     const target = messageId ? document.getElementById(`message-${messageId}`) : null
     if (target) target.scrollIntoView({ block: 'center' })
     else threadEndRef.current?.scrollIntoView({ block: 'nearest' })

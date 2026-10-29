@@ -10,6 +10,7 @@ export const nativePushAdapter: NativePushAdapter = {
   unregister: async () => {},
   openSettings: async () => {},
   setBadgeCount: async () => {},
+  dismissPresentedNotification: async () => {},
   getLastResponse: async () => null,
   addResponseListener: () => () => {},
   addTokenListener: () => () => {},

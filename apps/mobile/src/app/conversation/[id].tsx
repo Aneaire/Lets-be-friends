@@ -3,7 +3,6 @@ import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { router, useFocusEffect, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
 import * as ImagePicker from 'expo-image-picker'
-import * as Linking from 'expo-linking'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -20,15 +19,19 @@ import { ReportAction } from '@/features/safety/ReportAction'
 import { AppText } from '@/design-system/atoms/Typography'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { keyboardAvoidingBehavior } from '@/design-system/templates/Screen'
+import { nativePushAdapter } from '@/notifications/nativeAdapter'
 import { CompactComposer } from '@/features/messaging/CompactComposer'
-import { MessageAttachmentMedia, PendingAttachmentTray } from '@/features/messaging/ChatAttachmentPreview'
+import { MessageMediaBubble, PendingAttachmentTray } from '@/features/messaging/ChatAttachmentPreview'
 import { ComposerContextBanner } from '@/features/messaging/ComposerContextBanner'
-import { ConversationDetailsSheet } from '@/features/messaging/ConversationDetailsSheet'
+import { ConversationDetailsBoundary, ConversationDetailsSheet } from '@/features/messaging/ConversationDetailsSheet'
 import { MessageActionsSheet } from '@/features/messaging/MessageActionsSheet'
 import { MessageBubble, MessageQuote } from '@/features/messaging/MessageBubble'
 import { NewMessagesPill } from '@/features/messaging/NewMessagesPill'
 import { SwipeableMessageRow } from '@/features/messaging/SwipeableMessageRow'
 import { BookingMessageShell, ConversationThreadHeader } from '@/features/messaging/ConversationThreadPresentation'
+import { NativeVideoViewer } from '@/features/media/NativeVideoViewer'
+import { ModalPostImageViewer } from '@/features/media/ModalPostImageViewer'
+import type { PostViewerImage } from '@/features/social/PostImageViewer'
 import { bookingDestinationForViewer } from '@/data/bookingActions'
 import {
   attachmentSelectionError,
@@ -107,6 +110,9 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
   const [attachMenuOpen, setAttachMenuOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [actionBusy, setActionBusy] = useState(false)
+  const [viewerImage, setViewerImage] = useState<PostViewerImage | null>(null)
+  const [viewerVideo, setViewerVideo] = useState<{ url: string; title: string } | null>(null)
+  const blurTarget = useRef<View>(null)
   useAppToastMessage(error)
   const sendingRef = useRef(false)
   const listRef = useRef<FlatList<Message>>(null)
@@ -114,7 +120,14 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
   useFocusEffect(useCallback(() => {
     if (!canRead || conversation === undefined || AppState.currentState !== 'active') return
     const markVisibleMessagesRead = () => {
-      void markRead({ conversationId: id as ConversationId }).catch(() => undefined)
+      void markRead({ conversationId: id as ConversationId })
+        .then((result) => {
+          // Reading the chat clears its push from the phone tray as well.
+          if (result?.notificationId) {
+            void nativePushAdapter.dismissPresentedNotification(result.notificationId).catch(() => undefined)
+          }
+        })
+        .catch(() => undefined)
     }
     markVisibleMessagesRead()
     const subscription = AppState.addEventListener('change', (state) => {
@@ -455,6 +468,8 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
         onReply={startReply}
         onOpenActions={openMessageActions}
         onOpenMenu={() => setConversationMenuOpen(true)}
+        onOpenImage={setViewerImage}
+        onOpenVideo={(url, title) => setViewerVideo({ url, title })}
         onSend={() => void send()}
         onAttach={() => setAttachMenuOpen(true)}
         onRemoveAttachment={removeAttachment}
@@ -576,14 +591,26 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
         onClose={() => setConversationMenuOpen(false)}
       />
 
-      <ConversationDetailsSheet
-        visible={detailsOpen}
-        conversationId={id}
-        otherName={conversation.otherDisplayName}
-        imageUrl={conversation.otherProfileImageUrl}
-        paused={conversation.otherUserSuspended}
-        onClose={() => setDetailsOpen(false)}
-      />
+      {detailsOpen ? (
+        <ConversationDetailsBoundary onClose={() => setDetailsOpen(false)}>
+          <ConversationDetailsSheet
+            visible
+            conversationId={id}
+            otherName={conversation.otherDisplayName}
+            imageUrl={conversation.otherProfileImageUrl}
+            paused={conversation.otherUserSuspended}
+            onOpenImage={(image) => {
+              setDetailsOpen(false)
+              setTimeout(() => setViewerImage(image), 220)
+            }}
+            onOpenVideo={(url, title) => {
+              setDetailsOpen(false)
+              setTimeout(() => setViewerVideo({ url, title }), 220)
+            }}
+            onClose={() => setDetailsOpen(false)}
+          />
+        </ConversationDetailsBoundary>
+      ) : null}
 
       <ReportAction
         targetType="message"
@@ -593,11 +620,14 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
         open={Boolean(reportMessage)}
         onOpenChange={(open) => { if (!open) setReportMessage(null) }}
       />
+
+      <ModalPostImageViewer image={viewerImage} blurTarget={blurTarget} onClose={() => setViewerImage(null)} />
+      <NativeVideoViewer url={viewerVideo?.url ?? null} title={viewerVideo?.title} onClose={() => setViewerVideo(null)} />
     </>
   )
 }
 
-function ThreadView({ conversation, messages, paginationStatus, loadMore, body, setBody, sending, picking, attachments, canSubmit, error, replyTo, editing, onCancelContext, onReply, onOpenActions, onOpenMenu, onSend, onAttach, onRemoveAttachment, listRef, viewerId, focusMessageId, contactUnavailable }: {
+function ThreadView({ conversation, messages, paginationStatus, loadMore, body, setBody, sending, picking, attachments, canSubmit, error, replyTo, editing, onCancelContext, onReply, onOpenActions, onOpenMenu, onOpenImage, onOpenVideo, onSend, onAttach, onRemoveAttachment, listRef, viewerId, focusMessageId, contactUnavailable }: {
   conversation: Conversation
   messages: Message[]
   paginationStatus: 'CanLoadMore' | 'LoadingMore' | 'Exhausted'
@@ -615,6 +645,8 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   onReply: (message: Message) => void
   onOpenActions: (message: Message) => void
   onOpenMenu: () => void
+  onOpenImage: (image: PostViewerImage) => void
+  onOpenVideo: (url: string, title: string) => void
   onSend: () => void
   onAttach: () => void
   onRemoveAttachment: (attachmentId: string) => void
@@ -630,6 +662,7 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   const chronologicalMessages = useMemo(() => [...messages].reverse(), [messages])
   const initialSettleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadingOlderRef = useRef(false)
+  const atTopRef = useRef(false)
   const topSentinelRef = useRef<View>(null)
   const [initialScrollReady, setInitialScrollReady] = useState(Boolean(focusMessageId))
   const [allowMaintainVisible, setAllowMaintainVisible] = useState(false)
@@ -661,7 +694,51 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
     listRef.current?.scrollToEnd({ animated: true })
   }, [listRef])
 
+  const requestOlderMessages = useCallback(() => {
+    if (paginationStatus !== 'CanLoadMore' || loadingOlderRef.current) return
+    loadingOlderRef.current = true
+    loadMore()
+  }, [loadMore, paginationStatus])
+
+  useEffect(() => {
+    if (paginationStatus !== 'LoadingMore') loadingOlderRef.current = false
+  }, [paginationStatus])
+
+  useEffect(() => {
+    if (initialScrollReady && paginationStatus === 'CanLoadMore' && atTopRef.current) requestOlderMessages()
+  }, [initialScrollReady, paginationStatus, requestOlderMessages])
+
+  /**
+   * On the web the top of the list is watched with IntersectionObserver, so
+   * earlier messages load as soon as the sentinel approaches the viewport.
+   */
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !initialScrollReady || paginationStatus !== 'CanLoadMore') return
+    const node = topSentinelRef.current as unknown as HTMLElement | null
+    if (!node || typeof IntersectionObserver === 'undefined' || typeof node.getBoundingClientRect !== 'function') return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) requestOlderMessages()
+    }, { rootMargin: '160px 0px 0px 0px' })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [initialScrollReady, paginationStatus, requestOlderMessages])
+
+  useEffect(() => {
+    if (messages.length === 0) setInitialScrollReady(true)
+  }, [messages.length])
+
+  useEffect(() => {
+    if (initialScrollReady) return
+    const fallback = setTimeout(() => {
+      listRef.current?.scrollToEnd({ animated: false })
+      setInitialScrollReady(true)
+      setAllowMaintainVisible(true)
+    }, 800)
+    return () => clearTimeout(fallback)
+  }, [initialScrollReady])
+
   useEffect(() => () => {
+    if (initialSettleTimer.current) clearTimeout(initialSettleTimer.current)
     if (highlightTimer.current) clearTimeout(highlightTimer.current)
   }, [])
 
@@ -670,7 +747,11 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
     seenLatestId.current = latestMessageId
     pendingNewestRef.current = false
     atLatestRef.current = true
-    didInitialScroll.current = false
+    loadingOlderRef.current = false
+    atTopRef.current = false
+    if (initialSettleTimer.current) clearTimeout(initialSettleTimer.current)
+    setInitialScrollReady(Boolean(focusMessageId))
+    setAllowMaintainVisible(false)
     handledFocusMessageId.current = null
     setNewMessageCount(0)
     setHighlightedMessageId(null)
@@ -728,8 +809,10 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
       viewportHeight: layoutMeasurement.height,
     })
     atLatestRef.current = nextAtLatest
+    atTopRef.current = contentOffset.y <= 48
     if (nextAtLatest) setNewMessageCount((count) => (count === 0 ? count : 0))
-  }, [])
+    if (initialScrollReady && atTopRef.current) requestOlderMessages()
+  }, [initialScrollReady, requestOlderMessages])
 
   const handleComposerLayout = useCallback((height: number) => {
     if (lastComposerHeight.current === height) return
@@ -745,12 +828,15 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
       if (paginationStatus === 'CanLoadMore' && focusAttempts.current < 5) {
         focusAttempts.current += 1
         loadMore()
+      } else {
+        setInitialScrollReady(true)
       }
       return
     }
     handledFocusMessageId.current = focusMessageId
     const scrollTimer = setTimeout(() => {
       listRef.current?.scrollToIndex({ index: focusIndex, animated: true, viewPosition: 0.5 })
+      setInitialScrollReady(true)
       setHighlightedMessageId(focusMessageId)
       if (highlightTimer.current) clearTimeout(highlightTimer.current)
       highlightTimer.current = setTimeout(() => setHighlightedMessageId(null), NOTIFICATION_HIGHLIGHT_MS)
@@ -773,8 +859,9 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
           ref={listRef}
           data={chronologicalMessages}
           keyExtractor={(message) => message._id}
+          style={!initialScrollReady ? styles.listHidden : undefined}
           renderItem={({ item }) => {
-            const row = <MessageItem message={item} otherName={conversation.otherDisplayName} viewerId={viewerId} highlighted={highlightedMessageId === String(item._id)} />
+            const row = <MessageItem message={item} otherName={conversation.otherDisplayName} viewerId={viewerId} highlighted={highlightedMessageId === String(item._id)} onOpenImage={onOpenImage} onOpenVideo={onOpenVideo} />
             if (item.booking || item.deletedAt) return row
             return (
               <SwipeableMessageRow
@@ -787,16 +874,21 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
           }}
           contentContainerStyle={[styles.messages, messages.length === 0 ? styles.messagesEmpty : styles.messagesFilled]}
           keyboardShouldPersistTaps="handled"
-          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          maintainVisibleContentPosition={allowMaintainVisible ? { minIndexForVisible: 0 } : undefined}
           onScrollToIndexFailed={(info) => {
             listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true })
             setTimeout(() => listRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 }), 320)
           }}
           onContentSizeChange={() => {
             if (focusMessageId) return
-            if (!didInitialScroll.current) {
-              didInitialScroll.current = true
+            if (!initialScrollReady) {
               listRef.current?.scrollToEnd({ animated: false })
+              if (initialSettleTimer.current) clearTimeout(initialSettleTimer.current)
+              initialSettleTimer.current = setTimeout(() => {
+                listRef.current?.scrollToEnd({ animated: false })
+                setInitialScrollReady(true)
+                setAllowMaintainVisible(true)
+              }, 180)
               return
             }
             if (pendingNewestRef.current) {
@@ -808,11 +900,13 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
           }}
           onScroll={handleMessageListScroll}
           scrollEventThrottle={16}
-          ListHeaderComponent={paginationStatus === 'CanLoadMore'
-            ? <ActionButton label="Load earlier messages" onPress={loadMore} secondary />
-            : paginationStatus === 'LoadingMore'
-              ? <AppText variant="caption" color={theme.colors.textMuted}>Loading earlier messages.</AppText>
-              : null}
+          ListHeaderComponent={(
+            <View ref={topSentinelRef} style={styles.olderSentinel}>
+              {paginationStatus === 'LoadingMore' ? (
+                <AppText variant="caption" color={theme.colors.textMuted}>Loading earlier messages.</AppText>
+              ) : null}
+            </View>
+          )}
           ListEmptyComponent={<View style={styles.empty}><AppText variant="heading">No messages yet</AppText><AppText color={theme.colors.textMuted}>Say hello when you are ready.</AppText></View>}
         />
         {newMessageCount > 0 && canCompose ? (
@@ -861,23 +955,16 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   )
 }
 
-function MessageItem({ message, otherName, viewerId, highlighted = false }: {
+function MessageItem({ message, otherName, viewerId, highlighted = false, onOpenImage, onOpenVideo }: {
   message: Message
   otherName: string
   viewerId: string
   highlighted?: boolean
+  onOpenImage: (image: PostViewerImage) => void
+  onOpenVideo: (url: string, title: string) => void
 }) {
   const theme = useAppTheme()
   const [attachmentError, setAttachmentError] = useState('')
-
-  async function openAttachmentUrl(url: string) {
-    setAttachmentError('')
-    try {
-      await Linking.openURL(url)
-    } catch {
-      setAttachmentError('This private attachment could not be opened. Please try again.')
-    }
-  }
 
   async function downloadAttachment(url: string, fileName: string) {
     setAttachmentError('')
@@ -934,14 +1021,21 @@ function MessageItem({ message, otherName, viewerId, highlighted = false }: {
       highlighted={highlighted}
       attachments={message.attachments.length ? <>
           {sharedMedia.length ? (
-            <MessageAttachmentMedia
+            <MessageMediaBubble
               attachments={sharedMedia.map((item) => ({
                 storageId: String(item.storageId),
                 fileName: item.fileName,
                 kind: item.kind,
                 url: item.url ?? undefined,
               }))}
-              onOpen={(url) => void openAttachmentUrl(url)}
+              onOpen={(attachment, index, total) => {
+                if (!attachment.url) return
+                if (attachment.kind === 'video') {
+                  onOpenVideo(attachment.url, attachment.fileName)
+                  return
+                }
+                onOpenImage({ url: attachment.url, index, total })
+              }}
             />
           ) : null}
           {sharedFiles.map((item, index) => {
@@ -980,6 +1074,8 @@ const styles = StyleSheet.create({
   messages: { padding: 14, gap: 12 },
   messagesEmpty: { flexGrow: 1, justifyContent: 'center' },
   messagesFilled: { flexGrow: 1, justifyContent: 'flex-end' },
+  listHidden: { opacity: 0 },
+  olderSentinel: { minHeight: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', gap: 8 },
   composer: { borderTopWidth: 1, padding: 12, gap: 8 },
   newMessagesAnchor: {

@@ -23,6 +23,7 @@ export type NativePushAdapter = {
   unregister: () => Promise<void>
   openSettings: () => Promise<void>
   setBadgeCount: (count: number) => Promise<void>
+  dismissPresentedNotification: (notificationId: string) => Promise<void>
   getLastResponse: () => Promise<NativePushResponse | null>
   addResponseListener: (listener: (response: NativePushResponse) => void) => () => void
   addTokenListener: (listener: () => void) => () => void
@@ -39,6 +40,7 @@ export const nativePushAdapter: NativePushAdapter = {
   unregister: async () => {},
   openSettings: async () => {},
   setBadgeCount: async () => {},
+  dismissPresentedNotification: async () => {},
   getLastResponse: async () => null,
   addResponseListener: () => () => {},
   addTokenListener: () => () => {},

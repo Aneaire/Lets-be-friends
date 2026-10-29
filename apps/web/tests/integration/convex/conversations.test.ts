@@ -1,6 +1,6 @@
 import { convexTest } from 'convex-test'
 import { describe, expect, it } from 'vitest'
-import { api } from '../../../convex/_generated/api'
+import { api, internal } from '../../../convex/_generated/api'
 import schema from '../../../convex/schema'
 import { convexModules } from '../../helpers/convex'
 
@@ -429,7 +429,9 @@ describe('message notification noise control', () => {
     const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
 
     await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'Before reading' })
-    await sam.mutation(api.conversations.markRead, { conversationId })
+    const cleared = await sam.mutation(api.conversations.markRead, { conversationId })
+    expect(cleared).toEqual({ notificationId: expect.any(String) })
+    expect(await sam.mutation(api.conversations.markRead, { conversationId })).toEqual({ notificationId: null })
 
     const read = await messageNotificationRows(t, 'sam')
     expect(read).toHaveLength(1)
@@ -442,6 +444,49 @@ describe('message notification noise control', () => {
     expect(reopened[0].readAt).toBeUndefined()
     expect(reopened[0].actorUserId).toBe(alexId)
     expect(reopened[0].recipientUserId).toBe(samId)
+  })
+
+  it('marks legacy per message notifications read without touching conversation rows', async () => {
+    const t = convexTest(schema, modules)
+    const alexId = await insertUser(t, 'alex')
+    const samId = await insertUser(t, 'sam')
+    const alex = t.withIdentity({ subject: 'alex' })
+    const conversationId = await alex.mutation(api.conversations.start, { otherUserId: samId })
+    await alex.mutation(api.conversations.sendMessage, { conversationId, body: 'New behavior row' })
+
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert('notifications', {
+        recipientUserId: samId,
+        actorUserId: alexId,
+        kind: 'direct_message',
+        priority: 'standard',
+        conversationId,
+        dedupeKey: 'direct-message:legacy-message-id',
+        createdAt: now,
+      })
+      await ctx.db.insert('notifications', {
+        recipientUserId: samId,
+        actorUserId: alexId,
+        kind: 'direct_message',
+        priority: 'standard',
+        conversationId,
+        dedupeKey: 'direct-message:legacy-read',
+        readAt: now,
+        createdAt: now,
+      })
+    })
+
+    expect(await t.mutation(internal.migrations.markLegacyMessageNotificationsRead, {}))
+      .toEqual({ scanned: 3, marked: 1 })
+    // The aggregate row and the already read legacy row keep their state.
+    const rows = await messageNotificationRows(t, 'sam')
+    const aggregate = rows.find((row: any) => row.aggregateCount === 1)
+    expect(aggregate?.readAt).toBeUndefined()
+    const readLegacy = rows.find((row: any) => row.dedupeKey === 'direct-message:legacy-read')
+    expect(readLegacy?.readAt).toEqual(expect.any(Number))
+    expect(await t.mutation(internal.migrations.markLegacyMessageNotificationsRead, {}))
+      .toEqual({ scanned: 3, marked: 0 })
   })
 
   it('clears the sender row when they reply in the same conversation', async () => {

@@ -6,7 +6,7 @@ import * as Notifications from 'expo-notifications'
 import * as SecureStore from 'expo-secure-store'
 import { AppState, Linking, Platform } from 'react-native'
 
-import { ANDROID_NOTIFICATION_CHANNEL_ID, ANDROID_SOCIAL_CHANNEL_ID, androidNotificationChannelSettings, androidSocialChannelSettings, installationBoundary, permissionStateFromNative, pushInstallationKey, pushInstallMarkerKey } from './logic'
+import { ANDROID_NOTIFICATION_CHANNEL_ID, ANDROID_SOCIAL_CHANNEL_ID, androidNotificationChannelSettings, androidSocialChannelSettings, installationBoundary, permissionStateFromNative, presentedNotificationIdentifiers, pushInstallationKey, pushInstallMarkerKey } from './logic'
 import type { NativePermissionState, NativePushAdapter, NativePushResponse } from './nativeAdapter'
 
 const INSTALLATION_KEY = pushInstallationKey()
@@ -56,6 +56,17 @@ export const nativePushAdapter: NativePushAdapter = {
   },
   setBadgeCount: async (count) => {
     await Notifications.setBadgeCountAsync(count)
+  },
+  dismissPresentedNotification: async (notificationId) => {
+    const presented = await Notifications.getPresentedNotificationsAsync()
+    const identifiers = presentedNotificationIdentifiers(
+      presented.map((item) => ({
+        identifier: item.request.identifier,
+        data: item.request.content.data,
+      })),
+      notificationId,
+    )
+    await Promise.all(identifiers.map((identifier) => Notifications.dismissNotificationAsync(identifier)))
   },
   getLastResponse: async () => {
     const response = await Notifications.getLastNotificationResponseAsync()

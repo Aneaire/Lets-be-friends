@@ -2,10 +2,9 @@ import { StyleSheet, View } from 'react-native'
 
 /**
  * The web build has no native video surface for a paused first frame, so the
- * tray shows its play badge over a neutral tile. The clip still previews with
- * its file name and opens after sending.
+ * tile shows its play badge over a neutral surface. Tapping opens the video.
  */
-export function PendingVideoThumbnail({ label }: { uri: string; label: string }) {
+export function VideoThumbnail({ label }: { uri: string; label: string; onRatio?: (ratio: number) => void }) {
   return <View accessible accessibilityLabel={label} accessibilityRole="image" style={styles.thumbnail} />
 }
 

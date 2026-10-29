@@ -1,5 +1,23 @@
 export type PushPayload = { version: 1; notificationId: string }
 
+/**
+ * Presented pushes carry the server notification id in their data payload, so a
+ * chat can dismiss exactly the pushes it just marked read and leave every other
+ * notification on the device alone.
+ */
+export function presentedNotificationIdentifiers(
+  presented: ReadonlyArray<{ identifier: string; data?: unknown }>,
+  notificationId: string,
+): string[] {
+  if (!notificationId) return []
+  return presented
+    .filter((item) => {
+      const data = item.data as { notificationId?: unknown } | null | undefined
+      return data?.notificationId === notificationId
+    })
+    .map((item) => item.identifier)
+}
+
 export const ANDROID_NOTIFICATION_CHANNEL_ID = 'account-updates-v2'
 export const ANDROID_SOCIAL_CHANNEL_ID = 'social-updates'
 

@@ -45,6 +45,26 @@ export const migrateOwnerRoles = internalMutation({
   },
 })
 
+// Direct messages used to create one notification per message. They now share
+// one row per conversation, which carries an aggregateCount. Rows without that
+// field are the old per-message rows. This marks them read so they leave the
+// unread badge, and it can be replayed safely because it only patches unread
+// rows once.
+export const markLegacyMessageNotificationsRead = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query('notifications').collect()
+    const legacy = rows.filter((row) => (
+      row.kind === 'direct_message'
+      && row.aggregateCount === undefined
+      && !row.readAt
+    ))
+    const readAt = Date.now()
+    for (const row of legacy) await ctx.db.patch(row._id, { readAt })
+    return { scanned: rows.length, marked: legacy.length }
+  },
+})
+
 export const backfillCompanionLocationIndex = internalMutation({
   args: {
     cursor: v.optional(v.string()),

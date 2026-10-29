@@ -1,6 +1,6 @@
 import { useQuery } from 'convex/react'
 import * as Linking from 'expo-linking'
-import { useState, type ReactNode } from 'react'
+import { Component, useState, type ReactNode } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import { mobileApi, type ConversationId } from '@/backend/client'
@@ -12,17 +12,50 @@ import { BottomSheet } from '@/design-system/molecules/BottomSheet'
 import { formatFileSize } from '@/data/messageViewModels'
 import { MessageAttachmentMedia } from '@/features/messaging/ChatAttachmentPreview'
 import { downloadChatAttachment } from '@/features/messaging/downloadChatAttachment'
+import type { PostViewerImage } from '@/features/social/PostImageViewer'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density, radii } from '@/theme/tokens'
 
 const DETAIL_TILE_SIZE = 84
 
-export function ConversationDetailsSheet({ visible, conversationId, otherName, imageUrl, paused = false, onClose }: {
+export class ConversationDetailsBoundary extends Component<{ children: ReactNode; onClose: () => void }, { failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children
+    return <ConversationDetailsFallback onClose={this.props.onClose} />
+  }
+}
+
+function ConversationDetailsFallback({ onClose }: { onClose: () => void }) {
+  const theme = useAppTheme()
+
+  return (
+    <BottomSheet
+      visible
+      title="Conversation details"
+      description="Shared media and links are unavailable right now."
+      closeLabel="Close conversation details"
+      onClose={onClose}>
+      <View style={styles.content}>
+        <AppText color={theme.colors.textMuted}>Refresh the conversation or try again in a moment.</AppText>
+      </View>
+    </BottomSheet>
+  )
+}
+
+export function ConversationDetailsSheet({ visible, conversationId, otherName, imageUrl, paused = false, onOpenImage, onOpenVideo, onClose }: {
   visible: boolean
   conversationId: string
   otherName: string
   imageUrl?: string | null
   paused?: boolean
+  onOpenImage: (image: PostViewerImage) => void
+  onOpenVideo: (url: string, title: string) => void
   onClose: () => void
 }) {
   const theme = useAppTheme()
@@ -81,7 +114,16 @@ export function ConversationDetailsSheet({ visible, conversationId, otherName, i
                 kind: item.kind,
                 url: item.url ?? undefined,
               }))}
-              onOpen={(url) => void openLink(url)}
+              onOpen={(url) => {
+                const index = visualMedia.findIndex((item) => item.url === url)
+                const item = visualMedia[index]
+                if (!item?.url) return
+                if (item.kind === 'video') {
+                  onOpenVideo(item.url, item.fileName)
+                  return
+                }
+                onOpenImage({ url: item.url, index, total: visualMedia.length })
+              }}
               tileSize={DETAIL_TILE_SIZE}
             />
           ) : (
