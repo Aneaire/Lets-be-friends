@@ -1,10 +1,6 @@
 import { useMutation, useQuery } from 'convex/react'
-import { useState, type FormEvent } from 'react'
-import {
-  normalizeReferralCode,
-  referralCodeValidationError,
-  referralShareUrl,
-} from '@lets-be-friends/shared'
+import { useState } from 'react'
+import { referralShareUrl } from '@lets-be-friends/shared'
 import { api } from '../../../convex/_generated/api'
 import { describeConvexError } from '../../lib/convexErrors'
 import { ReferralPanelView } from './ReferralPanelView'
@@ -12,11 +8,9 @@ import { ReferralPanelView } from './ReferralPanelView'
 export function ReferralPanel() {
   const referral = useQuery(api.referrals.myReferral)
   const ensureReferralCode = useMutation(api.referrals.ensureReferralCode)
-  const attributeReferral = useMutation(api.referrals.attributeReferral)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [codeInput, setCodeInput] = useState('')
 
   if (referral === undefined) {
     return (
@@ -62,41 +56,15 @@ export function ReferralPanel() {
     }
   }
 
-  async function submitCode(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (busy) return
-    const code = normalizeReferralCode(codeInput)
-    const validationError = referralCodeValidationError(code)
-    if (validationError) {
-      setError(validationError)
-      return
-    }
-    setBusy(true)
-    setError('')
-    setNotice('')
-    try {
-      await attributeReferral({ code })
-      setCodeInput('')
-      setNotice('Referral code added. It will apply to your first completed bookings.')
-    } catch (attributeError) {
-      setError(attributeError instanceof Error ? describeConvexError(attributeError) : 'That referral code could not be added.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <ReferralPanelView
       referral={referral}
       busy={busy}
       error={error}
       notice={notice}
-      codeInput={codeInput}
       origin={origin}
-      onCodeInputChange={setCodeInput}
       onCreateCode={() => void createCode()}
       onCopyLink={() => void copyLink()}
-      onSubmitCode={(event) => void submitCode(event)}
     />
   )
 }

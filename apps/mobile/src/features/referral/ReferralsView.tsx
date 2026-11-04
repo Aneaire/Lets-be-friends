@@ -1,5 +1,5 @@
-import { StyleSheet, TextInput, View } from 'react-native'
-import { formatPhp, normalizeReferralCode } from '@lets-be-friends/shared'
+import { StyleSheet, View } from 'react-native'
+import { formatPhp } from '@lets-be-friends/shared'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -37,23 +37,17 @@ export function ReferralsView({
   referral,
   busy,
   message,
-  codeInput,
   shareUrl,
-  onCodeInputChange,
   onCreateCode,
   onShare,
-  onSubmitCode,
   onReturn,
 }: {
   referral: MobileReferralData
   busy: boolean
   message: string
-  codeInput: string
   shareUrl?: string
-  onCodeInputChange: (value: string) => void
   onCreateCode: () => void
   onShare: () => void
-  onSubmitCode: () => void
   onReturn: () => void
 }) {
   const theme = useAppTheme()
@@ -111,40 +105,12 @@ export function ReferralsView({
         </View>
       ) : null}
 
-      {referral.referredBy ? (
+      {referral.referredBy && (
         <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
           <AppText variant="heading">You joined with {referral.referredBy.referrerDisplayName}'s code</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
             {referral.referredBy.rewardedBookings} of {referral.referredBy.totalRewardedBookings} rewarded bookings on your account.
           </AppText>
-        </View>
-      ) : (
-        <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-          <AppText variant="heading">Have a friend's code?</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>
-            Add it before your first booking. One code per account.
-          </AppText>
-          <TextInput
-            accessibilityLabel="Referral code"
-            value={codeInput}
-            onChangeText={(value) => onCodeInputChange(normalizeReferralCode(value))}
-            placeholder="ABCD1234"
-            placeholderTextColor={theme.colors.textMuted}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            maxLength={12}
-            editable={!busy}
-            style={[
-              styles.input,
-              theme.typography.body,
-              {
-                color: theme.colors.text,
-                backgroundColor: theme.colors.surfaceRaised,
-                borderColor: theme.colors.border,
-              },
-            ]}
-          />
-          <ActionButton label="Add referral code" onPress={onSubmitCode} intent="social" loading={busy} disabled={!codeInput.trim()} />
         </View>
       )}
 
@@ -171,5 +137,4 @@ const styles = StyleSheet.create({
   metric: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 4 },
   row: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   rowCopy: { flex: 1, gap: 2 },
-  input: { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12 },
 })

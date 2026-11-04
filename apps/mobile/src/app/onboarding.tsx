@@ -28,6 +28,7 @@ import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { openPolicyDocument } from '@/features/policy/policyLinks'
+import { ReferralCodeCard } from '@/features/referral/ReferralCodeCard'
 import { AppText } from '@/design-system/atoms/Typography'
 import { ProductMap } from '@/design-system/organisms/ProductMap'
 import { useMobileMember } from '@/member/MobileMember'
@@ -142,6 +143,9 @@ function ConnectedOnboarding({
   const [locating, setLocating] = useState(false)
   const [locationMessage, setLocationMessage] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [referralBusy, setReferralBusy] = useState(false)
+  const [referralError, setReferralError] = useState('')
+  const [referralNotice, setReferralNotice] = useState('')
   useAppToastMessage(message)
   const [step, setStep] = useState(() => initialOnboardingStep(viewer))
   const totalSteps = onboardingTotalSteps(goal)
@@ -165,6 +169,9 @@ function ConnectedOnboarding({
   })
   const existingApplication = useQuery(mobileApi.companions.myApplication, {})
   const submitApplication = useMutation(mobileApi.companions.submitApplication)
+  const referral = useQuery(mobileApi.referrals.myReferral, {})
+  const attributeReferral = useMutation(mobileApi.referrals.attributeReferral)
+  const dismissReferralPrompt = useMutation(mobileApi.referrals.dismissReferralPrompt)
   const [applicationForm, setApplicationForm] = useState<CompanionApplicationForm>(() => (
     defaultOnboardingCompanionForm({ bio: viewer.bio, categories: viewer.onboardingCategories })
   ))
@@ -213,6 +220,34 @@ function ConnectedOnboarding({
   useEffect(() => {
     setStep((current) => clampOnboardingStep(current, goal))
   }, [goal])
+
+  async function submitReferralCode(code: string) {
+    if (referralBusy) return
+    setReferralBusy(true)
+    setReferralError('')
+    setReferralNotice('')
+    try {
+      await attributeReferral({ code })
+      setReferralNotice('Referral code added. It will apply to your first completed bookings.')
+    } catch {
+      setReferralError('That referral code could not be added. It may already be linked, or your first booking may already exist.')
+    } finally {
+      setReferralBusy(false)
+    }
+  }
+
+  async function skipReferralPrompt() {
+    if (referralBusy) return
+    setReferralBusy(true)
+    setReferralError('')
+    try {
+      await dismissReferralPrompt({})
+    } catch {
+      // The referral prompt is optional and must not block onboarding.
+    } finally {
+      setReferralBusy(false)
+    }
+  }
 
   async function requestApproximateLocation() {
     if (locating || submitting || submitted) return
@@ -416,6 +451,15 @@ function ConnectedOnboarding({
       </View>
 
       {step === 0 ? <View style={styles.section}>
+        {referral && !referral.referredBy && !referral.promptDismissedAt ? (
+          <ReferralCodeCard
+            busy={referralBusy}
+            error={referralError}
+            notice={referralNotice}
+            onSubmit={(code) => void submitReferralCode(code)}
+            onSkip={() => void skipReferralPrompt()}
+          />
+        ) : null}
         <View style={styles.sectionHeader}>
           <AppText variant="heading">Choose your username</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>

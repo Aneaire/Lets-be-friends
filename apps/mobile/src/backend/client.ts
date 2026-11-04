@@ -55,6 +55,7 @@ export const mobileApi = {
     myReferral: generatedApi.referrals.myReferral,
     ensureReferralCode: generatedApi.referrals.ensureReferralCode,
     attributeReferral: generatedApi.referrals.attributeReferral,
+    dismissReferralPrompt: generatedApi.referrals.dismissReferralPrompt,
   },
   withdrawals: {
     dashboard: generatedApi.withdrawals.dashboard,

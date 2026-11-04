@@ -65,6 +65,7 @@ export const myReferral = query({
       totalReversedCentavos: rewards
         .filter((reward) => reward.status === 'reversed')
         .reduce((total, reward) => total + reward.amountCentavos, 0),
+      promptDismissedAt: viewer.referralPromptDismissedAt ?? null,
       referredBy: referredByRow
         ? {
             referrerDisplayName: referredByUser?.displayName ?? 'A friend',
@@ -138,6 +139,10 @@ export const attributeReferral = mutation({
       createdAt: now,
       updatedAt: now,
     })
+    await ctx.db.patch(viewer._id, {
+      referralPromptDismissedAt: viewer.referralPromptDismissedAt ?? now,
+      updatedAt: now,
+    })
     await writeAudit(ctx, {
       actorUserId: viewer._id,
       action: 'referral.attributed',
@@ -146,5 +151,19 @@ export const attributeReferral = mutation({
       after: { code, referrerUserId: String(referralCode.ownerUserId) },
     })
     return { referralId }
+  },
+})
+
+export const dismissReferralPrompt = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await requireViewer(ctx)
+    if (viewer.referralPromptDismissedAt) return { dismissedAt: viewer.referralPromptDismissedAt }
+    const now = Date.now()
+    await ctx.db.patch(viewer._id, {
+      referralPromptDismissedAt: now,
+      updatedAt: now,
+    })
+    return { dismissedAt: now }
   },
 })

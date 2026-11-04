@@ -10,11 +10,14 @@ const state = vi.hoisted(() => ({
   latest: null as unknown,
   application: null as unknown,
   availability: undefined as unknown,
+  referral: null as unknown,
   updateProfile: vi.fn(async () => undefined),
   claimUsername: vi.fn(async () => 'maya'),
   saveLocation: vi.fn(async () => undefined),
   submitCompanionProfile: vi.fn(async () => undefined),
   completeOnboarding: vi.fn(async () => undefined),
+  attributeReferral: vi.fn(async () => undefined),
+  dismissReferralPrompt: vi.fn(async () => undefined),
   navigate: vi.fn(async () => undefined),
 }))
 
@@ -30,6 +33,11 @@ vi.mock('../../convex/_generated/api', () => ({
       completeOnboarding: 'users.completeOnboarding',
     },
     companions: { myApplication: 'companions.myApplication', submitApplication: 'companions.submitApplication' },
+    referrals: {
+      myReferral: 'referrals.myReferral',
+      attributeReferral: 'referrals.attributeReferral',
+      dismissReferralPrompt: 'referrals.dismissReferralPrompt',
+    },
   },
 }))
 
@@ -39,6 +47,7 @@ vi.mock('convex/react', () => ({
     if (query === 'users.latestMemberVerification') return state.latest
     if (query === 'users.usernameAvailability') return state.availability
     if (query === 'companions.myApplication') return state.application
+    if (query === 'referrals.myReferral') return state.referral
     return undefined
   },
   useMutation: (mutation: string) => {
@@ -47,6 +56,8 @@ vi.mock('convex/react', () => ({
     if (mutation === 'users.saveOnboardingLocationAndConsent') return state.saveLocation
     if (mutation === 'companions.submitApplication') return state.submitCompanionProfile
     if (mutation === 'users.completeOnboarding') return state.completeOnboarding
+    if (mutation === 'referrals.attributeReferral') return state.attributeReferral
+    if (mutation === 'referrals.dismissReferralPrompt') return state.dismissReferralPrompt
     return vi.fn(async () => undefined)
   },
 }))
@@ -120,11 +131,14 @@ beforeEach(() => {
   state.latest = null
   state.application = null
   state.availability = undefined
+  state.referral = null
   state.updateProfile.mockClear()
   state.claimUsername.mockClear()
   state.saveLocation.mockClear()
   state.submitCompanionProfile.mockClear()
   state.completeOnboarding.mockClear()
+  state.attributeReferral.mockClear()
+  state.dismissReferralPrompt.mockClear()
   state.navigate.mockClear()
 })
 
@@ -146,6 +160,42 @@ function checkBothBoxes() {
 }
 
 describe('onboarding route', () => {
+  it('offers the referral code card once on the first step', async () => {
+    state.referral = {
+      code: null,
+      referrals: [],
+      rewards: [],
+      totalEarnedCentavos: 0,
+      totalReversedCentavos: 0,
+      promptDismissedAt: null,
+      referredBy: null,
+    }
+    render(<OnboardingPage />)
+
+    expect(await screen.findByText("Have a friend's code?")).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(/Referral code/), { target: { value: 'ab-cd12' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add referral code' }))
+
+    await waitFor(() => expect(state.attributeReferral).toHaveBeenCalledWith({ code: 'ABCD12' }))
+  })
+
+  it('lets the member skip the referral code prompt', async () => {
+    state.referral = {
+      code: null,
+      referrals: [],
+      rewards: [],
+      totalEarnedCentavos: 0,
+      totalReversedCentavos: 0,
+      promptDismissedAt: null,
+      referredBy: null,
+    }
+    render(<OnboardingPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Skip for now' }))
+
+    await waitFor(() => expect(state.dismissReferralPrompt).toHaveBeenCalledTimes(1))
+  })
+
   it('keeps Back and Continue on one row with no skip control', async () => {
     state.viewer = unacceptedViewer()
     render(<OnboardingPage />)

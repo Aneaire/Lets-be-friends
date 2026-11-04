@@ -2,11 +2,7 @@ import { router } from 'expo-router'
 import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { Share, StyleSheet } from 'react-native'
-import {
-  normalizeReferralCode,
-  referralCodeValidationError,
-  referralShareUrl,
-} from '@lets-be-friends/shared'
+import { referralShareUrl } from '@lets-be-friends/shared'
 
 import { mobileApi } from '@/backend/client'
 import { resolveMobileWebAppConfiguration } from '@/backend/config'
@@ -34,9 +30,7 @@ export default function ReferralsScreen() {
 function ReadyReferrals() {
   const referral = useQuery(mobileApi.referrals.myReferral, {})
   const ensureReferralCode = useMutation(mobileApi.referrals.ensureReferralCode)
-  const attributeReferral = useMutation(mobileApi.referrals.attributeReferral)
   const [busy, setBusy] = useState(false)
-  const [codeInput, setCodeInput] = useState('')
   const [message, setMessage] = useState('')
 
   if (referral === undefined) return <PageSkeleton variant="profile" />
@@ -78,38 +72,14 @@ function ReadyReferrals() {
     }
   }
 
-  async function submitCode() {
-    if (busy) return
-    const code = normalizeReferralCode(codeInput)
-    const validationError = referralCodeValidationError(code)
-    if (validationError) {
-      setMessage(validationError)
-      return
-    }
-    setBusy(true)
-    setMessage('')
-    try {
-      await attributeReferral({ code })
-      setCodeInput('')
-      setMessage('Referral code added. It will apply to your first completed bookings.')
-    } catch {
-      setMessage('That referral code could not be added. It may already be linked, or your first booking may already exist.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <ReferralsView
       referral={referral}
       busy={busy}
       message={message}
-      codeInput={codeInput}
       shareUrl={shareUrl}
-      onCodeInputChange={setCodeInput}
       onCreateCode={() => void createCode()}
       onShare={() => void shareLink()}
-      onSubmitCode={() => void submitCode()}
       onReturn={() => router.replace('/profile')}
     />
   )

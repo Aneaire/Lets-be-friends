@@ -32,12 +32,9 @@ const meta = {
     referral,
     busy: false,
     message: '',
-    codeInput: '',
     shareUrl: 'https://letsbefriends.ph/?ref=ABCD1234',
-    onCodeInputChange: fn(),
     onCreateCode: fn(),
     onShare: fn(),
-    onSubmitCode: fn(),
     onReturn: fn(),
   },
 } satisfies Meta<typeof ReferralsView>

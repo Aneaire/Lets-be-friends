@@ -183,6 +183,20 @@ describe('referral program', () => {
       rewardedBookings: 0,
     })
     expect(summary?.referrals).toHaveLength(0)
+    expect(summary?.promptDismissedAt).toEqual(expect.any(Number))
+  })
+
+  it('dismisses the one-time referral prompt idempotently', async () => {
+    const t = createTest()
+    await seed(t)
+    const member = t.withIdentity({ subject: 'referral-member' })
+
+    const first = await member.mutation(api.referrals.dismissReferralPrompt, {})
+    const second = await member.mutation(api.referrals.dismissReferralPrompt, {})
+
+    expect(second.dismissedAt).toBe(first.dismissedAt)
+    const summary = await member.query(api.referrals.myReferral, {})
+    expect(summary?.promptDismissedAt).toBe(first.dismissedAt)
   })
 
   it('credits 68% of the service fee for each of the first three settled bookings', async () => {

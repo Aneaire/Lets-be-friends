@@ -26,6 +26,7 @@ import {
   type CompanionProfileValues,
 } from '../features/companion-application/companionProfileForm'
 import { AcceptanceCheckboxes, AlreadyAcceptedNotice, unifiedPolicyVersion } from '../features/policy/PolicySummaries'
+import { ReferralCodeCard } from '../features/referral/ReferralCodeCard'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification';
 import { describeConvexError } from '../lib/convexErrors'
 
@@ -58,6 +59,9 @@ export function OnboardingPage() {
   const saveOnboardingLocationAndConsent = useMutation(api.users.saveOnboardingLocationAndConsent)
   const submitCompanionProfile = useMutation(api.companions.submitApplication)
   const completeOnboarding = useMutation(api.users.completeOnboarding)
+  const referral = useQuery(api.referrals.myReferral, viewer ? {} : 'skip')
+  const attributeReferral = useMutation(api.referrals.attributeReferral)
+  const dismissReferralPrompt = useMutation(api.referrals.dismissReferralPrompt)
   const identityFlow = useIdentityVerification('member')
   const companionIdentityFlow = useIdentityVerification('companion_application')
   const navigate = useNavigate()
@@ -78,6 +82,9 @@ export function OnboardingPage() {
   const [locationStatus, setLocationStatus] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [referralBusy, setReferralBusy] = useState(false)
+  const [referralError, setReferralError] = useState('')
+  const [referralNotice, setReferralNotice] = useState('')
   const accountKeyRef = useRef<string | null>(null)
   const normalizedUsername = normalizeUsername(username)
   const localUsernameError = usernameValidationError(username)
@@ -213,6 +220,34 @@ export function OnboardingPage() {
   }
 
   const acceptanceError = 'Agree to both the Terms and Conditions and the Privacy Policy in Step 5 before continuing.'
+
+  const submitReferralCode = async (code: string) => {
+    if (referralBusy) return
+    setReferralBusy(true)
+    setReferralError('')
+    setReferralNotice('')
+    try {
+      await attributeReferral({ code })
+      setReferralNotice('Referral code added. It will apply to your first completed bookings.')
+    } catch (referralSubmitError) {
+      setReferralError(referralSubmitError instanceof Error ? describeConvexError(referralSubmitError) : 'That referral code could not be added.')
+    } finally {
+      setReferralBusy(false)
+    }
+  }
+
+  const skipReferralPrompt = async () => {
+    if (referralBusy) return
+    setReferralBusy(true)
+    setReferralError('')
+    try {
+      await dismissReferralPrompt({})
+    } catch {
+      // The referral prompt is optional and must not block onboarding.
+    } finally {
+      setReferralBusy(false)
+    }
+  }
 
   const saveProfileAndContinue = async () => {
     if (submitting) return
@@ -385,6 +420,17 @@ export function OnboardingPage() {
       </ol>
 
       <section className="onboarding-stage" data-step={step} aria-live="polite">
+        {step === 1 && referral && !referral.referredBy && !referral.promptDismissedAt && (
+          <div className="mb-6">
+            <ReferralCodeCard
+              busy={referralBusy}
+              error={referralError}
+              notice={referralNotice}
+              onSubmit={(code) => void submitReferralCode(code)}
+              onSkip={() => void skipReferralPrompt()}
+            />
+          </div>
+        )}
         {step === 1 && (
           <div>
             <p className="eyebrow">Step 1</p>

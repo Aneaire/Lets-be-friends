@@ -1,11 +1,8 @@
-import type { FormEvent } from 'react'
 import {
   formatPhp,
-  normalizeReferralCode,
   referralShareUrl,
 } from '@lets-be-friends/shared'
 import { Button } from '../../design-system/atoms/Button'
-import { FormField } from '../../design-system/molecules/FormField'
 
 export type ReferralPanelData = {
   code: string | null
@@ -39,23 +36,17 @@ export function ReferralPanelView({
   busy,
   error,
   notice,
-  codeInput,
   origin,
-  onCodeInputChange,
   onCreateCode,
   onCopyLink,
-  onSubmitCode,
 }: {
   referral: ReferralPanelData
   busy: boolean
   error: string
   notice: string
-  codeInput: string
   origin: string
-  onCodeInputChange: (value: string) => void
   onCreateCode: () => void
   onCopyLink: () => void
-  onSubmitCode: (event: FormEvent<HTMLFormElement>) => void
 }) {
   const shareUrl = referral.code ? referralShareUrl(origin, referral.code) : ''
   const rewardedBookings = referral.referrals.reduce((total, item) => total + item.rewardedBookings, 0)
@@ -134,33 +125,11 @@ export function ReferralPanelView({
           </div>
         )}
 
-        {referral.referredBy ? (
+        {referral.referredBy && (
           <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-4">
             <p className="text-h3">You joined with {referral.referredBy.referrerDisplayName}'s code</p>
             <p className="text-meta mt-1">{referral.referredBy.rewardedBookings} of {referral.referredBy.totalRewardedBookings} rewarded bookings on your account.</p>
           </div>
-        ) : (
-          <form className="space-y-3" onSubmit={onSubmitCode}>
-            <div>
-              <p className="text-h3">Have a friend's code?</p>
-              <p className="text-meta mt-1">Add it before your first booking. One code per account.</p>
-            </div>
-            <FormField label="Referral code" aux="Optional">
-              <input
-                className="field"
-                value={codeInput}
-                onChange={(event) => onCodeInputChange(normalizeReferralCode(event.target.value))}
-                placeholder="ABCD1234"
-                maxLength={12}
-                autoCapitalize="characters"
-                autoComplete="off"
-                disabled={busy}
-              />
-            </FormField>
-            <Button type="submit" intent="social" loading={busy} loadingLabel="Adding code..." disabled={!codeInput.trim()}>
-              Add referral code
-            </Button>
-          </form>
         )}
       </div>
     </section>

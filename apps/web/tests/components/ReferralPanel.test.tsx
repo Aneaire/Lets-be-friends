@@ -65,13 +65,4 @@ describe('referral panel', () => {
     await waitFor(() => expect(mocks.mutation).toHaveBeenCalledWith({}))
   })
 
-  it('adds a friend code before the first booking', async () => {
-    mocks.queryResult = referralSummary({ code: null })
-
-    render(<ReferralPanel />)
-    fireEvent.change(screen.getByLabelText(/Referral code/), { target: { value: 'ab-cd12' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add referral code' }))
-
-    await waitFor(() => expect(mocks.mutation).toHaveBeenCalledWith({ code: 'ABCD12' }))
-  })
 })

@@ -41,12 +41,9 @@ const meta = {
     busy: false,
     error: '',
     notice: '',
-    codeInput: '',
     origin: 'https://letsbefriends.ph',
-    onCodeInputChange: fn(),
     onCreateCode: fn(),
     onCopyLink: fn(),
-    onSubmitCode: fn(),
   },
 } satisfies Meta<typeof ReferralPanelView>
 

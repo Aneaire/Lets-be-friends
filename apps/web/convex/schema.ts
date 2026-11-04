@@ -198,6 +198,7 @@ export default defineSchema({
     bio: v.optional(v.string()),
     onboardingGoal: v.optional(v.union(v.literal('member'), v.literal('companion'))),
     onboardingCompletedAt: v.optional(v.number()),
+    referralPromptDismissedAt: v.optional(v.number()),
     approximateLatitude: v.optional(v.number()),
     approximateLongitude: v.optional(v.number()),
     approximateLocationConsentedAt: v.optional(v.number()),
