@@ -7,6 +7,7 @@ import { formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { MemberWalletPanel } from '../features/wallet/MemberWalletPanel'
 import { CompanionWithdrawalPanel } from '../features/wallet/CompanionWithdrawalPanel'
+import { ReferralPanel } from '../features/referral/ReferralPanel'
 
 export const Route = createFileRoute('/wallet')({ component: WalletPage })
 
@@ -47,6 +48,8 @@ function WalletPage() {
             : 'PayMongo is confirming the QR Ph top-up. Your wallet will update only after provider verification.')
         }}
       />
+
+      <ReferralPanel />
 
       <CompanionWithdrawalPanel />
     </main>

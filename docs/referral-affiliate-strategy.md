@@ -24,7 +24,7 @@ If the team wants one rule, launch this and nothing else:
 - **Referrer:** 68% of the platform service fee on each of the friend's first 3 completed bookings.
 - **Payout:** booking credit, released after each booking is jointly completed and the settlement window clears.
 - **No monetary cap and no annual referral limit.** The natural limit is 3 completed bookings per referred friend.
-- **Expiry:** credit expires in 90 days.
+- **Expiry:** credit does not expire in this version.
 - **Scope:** no Companion referral, creator, venue, or Circle host programs at launch. Add supply referrals only if supply becomes the bottleneck.
 
 At a ₱700 average booking, the fee is ₱105. The referrer earns ₱71.40 per booking, or ₱214.20 over 3 bookings. The platform keeps ₱33.60 per booking. After processing and support, the platform nets about ₱11.53 per booking, or ₱34.59 over 3 bookings. At the ₱500 minimum, the platform nets about ₱5.37 per booking and ₱16.11 over 3 bookings. At ₱1,000, it nets about ₱20.75 per booking and ₱62.25 over 3 bookings.

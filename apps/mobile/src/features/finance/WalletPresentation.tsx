@@ -47,6 +47,7 @@ export function WalletPresentation({
   activityLoading = false,
   onOpenBooking,
   onOpenTransactions,
+  onOpenReferrals,
   onReturn,
   onOpenWithdrawals,
 }: {
@@ -68,6 +69,7 @@ export function WalletPresentation({
   activityLoading?: boolean
   onOpenBooking?: (bookingId: string) => void
   onOpenTransactions?: () => void
+  onOpenReferrals?: () => void
   onReturn: () => void
   onOpenWithdrawals: () => void
 }) {
@@ -216,6 +218,7 @@ export function WalletPresentation({
               />
             )}
       </View>
+      {onOpenReferrals ? <ActionButton label="Invite friends" onPress={onOpenReferrals} intent="social" secondary /> : null}
       <ActionButton label="Withdraw funds" onPress={onOpenWithdrawals} intent="self" />
       <ActionButton label="Return to Profile" onPress={onReturn} secondary intent="self" />
     </Screen>

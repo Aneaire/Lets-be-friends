@@ -1,4 +1,11 @@
-import { BOOKING_CURRENCY, MEMBER_WALLET_PRICING_MODEL, nextSaturdayManilaCutoff } from '@lets-be-friends/shared'
+import {
+  BOOKING_CURRENCY,
+  MEMBER_WALLET_PRICING_MODEL,
+  MIN_REFERRAL_BOOKING_SUBTOTAL_CENTAVOS,
+  REFERRAL_REWARDED_BOOKINGS,
+  calculateReferralRewardCentavos,
+  nextSaturdayManilaCutoff,
+} from '@lets-be-friends/shared'
 import { internalMutation, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
@@ -393,10 +400,126 @@ export async function allocateCompletedBookingFunds(
   return { applied, settlementEligibleAt }
 }
 
+export async function creditReferralForSettledBooking(
+  ctx: { db: any },
+  booking: Doc<'bookings'>,
+  now = Date.now(),
+) {
+  if (booking.pricingModel !== MEMBER_WALLET_PRICING_MODEL) return { outcome: 'not_v2' as const }
+  if ((booking.serviceSubtotalCentavos ?? 0) < MIN_REFERRAL_BOOKING_SUBTOTAL_CENTAVOS) {
+    return { outcome: 'below_minimum' as const }
+  }
+  if (booking.memberBookingFeeCentavos === undefined) return { outcome: 'missing_fee' as const }
+
+  const referral = await ctx.db.query('referrals')
+    .withIndex('by_referred', (q: any) => q.eq('referredUserId', booking.memberId))
+    .first()
+  if (!referral || referral.status === 'reversed') return { outcome: 'no_referral' as const }
+  if (referral.referrerUserId === booking.memberId) return { outcome: 'self_referral' as const }
+  const referrer = await ctx.db.get(referral.referrerUserId)
+  if (!referrer || referrer.suspended) return { outcome: 'referrer_unavailable' as const }
+  if (referral.rewardedBookings >= REFERRAL_REWARDED_BOOKINGS) return { outcome: 'limit_reached' as const }
+
+  const existing = await ctx.db.query('referralRewards')
+    .withIndex('by_booking', (q: any) => q.eq('bookingId', booking._id))
+    .first()
+  if (existing) return { outcome: 'already_credited' as const }
+
+  const amountCentavos = calculateReferralRewardCentavos(booking.memberBookingFeeCentavos)
+  if (amountCentavos <= 0) return { outcome: 'zero_reward' as const }
+
+  const account = await getOrCreateUserWalletAccount(ctx, referral.referrerUserId, now)
+  const idempotencyKey = `referral:${String(referral._id)}:booking:${String(booking._id)}`
+  const applied = await applyWalletTransaction(ctx, {
+    kind: 'referral_credit',
+    idempotencyKey,
+    bookingId: booking._id,
+    actorUserId: referral.referrerUserId,
+    amountCentavos,
+    note: 'Referral credit',
+    now,
+    legs: [
+      { accountId: account._id, bucket: 'available', direction: 'credit', amountCentavos },
+    ],
+    allowExternalCredit: true,
+  })
+  if (!applied) return { outcome: 'already_credited' as const }
+
+  await ctx.db.insert('referralRewards', {
+    referralId: referral._id,
+    referrerUserId: referral.referrerUserId,
+    referredUserId: booking.memberId,
+    bookingId: booking._id,
+    amountCentavos,
+    status: 'credited',
+    idempotencyKey,
+    createdAt: now,
+    updatedAt: now,
+  })
+  const rewardedBookings = referral.rewardedBookings + 1
+  await ctx.db.patch(referral._id, {
+    rewardedBookings,
+    status: rewardedBookings >= REFERRAL_REWARDED_BOOKINGS ? 'completed' : 'active',
+    updatedAt: now,
+  })
+  await writeAudit(ctx, {
+    actorUserId: referral.referrerUserId,
+    action: 'referral.credit',
+    targetType: 'referral',
+    targetId: String(referral._id),
+    after: { bookingId: String(booking._id), amountCentavos },
+  })
+  return { outcome: 'credited' as const, amountCentavos }
+}
+
+export async function reverseReferralRewardForBooking(
+  ctx: { db: any },
+  bookingId: Id<'bookings'>,
+  now = Date.now(),
+) {
+  const reward = await ctx.db.query('referralRewards')
+    .withIndex('by_booking', (q: any) => q.eq('bookingId', bookingId))
+    .first()
+  if (!reward || reward.status === 'reversed') return { outcome: 'no_reward' as const }
+
+  const account = await getOrCreateUserWalletAccount(ctx, reward.referrerUserId, now)
+  const amountCentavos = Math.min(reward.amountCentavos, account.availableCentavos)
+  if (amountCentavos > 0) {
+    await applyWalletTransaction(ctx, {
+      kind: 'referral_reversal',
+      idempotencyKey: `referral:${String(reward._id)}:reverse`,
+      bookingId,
+      actorUserId: reward.referrerUserId,
+      amountCentavos,
+      note: 'Referral credit reversed',
+      now,
+      legs: [
+        { accountId: account._id, bucket: 'available', direction: 'debit', amountCentavos: amountCentavos },
+      ],
+      allowExternalDebit: true,
+    })
+  }
+  await ctx.db.patch(reward._id, { status: 'reversed', updatedAt: now })
+  const referral = await ctx.db.get(reward.referralId)
+  if (referral) {
+    await ctx.db.patch(referral._id, {
+      rewardedBookings: Math.max(0, referral.rewardedBookings - 1),
+      status: 'active',
+      updatedAt: now,
+    })
+  }
+  return { outcome: 'reversed' as const, amountCentavos }
+}
+
 export async function settleBookingFunds(ctx: { db: any }, bookingId: Id<'bookings'>, now = Date.now()) {
   const booking = await ctx.db.get(bookingId) as Doc<'bookings'> | null
   if (!booking || booking.pricingModel !== MEMBER_WALLET_PRICING_MODEL) return { outcome: 'not_v2' as const }
-  if (booking.settlementState === 'settled' || booking.settlementState === 'refunded') return { outcome: booking.settlementState as 'settled' | 'refunded' }
+  if (booking.settlementState === 'settled' || booking.settlementState === 'refunded') {
+    if (booking.settlementState === 'settled') {
+      await creditReferralForSettledBooking(ctx, booking, now)
+    }
+    return { outcome: booking.settlementState as 'settled' | 'refunded' }
+  }
   if (booking.settlementState === 'blocked') return { outcome: 'blocked' as const }
   if (!booking.jointlyCompletedAt || !booking.settlementEligibleAt || booking.settlementEligibleAt > now) return { outcome: 'not_due' as const }
   if (await hasActiveBookingReport(ctx, booking._id)) {
@@ -425,7 +548,8 @@ export async function settleBookingFunds(ctx: { db: any }, bookingId: Id<'bookin
     ],
   })
   await ctx.db.patch(booking._id, { settlementState: 'settled', updatedAt: now })
-  return { outcome: 'settled' as const, applied }
+  const referral = await creditReferralForSettledBooking(ctx, { ...booking, settlementState: 'settled' }, now)
+  return { outcome: 'settled' as const, applied, referral }
 }
 
 export async function resolveBlockedBookingFunds(
@@ -470,9 +594,11 @@ export async function resolveBlockedBookingFunds(
         { accountId: platformAccount._id, bucket: 'available', direction: 'credit', amountCentavos: amounts.fee },
       ],
     })
+    await creditReferralForSettledBooking(ctx, { ...booking, settlementState: 'settled' }, now)
     return { outcome: 'settled' as const, applied }
   }
 
+  await reverseReferralRewardForBooking(ctx, booking._id, now)
   const legs: WalletLeg[] = booking.jointlyCompletedAt
     ? await refundPendingLegs(ctx, booking, companion.userId, memberAccount._id, amounts, now)
     : [

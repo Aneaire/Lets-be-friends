@@ -51,6 +51,11 @@ export const mobileApi = {
     memberBookingTransactions: generatedApi.finance.memberBookingTransactions,
     memberTopUps: generatedApi.finance.memberTopUps,
   },
+  referrals: {
+    myReferral: generatedApi.referrals.myReferral,
+    ensureReferralCode: generatedApi.referrals.ensureReferralCode,
+    attributeReferral: generatedApi.referrals.attributeReferral,
+  },
   withdrawals: {
     dashboard: generatedApi.withdrawals.dashboard,
     listReceivingInstitutions: generatedApi.withdrawals.listReceivingInstitutions,

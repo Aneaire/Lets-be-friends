@@ -1,0 +1,259 @@
+import { convexTest } from 'convex-test'
+import geospatialTest from '@convex-dev/geospatial/test'
+import { describe, expect, it } from 'vitest'
+import { api, internal } from '../../../convex/_generated/api'
+import schema from '../../../convex/schema'
+import { convexModules } from '../../helpers/convex'
+
+const modules = convexModules
+const SUBTOTAL = 50_000
+const FEE = 7_500
+const TOTAL = 57_500
+const REWARD = 5_100
+
+function createTest() {
+  const t = convexTest(schema, modules)
+  geospatialTest.register(t)
+  return t
+}
+
+async function seed(t: ReturnType<typeof createTest>) {
+  return await t.run(async (ctx) => {
+    const now = Date.now()
+    const identity = {
+      verificationStatus: 'approved' as const,
+      verificationSource: 'persona' as const,
+      identityVerifiedAt: now,
+      identityExpiresAt: now + 86_400_000,
+      suspended: false,
+      createdAt: now,
+      updatedAt: now,
+    }
+    const referrerId = await ctx.db.insert('users', {
+      clerkUserId: 'referral-referrer', displayName: 'Referral Referrer', role: 'member', ...identity,
+    })
+    const memberId = await ctx.db.insert('users', {
+      clerkUserId: 'referral-member', displayName: 'Referral Member', role: 'member', ...identity,
+    })
+    const companionUserId = await ctx.db.insert('users', {
+      clerkUserId: 'referral-companion', displayName: 'Referral Companion', role: 'companion', ...identity,
+    })
+    const companionProfileId = await ctx.db.insert('companionProfiles', {
+      userId: companionUserId,
+      displayName: 'Referral Companion',
+      intro: 'A verified Companion for referral settlement tests.',
+      city: 'Test City',
+      strengths: ['Good listener'],
+      categories: ['Coffee or meal companion'],
+      boundaries: ['Public places only'],
+      mode: 'both',
+      hourlyRateCentavos: SUBTOTAL,
+      status: 'approved',
+      rating: 5,
+      reviewCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    })
+    return { now, referrerId, memberId, companionUserId, companionProfileId }
+  })
+}
+
+async function insertReferral(
+  t: ReturnType<typeof createTest>,
+  ids: Awaited<ReturnType<typeof seed>>,
+  options: { referrerId?: any; code?: string } = {},
+) {
+  return await t.run(async (ctx) => {
+    const referrerId = options.referrerId ?? ids.referrerId
+    const code = options.code ?? 'REFERRER1'
+    await ctx.db.insert('referralCodes', {
+      ownerUserId: referrerId,
+      code,
+      createdAt: ids.now,
+    })
+    return await ctx.db.insert('referrals', {
+      referrerUserId: referrerId,
+      referredUserId: ids.memberId,
+      code,
+      status: 'active',
+      rewardedBookings: 0,
+      createdAt: ids.now,
+      updatedAt: ids.now,
+    })
+  })
+}
+
+async function insertSettledBooking(
+  t: ReturnType<typeof createTest>,
+  ids: Awaited<ReturnType<typeof seed>>,
+  options: { subtotal?: number; fee?: number } = {},
+) {
+  const subtotal = options.subtotal ?? SUBTOTAL
+  const fee = options.fee ?? FEE
+  return await t.run(async (ctx) => {
+    const companionAccount = await ctx.db.query('walletAccounts')
+      .withIndex('by_deterministic_key', (q) => q.eq('deterministicKey', `member:${ids.companionUserId}:booking`))
+      .unique()
+    if (!companionAccount) {
+      await ctx.db.insert('walletAccounts', {
+        deterministicKey: `member:${ids.companionUserId}:booking`,
+        accountType: 'member_booking',
+        ownerUserId: ids.companionUserId,
+        currency: 'PHP',
+        availableCentavos: 0,
+        reservedCentavos: 0,
+        pendingCentavos: subtotal,
+        createdAt: ids.now,
+        updatedAt: ids.now,
+      })
+    } else {
+      await ctx.db.patch(companionAccount._id, {
+        pendingCentavos: companionAccount.pendingCentavos + subtotal,
+        updatedAt: ids.now,
+      })
+    }
+    const platformAccount = await ctx.db.query('walletAccounts')
+      .withIndex('by_deterministic_key', (q) => q.eq('deterministicKey', 'platform:booking-revenue'))
+      .unique()
+    if (!platformAccount) {
+      await ctx.db.insert('walletAccounts', {
+        deterministicKey: 'platform:booking-revenue',
+        accountType: 'platform_revenue',
+        currency: 'PHP',
+        availableCentavos: 0,
+        reservedCentavos: 0,
+        pendingCentavos: fee,
+        createdAt: ids.now,
+        updatedAt: ids.now,
+      })
+    } else {
+      await ctx.db.patch(platformAccount._id, {
+        pendingCentavos: platformAccount.pendingCentavos + fee,
+        updatedAt: ids.now,
+      })
+    }
+    return await ctx.db.insert('bookings', {
+      memberId: ids.memberId,
+      companionProfileId: ids.companionProfileId,
+      category: 'Coffee or meal companion',
+      mode: 'in_person',
+      requestedAt: ids.now - 3_600_000,
+      durationMinutes: 60,
+      status: 'review_window',
+      pricingModel: 'member_wallet_v2',
+      serviceSubtotalCentavos: subtotal,
+      memberBookingFeeBps: 1_500,
+      memberBookingFeeCentavos: fee,
+      memberTotalCentavos: subtotal + fee,
+      companionEarningsCentavos: subtotal,
+      currency: 'PHP',
+      settlementState: 'pending',
+      settlementEligibleAt: ids.now - 1_000,
+      jointlyCompletedAt: ids.now - 1_000,
+      memberCompletedAt: ids.now - 1_000,
+      companionCompletedAt: ids.now - 1_000,
+      createdAt: ids.now,
+      updatedAt: ids.now,
+    })
+  })
+}
+
+describe('referral program', () => {
+  it('creates one code per member and attributes a new member once', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const referrer = t.withIdentity({ subject: 'referral-referrer' })
+    const member = t.withIdentity({ subject: 'referral-member' })
+
+    const first = await referrer.mutation(api.referrals.ensureReferralCode, {})
+    const second = await referrer.mutation(api.referrals.ensureReferralCode, {})
+    expect(first.code).toMatch(/^[A-Z2-9]{8}$/)
+    expect(second.code).toBe(first.code)
+
+    await member.mutation(api.referrals.attributeReferral, { code: first.code })
+    await expect(member.mutation(api.referrals.attributeReferral, { code: first.code }))
+      .rejects.toThrow('already linked')
+    await expect(referrer.mutation(api.referrals.attributeReferral, { code: first.code }))
+      .rejects.toThrow('own referral code')
+
+    const summary = await member.query(api.referrals.myReferral, {})
+    expect(summary?.referredBy).toMatchObject({
+      referrerDisplayName: 'Referral Referrer',
+      code: first.code,
+      rewardedBookings: 0,
+    })
+    expect(summary?.referrals).toHaveLength(0)
+  })
+
+  it('credits 68% of the service fee for each of the first three settled bookings', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const referralId = await insertReferral(t, ids)
+
+    for (let index = 0; index < 3; index += 1) {
+      const bookingId = await insertSettledBooking(t, ids)
+      await t.mutation(internal.finance.settleBooking, { bookingId, now: ids.now + index })
+    }
+
+    const state = await t.run(async (ctx) => {
+      const rewards = await ctx.db.query('referralRewards').collect()
+      const referral = await ctx.db.get(referralId)
+      const wallet = await ctx.db.query('walletAccounts')
+        .withIndex('by_deterministic_key', (q) => q.eq('deterministicKey', `member:${ids.referrerId}:booking`))
+        .unique()
+      return { rewards, referral, wallet }
+    })
+    expect(state.rewards).toHaveLength(3)
+    expect(state.rewards.every((reward) => reward.amountCentavos === REWARD && reward.status === 'credited')).toBe(true)
+    expect(state.referral).toMatchObject({ rewardedBookings: 3, status: 'completed' })
+    expect(state.wallet?.availableCentavos).toBe(REWARD * 3)
+
+    const fourthBookingId = await insertSettledBooking(t, ids)
+    await t.mutation(internal.finance.settleBooking, { bookingId: fourthBookingId, now: ids.now + 10 })
+    const afterFourth = await t.run(async (ctx) => ({
+      rewards: await ctx.db.query('referralRewards').collect(),
+      referral: await ctx.db.get(referralId),
+    }))
+    expect(afterFourth.rewards).toHaveLength(3)
+    expect(afterFourth.referral?.rewardedBookings).toBe(3)
+  })
+
+  it('does not credit the same booking twice', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const referralId = await insertReferral(t, ids)
+    const bookingId = await insertSettledBooking(t, ids)
+
+    await t.mutation(internal.finance.settleBooking, { bookingId, now: ids.now })
+    await t.mutation(internal.finance.settleBooking, { bookingId, now: ids.now + 1_000 })
+
+    const state = await t.run(async (ctx) => ({
+      rewards: await ctx.db.query('referralRewards').collect(),
+      referral: await ctx.db.get(referralId),
+    }))
+    expect(state.rewards).toHaveLength(1)
+    expect(state.referral?.rewardedBookings).toBe(1)
+  })
+
+  it('skips bookings below the minimum subtotal', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    await insertReferral(t, ids)
+    const bookingId = await insertSettledBooking(t, ids, { subtotal: 30_000, fee: 4_500 })
+
+    await t.mutation(internal.finance.settleBooking, { bookingId, now: ids.now })
+
+    expect(await t.run(async (ctx) => ctx.db.query('referralRewards').collect())).toHaveLength(0)
+  })
+
+  it('skips a self-referral', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    await insertReferral(t, ids, { referrerId: ids.memberId })
+    const bookingId = await insertSettledBooking(t, ids)
+
+    await t.mutation(internal.finance.settleBooking, { bookingId, now: ids.now })
+
+    expect(await t.run(async (ctx) => ctx.db.query('referralRewards').collect())).toHaveLength(0)
+  })
+})

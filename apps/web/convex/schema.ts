@@ -83,6 +83,8 @@ const topUpStatus = v.union(
 const ledgerEntryKind = v.union(v.literal('top_up_credit'), v.literal('commission_collection'))
 const walletBucket = v.union(v.literal('available'), v.literal('reserved'), v.literal('pending'))
 const walletAccountType = v.union(v.literal('member_booking'), v.literal('companion_earnings'), v.literal('platform_revenue'))
+const referralStatus = v.union(v.literal('active'), v.literal('completed'), v.literal('reversed'))
+const referralRewardStatus = v.union(v.literal('credited'), v.literal('reversed'))
 const walletTransactionKind = v.union(
   v.literal('paymongo_member_credit'),
   v.literal('test_member_credit'),
@@ -96,6 +98,8 @@ const walletTransactionKind = v.union(
   v.literal('payout_complete'),
   v.literal('payout_release'),
   v.literal('wallet_consolidation'),
+  v.literal('referral_credit'),
+  v.literal('referral_reversal'),
 )
 const payoutMethodStatus = v.union(v.literal('active'), v.literal('replaced'))
 const withdrawalStatus = v.union(
@@ -538,6 +542,41 @@ export default defineSchema({
   })
     .index('by_transaction', ['transactionId'])
     .index('by_account_created_at', ['accountId', 'createdAt']),
+  referralCodes: defineTable({
+    ownerUserId: v.id('users'),
+    code: v.string(),
+    createdAt: v.number(),
+  })
+    .index('by_code', ['code'])
+    .index('by_owner', ['ownerUserId']),
+  referrals: defineTable({
+    referrerUserId: v.id('users'),
+    referredUserId: v.id('users'),
+    code: v.string(),
+    status: referralStatus,
+    rewardedBookings: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_referrer', ['referrerUserId'])
+    .index('by_referred', ['referredUserId'])
+    .index('by_code', ['code'])
+    .index('by_referrer_created_at', ['referrerUserId', 'createdAt']),
+  referralRewards: defineTable({
+    referralId: v.id('referrals'),
+    referrerUserId: v.id('users'),
+    referredUserId: v.id('users'),
+    bookingId: v.id('bookings'),
+    amountCentavos: v.number(),
+    status: referralRewardStatus,
+    idempotencyKey: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_referral', ['referralId'])
+    .index('by_referrer', ['referrerUserId'])
+    .index('by_booking', ['bookingId'])
+    .index('by_idempotency_key', ['idempotencyKey']),
   payoutMethods: defineTable({
     companionUserId: v.id('users'),
     provider: v.literal('instapay'),

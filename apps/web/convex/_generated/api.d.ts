@@ -37,6 +37,7 @@ import type * as persona from "../persona.js";
 import type * as policy from "../policy.js";
 import type * as pushNotifications from "../pushNotifications.js";
 import type * as rateLimit from "../rateLimit.js";
+import type * as referrals from "../referrals.js";
 import type * as reports from "../reports.js";
 import type * as reviews from "../reviews.js";
 import type * as safety from "../safety.js";
@@ -82,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   policy: typeof policy;
   pushNotifications: typeof pushNotifications;
   rateLimit: typeof rateLimit;
+  referrals: typeof referrals;
   reports: typeof reports;
   reviews: typeof reviews;
   safety: typeof safety;

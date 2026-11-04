@@ -5,6 +5,7 @@ import { Header, Footer } from '../design-system/templates/AppShell'
 import { MobileAuthGate } from '../features/auth/MobileAuthGate'
 import { OnboardingGate } from '../features/onboarding/OnboardingGate'
 import { AppProviders } from '../features/platform/Providers'
+import { ReferralCapture } from '../features/referral/ReferralCapture'
 import { Toaster } from '../design-system/primitives/sonner'
 import appCss from '../styles.css?url'
 import compactCss from '../design-system/foundations/compact.css?url'
@@ -39,6 +40,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <AppProviders>
+          <ReferralCapture />
           <OnboardingGate>
             <MobileAuthGate>
               <div className="app-frame web-app-shell">

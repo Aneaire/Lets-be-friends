@@ -170,6 +170,7 @@ function WalletView({
       onOpenBooking={(bookingId) => router.push(`/booking/${bookingId}` as never)}
       onOpenTransactions={() => router.push(TRANSACTIONS_ROUTE as never)}
       onReturn={() => router.replace('/profile')}
+      onOpenReferrals={() => router.push('/referrals')}
       onOpenWithdrawals={() => router.push('/companion-finance')}
     />
   )

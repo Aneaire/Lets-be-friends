@@ -3,6 +3,7 @@ import { useRouterState } from '@tanstack/react-router'
 import { useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type React from 'react'
+import { REFERRAL_CODE_STORAGE_KEY } from '@lets-be-friends/shared'
 import { api } from '../../../convex/_generated/api'
 import { BrandLogo } from '../../design-system/atoms/BrandLogo'
 import { onboardingGateDecision } from '../../lib/onboarding';
@@ -21,6 +22,7 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { isLoading: convexLoading, isAuthenticated: convexAuthenticated } = useConvexAuth()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const ensureViewer = useMutation(api.users.ensureViewer)
+  const attributeReferral = useMutation(api.referrals.attributeReferral)
   const viewer = useQuery(api.users.viewer, isSignedIn && convexAuthenticated ? {} : 'skip')
   const attemptedIdentity = useRef<string | null>(null)
   const provisionFlight = useRef<Promise<void> | null>(null)
@@ -60,6 +62,24 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
           displayName: user?.fullName ?? user?.username ?? 'New friend',
           expectedClerkUserId: userId,
         })
+        let referralCode: string | null = null
+        try {
+          referralCode = window.localStorage.getItem(REFERRAL_CODE_STORAGE_KEY)
+        } catch {
+          // Storage can be unavailable in private browsing.
+        }
+        if (referralCode) {
+          try {
+            await attributeReferral({ code: referralCode })
+          } catch {
+            // An invalid, already-linked, or post-booking code must not block account setup.
+          }
+          try {
+            window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY)
+          } catch {
+            // Storage can be unavailable in private browsing.
+          }
+        }
       } catch (error) {
         setProvisionError(error instanceof Error ? describeConvexError(error) : 'Account setup failed. Please try again.')
       } finally {
@@ -72,7 +92,7 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
     } finally {
       if (provisionFlight.current === flight) provisionFlight.current = null
     }
-  }, [ensureViewer, user, userId])
+  }, [attributeReferral, ensureViewer, user, userId])
 
   useEffect(() => {
     if (attemptedIdentity.current && attemptedIdentity.current !== userId) {
