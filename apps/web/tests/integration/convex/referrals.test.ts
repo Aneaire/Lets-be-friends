@@ -256,4 +256,32 @@ describe('referral program', () => {
 
     expect(await t.run(async (ctx) => ctx.db.query('referralRewards').collect())).toHaveLength(0)
   })
+
+  it('keeps a no-referral settlement unchanged and creates no referral credit', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const bookingId = await insertSettledBooking(t, ids)
+
+    await t.mutation(internal.finance.settleBooking, { bookingId, now: ids.now })
+
+    const state = await t.run(async (ctx) => {
+      const booking = await ctx.db.get(bookingId)
+      const companionAccount = await ctx.db.query('walletAccounts')
+        .withIndex('by_deterministic_key', (q) => q.eq('deterministicKey', `member:${ids.companionUserId}:booking`))
+        .unique()
+      const platformAccount = await ctx.db.query('walletAccounts')
+        .withIndex('by_deterministic_key', (q) => q.eq('deterministicKey', 'platform:booking-revenue'))
+        .unique()
+      const rewards = await ctx.db.query('referralRewards').collect()
+      const referralTransactions = (await ctx.db.query('walletTransactions').collect())
+        .filter((transaction) => transaction.kind === 'referral_credit' || transaction.kind === 'referral_reversal')
+      return { booking, companionAccount, platformAccount, rewards, referralTransactions }
+    })
+
+    expect(state.booking?.settlementState).toBe('settled')
+    expect(state.companionAccount?.availableCentavos).toBe(SUBTOTAL)
+    expect(state.platformAccount?.availableCentavos).toBe(FEE)
+    expect(state.rewards).toHaveLength(0)
+    expect(state.referralTransactions).toHaveLength(0)
+  })
 })
