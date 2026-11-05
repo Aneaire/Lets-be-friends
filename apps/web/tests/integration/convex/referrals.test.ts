@@ -2,6 +2,7 @@ import { convexTest } from 'convex-test'
 import geospatialTest from '@convex-dev/geospatial/test'
 import { describe, expect, it } from 'vitest'
 import { api, internal } from '../../../convex/_generated/api'
+import { reverseReferralRewardForBooking } from '../../../convex/finance'
 import schema from '../../../convex/schema'
 import { convexModules } from '../../helpers/convex'
 
@@ -297,5 +298,77 @@ describe('referral program', () => {
     expect(state.platformAccount?.availableCentavos).toBe(FEE)
     expect(state.rewards).toHaveLength(0)
     expect(state.referralTransactions).toHaveLength(0)
+  })
+
+  it('rejects a suspended referrer code', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    const referrer = t.withIdentity({ subject: 'referral-referrer' })
+    const member = t.withIdentity({ subject: 'referral-member' })
+    const code = (await referrer.mutation(api.referrals.ensureReferralCode, {})).code
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.referrerId, { suspended: true, updatedAt: ids.now })
+    })
+
+    await expect(member.mutation(api.referrals.attributeReferral, { code }))
+      .rejects.toThrow('not available')
+  })
+
+  it('skips referral credit when the referrer is suspended', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    await insertReferral(t, ids)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.referrerId, { suspended: true, updatedAt: ids.now })
+    })
+    const bookingId = await insertSettledBooking(t, ids)
+
+    await t.mutation(internal.finance.settleBooking, { bookingId, now: ids.now })
+
+    const state = await t.run(async (ctx) => ({
+      rewards: await ctx.db.query('referralRewards').collect(),
+      wallet: await ctx.db.query('walletAccounts')
+        .withIndex('by_deterministic_key', (q) => q.eq('deterministicKey', `member:${ids.referrerId}:booking`))
+        .unique(),
+    }))
+    expect(state.rewards).toHaveLength(0)
+    expect(state.wallet?.availableCentavos ?? 0).toBe(0)
+  })
+
+  it('reverses referral credit when a rewarded booking is refunded', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    await insertReferral(t, ids)
+    const bookingId = await insertSettledBooking(t, ids)
+    await t.mutation(internal.finance.settleBooking, { bookingId, now: ids.now })
+
+    const before = await t.run(async (ctx) => {
+      const reward = await ctx.db.query('referralRewards').first()
+      const wallet = await ctx.db.query('walletAccounts')
+        .withIndex('by_deterministic_key', (q) => q.eq('deterministicKey', `member:${ids.referrerId}:booking`))
+        .unique()
+      return { reward, wallet }
+    })
+    expect(before.reward?.status).toBe('credited')
+    expect(before.wallet?.availableCentavos).toBe(REWARD)
+
+    await t.run(async (ctx) => {
+      await reverseReferralRewardForBooking(ctx, bookingId, ids.now + 1)
+    })
+
+    const after = await t.run(async (ctx) => {
+      const reward = await ctx.db.query('referralRewards').first()
+      const wallet = await ctx.db.query('walletAccounts')
+        .withIndex('by_deterministic_key', (q) => q.eq('deterministicKey', `member:${ids.referrerId}:booking`))
+        .unique()
+      const referral = await ctx.db.query('referrals').first()
+      const transactions = await ctx.db.query('walletTransactions').collect()
+      return { reward, wallet, referral, transactions }
+    })
+    expect(after.reward?.status).toBe('reversed')
+    expect(after.wallet?.availableCentavos).toBe(0)
+    expect(after.referral).toMatchObject({ rewardedBookings: 0, status: 'active' })
+    expect(after.transactions.some((transaction) => transaction.kind === 'referral_reversal')).toBe(true)
   })
 })
