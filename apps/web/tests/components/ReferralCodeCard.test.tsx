@@ -33,7 +33,7 @@ describe('referral code card', () => {
     const onSkip = vi.fn()
     render(<ReferralCodeCard busy={false} error="" notice="" onSubmit={vi.fn()} onSkip={onSkip} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
 
     expect(onSkip).toHaveBeenCalledTimes(1)
   })

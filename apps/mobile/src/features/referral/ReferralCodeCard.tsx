@@ -42,9 +42,9 @@ export function ReferralCodeCard({
   return (
     <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
       <View style={styles.copy}>
-        <AppText variant="heading">Have a friend's code?</AppText>
+        <AppText variant="heading">Have a friend's code? Optional</AppText>
         <AppText variant="caption" color={theme.colors.textMuted}>
-          Add it before your first booking. One code per account.
+          Add it now to credit your friend. This prompt won't appear again.
         </AppText>
       </View>
       {displayError ? (
@@ -53,8 +53,10 @@ export function ReferralCodeCard({
       {notice ? (
         <AppText accessibilityLiveRegion="polite" color={theme.colors.textMuted}>{notice}</AppText>
       ) : null}
+      <AppText variant="caption" color={theme.colors.textMuted}>Referral code (optional)</AppText>
       <TextInput
-        accessibilityLabel="Referral code"
+        accessibilityLabel="Referral code (optional)"
+        accessibilityHint={displayError || undefined}
         value={code}
         onChangeText={(value) => {
           setCode(value.toUpperCase())
@@ -84,7 +86,7 @@ export function ReferralCodeCard({
         disabled={!code.trim()}
       />
       <ActionButton
-        label="Skip for now"
+        label="Dismiss"
         onPress={onSkip}
         intent="neutral"
         secondary
@@ -95,7 +97,7 @@ export function ReferralCodeCard({
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 10 },
+  card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
   copy: { gap: 4 },
   input: { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12 },
 })

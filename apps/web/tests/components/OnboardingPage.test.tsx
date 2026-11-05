@@ -172,7 +172,7 @@ describe('onboarding route', () => {
     }
     render(<OnboardingPage />)
 
-    expect(await screen.findByText("Have a friend's code?")).toBeTruthy()
+    expect(await screen.findByText(/Have a friend's code\?/)).toBeTruthy()
     fireEvent.change(screen.getByLabelText(/Referral code/), { target: { value: 'ab-cd12' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add referral code' }))
 
@@ -191,7 +191,7 @@ describe('onboarding route', () => {
     }
     render(<OnboardingPage />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Skip for now' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }))
 
     await waitFor(() => expect(state.dismissReferralPrompt).toHaveBeenCalledTimes(1))
   })

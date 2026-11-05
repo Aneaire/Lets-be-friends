@@ -50,7 +50,7 @@ describe('referral panel', () => {
     render(<ReferralPanel />)
 
     expect(screen.getByText('Invite friends')).toBeTruthy()
-    expect(screen.getAllByText(/68% of our service fee/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/68% of our 15% service fee/).length).toBeGreaterThan(0)
     expect(screen.getByDisplayValue(/ref=ABCD1234/)).toBeTruthy()
     expect(screen.getByText('Maya')).toBeTruthy()
     expect(screen.getByText('2 of 3 bookings rewarded')).toBeTruthy()

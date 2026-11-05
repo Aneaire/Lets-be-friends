@@ -56,11 +56,9 @@ export function ReferralPanelView({
       <header className="flex items-baseline justify-between gap-3 mb-3">
         <div>
           <h2 id="referrals-title" className="text-h2">Invite friends</h2>
-          <p className="text-meta mt-1">Earn 68% of our service fee on each friend's first 3 completed bookings.</p>
+          <p className="text-meta mt-1">Earn booking credit equal to 68% of our 15% service fee on each friend's first 3 completed bookings. Friends pay the normal price.</p>
+          <p className="text-meta mt-1">Example: a ₱700 booking has a ₱105 service fee, and you earn ₱71.40 in credit.</p>
         </div>
-        {referral.totalEarnedCentavos > 0 && (
-          <span className="status-pill" data-tone="success">{formatPhp(referral.totalEarnedCentavos)} earned</span>
-        )}
       </header>
 
       {error && <div className="notice notice-danger mb-3" role="alert"><span className="notice-icon">!</span><span>{error}</span></div>}
@@ -71,7 +69,7 @@ export function ReferralPanelView({
           <div className="space-y-3">
             <div>
               <p className="text-h3">Create your referral link</p>
-              <p className="text-meta mt-1">Share one link. When a friend completes a booking, you earn 68% of our service fee as booking credit.</p>
+              <p className="text-meta mt-1">Share one link. When a friend completes a booking, you earn booking credit.</p>
             </div>
             <Button type="button" intent="social" loading={busy} loadingLabel="Creating link..." onClick={onCreateCode}>
               Create my referral link
@@ -81,7 +79,7 @@ export function ReferralPanelView({
           <div className="space-y-3">
             <div>
               <p className="text-h3">Your referral link</p>
-              <p className="text-meta mt-1">Friends pay the normal price. You earn 68% of our service fee on each of their first 3 completed bookings.</p>
+              <p className="text-meta mt-1">Share this link. Your friend pays the normal price. Credit lands in your wallet after each booking settles.</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input className="field flex-1" readOnly value={shareUrl} aria-label="Your referral link" onFocus={(event) => event.currentTarget.select()} />
@@ -106,9 +104,9 @@ export function ReferralPanelView({
           </div>
         </div>
 
-        {referral.referrals.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-h3">Your referrals</p>
+        <div className="space-y-2">
+          <p className="text-h3">Your referrals</p>
+          {referral.referrals.length > 0 ? (
             <ul className="space-y-2">
               {referral.referrals.map((item) => (
                 <li key={item._id} className="flex items-center justify-between gap-3 border-t border-[color:var(--rule)] pt-2 first:border-t-0 first:pt-0">
@@ -122,8 +120,10 @@ export function ReferralPanelView({
                 </li>
               ))}
             </ul>
-          </div>
-        )}
+          ) : (
+            <p className="text-meta">No friends have joined with your link yet.</p>
+          )}
+        </div>
 
         {referral.referredBy && (
           <div className="rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-4">

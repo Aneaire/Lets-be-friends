@@ -221,6 +221,10 @@ export function OnboardingPage() {
 
   const acceptanceError = 'Agree to both the Terms and Conditions and the Privacy Policy in Step 5 before continuing.'
 
+  const focusUsernameField = () => {
+    window.setTimeout(() => document.getElementById('onboarding-username')?.focus(), 0)
+  }
+
   const submitReferralCode = async (code: string) => {
     if (referralBusy) return
     setReferralBusy(true)
@@ -229,8 +233,9 @@ export function OnboardingPage() {
     try {
       await attributeReferral({ code })
       setReferralNotice('Referral code added. It will apply to your first completed bookings.')
+      focusUsernameField()
     } catch (referralSubmitError) {
-      setReferralError(referralSubmitError instanceof Error ? describeConvexError(referralSubmitError) : 'That referral code could not be added.')
+      setReferralError(referralSubmitError instanceof Error ? describeConvexError(referralSubmitError) : 'We could not add this code. Check it and try again.')
     } finally {
       setReferralBusy(false)
     }
@@ -242,6 +247,7 @@ export function OnboardingPage() {
     setReferralError('')
     try {
       await dismissReferralPrompt({})
+      focusUsernameField()
     } catch {
       // The referral prompt is optional and must not block onboarding.
     } finally {
@@ -420,15 +426,9 @@ export function OnboardingPage() {
       </ol>
 
       <section className="onboarding-stage" data-step={step} aria-live="polite">
-        {step === 1 && referral && !referral.referredBy && !referral.promptDismissedAt && (
+        {referralNotice && (
           <div className="mb-6">
-            <ReferralCodeCard
-              busy={referralBusy}
-              error={referralError}
-              notice={referralNotice}
-              onSubmit={(code) => void submitReferralCode(code)}
-              onSkip={() => void skipReferralPrompt()}
-            />
+            <InlineNotice tone="success">{referralNotice}</InlineNotice>
           </div>
         )}
         {step === 1 && (
@@ -493,6 +493,18 @@ export function OnboardingPage() {
                 </>
               )}
             </div>
+
+            {referral && !referral.referredBy && !referral.promptDismissedAt && (
+              <div className="mt-6">
+                <ReferralCodeCard
+                  busy={referralBusy}
+                  error={referralError}
+                  notice=""
+                  onSubmit={(code) => void submitReferralCode(code)}
+                  onSkip={() => void skipReferralPrompt()}
+                />
+              </div>
+            )}
 
             <div className="onboarding-location-card mt-6">
               <div>

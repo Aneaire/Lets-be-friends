@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   normalizeReferralCode,
   referralCodeValidationError,
@@ -12,18 +12,21 @@ export function ReferralCodeCard({
   notice,
   onSubmit,
   onSkip,
-  skipLabel = 'Skip for now',
 }: {
   busy: boolean
   error: string
   notice: string
   onSubmit: (code: string) => void
   onSkip: () => void
-  skipLabel?: string
 }) {
   const [code, setCode] = useState('')
   const [localError, setLocalError] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
   const displayError = localError || error
+
+  useEffect(() => {
+    if (error) inputRef.current?.focus()
+  }, [error])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -32,6 +35,7 @@ export function ReferralCodeCard({
     const validationError = referralCodeValidationError(normalized)
     if (validationError) {
       setLocalError(validationError)
+      inputRef.current?.focus()
       return
     }
     setLocalError('')
@@ -39,13 +43,13 @@ export function ReferralCodeCard({
   }
 
   return (
-    <form className="panel p-5 space-y-3" onSubmit={submit}>
+    <form className="space-y-3 rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-4" onSubmit={submit}>
       <div>
-        <p className="text-h3">Have a friend's code?</p>
-        <p className="text-meta mt-1">Add it before your first booking. One code per account.</p>
+        <p className="text-h3">Have a friend's code? <span className="label-aux">Optional</span></p>
+        <p className="text-meta mt-1">Add it now to credit your friend. This prompt won't appear again.</p>
       </div>
       {displayError && (
-        <div className="notice notice-danger" role="alert">
+        <div className="notice notice-danger" id="referral-code-error" role="alert">
           <span className="notice-icon">!</span>
           <span>{displayError}</span>
         </div>
@@ -58,6 +62,7 @@ export function ReferralCodeCard({
       )}
       <FormField label="Referral code" aux="Optional">
         <input
+          ref={inputRef}
           className="field"
           value={code}
           onChange={(event) => {
@@ -69,14 +74,16 @@ export function ReferralCodeCard({
           autoCapitalize="characters"
           autoComplete="off"
           disabled={busy}
+          aria-invalid={Boolean(displayError)}
+          aria-describedby={displayError ? 'referral-code-error' : undefined}
         />
       </FormField>
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" intent="social" loading={busy} loadingLabel="Adding code..." disabled={!code.trim()}>
+        <Button type="submit" intent="social" size="small" loading={busy} loadingLabel="Adding code..." disabled={!code.trim()}>
           Add referral code
         </Button>
-        <Button type="button" intent="ghost" onClick={onSkip} disabled={busy}>
-          {skipLabel}
+        <Button type="button" intent="ghost" size="small" onClick={onSkip} disabled={busy}>
+          Dismiss
         </Button>
       </div>
     </form>

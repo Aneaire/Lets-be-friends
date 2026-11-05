@@ -15,7 +15,7 @@ import {
 import { useMutation, useQuery } from 'convex/react'
 import * as Location from 'expo-location'
 import { router } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Linking, Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
@@ -146,6 +146,7 @@ function ConnectedOnboarding({
   const [referralBusy, setReferralBusy] = useState(false)
   const [referralError, setReferralError] = useState('')
   const [referralNotice, setReferralNotice] = useState('')
+  const usernameRef = useRef<TextInput>(null)
   useAppToastMessage(message)
   const [step, setStep] = useState(() => initialOnboardingStep(viewer))
   const totalSteps = onboardingTotalSteps(goal)
@@ -229,8 +230,10 @@ function ConnectedOnboarding({
     try {
       await attributeReferral({ code })
       setReferralNotice('Referral code added. It will apply to your first completed bookings.')
+      setMessage('Referral code added. It will apply to your first completed bookings.')
+      usernameRef.current?.focus()
     } catch {
-      setReferralError('That referral code could not be added. It may already be linked, or your first booking may already exist.')
+      setReferralError('We could not add this code. Check it and try again.')
     } finally {
       setReferralBusy(false)
     }
@@ -242,6 +245,7 @@ function ConnectedOnboarding({
     setReferralError('')
     try {
       await dismissReferralPrompt({})
+      usernameRef.current?.focus()
     } catch {
       // The referral prompt is optional and must not block onboarding.
     } finally {
@@ -451,15 +455,6 @@ function ConnectedOnboarding({
       </View>
 
       {step === 0 ? <View style={styles.section}>
-        {referral && !referral.referredBy && !referral.promptDismissedAt ? (
-          <ReferralCodeCard
-            busy={referralBusy}
-            error={referralError}
-            notice={referralNotice}
-            onSubmit={(code) => void submitReferralCode(code)}
-            onSkip={() => void skipReferralPrompt()}
-          />
-        ) : null}
         <View style={styles.sectionHeader}>
           <AppText variant="heading">Choose your username</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
@@ -469,6 +464,7 @@ function ConnectedOnboarding({
         <View style={[styles.usernameRow, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <AppText variant="bodyStrong" color={theme.colors.self}>@</AppText>
           <TextInput
+            ref={usernameRef}
             accessibilityLabel="Permanent username"
             autoCapitalize="none"
             autoComplete="username-new"
@@ -494,6 +490,15 @@ function ConnectedOnboarding({
             If this username is yours, sign out below and use the Google account that originally claimed it.
           </AppText>
         )}
+        {referral && !referral.referredBy && !referral.promptDismissedAt ? (
+          <ReferralCodeCard
+            busy={referralBusy}
+            error={referralError}
+            notice={referralNotice}
+            onSubmit={(code) => void submitReferralCode(code)}
+            onSkip={() => void skipReferralPrompt()}
+          />
+        ) : null}
       </View> : null}
 
       {step === 1 ? <View style={styles.section}>

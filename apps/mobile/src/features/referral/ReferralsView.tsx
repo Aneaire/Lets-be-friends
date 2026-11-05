@@ -59,7 +59,10 @@ export function ReferralsView({
         <AppText variant="label" color={theme.colors.socialText}>INVITE FRIENDS</AppText>
         <AppText variant="title">Share a good thing</AppText>
         <AppText color={theme.colors.textMuted}>
-          Earn 68% of our service fee on each friend's first 3 completed bookings. Friends pay the normal price.
+          Earn booking credit equal to 68% of our 15% service fee on each friend's first 3 completed bookings. Friends pay the normal price. Credit lands in your wallet after each booking settles.
+        </AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>
+          Example: a ₱700 booking has a ₱105 service fee, and you earn ₱71.40 in credit.
         </AppText>
       </View>
 
@@ -69,7 +72,7 @@ export function ReferralsView({
         <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
           <AppText variant="heading">Create your referral link</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            Share one link. When a friend completes a booking, your credit lands in your wallet after settlement.
+            Share this link. Your friend pays the normal price.
           </AppText>
           <ActionButton label="Create my referral link" onPress={onCreateCode} intent="social" loading={busy} />
         </View>
@@ -88,22 +91,22 @@ export function ReferralsView({
         <Metric label="Credit earned" value={formatPhp(referral.totalEarnedCentavos)} />
       </View>
 
-      {referral.referrals.length > 0 ? (
-        <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-          <AppText variant="heading">Your referrals</AppText>
-          {referral.referrals.map((item) => (
-            <View key={item._id} style={[styles.row, { borderTopColor: theme.colors.border }]}>
-              <View style={styles.rowCopy}>
-                <AppText variant="bodyStrong">{item.referredDisplayName}</AppText>
-                <AppText variant="caption" color={theme.colors.textMuted}>
-                  {item.rewardedBookings} of {item.totalRewardedBookings} bookings rewarded
-                </AppText>
-              </View>
-              <AppText variant="caption" color={theme.colors.textMuted}>{item.status}</AppText>
+      <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+        <AppText variant="heading">Your referrals</AppText>
+        {referral.referrals.length > 0 ? referral.referrals.map((item) => (
+          <View key={item._id} style={[styles.row, { borderTopColor: theme.colors.border }]}>
+            <View style={styles.rowCopy}>
+              <AppText variant="bodyStrong">{item.referredDisplayName}</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>
+                {item.rewardedBookings} of {item.totalRewardedBookings} bookings rewarded
+              </AppText>
             </View>
-          ))}
-        </View>
-      ) : null}
+            <AppText variant="caption" color={theme.colors.textMuted}>{item.status}</AppText>
+          </View>
+        )) : (
+          <AppText variant="caption" color={theme.colors.textMuted}>No friends have joined with your link yet.</AppText>
+        )}
+      </View>
 
       {referral.referredBy && (
         <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
