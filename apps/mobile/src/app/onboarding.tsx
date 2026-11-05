@@ -152,6 +152,7 @@ function ConnectedOnboarding({
   const referralToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useAppToastMessage(message)
   const [step, setStep] = useState(() => initialOnboardingStep(viewer))
+  const stepRef = useRef(step)
   const totalSteps = onboardingTotalSteps(goal)
   const maxStep = onboardingMaxStep(goal)
   // The final step hands off to the private identity check on web, mirroring
@@ -227,6 +228,7 @@ function ConnectedOnboarding({
   }, [goal])
 
   useEffect(() => {
+    stepRef.current = step
     if (step !== 0) {
       setPendingReferralFocus(null)
       if (referralToastTimer.current) {
@@ -237,7 +239,7 @@ function ConnectedOnboarding({
   }, [step])
 
   useEffect(() => {
-    if (showReferralPrompt || !pendingReferralFocus) return
+    if (step !== 0 || showReferralPrompt || !pendingReferralFocus) return
     const action = pendingReferralFocus
     setPendingReferralFocus(null)
     if (!viewer.username) {
@@ -254,7 +256,7 @@ function ConnectedOnboarding({
         referralToastTimer.current = null
       }, 300)
     }
-  }, [pendingReferralFocus, showReferralPrompt, viewer.username])
+  }, [pendingReferralFocus, showReferralPrompt, step, viewer.username])
 
   useEffect(() => () => {
     if (referralToastTimer.current) clearTimeout(referralToastTimer.current)
@@ -268,7 +270,7 @@ function ConnectedOnboarding({
     try {
       await attributeReferral({ code })
       setReferralNotice('Referral code added. It will apply to your first completed bookings.')
-      setPendingReferralFocus('added')
+      if (stepRef.current === 0) setPendingReferralFocus('added')
     } catch {
       setReferralError('We could not add this code. Check it and try again.')
     } finally {
@@ -282,7 +284,7 @@ function ConnectedOnboarding({
     setReferralError('')
     try {
       await dismissReferralPrompt({})
-      setPendingReferralFocus('dismissed')
+      if (stepRef.current === 0) setPendingReferralFocus('dismissed')
     } catch {
       setReferralError('We could not dismiss this prompt. Try again, or add a code.')
     } finally {

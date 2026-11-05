@@ -62,10 +62,12 @@ export function OnboardingPage() {
   const referral = useQuery(api.referrals.myReferral, viewer ? {} : 'skip')
   const attributeReferral = useMutation(api.referrals.attributeReferral)
   const dismissReferralPrompt = useMutation(api.referrals.dismissReferralPrompt)
+  const showReferralPrompt = Boolean(referral && !referral.referredBy && !referral.promptDismissedAt)
   const identityFlow = useIdentityVerification('member')
   const companionIdentityFlow = useIdentityVerification('companion_application')
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
+  const stepRef = useRef(step)
   const [username, setUsername] = useState('')
   const [goal, setGoal] = useState<OnboardingGoal | undefined>()
   const [firstName, setFirstName] = useState('')
@@ -85,6 +87,7 @@ export function OnboardingPage() {
   const [referralAction, setReferralAction] = useState<'add' | 'dismiss' | null>(null)
   const [referralError, setReferralError] = useState('')
   const [referralNotice, setReferralNotice] = useState('')
+  const [pendingReferralFocus, setPendingReferralFocus] = useState<'added' | 'dismissed' | null>(null)
   const accountKeyRef = useRef<string | null>(null)
   const normalizedUsername = normalizeUsername(username)
   const localUsernameError = usernameValidationError(username)
@@ -148,6 +151,19 @@ export function OnboardingPage() {
       setApproxLocation((current) => current ?? { latitude: viewer.approximateLatitude!, longitude: viewer.approximateLongitude! })
     }
   }, [viewer])
+
+  useEffect(() => {
+    stepRef.current = step
+    if (step !== 1) setPendingReferralFocus(null)
+  }, [step])
+
+  useEffect(() => {
+    if (step !== 1 || showReferralPrompt || !pendingReferralFocus) return
+    setPendingReferralFocus(null)
+    const input = document.getElementById('onboarding-username') as HTMLInputElement | null
+    if (input && !input.disabled) input.focus()
+    else document.getElementById('onboarding-username-heading')?.focus()
+  }, [pendingReferralFocus, showReferralPrompt, step])
 
   if (!isSignedIn) {
     return (
@@ -221,14 +237,6 @@ export function OnboardingPage() {
 
   const acceptanceError = 'Agree to both the Terms and Conditions and the Privacy Policy in Step 5 before continuing.'
 
-  const focusUsernameField = () => {
-    window.setTimeout(() => {
-      const input = document.getElementById('onboarding-username') as HTMLInputElement | null
-      if (input && !input.disabled) input.focus()
-      else document.getElementById('onboarding-username-heading')?.focus()
-    }, 0)
-  }
-
   const submitReferralCode = async (code: string) => {
     if (referralAction) return
     setReferralAction('add')
@@ -237,7 +245,7 @@ export function OnboardingPage() {
     try {
       await attributeReferral({ code })
       setReferralNotice('Referral code added. It will apply to your first completed bookings.')
-      focusUsernameField()
+      if (stepRef.current === 1) setPendingReferralFocus('added')
     } catch (referralSubmitError) {
       setReferralError(referralSubmitError instanceof Error ? describeConvexError(referralSubmitError) : 'We could not add this code. Check it and try again.')
     } finally {
@@ -251,7 +259,7 @@ export function OnboardingPage() {
     setReferralError('')
     try {
       await dismissReferralPrompt({})
-      focusUsernameField()
+      if (stepRef.current === 1) setPendingReferralFocus('dismissed')
     } catch {
       setReferralError('We could not dismiss this prompt. Try again, or add a code.')
     } finally {

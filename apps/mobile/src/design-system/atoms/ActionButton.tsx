@@ -46,6 +46,7 @@ export function ActionButton({
         ? theme.colors.socialText
         : theme.colors.danger
   const foreground = intent === 'neutral' ? theme.colors.inverseText : theme.colors.accentText
+  const displayedLabel = loading ? (loadingLabel ?? `${label}…`) : label
 
   return (
     <Pressable
@@ -66,7 +67,7 @@ export function ActionButton({
       ]}>
       <View style={styles.content}>
         {loading ? <AppIcon name="hourglass-outline" size={18} color={secondary ? outline : foreground} /> : icon ? <AppIcon name={icon} size={20} color={secondary ? outline : foreground} /> : null}
-        <AppText variant="bodyStrong" color={secondary ? outline : foreground}>{loading ? `${loadingLabel ?? label}…` : label}</AppText>
+        <AppText variant="bodyStrong" color={secondary ? outline : foreground}>{displayedLabel}</AppText>
       </View>
     </Pressable>
   )
