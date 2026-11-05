@@ -79,7 +79,7 @@ export function ReferralPanelView({
           <div className="space-y-3">
             <div>
               <p className="text-h3">Your referral link</p>
-              <p className="text-meta mt-1">Share this link. Your friend pays the normal price. Credit lands in your wallet after each booking settles.</p>
+              <p className="text-meta mt-1">Share this link. Credit lands in your wallet after each booking settles.</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input className="field flex-1" readOnly value={shareUrl} aria-label="Your referral link" onFocus={(event) => event.currentTarget.select()} />

@@ -222,7 +222,11 @@ export function OnboardingPage() {
   const acceptanceError = 'Agree to both the Terms and Conditions and the Privacy Policy in Step 5 before continuing.'
 
   const focusUsernameField = () => {
-    window.setTimeout(() => document.getElementById('onboarding-username')?.focus(), 0)
+    window.setTimeout(() => {
+      const input = document.getElementById('onboarding-username') as HTMLInputElement | null
+      if (input && !input.disabled) input.focus()
+      else document.getElementById('onboarding-username-heading')?.focus()
+    }, 0)
   }
 
   const submitReferralCode = async (code: string) => {
@@ -434,7 +438,7 @@ export function OnboardingPage() {
         {step === 1 && (
           <div>
             <p className="eyebrow">Step 1</p>
-            <h2 className="text-h1 mt-2">Choose your unique username.</h2>
+            <h2 id="onboarding-username-heading" tabIndex={-1} className="text-h1 mt-2">Choose your unique username.</h2>
             <p className="text-body muted mt-2">People can use it to find the right profile directly. Your username is public, unique, and permanent once saved.</p>
             <div className="onboarding-username-card mt-6">
               {viewer.username ? (

@@ -16,7 +16,7 @@ import { useMutation, useQuery } from 'convex/react'
 import * as Location from 'expo-location'
 import { router } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Linking, Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { AccessibilityInfo, ActivityIndicator, Linking, Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/backend/config'
@@ -24,7 +24,7 @@ import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { Chip } from '@/design-system/atoms/Chip'
-import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { showAppToast, useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { openPolicyDocument } from '@/features/policy/policyLinks'
@@ -222,6 +222,14 @@ function ConnectedOnboarding({
     setStep((current) => clampOnboardingStep(current, goal))
   }, [goal])
 
+  function focusUsernameField() {
+    if (!viewer.username) {
+      usernameRef.current?.focus()
+      return
+    }
+    AccessibilityInfo.announceForAccessibility('Referral prompt dismissed. Continue with your welcome guide.')
+  }
+
   async function submitReferralCode(code: string) {
     if (referralBusy) return
     setReferralBusy(true)
@@ -230,8 +238,8 @@ function ConnectedOnboarding({
     try {
       await attributeReferral({ code })
       setReferralNotice('Referral code added. It will apply to your first completed bookings.')
-      setMessage('Referral code added. It will apply to your first completed bookings.')
-      usernameRef.current?.focus()
+      showAppToast('Referral code added. It will apply to your first completed bookings.', 'success')
+      focusUsernameField()
     } catch {
       setReferralError('We could not add this code. Check it and try again.')
     } finally {
@@ -245,7 +253,7 @@ function ConnectedOnboarding({
     setReferralError('')
     try {
       await dismissReferralPrompt({})
-      usernameRef.current?.focus()
+      focusUsernameField()
     } catch {
       // The referral prompt is optional and must not block onboarding.
     } finally {

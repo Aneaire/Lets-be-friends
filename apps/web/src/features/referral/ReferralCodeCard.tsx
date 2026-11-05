@@ -48,19 +48,13 @@ export function ReferralCodeCard({
         <p className="text-h3">Have a friend's code? <span className="label-aux">Optional</span></p>
         <p className="text-meta mt-1">Add it now to credit your friend. This prompt won't appear again.</p>
       </div>
-      {displayError && (
-        <div className="notice notice-danger" id="referral-code-error" role="alert">
-          <span className="notice-icon">!</span>
-          <span>{displayError}</span>
-        </div>
-      )}
       {notice && (
         <div className="notice" role="status">
           <span className="notice-icon">i</span>
           <span>{notice}</span>
         </div>
       )}
-      <FormField label="Referral code" aux="Optional">
+      <FormField label="Referral code" aux="Optional" error={displayError || undefined}>
         <input
           ref={inputRef}
           className="field"
@@ -74,8 +68,6 @@ export function ReferralCodeCard({
           autoCapitalize="characters"
           autoComplete="off"
           disabled={busy}
-          aria-invalid={Boolean(displayError)}
-          aria-describedby={displayError ? 'referral-code-error' : undefined}
         />
       </FormField>
       <div className="flex flex-wrap gap-2">
