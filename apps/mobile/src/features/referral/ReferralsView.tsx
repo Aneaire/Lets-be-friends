@@ -2,7 +2,7 @@ import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native'
 import { formatPhp } from '@lets-be-friends/shared'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
-import { IconButton } from '@/design-system/atoms/IconButton'
+import { BackButton } from '@/design-system/atoms/BackButton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { Screen } from '@/design-system/templates/Screen'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -52,7 +52,7 @@ export function ReferralsView({
   const header = (
     <View style={styles.header}>
       <View style={styles.topBar}>
-        <IconButton label="Back" icon="chevron-back" onPress={onBack} />
+        <BackButton label="Go back" onPress={onBack} />
       </View>
       <AppText variant="label" color={theme.colors.socialText}>INVITE FRIENDS</AppText>
       <AppText variant="title">Share a good thing</AppText>
@@ -142,7 +142,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 5, paddingBottom: 32 },
-  header: { gap: 8, paddingTop: 4 },
+  header: { gap: 8, paddingTop: 8 },
   topBar: { flexDirection: 'row', alignItems: 'center' },
   card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 },
   metrics: { flexDirection: 'row', gap: 8 },
