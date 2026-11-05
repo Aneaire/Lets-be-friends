@@ -259,6 +259,7 @@ export function OnboardingPage() {
     setReferralError('')
     try {
       await dismissReferralPrompt({})
+      setReferralNotice('Referral prompt dismissed.')
       if (stepRef.current === 1) setPendingReferralFocus('dismissed')
     } catch {
       setReferralError('We could not dismiss this prompt. Try again, or add a code.')

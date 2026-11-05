@@ -194,6 +194,7 @@ describe('onboarding route', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }))
 
     await waitFor(() => expect(state.dismissReferralPrompt).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText('Referral prompt dismissed.')).toBeTruthy()
   })
 
   it('keeps Back and Continue on one row with no skip control', async () => {
