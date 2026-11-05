@@ -141,7 +141,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 8, paddingBottom: 32 },
+  content: { paddingHorizontal: 5, paddingBottom: 32 },
   header: { gap: 8, paddingTop: 4 },
   topBar: { flexDirection: 'row', alignItems: 'center' },
   card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 },
