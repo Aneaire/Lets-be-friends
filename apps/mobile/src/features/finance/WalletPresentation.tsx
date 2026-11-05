@@ -237,7 +237,7 @@ export function WalletQrImage({ imageUrl, amountLabel, saving, onSave }: { image
   const [attempt, setAttempt] = useState(0)
   return <View style={styles.qrLoading}>
     <View style={styles.qrFrame}>
-      {state === 'loading' ? <View accessibilityLabel="Loading QR image" style={StyleSheet.absoluteFill}><Skeleton style={{ width: '100%', aspectRatio: 1, height: undefined }} radius={14} /></View> : null}
+      {state === 'loading' ? <View accessibilityLabel="Loading QR image" accessibilityRole="image" style={StyleSheet.absoluteFill}><Skeleton style={{ width: '100%', aspectRatio: 1, height: undefined }} radius={14} /></View> : null}
       <Image key={attempt} accessibilityLabel={`QR Ph code for ${amountLabel} top-up`} source={{ uri: imageUrl }} resizeMode="contain" onLoad={() => setState('ready')} onError={() => setState('error')} style={[styles.qr, state !== 'ready' && { opacity: 0 }]} />
     </View>
     {state === 'error' ? <><AppText>The QR image could not be loaded.</AppText><ActionButton label="Retry image" onPress={() => { setState('loading'); setAttempt((value) => value + 1) }} secondary intent="self" /></> : null}

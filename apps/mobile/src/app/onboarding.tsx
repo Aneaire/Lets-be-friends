@@ -143,7 +143,7 @@ function ConnectedOnboarding({
   const [locating, setLocating] = useState(false)
   const [locationMessage, setLocationMessage] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [referralBusy, setReferralBusy] = useState(false)
+  const [referralAction, setReferralAction] = useState<'add' | 'dismiss' | null>(null)
   const [referralError, setReferralError] = useState('')
   const [referralNotice, setReferralNotice] = useState('')
   const usernameRef = useRef<TextInput>(null)
@@ -224,22 +224,22 @@ function ConnectedOnboarding({
   }, [goal])
 
   function focusUsernameField(action: 'added' | 'dismissed') {
-    const message = action === 'added'
-      ? 'Referral code added. Continue with your welcome guide.'
-      : 'Referral prompt dismissed. Continue with your welcome guide.'
-    if (!viewer.username) {
-      usernameRef.current?.focus()
-      AccessibilityInfo.announceForAccessibility(message)
-      return
-    }
-    const handle = findNodeHandle(usernameHeadingRef.current)
-    if (handle) AccessibilityInfo.setAccessibilityFocus(handle)
-    AccessibilityInfo.announceForAccessibility(message)
+    setTimeout(() => {
+      if (!viewer.username) {
+        usernameRef.current?.focus()
+      } else {
+        const handle = findNodeHandle(usernameHeadingRef.current)
+        if (handle) AccessibilityInfo.setAccessibilityFocus(handle)
+      }
+      if (action === 'dismissed') {
+        AccessibilityInfo.announceForAccessibility('Referral prompt dismissed. Continue with your welcome guide.')
+      }
+    }, 150)
   }
 
   async function submitReferralCode(code: string) {
-    if (referralBusy) return
-    setReferralBusy(true)
+    if (referralAction) return
+    setReferralAction('add')
     setReferralError('')
     setReferralNotice('')
     try {
@@ -250,13 +250,13 @@ function ConnectedOnboarding({
     } catch {
       setReferralError('We could not add this code. Check it and try again.')
     } finally {
-      setReferralBusy(false)
+      setReferralAction(null)
     }
   }
 
   async function skipReferralPrompt() {
-    if (referralBusy) return
-    setReferralBusy(true)
+    if (referralAction) return
+    setReferralAction('dismiss')
     setReferralError('')
     try {
       await dismissReferralPrompt({})
@@ -264,7 +264,7 @@ function ConnectedOnboarding({
     } catch {
       setReferralError('We could not dismiss this prompt. Try again, or add a code.')
     } finally {
-      setReferralBusy(false)
+      setReferralAction(null)
     }
   }
 
@@ -507,7 +507,8 @@ function ConnectedOnboarding({
         )}
         {referral && !referral.referredBy && !referral.promptDismissedAt ? (
           <ReferralCodeCard
-            busy={referralBusy}
+            busy={referralAction === 'add'}
+            dismissing={referralAction === 'dismiss'}
             error={referralError}
             notice={referralNotice}
             onSubmit={(code) => void submitReferralCode(code)}

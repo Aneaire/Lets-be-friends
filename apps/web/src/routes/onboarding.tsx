@@ -82,7 +82,7 @@ export function OnboardingPage() {
   const [locationStatus, setLocationStatus] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [referralBusy, setReferralBusy] = useState(false)
+  const [referralAction, setReferralAction] = useState<'add' | 'dismiss' | null>(null)
   const [referralError, setReferralError] = useState('')
   const [referralNotice, setReferralNotice] = useState('')
   const accountKeyRef = useRef<string | null>(null)
@@ -230,8 +230,8 @@ export function OnboardingPage() {
   }
 
   const submitReferralCode = async (code: string) => {
-    if (referralBusy) return
-    setReferralBusy(true)
+    if (referralAction) return
+    setReferralAction('add')
     setReferralError('')
     setReferralNotice('')
     try {
@@ -241,13 +241,13 @@ export function OnboardingPage() {
     } catch (referralSubmitError) {
       setReferralError(referralSubmitError instanceof Error ? describeConvexError(referralSubmitError) : 'We could not add this code. Check it and try again.')
     } finally {
-      setReferralBusy(false)
+      setReferralAction(null)
     }
   }
 
   const skipReferralPrompt = async () => {
-    if (referralBusy) return
-    setReferralBusy(true)
+    if (referralAction) return
+    setReferralAction('dismiss')
     setReferralError('')
     try {
       await dismissReferralPrompt({})
@@ -255,7 +255,7 @@ export function OnboardingPage() {
     } catch {
       setReferralError('We could not dismiss this prompt. Try again, or add a code.')
     } finally {
-      setReferralBusy(false)
+      setReferralAction(null)
     }
   }
 
@@ -501,7 +501,8 @@ export function OnboardingPage() {
             {referral && !referral.referredBy && !referral.promptDismissedAt && (
               <div className="mt-6">
                 <ReferralCodeCard
-                  busy={referralBusy}
+                  busy={referralAction === 'add'}
+                  dismissing={referralAction === 'dismiss'}
                   error={referralError}
                   notice=""
                   onSubmit={(code) => void submitReferralCode(code)}

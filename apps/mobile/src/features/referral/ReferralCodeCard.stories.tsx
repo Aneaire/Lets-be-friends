@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite'
-import { expect, fn, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 
 import { ReferralCodeCard } from './ReferralCodeCard'
 
@@ -31,7 +31,9 @@ export const Default: Story = {
 export const ErrorState: Story = {
   args: { error: 'We could not add this code. Check it and try again.' },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole('alert')).toBeVisible()
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Referral code (optional)'), 'ABCD12')
+    await expect(canvas.getByRole('alert')).toBeVisible()
   },
 }
 

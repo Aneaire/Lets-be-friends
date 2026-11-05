@@ -11,6 +11,7 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 
 export function ReferralCodeCard({
   busy,
+  dismissing = false,
   error,
   notice,
   onSubmit,
@@ -18,6 +19,7 @@ export function ReferralCodeCard({
   onEdit,
 }: {
   busy: boolean
+  dismissing?: boolean
   error: string
   notice: string
   onSubmit: (code: string) => void
@@ -70,7 +72,7 @@ export function ReferralCodeCard({
         autoCapitalize="characters"
         autoCorrect={false}
         maxLength={12}
-        editable={!busy}
+        editable={!busy && !dismissing}
         style={[
           styles.input,
           theme.typography.body,
@@ -86,13 +88,14 @@ export function ReferralCodeCard({
         onPress={submit}
         intent="social"
         loading={busy}
-        disabled={!code.trim()}
+        disabled={!code.trim() || dismissing}
       />
       <ActionButton
         label="Dismiss"
         onPress={onSkip}
         intent="neutral"
         secondary
+        loading={dismissing}
         disabled={busy}
       />
     </View>

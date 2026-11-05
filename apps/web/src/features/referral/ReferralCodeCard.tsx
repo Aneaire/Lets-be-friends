@@ -8,6 +8,7 @@ import { FormField } from '../../design-system/molecules/FormField'
 
 export function ReferralCodeCard({
   busy,
+  dismissing = false,
   error,
   notice,
   onSubmit,
@@ -15,6 +16,7 @@ export function ReferralCodeCard({
   onEdit,
 }: {
   busy: boolean
+  dismissing?: boolean
   error: string
   notice: string
   onSubmit: (code: string) => void
@@ -70,14 +72,14 @@ export function ReferralCodeCard({
           maxLength={12}
           autoCapitalize="characters"
           autoComplete="off"
-          disabled={busy}
+          disabled={busy || dismissing}
         />
       </FormField>
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" intent="social" size="small" loading={busy} loadingLabel="Adding code..." disabled={!code.trim()}>
+        <Button type="submit" intent="social" size="small" loading={busy} loadingLabel="Adding code..." disabled={!code.trim() || dismissing}>
           Add referral code
         </Button>
-        <Button type="button" intent="ghost" size="small" onClick={onSkip} disabled={busy}>
+        <Button type="button" intent="ghost" size="small" onClick={onSkip} loading={dismissing} loadingLabel="Dismissing..." disabled={busy}>
           Dismiss
         </Button>
       </div>
