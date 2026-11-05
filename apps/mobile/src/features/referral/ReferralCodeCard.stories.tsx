@@ -38,3 +38,7 @@ export const ErrorState: Story = {
 export const Dark: Story = {
   globals: { theme: 'dark' },
 }
+
+export const Narrow: Story = {
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
+}

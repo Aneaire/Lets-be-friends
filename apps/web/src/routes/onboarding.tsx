@@ -253,7 +253,7 @@ export function OnboardingPage() {
       await dismissReferralPrompt({})
       focusUsernameField()
     } catch {
-      // The referral prompt is optional and must not block onboarding.
+      setReferralError('We could not dismiss this prompt. Try again, or add a code.')
     } finally {
       setReferralBusy(false)
     }
@@ -506,6 +506,7 @@ export function OnboardingPage() {
                   notice=""
                   onSubmit={(code) => void submitReferralCode(code)}
                   onSkip={() => void skipReferralPrompt()}
+                  onEdit={() => setReferralError('')}
                 />
               </div>
             )}

@@ -12,12 +12,14 @@ export function ReferralCodeCard({
   notice,
   onSubmit,
   onSkip,
+  onEdit,
 }: {
   busy: boolean
   error: string
   notice: string
   onSubmit: (code: string) => void
   onSkip: () => void
+  onEdit?: () => void
 }) {
   const [code, setCode] = useState('')
   const [localError, setLocalError] = useState('')
@@ -62,6 +64,7 @@ export function ReferralCodeCard({
           onChange={(event) => {
             setCode(event.target.value.toUpperCase())
             setLocalError('')
+            onEdit?.()
           }}
           placeholder="ABCD1234"
           maxLength={12}

@@ -16,7 +16,7 @@ import { useMutation, useQuery } from 'convex/react'
 import * as Location from 'expo-location'
 import { router } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AccessibilityInfo, ActivityIndicator, Linking, Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { AccessibilityInfo, ActivityIndicator, findNodeHandle, Linking, Pressable, StyleSheet, TextInput, View } from 'react-native'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/backend/config'
@@ -147,6 +147,7 @@ function ConnectedOnboarding({
   const [referralError, setReferralError] = useState('')
   const [referralNotice, setReferralNotice] = useState('')
   const usernameRef = useRef<TextInput>(null)
+  const usernameHeadingRef = useRef<View>(null)
   useAppToastMessage(message)
   const [step, setStep] = useState(() => initialOnboardingStep(viewer))
   const totalSteps = onboardingTotalSteps(goal)
@@ -222,12 +223,18 @@ function ConnectedOnboarding({
     setStep((current) => clampOnboardingStep(current, goal))
   }, [goal])
 
-  function focusUsernameField() {
+  function focusUsernameField(action: 'added' | 'dismissed') {
+    const message = action === 'added'
+      ? 'Referral code added. Continue with your welcome guide.'
+      : 'Referral prompt dismissed. Continue with your welcome guide.'
     if (!viewer.username) {
       usernameRef.current?.focus()
+      AccessibilityInfo.announceForAccessibility(message)
       return
     }
-    AccessibilityInfo.announceForAccessibility('Referral prompt dismissed. Continue with your welcome guide.')
+    const handle = findNodeHandle(usernameHeadingRef.current)
+    if (handle) AccessibilityInfo.setAccessibilityFocus(handle)
+    AccessibilityInfo.announceForAccessibility(message)
   }
 
   async function submitReferralCode(code: string) {
@@ -239,7 +246,7 @@ function ConnectedOnboarding({
       await attributeReferral({ code })
       setReferralNotice('Referral code added. It will apply to your first completed bookings.')
       showAppToast('Referral code added. It will apply to your first completed bookings.', 'success')
-      focusUsernameField()
+      focusUsernameField('added')
     } catch {
       setReferralError('We could not add this code. Check it and try again.')
     } finally {
@@ -253,9 +260,9 @@ function ConnectedOnboarding({
     setReferralError('')
     try {
       await dismissReferralPrompt({})
-      focusUsernameField()
+      focusUsernameField('dismissed')
     } catch {
-      // The referral prompt is optional and must not block onboarding.
+      setReferralError('We could not dismiss this prompt. Try again, or add a code.')
     } finally {
       setReferralBusy(false)
     }
@@ -463,7 +470,7 @@ function ConnectedOnboarding({
       </View>
 
       {step === 0 ? <View style={styles.section}>
-        <View style={styles.sectionHeader}>
+        <View ref={usernameHeadingRef} accessible accessibilityRole="header" style={styles.sectionHeader}>
           <AppText variant="heading">Choose your username</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
             This is permanent once you claim it.
@@ -505,6 +512,7 @@ function ConnectedOnboarding({
             notice={referralNotice}
             onSubmit={(code) => void submitReferralCode(code)}
             onSkip={() => void skipReferralPrompt()}
+            onEdit={() => setReferralError('')}
           />
         ) : null}
       </View> : null}

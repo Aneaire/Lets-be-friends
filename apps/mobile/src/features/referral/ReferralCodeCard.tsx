@@ -15,12 +15,14 @@ export function ReferralCodeCard({
   notice,
   onSubmit,
   onSkip,
+  onEdit,
 }: {
   busy: boolean
   error: string
   notice: string
   onSubmit: (code: string) => void
   onSkip: () => void
+  onEdit?: () => void
 }) {
   const theme = useAppTheme()
   const [code, setCode] = useState('')
@@ -61,6 +63,7 @@ export function ReferralCodeCard({
         onChangeText={(value) => {
           setCode(value.toUpperCase())
           setLocalError('')
+          onEdit?.()
         }}
         placeholder="ABCD1234"
         placeholderTextColor={theme.colors.textMuted}

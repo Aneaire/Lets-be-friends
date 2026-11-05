@@ -72,7 +72,7 @@ export function ReferralsView({
         <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
           <AppText variant="heading">Create your referral link</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            Share this link. Your friend pays the normal price.
+            Share this link with a friend.
           </AppText>
           <ActionButton label="Create my referral link" onPress={onCreateCode} intent="social" loading={busy} />
         </View>
