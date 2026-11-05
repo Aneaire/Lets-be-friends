@@ -51,11 +51,13 @@ export function ReferralsView({
 
   const header = (
     <View style={styles.header}>
-      <View style={styles.topBar}>
+      <View style={styles.titleRow}>
         <BackButton label="Go back" onPress={onBack} />
+        <View style={styles.titleCopy}>
+          <AppText variant="label" color={theme.colors.socialText}>INVITE FRIENDS</AppText>
+          <AppText variant="title">Share a good thing</AppText>
+        </View>
       </View>
-      <AppText variant="label" color={theme.colors.socialText}>INVITE FRIENDS</AppText>
-      <AppText variant="title">Share a good thing</AppText>
       <AppText color={theme.colors.textMuted}>
         Earn booking credit equal to 68% of our 15% service fee on each friend's first 3 completed bookings. Friends pay the normal price. Credit lands in your wallet after each booking settles.
       </AppText>
@@ -143,7 +145,8 @@ function Metric({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 5, paddingBottom: 32 },
   header: { gap: 8, paddingTop: 8 },
-  topBar: { flexDirection: 'row', alignItems: 'center' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  titleCopy: { flex: 1, gap: 2 },
   card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 },
   metrics: { flexDirection: 'row', gap: 8 },
   metric: { flex: 1, borderWidth: 1, borderRadius: 12, padding: 10, gap: 4 },
