@@ -183,7 +183,7 @@ describe('referral program', () => {
       code: first.code,
       rewardedBookings: 0,
     })
-    expect(summary?.referrals).toHaveLength(0)
+    expect(summary?.totalReferrals).toBe(0)
     expect(summary?.promptDismissedAt).toEqual(expect.any(Number))
   })
 
@@ -300,7 +300,7 @@ describe('referral program', () => {
     expect(state.referralTransactions).toHaveLength(0)
   })
 
-  it('returns only the three most recent referrals with totals', async () => {
+  it('returns referral totals without loading the full list', async () => {
     const t = createTest()
     const ids = await seed(t)
     await t.run(async (ctx) => {
@@ -334,12 +334,6 @@ describe('referral program', () => {
 
     const summary = await t.withIdentity({ subject: 'referral-referrer' }).query(api.referrals.myReferral, {})
 
-    expect(summary?.referrals).toHaveLength(3)
-    expect(summary?.referrals.map((referral) => referral.referredDisplayName)).toEqual([
-      'Recent 3',
-      'Recent 2',
-      'Recent 1',
-    ])
     expect(summary?.totalReferrals).toBe(4)
     expect(summary?.totalRewardedBookings).toBe(0)
   })

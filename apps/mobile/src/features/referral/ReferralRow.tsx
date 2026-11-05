@@ -11,10 +11,16 @@ export type MobileReferralItem = {
   totalRewardedBookings: number
 }
 
-export function ReferralRow({ item }: { item: MobileReferralItem }) {
+export function ReferralRow({ item, card = false }: { item: MobileReferralItem; card?: boolean }) {
   const theme = useAppTheme()
   return (
-    <View style={[styles.row, { borderTopColor: theme.colors.border }]}>
+    <View
+      style={[
+        card ? styles.card : styles.row,
+        card
+          ? { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }
+          : { borderTopColor: theme.colors.border },
+      ]}>
       <View style={styles.rowCopy}>
         <AppText variant="bodyStrong">{item.referredDisplayName}</AppText>
         <AppText variant="caption" color={theme.colors.textMuted}>
@@ -31,6 +37,15 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 10,
     marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  card: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

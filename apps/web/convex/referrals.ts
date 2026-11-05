@@ -25,13 +25,9 @@ export const myReferral = query({
     const viewer = await getViewer(ctx)
     if (!viewer) return null
 
-    const [code, referralRows, recentReferrals, rewardRows, referredByRow] = await Promise.all([
+    const [code, referralRows, rewardRows, referredByRow] = await Promise.all([
       ctx.db.query('referralCodes').withIndex('by_owner', (q) => q.eq('ownerUserId', viewer._id)).first(),
       ctx.db.query('referrals').withIndex('by_referrer', (q) => q.eq('referrerUserId', viewer._id)).collect(),
-      ctx.db.query('referrals')
-        .withIndex('by_referrer_created_at', (q) => q.eq('referrerUserId', viewer._id))
-        .order('desc')
-        .take(3),
       ctx.db.query('referralRewards').withIndex('by_referrer', (q) => q.eq('referrerUserId', viewer._id)).collect(),
       ctx.db.query('referrals').withIndex('by_referred', (q) => q.eq('referredUserId', viewer._id)).first(),
     ])
@@ -39,21 +35,10 @@ export const myReferral = query({
     const rewards = rewardRows
       .slice()
       .sort((left, right) => right.createdAt - left.createdAt)
-    const [referredUsers, referredByUser] = await Promise.all([
-      Promise.all(recentReferrals.map((referral) => ctx.db.get(referral.referredUserId))),
-      referredByRow ? ctx.db.get(referredByRow.referrerUserId) : Promise.resolve(null),
-    ])
+    const referredByUser = referredByRow ? await ctx.db.get(referredByRow.referrerUserId) : null
 
     return {
       code: code?.code ?? null,
-      referrals: recentReferrals.map((referral, index) => ({
-        _id: referral._id,
-        referredDisplayName: referredUsers[index]?.displayName ?? 'Friend',
-        status: referral.status,
-        rewardedBookings: referral.rewardedBookings,
-        totalRewardedBookings: REFERRAL_REWARDED_BOOKINGS,
-        createdAt: referral.createdAt,
-      })),
       totalReferrals: referralRows.length,
       totalRewardedBookings: rewards.filter((reward) => reward.status === 'credited').length,
       rewards: rewards.map((reward) => ({

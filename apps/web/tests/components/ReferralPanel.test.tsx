@@ -5,13 +5,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   queryResult: undefined as unknown,
+  pageResult: { results: [] as Array<Record<string, unknown>>, status: 'Exhausted', loadMore: vi.fn() },
   mutation: vi.fn(async () => ({})),
 }))
 
 vi.mock('convex/react', () => ({
   useQuery: () => mocks.queryResult,
   useMutation: () => mocks.mutation,
-  usePaginatedQuery: () => ({ results: [], status: 'Exhausted', loadMore: vi.fn() }),
+  usePaginatedQuery: () => mocks.pageResult,
 }))
 
 import { ReferralPanel } from '../../src/features/referral/ReferralPanel'
@@ -19,13 +20,13 @@ import { ReferralPanel } from '../../src/features/referral/ReferralPanel'
 afterEach(() => {
   cleanup()
   mocks.queryResult = undefined
+  mocks.pageResult = { results: [], status: 'Exhausted', loadMore: vi.fn() }
   mocks.mutation.mockClear()
 })
 
 function referralSummary(overrides: Record<string, unknown> = {}) {
   return {
     code: 'ABCD1234',
-    referrals: [],
     rewards: [],
     totalReferrals: 0,
     totalRewardedBookings: 0,
@@ -39,7 +40,12 @@ function referralSummary(overrides: Record<string, unknown> = {}) {
 describe('referral panel', () => {
   it('shows the share link and the 68% rule', () => {
     mocks.queryResult = referralSummary({
-      referrals: [{
+      totalReferrals: 1,
+      totalRewardedBookings: 2,
+      totalEarnedCentavos: 10_200,
+    })
+    mocks.pageResult = {
+      results: [{
         _id: 'referral-1',
         referredDisplayName: 'Maya',
         status: 'active',
@@ -47,10 +53,9 @@ describe('referral panel', () => {
         totalRewardedBookings: 3,
         createdAt: Date.now(),
       }],
-      totalReferrals: 1,
-      totalRewardedBookings: 2,
-      totalEarnedCentavos: 10_200,
-    })
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    }
 
     render(<ReferralPanel />)
 
@@ -59,26 +64,6 @@ describe('referral panel', () => {
     expect(screen.getByDisplayValue(/ref=ABCD1234/)).toBeTruthy()
     expect(screen.getByText('Maya')).toBeTruthy()
     expect(screen.getByText('2 of 3 bookings rewarded')).toBeTruthy()
-  })
-
-  it('keeps the list short and opens all referrals', async () => {
-    mocks.queryResult = referralSummary({
-      referrals: [{
-        _id: 'referral-1',
-        referredDisplayName: 'Maya',
-        status: 'active',
-        rewardedBookings: 2,
-        totalRewardedBookings: 3,
-        createdAt: Date.now(),
-      }],
-      totalReferrals: 12,
-      totalRewardedBookings: 8,
-    })
-
-    render(<ReferralPanel />)
-    fireEvent.click(screen.getByRole('button', { name: 'View all referrals' }))
-
-    expect(await screen.findByText('All referrals')).toBeTruthy()
   })
 
   it('creates a referral link when the member has no code', async () => {

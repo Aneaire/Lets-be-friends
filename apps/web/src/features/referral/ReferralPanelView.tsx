@@ -3,18 +3,13 @@ import {
   referralShareUrl,
 } from '@lets-be-friends/shared'
 import { Button } from '../../design-system/atoms/Button'
-import { ReferralRow } from './ReferralRow'
+import { InfiniteScrollTrigger } from '../../design-system/molecules/InfiniteScrollTrigger'
+import { ReferralRow, type ReferralRowItem } from './ReferralRow'
+
+export type ReferralPageStatus = 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted'
 
 export type ReferralPanelData = {
   code: string | null
-  referrals: Array<{
-    _id: string
-    referredDisplayName: string
-    status: string
-    rewardedBookings: number
-    totalRewardedBookings: number
-    createdAt: number
-  }>
   rewards: Array<{
     _id: string
     bookingId: string
@@ -36,22 +31,26 @@ export type ReferralPanelData = {
 
 export function ReferralPanelView({
   referral,
+  items,
+  status,
   busy,
   error,
   notice,
   origin,
   onCreateCode,
   onCopyLink,
-  onViewAll,
+  onLoadMore,
 }: {
   referral: ReferralPanelData
+  items: ReferralRowItem[]
+  status: ReferralPageStatus
   busy: boolean
   error: string
   notice: string
   origin: string
   onCreateCode: () => void
   onCopyLink: () => void
-  onViewAll: () => void
+  onLoadMore: () => void
 }) {
   const shareUrl = referral.code ? referralShareUrl(origin, referral.code) : ''
 
@@ -109,21 +108,21 @@ export function ReferralPanelView({
         </div>
 
         <div className="space-y-2">
-          <p className="text-h3">Recent referrals</p>
-          {referral.referrals.length > 0 ? (
-            <>
-              <ul className="space-y-2">
-                {referral.referrals.map((item) => <ReferralRow key={item._id} item={item} />)}
-              </ul>
-              {referral.totalReferrals > referral.referrals.length && (
-                <Button type="button" intent="ghost" size="small" onClick={onViewAll}>
-                  View all referrals
-                </Button>
-              )}
-            </>
+          <p className="text-h3">Your referrals</p>
+          {status === 'LoadingFirstPage' ? (
+            <p className="text-meta">Loading referrals...</p>
+          ) : items.length > 0 ? (
+            <ul className="space-y-2">
+              {items.map((item) => <ReferralRow key={item._id} item={item} />)}
+            </ul>
           ) : (
             <p className="text-meta">No friends have joined with your link yet.</p>
           )}
+          <InfiniteScrollTrigger
+            status={status}
+            onLoadMore={onLoadMore}
+            loadingLabel="Loading more referrals..."
+          />
         </div>
 
         {referral.referredBy && (

@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { useMutation, useQuery } from 'convex/react'
+import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { Share } from 'react-native'
 import { referralShareUrl } from '@lets-be-friends/shared'
@@ -28,6 +28,7 @@ export default function ReferralsScreen() {
 
 function ReadyReferrals() {
   const referral = useQuery(mobileApi.referrals.myReferral, {})
+  const page = usePaginatedQuery(mobileApi.referrals.myReferralPage, {}, { initialNumItems: 20 })
   const ensureReferralCode = useMutation(mobileApi.referrals.ensureReferralCode)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -74,13 +75,15 @@ function ReadyReferrals() {
   return (
     <ReferralsView
       referral={referral}
+      items={page.results}
+      status={page.status}
       busy={busy}
       message={message}
       shareUrl={shareUrl}
       onCreateCode={() => void createCode()}
       onShare={() => void shareLink()}
-      onReturn={() => router.replace('/profile')}
-      onViewAll={() => router.push('/referrals/all')}
+      onBack={() => router.back()}
+      onLoadMore={() => page.loadMore(20)}
     />
   )
 }

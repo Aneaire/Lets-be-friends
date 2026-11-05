@@ -1,18 +1,17 @@
-import { useMutation, useQuery } from 'convex/react'
+import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { referralShareUrl } from '@lets-be-friends/shared'
 import { api } from '../../../convex/_generated/api'
 import { describeConvexError } from '../../lib/convexErrors'
-import { ReferralListDialog } from './ReferralListDialog'
 import { ReferralPanelView } from './ReferralPanelView'
 
 export function ReferralPanel() {
   const referral = useQuery(api.referrals.myReferral)
+  const page = usePaginatedQuery(api.referrals.myReferralPage, {}, { initialNumItems: 10 })
   const ensureReferralCode = useMutation(api.referrals.ensureReferralCode)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [listOpen, setListOpen] = useState(false)
 
   if (referral === undefined) {
     return (
@@ -59,18 +58,17 @@ export function ReferralPanel() {
   }
 
   return (
-    <>
-      <ReferralPanelView
-        referral={referral}
-        busy={busy}
-        error={error}
-        notice={notice}
-        origin={origin}
-        onCreateCode={() => void createCode()}
-        onCopyLink={() => void copyLink()}
-        onViewAll={() => setListOpen(true)}
-      />
-      <ReferralListDialog open={listOpen} onClose={() => setListOpen(false)} />
-    </>
+    <ReferralPanelView
+      referral={referral}
+      items={page.results}
+      status={page.status}
+      busy={busy}
+      error={error}
+      notice={notice}
+      origin={origin}
+      onCreateCode={() => void createCode()}
+      onCopyLink={() => void copyLink()}
+      onLoadMore={() => page.loadMore(10)}
+    />
   )
 }
