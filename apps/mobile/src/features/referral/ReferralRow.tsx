@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
     borderRadius: 14,
-    padding: 14,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

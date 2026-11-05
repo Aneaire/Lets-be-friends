@@ -141,10 +141,10 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 12, paddingBottom: 32 },
-  header: { gap: 10, paddingTop: 4 },
+  content: { paddingHorizontal: 8, paddingBottom: 32 },
+  header: { gap: 8, paddingTop: 4 },
   topBar: { flexDirection: 'row', alignItems: 'center' },
-  card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
+  card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 },
   metrics: { flexDirection: 'row', gap: 8 },
   metric: { flex: 1, borderWidth: 1, borderRadius: 12, padding: 10, gap: 4 },
   metricValue: { fontSize: 16 },
