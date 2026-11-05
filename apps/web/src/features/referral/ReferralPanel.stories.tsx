@@ -26,6 +26,8 @@ const referral: ReferralPanelData = {
     },
   ],
   rewards: [],
+  totalReferrals: 2,
+  totalRewardedBookings: 5,
   totalEarnedCentavos: 15_300,
   totalReversedCentavos: 0,
   referredBy: null,
@@ -44,6 +46,7 @@ const meta = {
     origin: 'https://letsbefriends.ph',
     onCreateCode: fn(),
     onCopyLink: fn(),
+    onViewAll: fn(),
   },
 } satisfies Meta<typeof ReferralPanelView>
 
@@ -62,12 +65,21 @@ export const WithReferrals: Story = {
 
 export const NoCodeYet: Story = {
   args: {
-    referral: { ...referral, code: null, referrals: [], totalEarnedCentavos: 0 },
+    referral: { ...referral, code: null, referrals: [], totalReferrals: 0, totalRewardedBookings: 0, totalEarnedCentavos: 0 },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: 'Create my referral link' })).toBeVisible()
     await expect(canvas.getByText('Friends joined')).toBeVisible()
+  },
+}
+
+export const ManyReferrals: Story = {
+  args: {
+    referral: { ...referral, totalReferrals: 12, totalRewardedBookings: 9 },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole('button', { name: 'View all referrals' })).toBeVisible()
   },
 }
 

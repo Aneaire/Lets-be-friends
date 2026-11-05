@@ -77,7 +77,8 @@ function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
           <Stack.Screen name="my-posts" />
           <Stack.Screen name="settings" />
           <Stack.Screen name="wallet" />
-          <Stack.Screen name="referrals" />
+          <Stack.Screen name="referrals/index" />
+          <Stack.Screen name="referrals/all" />
           <Stack.Screen name="transactions" />
           <Stack.Screen name="safety" />
           <Stack.Screen name="verified" />

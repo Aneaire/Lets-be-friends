@@ -300,6 +300,96 @@ describe('referral program', () => {
     expect(state.referralTransactions).toHaveLength(0)
   })
 
+  it('returns only the three most recent referrals with totals', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    await t.run(async (ctx) => {
+      const identity = {
+        verificationStatus: 'approved' as const,
+        verificationSource: 'persona' as const,
+        identityVerifiedAt: ids.now,
+        identityExpiresAt: ids.now + 86_400_000,
+        suspended: false,
+        createdAt: ids.now,
+        updatedAt: ids.now,
+      }
+      for (let index = 0; index < 4; index += 1) {
+        const referredUserId = await ctx.db.insert('users', {
+          clerkUserId: `recent-referral-${index}`,
+          displayName: `Recent ${index}`,
+          role: 'member',
+          ...identity,
+        })
+        await ctx.db.insert('referrals', {
+          referrerUserId: ids.referrerId,
+          referredUserId,
+          code: 'REFERRER1',
+          status: 'active',
+          rewardedBookings: 0,
+          createdAt: ids.now + index,
+          updatedAt: ids.now + index,
+        })
+      }
+    })
+
+    const summary = await t.withIdentity({ subject: 'referral-referrer' }).query(api.referrals.myReferral, {})
+
+    expect(summary?.referrals).toHaveLength(3)
+    expect(summary?.referrals.map((referral) => referral.referredDisplayName)).toEqual([
+      'Recent 3',
+      'Recent 2',
+      'Recent 1',
+    ])
+    expect(summary?.totalReferrals).toBe(4)
+    expect(summary?.totalRewardedBookings).toBe(0)
+  })
+
+  it('paginates referrals newest first', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    await t.run(async (ctx) => {
+      const identity = {
+        verificationStatus: 'approved' as const,
+        verificationSource: 'persona' as const,
+        identityVerifiedAt: ids.now,
+        identityExpiresAt: ids.now + 86_400_000,
+        suspended: false,
+        createdAt: ids.now,
+        updatedAt: ids.now,
+      }
+      for (let index = 0; index < 4; index += 1) {
+        const referredUserId = await ctx.db.insert('users', {
+          clerkUserId: `page-referral-${index}`,
+          displayName: `Page ${index}`,
+          role: 'member',
+          ...identity,
+        })
+        await ctx.db.insert('referrals', {
+          referrerUserId: ids.referrerId,
+          referredUserId,
+          code: 'REFERRER1',
+          status: 'active',
+          rewardedBookings: 0,
+          createdAt: ids.now + index,
+          updatedAt: ids.now + index,
+        })
+      }
+    })
+    const referrer = t.withIdentity({ subject: 'referral-referrer' })
+
+    const first = await referrer.query(api.referrals.myReferralPage, {
+      paginationOpts: { numItems: 2, cursor: null },
+    })
+    expect(first.page.map((referral) => referral.referredDisplayName)).toEqual(['Page 3', 'Page 2'])
+    expect(first.isDone).toBe(false)
+
+    const second = await referrer.query(api.referrals.myReferralPage, {
+      paginationOpts: { numItems: 2, cursor: first.continueCursor },
+    })
+    expect(second.page.map((referral) => referral.referredDisplayName)).toEqual(['Page 1', 'Page 0'])
+    expect(second.isDone).toBe(true)
+  })
+
   it('rejects a suspended referrer code', async () => {
     const t = createTest()
     const ids = await seed(t)

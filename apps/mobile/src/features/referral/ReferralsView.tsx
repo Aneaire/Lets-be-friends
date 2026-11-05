@@ -5,6 +5,7 @@ import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { Screen } from '@/design-system/templates/Screen'
 import { useAppTheme } from '@/theme/ThemeProvider'
+import { ReferralRow } from './ReferralRow'
 
 export type MobileReferralData = {
   code: string | null
@@ -23,6 +24,8 @@ export type MobileReferralData = {
     status: string
     createdAt: number
   }>
+  totalReferrals: number
+  totalRewardedBookings: number
   totalEarnedCentavos: number
   totalReversedCentavos: number
   referredBy: {
@@ -41,6 +44,7 @@ export function ReferralsView({
   onCreateCode,
   onShare,
   onReturn,
+  onViewAll,
 }: {
   referral: MobileReferralData
   busy: boolean
@@ -49,9 +53,9 @@ export function ReferralsView({
   onCreateCode: () => void
   onShare: () => void
   onReturn: () => void
+  onViewAll: () => void
 }) {
   const theme = useAppTheme()
-  const rewardedBookings = referral.referrals.reduce((total, item) => total + item.rewardedBookings, 0)
 
   return (
     <Screen contentStyle={styles.content}>
@@ -86,24 +90,21 @@ export function ReferralsView({
       )}
 
       <View style={styles.metrics}>
-        <Metric label="Friends joined" value={String(referral.referrals.length)} />
-        <Metric label="Rewarded bookings" value={String(rewardedBookings)} />
+        <Metric label="Friends joined" value={String(referral.totalReferrals)} />
+        <Metric label="Rewarded bookings" value={String(referral.totalRewardedBookings)} />
         <Metric label="Credit earned" value={formatPhp(referral.totalEarnedCentavos)} />
       </View>
 
       <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-        <AppText variant="heading">Your referrals</AppText>
-        {referral.referrals.length > 0 ? referral.referrals.map((item) => (
-          <View key={item._id} style={[styles.row, { borderTopColor: theme.colors.border }]}>
-            <View style={styles.rowCopy}>
-              <AppText variant="bodyStrong">{item.referredDisplayName}</AppText>
-              <AppText variant="caption" color={theme.colors.textMuted}>
-                {item.rewardedBookings} of {item.totalRewardedBookings} bookings rewarded
-              </AppText>
-            </View>
-            <AppText variant="caption" color={theme.colors.textMuted}>{item.status}</AppText>
-          </View>
-        )) : (
+        <AppText variant="heading">Recent referrals</AppText>
+        {referral.referrals.length > 0 ? (
+          <>
+            {referral.referrals.map((item) => <ReferralRow key={item._id} item={item} />)}
+            {referral.totalReferrals > referral.referrals.length ? (
+              <ActionButton label="View all referrals" onPress={onViewAll} intent="social" secondary />
+            ) : null}
+          </>
+        ) : (
           <AppText variant="caption" color={theme.colors.textMuted}>No friends have joined with your link yet.</AppText>
         )}
       </View>
@@ -138,6 +139,4 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 10 },
   metrics: { gap: 8 },
   metric: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 4 },
-  row: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  rowCopy: { flex: 1, gap: 2 },
 })

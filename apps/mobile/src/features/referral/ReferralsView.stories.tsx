@@ -18,6 +18,8 @@ const referral: MobileReferralData = {
     },
   ],
   rewards: [],
+  totalReferrals: 1,
+  totalRewardedBookings: 2,
   totalEarnedCentavos: 10_200,
   totalReversedCentavos: 0,
   referredBy: null,
@@ -36,6 +38,7 @@ const meta = {
     onCreateCode: fn(),
     onShare: fn(),
     onReturn: fn(),
+    onViewAll: fn(),
   },
 } satisfies Meta<typeof ReferralsView>
 
@@ -53,11 +56,20 @@ export const WithCode: Story = {
 
 export const NoCodeYet: Story = {
   args: {
-    referral: { ...referral, code: null, referrals: [], totalEarnedCentavos: 0 },
+    referral: { ...referral, code: null, referrals: [], totalReferrals: 0, totalRewardedBookings: 0, totalEarnedCentavos: 0 },
     shareUrl: undefined,
   },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByRole('button', { name: 'Create my referral link' })).toBeVisible()
+  },
+}
+
+export const ManyReferrals: Story = {
+  args: {
+    referral: { ...referral, totalReferrals: 12, totalRewardedBookings: 9 },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole('button', { name: 'View all referrals' })).toBeVisible()
   },
 }
 

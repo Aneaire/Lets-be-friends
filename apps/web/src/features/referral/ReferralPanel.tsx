@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { referralShareUrl } from '@lets-be-friends/shared'
 import { api } from '../../../convex/_generated/api'
 import { describeConvexError } from '../../lib/convexErrors'
+import { ReferralListDialog } from './ReferralListDialog'
 import { ReferralPanelView } from './ReferralPanelView'
 
 export function ReferralPanel() {
@@ -11,6 +12,7 @@ export function ReferralPanel() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [listOpen, setListOpen] = useState(false)
 
   if (referral === undefined) {
     return (
@@ -57,14 +59,18 @@ export function ReferralPanel() {
   }
 
   return (
-    <ReferralPanelView
-      referral={referral}
-      busy={busy}
-      error={error}
-      notice={notice}
-      origin={origin}
-      onCreateCode={() => void createCode()}
-      onCopyLink={() => void copyLink()}
-    />
+    <>
+      <ReferralPanelView
+        referral={referral}
+        busy={busy}
+        error={error}
+        notice={notice}
+        origin={origin}
+        onCreateCode={() => void createCode()}
+        onCopyLink={() => void copyLink()}
+        onViewAll={() => setListOpen(true)}
+      />
+      <ReferralListDialog open={listOpen} onClose={() => setListOpen(false)} />
+    </>
   )
 }

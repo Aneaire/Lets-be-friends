@@ -1,14 +1,13 @@
 import { router } from 'expo-router'
 import { useMutation, useQuery } from 'convex/react'
 import { useState } from 'react'
-import { Share, StyleSheet } from 'react-native'
+import { Share } from 'react-native'
 import { referralShareUrl } from '@lets-be-friends/shared'
 
 import { mobileApi } from '@/backend/client'
 import { resolveMobileWebAppConfiguration } from '@/backend/config'
-import { StateView } from '@/design-system/molecules/StateView'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
-import { Screen } from '@/design-system/templates/Screen'
+import { ReferralState } from '@/features/referral/ReferralState'
 import { ReferralsView } from '@/features/referral/ReferralsView'
 import { useMobileMember } from '@/member/MobileMember'
 
@@ -81,18 +80,9 @@ function ReadyReferrals() {
       onCreateCode={() => void createCode()}
       onShare={() => void shareLink()}
       onReturn={() => router.replace('/profile')}
+      onViewAll={() => router.push('/referrals/all')}
     />
   )
 }
 
-function ReferralState({ title, detail, action, onPress }: { title: string; detail?: string; action?: string; onPress?: () => void }) {
-  return (
-    <Screen scroll={false} contentStyle={styles.state}>
-      <StateView eyebrow="INVITE FRIENDS" title={title} detail={detail} actionLabel={action} onAction={onPress} intent="social" />
-    </Screen>
-  )
-}
 
-const styles = StyleSheet.create({
-  state: { paddingHorizontal: 16 },
-})

@@ -3,6 +3,7 @@ import {
   referralShareUrl,
 } from '@lets-be-friends/shared'
 import { Button } from '../../design-system/atoms/Button'
+import { ReferralRow } from './ReferralRow'
 
 export type ReferralPanelData = {
   code: string | null
@@ -21,6 +22,8 @@ export type ReferralPanelData = {
     status: string
     createdAt: number
   }>
+  totalReferrals: number
+  totalRewardedBookings: number
   totalEarnedCentavos: number
   totalReversedCentavos: number
   referredBy: {
@@ -39,6 +42,7 @@ export function ReferralPanelView({
   origin,
   onCreateCode,
   onCopyLink,
+  onViewAll,
 }: {
   referral: ReferralPanelData
   busy: boolean
@@ -47,9 +51,9 @@ export function ReferralPanelView({
   origin: string
   onCreateCode: () => void
   onCopyLink: () => void
+  onViewAll: () => void
 }) {
   const shareUrl = referral.code ? referralShareUrl(origin, referral.code) : ''
-  const rewardedBookings = referral.referrals.reduce((total, item) => total + item.rewardedBookings, 0)
 
   return (
     <section id="referrals" className="mb-10" aria-labelledby="referrals-title">
@@ -92,11 +96,11 @@ export function ReferralPanelView({
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="wallet-metric">
             <p className="text-meta">Friends joined</p>
-            <p className="text-h2 tabular mt-1">{referral.referrals.length}</p>
+            <p className="text-h2 tabular mt-1">{referral.totalReferrals}</p>
           </div>
           <div className="wallet-metric">
             <p className="text-meta">Rewarded bookings</p>
-            <p className="text-h2 tabular mt-1">{rewardedBookings}</p>
+            <p className="text-h2 tabular mt-1">{referral.totalRewardedBookings}</p>
           </div>
           <div className="wallet-metric wallet-metric-available">
             <p className="text-meta">Referral credit earned</p>
@@ -105,21 +109,18 @@ export function ReferralPanelView({
         </div>
 
         <div className="space-y-2">
-          <p className="text-h3">Your referrals</p>
+          <p className="text-h3">Recent referrals</p>
           {referral.referrals.length > 0 ? (
-            <ul className="space-y-2">
-              {referral.referrals.map((item) => (
-                <li key={item._id} className="flex items-center justify-between gap-3 border-t border-[color:var(--rule)] pt-2 first:border-t-0 first:pt-0">
-                  <div>
-                    <p className="text-body">{item.referredDisplayName}</p>
-                    <p className="text-meta">{item.rewardedBookings} of {item.totalRewardedBookings} bookings rewarded</p>
-                  </div>
-                  <span className="status-pill" data-tone={item.status === 'completed' ? 'success' : 'social'}>
-                    {item.status === 'completed' ? 'complete' : item.status}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="space-y-2">
+                {referral.referrals.map((item) => <ReferralRow key={item._id} item={item} />)}
+              </ul>
+              {referral.totalReferrals > referral.referrals.length && (
+                <Button type="button" intent="ghost" size="small" onClick={onViewAll}>
+                  View all referrals
+                </Button>
+              )}
+            </>
           ) : (
             <p className="text-meta">No friends have joined with your link yet.</p>
           )}

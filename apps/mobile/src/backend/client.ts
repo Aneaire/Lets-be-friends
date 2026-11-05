@@ -53,6 +53,7 @@ export const mobileApi = {
   },
   referrals: {
     myReferral: generatedApi.referrals.myReferral,
+    myReferralPage: generatedApi.referrals.myReferralPage,
     ensureReferralCode: generatedApi.referrals.ensureReferralCode,
     attributeReferral: generatedApi.referrals.attributeReferral,
     dismissReferralPrompt: generatedApi.referrals.dismissReferralPrompt,
