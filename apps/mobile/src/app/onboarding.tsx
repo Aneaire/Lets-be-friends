@@ -146,8 +146,10 @@ function ConnectedOnboarding({
   const [referralAction, setReferralAction] = useState<'add' | 'dismiss' | null>(null)
   const [referralError, setReferralError] = useState('')
   const [referralNotice, setReferralNotice] = useState('')
+  const [pendingReferralFocus, setPendingReferralFocus] = useState<'added' | 'dismissed' | null>(null)
   const usernameRef = useRef<TextInput>(null)
   const usernameHeadingRef = useRef<View>(null)
+  const referralToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useAppToastMessage(message)
   const [step, setStep] = useState(() => initialOnboardingStep(viewer))
   const totalSteps = onboardingTotalSteps(goal)
@@ -174,6 +176,7 @@ function ConnectedOnboarding({
   const referral = useQuery(mobileApi.referrals.myReferral, {})
   const attributeReferral = useMutation(mobileApi.referrals.attributeReferral)
   const dismissReferralPrompt = useMutation(mobileApi.referrals.dismissReferralPrompt)
+  const showReferralPrompt = Boolean(referral && !referral.referredBy && !referral.promptDismissedAt)
   const [applicationForm, setApplicationForm] = useState<CompanionApplicationForm>(() => (
     defaultOnboardingCompanionForm({ bio: viewer.bio, categories: viewer.onboardingCategories })
   ))
@@ -223,19 +226,39 @@ function ConnectedOnboarding({
     setStep((current) => clampOnboardingStep(current, goal))
   }, [goal])
 
-  function focusUsernameField(action: 'added' | 'dismissed') {
-    setTimeout(() => {
-      if (!viewer.username) {
-        usernameRef.current?.focus()
-      } else {
-        const handle = findNodeHandle(usernameHeadingRef.current)
-        if (handle) AccessibilityInfo.setAccessibilityFocus(handle)
+  useEffect(() => {
+    if (step !== 0) {
+      setPendingReferralFocus(null)
+      if (referralToastTimer.current) {
+        clearTimeout(referralToastTimer.current)
+        referralToastTimer.current = null
       }
-      if (action === 'dismissed') {
-        AccessibilityInfo.announceForAccessibility('Referral prompt dismissed. Continue with your welcome guide.')
-      }
-    }, 150)
-  }
+    }
+  }, [step])
+
+  useEffect(() => {
+    if (showReferralPrompt || !pendingReferralFocus) return
+    const action = pendingReferralFocus
+    setPendingReferralFocus(null)
+    if (!viewer.username) {
+      usernameRef.current?.focus()
+    } else {
+      const handle = findNodeHandle(usernameHeadingRef.current)
+      if (handle) AccessibilityInfo.setAccessibilityFocus(handle)
+    }
+    if (action === 'dismissed') {
+      AccessibilityInfo.announceForAccessibility('Referral prompt dismissed. Continue with your welcome guide.')
+    } else {
+      referralToastTimer.current = setTimeout(() => {
+        showAppToast('Referral code added. It will apply to your first completed bookings.', 'success')
+        referralToastTimer.current = null
+      }, 300)
+    }
+  }, [pendingReferralFocus, showReferralPrompt, viewer.username])
+
+  useEffect(() => () => {
+    if (referralToastTimer.current) clearTimeout(referralToastTimer.current)
+  }, [])
 
   async function submitReferralCode(code: string) {
     if (referralAction) return
@@ -245,8 +268,7 @@ function ConnectedOnboarding({
     try {
       await attributeReferral({ code })
       setReferralNotice('Referral code added. It will apply to your first completed bookings.')
-      showAppToast('Referral code added. It will apply to your first completed bookings.', 'success')
-      focusUsernameField('added')
+      setPendingReferralFocus('added')
     } catch {
       setReferralError('We could not add this code. Check it and try again.')
     } finally {
@@ -260,7 +282,7 @@ function ConnectedOnboarding({
     setReferralError('')
     try {
       await dismissReferralPrompt({})
-      focusUsernameField('dismissed')
+      setPendingReferralFocus('dismissed')
     } catch {
       setReferralError('We could not dismiss this prompt. Try again, or add a code.')
     } finally {

@@ -16,6 +16,7 @@ export function ActionButton({
   icon,
   compact = false,
   loading = false,
+  loadingLabel,
 }: {
   label: string
   onPress: () => void
@@ -27,6 +28,7 @@ export function ActionButton({
   icon?: AppIconName
   compact?: boolean
   loading?: boolean
+  loadingLabel?: string
 }) {
   const theme = useAppTheme()
   const control = intent === 'neutral'
@@ -64,7 +66,7 @@ export function ActionButton({
       ]}>
       <View style={styles.content}>
         {loading ? <AppIcon name="hourglass-outline" size={18} color={secondary ? outline : foreground} /> : icon ? <AppIcon name={icon} size={20} color={secondary ? outline : foreground} /> : null}
-        <AppText variant="bodyStrong" color={secondary ? outline : foreground}>{loading ? `${label}…` : label}</AppText>
+        <AppText variant="bodyStrong" color={secondary ? outline : foreground}>{loading ? `${loadingLabel ?? label}…` : label}</AppText>
       </View>
     </Pressable>
   )

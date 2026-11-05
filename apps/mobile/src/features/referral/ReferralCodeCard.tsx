@@ -88,6 +88,7 @@ export function ReferralCodeCard({
         onPress={submit}
         intent="social"
         loading={busy}
+        loadingLabel="Adding code..."
         disabled={!code.trim() || dismissing}
       />
       <ActionButton
@@ -96,6 +97,7 @@ export function ReferralCodeCard({
         intent="neutral"
         secondary
         loading={dismissing}
+        loadingLabel="Dismissing..."
         disabled={busy}
       />
     </View>
