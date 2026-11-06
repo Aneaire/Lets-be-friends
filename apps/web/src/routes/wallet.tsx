@@ -7,7 +7,7 @@ import { formatPhp } from '@lets-be-friends/shared'
 import { api } from '../../convex/_generated/api'
 import { MemberWalletPanel } from '../features/wallet/MemberWalletPanel'
 import { CompanionWithdrawalPanel } from '../features/wallet/CompanionWithdrawalPanel'
-import { ReferralPanel } from '../features/referral/ReferralPanel'
+import { ReferralWalletCard } from '../features/referral/ReferralWalletCard'
 
 export const Route = createFileRoute('/wallet')({ component: WalletPage })
 
@@ -49,7 +49,7 @@ function WalletPage() {
         }}
       />
 
-      <ReferralPanel />
+      <ReferralWalletCard />
 
       <CompanionWithdrawalPanel />
     </main>

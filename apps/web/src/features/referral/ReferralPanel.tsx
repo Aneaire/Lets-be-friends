@@ -5,7 +5,7 @@ import { api } from '../../../convex/_generated/api'
 import { describeConvexError } from '../../lib/convexErrors'
 import { ReferralPanelView } from './ReferralPanelView'
 
-export function ReferralPanel() {
+export function ReferralPanel({ showHeader = true }: { showHeader?: boolean } = {}) {
   const referral = useQuery(api.referrals.myReferral)
   const page = usePaginatedQuery(api.referrals.myReferralPage, {}, { initialNumItems: 10 })
   const ensureReferralCode = useMutation(api.referrals.ensureReferralCode)
@@ -15,13 +15,20 @@ export function ReferralPanel() {
 
   if (referral === undefined) {
     return (
-      <section id="referrals" className="mb-10" aria-labelledby="referrals-title">
-        <header className="flex items-baseline justify-between gap-3 mb-3">
-          <div>
-            <h2 id="referrals-title" className="text-h2">Invite friends</h2>
-            <p className="text-meta mt-1">Earn 68% of our service fee on each friend's first 3 completed bookings.</p>
-          </div>
-        </header>
+      <section
+        id="referrals"
+        className={showHeader ? 'mb-10' : undefined}
+        aria-labelledby={showHeader ? 'referrals-title' : undefined}
+        aria-label={showHeader ? undefined : 'Referral details'}
+      >
+        {showHeader ? (
+          <header className="flex items-baseline justify-between gap-3 mb-3">
+            <div>
+              <h2 id="referrals-title" className="text-h2">Invite friends</h2>
+              <p className="text-meta mt-1">Earn 68% of our service fee on each friend's first 3 completed bookings.</p>
+            </div>
+          </header>
+        ) : null}
         <div className="empty-state">Loading your referral link...</div>
       </section>
     )
@@ -66,6 +73,7 @@ export function ReferralPanel() {
       error={error}
       notice={notice}
       origin={origin}
+      showHeader={showHeader}
       onCreateCode={() => void createCode()}
       onCopyLink={() => void copyLink()}
       onLoadMore={() => page.loadMore(10)}

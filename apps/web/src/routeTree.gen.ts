@@ -24,6 +24,7 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ReferralsRouteImport } from './routes/referrals'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -111,6 +112,11 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReferralsRoute = ReferralsRouteImport.update({
+  id: '/referrals',
+  path: '/referrals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReviewRoute = ReviewRouteImport.update({
   id: '/review',
   path: '/review',
@@ -183,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
+  '/referrals': typeof ReferralsRoute
   '/review': typeof ReviewRoute
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
@@ -210,6 +217,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
+  '/referrals': typeof ReferralsRoute
   '/review': typeof ReviewRoute
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
@@ -239,6 +247,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
+  '/referrals': typeof ReferralsRoute
   '/review': typeof ReviewRoute
   '/safety': typeof SafetyRoute
   '/settings': typeof SettingsRoute
@@ -269,6 +278,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy-policy'
     | '/profile'
+    | '/referrals'
     | '/review'
     | '/safety'
     | '/settings'
@@ -296,6 +306,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy-policy'
     | '/profile'
+    | '/referrals'
     | '/review'
     | '/safety'
     | '/settings'
@@ -324,6 +335,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy-policy'
     | '/profile'
+    | '/referrals'
     | '/review'
     | '/safety'
     | '/settings'
@@ -353,6 +365,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   ProfileRoute: typeof ProfileRoute
+  ReferralsRoute: typeof ReferralsRoute
   ReviewRoute: typeof ReviewRoute
   SafetyRoute: typeof SafetyRoute
   SettingsRoute: typeof SettingsRoute
@@ -471,6 +484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/referrals': {
+      id: '/referrals'
+      path: '/referrals'
+      fullPath: '/referrals'
+      preLoaderRoute: typeof ReferralsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/review': {
       id: '/review'
       path: '/review'
@@ -580,6 +600,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   ProfileRoute: ProfileRoute,
+  ReferralsRoute: ReferralsRoute,
   ReviewRoute: ReviewRoute,
   SafetyRoute: SafetyRoute,
   SettingsRoute: SettingsRoute,

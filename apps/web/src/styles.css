@@ -1886,6 +1886,14 @@
   margin-bottom: 1.75rem;
 }
 
+.referrals-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  padding-inline: 0.5rem;
+}
+
 .settings-page-header .text-body {
   max-width: 46rem;
 }
@@ -2137,6 +2145,22 @@
   .settings-page-header {
     margin-bottom: 1rem;
     padding-inline: 0.25rem;
+  }
+
+  .referrals-page {
+    padding-inline: 0.5rem;
+  }
+
+  .referrals-page .settings-page-header {
+    padding-inline: 0;
+  }
+
+  .referrals-page .panel {
+    padding: 0.875rem;
+  }
+
+  .referrals-page .referrals-back-link {
+    margin-bottom: 0.75rem;
   }
 
   .settings-section-heading,

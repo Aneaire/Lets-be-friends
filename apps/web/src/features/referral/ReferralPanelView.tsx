@@ -37,6 +37,7 @@ export function ReferralPanelView({
   error,
   notice,
   origin,
+  showHeader = true,
   onCreateCode,
   onCopyLink,
   onLoadMore,
@@ -48,6 +49,7 @@ export function ReferralPanelView({
   error: string
   notice: string
   origin: string
+  showHeader?: boolean
   onCreateCode: () => void
   onCopyLink: () => void
   onLoadMore: () => void
@@ -55,19 +57,26 @@ export function ReferralPanelView({
   const shareUrl = referral.code ? referralShareUrl(origin, referral.code) : ''
 
   return (
-    <section id="referrals" className="mb-10" aria-labelledby="referrals-title">
-      <header className="flex items-baseline justify-between gap-3 mb-3">
-        <div>
-          <h2 id="referrals-title" className="text-h2">Invite friends</h2>
-          <p className="text-meta mt-1">Earn booking credit equal to 68% of our 15% service fee on each friend's first 3 completed bookings. Friends pay the normal price.</p>
-          <p className="text-meta mt-1">Example: a ₱700 booking has a ₱105 service fee, and you earn ₱71.40 in credit.</p>
-        </div>
-      </header>
+    <section
+      id="referrals"
+      className={showHeader ? 'mb-10' : undefined}
+      aria-labelledby={showHeader ? 'referrals-title' : undefined}
+      aria-label={showHeader ? undefined : 'Referral details'}
+    >
+      {showHeader ? (
+        <header className="flex items-baseline justify-between gap-3 mb-3">
+          <div>
+            <h2 id="referrals-title" className="text-h2">Invite friends</h2>
+            <p className="text-meta mt-1">Earn booking credit equal to 68% of our 15% service fee on each friend's first 3 completed bookings. Friends pay the normal price.</p>
+            <p className="text-meta mt-1">Example: a ₱700 booking has a ₱105 service fee, and you earn ₱71.40 in credit.</p>
+          </div>
+        </header>
+      ) : null}
 
       {error && <div className="notice notice-danger mb-3" role="alert"><span className="notice-icon">!</span><span>{error}</span></div>}
       {notice && <div className="notice mb-3" role="status"><span className="notice-icon">i</span><span>{notice}</span></div>}
 
-      <div className="panel p-5 space-y-5">
+      <div className="panel p-4 space-y-4 sm:p-5 sm:space-y-5">
         {!referral.code ? (
           <div className="space-y-3">
             <div>
