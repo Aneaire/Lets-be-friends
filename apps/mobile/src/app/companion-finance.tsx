@@ -77,7 +77,7 @@ function ReadyCompanionFinance() {
         dueDateLabel={dashboard ? formatDate(dashboard.dueAt) : ''}
         pastDue={formatMoney(dashboard?.pastDueCentavos ?? 0)}
         hasPastDue={(dashboard?.pastDueCentavos ?? 0) > 0}
-        payoutNotice={dashboard?.payoutNotice ?? (payouts.enabled ? memberWallet.enabled ? 'Withdraw available wallet funds to your verified payout account. The platform covers the transfer fee.' : 'Member-wallet bookings are not enabled right now.' : 'Withdrawals are currently disabled by the platform.')}
+        payoutNotice={dashboard?.payoutNotice ?? (payouts.enabled ? memberWallet.enabled ? 'Withdraw available wallet funds to your verified payout account. A transfer fee applies to each withdrawal.' : 'Member-wallet bookings are not enabled right now.' : 'Withdrawals are currently disabled by the platform.')}
         withdrawalsEnabled={payouts.enabled && (dashboard !== null || memberWallet.enabled)}
         payoutMethod={payoutMethodItem(payouts)}
         activeWithdrawal={payouts.activeWithdrawalId !== null}
@@ -88,7 +88,7 @@ function ReadyCompanionFinance() {
         withdrawals={payouts.withdrawals.map(companionWithdrawalItem)}
         onWithdrawalAmountChange={(value) => { setWithdrawalAmount(value); setMessage('') }}
         onReviewWithdrawal={() => {
-          const parsed = parseWithdrawalAmount(withdrawalAmount, payouts.availableEarningsCentavos)
+          const parsed = parseWithdrawalAmount(withdrawalAmount, payouts.availableEarningsCentavos, payouts.withdrawalFeeCentavos)
           if (!parsed.ok) {
             setMessage(`Error: ${parsed.message}`)
             return
@@ -166,7 +166,9 @@ function ReadyCompanionFinance() {
         onConfirm={confirmWithdrawal}>
         <View style={styles.confirmationCopy}>
           <AppText>You receive: <AppText variant="bodyStrong">{pendingWithdrawal === null ? '' : formatMoney(pendingWithdrawal)}</AppText></AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>The platform pays the transfer fee. InstaPay usually arrives within minutes, but final status can take up to 20 minutes. Submitted transfers cannot be cancelled.</AppText>
+          <AppText>Transfer fee: <AppText variant="bodyStrong">{formatMoney(payouts.withdrawalFeeCentavos)}</AppText></AppText>
+          <AppText>Total from balance: <AppText variant="bodyStrong">{pendingWithdrawal === null ? '' : formatMoney(pendingWithdrawal + payouts.withdrawalFeeCentavos)}</AppText></AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>The fee is charged on top, so the destination account receives the full amount. InstaPay usually arrives within minutes, but final status can take up to 20 minutes. Submitted transfers cannot be cancelled.</AppText>
         </View>
       </ConfirmationDialog>
     </View>
@@ -257,6 +259,9 @@ function companionWithdrawalItem(withdrawal: PayoutDashboard['withdrawals'][numb
     statusLabel: status.label,
     statusTone: status.tone,
     detail: reason ?? status.detail,
+    feeLabel: withdrawal.feeCentavos > 0
+      ? `Transfer fee ${formatMoney(withdrawal.feeCentavos)} · Total charged ${formatMoney(withdrawal.totalDebitCentavos)}`
+      : undefined,
     danger: status.danger,
   }
 }

@@ -82,7 +82,7 @@ Card payments on small amounts are heavily penalized by the fixed PHP 15.00. QR 
 | Wallet to another PayMongo wallet | Internal, no external rail |
 | Instant Settlement activation | 2.23% bundled with QR Ph |
 
-The PHP 10 matters for us. A member withdrawal sends money out of the wallet to a member bank account, so PayMongo charges PHP 10 per withdrawal, and the app absorbs it (`PAYMONGO_TRANSFER_FEE_CENTAVOS = 1_000`).
+The PHP 10 matters for us. A member withdrawal sends money out of the wallet to a member bank account, so PayMongo charges PHP 10 per withdrawal. Since 2026-11-02 the member pays that fee on top of the amount instead of the platform absorbing it, because BSP Circular 1238 requires the recipient to receive the full transfer amount. See `docs/paymongo-fees.md` and `docs/companion-withdrawals.md`.
 
 ## Timing
 
@@ -95,26 +95,28 @@ The PHP 10 matters for us. A member withdrawal sends money out of the wallet to 
 
 ## What this means for our economics
 
-On a PHP 50 QR Ph top-up followed by a PHP 50 withdrawal:
+Before 2026-11-02 the platform absorbed the transfer fee. On a PHP 50 QR Ph top-up followed by a PHP 50 withdrawal:
 
-| Step | Platform position |
-| --- | --- |
-| Member pays PHP 50 | PHP 0 |
-| PayMongo settles net | +PHP 49.25 |
-| App credits the member | PHP 49.25 liability |
-| Member withdraws PHP 50 | -PHP 50.00 |
-| InstaPay fee absorbed by the app | -PHP 10.00 |
-| Net result | -PHP 10.75 |
+| Step | Platform position (absorbed) | Platform position (passed through) |
+| --- | --- | --- |
+| Member pays PHP 50 | PHP 0 | PHP 0 |
+| PayMongo settles net | +PHP 49.25 | +PHP 49.25 |
+| App credits the member | PHP 49.25 liability | PHP 49.25 liability |
+| Member withdraws PHP 50 | -PHP 50.00 | -PHP 50.00 |
+| Transfer fee | -PHP 10.00 platform | -PHP 10.00 member |
+| Net result | -PHP 10.75 | -PHP 0.75 |
 
-Every top-up then withdraw cycle loses the platform PHP 10.75. The member does not gain anything, but the platform funds the round trip. This is an open drain if cycles can be repeated.
+Passing the fee through removes PHP 10.00 of the leak. The remaining PHP 0.75 is the QR Ph processing fee, which the platform keeps absorbing because BSP treats the QR Ph merchant fee as the merchant's cost.
 
-There is also a liquidity gap. The app credits the member at payment confirmation, while the cash only arrives at settlement. If the payout destination is a bank instead of the wallet, the cash never reaches the wallet at all, and every withdrawal needs a manual top-up.
+The residual is also why the minimum withdrawal is now PHP 100. At PHP 10 a PHP 10 fee is a 100% overhead for the member.
+
+There is still a liquidity gap. The app credits the member at payment confirmation, while the cash only arrives at settlement. If the payout destination is a bank instead of the wallet, the cash never reaches the wallet at all, and every withdrawal needs a manual top-up.
 
 ## Recommendations
 
 1. Keep the payout destination set to the PayMongo Wallet so settlement funds withdrawals automatically.
 2. Keep a float, or request daily settlement, so withdrawals do not wait for the weekly release.
-3. Charge the PHP 10 withdrawal fee to the member, or set a minimum withdrawal where the fee is negligible. Absorbing it on small withdrawals is the leak.
+3. Charge the PHP 10 withdrawal fee to the member, or set a minimum withdrawal where the fee is negligible. Absorbing it on small withdrawals is the leak. **Done on 2026-11-02: the fee is charged on top and the minimum is PHP 100.**
 4. Consider a top-up fee or a settlement hold so the platform does not credit cash it has not received.
 5. Confirm the actual rate and deductions in Dashboard -> Payouts -> Payout Details -> Export CSV. Rates can be custom, and the export shows the exact fee, VAT, and withholding tax lines.
 

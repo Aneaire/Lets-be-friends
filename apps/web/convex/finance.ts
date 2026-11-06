@@ -91,7 +91,7 @@ export const dashboard = query({
       inTransferEarningsCentavos: earningsAccount.reservedCentavos,
       payoutsAvailable: process.env.COMPANION_WITHDRAWALS_ENABLED?.trim().toLowerCase() === 'true',
       payoutNotice: process.env.COMPANION_WITHDRAWALS_ENABLED?.trim().toLowerCase() === 'true'
-        ? 'Withdraw available wallet funds to your verified payout account. The platform covers the transfer fee.'
+        ? 'Withdraw available wallet funds to your verified payout account. A transfer fee applies to each withdrawal.'
         : 'Withdrawals are temporarily unavailable. Your wallet balance remains recorded.',
       obligations: obligationRows.filter((row) => row.remainingCentavos > 0).sort((a, b) => a.dueAt - b.dueAt).slice(0, 20),
       ledger: ledger.slice(0, 20),

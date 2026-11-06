@@ -1,6 +1,10 @@
-import { validateCompanionWithdrawalCentavos } from '@lets-be-friends/shared'
+import { COMPANION_WITHDRAWAL_FEE_CENTAVOS, validateCompanionWithdrawalCentavos } from '@lets-be-friends/shared'
 
-export function parseWithdrawalAmount(value: string, availableCentavos: number) {
+export function parseWithdrawalAmount(
+  value: string,
+  availableCentavos: number,
+  feeCentavos = COMPANION_WITHDRAWAL_FEE_CENTAVOS,
+) {
   const pesos = Number(value.replace(/,/g, '').trim())
   const amountCentavos = Math.round(pesos * 100)
   if (!Number.isFinite(pesos) || pesos <= 0 || !Number.isSafeInteger(amountCentavos)) {
@@ -11,10 +15,10 @@ export function parseWithdrawalAmount(value: string, availableCentavos: number) 
   } catch (error) {
     return { ok: false as const, message: error instanceof Error ? error.message : 'Withdrawal amount is invalid.' }
   }
-  if (amountCentavos > availableCentavos) {
-    return { ok: false as const, message: 'Available wallet balance is lower than this withdrawal amount.' }
+  if (amountCentavos + feeCentavos > availableCentavos) {
+    return { ok: false as const, message: 'Available wallet balance does not cover this amount plus the transfer fee.' }
   }
-  return { ok: true as const, amountCentavos }
+  return { ok: true as const, amountCentavos, feeCentavos, totalDebitCentavos: amountCentavos + feeCentavos }
 }
 
 export function withdrawalStatusPresentation(status: 'queued' | 'submitting' | 'pending' | 'succeeded' | 'failed' | 'needs_review') {

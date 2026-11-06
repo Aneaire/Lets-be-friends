@@ -1,8 +1,10 @@
 import { Link } from '@tanstack/react-router'
-import { useAction, useMutation, useQuery } from 'convex/react'
+import { useAction, useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { useState } from 'react'
 import { formatPhp, withdrawalFailureReason } from '@lets-be-friends/shared'
 import { api } from '../../../convex/_generated/api'
+import { Button } from '../../design-system/atoms/Button'
+import { Dialog } from '../../design-system/molecules/Dialog'
 import { FormField } from '../../design-system/molecules/FormField'
 
 type PayoutDashboard = NonNullable<ReturnType<typeof useQuery<typeof api.withdrawals.dashboard>>>
@@ -32,6 +34,7 @@ function unwrapConvexError(message: string) {
 
 export function CompanionWithdrawalPanel() {
   const payouts = useQuery(api.withdrawals.dashboard, {})
+  const historyPage = usePaginatedQuery(api.withdrawals.history, {}, { initialNumItems: 10 })
   const listReceivingInstitutions = useAction(api.withdrawals.listReceivingInstitutions)
   const savePayoutMethod = useAction(api.withdrawals.savePayoutMethod)
   const requestWithdrawal = useMutation(api.withdrawals.request)
@@ -41,6 +44,7 @@ export function CompanionWithdrawalPanel() {
   const [setupOpen, setSetupOpen] = useState(false)
   const [setup, setSetup] = useState<{ accountName: string; institutions: Array<{ bic: string; name: string }> } | null>(null)
   const [withdrawalDraft, setWithdrawalDraft] = useState<number | null>(null)
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState<PayoutDashboard['withdrawals'][number] | null>(null)
 
   async function openPayoutSetup() {
     setPayoutBusy(true)
@@ -191,8 +195,9 @@ export function CompanionWithdrawalPanel() {
               event.preventDefault()
               const form = new FormData(event.currentTarget)
               const amountCentavos = Math.round(Number(form.get('withdrawalPesos')) * 100)
-              if (!Number.isSafeInteger(amountCentavos) || amountCentavos < payouts.minimumCentavos || amountCentavos > Math.min(payouts.maximumCentavos, payouts.availableEarningsCentavos)) {
-                setPayoutError(`Enter an amount from ${formatPhp(payouts.minimumCentavos)} to ${formatPhp(Math.min(payouts.maximumCentavos, payouts.availableEarningsCentavos))}.`)
+              const maximumWithdrawable = payouts.maximumWithdrawableCentavos
+              if (!Number.isSafeInteger(amountCentavos) || amountCentavos < payouts.minimumCentavos || amountCentavos > maximumWithdrawable) {
+                setPayoutError(`Enter an amount from ${formatPhp(payouts.minimumCentavos)} to ${formatPhp(maximumWithdrawable)}.`)
                 return
               }
               setPayoutError('')
@@ -201,19 +206,21 @@ export function CompanionWithdrawalPanel() {
             }}
           >
             <FormField label="Withdrawal amount" aux="PHP" className="flex-1 min-w-56">
-              <input name="withdrawalPesos" type="number" min={payouts.minimumCentavos / 100} max={Math.min(payouts.maximumCentavos, payouts.availableEarningsCentavos) / 100} step="0.01" defaultValue={Math.min(1_000, payouts.availableEarningsCentavos / 100)} required className="field" />
+              <input name="withdrawalPesos" type="number" min={payouts.minimumCentavos / 100} max={payouts.maximumWithdrawableCentavos / 100} step="0.01" defaultValue={Math.min(1_000, payouts.maximumWithdrawableCentavos / 100)} required className="field" />
             </FormField>
-            <button className="btn btn-self" disabled={payouts.availableEarningsCentavos < payouts.minimumCentavos}>Review withdrawal</button>
+            <button className="btn btn-self" disabled={payouts.maximumWithdrawableCentavos < payouts.minimumCentavos}>Review withdrawal</button>
           </form>
         )}
 
         {payouts?.enabled && payouts.identityEligible && payouts.payoutMethod && withdrawalDraft !== null && (
           <div className="rounded-lg border border-[color:var(--accent-self)] p-4 space-y-3" role="group" aria-label="Confirm withdrawal">
             <div><p className="text-body"><strong>Confirm {formatPhp(withdrawalDraft)} withdrawal</strong></p><p className="text-meta mt-1">To {payouts.payoutMethod.institutionName} · •••• {payouts.payoutMethod.accountNumberLast4}</p></div>
-            <div className="grid gap-2 sm:grid-cols-2 text-meta">
+            <div className="grid gap-2 sm:grid-cols-3 text-meta">
               <p>You receive: <strong className="tabular text-[color:var(--text)]">{formatPhp(withdrawalDraft)}</strong></p>
-              <p>Transfer fee: <strong className="text-[color:var(--text)]">Paid by platform</strong></p>
+              <p>Transfer fee: <strong className="tabular text-[color:var(--text)]">{formatPhp(payouts.withdrawalFeeCentavos)}</strong></p>
+              <p>Total from balance: <strong className="tabular text-[color:var(--text)]">{formatPhp(withdrawalDraft + payouts.withdrawalFeeCentavos)}</strong></p>
             </div>
+            <p className="text-meta">The transfer fee covers the InstaPay cost and is charged on top, so the destination account receives the full {formatPhp(withdrawalDraft)}.</p>
             <p className="text-meta">InstaPay usually arrives within minutes. Allow up to 20 minutes for final status. Submitted transfers cannot be cancelled.</p>
             <div className="flex gap-2 flex-wrap">
               <button
@@ -241,25 +248,78 @@ export function CompanionWithdrawalPanel() {
 
         {payouts?.activeWithdrawalId && <p className="text-meta">One withdrawal is already in progress. A new withdrawal becomes available after it reaches a final status.</p>}
 
-        {payouts && payouts.withdrawals.length > 0 && (
+        {payouts && (
           <div>
             <p className="text-body"><strong>Withdrawal history</strong></p>
-            <div className="mt-2 divide-y divide-[color:var(--rule)]">
-              {payouts.withdrawals.slice(0, 8).map((withdrawal) => (
-                <div key={withdrawal.id} className="py-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div><p className="text-body tabular">{formatPhp(withdrawal.amountCentavos)}</p><p className="text-meta mt-1">{withdrawal.institutionName} · •••• {withdrawal.accountNumberLast4} · {formatManilaDate(withdrawal.createdAt)}</p></div>
-                    <span className="status-pill" data-tone={withdrawalTone(withdrawal.status)}>{withdrawalStatusLabel(withdrawal.status)}</span>
-                  </div>
-                  {(withdrawal.status === 'failed' || withdrawal.status === 'needs_review') && (
-                    <p className="text-meta mt-2 text-[color:var(--danger)]">{withdrawalFailureReason(withdrawal.failureCode, withdrawal.status)}</p>
-                  )}
+            {historyPage.status === 'LoadingFirstPage' ? (
+              <p className="text-meta mt-2">Loading withdrawal history…</p>
+            ) : historyPage.results.length === 0 ? (
+              <p className="text-meta mt-2">No withdrawals yet.</p>
+            ) : (
+              <>
+                <div className="mt-2 divide-y divide-[color:var(--rule)]">
+                  {historyPage.results.map((withdrawal) => (
+                    <button
+                      key={withdrawal.id}
+                      type="button"
+                      className="w-full border-0 bg-transparent px-0 py-3 text-left"
+                      aria-label={`View withdrawal of ${formatPhp(withdrawal.amountCentavos)}`}
+                      onClick={() => setSelectedWithdrawal(withdrawal)}
+                    >
+                      <span className="flex items-start justify-between gap-4">
+                        <span className="block">
+                          <span className="text-body tabular block">{formatPhp(withdrawal.amountCentavos)}</span>
+                          <span className="text-meta mt-1 block">{withdrawal.institutionName} · •••• {withdrawal.accountNumberLast4} · {formatManilaDate(withdrawal.createdAt)}</span>
+                          {withdrawal.feeCentavos > 0 && <span className="text-meta mt-1 block">Transfer fee {formatPhp(withdrawal.feeCentavos)} · Total charged {formatPhp(withdrawal.totalDebitCentavos)}</span>}
+                        </span>
+                        <span className="status-pill" data-tone={withdrawalTone(withdrawal.status)}>{withdrawalStatusLabel(withdrawal.status)}</span>
+                      </span>
+                      {(withdrawal.status === 'failed' || withdrawal.status === 'needs_review') && (
+                        <span className="text-meta mt-2 block text-[color:var(--danger)]">{withdrawalFailureReason(withdrawal.failureCode, withdrawal.status)}</span>
+                      )}
+                    </button>
+                  ))}
                 </div>
-              ))}
-            </div>
+                {historyPage.status === 'CanLoadMore' && (
+                  <Button intent="ghost" size="small" className="mt-2" onClick={() => historyPage.loadMore(10)}>
+                    Load more withdrawals
+                  </Button>
+                )}
+                {historyPage.status === 'LoadingMore' && <p className="text-meta mt-2">Loading more withdrawals…</p>}
+              </>
+            )}
           </div>
         )}
       </div>
+
+      <Dialog
+        open={Boolean(selectedWithdrawal)}
+        onClose={() => setSelectedWithdrawal(null)}
+        title="Withdrawal receipt"
+        description="The transfer fee is charged on top of the amount. The destination receives the full withdrawal amount."
+        size="small"
+        footer={<Button intent="ghost" onClick={() => setSelectedWithdrawal(null)}>Close</Button>}
+      >
+        {selectedWithdrawal ? (
+          <div className="space-y-3">
+            <div>
+              <p className="text-h3 tabular">{formatPhp(selectedWithdrawal.amountCentavos)}</p>
+              <p className="text-meta mt-1">Sent to {selectedWithdrawal.institutionName} · •••• {selectedWithdrawal.accountNumberLast4}</p>
+            </div>
+            <dl className="space-y-2 text-body">
+              <div className="flex items-center justify-between gap-4"><dt className="text-meta">Transfer fee</dt><dd className="tabular">{formatPhp(selectedWithdrawal.feeCentavos)}</dd></div>
+              <div className="flex items-center justify-between gap-4"><dt className="text-meta">Total charged</dt><dd className="tabular">{formatPhp(selectedWithdrawal.totalDebitCentavos)}</dd></div>
+              <div className="flex items-center justify-between gap-4"><dt className="text-meta">Status</dt><dd>{withdrawalStatusLabel(selectedWithdrawal.status)}</dd></div>
+              <div className="flex items-center justify-between gap-4"><dt className="text-meta">Requested</dt><dd className="tabular">{formatManilaDate(selectedWithdrawal.createdAt)}</dd></div>
+              {selectedWithdrawal.providerReferenceNumber ? <div className="flex items-center justify-between gap-4"><dt className="text-meta">Provider reference</dt><dd className="tabular break-all text-right">{selectedWithdrawal.providerReferenceNumber}</dd></div> : null}
+            </dl>
+            {(selectedWithdrawal.status === 'failed' || selectedWithdrawal.status === 'needs_review') && (
+              <p className="text-meta text-[color:var(--danger)]">{withdrawalFailureReason(selectedWithdrawal.failureCode, selectedWithdrawal.status)}</p>
+            )}
+            <p className="text-meta">The destination account receives the full {formatPhp(selectedWithdrawal.amountCentavos)}. The {formatPhp(selectedWithdrawal.feeCentavos)} fee covers the InstaPay transfer.</p>
+          </div>
+        ) : null}
+      </Dialog>
     </section>
   )
 }

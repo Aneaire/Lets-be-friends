@@ -1,10 +1,14 @@
 import {
   BOOKING_CURRENCY,
+  COMPANION_WITHDRAWAL_FEE_CENTAVOS,
   MAX_COMPANION_WITHDRAWAL_CENTAVOS,
   MIN_COMPANION_WITHDRAWAL_CENTAVOS,
   PAYMONGO_TRANSFER_FEE_CENTAVOS,
+  companionWithdrawalTotalDebitCentavos,
+  maximumCompanionWithdrawalCentavos,
   validateCompanionWithdrawalCentavos,
 } from '@lets-be-friends/shared'
+import { paginationOptsValidator } from 'convex/server'
 import { action, internalAction, internalMutation, internalQuery, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
@@ -81,6 +85,25 @@ export function companionWithdrawalsEnabled() {
   return process.env.COMPANION_WITHDRAWALS_ENABLED?.trim().toLowerCase() === 'true'
 }
 
+function withdrawalHistoryItem(row: Doc<'withdrawals'>) {
+  return {
+    id: row._id,
+    amountCentavos: row.amountCentavos,
+    feeCentavos: row.feeCentavos ?? 0,
+    totalDebitCentavos: row.amountCentavos + (row.feeCentavos ?? 0),
+    providerFeeCentavos: row.providerFeeCentavos,
+    status: row.status,
+    institutionName: row.destinationInstitutionName,
+    accountNumberLast4: row.destinationAccountLast4,
+    providerReferenceNumber: row.providerReferenceNumber,
+    failureCode: row.failureCode,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    succeededAt: row.succeededAt,
+    failedAt: row.failedAt,
+  }
+}
+
 export const dashboard = query({
   args: {},
   handler: async (ctx) => {
@@ -111,7 +134,9 @@ export const dashboard = query({
       minimumCentavos: MIN_COMPANION_WITHDRAWAL_CENTAVOS,
       maximumCentavos: MAX_COMPANION_WITHDRAWAL_CENTAVOS,
       providerFeeCentavos: PAYMONGO_TRANSFER_FEE_CENTAVOS,
-      feePaidByPlatform: true,
+      withdrawalFeeCentavos: COMPANION_WITHDRAWAL_FEE_CENTAVOS,
+      maximumWithdrawableCentavos: maximumCompanionWithdrawalCentavos(earningsAccount.availableCentavos),
+      feePaidByPlatform: false,
       verifiedAccountName: legalName,
       availableEarningsCentavos: earningsAccount.availableCentavos,
       inTransferEarningsCentavos: earningsAccount.reservedCentavos,
@@ -127,20 +152,26 @@ export const dashboard = query({
         modeMismatch: !methodMatchesMode,
       } : null,
       activeWithdrawalId: activeWithdrawal?._id ?? null,
-      withdrawals: withdrawals.map((row) => ({
-        id: row._id,
-        amountCentavos: row.amountCentavos,
-        providerFeeCentavos: row.providerFeeCentavos,
-        status: row.status,
-        institutionName: row.destinationInstitutionName,
-        accountNumberLast4: row.destinationAccountLast4,
-        providerReferenceNumber: row.providerReferenceNumber,
-        failureCode: row.failureCode,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        succeededAt: row.succeededAt,
-        failedAt: row.failedAt,
-      })),
+      withdrawals: withdrawals.map(withdrawalHistoryItem),
+    }
+  },
+})
+
+export const history = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const viewer = await getViewer(ctx)
+    if (!viewer) return { page: [], isDone: true, continueCursor: '' }
+    if (viewer.suspended) throw new ConvexError('Account is suspended')
+
+    const result = await ctx.db.query('withdrawals')
+      .withIndex('by_companion_created_at', (q) => q.eq('companionUserId', viewer._id))
+      .order('desc')
+      .paginate(args.paginationOpts)
+
+    return {
+      ...result,
+      page: result.page.map(withdrawalHistoryItem),
     }
   },
 })
@@ -206,12 +237,17 @@ export const request = mutation({
     const active = await firstActiveWithdrawal(ctx, viewer._id)
     if (active) throw new ConvexError('Wait for the current withdrawal to finish before starting another')
     const account = await getOrCreateUserWalletAccount(ctx, viewer._id, now)
-    if (account.availableCentavos < amountCentavos) throw new ConvexError('Available wallet balance is lower than this withdrawal amount')
+    const feeCentavos = COMPANION_WITHDRAWAL_FEE_CENTAVOS
+    const totalDebitCentavos = companionWithdrawalTotalDebitCentavos(amountCentavos)
+    if (account.availableCentavos < totalDebitCentavos) {
+      throw new ConvexError('Available wallet balance does not cover this withdrawal amount plus the transfer fee')
+    }
 
     const withdrawalId = await ctx.db.insert('withdrawals', {
       companionUserId: viewer._id,
       payoutMethodId: method._id,
       amountCentavos,
+      feeCentavos,
       providerFeeCentavos: PAYMONGO_TRANSFER_FEE_CENTAVOS,
       currency: BOOKING_CURRENCY,
       status: 'queued',
@@ -233,12 +269,12 @@ export const request = mutation({
       idempotencyKey: `withdrawal:${String(withdrawalId)}:reserve`,
       withdrawalId,
       actorUserId: viewer._id,
-      amountCentavos,
+      amountCentavos: totalDebitCentavos,
       note: `Reserved for withdrawal to ${method.institutionName} ending in ${method.accountNumberLast4}`,
       now,
       legs: [
-        { accountId: account._id, bucket: 'available', direction: 'debit', amountCentavos },
-        { accountId: account._id, bucket: 'reserved', direction: 'credit', amountCentavos },
+        { accountId: account._id, bucket: 'available', direction: 'debit', amountCentavos: totalDebitCentavos },
+        { accountId: account._id, bucket: 'reserved', direction: 'credit', amountCentavos: totalDebitCentavos },
       ],
     })
     await ctx.scheduler.runAfter(0, internal.withdrawals.submit, { withdrawalId })
@@ -247,9 +283,9 @@ export const request = mutation({
       action: 'withdrawal.requested',
       targetType: 'withdrawal',
       targetId: String(withdrawalId),
-      after: { amountCentavos, institutionName: method.institutionName, accountNumberLast4: method.accountNumberLast4 },
+      after: { amountCentavos, feeCentavos, totalDebitCentavos, institutionName: method.institutionName, accountNumberLast4: method.accountNumberLast4 },
     })
-    return { withdrawalId, status: 'queued' as const, amountCentavos }
+    return { withdrawalId, status: 'queued' as const, amountCentavos, feeCentavos, totalDebitCentavos }
   },
 })
 
@@ -649,32 +685,34 @@ async function firstActiveWithdrawal(ctx: any, companionUserId: Id<'users'>) {
 
 async function completeWithdrawalFunds(ctx: any, withdrawal: Doc<'withdrawals'>, now: number) {
   const account = await getOrCreateUserWalletAccount(ctx, withdrawal.companionUserId, now)
+  const totalDebitCentavos = withdrawal.amountCentavos + (withdrawal.feeCentavos ?? 0)
   await applyWalletTransaction(ctx, {
     kind: 'payout_complete',
     idempotencyKey: `withdrawal:${String(withdrawal._id)}:complete`,
     withdrawalId: withdrawal._id,
     actorUserId: withdrawal.companionUserId,
-    amountCentavos: withdrawal.amountCentavos,
+    amountCentavos: totalDebitCentavos,
     note: `Completed withdrawal to ${withdrawal.destinationInstitutionName} ending in ${withdrawal.destinationAccountLast4}`,
     now,
     allowExternalDebit: true,
-    legs: [{ accountId: account._id, bucket: 'reserved', direction: 'debit', amountCentavos: withdrawal.amountCentavos }],
+    legs: [{ accountId: account._id, bucket: 'reserved', direction: 'debit', amountCentavos: totalDebitCentavos }],
   })
 }
 
 async function releaseWithdrawalFunds(ctx: any, withdrawal: Doc<'withdrawals'>, now: number) {
   const account = await getOrCreateUserWalletAccount(ctx, withdrawal.companionUserId, now)
+  const totalDebitCentavos = withdrawal.amountCentavos + (withdrawal.feeCentavos ?? 0)
   await applyWalletTransaction(ctx, {
     kind: 'payout_release',
     idempotencyKey: `withdrawal:${String(withdrawal._id)}:release`,
     withdrawalId: withdrawal._id,
     actorUserId: withdrawal.companionUserId,
-    amountCentavos: withdrawal.amountCentavos,
+    amountCentavos: totalDebitCentavos,
     note: `Released failed withdrawal to ${withdrawal.destinationInstitutionName} ending in ${withdrawal.destinationAccountLast4}`,
     now,
     legs: [
-      { accountId: account._id, bucket: 'reserved', direction: 'debit', amountCentavos: withdrawal.amountCentavos },
-      { accountId: account._id, bucket: 'available', direction: 'credit', amountCentavos: withdrawal.amountCentavos },
+      { accountId: account._id, bucket: 'reserved', direction: 'debit', amountCentavos: totalDebitCentavos },
+      { accountId: account._id, bucket: 'available', direction: 'credit', amountCentavos: totalDebitCentavos },
     ],
   })
 }

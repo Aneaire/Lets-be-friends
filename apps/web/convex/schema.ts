@@ -600,6 +600,8 @@ export default defineSchema({
     companionUserId: v.id('users'),
     payoutMethodId: v.id('payoutMethods'),
     amountCentavos: v.number(),
+    /** Transfer fee charged to the member. Absent on withdrawals created before fees were passed through. */
+    feeCentavos: v.optional(v.number()),
     providerFeeCentavos: v.number(),
     currency: v.literal('PHP'),
     status: withdrawalStatus,

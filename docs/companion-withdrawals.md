@@ -2,29 +2,41 @@
 
 Wallet withdrawals move available funds, including verified top-ups, returned booking funds, and settled Companion earnings, to one verified Philippine bank or e-wallet account through PayMongo InstaPay.
 
+## Transfer rail
+
+The current withdrawal flow is InstaPay-only. The member chooses the destination bank or e-wallet from PayMongo's InstaPay receiving institutions list. Choosing GoTyme, BPI, GCash, or another destination changes the destination, not the rail. PayMongo does not switch to PESONet based on the bank, and PESONet is not implemented in this flow.
+
+The ₱10 fee is PayMongo's per-transfer payout fee for InstaPay. It does not vary by destination bank or e-wallet.
+
 ## Product rules
 
 - Withdrawals require an unsuspended account with current identity verification, the same gate that booking a Companion already uses. A completed Companion profile is not required: it only controls whether the member can be booked by others.
 - The payout account holder is the verified legal name. The client cannot override it.
 - One payout method is active at a time. Replacing it takes effect immediately and new methods are ready right away. The saved `availableAt` timestamp is kept for compatibility.
-- Withdrawal amounts are from PHP 10.00 through PHP 50,000.00 per transfer.
+- Withdrawal amounts are from PHP 100.00 through PHP 50,000.00 per transfer.
 - Only one unresolved withdrawal is allowed per Companion.
-- The Companion receives the exact confirmed amount. The platform absorbs PayMongo's transfer fee.
+- A PHP 10.00 transfer fee is charged to the member on top of the amount, never deducted from it. BSP Circular 1238 requires the recipient to receive the full transfer amount, so the member's balance is debited the amount plus the fee and the destination account receives the full amount.
+- The fee is shown before confirmation, together with the total wallet debit.
+- A failed transfer returns both the amount and the fee to the available wallet balance.
 - Account numbers are encrypted at rest and only the last four digits are returned to clients.
 - A request atomically moves earnings from available to reserved before PayMongo submission.
-- Successful transfers debit reserved wallet funds. Definitive failures return the full amount to the available wallet balance.
+- Successful transfers debit reserved wallet funds. Definitive failures return the amount plus the transfer fee to the available wallet balance.
 - An uncertain provider response keeps funds reserved. The same PayMongo idempotency key is reused, which prevents a duplicate transfer.
 - Every top-up and transfer carries descriptive provider metadata (`lbf_kind`, `lbf_transaction_id`, `lbf_amount_centavos`, `lbf_currency`, `lbf_username`, `lbf_user_id`) so each transaction is identifiable in the PayMongo Dashboard. PayMongo accepts only string values, so the amount is stored as a string.
 - The username is the member's unique username, with the immutable user id as the fallback. Metadata is informational only and never gates a credit or a settlement.
 
 These choices follow patterns documented by [Airbnb](https://www.airbnb.com/help/article/425), [Upwork](https://support.upwork.com/hc/en-us/articles/211060918-How-to-get-paid-on-Upwork), and [Fiverr](https://help.fiverr.com/hc/en-us/articles/360010530058-Withdrawing-your-earnings-managing-payout-methods): separate pending and available balances, verify the payout destination, confirm irreversible details, and keep visible status history.
 
+## Withdrawal history
+
+The withdrawal history is the member's receipt. Each row shows the withdrawal amount, destination, date, status, and, when a fee was charged, the PayMongo transfer fee and the total wallet debit. The destination account receives the full withdrawal amount. The wallet ledger records the total debit, while the history explains the fee.
+
 ## PayMongo rollout checklist
 
 Enabling the PayMongo Wallet is required, but it is not the entire application rollout:
 
 1. Confirm the Wallet is activated for the intended test or live mode.
-2. Keep enough Wallet balance for the withdrawal amount plus the provider fee. The app refuses to submit when the provider reports less available balance than amount plus fee, and releases the reserved earnings with `insufficient_wallet_balance`. Monitor available versus pending balance on the Wallet Dashboard plus the 10-minute reconciliation cron. Net-of-fee payout math is in `docs/paymongo-payouts-research.md`, and funding withdrawals from a manual wallet top-up is in `docs/paymongo-topups-research.md`.
+2. Keep enough Wallet balance for the withdrawal amount plus the provider fee. The member is charged the same fee, so the Wallet covers the transfer and the member's debit reimburses it. The app refuses to submit when the provider reports less available balance than amount plus fee, and releases the reserved earnings with `insufficient_wallet_balance`. Monitor available versus pending balance on the Wallet Dashboard plus the 10-minute reconciliation cron. Net-of-fee payout math is in `docs/paymongo-payouts-research.md`, and funding withdrawals from a manual wallet top-up is in `docs/paymongo-topups-research.md`.
 3. Configure matching PayMongo secret and public keys, mode, and webhook secret in the Convex deployment.
 4. Register the existing `https://<convex-site>/paymongo/webhook` endpoint for `transfer.outward.successful` and `transfer.outward.failed` events. For API transfers, also set `PAYMONGO_TRANSFER_CALLBACK_URL` to that same public HTTPS URL so PayMongo posts per-transfer status updates in addition to the Dashboard webhook subscription.
 5. Generate a 32-byte payout encryption key with `openssl rand -base64 32` and store it as `PAYOUT_ACCOUNT_ENCRYPTION_KEY` in Convex. Keep this key stable.

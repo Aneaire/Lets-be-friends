@@ -1,17 +1,17 @@
 import { parseWithdrawalAmount, withdrawalStatusPresentation } from '@/data/withdrawals'
 
 describe('companion withdrawal readiness without payout-method hold', () => {
-  it('accepts a valid amount immediately without a hold check', () => {
-    expect(parseWithdrawalAmount('10', 1_000)).toEqual({ ok: true, amountCentavos: 1_000 })
-    expect(parseWithdrawalAmount('50', 5_000)).toEqual({ ok: true, amountCentavos: 5_000 })
-    expect(parseWithdrawalAmount('1000', 200_000)).toEqual({ ok: true, amountCentavos: 100_000 })
+  it('accepts a valid amount that also covers the transfer fee', () => {
+    expect(parseWithdrawalAmount('100', 11_000)).toMatchObject({ ok: true, amountCentavos: 10_000 })
+    expect(parseWithdrawalAmount('500', 51_000)).toMatchObject({ ok: true, amountCentavos: 50_000 })
+    expect(parseWithdrawalAmount('1000', 101_000)).toMatchObject({ ok: true, amountCentavos: 100_000 })
   })
 
-  it('rejects 9.99, an above-balance amount, and amounts outside the InstaPay range without hold wording', () => {
-    expect(parseWithdrawalAmount('9.99', 50_000)).toMatchObject({ ok: false })
-    expect(parseWithdrawalAmount('10.01', 1_000)).toEqual({
+  it('rejects 99.99, a balance short of the fee, and amounts outside the InstaPay range without hold wording', () => {
+    expect(parseWithdrawalAmount('99.99', 50_000)).toMatchObject({ ok: false })
+    expect(parseWithdrawalAmount('100', 10_999)).toEqual({
       ok: false,
-      message: 'Available wallet balance is lower than this withdrawal amount.',
+      message: 'Available wallet balance does not cover this amount plus the transfer fee.',
     })
     const message = parseWithdrawalAmount('60000', 10_000_000)
     expect(message).toMatchObject({ ok: false })

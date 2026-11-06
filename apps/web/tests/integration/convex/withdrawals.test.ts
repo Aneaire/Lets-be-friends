@@ -7,6 +7,8 @@ import { convexModules } from '../../helpers/convex'
 
 const AVAILABLE = 120_000
 const WITHDRAWAL = 50_000
+const FEE = 1_000
+const TOTAL = WITHDRAWAL + FEE
 let previousEnabled: string | undefined
 let previousMode: string | undefined
 
@@ -119,8 +121,8 @@ describe('Companion withdrawals', () => {
       transactions: await ctx.db.query('walletTransactions').collect(),
       scheduled: await ctx.db.system.query('_scheduled_functions').collect(),
     }))
-    expect(state.account).toMatchObject({ availableCentavos: AVAILABLE - WITHDRAWAL, reservedCentavos: WITHDRAWAL })
-    expect(state.withdrawal).toMatchObject({ status: 'queued', amountCentavos: WITHDRAWAL, destinationAccountLast4: '4321' })
+    expect(state.account).toMatchObject({ availableCentavos: AVAILABLE - TOTAL, reservedCentavos: TOTAL })
+    expect(state.withdrawal).toMatchObject({ status: 'queued', amountCentavos: WITHDRAWAL, feeCentavos: FEE, destinationAccountLast4: '4321' })
     expect(state.transactions).toHaveLength(1)
     expect(state.transactions[0]).toMatchObject({ kind: 'payout_reserve', withdrawalId: result.withdrawalId })
     expect(state.scheduled).toHaveLength(1)
@@ -129,32 +131,34 @@ describe('Companion withdrawals', () => {
     const walletDashboard = await t.withIdentity({ subject: 'withdrawal-companion' }).query(api.finance.memberDashboard, {})
     expect(dashboard?.payoutMethod).toMatchObject({ institutionName: 'BDO Unibank', accountNumberLast4: '4321', ready: true })
     expect(dashboard?.activeWithdrawalId).toBe(result.withdrawalId)
-    expect(dashboard).toMatchObject({ availableEarningsCentavos: AVAILABLE - WITHDRAWAL, inTransferEarningsCentavos: WITHDRAWAL })
-    expect(walletDashboard).toMatchObject({ availableCentavos: AVAILABLE - WITHDRAWAL, reservedCentavos: WITHDRAWAL })
+    expect(dashboard).toMatchObject({ availableEarningsCentavos: AVAILABLE - TOTAL, inTransferEarningsCentavos: TOTAL })
+    expect(walletDashboard).toMatchObject({ availableCentavos: AVAILABLE - TOTAL, reservedCentavos: TOTAL })
     expect(JSON.stringify(dashboard)).not.toContain('encrypted-account-number')
     expect(JSON.stringify(dashboard)).not.toContain('encrypted-iv')
   })
 
-  it('exposes the PHP 10 withdrawal minimum on the dashboard', async () => {
+  it('exposes the PHP 100 minimum and the member-paid transfer fee on the dashboard', async () => {
     const t = createTest()
     await seed(t)
 
     const dashboard = await t.withIdentity({ subject: 'withdrawal-companion' }).query(api.withdrawals.dashboard, {})
     expect(dashboard).toMatchObject({
-      minimumCentavos: 1_000,
+      minimumCentavos: 10_000,
       maximumCentavos: 5_000_000,
+      maximumWithdrawableCentavos: AVAILABLE - FEE,
       providerFeeCentavos: 1_000,
-      feePaidByPlatform: true,
+      withdrawalFeeCentavos: FEE,
+      feePaidByPlatform: false,
     })
   })
 
-  it('reserves exactly the PHP 10 minimum from an exact PHP 10 balance without charging the provider fee', async () => {
+  it('reserves the PHP 100 minimum plus the transfer fee from an exact balance', async () => {
     const t = createTest()
-    const ids = await seed(t, 1_000)
+    const ids = await seed(t, 11_000)
     await addPayoutMethod(t, ids.now)
 
     const result = await t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
-      amountCentavos: 1_000,
+      amountCentavos: 10_000,
     })
     const state = await t.run(async (ctx) => ({
       account: await ctx.db.get(ids.accountId),
@@ -162,19 +166,18 @@ describe('Companion withdrawals', () => {
       transactions: await ctx.db.query('walletTransactions').collect(),
       entries: await ctx.db.query('walletEntries').collect(),
     }))
-    expect(state.account).toMatchObject({ availableCentavos: 0, reservedCentavos: 1_000 })
-    expect(state.withdrawal).toMatchObject({ status: 'queued', amountCentavos: 1_000, providerFeeCentavos: 1_000 })
+    expect(state.account).toMatchObject({ availableCentavos: 0, reservedCentavos: 11_000 })
+    expect(state.withdrawal).toMatchObject({ status: 'queued', amountCentavos: 10_000, feeCentavos: FEE, providerFeeCentavos: 1_000 })
     expect(state.transactions).toHaveLength(1)
-    expect(state.transactions[0]).toMatchObject({ kind: 'payout_reserve', amountCentavos: 1_000 })
+    expect(state.transactions[0]).toMatchObject({ kind: 'payout_reserve', amountCentavos: 11_000 })
     expect(state.entries).toHaveLength(2)
     expect(state.entries).toEqual(expect.arrayContaining([
-      expect.objectContaining({ accountId: ids.accountId, bucket: 'available', direction: 'debit', amountCentavos: 1_000 }),
-      expect.objectContaining({ accountId: ids.accountId, bucket: 'reserved', direction: 'credit', amountCentavos: 1_000 }),
+      expect.objectContaining({ accountId: ids.accountId, bucket: 'available', direction: 'debit', amountCentavos: 11_000 }),
+      expect.objectContaining({ accountId: ids.accountId, bucket: 'reserved', direction: 'credit', amountCentavos: 11_000 }),
     ]))
-    expect(state.entries.some((entry) => entry.amountCentavos !== 1_000)).toBe(false)
   })
 
-  it('rejects a request below the PHP 10 minimum without partial writes', async () => {
+  it('rejects a request below the PHP 100 minimum without partial writes', async () => {
     const t = createTest()
     const ids = await seed(t)
     await addPayoutMethod(t, ids.now)
@@ -200,8 +203,8 @@ describe('Companion withdrawals', () => {
     expect(before.auditLogs.map((row) => row.action)).toEqual(['payout_method.added'])
 
     await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
-      amountCentavos: 999,
-    })).rejects.toThrow('between ₱10 and ₱50,000')
+      amountCentavos: 9_999,
+    })).rejects.toThrow('between ₱100 and ₱50,000')
 
     expect(await snapshot()).toEqual(before)
   })
@@ -230,8 +233,11 @@ describe('Companion withdrawals', () => {
     const ids = await seed(t)
     await addPayoutMethod(t, ids.now)
     await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
+      amountCentavos: AVAILABLE,
+    })).rejects.toThrow('Available wallet balance')
+    await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
       amountCentavos: AVAILABLE + 1,
-    })).rejects.toThrow('Available wallet balance is lower')
+    })).rejects.toThrow('Available wallet balance')
 
     const state = await t.run(async (ctx) => ({
       account: await ctx.db.get(ids.accountId),
@@ -269,7 +275,7 @@ describe('Companion withdrawals', () => {
       legacy: await ctx.db.get(legacyAccountId),
       transactions: await ctx.db.query('walletTransactions').collect(),
     }))
-    expect(state.wallet).toMatchObject({ availableCentavos: AVAILABLE + legacyAmount - WITHDRAWAL, reservedCentavos: WITHDRAWAL })
+    expect(state.wallet).toMatchObject({ availableCentavos: AVAILABLE + legacyAmount - TOTAL, reservedCentavos: TOTAL })
     expect(state.legacy).toMatchObject({ availableCentavos: 0, reservedCentavos: 0, pendingCentavos: 0 })
     expect(state.transactions.filter((row) => row.kind === 'wallet_consolidation')).toHaveLength(1)
     expect(state.transactions.filter((row) => row.kind === 'payout_reserve')).toHaveLength(1)
@@ -294,7 +300,7 @@ describe('Companion withdrawals', () => {
 
     await expect(t.withIdentity({ subject: 'withdrawal-companion' }).mutation(api.withdrawals.request, {
       amountCentavos: WITHDRAWAL,
-    })).rejects.toThrow('Available wallet balance is lower')
+    })).rejects.toThrow('Available wallet balance')
     const state = await t.run(async (ctx) => ({
       wallet: await ctx.db.get(ids.accountId),
       legacy: await ctx.db.get(legacyAccountId),
@@ -343,7 +349,7 @@ describe('Companion withdrawals', () => {
       wallet: await ctx.db.get(ids.accountId),
       transactions: await ctx.db.query('walletTransactions').collect(),
     }))
-    expect(state.wallet).toMatchObject({ availableCentavos: topUpAmount - withdrawalAmount, reservedCentavos: withdrawalAmount })
+    expect(state.wallet).toMatchObject({ availableCentavos: topUpAmount - withdrawalAmount - FEE, reservedCentavos: withdrawalAmount + FEE })
     expect(state.transactions.filter((row) => row.kind === 'paymongo_member_credit')).toHaveLength(1)
     expect(state.transactions.filter((row) => row.kind === 'payout_reserve')).toHaveLength(1)
   })
@@ -375,7 +381,7 @@ describe('Companion withdrawals', () => {
       withdrawal: await ctx.db.get(created.withdrawalId),
       transactions: await ctx.db.query('walletTransactions').collect(),
     }))
-    expect(state.account).toMatchObject({ availableCentavos: AVAILABLE - WITHDRAWAL, reservedCentavos: 0 })
+    expect(state.account).toMatchObject({ availableCentavos: AVAILABLE - TOTAL, reservedCentavos: 0 })
     expect(state.withdrawal).toMatchObject({ status: 'succeeded', providerTransferId: 'tr_success' })
     expect(state.transactions.filter((row) => row.kind === 'payout_complete')).toHaveLength(1)
   })
@@ -399,7 +405,7 @@ describe('Companion withdrawals', () => {
         referenceNumber: withdrawal!.referenceNumber,
       },
     })).rejects.toThrow('amount mismatch')
-    expect(await t.run((ctx) => ctx.db.get(ids.accountId))).toMatchObject({ availableCentavos: AVAILABLE - WITHDRAWAL, reservedCentavos: WITHDRAWAL })
+    expect(await t.run((ctx) => ctx.db.get(ids.accountId))).toMatchObject({ availableCentavos: AVAILABLE - TOTAL, reservedCentavos: TOTAL })
 
     const transfer = {
       id: 'tr_failed',
@@ -441,8 +447,8 @@ describe('Companion withdrawals', () => {
     })
     expect(result).toMatchObject({ status: 'queued', amountCentavos: WITHDRAWAL })
     expect(await t.run((ctx) => ctx.db.get(ids.accountId))).toMatchObject({
-      availableCentavos: AVAILABLE - WITHDRAWAL,
-      reservedCentavos: WITHDRAWAL,
+      availableCentavos: AVAILABLE - TOTAL,
+      reservedCentavos: TOTAL,
     })
   })
 
@@ -493,5 +499,51 @@ describe('Companion withdrawals', () => {
     })
     await expect(t.mutation(internal.withdrawals.reserveWebhookEvent, { ...event, rawBodyHash: 'different-body' }))
       .resolves.toEqual({ outcome: 'conflict' })
+  })
+
+  it('paginates the full withdrawal history newest first', async () => {
+    const t = createTest()
+    const ids = await seed(t)
+    await addPayoutMethod(t, ids.now)
+    const method = await t.run((ctx) => ctx.db.query('payoutMethods')
+      .withIndex('by_companion_status', (q) => q.eq('companionUserId', ids.companionUserId).eq('status', 'active'))
+      .unique())
+    if (!method) throw new Error('Expected payout method')
+
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 3; index += 1) {
+        await ctx.db.insert('withdrawals', {
+          companionUserId: ids.companionUserId,
+          payoutMethodId: method._id,
+          amountCentavos: 10_000 + index,
+          feeCentavos: FEE,
+          providerFeeCentavos: FEE,
+          currency: 'PHP',
+          status: 'succeeded',
+          mode: 'test',
+          destinationInstitutionName: 'BDO Unibank',
+          destinationAccountName: 'Maria Santos',
+          destinationAccountLast4: '4321',
+          referenceNumber: `lbf-history-${index}`,
+          idempotencyKey: `withdrawal:history:${index}`,
+          attemptCount: 1,
+          createdAt: ids.now + index,
+          updatedAt: ids.now + index,
+          succeededAt: ids.now + index,
+        })
+      }
+    })
+
+    const first = await t.withIdentity({ subject: 'withdrawal-companion' }).query(api.withdrawals.history, {
+      paginationOpts: { numItems: 2, cursor: null },
+    })
+    expect(first.page.map((item) => item.amountCentavos)).toEqual([10_002, 10_001])
+    expect(first.isDone).toBe(false)
+
+    const second = await t.withIdentity({ subject: 'withdrawal-companion' }).query(api.withdrawals.history, {
+      paginationOpts: { numItems: 2, cursor: first.continueCursor },
+    })
+    expect(second.page.map((item) => item.amountCentavos)).toEqual([10_000])
+    expect(second.isDone).toBe(true)
   })
 })

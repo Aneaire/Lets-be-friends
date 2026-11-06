@@ -43,6 +43,7 @@ export type CompanionWithdrawalItem = {
   statusLabel: string
   statusTone?: 'warning' | 'success' | 'danger'
   detail: string
+  feeLabel?: string
   danger: boolean
 }
 
@@ -217,7 +218,7 @@ export function CompanionFinancePresentation({
             <SettingsRow
               key={withdrawal.id}
               label={withdrawal.amountLabel}
-              detail={`${withdrawal.destinationLabel} · ${withdrawal.dateLabel}\n${withdrawal.detail}`}
+              detail={`${withdrawal.destinationLabel} · ${withdrawal.dateLabel}\n${withdrawal.detail}${withdrawal.feeLabel ? `\n${withdrawal.feeLabel}` : ''}`}
               value={withdrawal.statusLabel}
               valueTone={withdrawal.statusTone}
               danger={withdrawal.danger}

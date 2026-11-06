@@ -8,9 +8,16 @@ export const MIN_BOOKING_DURATION_MINUTES = 15
 export const MAX_BOOKING_DURATION_MINUTES = 12 * 60
 export const MIN_TOP_UP_CENTAVOS = 100
 export const MAX_TOP_UP_CENTAVOS = 10_000_000
-export const MIN_COMPANION_WITHDRAWAL_CENTAVOS = 1_000
+export const MIN_COMPANION_WITHDRAWAL_CENTAVOS = 10_000
 export const MAX_COMPANION_WITHDRAWAL_CENTAVOS = 5_000_000
+/** What PayMongo charges the platform for one InstaPay transfer. */
 export const PAYMONGO_TRANSFER_FEE_CENTAVOS = 1_000
+/**
+ * What the withdrawing member pays for one InstaPay transfer.
+ * Charged on top of the amount they withdraw, never deducted from it, because
+ * BSP Circular 1238 requires the recipient to receive the full transfer amount.
+ */
+export const COMPANION_WITHDRAWAL_FEE_CENTAVOS = PAYMONGO_TRANSFER_FEE_CENTAVOS
 
 export function validateCompanionHourlyRateCentavos(value: number) {
   if (!Number.isSafeInteger(value)) throw new Error('Hourly rate must be a whole number of centavos')
@@ -49,9 +56,20 @@ export function validateTopUpCentavos(value: number) {
 export function validateCompanionWithdrawalCentavos(value: number) {
   if (!Number.isSafeInteger(value)) throw new Error('Withdrawal amount must be a whole number of centavos')
   if (value < MIN_COMPANION_WITHDRAWAL_CENTAVOS || value > MAX_COMPANION_WITHDRAWAL_CENTAVOS) {
-    throw new Error('Withdrawal amount must be between ₱10 and ₱50,000')
+    throw new Error('Withdrawal amount must be between ₱100 and ₱50,000')
   }
   return value
+}
+
+/** Amount debited from the member's wallet for a withdrawal of `amountCentavos`. */
+export function companionWithdrawalTotalDebitCentavos(amountCentavos: number) {
+  return amountCentavos + COMPANION_WITHDRAWAL_FEE_CENTAVOS
+}
+
+/** Largest amount a member can request from a wallet with `availableCentavos`. */
+export function maximumCompanionWithdrawalCentavos(availableCentavos: number) {
+  const affordable = availableCentavos - COMPANION_WITHDRAWAL_FEE_CENTAVOS
+  return Math.max(0, Math.min(MAX_COMPANION_WITHDRAWAL_CENTAVOS, affordable))
 }
 
 export type WithdrawalSettlementState = 'queued' | 'submitting' | 'pending' | 'succeeded' | 'failed' | 'needs_review'

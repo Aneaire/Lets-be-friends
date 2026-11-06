@@ -8,12 +8,14 @@ import { withdrawalFailureReason } from '@lets-be-friends/shared'
 const mocks = vi.hoisted(() => ({
   listAction: vi.fn(),
   queryResult: undefined as unknown,
+  historyResult: { results: [] as Array<Record<string, unknown>>, status: 'Exhausted', loadMore: vi.fn() },
 }))
 
 vi.mock('convex/react', () => ({
   useAction: () => mocks.listAction,
   useMutation: () => vi.fn(),
   useQuery: () => mocks.queryResult,
+  usePaginatedQuery: () => mocks.historyResult,
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -38,6 +40,7 @@ import { MemberWalletPanel, type MemberFinance } from '../../src/features/wallet
 afterEach(() => {
   cleanup()
   mocks.queryResult = undefined
+  mocks.historyResult = { results: [], status: 'Exhausted', loadMore: vi.fn() }
   mocks.listAction.mockReset()
 })
 
@@ -67,8 +70,11 @@ function withdrawalDashboard(availableEarningsCentavos: number) {
     },
     activeWithdrawalId: null,
     withdrawals: [],
-    minimumCentavos: 1_000,
+    minimumCentavos: 10_000,
     maximumCentavos: 5_000_000,
+    withdrawalFeeCentavos: 1_000,
+    maximumWithdrawableCentavos: Math.max(0, availableEarningsCentavos - 1_000),
+    feePaidByPlatform: false,
     availableEarningsCentavos,
   }
 }
@@ -257,36 +263,35 @@ describe('dedicated wallet page panels', () => {
     expect(screen.getByRole('button', { name: 'Review withdrawal' })).toBeTruthy()
   })
 
-  it('uses the PHP 10 minimum and allows reviewing a withdrawal at that balance', () => {
-    mocks.queryResult = withdrawalDashboard(1_000)
+  it('uses the PHP 100 minimum and reviews a withdrawal that also covers the fee', () => {
+    mocks.queryResult = withdrawalDashboard(11_000)
     render(<CompanionWithdrawalPanel />)
 
     const amountInput = screen.getByRole('spinbutton', { name: /Withdrawal amount/i }) as HTMLInputElement
-    expect(amountInput.min).toBe('10')
-    expect(amountInput.value).toBe('10')
+    expect(amountInput.min).toBe('100')
+    expect(amountInput.value).toBe('100')
     const reviewButton = screen.getByRole('button', { name: 'Review withdrawal' }) as HTMLButtonElement
     expect(reviewButton.disabled).toBe(false)
 
     fireEvent.click(reviewButton)
-    expect(screen.getByText('Confirm ₱10.00 withdrawal')).toBeTruthy()
+    expect(screen.getByText('Confirm ₱100.00 withdrawal')).toBeTruthy()
+    expect(screen.getByText(/Transfer fee:/).textContent).toContain('₱10.00')
+    expect(screen.getByText(/Total from balance:/).textContent).toContain('₱110.00')
   })
 
-  it('keeps withdrawal review enabled when the balance is PHP 50', () => {
+  it('disables review when the balance cannot cover the minimum plus the fee', () => {
     mocks.queryResult = withdrawalDashboard(5_000)
     render(<CompanionWithdrawalPanel />)
 
-    const amountInput = screen.getByRole('spinbutton', { name: /Withdrawal amount/i }) as HTMLInputElement
-    expect(amountInput.min).toBe('10')
-    expect(amountInput.value).toBe('50')
-    expect((screen.getByRole('button', { name: 'Review withdrawal' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: 'Review withdrawal' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('disables withdrawal review below the PHP 10 minimum', () => {
+  it('disables withdrawal review below the PHP 100 minimum', () => {
     mocks.queryResult = withdrawalDashboard(999)
     render(<CompanionWithdrawalPanel />)
 
     const amountInput = screen.getByRole('spinbutton', { name: /Withdrawal amount/i }) as HTMLInputElement
-    expect(amountInput.min).toBe('10')
+    expect(amountInput.min).toBe('100')
     expect((screen.getByRole('button', { name: 'Review withdrawal' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
@@ -312,27 +317,62 @@ describe('dedicated wallet page panels', () => {
 
   it('explains a returned withdrawal in plain language without exposing the raw code', () => {
     const now = Date.now()
+    const withdrawal = {
+      id: 'wd-returned',
+      amountCentavos: 10_000,
+      feeCentavos: 1_000,
+      totalDebitCentavos: 11_000,
+      providerFeeCentavos: 1_000,
+      status: 'failed',
+      institutionName: 'GoTyme Bank Corporation',
+      accountNumberLast4: '4990',
+      providerReferenceNumber: undefined,
+      failureCode: 'insufficient_wallet_balance',
+      createdAt: now,
+      updatedAt: now,
+      succeededAt: undefined,
+      failedAt: now,
+    }
     mocks.queryResult = {
       ...withdrawalDashboard(50_000),
-      withdrawals: [{
-        id: 'wd-returned',
-        amountCentavos: 10_000,
-        providerFeeCentavos: 1_000,
-        status: 'failed',
-        institutionName: 'GoTyme Bank Corporation',
-        accountNumberLast4: '4990',
-        providerReferenceNumber: undefined,
-        failureCode: 'insufficient_wallet_balance',
-        createdAt: now,
-        updatedAt: now,
-        succeededAt: undefined,
-        failedAt: now,
-      }],
+      withdrawals: [withdrawal],
     }
+    mocks.historyResult = { results: [withdrawal], status: 'Exhausted', loadMore: vi.fn() }
     render(<CompanionWithdrawalPanel />)
 
     expect(screen.getByText(/payment service is temporarily unavailable/i)).toBeTruthy()
+    expect(screen.getByText(/Transfer fee ₱10.00 · Total charged ₱110.00/)).toBeTruthy()
     expect(screen.queryByText(/insufficient_wallet_balance/)).toBeNull()
+  })
+
+  it('opens a withdrawal receipt with the fee and total debit', () => {
+    const now = Date.now()
+    const withdrawal = {
+      id: 'wd-receipt',
+      amountCentavos: 50_000,
+      feeCentavos: 1_000,
+      totalDebitCentavos: 51_000,
+      providerFeeCentavos: 1_000,
+      status: 'succeeded',
+      institutionName: 'GoTyme Bank Corporation',
+      accountNumberLast4: '4990',
+      providerReferenceNumber: 'tr_123',
+      failureCode: undefined,
+      createdAt: now,
+      updatedAt: now,
+      succeededAt: now,
+      failedAt: undefined,
+    }
+    mocks.queryResult = { ...withdrawalDashboard(50_000), withdrawals: [withdrawal] }
+    mocks.historyResult = { results: [withdrawal], status: 'Exhausted', loadMore: vi.fn() }
+    render(<CompanionWithdrawalPanel />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View withdrawal of ₱500.00' }))
+
+    expect(screen.getByRole('dialog', { name: 'Withdrawal receipt' })).toBeTruthy()
+    expect(screen.getAllByText('₱10.00').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('₱510.00').length).toBeGreaterThan(0)
+    expect(screen.getByText(/tr_123/)).toBeTruthy()
   })
 
   it('maps stored and rail failure codes to friendly reasons', () => {

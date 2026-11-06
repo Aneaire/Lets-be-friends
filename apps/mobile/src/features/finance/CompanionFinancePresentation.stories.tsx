@@ -46,7 +46,7 @@ const meta = {
     dueDateLabel: 'Aug 29, 2026',
     pastDue: '₱0.00',
     hasPastDue: false,
-    payoutNotice: 'Withdraw available wallet funds to your verified payout account. The platform covers the transfer fee.',
+    payoutNotice: 'Withdraw available wallet funds to your verified payout account. A transfer fee applies to each withdrawal.',
     withdrawalsEnabled: true,
     payoutMethod: {
       institutionName: 'BDO Unibank',
@@ -63,6 +63,7 @@ const meta = {
       statusLabel: 'In transfer',
       statusTone: 'warning' as const,
       detail: 'PayMongo accepted the transfer and is waiting for final status.',
+      feeLabel: 'Transfer fee ₱10.00 · Total charged ₱510.00',
       danger: false,
     }],
     onWithdrawalAmountChange: fn(),
@@ -89,10 +90,11 @@ export const Ready: Story = {
     await expect(reviewWithdrawal).toHaveBeenCalledOnce()
 
     await userEvent.click(canvas.getByRole('button', { name: 'Show how withdrawals work' }))
-    await expect(canvas.getByText('Withdraw available wallet funds to your verified payout account. The platform covers the transfer fee.')).toBeVisible()
+    await expect(canvas.getByText('Withdraw available wallet funds to your verified payout account. A transfer fee applies to each withdrawal.')).toBeVisible()
 
     await userEvent.click(canvas.getByRole('button', { name: 'Show withdrawal history' }))
     await expect(canvas.getByText(/PayMongo accepted the transfer/)).toBeVisible()
+    await expect(canvas.getByText(/Transfer fee ₱10.00 · Total charged ₱510.00/)).toBeVisible()
 
     await userEvent.click(canvas.getByRole('button', { name: 'Show legacy platform fees' }))
     await expect(canvas.getByText('Booking commission')).toBeVisible()

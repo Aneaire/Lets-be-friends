@@ -279,7 +279,7 @@ describe('cross-user authorization boundaries', () => {
 
     await expect(
       t.withIdentity({ subject: 'adv-wd-outsider' }).mutation(api.withdrawals.request, { amountCentavos: 50_000 }),
-    ).rejects.toThrow('Available wallet balance is lower')
+    ).rejects.toThrow('Available wallet balance')
 
     const state = await t.run(async (ctx) => ({
       account: await ctx.db.get(accountId),
