@@ -50,7 +50,7 @@ type Story = StoryObj<typeof meta>
 export const WithCode: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('ABCD1234')).toBeVisible()
+    await expect(canvas.getByText(/Your code/)).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Share my link' })).toBeVisible()
     await expect(canvas.getByText('Maya')).toBeVisible()
   },

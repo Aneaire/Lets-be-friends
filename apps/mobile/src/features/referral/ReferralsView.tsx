@@ -1,9 +1,8 @@
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatPhp } from '@lets-be-friends/shared'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
-import { BackButton } from '@/design-system/atoms/BackButton'
+import { BackLink } from '@/design-system/atoms/BackLink'
 import { AppText } from '@/design-system/atoms/Typography'
 import { Screen } from '@/design-system/templates/Screen'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -49,18 +48,17 @@ export function ReferralsView({
   onLoadMore: () => void
 }) {
   const theme = useAppTheme()
-  const insets = useSafeAreaInsets()
 
   const header = (
     <View style={styles.header}>
-      <AppText variant="label" color={theme.colors.socialText}>INVITE FRIENDS</AppText>
-      <AppText variant="title">Share a good thing</AppText>
-      <AppText color={theme.colors.textMuted}>
-        Earn booking credit equal to 68% of our 15% service fee on each friend's first 3 completed bookings. Friends pay the normal price. Credit lands in your wallet after each booking settles.
-      </AppText>
-      <AppText variant="caption" color={theme.colors.textMuted}>
-        Example: a ₱700 booking has a ₱105 service fee, and you earn ₱71.40 in credit.
-      </AppText>
+      <BackLink label="Wallet" onPress={onBack} />
+      <View style={styles.headerCopy}>
+        <AppText variant="label" color={theme.colors.socialText}>REFERRALS</AppText>
+        <AppText variant="title">Invite friends</AppText>
+        <AppText color={theme.colors.textMuted}>
+          Earn booking credit when friends complete their first 3 bookings.
+        </AppText>
+      </View>
 
       {message ? <AppText accessibilityLiveRegion="polite" color={theme.colors.textMuted}>{message}</AppText> : null}
 
@@ -74,10 +72,12 @@ export function ReferralsView({
         </View>
       ) : (
         <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-          <AppText variant="heading">Your referral code</AppText>
-          <AppText variant="title" color={theme.colors.socialText}>{referral.code}</AppText>
+          <AppText variant="heading">Your referral link</AppText>
           {shareUrl ? <AppText variant="caption" color={theme.colors.textMuted}>{shareUrl}</AppText> : null}
           <ActionButton label="Share my link" onPress={onShare} intent="social" />
+          <AppText variant="caption" color={theme.colors.textMuted}>
+            Your code: <AppText variant="bodyStrong" color={theme.colors.text}>{referral.code}</AppText>
+          </AppText>
         </View>
       )}
 
@@ -112,12 +112,19 @@ export function ReferralsView({
         ) : (
           <AppText variant="caption" color={theme.colors.textMuted}>No friends have joined with your link yet.</AppText>
         )}
-        ListFooterComponent={status === 'LoadingMore' ? (
-          <View style={styles.loading}>
-            <ActivityIndicator color={theme.colors.socialText} />
-            <AppText variant="caption" color={theme.colors.textMuted}>Loading more referrals...</AppText>
+        ListFooterComponent={(
+          <View style={styles.footer}>
+            {status === 'LoadingMore' ? (
+              <View style={styles.loading}>
+                <ActivityIndicator color={theme.colors.socialText} />
+                <AppText variant="caption" color={theme.colors.textMuted}>Loading more referrals...</AppText>
+              </View>
+            ) : null}
+            <AppText variant="caption" color={theme.colors.textMuted}>
+              You earn 68% of our 15% service fee on each friend's first 3 completed bookings. Example: a ₱700 booking earns ₱71.40.
+            </AppText>
           </View>
-        ) : null}
+        )}
         onEndReached={() => {
           if (status === 'CanLoadMore') onLoadMore()
         }}
@@ -125,9 +132,6 @@ export function ReferralsView({
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
-      <View style={[styles.floatingBack, { bottom: 16 + insets.bottom }]}>
-        <BackButton label="Go back" onPress={onBack} />
-      </View>
     </Screen>
   )
 }
@@ -137,7 +141,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   return (
     <View style={[styles.metric, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
       <AppText variant="caption" color={theme.colors.textMuted}>{label}</AppText>
-      <AppText variant="heading" style={styles.metricValue} numberOfLines={1}>{value}</AppText>
+      <AppText variant="heading">{value}</AppText>
     </View>
   )
 }
@@ -145,11 +149,11 @@ function Metric({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 5, paddingBottom: 32 },
   header: { gap: 8, paddingTop: 8 },
+  headerCopy: { gap: 4 },
   card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 },
-  metrics: { flexDirection: 'row', gap: 8 },
-  metric: { flex: 1, borderWidth: 1, borderRadius: 12, padding: 10, gap: 4 },
-  metricValue: { fontSize: 16 },
-  listContent: { paddingBottom: 88, gap: 8 },
+  metrics: { gap: 8 },
+  metric: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 4 },
+  listContent: { paddingBottom: 24, gap: 8 },
+  footer: { gap: 8, paddingTop: 8 },
   loading: { alignItems: 'center', gap: 8, paddingVertical: 16 },
-  floatingBack: { position: 'absolute', left: 5, zIndex: 10 },
 })
