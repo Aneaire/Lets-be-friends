@@ -21,7 +21,7 @@ export function PolicyDocumentScreen({ documentId }: { documentId: PolicyDocumen
         onBack={() => { if (router.canGoBack()) router.back(); else router.replace('/onboarding') }}
         back
       />
-      <AppText variant="caption" color={theme.colors.textMuted}>Effective {policy.effectiveDate}.</AppText>
+      <AppText variant="caption" color={theme.colors.textMuted}>Effective {policy.effectiveDate}. Version {policy.version}.</AppText>
       {policy.sections.map((section) => (
         <Section key={section.heading}>
           <AppText variant="heading">{section.heading}</AppText>
