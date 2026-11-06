@@ -33,7 +33,6 @@ export const HeaderWithActions: Story = {
       back
       onBack={goBack}
       title="Notifications and activity"
-      subtitle="Booking, message, and safety updates"
       action={<IconButton label="Notification settings" icon="settings-outline" onPress={openNotifications} />}
     />
   ),

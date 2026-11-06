@@ -190,7 +190,7 @@ export default function NearbyScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
-      <View style={styles.headerWrap}><AppHeader title="Nearby Companions" subtitle="Approximate results only" back onBack={() => goBack()} /></View>
+      <View style={styles.headerWrap}><AppHeader title="Nearby Companions" back onBack={() => goBack()} /></View>
       {!origin ? (
         <ScrollView contentContainerStyle={styles.prompt} showsVerticalScrollIndicator={false} scrollEnabled={!mapInteracting}>
           {pinMode ? (

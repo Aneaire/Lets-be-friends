@@ -111,7 +111,6 @@ export function CompanionFinancePresentation({
     <Screen contentStyle={styles.content}>
       <AppHeader
         title="Withdraw funds"
-        subtitle="Wallet"
         back
         onBack={onBack}
       />

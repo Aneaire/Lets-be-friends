@@ -51,9 +51,8 @@ export function ReferralsView({
 
   const header = (
     <View style={styles.header}>
-      <AppHeader title="Referrals" subtitle="Share and track credit" back onBack={onBack} />
+      <AppHeader title="Referrals" back onBack={onBack} />
       <View style={styles.headerCopy}>
-        <AppText variant="label" color={theme.colors.socialText}>REFERRALS</AppText>
         <AppText variant="title">Invite friends</AppText>
         <AppText color={theme.colors.textMuted}>
           Earn booking credit when friends complete their first 3 bookings.

@@ -113,7 +113,7 @@ export function CircleIndexScreen() {
 
   return (
     <Screen contentStyle={styles.screen}>
-      <AppHeader title="Circles" subtitle="Shared interests and familiar groups" back />
+      <AppHeader title="Circles" back />
       {loading ? <StateView embedded loading title="Loading circles" /> : null}
       {!loading && eligibility?.eligible ? <ActionButton label={showCreate ? 'Close Circle form' : 'Create Circle'} intent="self" secondary={!showCreate} onPress={() => { setError(''); setShowCreate((value) => !value) }} /> : null}
       {!loading && eligibility && !eligibility.eligible ? <InlineNotice title="Verification required" tone="neutral">Current identity verification is required before you can create and host a Circle.</InlineNotice> : null}

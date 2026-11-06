@@ -77,7 +77,7 @@ function CirclePreview({ detail, circleId }: { detail: CircleDetail; circleId: C
   const privacy = circlePrivacySummary(detail.settings ?? detail)
   const sections = circlePreviewSections(detail)
   return <Screen contentStyle={styles.screen} onScroll={handleFeedScroll} scrollEventThrottle={160}>
-    <AppHeader back title={detail.name} subtitle={`${detail.category} · ${detail.memberCount} members`} />
+    <AppHeader back title={detail.name} />
     {detail.coverUrl ? <Image source={{ uri: detail.coverUrl }} style={styles.cover} accessibilityLabel={`${detail.name} Circle cover`} /> : null}
     <View style={styles.hero}><CircleMarker iconUrl={detail.iconUrl} name={detail.name} joined={detail.membershipState === 'active'} size={56} /><AppText variant="title">{detail.name}</AppText><AppText color={theme.colors.textMuted}>{detail.purpose}</AppText><AppText variant="caption" color={theme.colors.textMuted}>Hosted by {detail.host?.displayName ?? 'Circle host'}</AppText></View>
     {error ? <InlineNotice title="Circle action failed" tone="danger">{error}</InlineNotice> : null}
@@ -211,7 +211,7 @@ function MemberCircle({ detail, circleId, initialPostId, focusCommentId, section
   const scrollRef = useRef<ScrollView>(null)
 
   return <Screen scrollRef={scrollRef} contentStyle={styles.screen} onScroll={handleFeedScroll} scrollEventThrottle={160}>
-    <AppHeader back title={detail.name} subtitle={`${detail.category} · ${detail.memberCount} members`} />
+    <AppHeader back title={detail.name} />
     {detail.coverUrl ? <Image source={{ uri: detail.coverUrl }} style={styles.cover} accessibilityLabel={`${detail.name} Circle cover`} /> : null}
     <View style={styles.hero}><CircleMarker iconUrl={detail.iconUrl} name={detail.name} joined={detail.membershipState === 'active'} size={56} /><AppText color={theme.colors.textMuted}>{detail.purpose}</AppText><View style={styles.row}>{detail.circleState === 'archived' ? <AppText variant="caption" color={theme.colors.warning}>Archived, read-only</AppText> : null}{detail.role !== 'member' ? <AppText variant="caption" color={theme.colors.socialText}>{detail.role}</AppText> : null}{detail.joinPolicy === 'open' ? <AppText variant="caption" color={theme.colors.socialText}>Open join</AppText> : null}</View></View>
     {error ? <InlineNotice title="Circle action failed" tone="danger">{error}</InlineNotice> : null}

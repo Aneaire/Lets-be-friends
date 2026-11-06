@@ -94,7 +94,6 @@ export function NotificationCenterPresentation({
         back
         onBack={onBack}
         title="Notifications"
-        subtitle="Booking, social, account, and safety updates"
         action={(
           <IconButton
             label={markAllBusy

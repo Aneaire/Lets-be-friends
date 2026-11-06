@@ -7,9 +7,8 @@ import { density } from '@/theme/tokens'
 
 import { AppText } from '@/design-system/atoms/Typography'
 
-export function AppHeader({ title, subtitle, back = false, onBack, action }: {
+export function AppHeader({ title, back = false, onBack, action }: {
   title: string
-  subtitle?: string
   back?: boolean
   onBack?: () => void
   action?: ReactNode
@@ -29,7 +28,6 @@ export function AppHeader({ title, subtitle, back = false, onBack, action }: {
       ) : null}
       <View style={styles.copy}>
         <AppText variant="heading" numberOfLines={1}>{title}</AppText>
-        {subtitle ? <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{subtitle}</AppText> : null}
       </View>
       {action ? <View style={styles.action}>{action}</View> : back ? <View style={styles.spacer} /> : null}
     </View>

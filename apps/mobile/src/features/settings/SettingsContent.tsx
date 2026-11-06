@@ -70,7 +70,7 @@ export function SettingsContent({
   const theme = useAppTheme()
   return (
     <Screen contentStyle={styles.content}>
-      <AppHeader title="Settings" subtitle="Notifications, appearance, and account" back onBack={onBack} />
+      <AppHeader title="Settings" back onBack={onBack} />
       <View style={styles.header}>
         <AppText variant="label" color={theme.colors.selfText}>ACCOUNT SETTINGS</AppText>
         <AppText variant="title">Tune your account</AppText>
