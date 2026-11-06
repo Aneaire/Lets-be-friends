@@ -2,8 +2,8 @@ import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native'
 import { formatPhp } from '@lets-be-friends/shared'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
-import { BackLink } from '@/design-system/atoms/BackLink'
 import { AppText } from '@/design-system/atoms/Typography'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { Screen } from '@/design-system/templates/Screen'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { ReferralRow, type MobileReferralItem } from './ReferralRow'
@@ -51,7 +51,7 @@ export function ReferralsView({
 
   const header = (
     <View style={styles.header}>
-      <BackLink label="Wallet" onPress={onBack} />
+      <AppHeader title="Referrals" back onBack={onBack} />
       <View style={styles.headerCopy}>
         <AppText variant="label" color={theme.colors.socialText}>REFERRALS</AppText>
         <AppText variant="title">Invite friends</AppText>
