@@ -125,7 +125,7 @@ export const ReadyNoHistory: Story = {
       canvas.getByRole('button', { name: 'Create QR Ph top-up' }),
     )
     await userEvent.click(
-      canvas.getByRole('button', { name: 'Return to Profile' }),
+      canvas.getByRole('button', { name: 'Go back' }),
     )
     await expect(createTopUp).toHaveBeenCalledOnce()
     await expect(returnToProfile).toHaveBeenCalledOnce()

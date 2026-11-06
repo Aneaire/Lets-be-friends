@@ -8,6 +8,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native'
 import { mobileApi, type BookingId, type CompanionProfileId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -157,12 +158,7 @@ function EditRequestForm({ booking, companionRecord, bookingAvailability }: { bo
 
   return (
     <Screen contentStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.navRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Return to booking" onPress={() => returnToBooking(String(booking._id))} style={styles.back}>
-          <AppText variant="heading">‹</AppText>
-        </Pressable>
-        <AppText variant="label" color={theme.colors.social}>EDIT REQUEST</AppText>
-      </View>
+      <AppHeader title="Edit request" back onBack={() => returnToBooking(String(booking._id))} />
       <AppText variant="title">Edit request</AppText>
       <AppText color={theme.colors.textMuted}>Update your pending request using Manila time. We will recheck eligibility, wallet balance, pricing, schedule, and booking status.</AppText>
 
@@ -271,8 +267,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 const styles = StyleSheet.create({
   content: { paddingBottom: 40, gap: 12 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
-  navRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 16 },
-  back: { width: 48, height: 48, justifyContent: 'center' },
+
   fieldLabel: { marginTop: 8 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choice: { minHeight: 44, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, justifyContent: 'center' },

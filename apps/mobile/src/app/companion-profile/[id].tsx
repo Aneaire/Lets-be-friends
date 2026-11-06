@@ -149,7 +149,7 @@ function CompanionDetail({ companion, reviewId, commentId }: { companion: Compan
     <View style={styles.route}>
       <BlurTargetView ref={blurTarget} importantForAccessibility={viewerImage ? 'no-hide-descendants' : 'auto'} style={styles.blurTarget}>
         <Screen scrollRef={scrollRef} contentStyle={styles.content} footer={!ownProfile ? <View style={styles.stickyActions}><ActionButton label={busy === 'message' ? 'Opening' : 'Message'} onPress={() => void messageCompanion()} disabled={!signedIn || !companion.userId || busy !== null} intent="social" secondary icon="chatbubble-outline" style={styles.flexAction} /><ActionButton label={bookingAction.kind === 'book' ? 'Book' : bookingAction.label} onPress={bookingPress} disabled={bookingAction.kind === 'own_profile' || bookingAction.kind === 'unavailable'} intent="social" icon="calendar-outline" style={styles.flexAction} /></View> : undefined}>
-      <AppHeader title="Profile" back onBack={goBackOrExplore} action={signedIn && !ownProfile && companion.userId ? <ProfileSafetyMenu profileId={companion.id} userId={String(companion.userId)} displayName={companion.name} onNotice={setMessage} /> : undefined} />
+      <AppHeader title={companion.name} back onBack={goBackOrExplore} action={signedIn && !ownProfile && companion.userId ? <ProfileSafetyMenu profileId={companion.id} userId={String(companion.userId)} displayName={companion.name} onNotice={setMessage} /> : undefined} />
       <View style={styles.identity}>
         <Avatar uri={companion.imageUrl} name={companion.name} size={88} />
         <View style={styles.identityCopy}>

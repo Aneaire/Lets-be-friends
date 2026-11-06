@@ -12,8 +12,8 @@ import { formatMessageTimestamp } from '@/data/messageViewModels'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { Avatar } from '@/design-system/atoms/Avatar'
-import { IconButton } from '@/design-system/atoms/IconButton'
 import { AppText } from '@/design-system/atoms/Typography'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { StateView } from '@/design-system/molecules/StateView'
 import { Screen, keyboardAvoidingBehavior } from '@/design-system/templates/Screen'
 import { ListRowsSkeleton } from '@/design-system/templates/PageSkeleton'
@@ -183,13 +183,7 @@ function ReadyPostComments({ postId, commentId }: { postId: PostId; commentId?: 
           style={styles.blurTarget}
         >
           <Screen scroll={false} contentStyle={styles.screen} footer={composer}>
-            <View style={styles.header}>
-              <IconButton label="Back to home" icon="arrow-back" onPress={() => router.back()} />
-              <View style={styles.headerCopy}>
-                <AppText variant="heading">Comments</AppText>
-                <AppText variant="caption" color={theme.colors.textMuted}>Join the post conversation respectfully.</AppText>
-              </View>
-            </View>
+            <AppHeader title="Comments" back onBack={() => router.back()} />
             <FlatList
               ref={listRef}
               style={styles.commentScroll}
@@ -446,8 +440,7 @@ const styles = StyleSheet.create({
   blurTarget: { flex: 1 },
   screen: { paddingBottom: 0 },
   state: { flexGrow: 1, justifyContent: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 12 },
-  headerCopy: { flex: 1, minWidth: 0, gap: 2 },
+
   commentScroll: { flex: 1 },
   commentList: { gap: 0, paddingBottom: 20 },
   threadHeader: { gap: 12, paddingBottom: 2 },

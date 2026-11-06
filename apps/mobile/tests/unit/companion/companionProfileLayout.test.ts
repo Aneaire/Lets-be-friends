@@ -4,8 +4,8 @@ import { join } from 'node:path'
 const profileSource = readFileSync(join(process.cwd(), 'src/app/companion-profile/[id].tsx'), 'utf8')
 
 describe('Companion profile layout', () => {
-  it('names the header Profile and keeps safety actions in the header overflow menu', () => {
-    expect(profileSource).toContain('<AppHeader title="Profile"')
+  it('names the header with the Companion name and keeps safety actions in the header overflow menu', () => {
+    expect(profileSource).toContain('<AppHeader title={companion.name}')
     expect(profileSource).toContain('<ProfileSafetyMenu')
     expect(profileSource).toContain('onNotice={setMessage}')
     expect(profileSource).not.toContain('<MemberSafetyActions')

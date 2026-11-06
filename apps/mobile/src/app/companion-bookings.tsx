@@ -6,6 +6,7 @@ import { StyleSheet, View } from 'react-native'
 import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppText } from '@/design-system/atoms/Typography'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { StateView } from '@/design-system/molecules/StateView'
 import { BookingCard } from '@/design-system/organisms/BookingCard'
 import { Screen } from '@/design-system/templates/Screen'
@@ -36,11 +37,8 @@ function ReadyCompanionBookingsScreen() {
 
   return (
     <Screen contentStyle={styles.content}>
-      <View style={styles.header}>
-        <AppText variant="label" color={theme.colors.social}>INCOMING BOOKINGS</AppText>
-        <AppText variant="display">Incoming plans.</AppText>
-        <AppText color={theme.colors.textMuted}>{active.length} active {active.length === 1 ? 'booking' : 'bookings'} for your Companion profile.</AppText>
-      </View>
+      <AppHeader title="Incoming bookings" back onBack={() => router.canGoBack() ? router.back() : router.replace('/profile')} />
+      <AppText color={theme.colors.textMuted}>{active.length} active {active.length === 1 ? 'booking' : 'bookings'} for your Companion profile.</AppText>
       {active.length === 0 ? (
         <StateView
           embedded
@@ -105,7 +103,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 const styles = StyleSheet.create({
   content: { paddingTop: 16, paddingBottom: 40, gap: 16 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
-  header: { gap: 10 },
+
   section: { gap: 12 },
   list: { gap: 12 },
 })

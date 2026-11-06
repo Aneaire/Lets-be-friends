@@ -4,6 +4,7 @@ import { Image, Pressable, StyleSheet, TextInput, View } from 'react-native'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { Skeleton } from '@/design-system/atoms/Skeleton'
 import { AppText } from '@/design-system/atoms/Typography'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { Screen } from '@/design-system/templates/Screen'
 import type { WalletActivityRow } from '@/data/walletActivity'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -77,6 +78,7 @@ export function WalletPresentation({
 
   return (
     <Screen contentStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <AppHeader title="Wallet" back onBack={onReturn} />
       <View style={styles.header}>
         <AppText variant="label" color={theme.colors.selfText}>WALLET</AppText>
         <AppText variant="title">Your wallet balance</AppText>
@@ -220,7 +222,6 @@ export function WalletPresentation({
       </View>
       {onOpenReferrals ? <ActionButton label="Invite friends" onPress={onOpenReferrals} intent="social" secondary /> : null}
       <ActionButton label="Withdraw funds" onPress={onOpenWithdrawals} intent="self" />
-      <ActionButton label="Return to Profile" onPress={onReturn} secondary intent="self" />
     </Screen>
   )
 }

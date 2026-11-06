@@ -17,6 +17,7 @@ import { BookingSafetyActions } from '@/features/booking/BookingSafetyActions'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
 import {
   bookingStatusPresentation,
@@ -71,11 +72,8 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
 
   return (
     <Screen contentStyle={styles.content}>
-      <View style={styles.header}>
-        <AppText variant="label" color={theme.colors.social}>BOOKING DETAILS</AppText>
-        <AppText variant="title">{booking.category}</AppText>
-        <AppText color={theme.colors.textMuted}>with {booking.companionDisplayName}</AppText>
-      </View>
+      <AppHeader title={booking.category} back onBack={() => router.canGoBack() ? router.back() : router.replace('/bookings')} />
+      <AppText color={theme.colors.textMuted}>with {booking.companionDisplayName}</AppText>
       <View accessibilityLiveRegion="polite" style={[styles.status, { backgroundColor: theme.colors.socialSoft, borderColor: theme.colors.social }]}>
         <AppText variant="bodyStrong" color={theme.colors.social}>{status.label}</AppText>
         <AppText variant="caption">{status.explanation}</AppText>
@@ -166,7 +164,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 const styles = StyleSheet.create({
   content: { paddingTop: 16, paddingBottom: 40, gap: 16 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
-  header: { gap: 6 },
+
   status: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 5 },
   details: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 16 },
   detailRow: { gap: 4 },

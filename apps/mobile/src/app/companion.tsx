@@ -16,6 +16,7 @@ import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/ba
 import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { Screen, Section } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -162,6 +163,7 @@ function ReadyCompanionScreen({ member }: { member: Extract<ReturnType<typeof us
 
   return (
     <Screen contentStyle={styles.content}>
+      <AppHeader title="Companion" back onBack={() => router.canGoBack() ? router.back() : router.replace('/profile')} />
       <View style={styles.header}>
         <AppText variant="label" color={theme.colors.self}>COMPANION</AppText>
         <AppText variant="display">Share what you can offer.</AppText>

@@ -9,6 +9,7 @@ import { mobileApi, type CompanionProfileId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
+import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -156,12 +157,7 @@ function BookingForm({ companion, availableCentavos }: { companion: ReturnType<t
 
   return (
     <Screen contentStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.navRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => goBackOr('/nearby')} style={styles.back}>
-          <AppText variant="heading">‹</AppText>
-        </Pressable>
-        <AppText variant="label" color={theme.colors.social}>BOOKING REQUEST</AppText>
-      </View>
+      <AppHeader title="Booking request" back onBack={() => goBackOr('/nearby')} />
       <AppText variant="title">Plan time with {companion.name}</AppText>
       <AppText color={theme.colors.textMuted}>Times are entered in Manila time. Review every detail before sending.</AppText>
 
@@ -297,8 +293,7 @@ function goBackOr(fallback: '/nearby') {
 const styles = StyleSheet.create({
   content: { paddingBottom: 40, gap: 12 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
-  navRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 16 },
-  back: { width: 48, height: 48, justifyContent: 'center' },
+
   fieldLabel: { marginTop: 8 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choice: { minHeight: 44, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, justifyContent: 'center' },

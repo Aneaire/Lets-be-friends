@@ -85,7 +85,7 @@ function ConnectedMemberProfile({ id }: { id: string }) {
 
   return (
     <Screen contentStyle={styles.content}>
-      <AppHeader title="Member profile" back onBack={goBackOrExplore} action={signedIn && !ownProfile ? <ProfileSafetyMenu profileId={String(userProfile._id)} userId={String(userProfile._id)} displayName={userProfile.displayName} reportTarget="member" onNotice={setMessage} /> : undefined} />
+      <AppHeader title={userProfile.displayName} back onBack={goBackOrExplore} action={signedIn && !ownProfile ? <ProfileSafetyMenu profileId={String(userProfile._id)} userId={String(userProfile._id)} displayName={userProfile.displayName} reportTarget="member" onNotice={setMessage} /> : undefined} />
       <View style={styles.identity}>
         <Avatar uri={userProfile.profileImageUrl ?? undefined} name={userProfile.displayName} size={88} />
         <View style={styles.identityCopy}>

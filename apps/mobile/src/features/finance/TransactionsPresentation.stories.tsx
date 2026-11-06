@@ -87,7 +87,7 @@ export const ReadyHistory: Story = {
     await expect(canvas.getByText('Returned to wallet')).toBeVisible()
     await expect(canvas.getByText('Refunded to wallet')).toBeVisible()
     await expect(canvas.getByText('Wallet top-up')).toBeVisible()
-    await userEvent.click(canvas.getByRole('button', { name: 'Back to bookings' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Go back' }))
     await expect(onBack).toHaveBeenCalled()
     await userEvent.click(canvas.getByRole('button', { name: /Returned to wallet/ }))
     await expect(onOpenBooking).toHaveBeenCalledWith('booking-1')
