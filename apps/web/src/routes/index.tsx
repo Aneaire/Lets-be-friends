@@ -6,11 +6,13 @@ import { User } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import { OpenableImage } from '../design-system/molecules/OpenableImage'
 import { SignInAction } from '../features/auth/SignInAction'
+import { ReferralInvitation } from '../features/referral/ReferralInvitation'
 
 const homeTitle = "Everyday Help and Real Connections | Let's Be Friends"
 const homeDescription = 'Find verified Companions who offer everyday help, shared activities, and friendly company, or become a Companion and earn by sharing your Strengths.'
 
 export const Route = createFileRoute('/')({
+  validateSearch: (search: Record<string, unknown>): { ref?: string } => ({ ref: typeof search.ref === 'string' ? search.ref : undefined }),
   head: () => ({
     meta: [
       { title: homeTitle },
@@ -172,11 +174,13 @@ const homeFaqs = [
 
 export function HomePage() {
   const { isSignedIn } = useAuth()
+  const { ref } = Route.useSearch()
   const companionsResult = useQuery(api.companions.listApproved, isSignedIn ? 'skip' : {}) as HomeCompanion[] | undefined
   const companions = companionsResult ?? []
   const companionsLoading = companionsResult === undefined
   const featured = companions.slice(0, 4)
 
+  if (ref !== undefined) return <ReferralInvitation code={ref} />
   if (isSignedIn) return <Navigate to="/social" replace />
 
   return (

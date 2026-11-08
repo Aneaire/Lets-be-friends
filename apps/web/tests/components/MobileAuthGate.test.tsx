@@ -70,7 +70,7 @@ describe('MobileAuthGate', () => {
 
 describe('isPublicMobilePath', () => {
   it('treats marketing and discovery routes as public', () => {
-    for (const path of ['/', '/safety', '/become-companion', '/discover', '/nearby', '/companion-profile', '/member-profile']) {
+    for (const path of ['/', '/invite', '/safety', '/become-companion', '/discover', '/nearby', '/companion-profile', '/member-profile']) {
       expect(isPublicMobilePath(path)).toBe(true)
     }
     expect(isPublicMobilePath('/companion-profile/abc123')).toBe(true)

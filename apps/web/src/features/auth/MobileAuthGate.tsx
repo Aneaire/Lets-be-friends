@@ -7,6 +7,7 @@ import { BrandLogo } from '../../design-system/atoms/BrandLogo'
 const publicMobilePaths = [
   '/',
   '/safety',
+  '/invite',
   '/become-companion',
   '/companion-profile',
   '/member-profile',

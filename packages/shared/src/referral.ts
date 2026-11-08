@@ -35,5 +35,5 @@ export function referralCodeValidationError(value: string) {
 
 export function referralShareUrl(origin: string, code: string) {
   const base = origin.replace(/\/+$/, '')
-  return `${base}/?ref=${encodeURIComponent(normalizeReferralCode(code))}`
+  return `${base}/invite?ref=${encodeURIComponent(normalizeReferralCode(code))}`
 }

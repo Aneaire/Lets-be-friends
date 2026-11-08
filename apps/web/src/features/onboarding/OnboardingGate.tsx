@@ -71,13 +71,9 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
         if (referralCode) {
           try {
             await attributeReferral({ code: referralCode })
-          } catch {
-            // An invalid, already-linked, or post-booking code must not block account setup.
-          }
-          try {
             window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY)
           } catch {
-            // Storage can be unavailable in private browsing.
+            // Keep the code for the onboarding form if attribution did not succeed.
           }
         }
       } catch (error) {

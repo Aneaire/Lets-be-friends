@@ -17,6 +17,7 @@ import { Route as CompanionRouteImport } from './routes/companion'
 import { Route as CompanionProfileRouteImport } from './routes/companion-profile'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as GetVerifiedRouteImport } from './routes/get-verified'
+import { Route as InviteRouteImport } from './routes/invite'
 import { Route as MemberProfileRouteImport } from './routes/member-profile'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as NearbyRouteImport } from './routes/nearby'
@@ -75,6 +76,11 @@ const DiscoverRoute = DiscoverRouteImport.update({
 const GetVerifiedRoute = GetVerifiedRouteImport.update({
   id: '/get-verified',
   path: '/get-verified',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteRoute = InviteRouteImport.update({
+  id: '/invite',
+  path: '/invite',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MemberProfileRoute = MemberProfileRouteImport.update({
@@ -182,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
   '/get-verified': typeof GetVerifiedRoute
+  '/invite': typeof InviteRoute
   '/member-profile': typeof MemberProfileRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
@@ -210,6 +217,7 @@ export interface FileRoutesByTo {
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
   '/get-verified': typeof GetVerifiedRoute
+  '/invite': typeof InviteRoute
   '/member-profile': typeof MemberProfileRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
@@ -240,6 +248,7 @@ export interface FileRoutesById {
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
   '/get-verified': typeof GetVerifiedRoute
+  '/invite': typeof InviteRoute
   '/member-profile': typeof MemberProfileRoute
   '/messages': typeof MessagesRoute
   '/nearby': typeof NearbyRoute
@@ -271,6 +280,7 @@ export interface FileRouteTypes {
     | '/companion-profile'
     | '/discover'
     | '/get-verified'
+    | '/invite'
     | '/member-profile'
     | '/messages'
     | '/nearby'
@@ -299,6 +309,7 @@ export interface FileRouteTypes {
     | '/companion-profile'
     | '/discover'
     | '/get-verified'
+    | '/invite'
     | '/member-profile'
     | '/messages'
     | '/nearby'
@@ -328,6 +339,7 @@ export interface FileRouteTypes {
     | '/companion-profile'
     | '/discover'
     | '/get-verified'
+    | '/invite'
     | '/member-profile'
     | '/messages'
     | '/nearby'
@@ -358,6 +370,7 @@ export interface RootRouteChildren {
   CompanionProfileRoute: typeof CompanionProfileRoute
   DiscoverRoute: typeof DiscoverRoute
   GetVerifiedRoute: typeof GetVerifiedRoute
+  InviteRoute: typeof InviteRoute
   MemberProfileRoute: typeof MemberProfileRoute
   MessagesRoute: typeof MessagesRoute
   NearbyRoute: typeof NearbyRoute
@@ -433,6 +446,13 @@ declare module '@tanstack/react-router' {
       path: '/get-verified'
       fullPath: '/get-verified'
       preLoaderRoute: typeof GetVerifiedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite': {
+      id: '/invite'
+      path: '/invite'
+      fullPath: '/invite'
+      preLoaderRoute: typeof InviteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/member-profile': {
@@ -593,6 +613,7 @@ const rootRouteChildren: RootRouteChildren = {
   CompanionProfileRoute: CompanionProfileRoute,
   DiscoverRoute: DiscoverRoute,
   GetVerifiedRoute: GetVerifiedRoute,
+  InviteRoute: InviteRoute,
   MemberProfileRoute: MemberProfileRoute,
   MessagesRoute: MessagesRoute,
   NearbyRoute: NearbyRoute,

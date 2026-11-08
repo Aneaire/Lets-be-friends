@@ -44,3 +44,10 @@ describe('referral code card', () => {
     expect(screen.getByRole('alert').textContent).toContain('That referral code was not found.')
   })
 })
+
+it('prefills a saved invitation code', () => {
+  window.localStorage.setItem('lets-be-friends-referral-code', 'f9u29d5u')
+  render(<ReferralCodeCard busy={false} error="" notice="" onSubmit={vi.fn()} onSkip={vi.fn()} />)
+  expect((screen.getByLabelText(/Referral code/) as HTMLInputElement).value).toBe('F9U29D5U')
+  window.localStorage.removeItem('lets-be-friends-referral-code')
+})

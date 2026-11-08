@@ -84,6 +84,7 @@ import { OnboardingPage } from '../../src/routes/onboarding'
 
 afterEach(() => {
   cleanup()
+  window.localStorage.clear()
   Reflect.deleteProperty(window.navigator, 'geolocation')
 })
 
@@ -177,6 +178,26 @@ describe('onboarding route', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add referral code' }))
 
     await waitFor(() => expect(state.attributeReferral).toHaveBeenCalledWith({ code: 'ABCD12' }))
+  })
+
+  it('prefills a saved invitation and clears it after adding the code', async () => {
+    window.localStorage.setItem('lets-be-friends-referral-code', 'F9U29D5U')
+    state.referral = { referredBy: null, promptDismissedAt: null }
+    render(<OnboardingPage />)
+    expect((await screen.findByLabelText(/Referral code/) as HTMLInputElement).value).toBe('F9U29D5U')
+    fireEvent.click(screen.getByRole('button', { name: 'Add referral code' }))
+    await waitFor(() => expect(state.attributeReferral).toHaveBeenCalledWith({ code: 'F9U29D5U' }))
+    await waitFor(() => expect(window.localStorage.getItem('lets-be-friends-referral-code')).toBeNull())
+  })
+
+  it('keeps the saved invitation when adding it fails', async () => {
+    window.localStorage.setItem('lets-be-friends-referral-code', 'F9U29D5U')
+    state.referral = { referredBy: null, promptDismissedAt: null }
+    state.attributeReferral.mockRejectedValueOnce(new Error('Please try again'))
+    render(<OnboardingPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Add referral code' }))
+    await screen.findByText(/Please try again/)
+    expect(window.localStorage.getItem('lets-be-friends-referral-code')).toBe('F9U29D5U')
   })
 
   it('lets the member skip the referral code prompt', async () => {

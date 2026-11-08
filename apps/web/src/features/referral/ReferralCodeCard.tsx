@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   normalizeReferralCode,
   referralCodeValidationError,
+  REFERRAL_CODE_STORAGE_KEY,
 } from '@lets-be-friends/shared'
 import { Button } from '../../design-system/atoms/Button'
 import { FormField } from '../../design-system/molecules/FormField'
@@ -24,6 +25,14 @@ export function ReferralCodeCard({
   onEdit?: () => void
 }) {
   const [code, setCode] = useState('')
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(REFERRAL_CODE_STORAGE_KEY)
+      if (saved && !referralCodeValidationError(saved)) setCode(normalizeReferralCode(saved))
+    } catch {
+      // The form remains available when browser storage is disabled.
+    }
+  }, [])
   const [localError, setLocalError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const displayError = localError || error

@@ -27,6 +27,6 @@ describe('referral rules', () => {
   })
 
   it('builds a share link with the normalized code', () => {
-    expect(referralShareUrl('https://letsbefriends.ph/', 'ab-cd12')).toBe('https://letsbefriends.ph/?ref=ABCD12')
+    expect(referralShareUrl('https://letsbefriends.ph/', 'ab-cd12')).toBe('https://letsbefriends.ph/invite?ref=ABCD12')
   })
 })

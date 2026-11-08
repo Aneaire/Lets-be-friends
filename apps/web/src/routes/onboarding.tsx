@@ -1,3 +1,4 @@
+import { REFERRAL_CODE_STORAGE_KEY } from '@lets-be-friends/shared'
 import { SignInButton, useAuth } from '@clerk/react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
@@ -244,6 +245,7 @@ export function OnboardingPage() {
     setReferralNotice('')
     try {
       await attributeReferral({ code })
+      try { window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY) } catch { /* Storage may be unavailable. */ }
       setReferralNotice('Referral code added. It will apply to your first completed bookings.')
       if (stepRef.current === 1) setPendingReferralFocus('added')
     } catch (referralSubmitError) {
@@ -259,6 +261,7 @@ export function OnboardingPage() {
     setReferralError('')
     try {
       await dismissReferralPrompt({})
+      try { window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY) } catch { /* Storage may be unavailable. */ }
       setReferralNotice('Referral prompt dismissed.')
       if (stepRef.current === 1) setPendingReferralFocus('dismissed')
     } catch {
