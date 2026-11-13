@@ -124,7 +124,7 @@ export function SettingsContent({
       </SettingsGroup>
 
       <SettingsGroup title="Session">
-        <SettingsRow icon="log-out-outline" label={signingOut ? 'Signing out' : 'Sign out'} detail="End this session on this device" danger onPress={signingOut ? undefined : onSignOut} />
+        <SettingsRow icon="log-out-outline" label={signingOut ? 'Signing out' : 'Sign out'} detail="End this session on this device" onPress={signingOut ? undefined : onSignOut} />
         {signOutError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>Sign out could not be completed. Please try again.</AppText> : null}
       </SettingsGroup>
     </Screen>

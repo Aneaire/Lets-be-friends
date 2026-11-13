@@ -1,4 +1,4 @@
-import {
+import { evidenceClosedSummary, 
   MAX_EVIDENCE_IMAGE_BYTES,
   evidenceAssetToArrayBuffer,
   evidenceDecisionCopy,
@@ -7,6 +7,12 @@ import {
 } from '@/data/evidence'
 
 describe('booking evidence helpers', () => {
+  it('summarizes a closed record without a loading or sticky-warning line', () => {
+    expect(evidenceClosedSummary('uploaded')).toContain('Private image saved')
+    expect(evidenceClosedSummary('skipped')).toBe('No image added.')
+    expect(evidenceClosedSummary(undefined)).toBe('No evidence decision recorded.')
+  })
+
   it('uses truthful role, privacy, and decision copy', () => {
     expect(evidenceDecisionCopy('companion_start', 'uploaded')).toEqual({ label: 'Start evidence', detail: 'Private image saved for authorized safety review only.' })
     expect(evidenceDecisionCopy('member_end', 'skipped')).toEqual({ label: 'End evidence', detail: 'No image added.' })

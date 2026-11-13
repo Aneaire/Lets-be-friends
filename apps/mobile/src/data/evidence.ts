@@ -18,6 +18,12 @@ export function evidenceDecisionCopy(role: 'companion_start' | 'member_end', dec
   return { label, detail: 'Upload one private image, or continue without evidence.' }
 }
 
+export function evidenceClosedSummary(decision: EvidenceDecision) {
+  if (decision === 'uploaded') return 'Private image saved for authorized safety review only.'
+  if (decision === 'skipped') return 'No image added.'
+  return 'No evidence decision recorded.'
+}
+
 export type EvidenceSharedRow = {
   role: 'companion_start' | 'member_end'
   isViewer: boolean

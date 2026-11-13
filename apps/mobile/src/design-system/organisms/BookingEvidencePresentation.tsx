@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { ConfirmationDialog } from '@/design-system/molecules/ConfirmationDialog'
-import { evidenceDecisionCopy, evidenceSharedRowCopy, type EvidenceDecision, type EvidenceSharedRow } from '@/data/evidence'
+import { evidenceClosedSummary, evidenceDecisionCopy, evidenceSharedRowCopy, type EvidenceDecision, type EvidenceSharedRow } from '@/data/evidence'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
 
@@ -95,9 +95,9 @@ export function BookingEvidencePresentation({
               Both people can see whether each decision exists. Images stay private to authorized safety review.
             </AppText>
           </View>
-        ) : (
+        ) : loading ? (
           <AppText color={theme.colors.textMuted}>Loading the shared safety record.</AppText>
-        )}
+        ) : null}
 
         {!loading && !canDecide ? (
           <AppText variant="caption" color={theme.colors.textMuted}>

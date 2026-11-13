@@ -170,7 +170,7 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed, vie
         <AppText variant="heading">Safety and feedback</AppText>
         <AppText variant="caption" color={theme.colors.textMuted}>Reports are private safety submissions. Reviews are shared only when the booking review window is open.</AppText>
       </View>
-      {canReview ? <ActionButton label="Write a review" onPress={() => open('review')} secondary /> : null}
+      {canReview ? <ActionButton label="Write a review" onPress={() => open('review')} intent="social" /> : null}
       {publishedReviewId ? (
         <ActionButton
           label="View your review"
@@ -181,7 +181,7 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed, vie
       ) : null}
       {reportSubmitted
         ? <ActionButton label="Report sent" onPress={() => undefined} disabled secondary />
-        : <ActionButton label="Report this booking" onPress={() => open('report')} secondary />}
+        : <ActionButton label="Report this booking" onPress={() => open('report')} intent="danger" secondary />}
       {message ? <AppText accessibilityLiveRegion="polite" variant="caption" color={theme.colors.textMuted}>{message}</AppText> : null}
       <Dialog
         visible={form !== null}

@@ -119,9 +119,9 @@ export function AccountSheetContent({
           disabled={signingOut}
           onPress={onSignOut}
           style={({ pressed }) => [styles.row, styles.signOutRow, pressed && styles.pressed]}>
-          <AppIcon name="log-out-outline" color={theme.colors.danger} size={22} />
+          <AppIcon name="log-out-outline" color={theme.colors.text} size={22} />
           <View style={styles.rowCopy}>
-            <AppText variant="bodyStrong" color={theme.colors.danger}>{signingOut ? 'Signing out' : 'Sign out'}</AppText>
+            <AppText variant="bodyStrong" color={theme.colors.text}>{signingOut ? 'Signing out' : 'Sign out'}</AppText>
             <AppText variant="caption" color={theme.colors.textMuted}>End this session on this device</AppText>
           </View>
         </Pressable>
