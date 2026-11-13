@@ -68,14 +68,21 @@ export function BookingCard({ booking, onPress, compact = false }: { booking: Bo
       ]}>
       <View style={styles.headingRow}>
         <View style={styles.copy}>
-          <AppText variant="bodyStrong">{booking.category}</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>{participantPreposition} {booking.participantName}</AppText>
+          <AppText variant="bodyStrong">{booking.participantName}</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>{booking.category}</AppText>
         </View>
         <StatusBadge label={status.label} tone={status.tone} />
       </View>
       <AppText variant="caption">{formatBookingSchedule(booking.requestedAt)}</AppText>
       <View style={styles.money}>
-        {priceValue ? (
+        {booking.status === 'declined' || booking.status === 'cancelled' ? (
+          <>
+            <AppText variant="bodyStrong">No payment</AppText>
+            <AppText variant="caption" color={theme.colors.textMuted}>
+              {viewerIsRequester ? 'You were not charged.' : 'The member was not charged.'} · {booking.mode === 'in_person' ? 'In person' : 'Online'} · {formatDuration(booking.durationMinutes)}
+            </AppText>
+          </>
+        ) : priceValue ? (
           <>
             <AppText variant="bodyStrong">{priceLabel} {priceValue}</AppText>
             <AppText variant="caption" color={theme.colors.textMuted}>
@@ -101,8 +108,8 @@ export function BookingCard({ booking, onPress, compact = false }: { booking: Bo
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderRadius: 16, padding: density.cardPadding, gap: density.textStackGap },
-  compact: { borderRadius: density.controlRadius, padding: density.compactCardPadding },
+  card: { borderWidth: 1, borderRadius: 12, padding: density.compactCardPadding, gap: density.textStackGap },
+  compact: { borderRadius: 10, padding: density.compactCardPadding },
   pressed: { opacity: 0.74 },
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   copy: { flex: 1, gap: density.textPairGap },

@@ -22,6 +22,7 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { StatusBadge } from '@/design-system/atoms/StatusBadge'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
+import { companionMoneyCopy } from '@/data/bookingMoney'
 import { bookingStatusPresentation, formatBookingSchedule, formatDuration } from '@/data/bookingViewModels'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
@@ -107,7 +108,16 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
   onDecision: (decision: 'accepted' | 'declined') => void
 }) {
   const theme = useAppTheme()
-  const status = bookingStatusPresentation[booking.status]
+  const status = booking.status === 'accepted' && booking.companionCompletedAt
+    ? { label: 'Waiting for member', explanation: 'You confirmed completion. The member still needs to confirm.', tone: 'warning' as const }
+    : bookingStatusPresentation[booking.status]
+  const terminal = booking.status === 'declined' || booking.status === 'cancelled'
+  const money = companionMoneyCopy({
+    bookingStatus: booking.status,
+    settlementState: booking.settlementState,
+    memberTotalCentavos: booking.memberTotalCentavos,
+    companionEarningsCentavos: booking.companionEarningsCentavos,
+  })
   const [evidenceReady, setEvidenceReady] = useState(Boolean(booking.companionCompletedAt))
   const handleEvidenceDecision = useCallback((ready: boolean) => setEvidenceReady(ready), [])
   return (
@@ -122,12 +132,16 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
         <Detail label="Schedule" value={formatBookingSchedule(booking.requestedAt)} />
         <Detail label="Format" value={booking.mode === 'in_person' ? 'In-person session' : 'Online session'} />
         <Detail label="Duration" value={formatDuration(booking.durationMinutes)} />
-        {booking.companionEarningsCentavos !== undefined ? <Detail label="Your earnings" value={formatPhp(booking.companionEarningsCentavos)} /> : null}
-        {booking.memberTotalCentavos !== undefined && booking.companionEarningsCentavos !== undefined ? (
-          <Detail label="Platform service fee" value={formatPhp(booking.memberTotalCentavos - booking.companionEarningsCentavos)} />
-        ) : null}
-        {booking.memberTotalCentavos !== undefined ? <Detail label="Member booking total" value={formatPhp(booking.memberTotalCentavos)} /> : null}
       </View>
+      {booking.companionEarningsCentavos !== undefined ? (
+        <View style={[styles.payment, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <AppText variant="caption" color={theme.colors.textMuted}>{terminal ? 'Payment' : 'Your earnings'}</AppText>
+          {terminal ? null : <AppText variant="title">{formatPhp(booking.companionEarningsCentavos)}</AppText>}
+          <StatusBadge label={money.label} tone={money.tone} />
+          <AppText variant="caption" color={theme.colors.textMuted}>{money.detail}</AppText>
+          {money.memberCopy ? <AppText variant="caption" color={theme.colors.textMuted}>{money.memberCopy}</AppText> : null}
+        </View>
+      ) : null}
       {booking.notes ? <View style={styles.notes}><AppText variant="heading">Member notes</AppText><AppText color={theme.colors.textMuted}>{booking.notes}</AppText></View> : null}
       <PlanThread status={booking.status} requestedAt={booking.requestedAt} memberCompletedAt={booking.memberCompletedAt} companionCompletedAt={booking.companionCompletedAt} />
       <BookingThread
@@ -215,7 +229,8 @@ const styles = StyleSheet.create({
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
 
   status: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 5 },
-  details: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 16 },
+  details: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 14 },
+  payment: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 6 },
   detailRow: { gap: 4 },
   notes: { gap: 8 },
   actions: { gap: 10 },

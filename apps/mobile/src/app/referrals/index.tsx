@@ -139,6 +139,11 @@ function ReadyReferrals() {
       initialCode={initialCode}
       onSubmit={(code) => void addFriendCode(code)}
       onSkip={() => setFriendDismissed(true)}
+      onRemove={() => {
+        setInitialCode('')
+        setFriendDismissed(true)
+        void clearPendingReferralCode()
+      }}
       onEdit={() => setFriendError('')}
     />
   ) : null

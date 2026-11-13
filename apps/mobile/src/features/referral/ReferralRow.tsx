@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native'
 
+import { StatusBadge } from '@/design-system/atoms/StatusBadge'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
@@ -26,7 +27,7 @@ export function ReferralRow({ item, card = false }: { item: MobileReferralItem; 
           {item.rewardedBookings} {item.rewardedBookings === 1 ? 'booking' : 'bookings'} rewarded
         </AppText>
       </View>
-      <AppText variant="caption" color={item.status === 'reversed' ? theme.colors.danger : theme.colors.textMuted}>{item.status === 'reversed' ? 'Reversed' : 'Earning'}</AppText>
+      <StatusBadge label={item.status === 'reversed' ? 'Reversed' : 'Earning'} tone={item.status === 'reversed' ? 'danger' : 'neutral'} />
     </View>
   )
 }

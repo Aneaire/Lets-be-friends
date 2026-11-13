@@ -27,7 +27,7 @@ export function AppHeader({ title, back = false, onBack, action }: {
         </Pressable>
       ) : null}
       <View style={styles.copy}>
-        <AppText variant="heading" numberOfLines={1}>{title}</AppText>
+        <AppText variant="heading" numberOfLines={2}>{title}</AppText>
       </View>
       {action ? <View style={styles.action}>{action}</View> : back ? <View style={styles.spacer} /> : null}
     </View>

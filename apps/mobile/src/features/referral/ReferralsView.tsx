@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { formatPhp, referralRewardLabel } from '@lets-be-friends/shared'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
@@ -27,10 +27,6 @@ export type MobileReferralData = {
   } | null
 }
 
-export function referralAvailableCentavos(referral: Pick<MobileReferralData, 'totalEarnedCentavos' | 'referralCreditAvailableCentavos'>) {
-  return referral.referralCreditAvailableCentavos ?? referral.totalEarnedCentavos
-}
-
 export type MobileReferralRewardItem = {
   _id: string
   bookingId: string
@@ -45,6 +41,10 @@ export type MobileReferralRewardItem = {
 }
 
 export type ReferralPageStatus = 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted'
+
+export function referralAvailableCentavos(referral: Pick<MobileReferralData, 'totalEarnedCentavos' | 'referralCreditAvailableCentavos'>) {
+  return referral.referralCreditAvailableCentavos ?? referral.totalEarnedCentavos
+}
 
 export function ReferralsView({
   referral,
@@ -82,6 +82,8 @@ export function ReferralsView({
   const theme = useAppTheme()
   const availableCentavos = referralAvailableCentavos(referral)
   const hasHeldRewards = rewardItems.some((reward) => reward.status === 'pending' && reward.reviewRequired)
+  const panel = [styles.panel, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]
+  const divider = <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
   const header = (
     <View style={styles.header}>
@@ -94,51 +96,65 @@ export function ReferralsView({
       </View>
 
       {!referral.programActive ? (
-        <View style={[styles.notice, { borderColor: theme.colors.danger, backgroundColor: theme.colors.surface }]}>
-          <AppText color={theme.colors.danger}>Referrals are paused right now. Existing credit still settles and releases.</AppText>
+        <View style={[styles.notice, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+          <AppText color={theme.colors.text}>Referrals are paused right now. Existing credit still settles and releases.</AppText>
         </View>
       ) : null}
 
-      {friendCodeCard}
-
       {message ? <AppText accessibilityLiveRegion="polite" color={theme.colors.textMuted}>{message}</AppText> : null}
 
-      {!referral.code ? (
-        <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-          <AppText variant="heading">Create your referral link</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>
-            Share this link with a friend. You earn 5% of the booking subtotal on every completed booking, for life.
-          </AppText>
-          <ActionButton label="Create my referral link" onPress={onCreateCode} intent="social" loading={busy} />
-        </View>
-      ) : (
-        <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-          <AppText variant="heading">Your referral link</AppText>
-          {shareUrl ? <AppText variant="caption" color={theme.colors.textMuted}>{shareUrl}</AppText> : null}
-          <ActionButton label="Share my link" onPress={onShare} intent="social" />
-          <AppText variant="caption" color={theme.colors.textMuted}>
-            A friend counts after they add your code, not just after they open the link.
-          </AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>
-            Your friend must add your code within 30 days of joining and before their first booking.
-          </AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>
-            Your code: <AppText variant="bodyStrong" color={theme.colors.text}>{referral.code}</AppText>
-          </AppText>
-        </View>
-      )}
+      <View style={panel}>
+        {!referral.code ? (
+          <View style={styles.stack}>
+            <View style={styles.stackTight}>
+              <AppText variant="heading">Create your referral link</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>
+                Share this link with a friend. You earn 5% of the booking subtotal on every completed booking, for life.
+              </AppText>
+            </View>
+            <ActionButton label="Create my referral link" onPress={onCreateCode} intent="social" compact style={styles.startAction} loading={busy} />
+          </View>
+        ) : (
+          <View style={styles.stack}>
+            <View style={styles.stackTight}>
+              <AppText variant="heading">Your referral link</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>
+                Credit lands in your wallet after each booking settles and the 14-day hold clears.
+              </AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>
+                A friend counts after they add your code, not just after they open the link.
+              </AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>
+                Your friend must add your code within 30 days of joining and before their first booking.
+              </AppText>
+            </View>
+            <View style={[styles.linkRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
+              <AppText variant="caption" numberOfLines={1} style={styles.linkText}>{shareUrl ?? 'Your link is being prepared.'}</AppText>
+            </View>
+            <ActionButton label="Share my link" onPress={onShare} intent="social" />
+            <AppText variant="caption" color={theme.colors.textMuted}>
+              Your code: <AppText variant="bodyStrong">{referral.code}</AppText>
+            </AppText>
+          </View>
+        )}
 
-      <View style={styles.metrics}>
-        <Metric label="Friends joined" value={String(referral.totalReferrals)} />
-        <Metric label="Rewarded bookings" value={String(referral.totalRewardedBookings)} />
-        <Metric label="Referral credit available" value={formatPhp(availableCentavos)} />
-        <Metric label="Lifetime credited" value={formatPhp(referral.totalEarnedCentavos)} />
-        {referral.totalPendingCentavos > 0 ? (
-          <Metric
-            label={hasHeldRewards ? 'Pending release or under review' : 'Pending release'}
-            value={formatPhp(referral.totalPendingCentavos)}
-          />
-        ) : null}
+        {divider}
+
+        <View style={styles.metricGrid}>
+          <Metric label="Friends joined" value={String(referral.totalReferrals)} />
+          <Metric label="Rewarded bookings" value={String(referral.totalRewardedBookings)} />
+          <Metric label="Referral credit available" value={formatPhp(availableCentavos)} />
+          <Metric label="Lifetime credited" value={formatPhp(referral.totalEarnedCentavos)} />
+          {referral.totalPendingCentavos > 0 ? (
+            <Metric
+              label={hasHeldRewards ? 'Pending release or under review' : 'Pending release'}
+              value={formatPhp(referral.totalPendingCentavos)}
+            />
+          ) : null}
+          {referral.totalReversedCentavos > 0 ? (
+            <Metric label="Reversed" value={formatPhp(referral.totalReversedCentavos)} />
+          ) : null}
+        </View>
         {hasHeldRewards ? (
           <AppText variant="caption" color={theme.colors.textMuted}>
             Held credit waits for a review. Other credit releases after the 14-day hold.
@@ -149,59 +165,76 @@ export function ReferralsView({
             {formatPhp(referral.referralDebtCentavos)} referral debt will be offset against future credit.
           </AppText>
         ) : null}
+
+        {friendCodeCard ? (
+          <>
+            {divider}
+            {friendCodeCard}
+          </>
+        ) : null}
+
+        <ViewSection title="Your referrals" count={items.length} />
+        {items.length > 0 ? (
+          <View>
+            {items.map((item) => <ReferralRow key={item._id} item={item} />)}
+          </View>
+        ) : (
+          <AppText variant="caption" color={theme.colors.textMuted}>No friends have added your code yet.</AppText>
+        )}
+        {status === 'LoadingMore' ? (
+          <View style={styles.loading}>
+            <ActivityIndicator color={theme.colors.socialText} />
+            <AppText variant="caption" color={theme.colors.textMuted}>Loading more referrals...</AppText>
+          </View>
+        ) : null}
+
+        {divider}
+
+        <ViewSection title="Referral earnings" count={rewardItems.length} />
+        {rewardItems.length === 0 ? (
+          <AppText variant="caption" color={theme.colors.textMuted}>No referral earnings yet. Credit appears after a friend&apos;s booking settles.</AppText>
+        ) : (
+          <View>
+            {rewardItems.map((reward, index) => (
+              <View key={reward._id} style={[styles.rewardRow, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border }]}>
+                <View style={styles.rewardCopy}>
+                  <AppText variant="bodyStrong">{reward.referredDisplayName}</AppText>
+                  <AppText variant="caption" color={theme.colors.textMuted}>
+                    {referralRewardLabel(reward.kind as 'lifetime' | 'launch_bonus' | undefined, reward.rewardBps)} · {formatRewardDate(reward.createdAt)}
+                  </AppText>
+                  <AppText variant="caption" color={theme.colors.textMuted}>
+                    Booking {reward.bookingId.slice(-6).toUpperCase()}
+                  </AppText>
+                </View>
+                <View style={styles.rewardAmount}>
+                  <AppText variant="bodyStrong">{formatPhp(reward.amountCentavos)}</AppText>
+                  <AppText variant="caption" color={reward.status === 'reversed' ? theme.colors.danger : theme.colors.textMuted}>
+                    {reward.status === 'credited' ? 'Available' : reward.status === 'pending' ? reward.reviewRequired ? 'Under review' : 'Pending release' : 'Reversed'}
+                  </AppText>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+        {rewardStatus === 'CanLoadMore' ? (
+          <ActionButton label="Load more earnings" onPress={onLoadMoreRewards} intent="neutral" secondary />
+        ) : null}
+
+        {referral.referredBy ? (
+          <>
+            {divider}
+            <View style={[styles.referredBy, { backgroundColor: theme.colors.surfaceRaised }]}>
+              <AppText variant="heading">You joined with {referral.referredBy.referrerDisplayName}&apos;s code</AppText>
+              <AppText variant="caption" color={theme.colors.textMuted}>
+                {referral.referredBy.referrerDisplayName} earns 5% of the booking subtotal on every booking you complete.
+              </AppText>
+            </View>
+          </>
+        ) : null}
       </View>
 
-      {referral.referredBy ? (
-        <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
-          <AppText variant="heading">You joined with {referral.referredBy.referrerDisplayName}&apos;s code</AppText>
-          <AppText variant="caption" color={theme.colors.textMuted}>
-            {referral.referredBy.referrerDisplayName} earns 5% of the booking subtotal on every booking you complete.
-          </AppText>
-        </View>
-      ) : null}
-
-      <AppText variant="heading">Your referrals</AppText>
-    </View>
-  )
-
-  const footer = (
-    <View style={styles.footer}>
-      {status === 'LoadingMore' ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={theme.colors.socialText} />
-          <AppText variant="caption" color={theme.colors.textMuted}>Loading more referrals...</AppText>
-        </View>
-      ) : null}
-
-      <AppText variant="heading">Referral earnings</AppText>
-      {rewardItems.length === 0 ? (
-        <AppText variant="caption" color={theme.colors.textMuted}>No referral earnings yet. Credit appears after a friend&apos;s booking settles.</AppText>
-      ) : (
-        <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-          {rewardItems.map((reward) => (
-            <View key={reward._id} style={[styles.rewardRow, { borderColor: theme.colors.border }]}>
-              <View style={styles.rewardCopy}>
-                <AppText variant="bodyStrong">{reward.referredDisplayName}</AppText>
-                <AppText variant="caption" color={theme.colors.textMuted}>
-                  {referralRewardLabel(reward.kind as 'lifetime' | 'launch_bonus' | undefined, reward.rewardBps)} · {formatRewardDate(reward.createdAt)}
-                </AppText>
-                <AppText variant="caption" color={theme.colors.textMuted}>
-                  Booking {reward.bookingId.slice(-6).toUpperCase()}
-                </AppText>
-              </View>
-              <View style={styles.rewardAmount}>
-                <AppText variant="bodyStrong">{formatPhp(reward.amountCentavos)}</AppText>
-                <AppText variant="caption" color={reward.status === 'reversed' ? theme.colors.danger : theme.colors.textMuted}>
-                  {reward.status === 'credited' ? 'Available' : reward.status === 'pending' ? reward.reviewRequired ? 'Under review' : 'Pending release' : 'Reversed'}
-                </AppText>
-              </View>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {rewardStatus === 'CanLoadMore' ? (
-        <ActionButton label="Load more earnings" onPress={onLoadMoreRewards} intent="neutral" secondary />
+      {status === 'CanLoadMore' ? (
+        <ActionButton label="Load more referrals" onPress={onLoadMore} intent="neutral" secondary />
       ) : null}
       {onOpenTerms ? (
         <ActionButton label="Referral terms" onPress={onOpenTerms} intent="neutral" secondary />
@@ -213,26 +246,29 @@ export function ReferralsView({
   )
 
   return (
-    <Screen scroll={false} contentStyle={styles.content}>
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item._id}
-        renderItem={({ item }) => <ReferralRow item={item} card />}
-        ListHeaderComponent={header}
-        ListEmptyComponent={status === 'LoadingFirstPage' ? (
-          <AppText color={theme.colors.textMuted}>Loading referrals...</AppText>
-        ) : (
-          <AppText variant="caption" color={theme.colors.textMuted}>No friends have added your code yet.</AppText>
-        )}
-        ListFooterComponent={footer}
-        onEndReached={() => {
-          if (status === 'CanLoadMore') onLoadMore()
-        }}
-        onEndReachedThreshold={0.4}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+    <Screen contentStyle={styles.content}>
+      {header}
     </Screen>
+  )
+}
+
+function ViewSection({ title, count }: { title: string; count: number }) {
+  const theme = useAppTheme()
+  return (
+    <View style={styles.sectionHeader}>
+      <AppText variant="heading">{title}</AppText>
+      <AppText variant="caption" color={theme.colors.textMuted}>{count}</AppText>
+    </View>
+  )
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  const theme = useAppTheme()
+  return (
+    <View style={[styles.metric, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
+      <AppText variant="caption" color={theme.colors.textMuted}>{label}</AppText>
+      <AppText variant="heading">{value}</AppText>
+    </View>
   )
 }
 
@@ -245,28 +281,24 @@ function formatRewardDate(timestamp: number) {
   }).format(timestamp)
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  const theme = useAppTheme()
-  return (
-    <View style={[styles.metric, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-      <AppText variant="caption" color={theme.colors.textMuted}>{label}</AppText>
-      <AppText variant="heading">{value}</AppText>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 5, paddingBottom: 32 },
-  header: { gap: 8, paddingTop: 8 },
+  content: { paddingHorizontal: 14, paddingBottom: 32 },
+  header: { gap: 12, paddingTop: 8 },
   headerCopy: { gap: 4 },
-  card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 },
-  metrics: { gap: 8 },
-  metric: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 4 },
-  notice: { borderWidth: 1, borderRadius: 12, padding: 10 },
-  rewardRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, borderTopWidth: 1, paddingTop: 8 },
+  panel: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 14 },
+  stack: { gap: 10 },
+  stackTight: { gap: 4 },
+  divider: { height: StyleSheet.hairlineWidth },
+  notice: { borderWidth: 1, borderRadius: 10, padding: 10 },
+  linkRow: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10 },
+  linkText: { flexShrink: 1 },
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  startAction: { alignSelf: 'flex-start', paddingHorizontal: 14 },
+  metric: { flexBasis: '47%', flexGrow: 1, borderWidth: 1, borderRadius: 10, padding: 10, gap: 3 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  rewardRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingTop: 10, marginTop: 10 },
   rewardCopy: { flex: 1, gap: 2 },
   rewardAmount: { alignItems: 'flex-end', gap: 2 },
-  listContent: { paddingBottom: 24, gap: 8 },
-  footer: { gap: 8, paddingTop: 8 },
-  loading: { alignItems: 'center', gap: 8, paddingVertical: 16 },
+  referredBy: { borderRadius: 10, padding: 12, gap: 4 },
+  loading: { alignItems: 'center', gap: 8, paddingVertical: 12 },
 })

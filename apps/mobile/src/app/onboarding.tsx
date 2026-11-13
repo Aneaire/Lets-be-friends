@@ -556,8 +556,14 @@ function ConnectedOnboarding({
             error={referralError}
             notice={referralNotice}
             initialCode={pendingReferralCode}
+            autoClaimOnFinish
             onSubmit={(code) => void submitReferralCode(code)}
             onSkip={skipReferralPrompt}
+            onRemove={() => {
+              setPendingReferralCode('')
+              setReferralHidden(true)
+              void clearPendingReferralCode()
+            }}
             onEdit={() => setReferralError('')}
           />
         ) : null}

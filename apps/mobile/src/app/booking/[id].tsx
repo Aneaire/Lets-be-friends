@@ -21,6 +21,7 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { StatusBadge } from '@/design-system/atoms/StatusBadge'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
+import { memberMoneyLabel } from '@/data/bookingMoney'
 import {
   bookingStatusPresentation,
   formatBookingSchedule,
@@ -84,11 +85,29 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
         <Detail label="Schedule" value={formatBookingSchedule(booking.requestedAt)} />
         <Detail label="Format" value={booking.mode === 'in_person' ? 'In-person session' : 'Online session'} />
         <Detail label="Duration" value={formatDuration(booking.durationMinutes)} />
-        {booking.serviceSubtotalCentavos !== undefined ? <Detail label="Session subtotal" value={formatPhp(booking.serviceSubtotalCentavos)} /> : null}
-        {booking.memberBookingFeeCentavos !== undefined ? <Detail label="Service fee (15%)" value={formatPhp(booking.memberBookingFeeCentavos)} /> : null}
-        {total ? <Detail label="Booking total" value={total} /> : null}
         {booking.companionCity ? <Detail label="Companion location" value={booking.companionCity} /> : null}
       </View>
+      {total ? (
+        <View style={[styles.payment, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <AppText variant="caption" color={theme.colors.textMuted}>Booking total</AppText>
+          <AppText variant="title">{total}</AppText>
+          {memberMoneyLabel(booking.status, booking.settlementState) ? (
+            <AppText variant="caption" color={theme.colors.textMuted}>{memberMoneyLabel(booking.status, booking.settlementState)}</AppText>
+          ) : null}
+          {booking.serviceSubtotalCentavos !== undefined ? (
+            <View style={styles.moneyRow}>
+              <AppText variant="caption" color={theme.colors.textMuted}>Session subtotal</AppText>
+              <AppText variant="caption">{formatPhp(booking.serviceSubtotalCentavos)}</AppText>
+            </View>
+          ) : null}
+          {booking.memberBookingFeeCentavos !== undefined ? (
+            <View style={styles.moneyRow}>
+              <AppText variant="caption" color={theme.colors.textMuted}>Service fee (15%)</AppText>
+              <AppText variant="caption">{formatPhp(booking.memberBookingFeeCentavos)}</AppText>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       {booking.notes ? <View style={styles.notes}><AppText variant="heading">Your notes</AppText><AppText color={theme.colors.textMuted}>{booking.notes}</AppText></View> : null}
       <PlanThread status={booking.status} requestedAt={booking.requestedAt} memberCompletedAt={booking.memberCompletedAt} companionCompletedAt={booking.companionCompletedAt} />
       <BookingThread
@@ -170,7 +189,9 @@ const styles = StyleSheet.create({
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
 
   status: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 5 },
-  details: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 16 },
+  details: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 14 },
+  payment: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 6 },
+  moneyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 },
   detailRow: { gap: 4 },
   detailValue: { flex: 1 },
   notes: { gap: 8 },
