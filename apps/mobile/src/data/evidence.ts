@@ -14,8 +14,8 @@ export type EvidenceAsset = {
 export function evidenceDecisionCopy(role: 'companion_start' | 'member_end', decision: EvidenceDecision) {
   const label = role === 'companion_start' ? 'Start evidence' : 'End evidence'
   if (decision === 'uploaded') return { label, detail: 'Private image saved for authorized safety review only.' }
-  if (decision === 'skipped') return { label, detail: 'Skipped after the strict warning was acknowledged.' }
-  return { label, detail: 'Upload one private image or explicitly skip after reading the warning.' }
+  if (decision === 'skipped') return { label, detail: 'No image added.' }
+  return { label, detail: 'Upload one private image, or continue without evidence.' }
 }
 
 export type EvidenceSharedRow = {
@@ -29,7 +29,7 @@ export function evidenceSharedRowCopy(row: EvidenceSharedRow) {
   const owner = row.role === 'companion_start' ? 'Start' : 'End'
   const label = row.isViewer ? `${owner} (you)` : owner
   if (row.decision === 'uploaded') return { label, detail: 'Private image saved for authorized safety review only.' }
-  if (row.decision === 'skipped') return { label, detail: 'Skipped after the strict warning was acknowledged.' }
+  if (row.decision === 'skipped') return { label, detail: 'No image added.' }
   return { label, detail: 'Not decided yet.' }
 }
 

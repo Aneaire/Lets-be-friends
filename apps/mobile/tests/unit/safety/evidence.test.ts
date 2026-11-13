@@ -9,8 +9,8 @@ import {
 describe('booking evidence helpers', () => {
   it('uses truthful role, privacy, and decision copy', () => {
     expect(evidenceDecisionCopy('companion_start', 'uploaded')).toEqual({ label: 'Start evidence', detail: 'Private image saved for authorized safety review only.' })
-    expect(evidenceDecisionCopy('member_end', 'skipped')).toEqual({ label: 'End evidence', detail: 'Skipped after the strict warning was acknowledged.' })
-    expect(evidenceDecisionCopy('member_end', undefined).detail).toContain('explicitly skip')
+    expect(evidenceDecisionCopy('member_end', 'skipped')).toEqual({ label: 'End evidence', detail: 'No image added.' })
+    expect(evidenceDecisionCopy('member_end', undefined).detail).toContain('continue without evidence')
   })
 
   it('labels the shared record for both roles without leaking images', () => {
@@ -20,7 +20,7 @@ describe('booking evidence helpers', () => {
     })
     expect(evidenceSharedRowCopy({ role: 'member_end', isViewer: true, decision: 'skipped' })).toEqual({
       label: 'End (you)',
-      detail: 'Skipped after the strict warning was acknowledged.',
+      detail: 'No image added.',
     })
     expect(evidenceSharedRowCopy({ role: 'companion_start', isViewer: true, decision: undefined }).detail).toBe('Not decided yet.')
   })

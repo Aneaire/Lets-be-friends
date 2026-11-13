@@ -148,7 +148,7 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
       {booking.status === 'request_sent' ? (
         <View style={styles.actions}>
           <ActionButton label={busy === 'accepted' ? 'Accepting booking' : 'Accept booking'} onPress={() => onDecision('accepted')} disabled={busy !== null} />
-          <ActionButton label={busy === 'declined' ? 'Declining booking' : 'Decline booking'} onPress={() => onDecision('declined')} disabled={busy !== null} secondary />
+          <ActionButton label={busy === 'declined' ? 'Declining booking' : 'Decline booking'} intent="danger" onPress={() => onDecision('declined')} disabled={busy !== null} secondary />
         </View>
       ) : null}
       {['accepted', 'completed', 'review_window', 'closed'].includes(booking.status) ? (
@@ -164,6 +164,14 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
             otherParticipantCompletedAt={booking.memberCompletedAt}
             evidenceReady={evidenceReady}
           />
+      {['review_window', 'completed', 'closed'].includes(booking.status) ? (
+        <BookingSafetyActions
+          bookingId={booking._id as BookingId}
+          status={booking.status}
+          viewerHasReviewed={booking.viewerHasReviewed}
+          viewerReviewId={booking.viewerReviewId ? String(booking.viewerReviewId) : undefined}
+        />
+      ) : null}
           <BookingEvidencePanel
             bookingId={booking._id as BookingId}
             status={booking.status}
@@ -174,14 +182,6 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
             onDecisionChange={handleEvidenceDecision}
           />
         </>
-      ) : null}
-      {['review_window', 'completed', 'closed'].includes(booking.status) ? (
-        <BookingSafetyActions
-          bookingId={booking._id as BookingId}
-          status={booking.status}
-          viewerHasReviewed={booking.viewerHasReviewed}
-          viewerReviewId={booking.viewerReviewId ? String(booking.viewerReviewId) : undefined}
-        />
       ) : null}
       <PlanThread status={booking.status} requestedAt={booking.requestedAt} memberCompletedAt={booking.memberCompletedAt} companionCompletedAt={booking.companionCompletedAt} />
       <BookingThread

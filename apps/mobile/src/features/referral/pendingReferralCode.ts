@@ -9,8 +9,9 @@ export async function readPendingReferralCode(): Promise<string | null> {
   return memory.get(PENDING_REFERRAL_CODE_KEY) ?? null
 }
 
-export async function savePendingReferralCode(code: string): Promise<void> {
+export async function savePendingReferralCode(code: string): Promise<boolean> {
   memory.set(PENDING_REFERRAL_CODE_KEY, code)
+  return true
 }
 
 export async function clearPendingReferralCode(): Promise<void> {

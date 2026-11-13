@@ -122,6 +122,14 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
             otherParticipantCompletedAt={booking.companionCompletedAt}
             evidenceReady={evidenceReady}
           />
+      {['review_window', 'completed', 'closed'].includes(booking.status) ? (
+        <BookingSafetyActions
+          bookingId={booking._id as BookingId}
+          status={booking.status}
+          viewerHasReviewed={booking.viewerHasReviewed}
+          viewerReviewId={booking.viewerReviewId ? String(booking.viewerReviewId) : undefined}
+        />
+      ) : null}
           <BookingEvidencePanel
             bookingId={booking._id as BookingId}
             status={booking.status}
@@ -132,14 +140,6 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
             onDecisionChange={handleEvidenceDecision}
           />
         </>
-      ) : null}
-      {['review_window', 'completed', 'closed'].includes(booking.status) ? (
-        <BookingSafetyActions
-          bookingId={booking._id as BookingId}
-          status={booking.status}
-          viewerHasReviewed={booking.viewerHasReviewed}
-          viewerReviewId={booking.viewerReviewId ? String(booking.viewerReviewId) : undefined}
-        />
       ) : null}
       <PlanThread status={booking.status} requestedAt={booking.requestedAt} memberCompletedAt={booking.memberCompletedAt} companionCompletedAt={booking.companionCompletedAt} />
       <BookingThread

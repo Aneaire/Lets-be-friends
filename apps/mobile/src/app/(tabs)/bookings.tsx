@@ -136,6 +136,7 @@ function BookingsList({
           viewerIsRequester: booking.perspective !== 'companion',
           viewerCompletedAt: booking.perspective === 'companion' ? record.companionCompletedAt : undefined,
           settlementState: record.settlementState,
+          memberIdentityApproved: record.memberIdentityApproved,
         }}
         onPress={() => router.push(route as never)}
       />

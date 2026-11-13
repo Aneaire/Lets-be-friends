@@ -1009,8 +1009,8 @@ function ConnectedOnboarding({
           hitSlop={8}
           onPress={() => void signOutToSwitchAccount()}
           style={({ pressed }) => [styles.signOutLink, pressed && styles.pressed]}>
-          {signingOut && <ActivityIndicator accessibilityLabel="Signing out" color={theme.colors.danger} size="small" />}
-          <AppText variant="caption" color={theme.colors.danger} style={styles.signOutText}>
+          {signingOut && <ActivityIndicator accessibilityLabel="Signing out" color={theme.colors.selfText} size="small" />}
+          <AppText variant="caption" color={theme.colors.selfText} style={styles.signOutText}>
             {signingOut ? 'Signing out' : 'Sign out and use another account'}
           </AppText>
         </Pressable> : null}

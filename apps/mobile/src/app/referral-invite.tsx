@@ -20,7 +20,7 @@ import { useMobileMember } from '@/member/MobileMember'
  * onboarding, where the claim card prefills it and still requires an explicit
  * "Add referral code" tap.
  */
-function InvitationPage({ code, saved }: { code: string; saved: boolean }) {
+function InvitationPage({ code, saved, saveFailed }: { code: string; saved: boolean; saveFailed: boolean }) {
   const theme = useAppTheme()
   const web = resolveMobileWebAppConfiguration()
   const safetyUrl = web.status === 'configured' ? `${web.url.replace(/\/+$/, '')}/safety` : undefined
@@ -37,7 +37,11 @@ function InvitationPage({ code, saved }: { code: string; saved: boolean }) {
         <AppText variant="label" color={theme.colors.textMuted}>YOUR INVITATION CODE</AppText>
         <AppText variant="title">{code}</AppText>
         <AppText variant="caption" color={theme.colors.textMuted}>
-          {saved ? 'Saved. Add it before your first booking.' : 'Saving your invitation...'}
+          {saved
+            ? "Saved. We'll add it when you finish setup."
+            : saveFailed
+              ? 'We could not save this invitation on this device. Sign in, then add the code from Referrals.'
+              : 'Saving your invitation...'}
         </AppText>
       </View>
 
@@ -57,12 +61,21 @@ export default function ReferralInviteScreen() {
   const params = useLocalSearchParams<{ ref?: string }>()
   const member = useMobileMember()
   const [saved, setSaved] = useState(false)
+  const [saveFailed, setSaveFailed] = useState(false)
   const code = typeof params.ref === 'string' ? normalizeReferralCode(params.ref) : ''
   const invalid = !code || referralCodeValidationError(code) !== null
 
   useEffect(() => {
     if (invalid) return
-    void savePendingReferralCode(code).finally(() => setSaved(true))
+    let active = true
+    void savePendingReferralCode(code).then((result) => {
+      if (!active) return
+      setSaved(result)
+      setSaveFailed(!result)
+    })
+    return () => {
+      active = false
+    }
   }, [code, invalid])
 
   useEffect(() => {
@@ -98,7 +111,7 @@ export default function ReferralInviteScreen() {
     )
   }
 
-  return <InvitationPage code={code} saved={saved} />
+  return <InvitationPage code={code} saved={saved} saveFailed={saveFailed} />
 }
 
 

@@ -22,7 +22,7 @@ describe('web pending referral code', () => {
   })
 
   it('saves, reads, and clears the invitation', async () => {
-    await savePendingReferralCode('ABCD12')
+    await expect(savePendingReferralCode('ABCD12')).resolves.toBe(true)
     await expect(readPendingReferralCode()).resolves.toBe('ABCD12')
     await clearPendingReferralCode()
     await expect(readPendingReferralCode()).resolves.toBeNull()
@@ -35,7 +35,7 @@ describe('web pending referral code', () => {
         throw new Error('blocked')
       },
     })
-    await expect(savePendingReferralCode('ABCD12')).resolves.toBeUndefined()
+    await expect(savePendingReferralCode('ABCD12')).resolves.toBe(false)
     await expect(readPendingReferralCode()).resolves.toBeNull()
     await expect(clearPendingReferralCode()).resolves.toBeUndefined()
   })

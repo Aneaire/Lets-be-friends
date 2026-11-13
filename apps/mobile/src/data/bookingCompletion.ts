@@ -26,7 +26,7 @@ export function bookingCompletionCopy({
       actionable: false,
       label: otherParticipantCompletedAt ? 'Completion confirmed by both people' : 'Waiting for the other person',
       detail: otherParticipantCompletedAt
-        ? 'Both people confirmed the experience. The review and settlement lifecycle is now controlled by the server.'
+        ? 'Both people confirmed the experience. You can leave a review during the review window; settlement follows the booking terms.'
         : `You confirmed completion as the ${viewerRole === 'member' ? 'member' : 'Companion'}. The other person still needs to confirm.`,
     }
   }

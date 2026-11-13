@@ -79,6 +79,7 @@ function CompanionBookingRow({ booking }: { booking: CompanionBooking }) {
         viewerIsRequester: false,
         viewerCompletedAt: booking.companionCompletedAt,
         settlementState: booking.settlementState,
+        memberIdentityApproved: booking.memberIdentityApproved,
       }}
       onPress={() => router.push({ pathname: '/companion-booking/[id]', params: { id: String(booking._id) } })}
     />

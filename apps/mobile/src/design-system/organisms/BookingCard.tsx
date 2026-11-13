@@ -31,6 +31,7 @@ export type BookingCardView = {
   /** Set when the viewer already confirmed completion on an accepted booking. */
   viewerCompletedAt?: number
   settlementState?: string
+  memberIdentityApproved?: boolean
 }
 
 
@@ -68,7 +69,10 @@ export function BookingCard({ booking, onPress, compact = false }: { booking: Bo
       ]}>
       <View style={styles.headingRow}>
         <View style={styles.copy}>
-          <AppText variant="bodyStrong">{booking.participantName}</AppText>
+          <View style={styles.nameRow}>
+            <AppText variant="bodyStrong">{booking.participantName}</AppText>
+            {!viewerIsRequester && booking.memberIdentityApproved ? <StatusBadge label="Identity verified" tone="neutral" /> : null}
+          </View>
           <AppText variant="caption" color={theme.colors.textMuted}>{booking.category}</AppText>
         </View>
         <StatusBadge label={status.label} tone={status.tone} />
@@ -89,7 +93,11 @@ export function BookingCard({ booking, onPress, compact = false }: { booking: Bo
               {money ? <StatusBadge label={money.label} tone={money.tone} /> : null}
             </View>
             <AppText variant="caption" color={theme.colors.textMuted}>
-              {money ? money.memberCopy : 'Includes service fee.'}
+              {money
+                ? booking.status === 'request_sent' && total && entitlement
+                  ? `Member pays ${total}. You receive ${entitlement} after both confirm.`
+                  : money.memberCopy
+                : 'Includes service fee.'}
             </AppText>
           </>
         ) : (
@@ -110,7 +118,8 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.74 },
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   copy: { flex: 1, gap: density.textPairGap },
+  nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   money: { gap: density.textPairGap },
-  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  priceRow: { alignItems: 'flex-start', gap: 4 },
   action: { marginTop: 4 },
 })

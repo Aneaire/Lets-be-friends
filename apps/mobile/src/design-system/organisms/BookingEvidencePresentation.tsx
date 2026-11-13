@@ -1,4 +1,5 @@
-import { StyleSheet, View } from 'react-native'
+import { useState } from 'react'
+import { Pressable, StyleSheet, View } from 'react-native'
 
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -50,18 +51,32 @@ export function BookingEvidencePresentation({
   const theme = useAppTheme()
   const copy = evidenceDecisionCopy(participantRole, decision)
   const sharedRows = rows.length > 0 ? rows : [{ role: participantRole, isViewer: true, decision }]
+  const [recordOpen, setRecordOpen] = useState(false)
+  const showRecord = canDecide || recordOpen
 
   return (
     <>
-      <View style={[styles.panel, { backgroundColor: theme.colors.socialSoft, borderColor: theme.colors.social }]}>
+      <View style={[styles.panel, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <View style={styles.copy}>
-          <AppText variant="heading">{copy.label}</AppText>
+          <AppText variant="heading">{canDecide ? copy.label : 'Booking evidence'}</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
             {loading ? 'Loading the live evidence decision.' : copy.detail}
           </AppText>
         </View>
 
-        {!loading ? (
+        {!loading && !canDecide ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={recordOpen ? 'Hide shared safety record' : 'View shared safety record'}
+            onPress={() => setRecordOpen((open) => !open)}
+            style={styles.recordToggle}>
+            <AppText variant="caption" color={theme.colors.textMuted}>
+              {recordOpen ? 'Hide shared safety record' : 'View shared safety record'}
+            </AppText>
+          </Pressable>
+        ) : null}
+
+        {!loading && showRecord ? (
           <View style={styles.sharedRecord}>
             <AppText variant="label" color={theme.colors.textMuted}>SHARED SAFETY RECORD</AppText>
             {sharedRows.map((row) => {
@@ -102,7 +117,7 @@ export function BookingEvidencePresentation({
               disabled={busy !== null && busy !== 'upload'}
             />
             <ActionButton
-              label="Skip evidence after warning"
+              label="Continue without evidence"
               onPress={onRequestSkip}
               loading={busy === 'skip'}
               disabled={busy !== null && busy !== 'skip'}
@@ -129,12 +144,12 @@ export function BookingEvidencePresentation({
         visible={skipConfirmationVisible}
         onClose={onCloseSkipConfirmation}
         onConfirm={onConfirmSkip}
-        title="Skip private evidence?"
+        title="Continue without evidence?"
         description="No private evidence image will be available to help an authorized reviewer evaluate a later booking report. This one-time decision cannot be replaced in the mobile app."
-        confirmLabel="Skip evidence"
+        confirmLabel="Continue without evidence"
         busyLabel="Saving decision"
-        cancelLabel="Keep evidence option"
-        intent="danger"
+        cancelLabel="Keep the option to add evidence"
+        intent="neutral"
         busy={busy === 'skip'}>
         {skipError ? <AppText accessibilityRole="alert" variant="caption" color={theme.colors.danger}>{skipError}</AppText> : null}
       </ConfirmationDialog>
@@ -146,5 +161,6 @@ const styles = StyleSheet.create({
   panel: { borderWidth: 1, borderRadius: 16, padding: density.cardPadding, gap: 10 },
   copy: { gap: density.textStackGap },
   sharedRecord: { gap: density.textStackGap },
+  recordToggle: { minHeight: 44, justifyContent: 'center' },
   sharedRow: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: density.compactCardPadding, gap: 2 },
 })

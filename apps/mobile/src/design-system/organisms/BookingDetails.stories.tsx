@@ -77,7 +77,7 @@ export const EvidenceDecisionRequired: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Choose private evidence image' }))
-    await userEvent.click(canvas.getByRole('button', { name: 'Skip evidence after warning' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Continue without evidence' }))
     await expect(chooseImage).toHaveBeenCalledOnce()
     await expect(requestSkip).toHaveBeenCalledOnce()
     await expect(canvas.getByText(/authorized reviewer during an active booking report/)).toBeVisible()
