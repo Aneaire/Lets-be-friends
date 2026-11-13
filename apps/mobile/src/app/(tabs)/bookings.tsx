@@ -135,6 +135,7 @@ function BookingsList({
           companionEarningsCentavos: record.companionEarningsCentavos,
           viewerIsRequester: booking.perspective !== 'companion',
           viewerCompletedAt: booking.perspective === 'companion' ? record.companionCompletedAt : undefined,
+          settlementState: record.settlementState,
         }}
         onPress={() => router.push(route as never)}
       />

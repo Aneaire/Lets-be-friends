@@ -1,10 +1,16 @@
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
+import { Linking, StyleSheet, View } from 'react-native'
 
 import { normalizeReferralCode, referralCodeValidationError } from '@lets-be-friends/shared'
 
+import { ActionButton } from '@/design-system/atoms/ActionButton'
+import { AppText } from '@/design-system/atoms/Typography'
+import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
+import { resolveMobileWebAppConfiguration } from '@/backend/config'
 import { ReferralState } from '@/features/referral/ReferralState'
+import { useAppTheme } from '@/theme/ThemeProvider'
 import { savePendingReferralCode } from '@/features/referral/pendingReferralCode'
 import { useMobileMember } from '@/member/MobileMember'
 
@@ -14,6 +20,39 @@ import { useMobileMember } from '@/member/MobileMember'
  * onboarding, where the claim card prefills it and still requires an explicit
  * "Add referral code" tap.
  */
+function InvitationPage({ code, saved }: { code: string; saved: boolean }) {
+  const theme = useAppTheme()
+  const web = resolveMobileWebAppConfiguration()
+  const safetyUrl = web.status === 'configured' ? `${web.url.replace(/\/+$/, '')}/safety` : undefined
+
+  return (
+    <Screen contentStyle={styles.content}>
+      <AppText variant="label" color={theme.colors.socialText}>A LITTLE INVITATION FOR YOU</AppText>
+      <AppText variant="display">Good company starts here.</AppText>
+      <AppText color={theme.colors.textMuted}>
+        A friend invited you to Let's Be Friends. Find everyday help, share an activity, and make room for a new connection.
+      </AppText>
+
+      <View style={[styles.codeCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+        <AppText variant="label" color={theme.colors.textMuted}>YOUR INVITATION CODE</AppText>
+        <AppText variant="title">{code}</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>
+          {saved ? 'Saved. Add it before your first booking.' : 'Saving your invitation...'}
+        </AppText>
+      </View>
+
+      <ActionButton label="Sign in or create an account" intent="self" onPress={() => router.replace('/auth')} />
+      {safetyUrl ? (
+        <ActionButton label="How safety works" intent="neutral" secondary onPress={() => void Linking.openURL(safetyUrl)} />
+      ) : null}
+
+      <AppText variant="caption" color={theme.colors.textMuted}>
+        Your friend earns 5% of the booking subtotal on every completed booking. You pay the normal price.
+      </AppText>
+    </Screen>
+  )
+}
+
 export default function ReferralInviteScreen() {
   const params = useLocalSearchParams<{ ref?: string }>()
   const member = useMobileMember()
@@ -59,15 +98,11 @@ export default function ReferralInviteScreen() {
     )
   }
 
-  const signedOut = member.status === 'signed_out'
-  return (
-    <ReferralState
-      title="You were invited to Let's Be Friends"
-      detail={signedOut
-        ? 'Your invitation is saved. Sign in or create an account, then add the code before your first booking.'
-        : 'Your invitation is saved. Add the code from the referrals screen before your first booking.'}
-      action={signedOut ? 'Sign in or create an account' : 'Go to referrals'}
-      onPress={() => router.replace(signedOut ? '/auth' : '/referrals')}
-    />
-  )
+  return <InvitationPage code={code} saved={saved} />
 }
+
+
+const styles = StyleSheet.create({
+  content: { paddingTop: 32, paddingBottom: 40, gap: 16 },
+  codeCard: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 6 },
+})

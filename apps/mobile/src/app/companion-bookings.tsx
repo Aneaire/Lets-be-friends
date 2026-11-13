@@ -38,17 +38,9 @@ function ReadyCompanionBookingsScreen() {
 
   return (
     <Screen contentStyle={styles.content}>
-      <AppHeader title="Incoming bookings" back onBack={() => router.canGoBack() ? router.back() : router.replace('/profile')} />
+      <AppHeader title="Companion bookings" back onBack={() => router.canGoBack() ? router.back() : router.replace('/profile')} />
       <AppText color={theme.colors.textMuted}>{requests.length} {requests.length === 1 ? 'request' : 'requests'} and {active.length} active {active.length === 1 ? 'booking' : 'bookings'} for your Companion profile.</AppText>
-      {requests.length ? (
-        <BookingSection label="Requests for you" bookings={requests} />
-      ) : (
-        <StateView
-          embedded
-          title="No one is waiting on you"
-          detail="New booking requests from members will appear here."
-        />
-      )}
+      {requests.length ? <BookingSection label="Requests for you" bookings={requests} /> : null}
       {active.length ? <BookingSection label="Active" bookings={active} /> : null}
       {history.length > 0 ? <BookingSection label="History" bookings={history} /> : null}
       <ActionButton label="Companion profile and status" onPress={() => router.push('/companion')} intent="self" secondary />
@@ -58,9 +50,13 @@ function ReadyCompanionBookingsScreen() {
 }
 
 function BookingSection({ label, bookings }: { label: string; bookings: CompanionBooking[] }) {
+  const theme = useAppTheme()
   return (
     <View style={styles.section}>
-      <AppText variant="heading">{label}</AppText>
+      <View style={styles.sectionHeader}>
+        <AppText variant="heading">{label}</AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>{bookings.length}</AppText>
+      </View>
       <View style={styles.list}>{bookings.map((booking) => <CompanionBookingRow key={booking._id} booking={booking} />)}</View>
     </View>
   )
@@ -82,6 +78,7 @@ function CompanionBookingRow({ booking }: { booking: CompanionBooking }) {
         companionEarningsCentavos: booking.companionEarningsCentavos,
         viewerIsRequester: false,
         viewerCompletedAt: booking.companionCompletedAt,
+        settlementState: booking.settlementState,
       }}
       onPress={() => router.push({ pathname: '/companion-booking/[id]', params: { id: String(booking._id) } })}
     />
@@ -112,5 +109,6 @@ const styles = StyleSheet.create({
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
 
   section: { gap: 12 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   list: { gap: 12 },
 })

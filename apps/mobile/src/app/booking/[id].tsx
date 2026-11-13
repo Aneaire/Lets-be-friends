@@ -75,8 +75,8 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
 
   return (
     <Screen contentStyle={styles.content}>
-      <AppHeader title={booking.category} back onBack={() => router.canGoBack() ? router.back() : router.replace('/bookings')} />
-      <AppText color={theme.colors.textMuted}>with {booking.companionDisplayName}</AppText>
+      <AppHeader title={booking.companionDisplayName} back onBack={() => router.canGoBack() ? router.back() : router.replace('/bookings')} />
+      <AppText color={theme.colors.textMuted}>{booking.category}</AppText>
       <View accessibilityLiveRegion="polite" style={[styles.status, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <StatusBadge label={status.label} tone={status.tone} />
         <AppText variant="caption">{status.explanation}</AppText>
@@ -109,6 +109,38 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
         </View>
       ) : null}
       {booking.notes ? <View style={styles.notes}><AppText variant="heading">Your notes</AppText><AppText color={theme.colors.textMuted}>{booking.notes}</AppText></View> : null}
+      {['accepted', 'completed', 'review_window', 'closed'].includes(booking.status) ? (
+        <>
+          <BookingCompletionAction
+            bookingId={booking._id as BookingId}
+            status={booking.status}
+            pricingModel={booking.pricingModel}
+            requestedAt={booking.requestedAt}
+            durationMinutes={booking.durationMinutes}
+            viewerRole="member"
+            participantCompletedAt={booking.memberCompletedAt}
+            otherParticipantCompletedAt={booking.companionCompletedAt}
+            evidenceReady={evidenceReady}
+          />
+          <BookingEvidencePanel
+            bookingId={booking._id as BookingId}
+            status={booking.status}
+            pricingModel={booking.pricingModel}
+            participantCompletedAt={booking.memberCompletedAt}
+            otherParticipantCompletedAt={booking.companionCompletedAt}
+            participantRole="member_end"
+            onDecisionChange={handleEvidenceDecision}
+          />
+        </>
+      ) : null}
+      {['review_window', 'completed', 'closed'].includes(booking.status) ? (
+        <BookingSafetyActions
+          bookingId={booking._id as BookingId}
+          status={booking.status}
+          viewerHasReviewed={booking.viewerHasReviewed}
+          viewerReviewId={booking.viewerReviewId ? String(booking.viewerReviewId) : undefined}
+        />
+      ) : null}
       <PlanThread status={booking.status} requestedAt={booking.requestedAt} memberCompletedAt={booking.memberCompletedAt} companionCompletedAt={booking.companionCompletedAt} />
       <BookingThread
         bookingId={booking._id as BookingId}
@@ -133,32 +165,6 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
         settlementBlockedAt={booking.settlementBlockedAt}
         settlementResolvedAt={booking.settlementResolvedAt}
         settlementResolution={booking.settlementResolution}
-      />
-      <BookingEvidencePanel
-        bookingId={booking._id as BookingId}
-        status={booking.status}
-        pricingModel={booking.pricingModel}
-        participantCompletedAt={booking.memberCompletedAt}
-        otherParticipantCompletedAt={booking.companionCompletedAt}
-        participantRole="member_end"
-        onDecisionChange={handleEvidenceDecision}
-      />
-      <BookingCompletionAction
-        bookingId={booking._id as BookingId}
-        status={booking.status}
-        pricingModel={booking.pricingModel}
-        requestedAt={booking.requestedAt}
-        durationMinutes={booking.durationMinutes}
-        viewerRole="member"
-        participantCompletedAt={booking.memberCompletedAt}
-        otherParticipantCompletedAt={booking.companionCompletedAt}
-        evidenceReady={evidenceReady}
-      />
-      <BookingSafetyActions
-        bookingId={booking._id as BookingId}
-        status={booking.status}
-        viewerHasReviewed={booking.viewerHasReviewed}
-        viewerReviewId={booking.viewerReviewId ? String(booking.viewerReviewId) : undefined}
       />
       <View style={styles.actions}>
         {canEditRequest ? <ActionButton label="Edit request" onPress={() => router.push(`../booking-edit/${String(booking._id)}`)} intent="self" secondary /> : null}

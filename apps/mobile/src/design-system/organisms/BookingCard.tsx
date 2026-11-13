@@ -7,6 +7,8 @@ import {
   formatBookingTotal,
   formatDuration,
 } from '@/data/bookingViewModels'
+import { companionMoneyCopy } from '@/data/bookingMoney'
+import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -28,32 +30,30 @@ export type BookingCardView = {
   viewerIsRequester?: boolean
   /** Set when the viewer already confirmed completion on an accepted booking. */
   viewerCompletedAt?: number
+  settlementState?: string
 }
 
-function companionPaymentCopy(status: BookingStatus, total: string) {
-  if (status === 'request_sent' || status === 'verification_required' || status === 'pending_admin_review') {
-    return `The member pays ${total} total when you accept, which includes the service fee.`
-  }
-  if (status === 'accepted') {
-    return `The member has ${total} reserved, which includes the service fee.`
-  }
-  if (status === 'declined' || status === 'cancelled') {
-    return 'No payment was taken.'
-  }
-  return `The member paid ${total} total, which includes the service fee.`
-}
 
 export function BookingCard({ booking, onPress, compact = false }: { booking: BookingCardView; onPress: () => void; compact?: boolean }) {
   const theme = useAppTheme()
-  const status = booking.status === 'accepted' && booking.viewerCompletedAt !== undefined
-    ? { label: 'Waiting for member', explanation: 'You confirmed completion. The member still needs to confirm.', tone: 'warning' as const }
-    : bookingStatusPresentation[booking.status]
-  const total = formatBookingTotal(booking.memberTotalCentavos)
   const viewerIsRequester = booking.viewerIsRequester ?? true
+  const status = !viewerIsRequester && booking.status === 'request_sent'
+    ? { label: 'Needs decision', explanation: 'The member is waiting for your reply.', tone: 'social' as const }
+    : booking.status === 'accepted' && booking.viewerCompletedAt !== undefined
+      ? { label: 'Waiting for member', explanation: 'You confirmed completion. The member still needs to confirm.', tone: 'warning' as const }
+      : bookingStatusPresentation[booking.status]
+  const total = formatBookingTotal(booking.memberTotalCentavos)
   const entitlement = formatBookingTotal(booking.companionEarningsCentavos)
   const priceLabel = !viewerIsRequester && entitlement ? 'Your earnings' : 'Total'
   const priceValue = !viewerIsRequester && entitlement ? entitlement : total
   const participantPreposition = booking.participantPreposition ?? 'with'
+  const money = !viewerIsRequester ? companionMoneyCopy({
+    bookingStatus: booking.status,
+    settlementState: booking.settlementState,
+    memberTotalCentavos: booking.memberTotalCentavos,
+    companionEarningsCentavos: booking.companionEarningsCentavos,
+  }) : null
+  const meta = `${booking.mode === 'in_person' ? 'In person' : 'Online'} · ${formatDuration(booking.durationMinutes)}`
 
   return (
     <Pressable
@@ -79,30 +79,27 @@ export function BookingCard({ booking, onPress, compact = false }: { booking: Bo
           <>
             <AppText variant="bodyStrong">No payment</AppText>
             <AppText variant="caption" color={theme.colors.textMuted}>
-              {viewerIsRequester ? 'You were not charged.' : 'The member was not charged.'} · {booking.mode === 'in_person' ? 'In person' : 'Online'} · {formatDuration(booking.durationMinutes)}
+              {viewerIsRequester ? 'You were not charged.' : 'The member was not charged.'}
             </AppText>
           </>
         ) : priceValue ? (
           <>
-            <AppText variant="bodyStrong">{priceLabel} {priceValue}</AppText>
+            <View style={styles.priceRow}>
+              <AppText variant="bodyStrong">{priceLabel} {priceValue}</AppText>
+              {money ? <StatusBadge label={money.label} tone={money.tone} /> : null}
+            </View>
             <AppText variant="caption" color={theme.colors.textMuted}>
-              {!viewerIsRequester && total ? (
-                <>{companionPaymentCopy(booking.status, total)}</>
-              ) : (
-                <>Includes service fee.</>
-              )}
-              {booking.mode === 'in_person' ? ' · In person' : ' · Online'} · {formatDuration(booking.durationMinutes)}
+              {money ? money.memberCopy : 'Includes service fee.'}
             </AppText>
           </>
         ) : (
-          <>
-            <AppText variant="bodyStrong">Total to be confirmed</AppText>
-            <AppText variant="caption" color={theme.colors.textMuted}>
-              {booking.mode === 'in_person' ? 'In person' : 'Online'} · {formatDuration(booking.durationMinutes)}
-            </AppText>
-          </>
+          <AppText variant="bodyStrong">Total to be confirmed</AppText>
         )}
+        <AppText variant="caption" color={theme.colors.textMuted}>{meta}</AppText>
       </View>
+      {!viewerIsRequester && booking.status === 'request_sent' ? (
+        <ActionButton label="Review request" intent="social" compact style={styles.action} onPress={onPress} />
+      ) : null}
     </Pressable>
   )
 }
@@ -114,4 +111,6 @@ const styles = StyleSheet.create({
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   copy: { flex: 1, gap: density.textPairGap },
   money: { gap: density.textPairGap },
+  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  action: { marginTop: 4 },
 })

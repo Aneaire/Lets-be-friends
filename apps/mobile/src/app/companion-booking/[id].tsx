@@ -108,9 +108,11 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
   onDecision: (decision: 'accepted' | 'declined') => void
 }) {
   const theme = useAppTheme()
-  const status = booking.status === 'accepted' && booking.companionCompletedAt
-    ? { label: 'Waiting for member', explanation: 'You confirmed completion. The member still needs to confirm.', tone: 'warning' as const }
-    : bookingStatusPresentation[booking.status]
+  const status = booking.status === 'request_sent'
+    ? { label: 'Needs decision', explanation: 'The member is waiting for your reply.', tone: 'social' as const }
+    : booking.status === 'accepted' && booking.companionCompletedAt
+      ? { label: 'Waiting for member', explanation: 'You confirmed completion. The member still needs to confirm.', tone: 'warning' as const }
+      : bookingStatusPresentation[booking.status]
   const terminal = booking.status === 'declined' || booking.status === 'cancelled'
   const money = companionMoneyCopy({
     bookingStatus: booking.status,
@@ -122,8 +124,8 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
   const handleEvidenceDecision = useCallback((ready: boolean) => setEvidenceReady(ready), [])
   return (
     <Screen contentStyle={styles.content}>
-      <AppHeader title={booking.category} back onBack={() => router.canGoBack() ? router.back() : router.replace('/companion-bookings')} />
-      <AppText color={theme.colors.textMuted}>requested by {booking.memberDisplayName}</AppText>
+      <AppHeader title={booking.memberDisplayName} back onBack={() => router.canGoBack() ? router.back() : router.replace('/companion-bookings')} />
+      <AppText color={theme.colors.textMuted}>{booking.category}</AppText>
       <View accessibilityLiveRegion="polite" style={[styles.status, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <StatusBadge label={status.label} tone={status.tone} />
         <AppText variant="caption">{status.explanation}</AppText>
@@ -143,6 +145,44 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
         </View>
       ) : null}
       {booking.notes ? <View style={styles.notes}><AppText variant="heading">Member notes</AppText><AppText color={theme.colors.textMuted}>{booking.notes}</AppText></View> : null}
+      {booking.status === 'request_sent' ? (
+        <View style={styles.actions}>
+          <ActionButton label={busy === 'accepted' ? 'Accepting booking' : 'Accept booking'} onPress={() => onDecision('accepted')} disabled={busy !== null} />
+          <ActionButton label={busy === 'declined' ? 'Declining booking' : 'Decline booking'} onPress={() => onDecision('declined')} disabled={busy !== null} secondary />
+        </View>
+      ) : null}
+      {['accepted', 'completed', 'review_window', 'closed'].includes(booking.status) ? (
+        <>
+          <BookingCompletionAction
+            bookingId={booking._id as BookingId}
+            status={booking.status}
+            pricingModel={booking.pricingModel}
+            requestedAt={booking.requestedAt}
+            durationMinutes={booking.durationMinutes}
+            viewerRole="companion"
+            participantCompletedAt={booking.companionCompletedAt}
+            otherParticipantCompletedAt={booking.memberCompletedAt}
+            evidenceReady={evidenceReady}
+          />
+          <BookingEvidencePanel
+            bookingId={booking._id as BookingId}
+            status={booking.status}
+            pricingModel={booking.pricingModel}
+            participantCompletedAt={booking.companionCompletedAt}
+            otherParticipantCompletedAt={booking.memberCompletedAt}
+            participantRole="companion_start"
+            onDecisionChange={handleEvidenceDecision}
+          />
+        </>
+      ) : null}
+      {['review_window', 'completed', 'closed'].includes(booking.status) ? (
+        <BookingSafetyActions
+          bookingId={booking._id as BookingId}
+          status={booking.status}
+          viewerHasReviewed={booking.viewerHasReviewed}
+          viewerReviewId={booking.viewerReviewId ? String(booking.viewerReviewId) : undefined}
+        />
+      ) : null}
       <PlanThread status={booking.status} requestedAt={booking.requestedAt} memberCompletedAt={booking.memberCompletedAt} companionCompletedAt={booking.companionCompletedAt} />
       <BookingThread
         bookingId={booking._id as BookingId}
@@ -168,38 +208,6 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
         settlementBlockedAt={booking.settlementBlockedAt}
         settlementResolvedAt={booking.settlementResolvedAt}
         settlementResolution={booking.settlementResolution}
-      />
-      {booking.status === 'request_sent' ? (
-        <View style={styles.actions}>
-          <ActionButton label={busy === 'accepted' ? 'Accepting booking' : 'Accept booking'} onPress={() => onDecision('accepted')} disabled={busy !== null} />
-          <ActionButton label={busy === 'declined' ? 'Declining booking' : 'Decline booking'} onPress={() => onDecision('declined')} disabled={busy !== null} secondary />
-        </View>
-      ) : null}
-      <BookingEvidencePanel
-        bookingId={booking._id as BookingId}
-        status={booking.status}
-        pricingModel={booking.pricingModel}
-        participantCompletedAt={booking.companionCompletedAt}
-        otherParticipantCompletedAt={booking.memberCompletedAt}
-        participantRole="companion_start"
-        onDecisionChange={handleEvidenceDecision}
-      />
-      <BookingCompletionAction
-        bookingId={booking._id as BookingId}
-        status={booking.status}
-        pricingModel={booking.pricingModel}
-        requestedAt={booking.requestedAt}
-        durationMinutes={booking.durationMinutes}
-        viewerRole="companion"
-        participantCompletedAt={booking.companionCompletedAt}
-        otherParticipantCompletedAt={booking.memberCompletedAt}
-        evidenceReady={evidenceReady}
-      />
-      <BookingSafetyActions
-        bookingId={booking._id as BookingId}
-        status={booking.status}
-        viewerHasReviewed={booking.viewerHasReviewed}
-        viewerReviewId={booking.viewerReviewId ? String(booking.viewerReviewId) : undefined}
       />
       <View style={styles.actions}>
         {canCancel ? <BookingCancelAction bookingId={booking._id as BookingId} participantLabel="Companion" /> : null}

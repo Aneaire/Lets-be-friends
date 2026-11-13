@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { StyleSheet, TextInput, View } from 'react-native'
+import { Pressable, StyleSheet, TextInput, View } from 'react-native'
 import {
   normalizeReferralCode,
   referralCodeValidationError,
@@ -75,18 +75,17 @@ export function ReferralCodeCard({
         <AppText variant="caption" color={theme.colors.textMuted}>
           Invitation {referralCodeCardValue(initialCode)} will be added when you finish setup.
         </AppText>
-        <ActionButton
-          label="Remove this code"
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Remove this code"
           onPress={() => {
             setCode('')
             setRemoved(true)
             onRemove?.()
           }}
-          intent="neutral"
-          secondary
-          compact
-          style={styles.startAction}
-        />
+          style={styles.removeLink}>
+          <AppText variant="bodyStrong" color={theme.colors.text}>Remove this code</AppText>
+        </Pressable>
       </View>
     )
   }
@@ -177,5 +176,6 @@ const styles = StyleSheet.create({
   input: { minHeight: 44, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10 },
   actions: { flexDirection: 'row', gap: 8 },
   startAction: { alignSelf: 'flex-start', paddingHorizontal: 12 },
+  removeLink: { minHeight: 44, justifyContent: 'center' },
   action: { flex: 1 },
 })

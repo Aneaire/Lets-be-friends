@@ -91,7 +91,7 @@ export function ReferralsView({
       <View style={styles.headerCopy}>
         <AppText variant="title">Invite friends</AppText>
         <AppText color={theme.colors.textMuted}>
-          Earn 5% of the booking subtotal on every completed booking your friend makes, for life.
+          Earn 5% of the booking subtotal on every completed booking your friend makes, for life. No cap.
         </AppText>
       </View>
 
@@ -109,7 +109,7 @@ export function ReferralsView({
             <View style={styles.stackTight}>
               <AppText variant="heading">Create your referral link</AppText>
               <AppText variant="caption" color={theme.colors.textMuted}>
-                Share this link with a friend. You earn 5% of the booking subtotal on every completed booking, for life.
+                Share this link with a friend. You earn 5% of the booking subtotal on every completed booking, for life. Your friend pays the normal price, and the credit comes out of the platform service fee.
               </AppText>
             </View>
             <ActionButton label="Create my referral link" onPress={onCreateCode} intent="social" compact style={styles.startAction} loading={busy} />
@@ -125,7 +125,7 @@ export function ReferralsView({
                 A friend counts after they add your code, not just after they open the link.
               </AppText>
               <AppText variant="caption" color={theme.colors.textMuted}>
-                Your friend must add your code within 30 days of joining and before their first booking.
+                Your friend must add your code within 30 days of joining and before their first booking. They pay the normal price.
               </AppText>
             </View>
             <View style={[styles.linkRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}>
@@ -173,7 +173,7 @@ export function ReferralsView({
           </>
         ) : null}
 
-        <ViewSection title="Your referrals" count={items.length} />
+        <ViewSection title="Your referrals" count={referral.totalReferrals} />
         {items.length > 0 ? (
           <View>
             {items.map((item) => <ReferralRow key={item._id} item={item} />)}
@@ -190,7 +190,7 @@ export function ReferralsView({
 
         {divider}
 
-        <ViewSection title="Referral earnings" count={rewardItems.length} />
+        <ViewSection title="Referral earnings" />
         {rewardItems.length === 0 ? (
           <AppText variant="caption" color={theme.colors.textMuted}>No referral earnings yet. Credit appears after a friend&apos;s booking settles.</AppText>
         ) : (
@@ -226,7 +226,7 @@ export function ReferralsView({
             <View style={[styles.referredBy, { backgroundColor: theme.colors.surfaceRaised }]}>
               <AppText variant="heading">You joined with {referral.referredBy.referrerDisplayName}&apos;s code</AppText>
               <AppText variant="caption" color={theme.colors.textMuted}>
-                {referral.referredBy.referrerDisplayName} earns 5% of the booking subtotal on every booking you complete.
+                {referral.referredBy.referrerDisplayName} earns 5% of the booking subtotal on every booking you complete. You pay the normal price.
               </AppText>
             </View>
           </>
@@ -240,7 +240,7 @@ export function ReferralsView({
         <ActionButton label="Referral terms" onPress={onOpenTerms} intent="neutral" secondary />
       ) : null}
       <AppText variant="caption" color={theme.colors.textMuted}>
-        You earn 5% of the booking subtotal on every completed booking your friend makes, for life. Credit releases after a 14-day hold. Example: a ₱700 booking subtotal earns ₱35. The 5% applies to the booking subtotal, not the member total including the service fee.
+        Credit releases after a 14-day hold and is reversed if an admin reverses it or confirms fraud. Example: a ₱700 booking subtotal earns ₱35. The 5% applies to the booking subtotal, not the member total including the 15% service fee.
       </AppText>
     </View>
   )
@@ -252,12 +252,12 @@ export function ReferralsView({
   )
 }
 
-function ViewSection({ title, count }: { title: string; count: number }) {
+function ViewSection({ title, count }: { title: string; count?: number }) {
   const theme = useAppTheme()
   return (
     <View style={styles.sectionHeader}>
       <AppText variant="heading">{title}</AppText>
-      <AppText variant="caption" color={theme.colors.textMuted}>{count}</AppText>
+      {count !== undefined ? <AppText variant="caption" color={theme.colors.textMuted}>{count}</AppText> : null}
     </View>
   )
 }
