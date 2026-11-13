@@ -455,3 +455,24 @@ Screenshots `37` and `38` were recaptured with the new order and badge.
 - `pnpm typecheck`: pass.
 - `pnpm test`: shared 103, web 1461, admin 32, mobile 836 pass.
 - `pnpm build`: pass.
+
+## Mobile parity pass
+
+The native app now follows the same 5% lifetime rules and page states as web.
+
+1. Referral dashboard. "Referral credit available" reads the wallet referral sub-balance, with "Lifetime credited" beside it. The pending amount says "Pending release or under review" when any visible reward is held and explains the difference between review and the 14-day hold. The 30-day rule and the subtotal-only basis are stated. Reward rows use sentence-case statuses, PHT dates, and booking references. The referral row pill reads "Earning" or "Reversed".
+2. Invite handling. A signed-in member who opens their own code sees "This is your own code" and the pending code is cleared instead of being offered for claiming. The friend-code card adds the 5% benefit line and uses "Not now" for a step-local hide.
+3. Onboarding. "Not now" hides the prompt for the step without writing `dismissReferralPrompt`. A saved invitation is claimed when onboarding finishes, alongside the username, location, and policy acceptance, and a failed claim never blocks setup.
+4. Companion requests. "Requests for you" renders above member bookings with a waiting count. Accepted and pending Companion bookings follow as "Active Companion bookings", and past Companion bookings live under "Companion booking history". The incoming-bookings screen splits requests from active work the same way.
+5. Booking cards and detail. Status badges use the semantic tone: social for requests and review, monochrome success for accepted and completed, dashed caution for verification, and danger for declined and cancelled. Companion-confirmed bookings show "Waiting for member". Cards name the member total, the Companion earnings, and the platform fee only when each is true for the state.
+6. Money and time. Detail pages itemize session subtotal, 15% service fee, and total, and name the platform fee in the Companion view. Card schedule times render in PHT. Completion stays unavailable until the session ends and now names the PHT time in the disabled label.
+7. Local Android release. `pnpm build:apk` produced `artifacts/lets-be-friends-0.1.5-production.apk` (144 MB, sha256 ae5fe39d815dcb6b9cc11d9d9f2ed6d3998697954c59044c74a93add811a3462) with production `EXPO_PUBLIC_*` values verified in the bundle.
+
+Mobile screenshot: `48-mobile-referrals-390.png`.
+
+### Mobile gates
+
+- `pnpm typecheck`: pass.
+- `pnpm test`: shared 103, web 1461, admin 32, mobile 838 pass.
+- `pnpm build`: pass.
+- `pnpm build:apk`: pass.
