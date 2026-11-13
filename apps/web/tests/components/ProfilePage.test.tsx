@@ -114,6 +114,13 @@ const approvedCompanion = {
 }
 
 describe('profile hero actions menu', () => {
+  it('never shows a mark that the member was referred', () => {
+    state.viewer = { ...state.viewer, referralBadge: 'introduced_by_friend' }
+    render(<ProfilePage />)
+
+    expect(screen.queryByText('Introduced by a friend')).toBeNull()
+  })
+
   it('keeps the three profile actions behind the top corner menu instead of a button row', () => {
     const { container } = render(<ProfilePage />)
 
@@ -180,13 +187,13 @@ describe('profile hero actions menu', () => {
 })
 
 describe('profile detail cards', () => {
-  it('shows the rounded discovery area saved during onboarding', () => {
+  it('shows that a rounded discovery area was saved during onboarding', () => {
     state.viewer = { ...state.viewer, approximateLatitude: 15.15, approximateLongitude: 120.58 }
 
     render(<ProfilePage />)
 
     expect(screen.getByText('Discovery area')).toBeTruthy()
-    expect(screen.getByText('15.15, 120.58')).toBeTruthy()
+    expect(screen.getByText('Saved')).toBeTruthy()
   })
 
   it('says so when no rounded area was saved', () => {

@@ -88,7 +88,7 @@ export const CollapsedNarrow320: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Create a post' }))
-    await expect(canvas.getByRole('textbox', { name: 'Create a text post' })).toBeInTheDocument()
+    await expect(canvas.getByRole('textbox', { name: 'Create a text post' })).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Post' })).toBeDisabled()
   },
 }
@@ -177,7 +177,7 @@ export const PollToggleClearsMedia: Story = {
     await expect(canvas.getByRole('button', { name: 'Remove selected media 1' })).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Add a poll' }))
     await expect(canvas.getByRole('textbox', { name: 'Poll question' })).toBeVisible()
-    await expect(canvas.queryByRole('button', { name: 'Remove selected media 1' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Remove selected media 1' })).toBeNull()
     await expect(canvas.getByRole('button', { name: 'Add photos or videos' })).toBeDisabled()
   },
 }

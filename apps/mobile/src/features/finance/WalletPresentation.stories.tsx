@@ -177,7 +177,7 @@ export const CurrentQrAttempt: Story = {
     await expect(canvas.getByText('Awaiting payment')).toBeVisible()
     await expect(canvas.getAllByText('Top-up pending')).toHaveLength(1)
     await expect(canvas.getByText(/Expires Aug 24/)).toBeVisible()
-    await expect(canvas.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Refresh' })).toBeNull()
     await expect(canvas.getByLabelText('Top-up amount in PHP')).toBeEnabled()
     await waitFor(() => expect(canvas.getByRole('button', { name: 'Save QR' })).toBeEnabled())
     await userEvent.click(canvas.getByRole('button', { name: 'Save QR' }))
@@ -243,8 +243,8 @@ export const ConfirmingPayment: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Confirming payment')).toBeVisible()
-    await expect(canvas.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: 'Save QR' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Refresh' })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: 'Save QR' })).toBeNull()
   },
 }
 
@@ -302,7 +302,7 @@ export const PreparingQr: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByLabelText('Preparing QR code')).toBeVisible()
-    await expect(canvas.queryByRole('button', { name: 'Save QR' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Save QR' })).toBeNull()
   },
 }
 
@@ -310,8 +310,8 @@ export const ExpiredQr: Story = {
   args: { currentTopUp: { ...awaitingTopUp, active: false, payable: false, statusLabel: 'Expired', detail: 'This QR has expired. Create a new top-up when ready.', expiryLabel: 'Expired' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('img', { name: /QR Ph code/ })).not.toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: 'Save QR' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('img', { name: /QR Ph code/ })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: 'Save QR' })).toBeNull()
     await expect(canvas.getByRole('button', { name: 'Create QR Ph top-up' })).toBeEnabled()
   },
 }

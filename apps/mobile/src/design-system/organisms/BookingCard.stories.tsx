@@ -44,8 +44,8 @@ export const IncomingRequest: Story = {
 export const MoneySplit: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/Total /)).toBeInTheDocument()
-    await expect(canvas.getByText(/Includes service fee\./)).toBeInTheDocument()
+    await expect(canvas.getByText(/Total /)).toBeVisible()
+    await expect(canvas.getByText(/Includes service fee\./)).toBeVisible()
   },
 }
 
@@ -62,8 +62,8 @@ export const CompanionEntitlement: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/Your entitlement/)).toBeInTheDocument()
-    await expect(canvas.getByText(/The member paid .* total, which includes the service fee\./)).toBeInTheDocument()
+    await expect(canvas.getByText(/Your entitlement/)).toBeVisible()
+    await expect(canvas.getByText(/The member paid .* total, which includes the service fee\./)).toBeVisible()
   },
 }
 
@@ -81,7 +81,7 @@ export const CompanionEntitlementDark: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/Your entitlement/)).toBeInTheDocument()
+    await expect(canvas.getByText(/Your entitlement/)).toBeVisible()
   },
 }
 

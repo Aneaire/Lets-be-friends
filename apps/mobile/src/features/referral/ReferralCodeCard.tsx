@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { StyleSheet, TextInput, View } from 'react-native'
 import {
   normalizeReferralCode,
@@ -9,11 +9,16 @@ import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { useAppTheme } from '@/theme/ThemeProvider'
 
+export function referralCodeCardValue(initialCode?: string) {
+  return normalizeReferralCode(initialCode ?? '')
+}
+
 export function ReferralCodeCard({
   busy,
   dismissing = false,
   error,
   notice,
+  initialCode,
   onSubmit,
   onSkip,
   onEdit,
@@ -22,14 +27,20 @@ export function ReferralCodeCard({
   dismissing?: boolean
   error: string
   notice: string
+  initialCode?: string
   onSubmit: (code: string) => void
   onSkip: () => void
   onEdit?: () => void
 }) {
   const theme = useAppTheme()
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState(() => referralCodeCardValue(initialCode))
   const [localError, setLocalError] = useState('')
   const displayError = localError || error
+
+  useEffect(() => {
+    if (!initialCode) return
+    setCode(referralCodeCardValue(initialCode))
+  }, [initialCode])
 
   function submit() {
     if (busy) return
@@ -48,7 +59,7 @@ export function ReferralCodeCard({
       <View style={styles.copy}>
         <AppText variant="heading">Have a friend's code? Optional</AppText>
         <AppText variant="caption" color={theme.colors.textMuted}>
-          Add it now to credit your friend. This prompt won't appear again.
+          Add it within 30 days of joining and before your first booking. This prompt won't appear again.
         </AppText>
       </View>
       {displayError ? (

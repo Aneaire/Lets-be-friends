@@ -50,6 +50,38 @@ describe('AvailabilityCalendar', () => {
     expect(document.querySelectorAll('input')).toHaveLength(0)
   })
 
+  it('groups starts by morning, afternoon, and evening so the list stays short', () => {
+    const fullDay = [
+      {
+        date: '2026-10-20',
+        startsAt: [
+          Date.UTC(2026, 9, 20, 1, 0),
+          Date.UTC(2026, 9, 20, 2, 0),
+          Date.UTC(2026, 9, 20, 7, 0),
+          Date.UTC(2026, 9, 20, 8, 0),
+          Date.UTC(2026, 9, 20, 11, 0),
+        ],
+      },
+    ]
+    renderCalendar({ days: fullDay })
+    fireEvent.click(screen.getByRole('gridcell', { name: /Tuesday, October 20, 2026/ }))
+
+    expect(screen.getByRole('button', { name: /Morning/ }).textContent).toContain('2')
+    expect(screen.getByRole('button', { name: /Afternoon/ }).textContent).toContain('2')
+    expect(screen.getByRole('button', { name: /Evening/ }).textContent).toContain('1')
+    expect(screen.queryByRole('button', { name: /3:00 PM/ })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Evening/ }))
+    expect(screen.getByRole('button', { name: '7:00 PM, 1 hr session' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '9:00 AM, 1 hr session' })).toBeNull()
+  })
+
+  it('opens on the period that contains the selected start', () => {
+    renderCalendar({ selectedStart: SLOT_1400 })
+    expect(screen.getByRole('button', { name: /Afternoon/ }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: '2:00 PM, 1 hr session' })).toBeTruthy()
+  })
+
   it('marks past dates and days without starts as unavailable', () => {
     renderCalendar()
 

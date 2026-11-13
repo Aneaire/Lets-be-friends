@@ -42,7 +42,7 @@ export const Loading: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByLabelText('Loading appearance choice')).toBeVisible()
-    await expect(canvas.queryByRole('radiogroup')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('radiogroup')).toBeNull()
   },
 }
 

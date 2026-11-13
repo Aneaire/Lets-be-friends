@@ -66,6 +66,7 @@ export function SignedInProfileContent({
   onCreateBooking,
   onOpenPublicProfile,
   onOpenSettings,
+  onOpenReferrals,
 }: {
   displayName: string
   username: string
@@ -95,6 +96,7 @@ export function SignedInProfileContent({
   onCreateBooking: () => void
   onOpenPublicProfile: () => void
   onOpenSettings: () => void
+  onOpenReferrals?: () => void
 }) {
   const theme = useAppTheme()
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -129,6 +131,11 @@ export function SignedInProfileContent({
           <AppText style={styles.profileName}>{displayName}</AppText>
           {username ? <AppText style={styles.profileMeta} color={theme.colors.textMuted}>{username}</AppText> : null}
           <AppText style={styles.profileMeta} color={theme.colors.textMuted}>{memberSince} · {roleLabel}</AppText>
+          {onOpenReferrals ? (
+            <View style={styles.referralAction}>
+              <ActionButton label="Invite friends" onPress={onOpenReferrals} intent="social" secondary />
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -335,6 +342,7 @@ const styles = StyleSheet.create({
   identityCopy: { width: '100%', minWidth: 0, gap: 2 },
   profileName: { ...typography.title },
   profileMeta: { ...typography.caption },
+  referralAction: { alignSelf: 'flex-start', marginTop: 4 },
   headerActions: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 2 },
   avatarWrap: { position: 'relative', alignItems: 'center', flexShrink: 0 },
   avatarBadge: { position: 'absolute', right: -2, bottom: -2 },

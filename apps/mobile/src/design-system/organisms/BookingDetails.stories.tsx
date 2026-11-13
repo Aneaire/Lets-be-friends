@@ -129,7 +129,7 @@ export const SkipWarning: Story = {
     const dialog = canvas.getByRole('dialog', { name: 'Skip private evidence?' })
     await expect(within(dialog).getByText(/cannot be replaced in the mobile app/)).toBeVisible()
     await userEvent.click(within(dialog).getByRole('button', { name: 'Keep evidence option' }))
-    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('dialog')).toBeNull()
   },
 }
 

@@ -89,6 +89,19 @@ export const registerDevice = mutation({
     validateRegistration(args, config.projectId)
 
     const now = Date.now()
+    const existingUserDevice = await ctx.db.query('userDevices')
+      .withIndex('by_user_installation', (q) => q.eq('userId', viewer._id).eq('installationId', args.installationId))
+      .unique()
+    if (existingUserDevice) {
+      await ctx.db.patch(existingUserDevice._id, { lastSeenAt: now })
+    } else {
+      await ctx.db.insert('userDevices', {
+        userId: viewer._id,
+        installationId: args.installationId,
+        firstSeenAt: now,
+        lastSeenAt: now,
+      })
+    }
     const [installationRows, tokenRows] = await Promise.all([
       ctx.db.query('pushDevices').withIndex('by_installation', (q) => q.eq('installationId', args.installationId)).collect(),
       ctx.db.query('pushDevices').withIndex('by_token', (q) => q.eq('expoPushToken', args.expoPushToken)).collect(),

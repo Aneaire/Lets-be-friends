@@ -66,7 +66,7 @@ describe('semantic theme tokens', () => {
       body: { fontSize: 15, lineHeight: 22 },
       bodyStrong: { fontSize: 15, lineHeight: 22 },
       caption: { fontSize: 13, lineHeight: 18 },
-      label: { fontSize: 12, lineHeight: 16 },
+      label: { fontSize: 13, lineHeight: 17 },
     })
   })
 })

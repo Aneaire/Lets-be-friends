@@ -2,6 +2,8 @@
 
 Recorded: 2026-11-04.
 
+> **Update 2026-11-13:** The shipped program pays **5% of the booking subtotal on every completed booking, for life**. The member also pays the 15% platform service fee on that subtotal, so the referral credit comes out of the fee and the platform keeps the remaining 10 points. There is no 3-booking cap, no minimum booking subtotal, and every existing referral moved to the lifetime terms. The 68% / first-3-bookings model below is the earlier recommendation that this update replaced.
+
 Status: research and recommendation. No code, schema, provider, or production change is proposed by this document until the owner approves a phase.
 
 ## Executive summary

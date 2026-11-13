@@ -48,9 +48,9 @@ Mobile uses one role scale from `apps/mobile/src/theme/tokens.ts`. Do not add sc
 | `body` | 15 / 22 | 400 | Feed posts, messages, bios, and descriptions |
 | `bodyStrong` | 15 / 22 | 700 | Names, row titles, and buttons |
 | `caption` | 13 / 18 | 400 | Timestamps, handles, counts, and secondary detail |
-| `label` | 12 / 16 | 700, 0.6 tracking | Short uppercase eyebrows |
+| `label` | 13 / 17 | 700, 0.6 tracking | Short uppercase eyebrows |
 
-- Keep read information at 13 or above. Use `label` only for short uppercase eyebrows.
+- Keep read information, including badges and tab labels, at 13 or above. Use `label` only for short uppercase eyebrows.
 - Keep touch targets at 44 by 44 even when the text or icon is smaller.
 - Keep Dynamic Type enabled and test at 2x font scaling.
 - Recheck long names, booking cards, and the composer at 320px in light and dark mode.

@@ -116,7 +116,7 @@ export const Open: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Close bottom sheet' }))
-    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('dialog')).toBeNull()
   },
 }
 export const Closed: Story = { render: () => <SheetStory initialVisible={false} /> }

@@ -40,11 +40,11 @@ export const WithCircles: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: 'Open Cebu Coffee Friends Circle' })).toBeVisible()
-    await expect(canvas.getByRole('img', { name: 'Cebu Coffee Friends Circle icon' })).toBeInTheDocument()
+    await expect(canvas.getByRole('img', { name: 'Cebu Coffee Friends Circle icon' })).toBeVisible()
     await expect(canvas.getByRole('img', { name: 'Weekend Walks Circle mark' })).toBeVisible()
     await expect(canvas.getByText('24 members · Online and in person · host')).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Open Weekend Walks Circle' })).toBeVisible()
-    await expect(canvas.queryByText('Pending Circle')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Pending Circle')).toBeNull()
     await expect(canvas.getByRole('button', { name: 'See all circles' })).toBeVisible()
     await expect(canvas.getByText('See all (2)')).toBeVisible()
   },

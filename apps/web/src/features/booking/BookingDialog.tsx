@@ -228,7 +228,7 @@ export function BookingDialog({
 
   return (
     <BookingDialogFrame
-      title={selectedCompanion ? `Book with ${selectedCompanion.displayName.trim().split(/\s+/)[0] ?? ''}` : 'Book a time'}
+      title={selectedCompanion ? `Book with ${selectedCompanion.displayName}` : 'Book a time'}
       onClose={onClose}
       closeDisabled={isSubmitting}
       describedById="booking-dialog-guidance"
@@ -367,10 +367,12 @@ export function BookingDialog({
               />
 
               <button disabled={!canSubmit} className="btn btn-social btn-block">
-                {isSubmitting ? 'Sending…' : 'Send booking'}
+                {isSubmitting ? 'Sending…' : 'Send request'}
               </button>
-              <p className="text-tiny" id="booking-dialog-guidance">
-                Bookings are available only after identity review is approved.
+              <p className="text-tiny" id="booking-dialog-guidance" role="status" aria-live="polite">
+                {selectedStart === null || selectedStart <= Date.now()
+                  ? 'Choose an available start time to continue.'
+                  : null}
               </p>
             </div>
           </>

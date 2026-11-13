@@ -101,7 +101,7 @@ export const PreviewLimit: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Transactions')).toBeVisible()
-    await expect(canvas.queryByText('No wallet activity yet.')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('No wallet activity yet.')).toBeNull()
   },
 }
 

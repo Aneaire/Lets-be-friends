@@ -40,7 +40,7 @@ export const Default: Story = {
   render: () => <FilterSheetStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('dialog', { name: 'Discovery filters' })).toBeInTheDocument()
+    await expect(canvas.getByRole('dialog', { name: 'Discovery filters' })).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Any format' })).toHaveAttribute('aria-pressed', 'true')
     await expect(canvas.getByRole('button', { name: 'Good company' })).toHaveAttribute('aria-pressed', 'false')
   },
@@ -55,7 +55,7 @@ export const SelectAndClose: Story = {
     await expect(canvas.getByRole('button', { name: 'Any format' })).toHaveAttribute('aria-pressed', 'false')
 
     await userEvent.click(canvas.getByRole('button', { name: 'Show results' }))
-    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('dialog')).toBeNull()
   },
 }
 
@@ -84,7 +84,7 @@ export const ResetFilters: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Reset filters' }))
     await expect(canvas.getByRole('button', { name: 'Any format' })).toHaveAttribute('aria-pressed', 'true')
     await expect(canvas.getByRole('button', { name: 'In person' })).toHaveAttribute('aria-pressed', 'false')
-    await expect(canvas.getByRole('dialog', { name: 'Discovery filters' })).toBeInTheDocument()
+    await expect(canvas.getByRole('dialog', { name: 'Discovery filters' })).toBeVisible()
   },
 }
 
@@ -93,7 +93,7 @@ export const CloseButton: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Close filters' }))
-    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('dialog')).toBeNull()
   },
 }
 

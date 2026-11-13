@@ -130,7 +130,7 @@ function DistanceStamp({ distanceKm, compact = false }: { distanceKm: number; co
   return (
     <div className="discover-host-distance" data-compact={compact} aria-label={`${distanceKm} kilometers away`}>
       <strong className="tabular">{distanceKm}</strong>
-      <small>km away</small>
+      <small>km</small>
     </div>
   )
 }

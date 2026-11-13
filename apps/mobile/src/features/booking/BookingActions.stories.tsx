@@ -38,7 +38,7 @@ export const MemberActions: Story = {
     await expect(canvas.getByRole('button', { name: 'Confirm completed' })).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Cancel booking' }))
     const dialog = await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'Cancel this booking?' })
-    await expect(dialog).toBeInTheDocument()
+    await expect(dialog).toBeVisible()
   },
 }
 

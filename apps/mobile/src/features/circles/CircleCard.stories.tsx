@@ -31,7 +31,7 @@ export const OpenCircle: Story = {
     const canvas = within(canvasElement)
     const openCircle = canvas.getByRole('button', { name: 'Open Quezon City Language Exchange Circle' })
     await expect(openCircle).toBeVisible()
-    await expect(canvas.getByRole('img', { name: 'Quezon City Language Exchange Circle mark' })).toBeInTheDocument()
+    await expect(canvas.getByRole('img', { name: 'Quezon City Language Exchange Circle mark' })).toBeVisible()
     await expect(canvas.getByText('Open join')).toBeVisible()
     await userEvent.click(openCircle)
   },
@@ -55,8 +55,8 @@ export const JoinedCircle: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('img', { name: 'Weekend Coffee Walks Circle icon' })).toBeInTheDocument()
-    await expect(canvas.queryByRole('img', { name: 'Weekend Coffee Walks Circle mark' })).not.toBeInTheDocument()
+    await expect(canvas.getByRole('img', { name: 'Weekend Coffee Walks Circle icon' })).toBeVisible()
+    await expect(canvas.queryByRole('img', { name: 'Weekend Coffee Walks Circle mark' })).toBeNull()
     await expect(canvas.getByText('organizer')).toBeVisible()
     await expect(canvas.getByText('Good company · 9 members · Makati')).toBeVisible()
   },

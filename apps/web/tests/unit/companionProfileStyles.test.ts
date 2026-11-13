@@ -24,7 +24,7 @@ describe('Companion profile layout styles', () => {
     }
 
     expect(styles).toMatch(/\.companion-profile-identity \.profile-photo-lg\s*\{[^}]*width:\s*6rem;[^}]*height:\s*6rem;/s)
-    expect(styles).toMatch(/\.companion-profile-name\s*\{[^}]*font-size:\s*clamp\(1\.5rem,[^}]*1\.75rem\);/s)
+    expect(styles).toMatch(/\.companion-profile-name\s*\{[^}]*font-size:\s*clamp\(1\.75rem,[^}]*2\.375rem\);/s)
     expect(styles).toMatch(/\.companion-profile-intro\s*\{[^}]*font-size:\s*0\.9375rem;[^}]*font-weight:\s*650;/s)
     expect(styles).toMatch(/\.companion-profile-bio\s*\{[^}]*font-size:\s*0\.875rem;[^}]*font-weight:\s*400;/s)
     expect(styles).toMatch(/\.companion-profile-rate\s*\{[^}]*border-left:\s*3px solid var\(--accent-social\);/s)

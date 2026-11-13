@@ -43,6 +43,7 @@ describe('BookingRequestCard', () => {
     expect(screen.getByText(/Michael sent a booking request/)).toBeTruthy()
     expect(screen.getByText('Angelo is waiting for your reply')).toBeTruthy()
     expect(screen.getByText(/Your entitlement/)).toBeTruthy()
+    expect(screen.getByText(/The member pays ₱575.00 total when you accept/)).toBeTruthy()
     expect(screen.getByText(/Bring your favorite game/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Accept request' })).toBeTruthy()
   })

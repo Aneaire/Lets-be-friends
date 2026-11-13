@@ -287,7 +287,7 @@ export function MessagesPage() {
             <Avatar name={thread.conversation.otherDisplayName} src={thread.conversation.otherProfileImageUrl} decorative />
             <div className="min-w-0 direct-thread-identity">
               <div className="direct-thread-name-row">
-                <h2 className="text-h2">{thread.conversation.otherDisplayName}</h2>
+                <h1 className="direct-thread-title">{thread.conversation.otherDisplayName}</h1>
                 {latestBookingEnded && (
                   <span className="direct-thread-booking-complete" aria-label="Booking completed" title="Booking completed">
                     <CircleCheck size={13} strokeWidth={2.4} aria-hidden="true" />
@@ -337,6 +337,7 @@ export function MessagesPage() {
           </div>
 
           <div className="direct-message-list" aria-live="polite">
+
             {thread.messages.length === 0 && (
               <div className="direct-thread-empty">
                 <MessageCircle size={24} aria-hidden="true" />

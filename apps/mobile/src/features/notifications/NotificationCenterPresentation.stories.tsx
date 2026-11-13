@@ -84,8 +84,8 @@ export const Loading: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByLabelText('Loading notification activity')).toBeVisible()
-    await expect(canvas.queryByText('You are all caught up')).not.toBeInTheDocument()
-    await expect(canvas.queryByText('NEEDS YOUR ATTENTION')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('You are all caught up')).toBeNull()
+    await expect(canvas.queryByText('NEEDS YOUR ATTENTION')).toBeNull()
   },
 }
 
@@ -116,7 +116,7 @@ export const MarkAllBusy: Story = {
         name: 'Marking all notifications read',
       }),
     ).toHaveAttribute('aria-busy', 'true')
-    await expect(canvas.queryByText('Mark read')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Mark read')).toBeNull()
   },
 }
 

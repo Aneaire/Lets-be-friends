@@ -65,7 +65,7 @@ export function BookingsHeader({
             styles.balancePill,
             { backgroundColor: theme.colors.selfSoft, borderColor: theme.colors.selfText },
           ]}>
-          <AppText variant="label" color={theme.colors.selfText} style={styles.balanceText}>
+          <AppText variant="caption" color={theme.colors.selfText} style={styles.balanceText}>
             {presentation.label}
           </AppText>
         </View>

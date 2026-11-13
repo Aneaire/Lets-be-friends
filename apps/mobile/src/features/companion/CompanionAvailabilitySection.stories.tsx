@@ -21,8 +21,8 @@ export const SharedSchedule: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Manila time')).toBeInTheDocument()
-    await expect(canvas.getByText(/Mon 9:00 AM/)).toBeInTheDocument()
+    await expect(canvas.getByText('Manila time')).toBeVisible()
+    await expect(canvas.getByText(/Mon 9:00 AM/)).toBeVisible()
   },
 }
 
@@ -30,7 +30,7 @@ export const NoSchedule: Story = {
   args: { availability: [] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('No weekly availability shared yet.')).toBeInTheDocument()
+    await expect(canvas.getByText('No weekly availability shared yet.')).toBeVisible()
   },
 }
 
@@ -41,6 +41,6 @@ export const DarkSchedule: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Manila time')).toBeInTheDocument()
+    await expect(canvas.getByText('Manila time')).toBeVisible()
   },
 }

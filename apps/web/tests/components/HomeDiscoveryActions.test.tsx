@@ -9,7 +9,10 @@ const search = vi.hoisted(() => ({ ref: undefined as string | undefined }))
 const links = vi.hoisted(() => [] as string[])
 
 vi.mock('../../convex/_generated/api', () => ({
-  api: { companions: { listApproved: 'companions.listApproved' } },
+  api: {
+    companions: { listApproved: 'companions.listApproved' },
+    referrals: { programStatus: 'referrals.programStatus' },
+  },
 }))
 
 vi.mock('convex/react', () => ({ useQuery: () => [] }))

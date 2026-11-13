@@ -58,7 +58,7 @@ export const SignedOutReadOnly: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: 'Like post' })).toBeDisabled()
-    await expect(canvas.queryByRole('button', { name: 'Share post' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Share post' })).toBeNull()
   },
 }
 

@@ -11,6 +11,7 @@ export type ProfileViewer = {
   identityEligible: boolean
   bio?: string | null
   onboardingCategories?: string[] | null
+  referralBadge?: string | null
   approximateLatitude?: number | null
   approximateLongitude?: number | null
 }

@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url'
 const ioniconsMock = fileURLToPath(new URL('./mocks/Ionicons.tsx', import.meta.url))
 const expoRouterMock = fileURLToPath(new URL('./mocks/expo-router.tsx', import.meta.url))
 const expoLinkingMock = fileURLToPath(new URL('./mocks/expo-linking.ts', import.meta.url))
+const expoBlurMock = fileURLToPath(new URL('./mocks/expo-blur.tsx', import.meta.url))
+const expoHapticsMock = fileURLToPath(new URL('./mocks/expo-haptics.ts', import.meta.url))
 const convexReactMock = fileURLToPath(new URL('./mocks/convex-react.ts', import.meta.url))
 const backendClientMock = fileURLToPath(new URL('./mocks/backend-client.ts', import.meta.url))
 const expoImagePickerMock = fileURLToPath(new URL('./mocks/expo-image-picker.ts', import.meta.url))
@@ -21,7 +23,10 @@ const config: StorybookConfig = {
     const ioniconsAlias = { find: '@expo/vector-icons/Ionicons', replacement: ioniconsMock }
     const storyAliases = [
       ioniconsAlias,
+      { find: /^expo-router\/js-tabs$/, replacement: expoRouterMock },
       { find: 'expo-router', replacement: expoRouterMock },
+      { find: 'expo-blur', replacement: expoBlurMock },
+      { find: 'expo-haptics', replacement: expoHapticsMock },
       { find: 'expo-linking', replacement: expoLinkingMock },
       { find: 'expo-image-picker', replacement: expoImagePickerMock },
       { find: 'convex/react', replacement: convexReactMock },
@@ -38,12 +43,20 @@ const config: StorybookConfig = {
           'react-native-safe-area-context',
           'react-native-toast-message',
         ],
+        exclude: [
+          ...(viteConfig.optimizeDeps?.exclude ?? []),
+          'expo-blur',
+          'expo-haptics',
+        ],
       },
       resolve: {
         ...viteConfig.resolve,
-        alias: Array.isArray(existingAlias)
-          ? [...storyAliases, ...existingAlias]
-          : { ...existingAlias, '@expo/vector-icons/Ionicons': ioniconsMock, 'expo-router': expoRouterMock, 'expo-linking': expoLinkingMock, 'expo-image-picker': expoImagePickerMock, 'convex/react': convexReactMock, '@/backend/client': backendClientMock },
+        alias: [
+          ...storyAliases,
+          ...(Array.isArray(existingAlias)
+            ? existingAlias
+            : Object.entries(existingAlias ?? {}).map(([find, replacement]) => ({ find, replacement }))),
+        ],
       },
     }
   },

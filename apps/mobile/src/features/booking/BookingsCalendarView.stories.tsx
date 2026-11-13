@@ -40,7 +40,7 @@ export const EmptyShowsCalendarOnToday: Story = {
     await expect(canvas.getByRole('button', { name: 'Next month' })).toBeVisible()
     await expect(canvas.getAllByText('No bookings yet').length).toBeGreaterThanOrEqual(1)
     await expect(canvas.getByText('Future bookings appear here.')).toBeVisible()
-    await expect(canvas.queryByText('Choose a marked date')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Choose a marked date')).toBeNull()
   },
 }
 
@@ -72,7 +72,7 @@ export const PopulatedKeepsMarkedDateGuidance: Story = {
     await userEvent.click(canvas.getByRole('button', { name: /Saturday, August 22, 2026/ }))
     await expect(await canvas.findByText('Choose a marked date')).toBeVisible()
     await expect(canvas.getByText('Pick a day with a booking count to see its details.')).toBeVisible()
-    await expect(canvas.queryByText('Future bookings appear here.')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Future bookings appear here.')).toBeNull()
   },
 }
 

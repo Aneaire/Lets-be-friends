@@ -126,7 +126,7 @@ function BookingCreationDialogStory() {
                 disabled={false}
               />
               <button type="submit" className="btn btn-social btn-block" disabled={selectedStart === null}>
-                Send booking
+                Send request
               </button>
               <p className="text-tiny" id="booking-dialog-guidance">
                 Bookings are available only after identity review is approved.
@@ -199,7 +199,7 @@ function BookingSearchDialogStory() {
           disabled={false}
         />
         <button type="submit" className="btn btn-social btn-block" disabled={!selected}>
-          Send booking
+          Send request
         </button>
         <p className="text-tiny" id="booking-dialog-guidance">
           Bookings are available only after identity review is approved.
@@ -298,7 +298,7 @@ export const HeaderStaysFixedAndBodyScrolls: Story = {
     // The internal body scrolls while the header stays put.
     await expect(Math.abs(header.getBoundingClientRect().top - headerTopBeforeScroll)).toBeLessThanOrEqual(0.5)
 
-    const send = canvas.getByRole('button', { name: 'Send booking' })
+    const send = canvas.getByRole('button', { name: 'Send request' })
     send.scrollIntoView({ block: 'end' })
     const dialogRect = dialog.getBoundingClientRect()
     const sendRect = send.getBoundingClientRect()
@@ -328,7 +328,7 @@ export const ChooseDayAndStartTime: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await settledDialog(canvasElement)
-    const send = canvas.getByRole('button', { name: 'Send booking' })
+    const send = canvas.getByRole('button', { name: 'Send request' })
     await expect(send).toBeDisabled()
 
     await userEvent.click(canvas.getByRole('gridcell', { name: /Tuesday, October 20, 2026/ }))

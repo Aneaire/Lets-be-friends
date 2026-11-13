@@ -67,7 +67,7 @@ export const Loading: Story = {
     await expect(
       canvas.getByLabelText('Checking notification availability'),
     ).toBeVisible()
-    await expect(canvas.queryByRole('button')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button')).toBeNull()
   },
 }
 
@@ -155,7 +155,7 @@ export const Unavailable: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('button')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button')).toBeNull()
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(
       canvasElement.clientWidth,
     )

@@ -1,12 +1,15 @@
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
-import { useState } from 'react'
-import { Share } from 'react-native'
-import { referralShareUrl } from '@lets-be-friends/shared'
+import { useEffect, useState } from 'react'
+import { Linking, Share } from 'react-native'
+import { extractConvexErrorMessage, normalizeReferralCode, referralCodeValidationError, referralShareUrl } from '@lets-be-friends/shared'
 
 import { mobileApi } from '@/backend/client'
 import { resolveMobileWebAppConfiguration } from '@/backend/config'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
+import { ReferralCodeCard } from '@/features/referral/ReferralCodeCard'
+import { clearPendingReferralCode, readPendingReferralCode, savePendingReferralCode } from '@/features/referral/pendingReferralCode'
+import { mobileReferralDeviceId } from '@/features/referral/referralDevice'
 import { ReferralState } from '@/features/referral/ReferralState'
 import { ReferralsView } from '@/features/referral/ReferralsView'
 import { useMobileMember } from '@/member/MobileMember'
@@ -27,11 +30,37 @@ export default function ReferralsScreen() {
 }
 
 function ReadyReferrals() {
+  const params = useLocalSearchParams<{ ref?: string }>()
   const referral = useQuery(mobileApi.referrals.myReferral, {})
   const page = usePaginatedQuery(mobileApi.referrals.myReferralPage, {}, { initialNumItems: 20 })
+  const rewardPage = usePaginatedQuery(mobileApi.referrals.myReferralRewards, {}, { initialNumItems: 20 })
   const ensureReferralCode = useMutation(mobileApi.referrals.ensureReferralCode)
+  const attributeReferral = useMutation(mobileApi.referrals.attributeReferral)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [friendBusy, setFriendBusy] = useState(false)
+  const [friendError, setFriendError] = useState('')
+  const [friendNotice, setFriendNotice] = useState('')
+  const [friendDismissed, setFriendDismissed] = useState(false)
+  const [initialCode, setInitialCode] = useState('')
+
+  useEffect(() => {
+    let active = true
+    const incoming = typeof params.ref === 'string' ? normalizeReferralCode(params.ref) : ''
+    if (incoming && !referralCodeValidationError(incoming)) {
+      setInitialCode(incoming)
+      void savePendingReferralCode(incoming)
+      return () => {
+        active = false
+      }
+    }
+    void readPendingReferralCode().then((code) => {
+      if (active && code) setInitialCode(code)
+    })
+    return () => {
+      active = false
+    }
+  }, [params.ref])
 
   if (referral === undefined) return <PageSkeleton variant="profile" />
   if (referral === null) {
@@ -43,13 +72,17 @@ function ReadyReferrals() {
   const shareUrl = referralCode && web.status === 'configured'
     ? referralShareUrl(web.url, referralCode)
     : undefined
+  const termsUrl = web.status === 'configured'
+    ? `${web.url.replace(/\/+$/, '')}/referral-terms`
+    : undefined
 
   async function createCode() {
     if (busy) return
     setBusy(true)
     setMessage('')
     try {
-      await ensureReferralCode({})
+      const deviceId = await mobileReferralDeviceId()
+      await ensureReferralCode(deviceId ? { deviceId } : {})
       setMessage('Your referral link is ready to share.')
     } catch {
       setMessage('Your referral link could not be created. Please try again.')
@@ -64,7 +97,7 @@ function ReadyReferrals() {
     try {
       await Share.share({
         message: shareUrl
-          ? `Join me on Let's Be Friends: ${shareUrl}`
+          ? `Join me on Let's Be Friends: ${shareUrl}\nCode: ${referralCode}`
           : `Join me on Let's Be Friends. Use my referral code ${referralCode}.`,
       })
     } catch {
@@ -72,20 +105,53 @@ function ReadyReferrals() {
     }
   }
 
+  async function addFriendCode(code: string) {
+    if (friendBusy) return
+    setFriendBusy(true)
+    setFriendError('')
+    setFriendNotice('')
+    try {
+      const deviceId = await mobileReferralDeviceId()
+      await attributeReferral(deviceId ? { code, deviceId } : { code })
+      await clearPendingReferralCode()
+      setInitialCode('')
+      setFriendNotice('Referral code added. Your friend earns 5% of the booking subtotal on every completed booking, for life.')
+    } catch (caught) {
+      setFriendError(extractConvexErrorMessage(caught, 'We could not add this code. Check it and try again.'))
+    } finally {
+      setFriendBusy(false)
+    }
+  }
+
+  const friendCodeCard = referral.canAddReferralCode && !friendDismissed ? (
+    <ReferralCodeCard
+      busy={friendBusy}
+      error={friendError}
+      notice={friendNotice}
+      initialCode={initialCode}
+      onSubmit={(code) => void addFriendCode(code)}
+      onSkip={() => setFriendDismissed(true)}
+      onEdit={() => setFriendError('')}
+    />
+  ) : null
+
   return (
     <ReferralsView
       referral={referral}
       items={page.results}
+      rewardItems={rewardPage.results}
       status={page.status}
+      rewardStatus={rewardPage.status}
       busy={busy}
       message={message}
       shareUrl={shareUrl}
+      friendCodeCard={friendCodeCard}
       onCreateCode={() => void createCode()}
       onShare={() => void shareLink()}
       onBack={() => router.back()}
       onLoadMore={() => page.loadMore(20)}
+      onLoadMoreRewards={() => rewardPage.loadMore(20)}
+      onOpenTerms={termsUrl ? () => void Linking.openURL(termsUrl) : undefined}
     />
   )
 }
-
-

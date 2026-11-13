@@ -7,10 +7,14 @@ const NOW = Date.UTC(2026, 10, 4, 9, 0)
 
 const referral: MobileReferralData = {
   code: 'ABCD1234',
+  programActive: true,
   totalReferrals: 1,
   totalRewardedBookings: 2,
   totalEarnedCentavos: 10_200,
+  totalPendingCentavos: 0,
   totalReversedCentavos: 0,
+  referralDebtCentavos: 0,
+  canAddReferralCode: false,
   referredBy: null,
 }
 
@@ -20,8 +24,22 @@ const items = [
     referredDisplayName: 'Maya',
     status: 'active',
     rewardedBookings: 2,
-    totalRewardedBookings: 3,
     createdAt: NOW,
+  },
+]
+
+const rewards = [
+  {
+    _id: 'reward-1',
+    bookingId: 'booking-1',
+    kind: 'lifetime',
+    amountCentavos: 525,
+    rewardBps: 500,
+    status: 'credited',
+    reviewRequired: false,
+    createdAt: NOW,
+    releasedAt: NOW,
+    referredDisplayName: 'Maya',
   },
 ]
 
@@ -33,7 +51,9 @@ const meta = {
   args: {
     referral,
     items,
+    rewardItems: rewards,
     status: 'Exhausted' as const,
+    rewardStatus: 'Exhausted' as const,
     busy: false,
     message: '',
     shareUrl: 'https://letsbefriends.ph/?ref=ABCD1234',
@@ -41,6 +61,8 @@ const meta = {
     onShare: fn(),
     onBack: fn(),
     onLoadMore: fn(),
+    onLoadMoreRewards: fn(),
+    onOpenTerms: fn(),
   },
 } satisfies Meta<typeof ReferralsView>
 
@@ -75,9 +97,8 @@ export const ManyReferrals: Story = {
       {
         _id: 'referral-2',
         referredDisplayName: 'Paolo',
-        status: 'completed',
+        status: 'active',
         rewardedBookings: 3,
-        totalRewardedBookings: 3,
         createdAt: NOW - 86_400_000,
       },
       {
@@ -85,7 +106,6 @@ export const ManyReferrals: Story = {
         referredDisplayName: 'Bea',
         status: 'active',
         rewardedBookings: 1,
-        totalRewardedBookings: 3,
         createdAt: NOW - 172_800_000,
       },
     ],
@@ -103,7 +123,6 @@ export const ReferredByFriend: Story = {
         referrerDisplayName: 'Maya',
         code: 'MAYA1234',
         rewardedBookings: 1,
-        totalRewardedBookings: 3,
       },
     },
   },
@@ -113,5 +132,5 @@ export const ReferredByFriend: Story = {
 }
 
 export const Message: Story = {
-  args: { message: 'Referral code added. It will apply to your first completed bookings.' },
+  args: { message: 'Referral code added. Your friend earns 5% of the booking subtotal on every completed booking, for life.' },
 }

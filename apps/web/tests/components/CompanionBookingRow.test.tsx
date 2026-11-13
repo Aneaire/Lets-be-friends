@@ -63,15 +63,30 @@ describe('CompanionBookingRow', () => {
   it('renders the member name and the Companion decision actions with a unique DOM id', () => {
     const handlers = renderRow()
 
-    expect(screen.getByRole('heading', { name: 'Angelo' })).toBeTruthy()
+    const memberLink = screen.getByRole('link', { name: 'Angelo' })
+    expect(memberLink.getAttribute('href')).toContain('/member-profile')
     expect(document.getElementById('companion-booking-booking-1')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Accept' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Decline' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Cancel booking' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Cancel booking' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Report' })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
     expect(handlers.onAccept).toHaveBeenCalledTimes(1)
+  })
+
+  it('labels a Companion-confirmed booking as waiting for the member', () => {
+    renderRow({
+      booking: {
+        ...booking,
+        status: 'accepted',
+        companionCompletedAt: Date.now(),
+        requestedAt: Date.now() - 2 * 60 * 60 * 1000,
+      } as unknown as CompanionBooking,
+    })
+
+    expect(screen.getByText('Waiting for member')).toBeTruthy()
+    expect(screen.getByText('You confirmed completion · waiting for member')).toBeTruthy()
   })
 
   it('links to the conversation with the member once one exists', () => {
@@ -119,7 +134,7 @@ describe('CompanionBookingRow', () => {
     expect(onComplete).toHaveBeenCalledTimes(1)
   })
 
-  it('tells the Companion the session is not done yet when completion is confirmed too early', () => {
+  it('shows the PHT end time and keeps completion disabled until the session ends', () => {
     const onComplete = vi.fn().mockResolvedValue(undefined)
     renderRow({
       booking: {
@@ -131,11 +146,12 @@ describe('CompanionBookingRow', () => {
       onComplete,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
+    const button = screen.getByRole('button', { name: /Confirm after .* PHT/ })
+    expect(button.hasAttribute('disabled')).toBe(true)
+    fireEvent.click(button)
 
     expect(onComplete).not.toHaveBeenCalled()
-    expect(mocks.toastWarning).toHaveBeenCalledTimes(1)
-    expect(mocks.toastWarning.mock.calls[0][0]).toMatch(/^Your session is not done yet\./)
+    expect(mocks.toastWarning).not.toHaveBeenCalled()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 })

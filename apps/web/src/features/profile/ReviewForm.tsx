@@ -12,18 +12,20 @@ import { ReviewComposerDialog } from '../social/ReviewComposerDialog'
 export function ReviewForm({
   onReview,
   preview,
+  primary = false,
 }: {
   onReview: (rating: number, body: string | undefined, imageUploadIds: Id<'reviewMediaUploads'>[]) => Promise<void>
   // Present only where the review can reach the feed, which is where the
   // composer shows the live card and names the Companion.
   preview?: { companionName: string }
+  primary?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const viewer = useQuery(api.users.viewer)
 
   return (
     <>
-      <button type="button" className="btn btn-social-quiet btn-sm" onClick={() => setOpen(true)}>
+      <button type="button" className={`btn ${primary ? 'btn-social' : 'btn-social-quiet'} btn-sm`} onClick={() => setOpen(true)}>
         Leave a review
       </button>
       <ReviewComposerDialog

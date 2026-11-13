@@ -19,8 +19,8 @@ type Story = StoryObj<typeof meta>
 export const EditExisting: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Manila times members can request')).toBeInTheDocument()
-    await expect(canvas.getByText('9:00 AM')).toBeInTheDocument()
+    await expect(canvas.getByText('Manila times members can request')).toBeVisible()
+    await expect(canvas.getByText('9:00 AM')).toBeVisible()
   },
 }
 
@@ -28,7 +28,7 @@ export const EmptySchedule: Story = {
   args: { initialWindows: [] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('No windows shared. Add times below, or save empty to block new requests.')).toBeInTheDocument()
+    await expect(canvas.getByText('No windows shared. Add times below, or save empty to block new requests.')).toBeVisible()
   },
 }
 
@@ -48,7 +48,7 @@ export const AddWindow: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Add time window' }))
-    await expect(canvas.getByText('9:00 AM')).toBeInTheDocument()
+    await expect(canvas.getByText('9:00 AM')).toBeVisible()
   },
 }
 
@@ -56,6 +56,6 @@ export const DarkSchedule: Story = {
   globals: { theme: 'dark', viewport: { value: 'mobileSmall', isRotated: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Manila times members can request')).toBeInTheDocument()
+    await expect(canvas.getByText('Manila times members can request')).toBeVisible()
   },
 }

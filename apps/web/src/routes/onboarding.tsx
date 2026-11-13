@@ -28,6 +28,8 @@ import {
 } from '../features/companion-application/companionProfileForm'
 import { AcceptanceCheckboxes, AlreadyAcceptedNotice, unifiedPolicyVersion } from '../features/policy/PolicySummaries'
 import { ReferralCodeCard } from '../features/referral/ReferralCodeCard'
+import { webReferralDeviceId } from '../features/referral/referralDevice'
+import { bindSavedReferralCode, clearSavedReferralCode, readSavedReferralCode } from '../features/referral/referralStorage'
 import { identityEntitlementStatus, memberVerificationPresentation } from '../lib/memberVerification';
 import { describeConvexError } from '../lib/convexErrors'
 
@@ -62,8 +64,7 @@ export function OnboardingPage() {
   const completeOnboarding = useMutation(api.users.completeOnboarding)
   const referral = useQuery(api.referrals.myReferral, viewer ? {} : 'skip')
   const attributeReferral = useMutation(api.referrals.attributeReferral)
-  const dismissReferralPrompt = useMutation(api.referrals.dismissReferralPrompt)
-  const showReferralPrompt = Boolean(referral && !referral.referredBy && !referral.promptDismissedAt)
+  const showReferralPrompt = Boolean(referral && referral.programActive && !referral.referredBy && !referral.promptDismissedAt)
   const identityFlow = useIdentityVerification('member')
   const companionIdentityFlow = useIdentityVerification('companion_application')
   const navigate = useNavigate()
@@ -88,6 +89,7 @@ export function OnboardingPage() {
   const [referralAction, setReferralAction] = useState<'add' | 'dismiss' | null>(null)
   const [referralError, setReferralError] = useState('')
   const [referralNotice, setReferralNotice] = useState('')
+  const [referralHidden, setReferralHidden] = useState(false)
   const [pendingReferralFocus, setPendingReferralFocus] = useState<'added' | 'dismissed' | null>(null)
   const accountKeyRef = useRef<string | null>(null)
   const normalizedUsername = normalizeUsername(username)
@@ -155,11 +157,22 @@ export function OnboardingPage() {
 
   useEffect(() => {
     stepRef.current = step
-    if (step !== 1) setPendingReferralFocus(null)
+    if (step !== 2) setPendingReferralFocus(null)
   }, [step])
 
   useEffect(() => {
-    if (step !== 1 || showReferralPrompt || !pendingReferralFocus) return
+    if (!viewer?.clerkUserId) return
+    const saved = readSavedReferralCode(viewer.clerkUserId)
+    if (!saved) return
+    if (referral?.code && referral.code === saved) {
+      clearSavedReferralCode()
+      return
+    }
+    bindSavedReferralCode(viewer.clerkUserId)
+  }, [viewer?.clerkUserId, referral?.code])
+
+  useEffect(() => {
+    if (step !== 2 || showReferralPrompt || !pendingReferralFocus) return
     setPendingReferralFocus(null)
     const input = document.getElementById('onboarding-username') as HTMLInputElement | null
     if (input && !input.disabled) input.focus()
@@ -181,7 +194,7 @@ export function OnboardingPage() {
 
   if (!viewer) return <main className="gate-state"><div className="gate-state-inner">Loading your welcome guide…</div></main>
 
-  const selectedGoal = goal ?? 'member'
+  const selectedGoal = goal
   const journey = selectedGoal === 'companion' ? companionJourney : memberJourney
   // An account with current persisted acceptance shows a read-only notice and
   // no checkboxes. New or legacy accounts must check both Step 5 boxes, and
@@ -234,6 +247,21 @@ export function OnboardingPage() {
       identityAccepted: true,
       identityVersion: policyVersion,
     })
+
+    // Save a saved invitation at the same point as the username, location, and
+    // policy acceptance. A dismissed prompt clears the saved code, so there is
+    // nothing to claim here after an opt-out.
+    if (!viewer.onboardingCompletedAt && !referral?.referredBy && !referral?.promptDismissedAt) {
+      const savedCode = readSavedReferralCode(viewer.clerkUserId)
+      if (savedCode) {
+        try {
+          await attributeReferral({ code: savedCode, deviceId: webReferralDeviceId() })
+          clearSavedReferralCode()
+        } catch {
+          // Keep the code on the profile card so the member can retry.
+        }
+      }
+    }
   }
 
   const acceptanceError = 'Agree to both the Terms and Conditions and the Privacy Policy in Step 5 before continuing.'
@@ -244,28 +272,12 @@ export function OnboardingPage() {
     setReferralError('')
     setReferralNotice('')
     try {
-      await attributeReferral({ code })
+      await attributeReferral({ code, deviceId: webReferralDeviceId() })
       try { window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY) } catch { /* Storage may be unavailable. */ }
-      setReferralNotice('Referral code added. It will apply to your first completed bookings.')
-      if (stepRef.current === 1) setPendingReferralFocus('added')
+      setReferralNotice('Referral code added. Your friend earns 5% of the booking subtotal on every completed booking, for life.')
+      if (stepRef.current === 2) setPendingReferralFocus('added')
     } catch (referralSubmitError) {
       setReferralError(referralSubmitError instanceof Error ? describeConvexError(referralSubmitError) : 'We could not add this code. Check it and try again.')
-    } finally {
-      setReferralAction(null)
-    }
-  }
-
-  const skipReferralPrompt = async () => {
-    if (referralAction) return
-    setReferralAction('dismiss')
-    setReferralError('')
-    try {
-      await dismissReferralPrompt({})
-      try { window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY) } catch { /* Storage may be unavailable. */ }
-      setReferralNotice('Referral prompt dismissed.')
-      if (stepRef.current === 1) setPendingReferralFocus('dismissed')
-    } catch {
-      setReferralError('We could not dismiss this prompt. Try again, or add a code.')
     } finally {
       setReferralAction(null)
     }
@@ -441,7 +453,7 @@ export function OnboardingPage() {
         })}
       </ol>
 
-      <section className="onboarding-stage" data-step={step} aria-live="polite">
+      <section className="onboarding-stage" data-step={step}>
         {referralNotice && (
           <div className="mb-6">
             <InlineNotice tone="success">{referralNotice}</InlineNotice>
@@ -509,20 +521,6 @@ export function OnboardingPage() {
                 </>
               )}
             </div>
-
-            {referral && !referral.referredBy && !referral.promptDismissedAt && (
-              <div className="mt-6">
-                <ReferralCodeCard
-                  busy={referralAction === 'add'}
-                  dismissing={referralAction === 'dismiss'}
-                  error={referralError}
-                  notice=""
-                  onSubmit={(code) => void submitReferralCode(code)}
-                  onSkip={() => void skipReferralPrompt()}
-                  onEdit={() => setReferralError('')}
-                />
-              </div>
-            )}
 
             <div className="onboarding-location-card mt-6">
               <div>
@@ -598,6 +596,28 @@ export function OnboardingPage() {
                 </label>
               </div>
             </fieldset>
+
+            {!selectedGoal && <p className="text-meta mt-4">Choose how you'd like to take part to continue.</p>}
+
+            {referral && referral.programActive && !referral.referredBy && !referral.promptDismissedAt && !referralHidden && (
+              <div className="mt-6">
+                <ReferralCodeCard
+                  busy={referralAction === 'add'}
+                  dismissing={referralAction === 'dismiss'}
+                  error={referralError}
+                  notice=""
+                  savedForUserId={viewer.clerkUserId}
+                  submitIntent="neutral"
+                  onSubmit={(code) => void submitReferralCode(code)}
+                  onSkip={() => setReferralHidden(true)}
+                  onRemoveSaved={() => {
+                    clearSavedReferralCode()
+                    setReferralHidden(true)
+                  }}
+                  onEdit={() => setReferralError('')}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -678,7 +698,7 @@ export function OnboardingPage() {
             <span className="onboarding-complete-mark" aria-hidden="true"><Check size={22} strokeWidth={2.25} /></span>
             <div>
               <p className="eyebrow">Step 5</p>
-              <h2 className="text-h1 mt-2">Set up your Companion profile.</h2>
+              <h2 className="text-h1 mt-2">{isReacceptance ? 'Review and accept to finish.' : 'Set up your Companion profile.'}</h2>
               <p className="lede mt-3">
                 {isReacceptance
                   ? 'Agree to both documents below to finish. Your existing Companion profile stays exactly as it is.'
@@ -738,7 +758,7 @@ export function OnboardingPage() {
               </Button>
             )}
             {step === 1 && <Button intent="self" disabled={submitting || !approxLocation || (!viewer.username && (Boolean(localUsernameError) || usernameAvailability === undefined || !usernameAvailability.available))} onClick={() => void saveUsernameAndContinue()}>Continue</Button>}
-            {step === 2 && <Button intent="self" onClick={() => setStep(3)}>Continue</Button>}
+            {step === 2 && <Button intent="self" disabled={!selectedGoal} onClick={() => setStep(3)}>Continue</Button>}
             {step === 3 && <Button intent="self" disabled={submitting} onClick={() => void saveProfileAndContinue()}>{submitting ? 'Saving…' : 'Save and continue'}</Button>}
             {step === 4 && <Button intent="self" onClick={() => setStep(5)}>Continue</Button>}
             {step === 5 && selectedGoal === 'companion' && !isReacceptance && (

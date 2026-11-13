@@ -95,6 +95,12 @@ export function DiscoverPage() {
 
   return (
     <main className="marketing-page-wide discover-page">
+      <header className="discover-page-header">
+        <div>
+          <h1 className="text-h1">Explore</h1>
+          <p className="text-meta">Browse approved Companions by Strengths, activities, and availability.</p>
+        </div>
+      </header>
       <nav className="discover-destination-nav" aria-label="Explore destinations">
         <Link to="/nearby" className="discover-destination-link">Nearby</Link>
         <Link

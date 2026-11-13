@@ -93,7 +93,7 @@ export const PrivateUpdate: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('radio', { name: 'Private' })).toHaveAttribute('aria-checked', 'true')
     await expect(canvas.getByText('Only your profile picture changes. No post is added to the feed.')).toBeVisible()
-    await expect(canvas.queryByLabelText('Profile picture caption')).not.toBeInTheDocument()
+    await expect(canvas.queryByLabelText('Profile picture caption')).toBeNull()
     await expect(canvas.getByRole('button', { name: 'Save photo' })).toBeVisible()
   },
 }

@@ -36,7 +36,7 @@ describe('EvidenceDecision', () => {
     expect(screen.getByText(/Loading evidence status/)).toBeTruthy()
     expect(screen.queryByText('Start evidence')).toBeNull()
     expect(screen.queryByText('Upload private image')).toBeNull()
-    expect(screen.queryByText('Skip after warning')).toBeNull()
+    expect(screen.queryByText('Continue without evidence')).toBeNull()
   })
 
   it('lists the start and end rows for the Companion, marking which row is theirs', () => {
@@ -73,7 +73,7 @@ describe('EvidenceDecision', () => {
     render(<EvidenceDecision bookingId={bookingId} />)
 
     expect(screen.getByText('The Companion')).toBeTruthy()
-    expect(screen.getByText('Skipped after warning')).toBeTruthy()
+    expect(screen.getByText('No image added')).toBeTruthy()
     expect(screen.getByText('Upload private image')).toBeTruthy()
   })
 
@@ -92,7 +92,7 @@ describe('EvidenceDecision', () => {
     expect(screen.getByText('Private image saved')).toBeTruthy()
     expect(screen.getByText('Not decided yet')).toBeTruthy()
     expect(screen.queryByText('Upload private image')).toBeNull()
-    expect(screen.queryByText('Skip after warning')).toBeNull()
+    expect(screen.queryByText('Continue without evidence')).toBeNull()
     expect(screen.queryByText(/Loading evidence status/)).toBeNull()
   })
 })
@@ -125,9 +125,9 @@ describe('EvidenceDecisionView', () => {
         ]}
       />,
     )
-    expect(screen.getByText('Skipped after warning')).toBeTruthy()
+    expect(screen.getByText('No image added')).toBeTruthy()
     expect(screen.getByText('Private image saved')).toBeTruthy()
-    expect(screen.queryByText('Skip after warning')).toBeNull()
+    expect(screen.queryByText('Continue without evidence')).toBeNull()
   })
 
   it('hands a chosen file to the upload handler and clears the input', () => {
@@ -143,7 +143,7 @@ describe('EvidenceDecisionView', () => {
   it('disables both decisions while a decision is processing', () => {
     render(<EvidenceDecisionView {...viewProps} state="undecided" busy />)
     expect(screen.getByText('Processing image…')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Skip after warning' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Continue without evidence' }).hasAttribute('disabled')).toBe(true)
     expect((document.querySelector('input[type="file"]') as HTMLInputElement).disabled).toBe(true)
   })
 
@@ -156,5 +156,17 @@ describe('EvidenceDecisionView', () => {
   it('keeps a truthful skip warning for each role', () => {
     expect(evidenceSkipWarning('companion_start')).toContain('start image')
     expect(evidenceSkipWarning('member_end')).toContain('end image')
+  })
+
+  it('asks for an inline confirmation before skipping without evidence', () => {
+    const onSkip = vi.fn()
+    render(<EvidenceDecisionView {...viewProps} state="undecided" onSkip={onSkip} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue without evidence' }))
+    expect(onSkip).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert').textContent).toContain('No start image will be saved')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue without evidence' }))
+    expect(onSkip).toHaveBeenCalledTimes(1)
   })
 })

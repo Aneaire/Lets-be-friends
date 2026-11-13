@@ -16,6 +16,6 @@ export const Default: Story = {
   args: {},
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByLabelText('Identity verified')).toBeInTheDocument()
+    await expect(canvas.getByLabelText('Identity verified')).toBeVisible()
   },
 }

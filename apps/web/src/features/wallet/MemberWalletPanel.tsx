@@ -42,7 +42,6 @@ export function MemberWalletPanelView({ finance, busy, walletError, now, onCreat
           <h2 id="member-wallet-title" className="text-h2">Wallet balance</h2>
           <p className="text-meta mt-1">Use available funds for bookings or withdraw them to your verified payout account.</p>
         </div>
-        {finance && <span className="status-pill" data-tone="success">{formatPhp(finance.availableCentavos)} available</span>}
       </header>
       {walletError && <div className="notice notice-danger mb-3" role="alert"><span className="notice-icon">!</span><span>{walletError}</span></div>}
       {!finance && <div className="empty-state">Loading booking wallet…</div>}

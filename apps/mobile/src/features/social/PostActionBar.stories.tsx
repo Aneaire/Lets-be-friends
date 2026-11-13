@@ -93,10 +93,10 @@ export const FreshFeedPropsReplacePriorState: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: 'Like post' })).toHaveTextContent('2')
-    await expect(canvas.getByRole('button', { name: 'Save post' })).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: 'Save post' })).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Apply fresh feed props' }))
     await expect(canvas.getByRole('button', { name: 'Unlike post' })).toHaveTextContent('4')
-    await expect(canvas.getByRole('button', { name: 'Remove post from saved' })).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: 'Remove post from saved' })).toBeVisible()
   },
 }
 

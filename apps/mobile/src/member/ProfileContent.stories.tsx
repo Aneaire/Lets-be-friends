@@ -124,7 +124,7 @@ export const ReviewsTab: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('radio', { name: 'Reviews' }))
-    await expect(canvas.getByText('Reviews appear after you become a Companion')).toBeInTheDocument()
+    await expect(canvas.getByText('Reviews appear after you become a Companion')).toBeVisible()
   },
 }
 
@@ -168,10 +168,10 @@ export const BioRenderedOnce: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getAllByText('A short bio that appears only in About.')).toHaveLength(1)
-    await expect(canvas.getByText('About')).toBeInTheDocument()
-    await expect(canvas.queryByText('What other members can see about you.')).not.toBeInTheDocument()
-    await expect(canvas.queryByText('BIO')).not.toBeInTheDocument()
-    await expect(canvas.queryByText('Identity and Companion profile verified.')).not.toBeInTheDocument()
+    await expect(canvas.getByText('About')).toBeVisible()
+    await expect(canvas.queryByText('What other members can see about you.')).toBeNull()
+    await expect(canvas.queryByText('BIO')).toBeNull()
+    await expect(canvas.queryByText('Identity and Companion profile verified.')).toBeNull()
   },
 }
 
@@ -199,10 +199,10 @@ export const LongContentNarrow: Story = {
   args: longContentArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(longContentArgs.displayName)).toBeInTheDocument()
-    await expect(canvas.getByText(longContentArgs.bio)).toBeInTheDocument()
+    await expect(canvas.getByText(longContentArgs.displayName)).toBeVisible()
+    await expect(canvas.getByText(longContentArgs.bio)).toBeVisible()
     for (const interest of longContentArgs.interests) {
-      await expect(canvas.getByText(interest)).toBeInTheDocument()
+      await expect(canvas.getByText(interest)).toBeVisible()
     }
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth + 1)
   },
@@ -233,7 +233,7 @@ export const LongNameWrapsFullWidth: Story = {
     await expect(name.clientWidth).toBeGreaterThanOrEqual(200)
     await expect(settings.getBoundingClientRect().bottom).toBeLessThanOrEqual(name.getBoundingClientRect().top)
     for (const interest of longContentArgs.interests) {
-      await expect(canvas.getByText(interest)).toBeInTheDocument()
+      await expect(canvas.getByText(interest)).toBeVisible()
     }
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth + 1)
   },
@@ -244,10 +244,10 @@ export const LongContentDark: Story = {
   args: longContentArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(longContentArgs.displayName)).toBeInTheDocument()
-    await expect(canvas.getByText(longContentArgs.bio)).toBeInTheDocument()
+    await expect(canvas.getByText(longContentArgs.displayName)).toBeVisible()
+    await expect(canvas.getByText(longContentArgs.bio)).toBeVisible()
     for (const interest of longContentArgs.interests) {
-      await expect(canvas.getByText(interest)).toBeInTheDocument()
+      await expect(canvas.getByText(interest)).toBeVisible()
     }
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth + 1)
   },
@@ -258,13 +258,13 @@ export const HeaderActionsAndVerification: Story = {
     const canvas = within(canvasElement)
     const settings = canvas.getByRole('button', { name: 'Open settings' })
     const actions = canvas.getByRole('button', { name: 'Profile actions' })
-    await expect(settings).toBeInTheDocument()
-    await expect(actions).toBeInTheDocument()
+    await expect(settings).toBeVisible()
+    await expect(actions).toBeVisible()
     await expect(settings.clientWidth).toBeGreaterThanOrEqual(44)
     await expect(settings.clientHeight).toBeGreaterThanOrEqual(44)
     await expect(actions.clientWidth).toBeGreaterThanOrEqual(44)
     await expect(actions.clientHeight).toBeGreaterThanOrEqual(44)
-    await expect(canvas.getByRole('img', { name: 'Identity and Companion profile verified' })).toBeInTheDocument()
-    await expect(canvas.queryByText('Identity and Companion profile verified.')).not.toBeInTheDocument()
+    await expect(canvas.getByRole('img', { name: 'Identity and Companion profile verified' })).toBeVisible()
+    await expect(canvas.queryByText('Identity and Companion profile verified.')).toBeNull()
   },
 }

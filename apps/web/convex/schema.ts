@@ -84,7 +84,14 @@ const ledgerEntryKind = v.union(v.literal('top_up_credit'), v.literal('commissio
 const walletBucket = v.union(v.literal('available'), v.literal('reserved'), v.literal('pending'))
 const walletAccountType = v.union(v.literal('member_booking'), v.literal('companion_earnings'), v.literal('platform_revenue'))
 const referralStatus = v.union(v.literal('active'), v.literal('completed'), v.literal('reversed'))
-const referralRewardStatus = v.union(v.literal('credited'), v.literal('reversed'))
+const referralRewardStatus = v.union(v.literal('pending'), v.literal('credited'), v.literal('reversed'))
+const referralRewardKind = v.union(v.literal('lifetime'), v.literal('launch_bonus'))
+const referralFraudSignalType = v.union(
+  v.literal('same_device'),
+  v.literal('referral_volume'),
+  v.literal('companion_self_dealing'),
+)
+const referralFraudSignalStatus = v.union(v.literal('open'), v.literal('reviewed'), v.literal('dismissed'))
 const walletTransactionKind = v.union(
   v.literal('paymongo_member_credit'),
   v.literal('test_member_credit'),
@@ -199,6 +206,7 @@ export default defineSchema({
     onboardingGoal: v.optional(v.union(v.literal('member'), v.literal('companion'))),
     onboardingCompletedAt: v.optional(v.number()),
     referralPromptDismissedAt: v.optional(v.number()),
+    referralBadge: v.optional(v.string()),
     approximateLatitude: v.optional(v.number()),
     approximateLongitude: v.optional(v.number()),
     approximateLocationConsentedAt: v.optional(v.number()),
@@ -512,6 +520,9 @@ export default defineSchema({
     availableCentavos: v.number(),
     reservedCentavos: v.number(),
     pendingCentavos: v.number(),
+    referralPendingCentavos: v.optional(v.number()),
+    referralCreditCentavos: v.optional(v.number()),
+    referralDebtCentavos: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -546,6 +557,9 @@ export default defineSchema({
   referralCodes: defineTable({
     ownerUserId: v.id('users'),
     code: v.string(),
+    termsVersion: v.optional(v.string()),
+    rewardBps: v.optional(v.number()),
+    deviceId: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index('by_code', ['code'])
@@ -556,28 +570,77 @@ export default defineSchema({
     code: v.string(),
     status: referralStatus,
     rewardedBookings: v.number(),
+    termsVersion: v.optional(v.string()),
+    rewardBps: v.optional(v.number()),
+    bonusPaidAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_referrer', ['referrerUserId'])
     .index('by_referred', ['referredUserId'])
     .index('by_code', ['code'])
+    .index('by_created_at', ['createdAt'])
     .index('by_referrer_created_at', ['referrerUserId', 'createdAt']),
   referralRewards: defineTable({
     referralId: v.id('referrals'),
     referrerUserId: v.id('users'),
     referredUserId: v.id('users'),
     bookingId: v.id('bookings'),
+    kind: v.optional(referralRewardKind),
     amountCentavos: v.number(),
+    rewardBps: v.optional(v.number()),
+    platformFeeCentavos: v.optional(v.number()),
     status: referralRewardStatus,
+    reviewRequired: v.optional(v.boolean()),
+    releaseEligibleAt: v.optional(v.number()),
+    releasedAt: v.optional(v.number()),
     idempotencyKey: v.string(),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_referral', ['referralId'])
     .index('by_referrer', ['referrerUserId'])
+    .index('by_referrer_created_at', ['referrerUserId', 'createdAt'])
+    .index('by_created_at', ['createdAt'])
+    .index('by_status', ['status'])
     .index('by_booking', ['bookingId'])
     .index('by_idempotency_key', ['idempotencyKey']),
+  referralSummaries: defineTable({
+    referrerUserId: v.id('users'),
+    totalReferrals: v.number(),
+    totalRewardedBookings: v.number(),
+    totalEarnedCentavos: v.number(),
+    totalPendingCentavos: v.number(),
+    totalReversedCentavos: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_referrer', ['referrerUserId']),
+  referralProgram: defineTable({
+    key: v.literal('referrals'),
+    active: v.boolean(),
+    launchBonusCentavos: v.number(),
+    launchBonusMaxClaims: v.number(),
+    launchBonusClaims: v.number(),
+    launchBonusActive: v.boolean(),
+    pausedAt: v.optional(v.number()),
+    updatedByUserId: v.optional(v.id('users')),
+    updatedAt: v.number(),
+  })
+    .index('by_key', ['key']),
+  referralFraudSignals: defineTable({
+    referralId: v.id('referrals'),
+    referrerUserId: v.id('users'),
+    referredUserId: v.id('users'),
+    signal: referralFraudSignalType,
+    status: referralFraudSignalStatus,
+    note: v.optional(v.string()),
+    reviewedByUserId: v.optional(v.id('users')),
+    reviewedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index('by_referral', ['referralId'])
+    .index('by_status_created_at', ['status', 'createdAt'])
+    .index('by_referrer', ['referrerUserId']),
   payoutMethods: defineTable({
     companionUserId: v.id('users'),
     provider: v.literal('instapay'),
@@ -813,6 +876,15 @@ export default defineSchema({
   })
     .index('by_user', ['userId'])
     .index('by_user_target', ['userId', 'targetType', 'targetId']),
+  userDevices: defineTable({
+    userId: v.id('users'),
+    installationId: v.string(),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_installation', ['installationId'])
+    .index('by_user_installation', ['userId', 'installationId']),
   pushDevices: defineTable({
     installationId: v.string(),
     userId: v.id('users'),

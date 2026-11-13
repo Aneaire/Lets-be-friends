@@ -108,10 +108,10 @@ export const HostedSelectClosesSheet: Story = {
     // The real BottomSheet renders through a native modal portal, so the
     // dialog and its rows live outside the story canvas in the same document.
     const documentRoot = within(canvasElement.ownerDocument.body)
-    await expect(documentRoot.getByRole('dialog')).toBeInTheDocument()
+    await expect(documentRoot.getByRole('dialog')).toBeVisible()
     await userEvent.click(await documentRoot.findByRole('menuitem', { name: 'Settings' }))
-    await expect(canvas.getByText('Selected settings')).toBeInTheDocument()
-    await waitFor(() => expect(documentRoot.queryByRole('dialog')).not.toBeInTheDocument())
+    await expect(canvas.getByText('Selected settings')).toBeVisible()
+    await waitFor(() => expect(documentRoot.queryByRole('dialog')).toBeNull())
   },
 }
 

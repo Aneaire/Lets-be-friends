@@ -92,28 +92,25 @@ describe('BookingCompletionAction', () => {
     expect(onComplete).toHaveBeenCalledTimes(2)
   })
 
-  it('tells the viewer the session is not done yet instead of asking the server', async () => {
+  it('disables the action and shows the PHT time until the session ends', () => {
     const onComplete = vi.fn().mockResolvedValue(undefined)
     renderAction(onComplete, { requestedAt: Date.now() + 60 * 60 * 1000, durationMinutes: 60 })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
-
+    const button = screen.getByRole('button', { name: /Confirm after .* PHT/ })
+    expect(button.hasAttribute('disabled')).toBe(true)
+    fireEvent.click(button)
     expect(onComplete).not.toHaveBeenCalled()
-    expect(toastWarning).toHaveBeenCalledTimes(1)
-    expect(toastWarning.mock.calls[0][0]).toMatch(/^Your session is not done yet\. You can confirm completion after \d/)
-    expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Confirm completion' }).hasAttribute('disabled')).toBe(false)
+    expect(toastWarning).not.toHaveBeenCalled()
   })
 
-  it('keeps the wait toast while the session is running and clears it once the session ends', async () => {
+  it('enables the action once the session has ended', async () => {
     const onComplete = vi.fn().mockResolvedValue(undefined)
     const requestedAt = Date.now() + 30 * 60 * 1000
     const { rerender } = render(
       <BookingCompletionAction onComplete={onComplete} requestedAt={requestedAt} durationMinutes={60} />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
-    expect(toastWarning).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: /Confirm after/ }).hasAttribute('disabled')).toBe(true)
 
     rerender(
       <BookingCompletionAction onComplete={onComplete} requestedAt={requestedAt - 2 * 60 * 60 * 1000} durationMinutes={60} />,
@@ -121,7 +118,6 @@ describe('BookingCompletionAction', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm completion' }))
 
     await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1))
-    expect(toastWarning).toHaveBeenCalledTimes(1)
   })
 
   it('defers to the server when the stored schedule cannot be read', async () => {

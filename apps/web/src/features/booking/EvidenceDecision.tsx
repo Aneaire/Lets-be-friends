@@ -21,13 +21,13 @@ export type EvidenceRow = {
 const SECTION_GUIDANCE = 'Optional and private. A reviewer or admin can open an image only while a linked booking report is active; every retrieval is audited. The other person sees that a decision was made, never the image.'
 
 const viewerGuidance: Record<EvidenceRole, string> = {
-  companion_start: 'Upload one private start image, or skip after reading the warning.',
-  member_end: 'Upload one private end image, or skip after reading the warning.',
+  companion_start: 'Upload one private start image, or continue without evidence.',
+  member_end: 'Upload one private end image, or continue without evidence.',
 }
 
 const skipWarning: Record<EvidenceRole, string> = {
-  companion_start: 'Strict warning: skipping means no private start image will be available to help reviewers evaluate a later booking report. Skip anyway?',
-  member_end: 'Strict warning: skipping means no private end image will be available to help reviewers evaluate a later booking report. Skip anyway?',
+  companion_start: 'No start image will be saved. A reviewer will have less context if a report is opened later.',
+  member_end: 'No end image will be saved. A reviewer will have less context if a report is opened later.',
 }
 
 const ROW_LABELS: Record<EvidenceRole, { label: string; counterpart: string }> = {
@@ -41,7 +41,7 @@ export function evidenceSkipWarning(role: EvidenceRole) {
 
 function stateCopy(decision: EvidenceDecisionValue | undefined) {
   if (decision === 'uploaded') return 'Private image saved'
-  if (decision === 'skipped') return 'Skipped after warning'
+  if (decision === 'skipped') return 'No image added'
   return 'Not decided yet'
 }
 
@@ -67,6 +67,7 @@ export function EvidenceDecisionView({
   onSkip,
 }: EvidenceDecisionViewProps) {
   const viewerRole = roleOf(rows)
+  const [confirmingSkip, setConfirmingSkip] = useState(false)
 
   return (
     <section className="evidence-decision" data-state={state} aria-label="Booking evidence">
@@ -116,15 +117,39 @@ export function EvidenceDecisionView({
                 }}
               />
             </label>
-            <Button
-              size="small"
-              intent="danger"
-              disabled={busy}
-              onClick={() => void onSkip()}
-            >
-              Skip after warning
-            </Button>
+            {!confirmingSkip && (
+              <Button
+                size="small"
+                intent="neutral"
+                disabled={busy}
+                onClick={() => setConfirmingSkip(true)}
+              >
+                Continue without evidence
+              </Button>
+            )}
           </div>
+          {confirmingSkip && (
+            <div className="evidence-decision-confirm" role="alert">
+              <p className="text-meta">{skipWarning[viewerRole]}</p>
+              <div className="evidence-decision-buttons">
+                <Button
+                  size="small"
+                  intent="neutral"
+                  disabled={busy}
+                  onClick={() => void onSkip()}
+                >
+                  Continue without evidence
+                </Button>
+                <Button
+                  size="small"
+                  intent="ghost"
+                  onClick={() => setConfirmingSkip(false)}
+                >
+                  Keep the option to add evidence
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -175,7 +200,7 @@ export function EvidenceDecision({ bookingId }: EvidenceDecisionProps) {
 
   const handleSkip = async () => {
     const viewerRole = roleOf(rows)
-    if (!viewerRole || !window.confirm(evidenceSkipWarning(viewerRole))) return
+    if (!viewerRole) return
     setBusy(true)
     setEvidenceError('')
     try {

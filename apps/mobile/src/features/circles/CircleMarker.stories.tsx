@@ -20,8 +20,8 @@ export const UploadedIcon: Story = {
   args: { iconUrl: circleIcon, joined: true, size: 32 },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('img', { name: 'Cebu Coffee Friends Circle icon' })).toBeInTheDocument()
-    await expect(canvas.queryByRole('img', { name: 'Cebu Coffee Friends Circle mark' })).not.toBeInTheDocument()
+    await expect(canvas.getByRole('img', { name: 'Cebu Coffee Friends Circle icon' })).toBeVisible()
+    await expect(canvas.queryByRole('img', { name: 'Cebu Coffee Friends Circle mark' })).toBeNull()
   },
 }
 
@@ -29,8 +29,8 @@ export const LogoFallback: Story = {
   args: { joined: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('img', { name: 'Cebu Coffee Friends Circle mark' })).toBeInTheDocument()
-    await expect(canvas.queryByRole('img', { name: 'Cebu Coffee Friends Circle icon' })).not.toBeInTheDocument()
+    await expect(canvas.getByRole('img', { name: 'Cebu Coffee Friends Circle mark' })).toBeVisible()
+    await expect(canvas.queryByRole('img', { name: 'Cebu Coffee Friends Circle icon' })).toBeNull()
   },
 }
 
@@ -38,6 +38,6 @@ export const JoinedLogoFallback: Story = {
   args: { joined: true, size: 32 },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('img', { name: 'Cebu Coffee Friends Circle mark' })).toBeInTheDocument()
+    await expect(canvas.getByRole('img', { name: 'Cebu Coffee Friends Circle mark' })).toBeVisible()
   },
 }

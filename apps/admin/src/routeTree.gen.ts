@@ -17,6 +17,7 @@ import { Route as CirclesRouteImport } from './routes/circles'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as PostsRouteImport } from './routes/posts'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ReferralsRouteImport } from './routes/referrals'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ReviewsRouteImport } from './routes/reviews'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -62,6 +63,11 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReferralsRoute = ReferralsRouteImport.update({
+  id: '/referrals',
+  path: '/referrals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
   '/profile': typeof ProfileRoute
+  '/referrals': typeof ReferralsRoute
   '/reports': typeof ReportsRoute
   '/reviews': typeof ReviewsRoute
   '/settings': typeof SettingsRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
   '/profile': typeof ProfileRoute
+  '/referrals': typeof ReferralsRoute
   '/reports': typeof ReportsRoute
   '/reviews': typeof ReviewsRoute
   '/settings': typeof SettingsRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/overview': typeof OverviewRoute
   '/posts': typeof PostsRoute
   '/profile': typeof ProfileRoute
+  '/referrals': typeof ReferralsRoute
   '/reports': typeof ReportsRoute
   '/reviews': typeof ReviewsRoute
   '/settings': typeof SettingsRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/overview'
     | '/posts'
     | '/profile'
+    | '/referrals'
     | '/reports'
     | '/reviews'
     | '/settings'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/overview'
     | '/posts'
     | '/profile'
+    | '/referrals'
     | '/reports'
     | '/reviews'
     | '/settings'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/overview'
     | '/posts'
     | '/profile'
+    | '/referrals'
     | '/reports'
     | '/reviews'
     | '/settings'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   OverviewRoute: typeof OverviewRoute
   PostsRoute: typeof PostsRoute
   ProfileRoute: typeof ProfileRoute
+  ReferralsRoute: typeof ReferralsRoute
   ReportsRoute: typeof ReportsRoute
   ReviewsRoute: typeof ReviewsRoute
   SettingsRoute: typeof SettingsRoute
@@ -244,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/referrals': {
+      id: '/referrals'
+      path: '/referrals'
+      fullPath: '/referrals'
+      preLoaderRoute: typeof ReferralsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reports': {
       id: '/reports'
       path: '/reports'
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   OverviewRoute: OverviewRoute,
   PostsRoute: PostsRoute,
   ProfileRoute: ProfileRoute,
+  ReferralsRoute: ReferralsRoute,
   ReportsRoute: ReportsRoute,
   ReviewsRoute: ReviewsRoute,
   SettingsRoute: SettingsRoute,

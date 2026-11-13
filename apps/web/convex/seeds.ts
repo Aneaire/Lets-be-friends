@@ -4,6 +4,9 @@ import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { internalAction, internalMutation, internalQuery } from './_generated/server'
 import { adjustCounter } from './counters'
+import { validateWeeklyAvailabilityOrThrow } from './availabilityRules'
+import { applyWalletTransaction, getOrCreateUserWalletAccount } from './finance'
+import { ensureReferralProgram, incrementReferralSummary } from './referralProgram'
 import { syncCompanionLocation } from './companionLocations'
 import {
   approvedPhilippinesCompanions,
@@ -1541,5 +1544,501 @@ export const seedPhilippinesDevelopment = internalAction({
       })
     }
     return { referenceTime, peopleBatches, activityBatches }
+  },
+})
+
+/** Enriches the local design-review member so the profile page shows real content. */
+export const seedDesignReviewProfile = internalMutation({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .unique()
+    if (!user) throw new ConvexError('The requested account does not exist in Convex')
+    await ctx.db.patch(user._id, {
+      firstName: user.firstName || 'Design',
+      lastName: user.lastName || 'Review',
+      displayName: user.displayName || 'Design Review',
+      bio: user.bio || 'Exploring how small, thoughtful shared experiences can make everyday life feel less lonely.',
+      onboardingCategories: user.onboardingCategories?.length
+        ? user.onboardingCategories
+        : ['Coffee and meals', 'Creative hobbies', 'Open conversation'],
+    })
+    return { userId: user._id }
+  },
+})
+
+/** Archives obvious QA/E2E circles so design-review captures show real circles. */
+export const seedArchiveQaCircles = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const circles = await ctx.db.query('circles').withIndex('by_state', (q) => q.eq('state', 'active')).collect()
+    let archived = 0
+    for (const circle of circles) {
+      if (/\b(qa|e2e|test|testing)\b/i.test(circle.name)) {
+        await ctx.db.patch(circle._id, { state: 'archived', updatedAt: Date.now() })
+        archived += 1
+      }
+    }
+    return { archived }
+  },
+})
+
+/** Replaces review-account and circle copy that reads like QA fixtures. */
+export const seedPolishDesignReview = internalMutation({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .unique()
+    if (!user) throw new ConvexError('The requested account does not exist in Convex')
+    await ctx.db.patch(user._id, {
+      displayName: 'Maya Santos',
+      firstName: 'Maya',
+      lastName: 'Santos',
+      username: 'maya_santos',
+      bio: 'Coffee walks, live music, and slow weekends with good company.',
+    })
+
+    const circles = await ctx.db.query('circles').withIndex('by_state', (q) => q.eq('state', 'active')).collect()
+    let rulesUpdated = 0
+    for (const circle of circles) {
+      const nextRules = circle.rules.map((rule) =>
+        /test/i.test(rule) ? "Keep posts focused on this Circle's shared interest." : rule,
+      )
+      if (nextRules.some((rule, index) => rule !== circle.rules[index])) {
+        await ctx.db.patch(circle._id, { rules: nextRules, updatedAt: Date.now() })
+        rulesUpdated += 1
+      }
+    }
+    return { userId: user._id, rulesUpdated }
+  },
+})
+
+/** Hides agent fixtures, suspends agent accounts, and dedupes repeated posts. */
+export const seedCleanAgentFixtures = internalMutation({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    const viewer = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .unique()
+    const users = await ctx.db.query('users').collect()
+    const agentIds = new Set<string>()
+    let suspended = 0
+    for (const user of users) {
+      if (/^Agent \d+/i.test(user.displayName) || /agent 0904/i.test(user.displayName)) {
+        agentIds.add(user._id)
+        if (!user.suspended) {
+          await ctx.db.patch(user._id, { suspended: true, updatedAt: Date.now() })
+          suspended += 1
+        }
+      }
+    }
+
+    const posts = await ctx.db.query('posts').collect()
+    const seenBodies = new Set<string>()
+    let hidden = 0
+    let deduped = 0
+    const ordered = viewer
+      ? [...posts].sort((a, b) => Number(b.authorId === viewer._id) - Number(a.authorId === viewer._id))
+      : posts
+    for (const post of ordered) {
+      if (post.hidden || post.deletedAt) continue
+      if (agentIds.has(post.authorId)) {
+        await ctx.db.patch(post._id, { hidden: true, updatedAt: Date.now() })
+        hidden += 1
+        continue
+      }
+      const key = post.body.trim()
+      if (!key) continue
+      if (seenBodies.has(key)) {
+        await ctx.db.patch(post._id, { hidden: true, updatedAt: Date.now() })
+        deduped += 1
+      } else {
+        seenBodies.add(key)
+      }
+    }
+
+    const comments = await ctx.db.query('postComments').collect()
+    let commentsHidden = 0
+    for (const comment of comments) {
+      if (!comment.hidden && agentIds.has(comment.authorId)) {
+        await ctx.db.patch(comment._id, { hidden: true, updatedAt: Date.now() })
+        commentsHidden += 1
+      }
+    }
+    return { suspended, hidden, deduped, commentsHidden }
+  },
+})
+
+/** Curates the dev feed to the design account and seeded Companions. */
+export const seedCurateFeed = internalMutation({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    const viewer = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .unique()
+    if (!viewer) throw new ConvexError('The requested account does not exist in Convex')
+    const users = await ctx.db.query('users').collect()
+    const allowed = new Set(
+      users
+        .filter((user) => user._id === viewer._id || user.clerkUserId.startsWith('seed:pampanga:'))
+        .map((user) => user._id),
+    )
+
+    const posts = await ctx.db.query('posts').collect()
+    let postsHidden = 0
+    for (const post of posts) {
+      if (!post.hidden && !post.deletedAt && !allowed.has(post.authorId)) {
+        await ctx.db.patch(post._id, { hidden: true, updatedAt: Date.now() })
+        postsHidden += 1
+      }
+    }
+
+    const reviews = await ctx.db.query('reviews').collect()
+    let reviewsHidden = 0
+    for (const review of reviews) {
+      if (review.hidden !== true && !allowed.has(review.reviewerId)) {
+        await ctx.db.patch(review._id, { hidden: true })
+        reviewsHidden += 1
+      }
+    }
+    return { postsHidden, reviewsHidden }
+  },
+})
+
+
+/** Restores reviews that were hidden by the earlier authorId typo. */
+export const seedRestoreReviews = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const reviews = await ctx.db.query('reviews').collect()
+    let restored = 0
+    for (const review of reviews) {
+      if (review.hidden === true) {
+        await ctx.db.patch(review._id, { hidden: false })
+        restored += 1
+      }
+    }
+    return { restored }
+  },
+})
+
+export const promoteDevAdmin = internalMutation({
+  args: { confirm: developmentConfirmation, clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const user = await ctx.db.query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .unique()
+    if (!user) throw new ConvexError('Seed the user before promoting the development admin')
+    await ctx.db.patch(user._id, { role: 'admin', updatedAt: Date.now() })
+    return { userId: user._id }
+  },
+})
+
+export const disableDevLaunchBonus = internalMutation({
+  args: { confirm: developmentConfirmation },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const now = Date.now()
+    const program = await ensureReferralProgram(ctx, now)
+    await ctx.db.patch(program._id, {
+      launchBonusActive: false,
+      launchBonusCentavos: 0,
+      launchBonusClaims: 0,
+      updatedAt: now,
+    })
+    const pending = await ctx.db.query('referralRewards')
+      .withIndex('by_status', (q) => q.eq('status', 'pending'))
+      .collect()
+    let removed = 0
+    for (const reward of pending) {
+      if (reward.kind !== 'launch_bonus') continue
+      const account = await getOrCreateUserWalletAccount(ctx, reward.referrerUserId, now)
+      const amountCentavos = Math.min(
+        reward.amountCentavos,
+        account.referralPendingCentavos ?? 0,
+        account.pendingCentavos,
+      )
+      if (amountCentavos > 0) {
+        await applyWalletTransaction(ctx, {
+          kind: 'referral_reversal',
+          idempotencyKey: `dev:remove-launch-bonus:${String(reward._id)}`,
+          bookingId: reward.bookingId,
+          actorUserId: reward.referrerUserId,
+          amountCentavos,
+          note: 'Launch bonus removed',
+          now,
+          legs: [
+            { accountId: account._id, bucket: 'pending', direction: 'debit', amountCentavos },
+          ],
+          allowExternalDebit: true,
+        })
+        await incrementReferralSummary(ctx, reward.referrerUserId, {
+          totalPendingCentavos: -amountCentavos,
+        }, now)
+      }
+      await ctx.db.delete(reward._id)
+      removed += 1
+    }
+    return { launchBonusActive: false, launchBonusCentavos: 0, removed }
+  },
+})
+
+export const rebindDevUser = internalMutation({
+  args: {
+    confirm: developmentConfirmation,
+    userId: v.id('users'),
+    clerkUserId: v.string(),
+    displayName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const user = await ctx.db.get(args.userId)
+    if (!user) throw new ConvexError('User not found')
+    await ctx.db.patch(user._id, {
+      clerkUserId: args.clerkUserId,
+      displayName: args.displayName ?? user.displayName,
+      updatedAt: Date.now(),
+    })
+    return { userId: user._id, clerkUserId: args.clerkUserId }
+  },
+})
+
+export const setDevUserLocation = internalMutation({
+  args: { confirm: developmentConfirmation, userId: v.id('users') },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const user = await ctx.db.get(args.userId)
+    if (!user) throw new ConvexError('User not found')
+    const now = Date.now()
+    await ctx.db.patch(user._id, {
+      approximateLatitude: 15.14,
+      approximateLongitude: 120.58,
+      approximateLocationConsentedAt: now,
+      updatedAt: now,
+    })
+    return { userId: user._id }
+  },
+})
+
+export const completeDevUserSetup = internalMutation({
+  args: { confirm: developmentConfirmation, userId: v.id('users') },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const user = await ctx.db.get(args.userId)
+    if (!user) throw new ConvexError('User not found')
+    const now = Date.now()
+    await ctx.db.patch(user._id, {
+      onboardingCompletedAt: user.onboardingCompletedAt ?? now,
+      approximateLatitude: user.approximateLatitude ?? 15.14,
+      approximateLongitude: user.approximateLongitude ?? 120.58,
+      approximateLocationConsentedAt: user.approximateLocationConsentedAt ?? now,
+      termsAcceptedAt: now,
+      termsVersion: currentPolicyVersion,
+      privacyPolicyAcceptedAt: now,
+      privacyPolicyVersion: currentPolicyVersion,
+      identityConsentAcceptedAt: now,
+      identityConsentVersion: currentPolicyVersion,
+      verificationStatus: 'approved',
+      verificationSource: 'in_app',
+      identityVerifiedAt: now,
+      identityExpiresAt: now + 365 * 24 * 60 * 60 * 1_000,
+      updatedAt: now,
+    })
+    return { userId: user._id, username: user.username ?? null }
+  },
+})
+
+export const finishDevBookingWindow = internalMutation({
+  args: { confirm: developmentConfirmation, bookingId: v.id('bookings') },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const booking = await ctx.db.get(args.bookingId)
+    if (!booking) throw new ConvexError('Booking not found')
+    const now = Date.now()
+    const requestedAt = now - (booking.durationMinutes + 5) * 60 * 1_000
+    await ctx.db.patch(booking._id, { requestedAt, updatedAt: now })
+    return { bookingId: booking._id, requestedAt }
+  },
+})
+
+export const setDevCompanionAvailability = internalMutation({
+  args: { confirm: developmentConfirmation, companionProfileId: v.id('companionProfiles') },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const profile = await ctx.db.get(args.companionProfileId)
+    if (!profile) throw new ConvexError('Companion profile not found')
+    const weeklyAvailability = validateWeeklyAvailabilityOrThrow(
+      Array.from({ length: 7 }, (_, weekday) => ({ weekday, startMinutes: 0, endMinutes: 24 * 60 })),
+    )
+    await ctx.db.patch(profile._id, { weeklyAvailability, updatedAt: Date.now() })
+    return { companionProfileId: profile._id, weeklyAvailability }
+  },
+})
+
+export const prepareDevBookingAccount = internalMutation({
+  args: {
+    confirm: developmentConfirmation,
+    clerkUserId: v.string(),
+    fundCentavos: v.number(),
+  },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const user = await ctx.db.query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .unique()
+    if (!user) throw new ConvexError('Seed the user before preparing a development booking')
+    if (!Number.isSafeInteger(args.fundCentavos) || args.fundCentavos <= 0) {
+      throw new ConvexError('Development booking funds must be a positive whole number of centavos')
+    }
+    const now = Date.now()
+    await ctx.db.patch(user._id, {
+      verificationStatus: 'approved',
+      verificationSource: 'in_app',
+      identityVerifiedAt: now,
+      identityExpiresAt: now + 365 * 24 * 60 * 60 * 1_000,
+      identityTestBypass: true,
+      updatedAt: now,
+    })
+    const wallet = await getOrCreateUserWalletAccount(ctx, user._id, now)
+    await applyWalletTransaction(ctx, {
+      kind: 'test_member_credit',
+      idempotencyKey: `dev:prepare-booking:${String(user._id)}:${args.fundCentavos}`,
+      actorUserId: user._id,
+      amountCentavos: args.fundCentavos,
+      note: 'Development booking funds',
+      now,
+      legs: [
+        { accountId: wallet._id, bucket: 'available', direction: 'credit', amountCentavos: args.fundCentavos },
+      ],
+      allowExternalCredit: true,
+    })
+    const updated = await ctx.db.get(wallet._id)
+    return { userId: user._id, wallet: updated }
+  },
+})
+
+export const purgeDevAccount = internalMutation({
+  args: { confirm: developmentConfirmation, clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const user = await ctx.db.query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .unique()
+    if (!user) return { deleted: false, companionProfiles: 0 }
+
+    // This reset is for empty onboarding test accounts. It intentionally does
+    // not cascade into bookings, messages, or money records.
+    const [profiles, codes, devices, pushDevices, summaries] = await Promise.all([
+      ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', user._id)).collect(),
+      ctx.db.query('referralCodes').withIndex('by_owner', (q) => q.eq('ownerUserId', user._id)).collect(),
+      ctx.db.query('userDevices').withIndex('by_user', (q) => q.eq('userId', user._id)).collect(),
+      ctx.db.query('pushDevices').withIndex('by_user_enabled', (q) => q.eq('userId', user._id)).collect(),
+      ctx.db.query('referralSummaries').withIndex('by_referrer', (q) => q.eq('referrerUserId', user._id)).collect(),
+    ])
+    for (const row of [...profiles, ...codes, ...devices, ...pushDevices, ...summaries]) {
+      await ctx.db.delete(row._id)
+    }
+    await ctx.db.delete(user._id)
+    return {
+      deleted: true,
+      companionProfiles: profiles.length,
+      referralCodes: codes.length,
+      userDevices: devices.length,
+      pushDevices: pushDevices.length,
+      referralSummaries: summaries.length,
+    }
+  },
+})
+
+export const seedReferralHeldReward = internalMutation({
+  args: { confirm: developmentConfirmation, clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    requireDevelopmentConfirmation(args.confirm)
+    const referrer = await ctx.db.query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .unique()
+    if (!referrer) throw new ConvexError('Seed the referrer before seeding the held reward')
+    const referred = await ctx.db.query('users')
+      .filter((q) => q.neq(q.field('_id'), referrer._id))
+      .first()
+    const booking = await ctx.db.query('bookings').first()
+    if (!referred || !booking) throw new ConvexError('Seed a referred member and a booking first')
+
+    const now = Date.now()
+    const code = 'HELD1234'
+    const existingCode = await ctx.db.query('referralCodes')
+      .withIndex('by_code', (q) => q.eq('code', code))
+      .unique()
+    if (!existingCode) {
+      await ctx.db.insert('referralCodes', {
+        ownerUserId: referrer._id,
+        code,
+        termsVersion: 'lifetime_5_v1',
+        rewardBps: 500,
+        createdAt: now - 86_400_000,
+      })
+    }
+    const referralId = await ctx.db.insert('referrals', {
+      referrerUserId: referrer._id,
+      referredUserId: referred._id,
+      code,
+      status: 'active',
+      rewardedBookings: 1,
+      termsVersion: 'lifetime_5_v1',
+      rewardBps: 500,
+      createdAt: now - 86_400_000,
+      updatedAt: now,
+    })
+    const rewardId = await ctx.db.insert('referralRewards', {
+      referralId,
+      referrerUserId: referrer._id,
+      referredUserId: referred._id,
+      bookingId: booking._id,
+      kind: 'lifetime',
+      amountCentavos: 525,
+      rewardBps: 500,
+      platformFeeCentavos: 10_500,
+      status: 'pending',
+      reviewRequired: true,
+      idempotencyKey: `seed:referral:held:${referralId}`,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const walletKey = `member:${referrer._id}:booking`
+    const wallet = await ctx.db.query('walletAccounts')
+      .withIndex('by_deterministic_key', (q) => q.eq('deterministicKey', walletKey))
+      .unique()
+    if (wallet) {
+      await ctx.db.patch(wallet._id, { pendingCentavos: wallet.pendingCentavos + 525, updatedAt: now })
+    } else {
+      await ctx.db.insert('walletAccounts', {
+        deterministicKey: walletKey,
+        accountType: 'member_booking',
+        ownerUserId: referrer._id,
+        currency: 'PHP',
+        availableCentavos: 0,
+        reservedCentavos: 0,
+        pendingCentavos: 525,
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+    await ctx.db.insert('referralFraudSignals', {
+      referralId,
+      referrerUserId: referrer._id,
+      referredUserId: referred._id,
+      signal: 'same_device',
+      status: 'open',
+      note: 'Development seed: held referral reward for admin review.',
+      createdAt: now,
+    })
+    return { referralId, rewardId }
   },
 })

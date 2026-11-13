@@ -8,7 +8,6 @@ export type MobileReferralItem = {
   referredDisplayName: string
   status: string
   rewardedBookings: number
-  totalRewardedBookings: number
 }
 
 export function ReferralRow({ item, card = false }: { item: MobileReferralItem; card?: boolean }) {
@@ -24,10 +23,10 @@ export function ReferralRow({ item, card = false }: { item: MobileReferralItem; 
       <View style={styles.rowCopy}>
         <AppText variant="bodyStrong">{item.referredDisplayName}</AppText>
         <AppText variant="caption" color={theme.colors.textMuted}>
-          {item.rewardedBookings} of {item.totalRewardedBookings} bookings rewarded
+          {item.rewardedBookings} {item.rewardedBookings === 1 ? 'booking' : 'bookings'} rewarded
         </AppText>
       </View>
-      <AppText variant="caption" color={theme.colors.textMuted}>{item.status}</AppText>
+      <AppText variant="caption" color={item.status === 'reversed' ? theme.colors.danger : theme.colors.textMuted}>{item.status === 'reversed' ? 'reversed' : 'earning'}</AppText>
     </View>
   )
 }

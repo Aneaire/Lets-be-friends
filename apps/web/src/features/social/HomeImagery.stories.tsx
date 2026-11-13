@@ -23,6 +23,7 @@ function StoryRouter({ children }: { children: ReactNode }) {
 
 function HomeImageryComposition() {
   return (
+    <div className="web-app-shell">
     <main className="social-page social-page-with-rails">
       <aside className="frienday-rail" aria-label="Frienday guide">
         <FriendayHowItWorksRail />
@@ -41,6 +42,7 @@ function HomeImageryComposition() {
         <FriendaySafetyRail />
       </aside>
     </main>
+    </div>
   )
 }
 

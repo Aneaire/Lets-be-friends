@@ -33,7 +33,7 @@ export const OpenPreview: Story = {
     const canvas = within(canvasElement)
     const preview = canvas.getByRole('button', { name: 'Preview Cebu Coffee Friends Circle' })
     await expect(preview).toBeVisible()
-    await expect(canvas.getByRole('img', { name: 'Cebu Coffee Friends Circle icon' })).toBeInTheDocument()
+    await expect(canvas.getByRole('img', { name: 'Cebu Coffee Friends Circle icon' })).toBeVisible()
     await expect(canvas.getByText('Open join')).toBeVisible()
     await expect(canvas.getByText('Hosted by Maya')).toBeVisible()
     await userEvent.click(preview)

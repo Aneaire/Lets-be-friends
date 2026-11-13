@@ -9,13 +9,28 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.letsbefriends.mobile"
+      "bundleIdentifier": "com.letsbefriends.mobile",
+      "associatedDomains": [
+        "applinks:www.letsbefriends.space",
+        "applinks:letsbefriends.space"
+      ]
     },
     "android": {
       "package": "com.letsbefriends.mobile",
       "versionCode": 6,
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [
+            { "scheme": "https", "host": "www.letsbefriends.space", "pathPrefix": "/" },
+            { "scheme": "https", "host": "letsbefriends.space", "pathPrefix": "/" }
+          ]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/official-adaptive-foreground.png",

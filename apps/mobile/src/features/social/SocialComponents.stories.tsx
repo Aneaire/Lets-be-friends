@@ -205,8 +205,8 @@ export const PostOptionsNarrow320: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Post options' }))
-    await expect(canvas.getByRole('dialog', { name: 'Your post' })).toBeInTheDocument()
-    await expect(canvas.getByRole('button', { name: 'Delete post' })).toBeInTheDocument()
+    await expect(canvas.getByRole('dialog', { name: 'Your post' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Delete post' })).toBeVisible()
   },
 }
 
@@ -217,8 +217,8 @@ export const LinkedIdentityNarrow320: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getAllByRole('button', { name: /View María Alexandra/ })).toHaveLength(2)
     await userEvent.click(canvas.getByRole('button', { name: `Follow María Alexandra de la Cruz-Santos` }))
-    await expect(canvas.getByRole('button', { name: `Unfollow María Alexandra de la Cruz-Santos` })).toBeInTheDocument()
-    await expect(canvas.getByRole('button', { name: 'Post options' })).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: `Unfollow María Alexandra de la Cruz-Santos` })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Post options' })).toBeVisible()
   },
 }
 
@@ -227,13 +227,13 @@ export const CommentsSheetNarrow320: Story = {
   render: () => <CommentsSheetComposition />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('dialog', { name: 'Comments' })).toBeInTheDocument()
-    await expect(canvas.getByRole('button', { name: 'Report comment' })).toBeInTheDocument()
+    await expect(canvas.getByRole('dialog', { name: 'Comments' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Report comment' })).toBeVisible()
     const commentInput = canvas.getByRole('textbox', { name: 'Write a comment' })
     await userEvent.type(commentInput, 'Count me in')
     await expect(canvas.getByRole('button', { name: 'Post comment' })).toBeEnabled()
     await userEvent.click(canvas.getByRole('button', { name: 'Close comments' }))
-    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('dialog')).toBeNull()
   },
 }
 

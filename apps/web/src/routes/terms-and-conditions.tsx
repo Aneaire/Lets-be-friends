@@ -18,7 +18,7 @@ export function TermsAndConditionsPage() {
   const related = otherPolicyDocument(termsDocument)
   return (
     <main className="marketing-page legal-page">
-      <p className="eyebrow">{termsDocument.title}</p>
+      <p className="eyebrow">Legal</p>
       <h1 className="text-display mt-4">{termsDocument.title}</h1>
       <p className="text-meta mt-2">Version {currentPolicyVersion}. Effective {policyEffectiveDate}.</p>
       {termsDocument.sections.map((section) => (

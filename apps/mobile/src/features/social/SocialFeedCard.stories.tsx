@@ -100,7 +100,7 @@ export const SignedOutReadOnly: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: 'Like post' })).toHaveAttribute('aria-disabled', 'true')
     await expect(canvas.getByRole('radio', { name: /Saturday morning/ })).toHaveAttribute('aria-disabled', 'true')
-    await expect(canvas.queryByRole('button', { name: 'Post options' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Post options' })).toBeNull()
   },
 }
 

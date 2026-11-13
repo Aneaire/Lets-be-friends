@@ -12,11 +12,12 @@ describe('application navigation', () => {
     ])
   })
 
-  it('keeps the sidebar focused on discovery and Circle destinations', () => {
+  it('keeps the sidebar focused on discovery, Circles, and referrals', () => {
     expect(sidebarNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
       { label: 'Home', to: '/social' },
       { label: 'Explore', to: '/nearby' },
       { label: 'Circles', to: '/circles' },
+      { label: 'Invite friends', to: '/referrals' },
     ])
   })
 
@@ -27,7 +28,7 @@ describe('application navigation', () => {
     ])
   })
 
-  it('keeps Circles out of the mobile bottom tabs', () => {
+  it('keeps Circles and referrals out of the mobile bottom tabs', () => {
     expect(mobileNavigation.map(({ label, to }) => ({ label, to }))).toEqual([
       { label: 'Home', to: '/social' },
       { label: 'Explore', to: '/nearby' },
@@ -38,6 +39,11 @@ describe('application navigation', () => {
   it('treats the public landing route and social feed as Home', () => {
     expect(activePrimaryNavigation('/')).toBe('home')
     expect(activePrimaryNavigation('/social')).toBe('home')
+  })
+
+  it('marks the referrals route active', () => {
+    expect(activePrimaryNavigation('/referrals')).toBe('referrals')
+    expect(isWorkspacePath('/referrals')).toBe(true)
   })
 
   it('matches messages and booking paths without confusing companion profiles', () => {

@@ -105,7 +105,7 @@ function CompanionWorkspacePage() {
       }
       mobileNavigation={
         <>
-          <a href="#bookings" className="workspace-mobile-nav-link is-active" onClick={() => setBookingsView('cards')}>
+          <a href="#bookings" className="workspace-mobile-nav-link" onClick={() => setBookingsView('cards')}>
             <span>Requests</span>
             <BookingCount ready={bookingsReady} value={activeCount} className="tabular" />
           </a>
@@ -121,7 +121,7 @@ function CompanionWorkspacePage() {
         <>
           <div className="rail-section">
             <div className="rail-section-title">Companion tools</div>
-            <a href="#requests" className="rail-link is-active" onClick={() => setBookingsView('cards')}>
+            <a href="#requests" className="rail-link" onClick={() => setBookingsView('cards')}>
               <span>Incoming requests</span>
               <BookingCount ready={bookingsReady} value={pendingCount} className="rail-link-count tabular" />
             </a>

@@ -64,14 +64,14 @@ type Story = StoryObj<typeof meta>
 export const OwnerOptions: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('dialog', { name: 'Your post' })).toBeInTheDocument()
-    await expect(canvas.getByRole('button', { name: 'Edit post' })).toBeInTheDocument()
-    await expect(canvas.getByRole('button', { name: 'Delete post' })).toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: 'Report post' })).not.toBeInTheDocument()
+    await expect(canvas.getByRole('dialog', { name: 'Your post' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Edit post' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Delete post' })).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Report post' })).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: 'Edit post' }))
     await expect(args.onAction).toHaveBeenCalledTimes(1)
     await expect(args.onAction).toHaveBeenCalledWith('Edit post')
-    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('dialog')).toBeNull()
   },
 }
 
@@ -79,12 +79,12 @@ export const ViewerOptions: Story = {
   args: { kind: 'viewer' },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: 'Report post' })).toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: 'Edit post' })).not.toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: 'Delete post' })).not.toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: 'Report post' })).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Edit post' })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: 'Delete post' })).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }))
     await expect(args.onAction).not.toHaveBeenCalled()
-    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('dialog')).toBeNull()
   },
 }
 

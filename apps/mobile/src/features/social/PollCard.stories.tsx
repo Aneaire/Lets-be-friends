@@ -46,7 +46,7 @@ export const ResultsAfterVoting: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Your vote is in. Results stay live.')).toBeVisible()
-    await expect(canvas.queryByRole('button', { name: 'Vote' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Vote' })).toBeNull()
     await expect(canvas.getByRole('radio', { name: /Saturday morning/ })).toHaveAttribute('aria-checked', 'true')
   },
 }
@@ -56,7 +56,7 @@ export const ClosedPoll: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('This poll is closed.')).toBeVisible()
-    await expect(canvas.queryByRole('button', { name: 'Vote' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Vote' })).toBeNull()
   },
 }
 
@@ -64,7 +64,7 @@ export const SignedOutReadOnly: Story = {
   args: { poll: openPoll, disabled: true, onVote: vote },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('button', { name: 'Vote' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Vote' })).toBeNull()
     const firstOption = canvas.getByRole('radio', { name: /Saturday morning/ })
     await expect(firstOption).toHaveAttribute('aria-disabled', 'true')
     fireEvent.click(firstOption)

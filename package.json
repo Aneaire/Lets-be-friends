@@ -29,7 +29,9 @@
     "convex:deploy": "pnpm --filter @lets-be-friends/web convex:deploy",
     "convex:codegen": "pnpm --filter @lets-be-friends/web convex:codegen",
     "seed:pampanga": "pnpm --filter @lets-be-friends/web seed:pampanga",
-    "seed:philippines": "pnpm --filter @lets-be-friends/web seed:philippines"
+    "seed:philippines": "pnpm --filter @lets-be-friends/web seed:philippines",
+    "audit:design": "node scripts/design-audit.mjs",
+    "capture:design": "node scripts/design-capture.mjs"
   },
   "devDependencies": {
     "@storybook/addon-a11y": "10.5.10",

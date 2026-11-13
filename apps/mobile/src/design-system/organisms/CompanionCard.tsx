@@ -30,8 +30,8 @@ export function CompanionCard({ companion }: { companion: DiscoveryCompanionView
           <AppText variant="bodyStrong" numberOfLines={1}>{companion.name}</AppText>
           {companion.verified ? <VerifiedBadge /> : null}
         </View>
-        <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{isCompanion ? [companion.location, format, companion.distanceLabel].filter(Boolean).join(' · ') : 'Member'}</AppText>
-        {intro ? <AppText numberOfLines={1}>{intro}</AppText> : null}
+        <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={2}>{isCompanion ? [companion.location, format, companion.distanceLabel].filter(Boolean).join(' · ') : 'Member'}</AppText>
+        {intro ? <AppText numberOfLines={2}>{intro}</AppText> : null}
         {isCompanion ? (
           <View style={styles.meta}>
             <AppText variant="caption" color={theme.colors.textMuted}>{typeof companion.rating === 'number' && companion.reviewCount ? `★ ${companion.rating.toFixed(1)} (${companion.reviewCount})` : 'New Companion'}</AppText>
@@ -44,7 +44,7 @@ export function CompanionCard({ companion }: { companion: DiscoveryCompanionView
 }
 
 const styles = StyleSheet.create({
-  row: { borderWidth: 1, borderRadius: 12, padding: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  row: { borderWidth: 1, borderRadius: 12, padding: density.compactCardPadding, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   content: { flex: 1, gap: density.textPairGap },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   meta: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: density.textPairGap },

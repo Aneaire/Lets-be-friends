@@ -26,7 +26,7 @@ describe('CompanionSettlementPanel', () => {
     expect(screen.getByText(/Aug 12, 2026, 1:39 PM/)).toBeTruthy()
     expect(screen.getByText(/The member paid ₱661.25 total/)).toBeTruthy()
     expect(container.querySelector('[data-settlement="pending"]')).toBeTruthy()
-    expect(container.querySelector('.notice-warning')).toBeTruthy()
+    expect(container.querySelector('.status-pill')?.getAttribute('data-tone')).toBe('warning')
   })
 
   it('marks settled funds as available with the success tone', () => {
@@ -37,7 +37,7 @@ describe('CompanionSettlementPanel', () => {
     expect(screen.getByText('Available in your wallet')).toBeTruthy()
     expect(screen.getByText(/available in your Companion wallet/)).toBeTruthy()
     expect(container.querySelector('[data-settlement="settled"]')).toBeTruthy()
-    expect(container.querySelector('.notice-success')).toBeTruthy()
+    expect(container.querySelector('.status-pill')?.getAttribute('data-tone')).toBe('success')
   })
 
   it('shows blocked funds as an active-report hold', () => {
@@ -48,15 +48,23 @@ describe('CompanionSettlementPanel', () => {
     expect(screen.getByText('On hold for review')).toBeTruthy()
     expect(screen.getByText(/active report has placed these funds on hold/)).toBeTruthy()
     expect(container.querySelector('[data-settlement="blocked"]')).toBeTruthy()
-    expect(container.querySelector('.notice-warning')).toBeTruthy()
+    expect(container.querySelector('.status-pill')?.getAttribute('data-tone')).toBe('warning')
     expect(container.querySelector('.notice-danger')).toBeNull()
   })
 
   it('explains that reserved funds wait for both completion confirmations', () => {
-    render(<CompanionSettlementPanel settlementState="reserved" companionEarningsCentavos={50_000} />)
+    render(
+      <CompanionSettlementPanel
+        settlementState="reserved"
+        companionEarningsCentavos={50_000}
+        memberTotalCentavos={57_500}
+      />,
+    )
 
+    expect(screen.getByText('Your earnings')).toBeTruthy()
     expect(screen.getByText('Reserved until completion')).toBeTruthy()
     expect(screen.getByText(/reserved until both you and the member confirm/)).toBeTruthy()
+    expect(screen.getByText(/The member has ₱575.00 reserved/)).toBeTruthy()
   })
 
   it('shows refunded funds as returned to the member without a danger tone', () => {

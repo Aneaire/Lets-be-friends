@@ -1,4 +1,5 @@
 import { internalMutation } from './_generated/server'
+import type { Id } from './_generated/dataModel'
 import { ConvexError, v } from 'convex/values'
 import { isModerationVisible, USERNAME_MAX_LENGTH, usernameBaseFromDisplayName } from '@lets-be-friends/shared'
 import { writeAudit } from './lib'
@@ -338,5 +339,40 @@ export const backfillEngagementCounters = internalMutation({
       : { cursor: result.nextCursor ?? undefined, updatedAt: now })
 
     return { step: args.step, ...result }
+  },
+})
+
+export const backfillReferralSummaries = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const [referrals, rewards] = await Promise.all([
+      ctx.db.query('referrals').collect(),
+      ctx.db.query('referralRewards').collect(),
+    ])
+    const referrerIds = new Set<string>()
+    for (const referral of referrals) referrerIds.add(String(referral.referrerUserId))
+    for (const reward of rewards) referrerIds.add(String(reward.referrerUserId))
+    const now = Date.now()
+    let updated = 0
+
+    for (const referrerId of referrerIds) {
+      const userId = referrerId as Id<'users'>
+      const [referralRows, rewardRows] = await Promise.all([
+        ctx.db.query('referrals').withIndex('by_referrer', (q) => q.eq('referrerUserId', userId)).collect(),
+        ctx.db.query('referralRewards').withIndex('by_referrer', (q) => q.eq('referrerUserId', userId)).collect(),
+      ])
+      const totals = {
+        totalReferrals: referralRows.length,
+        totalRewardedBookings: referralRows.reduce((total, referral) => total + referral.rewardedBookings, 0),
+        totalEarnedCentavos: rewardRows.filter((reward) => reward.status === 'credited').reduce((total, reward) => total + reward.amountCentavos, 0),
+        totalPendingCentavos: rewardRows.filter((reward) => reward.status === 'pending').reduce((total, reward) => total + reward.amountCentavos, 0),
+        totalReversedCentavos: rewardRows.filter((reward) => reward.status === 'reversed').reduce((total, reward) => total + reward.amountCentavos, 0),
+      }
+      const existing = await ctx.db.query('referralSummaries').withIndex('by_referrer', (q) => q.eq('referrerUserId', userId)).unique()
+      if (existing) await ctx.db.patch(existing._id, { ...totals, updatedAt: now })
+      else await ctx.db.insert('referralSummaries', { referrerUserId: userId, ...totals, updatedAt: now })
+      updated += 1
+    }
+    return { updated }
   },
 })

@@ -29,8 +29,8 @@ type Story = StoryObj<typeof meta>
 export const OpenTimes: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('AVAILABLE TIMES')).toBeInTheDocument()
-    await expect(canvas.getByText(/openings/)).toBeInTheDocument()
+    await expect(canvas.getByText('AVAILABLE TIMES')).toBeVisible()
+    await expect(canvas.getByText(/openings/)).toBeVisible()
     const month = canvas.getByText('October 2026').getBoundingClientRect()
     await expect(month.width).toBeGreaterThan(100)
     await expect(month.height).toBeLessThan(50)
@@ -59,7 +59,7 @@ export const NoOpenTimes: Story = {
   args: { days: [] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('No open times this month')).toBeInTheDocument()
+    await expect(canvas.getByText('No open times this month')).toBeVisible()
   },
 }
 
@@ -67,7 +67,7 @@ export const UnconfiguredSchedule: Story = {
   args: { scheduleConfigured: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('No availability calendar')).toBeInTheDocument()
+    await expect(canvas.getByText('No availability calendar')).toBeVisible()
   },
 }
 
@@ -75,6 +75,6 @@ export const DarkPicker: Story = {
   globals: { theme: 'dark', viewport: { value: 'mobileSmall', isRotated: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('AVAILABLE TIMES')).toBeInTheDocument()
+    await expect(canvas.getByText('AVAILABLE TIMES')).toBeVisible()
   },
 }

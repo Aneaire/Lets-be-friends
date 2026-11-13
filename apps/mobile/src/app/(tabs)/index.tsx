@@ -26,6 +26,7 @@ import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Brand, BRAND_TAGLINE } from '@/design-system/atoms/Brand'
 import { SegmentedControl } from '@/design-system/molecules/SegmentedControl'
 import { Screen } from '@/design-system/templates/Screen'
+import { useTabBarInset } from '@/design-system/templates/tabBarLayout'
 import { PostComposer } from '@/features/social/PostComposer'
 import { emptyPollDraft } from '@/features/social/PollComposer'
 import { canPublishFeedPost, feedComposerValidationError, feedPostPollPayload, mediaPickerSelectionLimit } from '@/features/social/feedComposer'
@@ -65,8 +66,10 @@ function ConnectedHome() {
   const auth = useMobileAuth()
   const member = useMobileMember()
   const { retryConnection } = useConvexConnectionRecovery()
-  const params = useLocalSearchParams<{ postId?: string }>()
+  const params = useLocalSearchParams<{ postId?: string; compose?: string }>()
   const requestedPostId = typeof params.postId === 'string' ? params.postId : ''
+  const composeRequest = typeof params.compose === 'string' ? params.compose : ''
+  const tabBarInset = useTabBarInset()
   const [filter, setFilter] = useState<FeedFilter>('for_you')
   const signedIn = member.status === 'ready'
   const accountPresentation = homeAccountPresentation(auth.status, member.status)
@@ -113,6 +116,14 @@ function ConnectedHome() {
     impressionKey.current = ''
     feedScrollStarted.current = false
   }, [feedQueryKey])
+
+  useEffect(() => {
+    if (!composeRequest) return
+    setComposerOpen(true)
+    // Consume the request so returning to Home later does not reopen the
+    // composer or leave a stale query param behind.
+    router.setParams({ compose: undefined })
+  }, [composeRequest])
 
   useEffect(() => {
     feedPageRequest.current = syncFeedPageRequestState(feedPageRequest.current, {
@@ -397,14 +408,14 @@ function ConnectedHome() {
         importantForAccessibility={viewerImage ? 'no-hide-descendants' : 'auto'}
         style={styles.blurTarget}
       >
-        <Screen scroll={false} contentStyle={styles.listScreen}>
+        <Screen scroll={false} contentStyle={styles.listScreen} reserveTabBarSpace={false}>
           <FlatList
             ref={listRef}
             data={visibleFeedItems}
             keyExtractor={(item) => item.itemKey}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: 32 + tabBarInset }]}
             onScrollBeginDrag={() => { feedScrollStarted.current = true }}
             onScrollToIndexFailed={() => listRef.current?.scrollToOffset({ offset: 0, animated: true })}
             onEndReached={() => loadMoreFeed('viewport')}

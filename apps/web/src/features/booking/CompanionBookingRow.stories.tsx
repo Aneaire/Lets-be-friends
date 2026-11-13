@@ -81,7 +81,7 @@ export const AcceptedWithLegacyAmount: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByText(/Legacy cash amount/),
+      within(canvasElement).getByText(/Cash booking recorded before wallet payments/),
     ).toBeVisible()
   },
 }

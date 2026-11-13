@@ -6,11 +6,11 @@ const MAX_PUSH_TITLE_LENGTH = 80
 
 export type NotificationPriority = 'attention' | 'standard'
 export type NotificationTone = 'social' | 'danger' | 'self'
-export type NotificationFamily = 'booking' | 'messaging' | 'social' | 'circle' | 'companion_account' | 'identity' | 'safety'
+export type NotificationFamily = 'booking' | 'messaging' | 'social' | 'circle' | 'companion_account' | 'identity' | 'safety' | 'referral'
 export type NotificationDestinationKind = 'booking' | 'conversation' | 'post' | 'circle' | 'review' | 'profile' | 'companion' | 'identity' | 'safety' | 'notifications'
 export type NotificationPrivacy = 'generic' | 'actor_action' | 'message_preview' | 'comment_preview'
 export type BookingReminderWindow = '1_day' | '5_hours' | '1_hour'
-export type NativePushBody = 'You have a new message.' | 'Someone mentioned you.' | 'You have a booking update.' | 'You have a Circle update.' | 'Your identity approval expires soon.' | 'Your identity approval has expired.' | 'You have a new update.'
+export type NativePushBody = 'You have a new message.' | 'Someone mentioned you.' | 'You have a booking update.' | 'You have a Circle update.' | 'Your identity approval expires soon.' | 'Your identity approval has expired.' | 'Referral credit is available.' | 'Referral credit was reversed.' | 'You have a new update.'
 export type NativePushPresentation = { title: string; body: string }
 
 export const bookingReminderWindowValidator = v.union(
@@ -280,6 +280,14 @@ export const notificationCatalog = {
   report_dismissed: {
     family: 'safety', status: 'active', triggers: ['admin.updateReport'], recipient: 'Report author', destination: 'safety', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per report and dismissed status', push: { mode: 'generic', body: 'You have a new update.' },
     inAppCopy: systemCopy('Report closed', 'The safety team closed your report.', 'danger'),
+  },
+  referral_credit: {
+    family: 'referral', status: 'active', triggers: ['finance.releaseReferralReward'], recipient: 'Referrer', destination: 'notifications', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per released referral reward', push: { mode: 'generic', body: 'Referral credit is available.' },
+    inAppCopy: systemCopy('Referral credit added', 'A friend completed a booking and your referral credit is now available.', 'social'),
+  },
+  referral_reversal: {
+    family: 'referral', status: 'active', triggers: ['finance.reverseReferralRewardForBooking'], recipient: 'Referrer', destination: 'notifications', allowedPriorities: ['attention'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One notification per reversed referral reward', push: { mode: 'generic', body: 'Referral credit was reversed.' },
+    inAppCopy: systemCopy('Referral credit reversed', 'Referral credit was reversed after a review.', 'danger'),
   },
   social_digest: {
     family: 'social', status: 'active', triggers: ['notifications.sendDueSocialDigests'], recipient: 'Member with a daily digest enabled', destination: 'notifications', allowedPriorities: ['standard'], privacy: 'generic', respectsSocialPreferences: false, dedupe: 'One digest per member and local day', push: { mode: 'generic', body: 'You have a new update.' },

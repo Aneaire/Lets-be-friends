@@ -23,6 +23,25 @@ import {
   type SchedulingMonth,
 } from './scheduling'
 
+type DayPeriod = 'morning' | 'afternoon' | 'evening'
+
+const PERIODS: Array<{ id: DayPeriod; label: string }> = [
+  { id: 'morning', label: 'Morning' },
+  { id: 'afternoon', label: 'Afternoon' },
+  { id: 'evening', label: 'Evening' },
+]
+
+function periodForStart(start: number): DayPeriod {
+  const hour = Number(new Intl.DateTimeFormat('en-PH', {
+    timeZone: SCHEDULING_TIME_ZONE,
+    hour: '2-digit',
+    hour12: false,
+  }).format(start))
+  if (hour < 12) return 'morning'
+  if (hour < 18) return 'afternoon'
+  return 'evening'
+}
+
 export type AvailabilityCalendarProps = {
   /** Zero-based Manila month currently in view. */
   month: SchedulingMonth
@@ -78,6 +97,7 @@ export function AvailabilityCalendar({
   const staleSelection = selectedStart !== null && !selectedSlotIsFuture
 
   const [pickedDate, setPickedDate] = useState<string | null>(() => selectedStart === null ? null : manilaDateKey(selectedStart))
+  const [pickedPeriod, setPickedPeriod] = useState<DayPeriod | null>(null)
   const clearKey = `${monthKey}|${durationMinutes}`
   const lastClearKeyRef = useRef(clearKey)
   const selectedStartRef = useRef(selectedStart)
@@ -91,6 +111,7 @@ export function AvailabilityCalendar({
     if (lastClearKeyRef.current === clearKey) return
     lastClearKeyRef.current = clearKey
     setPickedDate(null)
+    setPickedPeriod(null)
     if (selectedStartRef.current !== null) onSelectStartRef.current(null)
   }, [clearKey])
 
@@ -169,25 +190,60 @@ export function AvailabilityCalendar({
         </p>
       )
     }
+    const startsByPeriod: Record<DayPeriod, number[]> = { morning: [], afternoon: [], evening: [] }
+    for (const start of starts) startsByPeriod[periodForStart(start)].push(start)
+    const selectedPeriod = selectedSlotIsFuture && selectedStart !== null ? periodForStart(selectedStart) : null
+    const firstPopulated = PERIODS.find((period) => startsByPeriod[period.id].length > 0)?.id ?? 'morning'
+    const activePeriod = pickedPeriod && startsByPeriod[pickedPeriod].length > 0
+      ? pickedPeriod
+      : selectedPeriod && startsByPeriod[selectedPeriod].length > 0
+        ? selectedPeriod
+        : firstPopulated
+
     return (
-      <div className="availability-calendar-time-list" role="group" aria-label={`Available start times on ${formatManilaDayLabel(pickedDate)}`}>
-        {starts.map((start) => {
-          const isSelected = selectedStart === start && selectedSlotIsFuture
-          return (
-            <button
-              key={start}
-              type="button"
-              className="availability-calendar-time"
-              data-selected={isSelected || undefined}
-              aria-pressed={isSelected}
-              aria-label={`${formatManilaTime(start)}, ${formatDurationMinutes(durationMinutes)} session`}
-              disabled={controlsDisabled}
-              onClick={() => onSelectStart(start)}
-            >
-              {formatManilaTime(start)}
-            </button>
-          )
-        })}
+      <div className="availability-calendar-times">
+        <div className="availability-calendar-periods" role="group" aria-label={`Times of day on ${formatManilaDayLabel(pickedDate)}`}>
+          {PERIODS.map((period) => {
+            const count = startsByPeriod[period.id].length
+            return (
+              <button
+                key={period.id}
+                type="button"
+                className="availability-calendar-period"
+                data-active={activePeriod === period.id || undefined}
+                aria-pressed={activePeriod === period.id}
+                disabled={controlsDisabled || count === 0}
+                onClick={() => setPickedPeriod(period.id)}
+              >
+                <span>{period.label}</span>
+                <span className="availability-calendar-period-count">{count}</span>
+              </button>
+            )
+          })}
+        </div>
+        <div
+          className="availability-calendar-time-list"
+          role="group"
+          aria-label={`${PERIODS.find((period) => period.id === activePeriod)?.label} start times on ${formatManilaDayLabel(pickedDate)}`}
+        >
+          {startsByPeriod[activePeriod].map((start) => {
+            const isSelected = selectedStart === start && selectedSlotIsFuture
+            return (
+              <button
+                key={start}
+                type="button"
+                className="availability-calendar-time"
+                data-selected={isSelected || undefined}
+                aria-pressed={isSelected}
+                aria-label={`${formatManilaTime(start)}, ${formatDurationMinutes(durationMinutes)} session`}
+                disabled={controlsDisabled}
+                onClick={() => onSelectStart(start)}
+              >
+                {formatManilaTime(start)}
+              </button>
+            )
+          })}
+        </div>
       </div>
     )
   }

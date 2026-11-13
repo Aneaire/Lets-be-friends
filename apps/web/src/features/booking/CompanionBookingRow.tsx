@@ -68,7 +68,9 @@ export function CompanionBookingRowView({
   evidenceSlot,
   conversationLink,
 }: CompanionBookingRowViewProps) {
-  const status = companionStatusPresentation(booking.status)
+  const status = booking.status === 'accepted' && booking.companionCompletedAt
+    ? { label: 'Waiting for member', tone: 'warning' as const }
+    : companionStatusPresentation(booking.status)
   const canDecide = booking.status === 'request_sent'
   const canCancel = canCancelBooking(booking.status)
   const canComplete = canCompleteBooking(booking.status)
@@ -81,7 +83,14 @@ export function CompanionBookingRowView({
         <div className="flex items-center gap-3 min-w-0">
           <span className="avatar" aria-hidden="true"><User aria-hidden="true" /></span>
           <div className="min-w-0">
-            <h3 className="text-h3">{booking.memberDisplayName}</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link to="/member-profile" search={{ userId: String(booking.memberId) }} className="text-h3 underline-offset-4 hover:underline">
+                {booking.memberDisplayName}
+              </Link>
+              {booking.memberIdentityApproved && (
+                <span className="status-pill" data-tone="success">Identity verified</span>
+              )}
+            </div>
             <div className="worklist-row-meta">
               <span>{booking.category}</span>
               <span className="dot" aria-hidden="true" />
@@ -100,19 +109,18 @@ export function CompanionBookingRowView({
           settlementEligibleAt={booking.settlementEligibleAt}
           companionEarningsCentavos={booking.companionEarningsCentavos}
           memberTotalCentavos={booking.memberTotalCentavos}
+          bookingStatus={booking.status}
         />
       ) : booking.grossPriceCentavos !== undefined && booking.currency === 'PHP' ? (
-        <p className="text-meta">Legacy cash amount: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.grossPriceCentavos)}</strong> · Legacy commission {formatPhp(booking.commissionCentavos ?? 0)}</p>
+        <p className="text-meta">Cash booking recorded before wallet payments: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.grossPriceCentavos)}</strong> · Platform commission {formatPhp(booking.commissionCentavos ?? 0)}</p>
       ) : null}
       {booking.notes && <p className="text-body muted max-w-[72ch]">{booking.notes}</p>}
-
-      {evidenceSlot}
 
       <div className="worklist-row-actions">
         {canDecide && (
           <>
-            <Button size="small" onClick={onAccept}>Accept</Button>
-            <Button size="small" intent="danger" onClick={onDecline}>Decline</Button>
+            <Button size="small" intent="social" onClick={onAccept}>Accept</Button>
+            <Button size="small" intent="ghost" className="text-[color:var(--danger)]" onClick={onDecline}>Decline</Button>
           </>
         )}
         {canComplete && !booking.companionCompletedAt && (
@@ -125,10 +133,17 @@ export function CompanionBookingRowView({
         {canComplete && booking.companionCompletedAt && <span className="text-meta">You confirmed completion · waiting for member</span>}
         {canReview && reviewSlot}
         {booking.viewerHasReviewed && <ReviewSubmittedLink reviewId={booking.viewerReviewId} />}
-        {canCancel && <Button size="small" intent="danger" onClick={onCancel}>Cancel booking</Button>}
+        {canCancel && !canDecide && !booking.companionCompletedAt && !booking.memberCompletedAt && <Button size="small" intent="ghost" className="text-[color:var(--danger)]" onClick={onCancel}>Cancel booking</Button>}
         {conversationLink}
-        <Button size="small" intent="danger" onClick={onReport}>Report</Button>
+        <Button size="small" intent="ghost" className="text-[color:var(--danger)]" onClick={onReport}>Report</Button>
       </div>
+
+      {evidenceSlot && (
+        <details className="booking-evidence-disclosure">
+          <summary>Booking evidence <span className="text-meta">Optional and private</span></summary>
+          {evidenceSlot}
+        </details>
+      )}
     </article>
   )
 }
@@ -164,10 +179,16 @@ export function CompanionBookingRow({
       onCancel={onCancel}
       onComplete={onComplete}
       onReport={onReport}
-      reviewSlot={canReview ? <ReviewForm onReview={onReview} /> : undefined}
+      reviewSlot={canReview ? <ReviewForm primary onReview={onReview} /> : undefined}
       evidenceSlot={showEvidence ? <EvidenceDecision bookingId={booking._id} /> : undefined}
       conversationLink={conversationId ? (
-        <Link to="/messages" search={{ conversationId }} className="btn btn-social btn-sm">Open conversation</Link>
+        <Link
+          to="/messages"
+          search={{ conversationId }}
+          className="btn btn-neutral btn-sm"
+        >
+          Open conversation
+        </Link>
       ) : undefined}
     />
   )
@@ -181,10 +202,12 @@ function formatMode(mode: string) {
 
 function formatRequestedAt(timestamp: number) {
   if (!timestamp) return ''
-  return new Date(timestamp).toLocaleString(undefined, {
+  const formatted = new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  })
+  }).format(timestamp)
+  return `${formatted} PHT`
 }

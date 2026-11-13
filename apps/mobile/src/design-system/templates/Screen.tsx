@@ -13,6 +13,8 @@ import { useSafeAreaInsets, type EdgeInsets } from 'react-native-safe-area-conte
 
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
+import { TabBarBlurTarget } from './TabBarBlurTarget'
+import { useTabBarInset } from './tabBarLayout'
 
 export function keyboardAvoidingBehavior(platform: PlatformOSType): KeyboardAvoidingViewProps['behavior'] {
   return platform === 'web' ? undefined : 'padding'
@@ -22,28 +24,50 @@ export function screenSafeAreaPadding(insets: EdgeInsets): ViewStyle {
   return { paddingTop: insets.top, paddingRight: insets.right, paddingLeft: insets.left }
 }
 
-export function Screen({ children, scroll = true, contentStyle, footer, scrollRef, ...props }: PropsWithChildren<ScrollViewProps & { scroll?: boolean; contentStyle?: ViewStyle; footer?: ReactNode; scrollRef?: Ref<ScrollView> }>) {
+export function Screen({
+  children,
+  scroll = true,
+  contentStyle,
+  footer,
+  scrollRef,
+  reserveTabBarSpace = true,
+  ...props
+}: PropsWithChildren<ScrollViewProps & { scroll?: boolean; contentStyle?: ViewStyle; footer?: ReactNode; scrollRef?: Ref<ScrollView>; reserveTabBarSpace?: boolean }>) {
   const theme = useAppTheme()
   const { width } = useWindowDimensions()
   const insets = useSafeAreaInsets()
+  const tabBarInset = useTabBarInset()
   const responsiveStyle = width >= 768 ? styles.tabletContent : undefined
+  const resolvedContentStyle = StyleSheet.flatten(contentStyle)
+  const baseBottom = typeof resolvedContentStyle?.paddingBottom === 'number'
+    ? resolvedContentStyle.paddingBottom
+    : styles.content.paddingBottom
+  const reservedBottom = reserveTabBarSpace ? tabBarInset : 0
+  const contentStyles = [
+    styles.content,
+    responsiveStyle,
+    contentStyle,
+    { paddingBottom: baseBottom + reservedBottom },
+  ]
 
   return (
-    <View style={[styles.safe, screenSafeAreaPadding(insets), { backgroundColor: theme.colors.background }]}>
-      {scroll ? (
-        <ScrollView
-          ref={scrollRef}
-          {...props}
-          contentContainerStyle={[styles.content, responsiveStyle, contentStyle]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
-          {children}
-        </ScrollView>
-      ) : (
-        <View style={[styles.content, styles.fill, responsiveStyle, contentStyle]}>{children}</View>
-      )}
-      {footer ? <View style={[styles.footer, { paddingBottom: Math.max(12, insets.bottom + 8), backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>{footer}</View> : null}
-    </View>
+    <TabBarBlurTarget>
+      <View style={[styles.safe, screenSafeAreaPadding(insets), { backgroundColor: theme.colors.background }]}>
+        {scroll ? (
+          <ScrollView
+            ref={scrollRef}
+            {...props}
+            contentContainerStyle={contentStyles}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled">
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={[styles.content, styles.fill, responsiveStyle, ...contentStyles.slice(2)]}>{children}</View>
+        )}
+        {footer ? <View style={[styles.footer, { paddingBottom: Math.max(12, insets.bottom + 8) + (reserveTabBarSpace ? tabBarInset : 0), backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>{footer}</View> : null}
+      </View>
+    </TabBarBlurTarget>
   )
 }
 

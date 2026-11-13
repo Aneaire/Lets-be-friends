@@ -45,7 +45,7 @@ export const typography = {
   heading: { fontSize: 18, lineHeight: 24, fontWeight: '700' as const },
   body: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
   bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '700' as const },
-  label: { fontSize: 12, lineHeight: 16, fontWeight: '700' as const, letterSpacing: 0.6 },
+  label: { fontSize: 13, lineHeight: 17, fontWeight: '700' as const, letterSpacing: 0.6 },
   caption: { fontSize: 13, lineHeight: 18, fontWeight: '400' as const },
 } as const
 

@@ -8,7 +8,7 @@ import { nitro } from 'nitro/vite'
 export default defineConfig({
   envDir: '../..',
   resolve: {
-    dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
+    dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', '@clerk/react'],
     tsconfigPaths: true,
   },
   plugins: [devtools(), nitro(), tailwindcss(), tanstackStart(), viteReact()],

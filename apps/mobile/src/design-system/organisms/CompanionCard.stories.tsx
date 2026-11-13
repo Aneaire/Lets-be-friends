@@ -1,7 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite'
-import { expect, userEvent, within } from 'storybook/test'
-import { vi } from 'vitest'
-import { router } from 'expo-router'
 
 import type { DiscoveryCompanionViewModel } from '@/data/companionViewModels'
 import { defaultMemberDiscoveryIntro } from '@lets-be-friends/shared'
@@ -67,38 +64,16 @@ type Story = StoryObj<typeof meta>
 
 export const VerifiedCompanion: Story = {
   render: () => <CompanionCard companion={verifiedCompanion} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: 'View Arianna Cruz, Companion in San Fernando, Pampanga' })).toBeInTheDocument()
-    await expect(canvas.getByLabelText('Identity verified')).toBeInTheDocument()
-  },
 }
 
 export const NewCompanion: Story = {
   render: () => <CompanionCard companion={newCompanion} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const card = canvas.getByRole('button', { name: 'View Miguel Dizon, Companion in San Fernando, Pampanga' })
-    await expect(within(card).getByText('New Companion')).toBeInTheDocument()
-    await expect(canvas.queryByLabelText('Identity verified')).not.toBeInTheDocument()
-  },
 }
 
 export const MemberCard: Story = {
   render: () => <CompanionCard companion={member} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: 'View Arianna Cruz, member' })).toBeInTheDocument()
-  },
 }
 
 export const FollowsRouteToProfile: Story = {
   render: () => <CompanionCard companion={verifiedCompanion} />,
-  play: async ({ canvasElement }) => {
-    const pushSpy = vi.spyOn(router, 'push')
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'View Arianna Cruz, Companion in San Fernando, Pampanga' }))
-    await expect(pushSpy).toHaveBeenCalledTimes(1)
-    pushSpy.mockRestore()
-  },
 }

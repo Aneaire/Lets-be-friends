@@ -88,8 +88,8 @@ function ProfilePage() {
   const companionIsPublic = companionStatus === 'approved' && verification.state === 'approved'
 
   const viewerLocation = typeof viewer?.approximateLatitude === 'number' && typeof viewer?.approximateLongitude === 'number'
-    ? `${viewer.approximateLatitude}, ${viewer.approximateLongitude}`
-    : ''
+    ? 'Saved'
+    : 'Not saved'
 
   // The three profile actions live behind the menu in the hero's top corner, so
   // the hero stays about the member instead of a stack of buttons.
@@ -192,6 +192,18 @@ function ProfilePage() {
                   </dd>
                 </div>
               )}
+              {username && (
+                <div>
+                  <dt>Username</dt>
+                  <dd>@{username}</dd>
+                </div>
+              )}
+              {viewer?._creationTime ? (
+                <div>
+                  <dt>Member since</dt>
+                  <dd>{new Date(viewer._creationTime).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</dd>
+                </div>
+              ) : null}
             </dl>
           </div>
         </section>
@@ -232,10 +244,10 @@ function ProfilePage() {
             )}
             <div className="flex items-center justify-between gap-3">
               <span className="text-meta">Discovery area</span>
-              <span className="text-meta tabular">{viewerLocation || 'Not saved'}</span>
+              <span className="text-meta">{viewerLocation}</span>
             </div>
             <p className="text-body muted">
-              This is the rounded device location Nearby measures distances from, to two decimals. An approved Companion profile also appears on the nearby map at this area.
+              Nearby uses this rounded area to estimate distance. Your exact location is never shown.
             </p>
             {!application && (
               <>
@@ -244,7 +256,7 @@ function ProfilePage() {
                   <span className="status-pill" data-tone={companionStatusTone(companionStatus)}>{companionStatusLabel(companionStatus)}</span>
                 </div>
                 <p className="text-body muted">
-                  A Companion profile adds the session format, area, listed rate, and everyday help you want to offer. Only the profile name and photo above are taken from your member profile, and identity verification is the only review.
+                  Add the session format, area, rate, and everyday help you want to offer. Identity verification is the only review.
                 </p>
                 <Link to="/become-companion" className="btn btn-neutral btn-sm">
                   Become a Companion

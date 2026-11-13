@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { BadgeCheck, Bell, CalendarCheck, Compass, House, MessageCircle, User, UserRound } from 'lucide-react'
+import { BadgeCheck, Bell, CalendarCheck, Compass, House, MessageCircle, Plus, User } from 'lucide-react'
 import { expect, within } from 'storybook/test'
 
 import { BrandLogo } from '../atoms/BrandLogo'
@@ -16,7 +16,7 @@ function ShellChrome({ verified = false }: { verified?: boolean }) {
       <header className="app-header" data-member="true">
         <div className="app-header-inner">
           <a className="brand-link" href="#home" aria-label="Let's Be Friends home">
-            <BrandLogo className="h-8 w-7" />
+            <BrandLogo className="brand-logo-mark" />
             <span>Let&apos;s Be Friends</span>
           </a>
           <div className="app-header-context">
@@ -55,24 +55,23 @@ function ShellChrome({ verified = false }: { verified?: boolean }) {
       </header>
       <nav className="mobile-primary-nav" aria-label="Mobile primary navigation">
         <a className="mobile-primary-nav-item" data-kind="home" href="#home" aria-current="page">
-          <House size={20} aria-hidden="true" />
+          <House size={22} strokeWidth={2.25} aria-hidden="true" />
           <span>Home</span>
         </a>
         <a className="mobile-primary-nav-item" data-kind="discover" href="#discover">
-          <Compass size={20} aria-hidden="true" />
+          <Compass size={22} strokeWidth={1.85} aria-hidden="true" />
           <span>Explore</span>
         </a>
+        <button type="button" className="mobile-primary-nav-create" aria-label="Create a post">
+          <Plus size={26} strokeWidth={2.4} aria-hidden="true" />
+        </button>
         <a className="mobile-primary-nav-item" data-kind="messages" href="#messages">
-          <MessageCircle size={20} aria-hidden="true" />
+          <MessageCircle size={22} strokeWidth={1.85} aria-hidden="true" />
           <span>Messages</span>
         </a>
         <a className="mobile-primary-nav-item" data-kind="bookings" href="#bookings">
-          <CalendarCheck size={20} aria-hidden="true" />
+          <CalendarCheck size={22} strokeWidth={1.85} aria-hidden="true" />
           <span>Bookings</span>
-        </a>
-        <a className="mobile-primary-nav-item" href="#profile">
-          <UserRound size={20} aria-hidden="true" />
-          <span>Account</span>
         </a>
       </nav>
     </div>
@@ -133,9 +132,19 @@ export const MobileHeader: Story = {
     await expect(canvas.getByRole('button', { name: 'Open account navigation' })).toBeVisible()
 
     const tabs = canvas.getByRole('navigation', { name: 'Mobile primary navigation' })
-    for (const label of ['Home', 'Explore', 'Messages', 'Bookings', 'Account']) {
+    for (const label of ['Home', 'Explore', 'Messages', 'Bookings']) {
       await expect(within(tabs).getByText(label)).toBeVisible()
     }
-    await expect(within(tabs).getByRole('link', { name: 'Account' })).toHaveAttribute('href', '#profile')
+    await expect(within(tabs).getByRole('button', { name: 'Create a post' })).toBeVisible()
+  },
+}
+
+export const MobileHeaderDark: Story = {
+  globals: { theme: 'dark', viewport: { value: 'mobileDefault', isRotated: false } },
+  render: () => <ShellChrome />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(displayOf(canvasElement, '.mobile-primary-nav')).toBe('grid')
+    await expect(canvas.getByRole('button', { name: 'Create a post' })).toBeVisible()
   },
 }

@@ -22,7 +22,7 @@ export const Read: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Would 2:30 PM work for the online session?')).toBeVisible()
-    await expect(canvas.queryByText('Private member conversation')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Private member conversation')).toBeNull()
   },
 }
 
@@ -59,7 +59,7 @@ export const SuspendedSafety: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Messaging unavailable')).toBeVisible()
     await expect(canvas.getByText('Conversation paused for safety')).toBeVisible()
-    await expect(canvas.queryByText('Sensitive stored message that must not be shown')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Sensitive stored message that must not be shown')).toBeNull()
     await expect(canvas.getByRole('button', { name: /conversation paused for safety/i })).toBeVisible()
   },
 }

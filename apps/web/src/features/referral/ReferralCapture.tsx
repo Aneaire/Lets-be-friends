@@ -1,9 +1,6 @@
 import { useEffect } from 'react'
-import {
-  normalizeReferralCode,
-  referralCodeValidationError,
-  REFERRAL_CODE_STORAGE_KEY,
-} from '@lets-be-friends/shared'
+import { normalizeReferralCode, referralCodeValidationError } from '@lets-be-friends/shared'
+import { saveReferralCode } from './referralStorage'
 
 export function ReferralCapture() {
   useEffect(() => {
@@ -11,10 +8,11 @@ export function ReferralCapture() {
     if (!raw) return
     const code = normalizeReferralCode(raw)
     if (referralCodeValidationError(code)) return
-    try {
-      window.localStorage.setItem(REFERRAL_CODE_STORAGE_KEY, code)
-    } catch {
-      // Storage can be unavailable in private browsing. The link still works.
+    saveReferralCode(code)
+    // The shared link is `/?ref=CODE`. Send the invited friend to the
+    // invitation page while keeping old links working.
+    if (window.location.pathname === '/') {
+      window.location.replace(`/invite?ref=${encodeURIComponent(code)}`)
     }
   }, [])
   return null

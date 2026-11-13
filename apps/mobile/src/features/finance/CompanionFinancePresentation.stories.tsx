@@ -84,8 +84,8 @@ export const Ready: Story = {
     await expect(canvas.getByText('AVAILABLE WALLET BALANCE')).toBeVisible()
     await expect(canvas.getByText('₱3,420.00')).toBeVisible()
     await expect(canvas.getByText('BDO Unibank · •••• 4321')).toBeVisible()
-    await expect(canvas.queryByText(/PayMongo accepted the transfer/)).not.toBeInTheDocument()
-    await expect(canvas.queryByText('Booking commission')).not.toBeInTheDocument()
+    await expect(canvas.queryByText(/PayMongo accepted the transfer/)).toBeNull()
+    await expect(canvas.queryByText('Booking commission')).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: 'Review withdrawal' }))
     await expect(reviewWithdrawal).toHaveBeenCalledOnce()
 
@@ -107,7 +107,7 @@ export const EmptyActivity: Story = {
   args: { obligations: [], ledger: [] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.queryByText('No open platform fee obligations.')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('No open platform fee obligations.')).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: 'Show legacy platform fees' }))
     await expect(canvas.getByText('No open platform fee obligations.')).toBeVisible()
     await expect(canvas.getByText('No platform fee ledger entries.')).toBeVisible()
@@ -129,7 +129,7 @@ export const VerifiedMemberWithoutCompanionProfile: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('₱1,250.00')).toBeVisible()
     await expect(canvas.getByText('₱300.00')).toBeVisible()
-    await expect(canvas.queryByText('Legacy platform fees')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Legacy platform fees')).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: 'Set up payout method' }))
     await expect(setupPayoutMethod).toHaveBeenCalled()
   },
@@ -140,7 +140,7 @@ export const UnverifiedMemberReadOnlyHistory: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('alert')).toHaveTextContent('Complete identity verification first')
-    await expect(canvas.queryByRole('button', { name: 'Review withdrawal' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Review withdrawal' })).toBeNull()
     await expect(canvas.getByRole('button', { name: 'Show withdrawal history' })).toBeVisible()
   },
 }

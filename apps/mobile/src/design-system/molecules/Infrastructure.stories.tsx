@@ -176,7 +176,7 @@ export const OnlineBannerHidden: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).queryByRole('alert'),
-    ).not.toBeInTheDocument()
+    ).toBeNull()
   },
 }
 

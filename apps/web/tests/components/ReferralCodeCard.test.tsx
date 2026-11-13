@@ -33,7 +33,7 @@ describe('referral code card', () => {
     const onSkip = vi.fn()
     render(<ReferralCodeCard busy={false} error="" notice="" onSubmit={vi.fn()} onSkip={onSkip} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
 
     expect(onSkip).toHaveBeenCalledTimes(1)
   })
@@ -45,9 +45,20 @@ describe('referral code card', () => {
   })
 })
 
-it('prefills a saved invitation code', () => {
+it('shows a saved invitation instead of the entry form', () => {
   window.localStorage.setItem('lets-be-friends-referral-code', 'f9u29d5u')
   render(<ReferralCodeCard busy={false} error="" notice="" onSubmit={vi.fn()} onSkip={vi.fn()} />)
-  expect((screen.getByLabelText(/Referral code/) as HTMLInputElement).value).toBe('F9U29D5U')
+  expect(screen.getByText(/Invitation F9U29D5U will be added when you finish setup/)).toBeTruthy()
+  expect(screen.queryByLabelText(/Referral code/)).toBeNull()
   window.localStorage.removeItem('lets-be-friends-referral-code')
+})
+
+it('removes a saved invitation and reports it', () => {
+  window.localStorage.setItem('lets-be-friends-referral-code', 'F9U29D5U')
+  const onRemoveSaved = vi.fn()
+  render(<ReferralCodeCard busy={false} error="" notice="" onSubmit={vi.fn()} onSkip={vi.fn()} onRemoveSaved={onRemoveSaved} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Remove this code' }))
+  expect(onRemoveSaved).toHaveBeenCalledTimes(1)
+  expect(window.localStorage.getItem('lets-be-friends-referral-code')).toBeNull()
+  expect(screen.getByLabelText(/Referral code/)).toBeTruthy()
 })

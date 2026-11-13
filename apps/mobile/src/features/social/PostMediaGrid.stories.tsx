@@ -77,6 +77,6 @@ export const UploadPreview: Story = {
     await expect(canvas.getAllByRole('button', { name: /Remove selected media/ })).toHaveLength(2)
     await userEvent.click(canvas.getByRole('button', { name: 'Remove selected media 1' }))
     await expect(canvas.getAllByRole('button', { name: /Remove selected media/ })).toHaveLength(1)
-    await expect(canvas.queryByRole('button', { name: 'Remove selected media 2' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Remove selected media 2' })).toBeNull()
   },
 }

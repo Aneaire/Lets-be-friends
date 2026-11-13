@@ -121,7 +121,7 @@ export function BookingDialogFrame({
           </div>
           <button
             type="button"
-            className="social-icon-button booking-dialog-close"
+            className="icon-button booking-dialog-close"
             aria-label="Close booking dialog"
             onClick={onClose}
             disabled={closeDisabled}

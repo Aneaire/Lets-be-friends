@@ -44,7 +44,7 @@ export const LoadingBalance: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Balance loading…')).toBeVisible()
-    await expect(canvas.queryByText('Scan requests, upcoming plans, and history.')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Scan requests, upcoming plans, and history.')).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: 'Open wallet, balance loading' }))
     await expect(openWallet).toHaveBeenCalled()
   },

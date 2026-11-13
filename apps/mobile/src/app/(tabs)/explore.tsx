@@ -11,6 +11,8 @@ import { Chip } from '@/design-system/atoms/Chip'
 import { IconButton } from '@/design-system/atoms/IconButton'
 import { CompanionCard } from '@/design-system/organisms/CompanionCard'
 import { Screen } from '@/design-system/templates/Screen'
+import { TabBarBlurTarget } from '@/design-system/templates/TabBarBlurTarget'
+import { useTabBarInset } from '@/design-system/templates/tabBarLayout'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { SearchField } from '@/design-system/molecules/SearchField'
 import { StateView } from '@/design-system/molecules/StateView'
@@ -96,6 +98,7 @@ function DiscoveryList({ sourceCompanions, query, onQueryChange, searching, canL
   onLoadMore: () => void
 }) {
   const theme = useAppTheme()
+  const tabBarInset = useTabBarInset()
   const [filters, setFilters] = useState<DiscoveryFilters>(() => includeUnavailableCompanions(defaultDiscoveryFilters))
   const [filterSheet, setFilterSheet] = useState(false)
   const companions = useMemo(() => filterDiscoveryCompanions(sourceCompanions, query, filters), [filters, query, sourceCompanions])
@@ -110,15 +113,16 @@ function DiscoveryList({ sourceCompanions, query, onQueryChange, searching, canL
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
-      <FlatList
+    <TabBarBlurTarget>
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
+        <FlatList
         data={companions}
         keyExtractor={(companion) => companion.id}
         renderItem={({ item }) => <CompanionCard companion={item} />}
         ItemSeparatorComponent={() => <View style={styles.gap} />}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: 32 + tabBarInset }]}
         ListHeaderComponent={
           <View style={styles.header}>
             <View style={styles.titleRow}>
@@ -169,8 +173,9 @@ function DiscoveryList({ sourceCompanions, query, onQueryChange, searching, canL
           ) : null
         }
       />
-      <DiscoveryFilterSheet visible={filterSheet} filters={filters} categories={categories} onChange={setFilters} onClose={() => setFilterSheet(false)} />
-    </SafeAreaView>
+        <DiscoveryFilterSheet visible={filterSheet} filters={filters} categories={categories} onChange={setFilters} onClose={() => setFilterSheet(false)} />
+      </SafeAreaView>
+    </TabBarBlurTarget>
   )
 }
 

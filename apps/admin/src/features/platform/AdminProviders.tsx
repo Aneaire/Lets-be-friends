@@ -1,4 +1,4 @@
-import { ClerkProvider, useAuth } from '@clerk/tanstack-react-start'
+import { ClerkProvider, useAuth } from '@clerk/react'
 import { ConvexReactClient } from 'convex/react'
 import { ConvexProviderWithClerk } from 'convex/react-clerk'
 import type { ReactNode } from 'react'

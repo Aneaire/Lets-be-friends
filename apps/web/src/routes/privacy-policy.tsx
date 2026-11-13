@@ -18,7 +18,7 @@ export function PrivacyPolicyPage() {
   const related = otherPolicyDocument(privacyDocument)
   return (
     <main className="marketing-page legal-page">
-      <p className="eyebrow">{privacyDocument.title}</p>
+      <p className="eyebrow">Legal</p>
       <h1 className="text-display mt-4">{privacyDocument.title}</h1>
       <p className="text-meta mt-2">Version {currentPolicyVersion}. Effective {policyEffectiveDate}.</p>
       {privacyDocument.sections.map((section) => (

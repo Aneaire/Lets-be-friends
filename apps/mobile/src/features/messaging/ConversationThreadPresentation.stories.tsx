@@ -59,8 +59,8 @@ export const HeaderLongIdentityAt320: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Alexandria Marisol Rivera-Santos')).toBeVisible()
-    await expect(canvas.queryByText('Private member conversation')).not.toBeInTheDocument()
-    await expect(canvas.queryByText('Conversation paused')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Private member conversation')).toBeNull()
+    await expect(canvas.queryByText('Conversation paused')).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: 'Back to conversations' }))
     await userEvent.click(canvas.getByRole('button', { name: 'Safety options for Alexandria Marisol Rivera-Santos' }))
     await expect(goBack).toHaveBeenCalledOnce()
@@ -95,7 +95,7 @@ export const AuthorizedBookingMessageAt320: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.queryByText('A booking update was added to this private conversation.')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('A booking update was added to this private conversation.')).toBeNull()
     const card = canvas.getByRole('button', { name: /Open Coffee, conversation, and neighborhood orientation booking/ })
     const report = canvas.getByRole('button', { name: 'Report message' })
     expect(card.clientWidth).toBeGreaterThanOrEqual(260)
@@ -136,7 +136,7 @@ export const UnverifiedBookingRoleAt320: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('A booking update remains in the conversation record.')).toBeVisible()
     await expect(canvas.getByText('Booking details are not linked because your role in this booking could not be verified.')).toBeVisible()
-    await expect(canvas.queryByRole('button', { name: /Open .* booking/ })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: /Open .* booking/ })).toBeNull()
     await expect(canvas.getByRole('button', { name: 'Report message' })).toBeVisible()
   },
 }

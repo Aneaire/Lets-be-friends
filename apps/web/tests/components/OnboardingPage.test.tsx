@@ -128,6 +128,7 @@ function unacceptedViewer(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  window.localStorage.clear()
   state.viewer = acceptedViewer()
   state.latest = null
   state.application = null
@@ -142,6 +143,12 @@ beforeEach(() => {
   state.dismissReferralPrompt.mockClear()
   state.navigate.mockClear()
 })
+
+async function goToStep2() {
+  render(<OnboardingPage />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+  await screen.findByText(/Have a friend's code\?/)
+}
 
 async function goToStep5Member() {
   render(<OnboardingPage />)
@@ -161,9 +168,10 @@ function checkBothBoxes() {
 }
 
 describe('onboarding route', () => {
-  it('offers the referral code card once on the first step', async () => {
+  it('offers the referral code card once on the goal step', async () => {
     state.referral = {
       code: null,
+      programActive: true,
       referrals: [],
       rewards: [],
       totalEarnedCentavos: 0,
@@ -171,38 +179,43 @@ describe('onboarding route', () => {
       promptDismissedAt: null,
       referredBy: null,
     }
-    render(<OnboardingPage />)
+    await goToStep2()
 
-    expect(await screen.findByText(/Have a friend's code\?/)).toBeTruthy()
     fireEvent.change(screen.getByLabelText(/Referral code/), { target: { value: 'ab-cd12' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add referral code' }))
 
-    await waitFor(() => expect(state.attributeReferral).toHaveBeenCalledWith({ code: 'ABCD12' }))
+    await waitFor(() => expect(state.attributeReferral).toHaveBeenCalledWith(expect.objectContaining({ code: 'ABCD12' })))
   })
 
-  it('prefills a saved invitation and clears it after adding the code', async () => {
+  it('shows a saved invitation without asking for the code again', async () => {
     window.localStorage.setItem('lets-be-friends-referral-code', 'F9U29D5U')
-    state.referral = { referredBy: null, promptDismissedAt: null }
-    render(<OnboardingPage />)
-    expect((await screen.findByLabelText(/Referral code/) as HTMLInputElement).value).toBe('F9U29D5U')
-    fireEvent.click(screen.getByRole('button', { name: 'Add referral code' }))
-    await waitFor(() => expect(state.attributeReferral).toHaveBeenCalledWith({ code: 'F9U29D5U' }))
-    await waitFor(() => expect(window.localStorage.getItem('lets-be-friends-referral-code')).toBeNull())
+    state.referral = { programActive: true, referredBy: null, promptDismissedAt: null }
+    await goToStep2()
+
+    expect(screen.getByText(/Invitation F9U29D5U will be added when you finish setup/)).toBeTruthy()
+    expect(screen.queryByLabelText(/Referral code/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Remove this code' })).toBeTruthy()
   })
 
-  it('keeps the saved invitation when adding it fails', async () => {
+  it('keeps the saved invitation when saving it at the end fails', async () => {
     window.localStorage.setItem('lets-be-friends-referral-code', 'F9U29D5U')
-    state.referral = { referredBy: null, promptDismissedAt: null }
+    state.viewer = unacceptedViewer({ verificationStatus: 'approved', identityEligible: true })
+    state.referral = { programActive: true, referredBy: null, promptDismissedAt: null }
     state.attributeReferral.mockRejectedValueOnce(new Error('Please try again'))
-    render(<OnboardingPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Add referral code' }))
-    await screen.findByText(/Please try again/)
+    await goToStep5Member()
+    checkBothBoxes()
+    const finishButton = screen.getByRole('button', { name: 'Finish setup' }) as HTMLButtonElement
+    await waitFor(() => expect(finishButton.disabled).toBe(false))
+    fireEvent.click(finishButton)
+
+    await waitFor(() => expect(state.attributeReferral).toHaveBeenCalledWith(expect.objectContaining({ code: 'F9U29D5U' })))
     expect(window.localStorage.getItem('lets-be-friends-referral-code')).toBe('F9U29D5U')
   })
 
-  it('lets the member skip the referral code prompt', async () => {
+  it('hides the referral prompt from the step without dismissing it on the account', async () => {
     state.referral = {
       code: null,
+      programActive: true,
       referrals: [],
       rewards: [],
       totalEarnedCentavos: 0,
@@ -210,12 +223,23 @@ describe('onboarding route', () => {
       promptDismissedAt: null,
       referredBy: null,
     }
-    render(<OnboardingPage />)
+    await goToStep2()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
 
-    await waitFor(() => expect(state.dismissReferralPrompt).toHaveBeenCalledTimes(1))
-    expect(await screen.findByText('Referral prompt dismissed.')).toBeTruthy()
+    await waitFor(() => expect(screen.queryByText(/Have a friend's code\?/)).toBeNull())
+    expect(state.dismissReferralPrompt).not.toHaveBeenCalled()
+  })
+
+  it('removes a saved invitation from the step', async () => {
+    window.localStorage.setItem('lets-be-friends-referral-code', 'F9U29D5U')
+    state.referral = { programActive: true, referredBy: null, promptDismissedAt: null }
+    await goToStep2()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove this code' }))
+
+    expect(window.localStorage.getItem('lets-be-friends-referral-code')).toBeNull()
+    expect(screen.queryByText(/Have a friend's code\?/)).toBeNull()
   })
 
   it('keeps Back and Continue on one row with no skip control', async () => {
@@ -465,6 +489,21 @@ describe('onboarding route', () => {
     await waitFor(() => expect(state.navigate).toHaveBeenCalledWith({ to: '/app' }))
   })
 
+  it('saves a saved invitation when the member finishes setup', async () => {
+    window.localStorage.setItem('lets-be-friends-referral-code', 'F9U29D5U')
+    state.viewer = unacceptedViewer({ verificationStatus: 'approved', identityEligible: true })
+    state.referral = { programActive: true, referredBy: null, promptDismissedAt: null }
+    await goToStep5Member()
+    checkBothBoxes()
+    const finishButton = screen.getByRole('button', { name: 'Finish setup' }) as HTMLButtonElement
+    await waitFor(() => expect(finishButton.disabled).toBe(false))
+    fireEvent.click(finishButton)
+
+    await waitFor(() => expect(state.attributeReferral).toHaveBeenCalledWith(expect.objectContaining({ code: 'F9U29D5U' })))
+    await waitFor(() => expect(window.localStorage.getItem('lets-be-friends-referral-code')).toBeNull())
+    await waitFor(() => expect(state.completeOnboarding).toHaveBeenCalledWith({ goal: 'member' }))
+  })
+
   it('blocks completion when the acceptance save fails and supports retry', async () => {
     state.viewer = unacceptedViewer()
     state.saveLocation.mockRejectedValueOnce(new Error('Network error'))
@@ -589,7 +628,7 @@ describe('onboarding route', () => {
       onboardingCategories: ['Good company'],
     })
     render(<OnboardingPage />)
-    await screen.findByText('Set up your Companion profile.')
+    await screen.findByText('Review and accept to finish.')
     expect(screen.queryByLabelText(/Tell me about yourself/)).toBeNull()
 
     const acceptButton = screen.getByRole('button', { name: 'Accept and continue' }) as HTMLButtonElement

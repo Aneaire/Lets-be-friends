@@ -28,8 +28,19 @@ describe('member /app combined bookings calendar', () => {
   })
 
   it('exposes Companion-side bookings in the cards view instead of hiding them', () => {
-    expect(app).toContain('Bookings as Companion')
-    expect(app).toContain('companionSideBookings.map(renderBookingRow)')
+    expect(app).toContain('Companion booking history')
+    expect(app).toContain('companionPastBookings.map(renderBookingRow)')
+  })
+
+  it('puts Companion requests and active bookings above the member booking history', () => {
+    expect(app).toContain('Requests for you')
+    expect(app).toContain('Active Companion bookings')
+    const requestsIndex = app.indexOf('Requests for you')
+    const activeIndex = app.indexOf('Active Companion bookings')
+    const openBookingsIndex = app.indexOf('Open bookings')
+    expect(requestsIndex).toBeGreaterThan(-1)
+    expect(activeIndex).toBeGreaterThan(requestsIndex)
+    expect(activeIndex).toBeLessThan(openBookingsIndex)
   })
 
   it('keeps the member and Companion rows on distinct DOM id prefixes for safe deep links', () => {

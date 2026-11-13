@@ -8,9 +8,11 @@ import {
   CheckCheck,
   Compass,
   CircleDot,
+  Gift,
   House,
   LogOut,
   MessageCircle,
+  Plus,
   Search,
   Settings,
   ShieldCheck,
@@ -20,7 +22,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { api } from '../../../convex/_generated/api'
 import { findCompanions } from '../../lib/discoverySearch'
@@ -115,7 +117,7 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
       <header className="app-header" data-member="true">
         <div className="app-header-inner">
           <Link to="/" className="brand-link" aria-label="Let's Be Friends home">
-            <BrandLogo className="h-8 w-7" />
+            <BrandLogo className="brand-logo-mark" />
             <span>Let&apos;s Be Friends</span>
           </Link>
 
@@ -149,10 +151,7 @@ export function SignedInApplicationChrome({ onboarding }: { onboarding: boolean 
       {!onboarding && (
         <>
           <DesktopPrimaryNavigation activeItem={activeItem} />
-          <MobilePrimaryNavigation
-            activeItem={activeItem}
-            accountActive={isAccountPath(pathname)}
-          />
+          <MobilePrimaryNavigation activeItem={activeItem} />
         </>
       )}
     </>
@@ -413,47 +412,75 @@ export function DesktopPrimaryNavigation({ activeItem }: { activeItem: ReturnTyp
 
 export function MobilePrimaryNavigation({
   activeItem,
-  accountActive,
 }: {
   activeItem: ReturnType<typeof activePrimaryNavigation>
-  accountActive: boolean
 }) {
   const conversations = useQuery(api.conversations.list, {})
   const messagesUnread = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0
   return (
     <nav className="mobile-primary-nav" aria-label="Mobile primary navigation">
-      {mobileNavigation.map((item) => (
-        <Link
-          key={item.id}
-          to={item.to}
-          className="mobile-primary-nav-item"
-          data-kind={item.id}
-          aria-current={activeItem === item.id ? 'page' : undefined}
-        >
-          <NavigationIcon id={item.id} />
-          <span>{item.label}</span>
-          {item.id === 'messages' && messagesUnread > 0 && <span className="mobile-nav-badge tabular" aria-label={`${messagesUnread} unread messages`}>{messagesUnread > 99 ? '99+' : messagesUnread}</span>}
-        </Link>
+      {mobileNavigation.map((item, index) => (
+        <Fragment key={item.id}>
+          {/* The raised Create action sits between Explore and Messages, keeping
+              the four frequent destinations balanced around it. */}
+          {index === 2 && <MobileCreateAction />}
+          <Link
+            to={item.to}
+            className="mobile-primary-nav-item"
+            data-kind={item.id}
+            aria-current={activeItem === item.id ? 'page' : undefined}
+          >
+            <NavigationIcon
+              id={item.id}
+              size={22}
+              strokeWidth={activeItem === item.id ? 2.25 : 1.85}
+            />
+            <span>{item.label}</span>
+            {item.id === 'messages' && messagesUnread > 0 && <span className="mobile-nav-badge tabular" aria-label={`${messagesUnread} unread messages`}>{messagesUnread > 99 ? '99+' : messagesUnread}</span>}
+          </Link>
+        </Fragment>
       ))}
-      <Link
-        to="/profile"
-        className="mobile-primary-nav-item"
-        aria-current={accountActive ? 'page' : undefined}
-      >
-        <UserRound size={20} aria-hidden="true" />
-        <span>Account</span>
-      </Link>
     </nav>
   )
 }
 
-function NavigationIcon({ id }: { id: ReturnType<typeof activePrimaryNavigation> }) {
-  if (id === 'home') return <House size={20} aria-hidden="true" />
-  if (id === 'discover') return <Compass size={20} aria-hidden="true" />
-  if (id === 'messages') return <MessageCircle size={20} aria-hidden="true" />
-  if (id === 'bookings') return <CalendarCheck size={20} aria-hidden="true" />
-  if (id === 'circles') return <CircleDot size={20} aria-hidden="true" />
-  return <UserRoundCog size={20} aria-hidden="true" />
+function MobileCreateAction() {
+  const navigate = useNavigate()
+  return (
+    <button
+      type="button"
+      className="mobile-primary-nav-create"
+      aria-label="Create a post"
+      data-tooltip="Create a post"
+      data-tooltip-position="above"
+      onClick={() => {
+        // A fresh value reopens the composer even when the member is already
+        // on Home and closes the dialog without leaving the page.
+        void navigate({ to: '/social', search: { compose: String(Date.now()) } })
+      }}
+    >
+      <Plus size={26} strokeWidth={2.4} aria-hidden="true" />
+    </button>
+  )
+}
+
+function NavigationIcon({
+  id,
+  size = 20,
+  strokeWidth = 2,
+}: {
+  id: ReturnType<typeof activePrimaryNavigation>
+  size?: number
+  strokeWidth?: number
+}) {
+  const iconProps = { size, strokeWidth, 'aria-hidden': true as const }
+  if (id === 'home') return <House {...iconProps} />
+  if (id === 'discover') return <Compass {...iconProps} />
+  if (id === 'messages') return <MessageCircle {...iconProps} />
+  if (id === 'bookings') return <CalendarCheck {...iconProps} />
+  if (id === 'circles') return <CircleDot {...iconProps} />
+  if (id === 'referrals') return <Gift {...iconProps} />
+  return <UserRoundCog {...iconProps} />
 }
 
 export function AccountNavigation({
@@ -477,7 +504,6 @@ export function AccountNavigation({
   const displayName = viewer?.displayName ?? user?.fullName ?? user?.username ?? 'Account'
   const email = user?.primaryEmailAddress?.emailAddress
   const imageUrl = viewer?.profileImageUrl
-  const publicProfileSearch = application?.status === 'approved' ? { companionProfileId: application._id } : undefined
   const verification = viewer
     ? memberVerificationPresentation(
       identityEntitlementStatus(viewer.verificationStatus, viewer.identityEligible),
@@ -546,15 +572,9 @@ export function AccountNavigation({
                 >Get verified</AccountLink>
               )}
               <AccountLink to="/profile" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Profile</AccountLink>
-              {publicProfileSearch ? (
-                <AccountLink to="/companion-profile" search={publicProfileSearch} icon={<UserRound size={17} />} onSelect={() => onClose(false)}>
-                  View public Companion profile
-                </AccountLink>
-              ) : (
-                <AccountLink to="/become-companion" icon={<UserRound size={17} />} onSelect={() => onClose(false)}>Companion profile</AccountLink>
-              )}
               <AccountLink to="/companion" icon={<UserRoundCog size={17} />} onSelect={() => onClose(false)}>Companion tools</AccountLink>
               <AccountLink to="/wallet" icon={<Wallet size={17} />} onSelect={() => onClose(false)}>Wallet</AccountLink>
+              <AccountLink to="/referrals" icon={<Gift size={17} />} onSelect={() => onClose(false)}>Invite friends</AccountLink>
               <AccountLink to="/settings" icon={<Settings size={17} />} onSelect={() => onClose(false)}>Settings</AccountLink>
             </div>
 
@@ -615,32 +635,22 @@ export function AccountAvatar({
 
 function AccountLink({
   to,
-  search,
   icon,
   children,
   onSelect,
   nudge,
 }: {
-  to: '/profile' | '/companion-profile' | '/become-companion' | '/companion' | '/wallet' | '/get-verified' | '/settings' | '/safety'
-  search?: Record<string, string>
+  to: '/profile' | '/companion' | '/wallet' | '/referrals' | '/get-verified' | '/settings' | '/safety'
   icon: React.ReactNode
   children: React.ReactNode
   onSelect: () => void
   nudge?: React.ReactNode
 }) {
   return (
-    <Link to={to} search={search} className="account-menu-item" onClick={onSelect}>
+    <Link to={to} className="account-menu-item" onClick={onSelect}>
       {icon}
       <span>{children}</span>
       {nudge}
     </Link>
   )
-}
-
-function isAccountPath(pathname: string) {
-  return pathname === '/profile'
-    || pathname === '/settings'
-    || pathname === '/become-companion'
-    || pathname === '/onboarding'
-    || pathname === '/safety'
 }

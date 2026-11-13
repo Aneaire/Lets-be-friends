@@ -20,7 +20,6 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
-      { rel: 'preload', href: '/fonts/bricolage-grotesque-latin-wght-normal.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
       { rel: 'stylesheet', href: appCss },
       { rel: 'stylesheet', href: compactCss },
     ],
@@ -36,6 +35,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <ThemeBootScript />
+        {import.meta.env.PROD && (
+          <link
+            rel="preload"
+            href="/fonts/bricolage-grotesque-latin-wght-normal.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+            fetchPriority="high"
+          />
+        )}
         <HeadContent />
       </head>
       <body>

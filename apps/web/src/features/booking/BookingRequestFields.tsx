@@ -8,6 +8,7 @@ export type BookingPriceEstimate = {
   memberTotalCentavos: number
   serviceSubtotalCentavos: number
   memberBookingFeeCentavos: number
+  memberBookingFeeBps?: number
 }
 
 type Props = {
@@ -58,6 +59,14 @@ export function BookingRequestFields(props: Props) {
     && requestedTime !== undefined
     && onRequestedDayChange !== undefined
     && onRequestedTimeChange !== undefined
+
+  const feePercent = estimate
+    ? estimate.memberBookingFeeBps !== undefined
+      ? estimate.memberBookingFeeBps / 100
+      : estimate.serviceSubtotalCentavos > 0
+        ? Math.round((estimate.memberBookingFeeCentavos / estimate.serviceSubtotalCentavos) * 1000) / 10
+        : null
+    : null
 
   return (
     <>
@@ -128,8 +137,21 @@ export function BookingRequestFields(props: Props) {
 
       {estimate && (
         <InlineNotice title="Estimated booking total">
-          <strong className="tabular">{formatPhp(estimate.memberTotalCentavos)}</strong>
-          {' · '}Includes service fee. This does not charge your balance. The amount is reserved from your wallet only if the Companion accepts.
+          <span className="flex flex-col gap-1">
+            <span className="flex items-center justify-between gap-3">
+              <span>Session subtotal</span>
+              <span className="tabular">{formatPhp(estimate.serviceSubtotalCentavos)}</span>
+            </span>
+            <span className="flex items-center justify-between gap-3">
+              <span>Service fee{feePercent === null ? '' : ` (${feePercent}%)`}</span>
+              <span className="tabular">{formatPhp(estimate.memberBookingFeeCentavos)}</span>
+            </span>
+            <span className="flex items-center justify-between gap-3">
+              <strong>Total</strong>
+              <strong className="tabular">{formatPhp(estimate.memberTotalCentavos)}</strong>
+            </span>
+            <span className="text-meta">This does not charge your balance. The amount is reserved from your wallet only if the Companion accepts.</span>
+          </span>
         </InlineNotice>
       )}
     </>

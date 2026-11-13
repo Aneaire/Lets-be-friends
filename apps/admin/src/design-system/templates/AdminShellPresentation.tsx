@@ -3,6 +3,7 @@ import {
   CircleDot,
   FileText,
   Flag,
+  Gift,
   ListChecks,
   LogOut,
   Settings,
@@ -28,6 +29,7 @@ const iconByRoute: Record<string, ReactNode> = {
   '/reviews': <ListChecks size={16} />,
   '/profile': <UserCog size={16} />,
   '/categories': <ListChecks size={16} />,
+  '/referrals': <Gift size={16} />,
   '/audit-logs': <ShieldAlert size={16} />,
   '/settings': <Settings size={16} />,
 }

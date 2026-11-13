@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { Avatar } from '../../design-system/atoms/Avatar'
 import { describeConvexError } from '../../lib/convexErrors'
@@ -83,10 +83,9 @@ export function SubmittedReviewView({
 
   return (
     <main className="review-page">
-      <header className="review-page-header">
-        <Link to="/app" className="member-profile-back"><ArrowLeft size={15} aria-hidden="true" />Back to bookings</Link>
+      <div className="review-submitted-row">
         <span className="status-pill" data-tone="success">Review submitted</span>
-      </header>
+      </div>
 
       <section
         className="review-page-panel"

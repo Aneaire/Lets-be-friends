@@ -85,7 +85,7 @@ export const Loading: Story = {
     await expect(
       canvas.getByLabelText('Checking member safety controls'),
     ).toBeVisible()
-    await expect(canvas.queryByRole('button')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button')).toBeNull()
   },
 }
 

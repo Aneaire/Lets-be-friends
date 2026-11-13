@@ -28,7 +28,7 @@ type Story = StoryObj<typeof meta>
 export const Ready: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement.ownerDocument.body)
-    await expect(canvas.getByRole('dialog', { name: 'Share post' })).toBeInTheDocument()
+    await expect(canvas.getByRole('dialog', { name: 'Share post' })).toBeVisible()
     await expect(canvas.getByText('Post by Alex Rivera')).toBeVisible()
     await userEvent.type(canvas.getByRole('textbox', { name: 'Add a note to your share' }), 'Worth a look')
     await userEvent.click(canvas.getByRole('button', { name: 'Share to feed' }))

@@ -115,6 +115,7 @@ export function ReadyProfile({
         if (model.companion?.publicProfileId) router.push({ pathname: '/companion-profile/[id]', params: { id: model.companion.publicProfileId } })
       }}
       onOpenSettings={() => router.push('/settings' as never)}
+      onOpenReferrals={() => router.push('/referrals')}
     />
   )
 }

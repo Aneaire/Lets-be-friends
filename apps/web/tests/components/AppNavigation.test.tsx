@@ -138,6 +138,23 @@ describe('account navigation verification', () => {
     expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
   })
 
+  it('links the account menu to referrals', () => {
+    renderAccountNavigation({ viewer: verifiedViewer })
+
+    expect(screen.getByRole('link', { name: 'Invite friends' }).getAttribute('href')).toBe('/referrals')
+  })
+
+  it('keeps the public Companion profile out of the account menu', () => {
+    renderAccountNavigation({
+      viewer: verifiedViewer,
+      application: savedCompanionProfile,
+      latestVerification: null,
+    })
+
+    expect(screen.queryByRole('link', { name: /View public Companion profile/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /^Companion profile$/ })).toBeNull()
+  })
+
   it('keeps Get verified with its identity nudge while the checks are incomplete', () => {
     const { container } = renderAccountNavigation({
       viewer: { ...verifiedViewer, verificationStatus: 'not_started', identityEligible: false },
@@ -218,10 +235,11 @@ describe('primary navigation surfaces', () => {
     render(<DesktopPrimaryNavigation activeItem="home" />)
 
     const nav = screen.getByRole('navigation', { name: /primary navigation/i })
-    expect(nav.querySelectorAll('a.primary-nav-link')).toHaveLength(3)
+    expect(nav.querySelectorAll('a.primary-nav-link')).toHaveLength(4)
     expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Explore' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Circles' }).getAttribute('href')).toBe('/circles')
+    expect(screen.getByRole('link', { name: 'Invite friends' }).getAttribute('href')).toBe('/referrals')
     expect(screen.queryByRole('link', { name: 'Messages' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Bookings' })).toBeNull()
   })
@@ -231,39 +249,41 @@ describe('primary navigation surfaces', () => {
     expect(screen.getByRole('link', { name: 'Circles' }).getAttribute('aria-current')).toBe('page')
 
     cleanup()
-    render(<MobilePrimaryNavigation activeItem="circles" accountActive={false} />)
-    expect(screen.getByRole('navigation', { name: /mobile primary navigation/i }).querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(5)
+    render(<MobilePrimaryNavigation activeItem="circles" />)
+    expect(screen.getByRole('navigation', { name: /mobile primary navigation/i }).querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(4)
     expect(screen.queryByRole('link', { name: 'Circles' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Invite friends' })).toBeNull()
   })
 
-  it('keeps Messages and Bookings in the mobile bottom tabs', () => {
-    render(<MobilePrimaryNavigation activeItem="messages" accountActive={false} />)
+  it('keeps Messages and Bookings around the raised Create action', () => {
+    render(<MobilePrimaryNavigation activeItem="messages" />)
 
     const nav = screen.getByRole('navigation', { name: /mobile primary navigation/i })
-    expect(nav.querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(5)
+    expect(nav.querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(4)
     expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Explore' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Circles' })).toBeNull()
     expect(screen.getByRole('link', { name: 'Messages' }).getAttribute('aria-current')).toBe('page')
     expect(screen.getByRole('link', { name: 'Bookings' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Account' }).getAttribute('href')).toBe('/profile')
+    expect(screen.getByRole('button', { name: 'Create a post' })).toBeTruthy()
   })
 
-  it('navigates the mobile Account tab directly to the profile instead of opening the account menu', () => {
-    render(<MobilePrimaryNavigation activeItem={null} accountActive={false} />)
+  it('opens the Home composer from the raised Create action', () => {
+    render(<MobilePrimaryNavigation activeItem={null} />)
 
-    const account = screen.getByRole('link', { name: 'Account' })
-    expect(account.getAttribute('href')).toBe('/profile')
-    expect(account.getAttribute('aria-current')).toBeNull()
-    expect(account.hasAttribute('aria-expanded')).toBe(false)
-    expect(account.hasAttribute('aria-controls')).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Create a post' }))
+
+    expect(navigationMocks.navigate).toHaveBeenCalledWith({
+      to: '/social',
+      search: { compose: expect.any(String) },
+    })
+  })
+
+  it('leaves account access to the header avatar instead of a bottom tab', () => {
+    render(<MobilePrimaryNavigation activeItem={null} />)
+
+    expect(screen.queryByRole('link', { name: 'Account' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Account' })).toBeNull()
-  })
-
-  it('marks the mobile Account tab current on account paths', () => {
-    render(<MobilePrimaryNavigation activeItem={null} accountActive={true} />)
-
-    expect(screen.getByRole('link', { name: 'Account' }).getAttribute('aria-current')).toBe('page')
   })
 })
 
@@ -285,25 +305,26 @@ describe('signed-in chrome', () => {
     return render(<SignedInApplicationChrome onboarding={false} />)
   }
 
-  it('keeps the bottom Account tab as a profile link while the header avatar still opens the account sheet', () => {
+  it('keeps account access on the header avatar while the bottom tabs stay on frequent destinations', () => {
     renderChrome('/social')
 
     const tabs = screen.getByRole('navigation', { name: /mobile primary navigation/i })
-    const accountTab = screen.getByRole('link', { name: 'Account' })
-    expect(tabs.contains(accountTab)).toBe(true)
-    expect(accountTab.getAttribute('href')).toBe('/profile')
+    expect(tabs.querySelectorAll('a.mobile-primary-nav-item')).toHaveLength(4)
+    expect(screen.queryByRole('link', { name: 'Account' })).toBeNull()
     expect(screen.queryByRole('navigation', { name: 'Account navigation' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open account navigation' }))
 
     expect(screen.getByRole('navigation', { name: 'Account navigation' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Account' }).getAttribute('href')).toBe('/profile')
+    expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
   })
 
-  it('marks the bottom Account tab current on the profile route', () => {
+  it('leaves no bottom tab current on the profile route', () => {
     renderChrome('/profile')
 
-    expect(screen.getByRole('link', { name: 'Account' }).getAttribute('aria-current')).toBe('page')
+    for (const link of screen.getByRole('navigation', { name: /mobile primary navigation/i }).querySelectorAll('a.mobile-primary-nav-item')) {
+      expect(link.getAttribute('aria-current')).toBeNull()
+    }
   })
 })
 

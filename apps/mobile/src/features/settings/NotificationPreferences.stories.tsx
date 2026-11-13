@@ -72,8 +72,8 @@ export const QuietHoursAndDigest: Story = {
 export const QuietHoursOff: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('button', { name: /^Quiet hours start/ })).not.toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: /^Quiet hours end/ })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: /^Quiet hours start/ })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /^Quiet hours end/ })).toBeNull()
     await userEvent.click(canvas.getByRole('switch', { name: 'Quiet hours' }))
     await expect(togglePreference).toHaveBeenCalledWith('quietHoursEnabled')
   },
@@ -101,7 +101,7 @@ export const Loading: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByLabelText('Loading notification preferences')).toBeVisible()
-    await expect(canvas.queryByRole('switch')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('switch')).toBeNull()
   },
 }
 

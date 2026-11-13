@@ -27,7 +27,7 @@ export const OpenAndValidated: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Report member' }))
     const dialog = await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'Send a safety report' })
-    await expect(dialog).toBeInTheDocument()
+    await expect(dialog).toBeVisible()
     await userEvent.click(within(dialog).getByRole('button', { name: 'Send report' }))
     await expect(within(dialog).getByRole('alert')).toHaveTextContent('Explain what needs a safety review.')
   },
@@ -48,7 +48,7 @@ export const CompactEllipsisOpensSheet: Story = {
     await expect(trigger).not.toHaveTextContent('Report message')
     await userEvent.click(trigger)
     const dialog = await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'Send a safety report' })
-    await expect(dialog).toBeInTheDocument()
+    await expect(dialog).toBeVisible()
   },
 }
 
@@ -66,6 +66,6 @@ export const CompactTextRetainsLabel: Story = {
     await expect(trigger).toHaveTextContent('Report review')
     await userEvent.click(trigger)
     const dialog = await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: 'Send a safety report' })
-    await expect(dialog).toBeInTheDocument()
+    await expect(dialog).toBeVisible()
   },
 }

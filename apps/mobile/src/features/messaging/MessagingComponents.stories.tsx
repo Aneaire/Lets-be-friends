@@ -540,7 +540,7 @@ export const ComposerEditContext: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Editing message')).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Save changes' })).toBeVisible()
-    await expect(canvas.queryByRole('button', { name: 'Attach files' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Attach files' })).toBeNull()
   },
 }
 
@@ -605,10 +605,10 @@ export const MessageMenuForOwnMessage: Story = {
   play: async ({ canvasElement }) => {
     editFromMenu.mockClear()
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('dialog', { name: 'Message options' })).toBeInTheDocument()
-    await expect(canvas.getByRole('button', { name: 'Reply' })).toBeInTheDocument()
-    await expect(canvas.getByRole('button', { name: 'Delete message' })).toBeInTheDocument()
-    await expect(canvas.getByRole('button', { name: 'Unsend message' })).toBeInTheDocument()
+    await expect(canvas.getByRole('dialog', { name: 'Message options' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Reply' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Delete message' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Unsend message' })).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Edit message' }))
     await expect(editFromMenu).toHaveBeenCalledOnce()
   },
@@ -631,7 +631,7 @@ export const MessageMenuForIncomingMessage: Story = {
   play: async ({ canvasElement }) => {
     reportFromMenu.mockClear()
     const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('button', { name: 'Edit message' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Edit message' })).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: 'Report message' }))
     await expect(reportFromMenu).toHaveBeenCalledOnce()
   },

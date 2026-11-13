@@ -49,7 +49,7 @@ export const CompanionUndecided: Story = {
     await expect(canvas.getByText('The member')).toBeVisible()
     await expect(canvas.getByText('Private image saved')).toBeVisible()
     await expect(canvas.getByText('Upload private image')).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'Skip after warning' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Continue without evidence' })).toBeVisible()
   },
 }
 
@@ -86,7 +86,7 @@ export const Uploading: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Processing image…')).toBeVisible()
     await expect(
-      canvas.getByRole('button', { name: 'Skip after warning' }),
+      canvas.getByRole('button', { name: 'Continue without evidence' }),
     ).toBeDisabled()
   },
 }
@@ -123,7 +123,7 @@ export const SkipRequested: Story = {
   args: { rows: companionUndecided },
   play: async ({ canvasElement }) => {
     await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'Skip after warning' }),
+      within(canvasElement).getByRole('button', { name: 'Continue without evidence' }),
     )
     await expect(skip).toHaveBeenCalled()
   },

@@ -60,12 +60,12 @@ type Story = StoryObj<typeof meta>
 export const Ready: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('dialog', { name: 'Edit post' })).toBeInTheDocument()
+    await expect(canvas.getByRole('dialog', { name: 'Edit post' })).toBeVisible()
     await expect(canvas.getByRole('textbox', { name: 'Post text' })).toHaveValue(args.initialBody)
     await userEvent.click(canvas.getByRole('button', { name: 'Save changes' }))
     await expect(args.onSave).toHaveBeenCalledTimes(1)
     await expect(args.onSave).toHaveBeenCalledWith(args.initialBody)
-    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('dialog')).toBeNull()
   },
 }
 

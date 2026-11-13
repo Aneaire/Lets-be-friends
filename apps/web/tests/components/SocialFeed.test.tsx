@@ -192,6 +192,12 @@ describe('SocialPage feed stability', () => {
     expect(authorLink?.search).toEqual({ userId: 'user-author-0' })
   })
 
+  it('opens the share composer when the mobile Create action arrives with a compose token', async () => {
+    render(<SocialPage compose="1" />)
+
+    expect(await screen.findByRole('dialog', { name: 'Share an update' })).toBeTruthy()
+  })
+
   it('shows the viewer profile photo in the composer avatar', () => {
     feedState.viewer = { ...feedState.viewer, profileImageUrl: 'https://cdn.example.com/viewer.png' }
     const { container } = render(<SocialPage />)

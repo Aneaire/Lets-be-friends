@@ -31,9 +31,9 @@ export const SharedRecord: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('SHARED SAFETY RECORD')).toBeInTheDocument()
-    await expect(canvas.getByLabelText('Start: uploaded')).toBeInTheDocument()
-    await expect(canvas.getByLabelText('End (you): not decided')).toBeInTheDocument()
+    await expect(canvas.getByText('SHARED SAFETY RECORD')).toBeVisible()
+    await expect(canvas.getByLabelText('Start: uploaded')).toBeVisible()
+    await expect(canvas.getByLabelText('End (you): not decided')).toBeVisible()
   },
 }
 
@@ -41,7 +41,7 @@ export const LoadingRecord: Story = {
   args: { loading: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Loading the shared safety record.')).toBeInTheDocument()
+    await expect(canvas.getByText('Loading the shared safety record.')).toBeVisible()
   },
 }
 
@@ -55,7 +55,7 @@ export const ClosedWindow: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/The evidence window for this booking has closed/)).toBeInTheDocument()
+    await expect(canvas.getByText(/The evidence window for this booking has closed/)).toBeVisible()
   },
 }
 
@@ -69,6 +69,6 @@ export const DarkSharedRecord: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('SHARED SAFETY RECORD')).toBeInTheDocument()
+    await expect(canvas.getByText('SHARED SAFETY RECORD')).toBeVisible()
   },
 }

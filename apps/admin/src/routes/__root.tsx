@@ -28,9 +28,11 @@ export const Route = createRootRoute({
 
 function RootApp() {
   return (
-    <AdminGate>
-      <Outlet />
-    </AdminGate>
+    <AdminProviders>
+      <AdminGate>
+        <Outlet />
+      </AdminGate>
+    </AdminProviders>
   )
 }
 
@@ -42,7 +44,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <AdminProviders>{children}</AdminProviders>
+        {children}
         {import.meta.env.DEV && <TanStackDevtools config={{ position: 'bottom-right' }} plugins={[{ name: 'Tanstack Router', render: <TanStackRouterDevtoolsPanel /> }]} />}
         <Scripts />
       </body>

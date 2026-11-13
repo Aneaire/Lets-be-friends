@@ -3,7 +3,7 @@ import { activePrimaryNavigation, isWorkspacePath, mobileNavigation, primaryNavi
 
 describe('Circle navigation', () => {
   it('uses the desktop rail and keeps Circles out of the four mobile link destinations', () => {
-    expect(sidebarNavigation.map((item) => item.id)).toEqual(['home', 'discover', 'circles'])
+    expect(sidebarNavigation.map((item) => item.id)).toEqual(['home', 'discover', 'circles', 'referrals'])
     expect(primaryNavigation.map((item) => item.id)).toEqual(['home', 'discover', 'circles', 'messages', 'bookings'])
     expect(mobileNavigation.map((item) => item.id)).toEqual(['home', 'discover', 'messages', 'bookings'])
   })

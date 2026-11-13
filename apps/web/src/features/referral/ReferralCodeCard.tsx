@@ -2,37 +2,43 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   normalizeReferralCode,
   referralCodeValidationError,
-  REFERRAL_CODE_STORAGE_KEY,
 } from '@lets-be-friends/shared'
 import { Button } from '../../design-system/atoms/Button'
 import { FormField } from '../../design-system/molecules/FormField'
+import { clearSavedReferralCode, readSavedReferralCode } from './referralStorage'
 
 export function ReferralCodeCard({
   busy,
   dismissing = false,
   error,
   notice,
+  savedForUserId,
+  submitIntent = 'social',
   onSubmit,
   onSkip,
+  onRemoveSaved,
   onEdit,
 }: {
   busy: boolean
   dismissing?: boolean
   error: string
   notice: string
+  savedForUserId?: string
+  submitIntent?: 'social' | 'neutral'
   onSubmit: (code: string) => void
   onSkip: () => void
+  onRemoveSaved?: () => void
   onEdit?: () => void
 }) {
   const [code, setCode] = useState('')
+  const [savedInvitation, setSavedInvitation] = useState(false)
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(REFERRAL_CODE_STORAGE_KEY)
-      if (saved && !referralCodeValidationError(saved)) setCode(normalizeReferralCode(saved))
-    } catch {
-      // The form remains available when browser storage is disabled.
+    const saved = readSavedReferralCode(savedForUserId)
+    if (saved && !referralCodeValidationError(saved)) {
+      setCode(normalizeReferralCode(saved))
+      setSavedInvitation(true)
     }
-  }, [])
+  }, [savedForUserId])
   const [localError, setLocalError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const displayError = localError || error
@@ -55,11 +61,47 @@ export function ReferralCodeCard({
     onSubmit(normalized)
   }
 
+  function removeSaved() {
+    clearSavedReferralCode()
+    setCode('')
+    setSavedInvitation(false)
+    onRemoveSaved?.()
+  }
+
+  if (savedInvitation) {
+    return (
+      <div className="space-y-3 rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-4">
+        <div>
+          <p className="text-h3">Have a friend&apos;s code? <span className="label-aux">Saved</span></p>
+          <p className="text-meta mt-1">Saved from the invitation link you opened.</p>
+          <p className="text-meta mt-1">Your friend earns 5% of the booking subtotal. You pay the normal price.</p>
+        </div>
+        <div className="notice" role="status">
+          <span className="notice-icon">i</span>
+          <span>Invitation {normalizeReferralCode(code)} will be added when you finish setup.</span>
+        </div>
+        {notice && (
+          <div className="notice" role="status">
+            <span className="notice-icon">i</span>
+            <span>{notice}</span>
+          </div>
+        )}
+        {displayError && (
+          <p className="text-meta text-[color:var(--danger)]" role="alert">{displayError}</p>
+        )}
+        <Button type="button" intent="ghost" size="small" onClick={removeSaved} disabled={busy}>
+          Remove this code
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <form className="space-y-3 rounded-lg border border-[color:var(--rule)] bg-[color:var(--surface-subtle)] p-4" onSubmit={submit}>
       <div>
-        <p className="text-h3">Have a friend's code? <span className="label-aux">Optional</span></p>
-        <p className="text-meta mt-1">Add it now to credit your friend. This prompt won't appear again.</p>
+        <p className="text-h3">Have a friend&apos;s code? <span className="label-aux">Optional</span></p>
+        <p className="text-meta mt-1">Add it within 30 days of joining and before your first booking.</p>
+        <p className="text-meta mt-1">Your friend earns 5% of the booking subtotal. You pay the normal price.</p>
       </div>
       {notice && (
         <div className="notice" role="status">
@@ -67,7 +109,7 @@ export function ReferralCodeCard({
           <span>{notice}</span>
         </div>
       )}
-      <FormField label="Referral code" aux="Optional" error={displayError || undefined}>
+      <FormField label="Referral code" error={displayError || undefined}>
         <input
           ref={inputRef}
           className="field"
@@ -85,11 +127,11 @@ export function ReferralCodeCard({
         />
       </FormField>
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" intent="social" size="small" loading={busy} loadingLabel="Adding code..." disabled={!code.trim() || dismissing}>
+        <Button type="submit" intent={submitIntent} size="small" loading={busy} loadingLabel="Adding code..." disabled={!code.trim() || dismissing}>
           Add referral code
         </Button>
         <Button type="button" intent="ghost" size="small" onClick={onSkip} loading={dismissing} loadingLabel="Dismissing..." disabled={busy}>
-          Dismiss
+          Not now
         </Button>
       </div>
     </form>

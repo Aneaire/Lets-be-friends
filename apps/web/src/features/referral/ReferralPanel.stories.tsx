@@ -7,13 +7,30 @@ const NOW = Date.UTC(2026, 10, 4, 9, 0)
 
 const referral: ReferralPanelData = {
   code: 'ABCD1234',
-  rewards: [],
+  programActive: true,
   totalReferrals: 2,
   totalRewardedBookings: 5,
   totalEarnedCentavos: 15_300,
+  totalPendingCentavos: 0,
   totalReversedCentavos: 0,
+  referralDebtCentavos: 0,
+  canAddReferralCode: false,
   referredBy: null,
 }
+
+const rewardItems = [
+  {
+    _id: 'reward-1',
+    bookingId: 'booking-1',
+    kind: 'lifetime',
+    amountCentavos: 525,
+    status: 'credited',
+    reviewRequired: false,
+    createdAt: NOW,
+    releasedAt: NOW,
+    referredDisplayName: 'Maya',
+  },
+]
 
 const items = [
   {
@@ -21,15 +38,13 @@ const items = [
     referredDisplayName: 'Maya',
     status: 'active',
     rewardedBookings: 2,
-    totalRewardedBookings: 3,
     createdAt: NOW,
   },
   {
     _id: 'referral-2',
     referredDisplayName: 'Paolo',
-    status: 'completed',
+    status: 'active',
     rewardedBookings: 3,
-    totalRewardedBookings: 3,
     createdAt: NOW - 86_400_000,
   },
 ]
@@ -42,14 +57,18 @@ const meta = {
   args: {
     referral,
     items,
+    rewardItems: [],
     status: 'Exhausted' as const,
+    rewardStatus: 'Exhausted' as const,
     busy: false,
     error: '',
     notice: '',
     origin: 'https://letsbefriends.ph',
+    copied: false,
     onCreateCode: fn(),
     onCopyLink: fn(),
     onLoadMore: fn(),
+    onLoadMoreRewards: fn(),
   },
 } satisfies Meta<typeof ReferralPanelView>
 
@@ -62,7 +81,7 @@ export const WithReferrals: Story = {
     await expect(canvas.getByRole('heading', { name: 'Invite friends' })).toBeVisible()
     await expect(canvas.getByDisplayValue('https://letsbefriends.ph/?ref=ABCD1234')).toBeVisible()
     await expect(canvas.getByText('Maya')).toBeVisible()
-    await expect(canvas.getByText('2 of 3 bookings rewarded')).toBeVisible()
+    await expect(canvas.getByText('2 bookings rewarded')).toBeVisible()
   },
 }
 
@@ -88,7 +107,6 @@ export const ManyReferrals: Story = {
         referredDisplayName: 'Bea',
         status: 'active',
         rewardedBookings: 1,
-        totalRewardedBookings: 3,
         createdAt: NOW - 172_800_000,
       },
     ],
@@ -106,7 +124,7 @@ export const ReferredByFriend: Story = {
         referrerDisplayName: 'Maya',
         code: 'MAYA1234',
         rewardedBookings: 1,
-        totalRewardedBookings: 3,
+        termsVersion: 'lifetime_5_v1',
       },
     },
   },
@@ -121,6 +139,13 @@ export const CodeError: Story = {
   args: { error: 'That referral code could not be added.' },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByRole('alert')).toHaveTextContent('That referral code could not be added.')
+  },
+}
+
+export const Copied: Story = {
+  args: { copied: true },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole('button', { name: /Copied/ })).toBeVisible()
   },
 }
 

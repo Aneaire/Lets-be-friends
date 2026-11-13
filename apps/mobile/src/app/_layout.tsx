@@ -52,6 +52,7 @@ function AuthenticatedNavigator({ reduceMotion }: { reduceMotion: boolean }) {
         <Stack.Screen name="terms-and-conditions" />
         <Stack.Screen name="privacy-policy" />
         <Stack.Screen name="frienday-guide" />
+        <Stack.Screen name="referral-invite" options={{ animation: 'none' }} />
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="auth" />
         </Stack.Protected>

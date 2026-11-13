@@ -1,5 +1,6 @@
-const MAX_ID_LENGTH = 128
+import { normalizeReferralCode, referralCodeValidationError } from '@lets-be-friends/shared'
 
+const MAX_ID_LENGTH = 128
 function cleanId(value: string | null): string | null {
   if (value === null) return null
   const trimmed = value.trim()
@@ -92,6 +93,17 @@ export function normalizeWebSharePath(
   // Collapse duplicate slashes and drop a single trailing slash.
   pathname = pathname.replace(/\/{2,}/g, '/')
   if (pathname.length > 1) pathname = pathname.replace(/\/$/, '')
+
+  // Referral share links open the invite handoff, which stores the code and
+  // sends signed-in members to the claim card. Both the root link
+  // (https://host/?ref=CODE) and the named routes are accepted.
+  if (pathname === '/' || pathname === '/referrals' || pathname === '/referral-invite') {
+    const ref = searchParams.get('ref')
+    if (!ref) return null
+    const code = normalizeReferralCode(ref)
+    if (referralCodeValidationError(code)) return null
+    return nativePath('/referral-invite', { ref: code })
+  }
 
   if (pathname === '/social') {
     const postId = cleanId(searchParams.get('postId'))

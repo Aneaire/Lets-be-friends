@@ -84,6 +84,7 @@ function AppPage() {
   const [identityDetailsOpen, setIdentityDetailsOpen] = useState(false)
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
   const [bookingsView, setBookingsView] = useState<BookingsViewMode>('calendar')
+  const bookingsViewInitialized = useRef(false)
   const bookingTriggerRef = useRef<HTMLButtonElement>(null)
   const bookingOpenerRef = useRef<HTMLElement | null>(null)
 
@@ -111,6 +112,16 @@ function AppPage() {
     () => combineCalendarBookings(bookings, companionBookings),
     [bookings, companionBookings],
   )
+
+  // When the member already has bookings, open on the list so the first screen
+  // shows titles, times, and Companions instead of an empty month grid.
+  useEffect(() => {
+    if (bookingsViewInitialized.current || bookings === undefined) return
+    bookingsViewInitialized.current = true
+    if ((bookings?.length ?? 0) + (companionBookings?.length ?? 0) > 0) {
+      setBookingsView('cards')
+    }
+  }, [bookings, companionBookings])
 
   const openBookingDialog = useCallback((opener?: HTMLElement) => {
     if (!canBook) {
@@ -174,6 +185,9 @@ function AppPage() {
   const memberActiveBookings = combinedBookings.filter((booking) => booking.perspective === 'member' && isActiveCalendarBooking(booking))
   const memberPastBookings = combinedBookings.filter((booking) => booking.perspective === 'member' && !isActiveCalendarBooking(booking))
   const companionSideBookings = combinedBookings.filter((booking) => booking.perspective === 'companion')
+  const companionRequests = companionSideBookings.filter((booking) => booking.status === 'request_sent')
+  const companionActiveBookings = companionSideBookings.filter((booking) => booking.status !== 'request_sent' && isActiveCalendarBooking(booking))
+  const companionPastBookings = companionSideBookings.filter((booking) => booking.status !== 'request_sent' && !isActiveCalendarBooking(booking))
 
   const heldBooking = (bookings ?? []).find((booking) => booking.status === 'verification_required')
 
@@ -255,8 +269,10 @@ function AppPage() {
           aria-controls="identity-status-details"
           onClick={() => setIdentityDetailsOpen((open) => !open)}
         >
-          <span>Identity</span>
-          <span className="status-pill" data-tone={verification.tone}>{verification.label}</span>
+          <span>Verification</span>
+          <span className="status-pill" data-tone={verification.tone}>
+            {verification.state === 'approved' ? 'Approved' : verification.label}
+          </span>
         </button>
       }
       actions={canBook ? (
@@ -395,7 +411,6 @@ function AppPage() {
         <header className="flex items-baseline justify-between gap-3 mb-3">
           <h2 className="text-h2">Bookings</h2>
           <div className="flex items-center gap-2">
-            <span className="text-meta tabular">{openBookings} active</span>
             <Link
               to="/wallet"
               className="btn btn-self-quiet btn-sm tabular"
@@ -457,6 +472,37 @@ function AppPage() {
               </div>
             ) : (
               <>
+                {companionRequests.length > 0 && (
+                  <section aria-labelledby="companion-requests-title" className="mb-10">
+                    <header className="flex items-baseline justify-between gap-3 mb-3">
+                      <h2 id="companion-requests-title" className="text-h2">Requests for you</h2>
+                      <span className="text-meta tabular">
+                        {companionRequests.length} waiting
+                      </span>
+                    </header>
+                    <p className="text-meta mb-3">Answer these first so the other member knows whether to keep the time.</p>
+                    <div className="panel">
+                      <div className="worklist">
+                        {companionRequests.map(renderBookingRow)}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {companionActiveBookings.length > 0 && (
+                  <section aria-labelledby="companion-active-title" className="mb-10">
+                    <header className="flex items-baseline justify-between gap-3 mb-3">
+                      <h2 id="companion-active-title" className="text-h2">Active Companion bookings</h2>
+                      <span className="text-meta tabular">{companionActiveBookings.length} active</span>
+                    </header>
+                    <div className="panel">
+                      <div className="worklist">
+                        {companionActiveBookings.map(renderBookingRow)}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
                 <section aria-labelledby="open-bookings-title">
                   <header className="flex items-baseline justify-between gap-3 mb-3">
                     <h2 id="open-bookings-title" className="text-h2">Open bookings</h2>
@@ -487,15 +533,15 @@ function AppPage() {
                   </section>
                 )}
 
-                {companionSideBookings.length > 0 && (
+                {companionPastBookings.length > 0 && (
                   <section id="companion-bookings" className="mt-10" aria-labelledby="companion-bookings-title">
                     <header className="flex items-baseline justify-between gap-3 mb-3">
-                      <h2 id="companion-bookings-title" className="text-h2">Bookings as Companion</h2>
-                      <span className="text-meta tabular">{companionSideBookings.length}</span>
+                      <h2 id="companion-bookings-title" className="text-h2">Companion booking history</h2>
+                      <span className="text-meta tabular">{companionPastBookings.length}</span>
                     </header>
                     <div className="panel">
                       <div className="worklist">
-                        {companionSideBookings.map(renderBookingRow)}
+                        {companionPastBookings.map(renderBookingRow)}
                       </div>
                     </div>
                   </section>
@@ -562,33 +608,20 @@ function BookingRow({
   )
 
   return (
-    <article id={`booking-${booking._id}`} className="worklist-row">
-      <div className="worklist-row-head">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="avatar" aria-hidden="true">
-            {'companionDisplayName' in booking ? <User aria-hidden="true" /> : '?'}
-          </span>
-          <div className="min-w-0">
+    <article id={`booking-${booking._id}`} className="worklist-row booking-row">
+      <header className="booking-row-head">
+        <span className="avatar" aria-hidden="true">
+          {'companionDisplayName' in booking ? <User aria-hidden="true" /> : '?'}
+        </span>
+        <div className="booking-row-copy">
+          <div className="booking-row-title">
             <h3 className="text-h3">{'companionDisplayName' in booking ? booking.companionDisplayName : 'Companion'}</h3>
-            <div className="worklist-row-meta">
-              <span>{booking.category}</span>
-              <span className="dot" aria-hidden="true" />
-              <span>{formatMode(booking.mode)}</span>
-              {'companionCity' in booking && (
-                <>
-                  <span className="dot" aria-hidden="true" />
-                  <span>{booking.companionCity}</span>
-                </>
-              )}
-              <span className="dot" aria-hidden="true" />
-              <span className="tabular">{formatRequestedAt(booking.requestedAt)}</span>
-            </div>
+            <span className="status-pill" data-tone={status.tone}>{status.label}</span>
           </div>
         </div>
-        <div className="booking-card-head-actions">
-          <span className="status-pill" data-tone={status.tone}>{status.label}</span>
+        <div className="booking-row-menu">
           <BookingActionsMenu
-            onCancel={canCancel ? () => void onCancel() : undefined}
+            onCancel={canCancel && !booking.memberCompletedAt && !booking.companionCompletedAt ? () => void onCancel() : undefined}
             onEditRequest={booking.status === 'request_sent' && onEditRequest
               ? () => onEditRequest({
                   bookingId: booking._id,
@@ -604,20 +637,30 @@ function BookingRow({
             onReport={() => void onReport()}
           />
         </div>
-      </div>
-
-      <div className="booking-plan-context">
-        <span>{status.label}</span>
-      </div>
+      </header>
+          <p className="booking-row-meta">
+            <span className="booking-row-category">{booking.category}</span>
+            <span className="booking-row-mode">{formatMode(booking.mode)}</span>
+            {booking.mode !== 'online' && 'companionCity' in booking && <span className="booking-row-city">{booking.companionCity}</span>}
+            <span className="booking-row-when tabular">{formatRequestedAt(booking.requestedAt)}</span>
+          </p>
+          <p className="text-meta mt-1">{bookingNextStep(booking)}</p>
 
       {booking.pricingModel === 'member_wallet_v2' && booking.memberTotalCentavos !== undefined ? (
-        <p className="text-meta">
-          Booking total: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.memberTotalCentavos)}</strong>
-          {' · '}Includes service fee.
-          {booking.settlementState === 'blocked' && ' Funds are held for admin resolution because this booking has a report.'}
-        </p>
+        <>
+          <p className="booking-row-total">
+            <strong className="tabular">{formatPhp(booking.memberTotalCentavos)}</strong>
+            <span>{bookingMoneyLabel(booking.status, booking.settlementState)}</span>
+            {booking.settlementState === 'blocked' && <span>Funds are held for admin resolution because this booking has a report.</span>}
+          </p>
+          {booking.serviceSubtotalCentavos !== undefined && booking.memberBookingFeeCentavos !== undefined && (
+            <p className="text-meta">
+              Subtotal {formatPhp(booking.serviceSubtotalCentavos)} · Service fee {formatPhp(booking.memberBookingFeeCentavos)}
+            </p>
+          )}
+        </>
       ) : booking.grossPriceCentavos !== undefined && booking.currency === 'PHP' ? (
-        <p className="text-meta">Legacy locked cash amount: <strong className="tabular text-[color:var(--text)]">{formatPhp(booking.grossPriceCentavos)}</strong></p>
+        <p className="booking-row-total"><strong className="tabular">{formatPhp(booking.grossPriceCentavos)}</strong><span>locked cash amount</span></p>
       ) : null}
 
       {booking.status === 'verification_required' && (
@@ -627,13 +670,13 @@ function BookingRow({
         </div>
       )}
 
-      {booking.pricingModel === 'member_wallet_v2' && booking.status === 'accepted' && (
-        <EvidenceDecision bookingId={booking._id} />
-      )}
-
       <div className="worklist-row-actions">
         {conversationId && (
-          <Link to="/messages" search={{ conversationId }} className="btn btn-social btn-sm">
+          <Link
+            to="/messages"
+            search={{ conversationId }}
+            className={`btn btn-sm ${(canComplete && !booking.memberCompletedAt) || (canReview && !booking.viewerHasReviewed) ? 'btn-neutral' : 'btn-social'}`}
+          >
             Open conversation
           </Link>
         )}
@@ -647,14 +690,57 @@ function BookingRow({
         {canComplete && booking.memberCompletedAt && <span className="text-meta">You confirmed completion · waiting for Companion</span>}
         {canReview && (
           <ReviewForm
+            primary
             onReview={onReview}
             preview={{ companionName: 'companionDisplayName' in booking ? String(booking.companionDisplayName) : 'this Companion' }}
           />
         )}
         {booking.viewerHasReviewed && <ReviewSubmittedLink reviewId={booking.viewerReviewId} />}
       </div>
+
+      {booking.pricingModel === 'member_wallet_v2' && booking.status === 'accepted' && (
+        <details className="booking-evidence-disclosure">
+          <summary>Booking evidence <span className="text-meta">Optional and private</span></summary>
+          <EvidenceDecision bookingId={booking._id} />
+        </details>
+      )}
     </article>
   )
+}
+
+function bookingNextStep(booking: { status: string; companionDisplayName?: string; requestedAt: number; durationMinutes: number }) {
+  const name = booking.companionDisplayName ?? 'the Companion'
+  const end = booking.requestedAt + booking.durationMinutes * 60_000
+  switch (booking.status) {
+    case 'request_sent':
+      return `Waiting for ${name} to accept. You can edit or cancel until they reply.`
+    case 'accepted':
+      return end > Date.now()
+        ? `Session ${formatRequestedAt(booking.requestedAt)}. Confirm completion after ${formatRequestedAt(end)}.`
+        : 'The session time has passed. You can confirm completion now.'
+    case 'review_window':
+      return 'Both people confirmed. The review window is open.'
+    case 'completed':
+      return 'Completed.'
+    case 'closed':
+      return 'Closed.'
+    case 'cancelled':
+      return 'Cancelled.'
+    case 'declined':
+      return 'Declined.'
+    default:
+      return ''
+  }
+}
+
+function bookingMoneyLabel(status: string, settlementState?: string) {
+  if (status === 'request_sent' || status === 'verification_required') return 'not charged yet · reserved if accepted'
+  if (status === 'accepted') {
+    return settlementState === 'reserved' ? 'reserved · released on completion' : 'reserved when accepted'
+  }
+  if (status === 'review_window' || status === 'completed' || status === 'closed') return 'paid · fees included'
+  if (status === 'cancelled' || status === 'declined') return 'not charged'
+  return 'total · fees included'
 }
 
 function formatMode(mode: string) {
@@ -665,10 +751,12 @@ function formatMode(mode: string) {
 
 function formatRequestedAt(timestamp: number) {
   if (!timestamp) return ''
-  return new Date(timestamp).toLocaleString(undefined, {
+  const formatted = new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  })
+  }).format(timestamp)
+  return `${formatted} PHT`
 }

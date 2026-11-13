@@ -250,7 +250,7 @@ export function NearbySearchPage() {
           <label className="nearby-filter-field">
             <span>Strengths</span>
             <select aria-label="Strengths" value={strength} onChange={(event) => setStrength(event.currentTarget.value)}>
-              <option value="">Any Strength</option>
+              <option value="">Any</option>
               {friendStrengths.map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
           </label>

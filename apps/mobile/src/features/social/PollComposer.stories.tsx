@@ -33,7 +33,7 @@ export const CompletePoll: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('alert')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('alert')).toBeNull()
     await expect(canvas.getByText('2 of 4 options')).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Add poll option' }))
     await expect(canvas.getAllByRole('textbox', { name: /Poll option/ })).toHaveLength(3)

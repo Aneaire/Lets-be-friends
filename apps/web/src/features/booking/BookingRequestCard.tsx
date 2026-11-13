@@ -106,7 +106,7 @@ export function BookingRequestCard({ intro, booking, viewerId, onDecide, onEdit,
                       <span>Your entitlement</span>
                       <strong className="tabular">{formatPhp(booking.companionEarningsCentavos ?? 0)}</strong>
                       <span className="booking-request-card-total-sub">
-                        The member paid {formatPhp(booking.memberTotalCentavos)} total, which includes the service fee.
+                        The member pays {formatPhp(booking.memberTotalCentavos)} total when you accept, which includes the service fee.
                       </span>
                     </>
                   )}

@@ -56,9 +56,9 @@ export const FreshRelationshipPropsReplacePriorState: Story = {
   render: () => <FreshRelationshipStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: `Follow ${author}` })).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: `Follow ${author}` })).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Apply fresh relationship props' }))
-    await expect(canvas.getByRole('button', { name: `Unfollow ${author}` })).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: `Unfollow ${author}` })).toBeVisible()
   },
 }
 

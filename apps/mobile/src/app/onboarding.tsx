@@ -1,5 +1,6 @@
 import {
   currentPolicyVersion,
+  extractConvexErrorMessage,
   friendStrengths,
   hasCurrentUnifiedAcceptance,
   maximumActivityCategoryLength,
@@ -29,6 +30,8 @@ import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { openPolicyDocument } from '@/features/policy/policyLinks'
 import { ReferralCodeCard } from '@/features/referral/ReferralCodeCard'
+import { clearPendingReferralCode, readPendingReferralCode } from '@/features/referral/pendingReferralCode'
+import { mobileReferralDeviceId } from '@/features/referral/referralDevice'
 import { AppText } from '@/design-system/atoms/Typography'
 import { ProductMap } from '@/design-system/organisms/ProductMap'
 import { useMobileMember } from '@/member/MobileMember'
@@ -146,6 +149,7 @@ function ConnectedOnboarding({
   const [referralAction, setReferralAction] = useState<'add' | 'dismiss' | null>(null)
   const [referralError, setReferralError] = useState('')
   const [referralNotice, setReferralNotice] = useState('')
+  const [pendingReferralCode, setPendingReferralCode] = useState('')
   const [pendingReferralFocus, setPendingReferralFocus] = useState<'added' | 'dismissed' | null>(null)
   const usernameRef = useRef<TextInput>(null)
   const usernameHeadingRef = useRef<View>(null)
@@ -177,7 +181,7 @@ function ConnectedOnboarding({
   const referral = useQuery(mobileApi.referrals.myReferral, {})
   const attributeReferral = useMutation(mobileApi.referrals.attributeReferral)
   const dismissReferralPrompt = useMutation(mobileApi.referrals.dismissReferralPrompt)
-  const showReferralPrompt = Boolean(referral && !referral.referredBy && !referral.promptDismissedAt)
+  const showReferralPrompt = Boolean(referral && referral.programActive && !referral.referredBy && !referral.promptDismissedAt)
   const [applicationForm, setApplicationForm] = useState<CompanionApplicationForm>(() => (
     defaultOnboardingCompanionForm({ bio: viewer.bio, categories: viewer.onboardingCategories })
   ))
@@ -239,6 +243,16 @@ function ConnectedOnboarding({
   }, [step])
 
   useEffect(() => {
+    let active = true
+    void readPendingReferralCode().then((code) => {
+      if (active && code) setPendingReferralCode(code)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
     if (step !== 0 || showReferralPrompt || !pendingReferralFocus) return
     const action = pendingReferralFocus
     setPendingReferralFocus(null)
@@ -252,7 +266,7 @@ function ConnectedOnboarding({
       AccessibilityInfo.announceForAccessibility('Referral prompt dismissed. Continue with your welcome guide.')
     } else {
       referralToastTimer.current = setTimeout(() => {
-        showAppToast('Referral code added. It will apply to your first completed bookings.', 'success')
+        showAppToast('Referral code added. Your friend earns 5% of the booking subtotal on every completed booking, for life.', 'success')
         referralToastTimer.current = null
       }, 300)
     }
@@ -268,11 +282,14 @@ function ConnectedOnboarding({
     setReferralError('')
     setReferralNotice('')
     try {
-      await attributeReferral({ code })
-      setReferralNotice('Referral code added. It will apply to your first completed bookings.')
+      const deviceId = await mobileReferralDeviceId()
+      await attributeReferral(deviceId ? { code, deviceId } : { code })
+      await clearPendingReferralCode()
+      setPendingReferralCode('')
+      setReferralNotice('Referral code added. Your friend earns 5% of the booking subtotal on every completed booking, for life.')
       if (stepRef.current === 0) setPendingReferralFocus('added')
-    } catch {
-      setReferralError('We could not add this code. Check it and try again.')
+    } catch (caught) {
+      setReferralError(extractConvexErrorMessage(caught, 'We could not add this code. Check it and try again.'))
     } finally {
       setReferralAction(null)
     }
@@ -529,12 +546,13 @@ function ConnectedOnboarding({
             If this username is yours, sign out below and use the Google account that originally claimed it.
           </AppText>
         )}
-        {referral && !referral.referredBy && !referral.promptDismissedAt ? (
+        {referral && referral.programActive && !referral.referredBy && !referral.promptDismissedAt ? (
           <ReferralCodeCard
             busy={referralAction === 'add'}
             dismissing={referralAction === 'dismiss'}
             error={referralError}
             notice={referralNotice}
+            initialCode={pendingReferralCode}
             onSubmit={(code) => void submitReferralCode(code)}
             onSkip={() => void skipReferralPrompt()}
             onEdit={() => setReferralError('')}

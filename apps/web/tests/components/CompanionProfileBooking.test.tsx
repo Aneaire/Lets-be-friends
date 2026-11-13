@@ -164,7 +164,7 @@ describe('Companion profile booking dialog', () => {
     openDialog()
 
     expect(state.navigate).not.toHaveBeenCalled()
-    expect(await screen.findByRole('dialog', { name: 'Book with Dana' })).toBeTruthy()
+    expect(await screen.findByRole('dialog', { name: /Book with Dana/ })).toBeTruthy()
     // The availability calendar is visible before any interaction with the profile.
     expect(await screen.findByRole('region', { name: /availability calendar/i })).toBeTruthy()
     expect(state.queries).not.toContain('companions.listApproved')
@@ -178,7 +178,7 @@ describe('Companion profile booking dialog', () => {
 
     const trigger = screen.getByRole('button', { name: 'Book a time' })
     fireEvent.click(trigger)
-    expect(await screen.findByRole('dialog', { name: 'Book with Dana' })).toBeTruthy()
+    expect(await screen.findByRole('dialog', { name: /Book with Dana/ })).toBeTruthy()
 
     fireEvent.keyDown(document, { key: 'Escape' })
 
@@ -199,7 +199,7 @@ describe('Companion profile booking dialog', () => {
     openDialog()
     await chooseAvailableStart(plan.start, plan.date, plan.monthKey)
 
-    const send = screen.getByRole('button', { name: 'Send booking' })
+    const send = screen.getByRole('button', { name: 'Send request' })
     expect((send as HTMLButtonElement).disabled).toBe(false)
     fireEvent.click(send)
 
@@ -229,10 +229,10 @@ describe('Companion profile booking dialog', () => {
     openDialog()
     await chooseAvailableStart(plan.start, plan.date, plan.monthKey)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Send booking' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send request' }))
 
     expect(await screen.findByText('Companion is not available for booking')).toBeTruthy()
-    expect(screen.getByRole('dialog', { name: 'Book with Dana' })).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: /Book with Dana/ })).toBeTruthy()
     expect(state.navigate).not.toHaveBeenCalled()
   })
 
@@ -310,12 +310,12 @@ describe('Companion profile booking dialog', () => {
     const view = render(<CompanionProfilePage />)
     openDialog()
     await chooseAvailableStart(plan.start, plan.date, plan.monthKey)
-    expect((screen.getByRole('button', { name: 'Send booking' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: 'Send request' }) as HTMLButtonElement).disabled).toBe(false)
 
     state.availability = 'unavailable'
     view.rerender(<CompanionProfilePage />)
 
-    await waitFor(() => expect((screen.getByRole('button', { name: 'Send booking' }) as HTMLButtonElement).disabled).toBe(true))
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Send request' }) as HTMLButtonElement).disabled).toBe(true))
   })
 
   it('clears the chosen start when the session length changes', async () => {
@@ -329,11 +329,11 @@ describe('Companion profile booking dialog', () => {
     render(<CompanionProfilePage />)
     openDialog()
     await chooseAvailableStart(plan.start, plan.date, plan.monthKey)
-    expect((screen.getByRole('button', { name: 'Send booking' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: 'Send request' }) as HTMLButtonElement).disabled).toBe(false)
 
     fireEvent.change(screen.getByRole('combobox', { name: /Duration/i }), { target: { value: '120' } })
 
-    expect((screen.getByRole('button', { name: 'Send booking' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Send request' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('never offers a sendable time while the Companion has no shared schedule', async () => {
@@ -343,7 +343,7 @@ describe('Companion profile booking dialog', () => {
     openDialog()
 
     expect(await screen.findByText('This Companion has not shared a weekly schedule yet.')).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'Send booking' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Send request' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('shows a rate notice instead of a booking button before a rate is configured', () => {

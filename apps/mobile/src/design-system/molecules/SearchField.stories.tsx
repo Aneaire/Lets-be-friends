@@ -77,7 +77,7 @@ export const Loading: Story = {
     const input = canvas.getByRole('textbox', { name: 'Search members' })
 
     await expect(input).toHaveAttribute('aria-busy', 'true')
-    await expect(canvas.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Clear search' })).toBeNull()
   },
 }
 

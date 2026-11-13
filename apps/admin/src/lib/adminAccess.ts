@@ -12,6 +12,7 @@ export type AdminRoute =
   | '/reviews'
   | '/profile'
   | '/categories'
+  | '/referrals'
   | '/audit-logs'
   | '/settings'
 
@@ -55,6 +56,7 @@ const adminNavSections: AdminNavSection[] = [
     title: 'System',
     items: [
       { to: '/categories', label: 'Categories' },
+      { to: '/referrals', label: 'Referrals', fullAdminOnly: true },
       { to: '/audit-logs', label: 'Audit logs', fullAdminOnly: true },
       { to: '/settings', label: 'Settings', fullAdminOnly: true },
     ],

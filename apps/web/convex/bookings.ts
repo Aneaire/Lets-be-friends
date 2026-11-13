@@ -95,6 +95,7 @@ export const forCompanion = query({
       return {
         ...booking,
         memberDisplayName: member?.displayName ?? 'Member',
+        memberIdentityApproved: member ? hasCurrentIdentityApproval(member) : false,
         companionDisplayName: viewer.displayName,
         companionCity: companion?.city ?? 'Unknown location',
         viewerHasReviewed: Boolean(viewerReview),

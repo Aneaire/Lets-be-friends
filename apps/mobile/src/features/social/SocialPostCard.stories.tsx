@@ -85,7 +85,7 @@ export const CompanionOwnPostOptions: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const page = within(canvasElement.ownerDocument.body)
-    await expect(canvas.queryByRole('button', { name: /Follow/ })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: /Follow/ })).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: 'Post options' }))
     await expect(await page.findByRole('button', { name: 'Edit post' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Delete post' })).toBeVisible()
@@ -111,7 +111,7 @@ export const SignedOutReadOnly: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: 'Like post' })).toHaveAttribute('aria-disabled', 'true')
     await expect(canvas.getByRole('radio', { name: /Saturday morning/ })).toHaveAttribute('aria-disabled', 'true')
-    await expect(canvas.queryByRole('button', { name: 'Post options' })).not.toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: /Follow/ })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Post options' })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /Follow/ })).toBeNull()
   },
 }

@@ -71,7 +71,7 @@ export const Open: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Close dialog' }))
-    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('dialog')).toBeNull()
   },
 }
 export const Closed: Story = { render: () => <BookingDialogStory initialVisible={false} /> }
@@ -81,7 +81,7 @@ export const DestructiveConfirmation: Story = {
     const canvas = within(canvasElement)
     const dialog = canvas.getByRole('dialog', { name: 'Cancel this booking?' })
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel booking' }))
-    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('dialog')).toBeNull()
   },
 }
 export const Busy: Story = {

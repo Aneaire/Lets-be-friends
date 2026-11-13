@@ -48,7 +48,7 @@ export function toFeedImpressionPosition(loadedIndex: number) {
   return Math.floor(loadedIndex) % 100
 }
 
-export function SocialPage({ postId, commentId }: { postId?: string; commentId?: string }) {
+export function SocialPage({ postId, commentId, compose }: { postId?: string; commentId?: string; compose?: string }) {
   const { isSignedIn } = useAuth()
   const navigate = useNavigate()
   const viewer = useQuery(api.users.viewer)
@@ -88,6 +88,28 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
   const [posting, setPosting] = useState(false)
   const [composerBody, setComposerBody] = useState('')
   const [composerMode, setComposerMode] = useState<PostComposerMode | null>(null)
+
+  // The mobile Create action deep-links here with a fresh token so the media
+  // composer opens immediately, including on a second tap after closing it.
+  useEffect(() => {
+    if (compose) setComposerMode('media')
+  }, [compose])
+
+  const closeComposer = () => {
+    setComposerMode(null)
+    if (!compose) return
+    // Drop the token so returning to Home later does not reopen the dialog.
+    void navigate({
+      to: '/social',
+      search: (previous) => {
+        const next = { ...previous }
+        delete next.compose
+        return next
+      },
+      replace: true,
+    })
+  }
+
   const mediaLimit = mediaUsage?.limit ?? 5
   const remainingUploads = mediaUsage?.remaining ?? mediaLimit
   const displayedFeedItems = useMemo(() => feedItems && requestedPost && !feedItems.some((item) => item.kind === 'post' && String(item.post._id) === String(requestedPost._id))
@@ -221,7 +243,7 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
             <div className="social-composer-body">
               <div className="social-composer-intents">
                 <strong>Share an update</strong>
-                <Link to="/nearby">Find help or company</Link>
+                <Link to="/nearby" className="social-inline-link">Find help or company</Link>
               </div>
               <MentionField
                 value={composerBody}
@@ -266,7 +288,7 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
           <PostComposerDialog
             open={composerMode !== null}
             mode={composerMode ?? 'media'}
-            onClose={() => setComposerMode(null)}
+            onClose={closeComposer}
             body={composerBody}
             onBodyChange={setComposerBody}
             authorName={viewer?.displayName ?? 'You'}
@@ -421,6 +443,12 @@ export function SocialPage({ postId, commentId }: { postId?: string; commentId?:
   )
 }
 
+function formatSessionMode(mode: string) {
+  if (mode === 'both') return 'Online and in-person'
+  if (mode === 'in_person') return 'In-person'
+  return 'Online'
+}
+
 function CompanionRecommendationCard({
   item,
   onOpen,
@@ -435,7 +463,7 @@ function CompanionRecommendationCard({
       <div className="social-reserve-head">
         <div>
           <h2 className="text-h3">{item.companion.displayName}</h2>
-          <p className="text-meta">{item.companion.mode.replace('_', ' ')} · {item.companion.rating.toFixed(1)} from {item.companion.reviewCount} reviews</p>
+          <p className="text-meta">{formatSessionMode(item.companion.mode)} · {item.companion.rating.toFixed(1)} from {item.companion.reviewCount} reviews</p>
         </div>
         <Link
           to="/companion-profile"

@@ -1,84 +1,35 @@
 import { Tabs } from 'expo-router'
-import type { ComponentProps } from 'react'
-import { Pressable, StyleSheet, type ColorValue } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { AppIcon, type AppIconName } from '@/design-system/atoms/AppIcon'
-import { useAppTheme } from '@/theme/ThemeProvider'
-import { density } from '@/theme/tokens'
-
-function TabIcon({ name, color, size }: { name: AppIconName; color: ColorValue; size: number }) {
-  return <AppIcon name={name} color={color} size={size} />
-}
+import { AppTabBar } from './AppTabBar'
+import { TabBarBlurTargetProvider } from './TabBarBlurTarget'
+import { TabBarInsetProvider, tabBarContentInset } from './tabBarLayout'
 
 export function AppTabsPresentation({ signedIn, unreadCount = 0 }: { signedIn: boolean; unreadCount?: number }) {
-  const theme = useAppTheme()
+  const insets = useSafeAreaInsets()
+  const contentInset = tabBarContentInset(insets.bottom)
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: theme.colors.social,
-        tabBarInactiveTintColor: theme.colors.textMuted,
-        tabBarHideOnKeyboard: true,
-        tabBarShowLabel: false,
-        tabBarButton: ({ style, ...props }) => <Pressable {...(props as ComponentProps<typeof Pressable>)} style={({ pressed }) => [style, pressed && styles.pressed]} />,
-        tabBarStyle: {
-          backgroundColor: theme.colors.surfaceRaised,
-          borderTopColor: theme.colors.border,
-          minHeight: density.controlHeight + 4,
-          paddingTop: 4,
-          paddingBottom: 4,
-        },
-        tabBarBadgeStyle: { backgroundColor: theme.colors.social, color: theme.colors.accentText },
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarAccessibilityLabel: 'Home tab',
-          tabBarIcon: ({ color, size, focused }) => <TabIcon name={focused ? 'home' : 'home-outline'} color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarAccessibilityLabel: 'Explore Companions tab',
-          tabBarIcon: ({ color, size, focused }) => <TabIcon name={focused ? 'compass' : 'compass-outline'} color={color} size={size} />,
-        }}
-      />
-      <Tabs.Protected guard={signedIn}>
-        <Tabs.Screen
-          name="bookings"
-          options={{
-            title: 'Bookings',
-            tabBarAccessibilityLabel: 'Bookings tab',
-            tabBarIcon: ({ color, size, focused }) => <TabIcon name={focused ? 'calendar' : 'calendar-outline'} color={color} size={size} />,
-          }}
-        />
-        <Tabs.Screen
-          name="messages"
-          options={{
-            title: 'Messages',
-            tabBarAccessibilityLabel: unreadCount ? `Messages tab, ${unreadCount} unread` : 'Messages tab',
-            tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-            tabBarIcon: ({ color, size, focused }) => <TabIcon name={focused ? 'chatbubbles' : 'chatbubbles-outline'} color={color} size={size} />,
-          }}
-        />
-      </Tabs.Protected>
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarAccessibilityLabel: 'Profile and settings tab',
-          tabBarActiveTintColor: theme.colors.self,
-          tabBarIcon: ({ color, size, focused }) => <TabIcon name={focused ? 'person-circle' : 'person-circle-outline'} color={color} size={size} />,
-        }}
-      />
-    </Tabs>
+    <TabBarBlurTargetProvider>
+      <TabBarInsetProvider value={contentInset}>
+        <Tabs
+          screenOptions={{ headerShown: false }}
+          tabBar={(props) => (
+            <AppTabBar
+              {...props}
+              showCreate={signedIn}
+              unreadCount={unreadCount}
+            />
+          )}>
+          <Tabs.Screen name="index" options={{ title: 'Home' }} />
+          <Tabs.Screen name="explore" options={{ title: 'Explore Companions' }} />
+          <Tabs.Protected guard={signedIn}>
+            <Tabs.Screen name="bookings" options={{ title: 'Bookings' }} />
+            <Tabs.Screen name="messages" options={{ title: 'Messages' }} />
+          </Tabs.Protected>
+          <Tabs.Screen name="profile" options={{ title: 'Profile and settings' }} />
+        </Tabs>
+      </TabBarInsetProvider>
+    </TabBarBlurTargetProvider>
   )
 }
-
-const styles = StyleSheet.create({
-  pressed: { opacity: 0.58 },
-})

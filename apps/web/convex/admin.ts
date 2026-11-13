@@ -5,8 +5,11 @@ import { requireViewer, writeAudit } from './lib'
 import { canAdminApproveIdentity, identityApprovalExpiresAt, identityRejectionReasonValidator, identityVerificationReasons, isIdentityAssessmentFlagged, isIdentityReadyForAdminReview, isIdentityRejectionReason, isIdentityVerificationReason } from './identityVerification'
 import { syncUserCompanionLocation } from './companionLocations'
 import { syncCompanionLocation } from './companionLocations'
-import { resolveBlockedBookingFunds as applyBlockedBookingResolution } from './finance'
+import { resolveBlockedBookingFunds as applyBlockedBookingResolution, reverseReferralRewardForBooking, reverseReferralRewardsForReferral } from './finance'
 import { createNotification } from './notifications'
+import { internal } from './_generated/api'
+import { ensureReferralProgram, getReferralProgram } from './referralProgram'
+import { referralRewardBpsFor } from '@lets-be-friends/shared'
 
 const roleOrAll = v.union(v.literal('member'), v.literal('companion'), v.literal('reviewer'), v.literal('admin'), v.literal('all'))
 const verificationStatusOrAll = v.union(v.literal('not_ready'), v.literal('pending'), v.literal('approved'), v.literal('rejected'), v.literal('not_started'), v.literal('all'))
@@ -462,8 +465,19 @@ export const setUserSuspended = mutation({
     if (!user) throw new ConvexError('User not found')
     if (args.suspended && user._id === fullAdmin._id) throw new ConvexError('Admins cannot suspend their own account')
     const note = args.suspended ? requireNote(args.note, 'Suspending a user') : normalizeNote(args.note)
-    const after = { ...user, suspended: args.suspended, updatedAt: Date.now() }
-    await ctx.db.patch(args.userId, { suspended: args.suspended, updatedAt: after.updatedAt })
+    const now = Date.now()
+    const after = { ...user, suspended: args.suspended, updatedAt: now }
+    await ctx.db.patch(args.userId, { suspended: args.suspended, updatedAt: now })
+    if (args.suspended) {
+      const rewards = await ctx.db.query('referralRewards')
+        .withIndex('by_referrer', (q) => q.eq('referrerUserId', args.userId))
+        .collect()
+      for (const reward of rewards) {
+        if (reward.status === 'pending' && !reward.reviewRequired) {
+          await ctx.db.patch(reward._id, { reviewRequired: true, updatedAt: now })
+        }
+      }
+    }
     const companion = await ctx.db.query('companionProfiles').withIndex('by_user', (q) => q.eq('userId', args.userId)).first()
     if (companion) await syncCompanionLocation(ctx, companion, after)
     await writeAudit(ctx, {
@@ -731,3 +745,347 @@ function requireMemberReason(value: string | undefined) {
 function truncate(value: string, max: number) {
   return value.length > max ? `${value.slice(0, max - 1)}...` : value
 }
+
+export const referralOverview = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await requireFullAdmin(ctx)
+    const [program, referrals, rewards, openSignals, summaries, pendingRewards] = await Promise.all([
+      getReferralProgram(ctx),
+      ctx.db.query('referrals').withIndex('by_created_at').order('desc').take(200),
+      ctx.db.query('referralRewards').withIndex('by_created_at').order('desc').take(200),
+      ctx.db.query('referralFraudSignals').withIndex('by_status_created_at', (q) => q.eq('status', 'open')).order('desc').collect(),
+      ctx.db.query('referralSummaries').collect(),
+      ctx.db.query('referralRewards').withIndex('by_status', (q) => q.eq('status', 'pending')).collect(),
+    ])
+    const heldRewards = pendingRewards.filter((reward) => reward.reviewRequired === true)
+    const openSignalByReferral = new Map(openSignals.map((signal) => [String(signal.referralId), signal]))
+    const signalContext = await Promise.all(openSignals.map(async (signal) => {
+      const rewards = await ctx.db.query('referralRewards')
+        .withIndex('by_referral', (q) => q.eq('referralId', signal.referralId))
+        .collect()
+      const reward = rewards.sort((left, right) => right.createdAt - left.createdAt)[0]
+      const booking = reward ? await ctx.db.get(reward.bookingId) : null
+      const liveRewards = rewards.filter((row) => row.status !== 'reversed')
+      return {
+        reward,
+        booking,
+        rewardsAtRisk: liveRewards.length,
+        rewardAtRiskCentavos: liveRewards.reduce((total, row) => total + row.amountCentavos, 0),
+      }
+    }))
+
+    const userIds = new Set<string>()
+    for (const referral of referrals) {
+      userIds.add(String(referral.referrerUserId))
+      userIds.add(String(referral.referredUserId))
+    }
+    for (const reward of rewards) userIds.add(String(reward.referrerUserId))
+    for (const signal of openSignals) userIds.add(String(signal.referrerUserId))
+    for (const summary of summaries) userIds.add(String(summary.referrerUserId))
+    for (const reward of heldRewards) userIds.add(String(reward.referrerUserId))
+    const users = await Promise.all([...userIds].map((id) => safeGet(ctx, id)))
+    const displayName = new Map<string, string>()
+    for (const user of users) {
+      if (user) displayName.set(String(user._id), user.displayName)
+    }
+    const rewardReferralIds = [...new Set([...rewards, ...heldRewards].map((reward) => String(reward.referralId)))]
+    const rewardReferrals = await Promise.all(rewardReferralIds.map((id) => safeGet(ctx, id)))
+    const rewardBpsByReferral = new Map<string, number>()
+    for (const referral of rewardReferrals) {
+      if (referral) rewardBpsByReferral.set(String(referral._id), referralRewardBpsFor(referral))
+    }
+
+    const referrerTotals = new Map<string, { referrals: number; earnedCentavos: number; pendingCentavos: number }>()
+    for (const summary of summaries) {
+      referrerTotals.set(String(summary.referrerUserId), {
+        referrals: summary.totalReferrals,
+        earnedCentavos: summary.totalEarnedCentavos,
+        pendingCentavos: summary.totalPendingCentavos,
+      })
+    }
+
+    return {
+      viewerUserId: String(viewer._id),
+      program,
+      totals: {
+        totalReferrals: summaries.reduce((total, summary) => total + summary.totalReferrals, 0),
+        totalRewardedBookings: summaries.reduce((total, summary) => total + summary.totalRewardedBookings, 0),
+        recentReferrals: referrals.length,
+        recentRewards: rewards.length,
+        creditedCentavos: summaries.reduce((total, summary) => total + summary.totalEarnedCentavos, 0),
+        pendingCentavos: summaries.reduce((total, summary) => total + summary.totalPendingCentavos, 0),
+        reversedCentavos: summaries.reduce((total, summary) => total + summary.totalReversedCentavos, 0),
+        openSignals: openSignals.length,
+      },
+      topReferrers: [...referrerTotals.entries()]
+        .map(([userId, totals]) => ({ userId, displayName: displayName.get(userId) ?? 'Member', ...totals }))
+        .sort((left, right) => right.earnedCentavos - left.earnedCentavos || right.referrals - left.referrals)
+        .slice(0, 5),
+      recentReferrals: referrals.slice(0, 20).map((referral) => ({
+        _id: referral._id,
+        referrerDisplayName: displayName.get(String(referral.referrerUserId)) ?? 'Member',
+        referredDisplayName: displayName.get(String(referral.referredUserId)) ?? 'Friend',
+        status: referral.status,
+        rewardedBookings: referral.rewardedBookings,
+        termsVersion: referral.termsVersion ?? 'legacy_68_3',
+        createdAt: referral.createdAt,
+      })),
+      recentRewards: rewards.slice(0, 20).map((reward) => ({
+        _id: reward._id,
+        referralId: reward.referralId,
+        bookingId: reward.bookingId,
+        referrerUserId: String(reward.referrerUserId),
+        referrerDisplayName: displayName.get(String(reward.referrerUserId)) ?? 'Member',
+        referredDisplayName: displayName.get(String(reward.referredUserId)) ?? 'Friend',
+        kind: reward.kind ?? 'lifetime',
+        amountCentavos: reward.amountCentavos,
+        rewardBps: reward.rewardBps ?? rewardBpsByReferral.get(String(reward.referralId)) ?? null,
+        status: reward.status,
+        reviewRequired: reward.reviewRequired === true,
+        createdAt: reward.createdAt,
+      })),
+      heldRewards: heldRewards
+        .map((reward) => ({
+          _id: reward._id,
+          referralId: reward.referralId,
+          bookingId: reward.bookingId,
+          referrerUserId: String(reward.referrerUserId),
+          referrerDisplayName: displayName.get(String(reward.referrerUserId)) ?? 'Member',
+          referredDisplayName: displayName.get(String(reward.referredUserId)) ?? 'Friend',
+          kind: reward.kind ?? 'lifetime',
+          amountCentavos: reward.amountCentavos,
+          rewardBps: reward.rewardBps ?? rewardBpsByReferral.get(String(reward.referralId)) ?? null,
+          releaseEligibleAt: reward.releaseEligibleAt ?? null,
+          holdSignal: openSignalByReferral.get(String(reward.referralId))?.signal ?? null,
+          createdAt: reward.createdAt,
+        })),
+      openSignals: openSignals.map((signal, index) => ({
+        _id: signal._id,
+        referrerUserId: String(signal.referrerUserId),
+        referrerDisplayName: displayName.get(String(signal.referrerUserId)) ?? 'Member',
+        referredDisplayName: displayName.get(String(signal.referredUserId)) ?? 'Friend',
+        signal: signal.signal,
+        note: signal.note ?? null,
+        rewardAmountCentavos: signalContext[index].reward?.amountCentavos ?? null,
+        rewardsAtRisk: signalContext[index].rewardsAtRisk,
+        rewardAtRiskCentavos: signalContext[index].rewardAtRiskCentavos,
+        bookingId: signalContext[index].booking?._id ?? null,
+        bookingRequestedAt: signalContext[index].booking?.requestedAt ?? null,
+        bookingSubtotalCentavos: signalContext[index].booking?.serviceSubtotalCentavos ?? signalContext[index].booking?.grossPriceCentavos ?? null,
+        bookingMemberTotalCentavos: signalContext[index].booking?.memberTotalCentavos ?? null,
+        createdAt: signal.createdAt,
+      })),
+    }
+  },
+})
+
+export const heldReferralRewards = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireFullAdmin(ctx)
+    const rewards = await ctx.db.query('referralRewards')
+      .withIndex('by_status', (q) => q.eq('status', 'pending'))
+      .collect()
+    const held = rewards.filter((reward) => reward.reviewRequired === true)
+    const userIds = [...new Set(held.flatMap((reward) => [String(reward.referrerUserId), String(reward.referredUserId)]))]
+    const users = await Promise.all(userIds.map((id) => safeGet(ctx, id)))
+    const names = new Map(users.filter(Boolean).map((user) => [String(user!._id), user!.displayName]))
+    const referralIds = [...new Set(held.map((reward) => String(reward.referralId)))]
+    const referrals = await Promise.all(referralIds.map((id) => safeGet(ctx, id)))
+    const rewardBpsByReferral = new Map<string, number>()
+    for (const referral of referrals) {
+      if (referral) rewardBpsByReferral.set(String(referral._id), referralRewardBpsFor(referral))
+    }
+    return held.map((reward) => ({
+      _id: reward._id,
+      referralId: reward.referralId,
+      bookingId: reward.bookingId,
+      referrerDisplayName: names.get(String(reward.referrerUserId)) ?? 'Member',
+      referredDisplayName: names.get(String(reward.referredUserId)) ?? 'Friend',
+      kind: reward.kind ?? 'lifetime',
+      amountCentavos: reward.amountCentavos,
+      rewardBps: reward.rewardBps ?? rewardBpsByReferral.get(String(reward.referralId)) ?? null,
+      releaseEligibleAt: reward.releaseEligibleAt ?? null,
+      createdAt: reward.createdAt,
+    }))
+  },
+})
+
+export const setReferralProgramActive = mutation({
+  args: {
+    active: v.boolean(),
+    launchBonusActive: v.optional(v.boolean()),
+    launchBonusCentavos: v.optional(v.number()),
+    launchBonusMaxClaims: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const admin = await requireFullAdmin(ctx)
+    if (args.launchBonusCentavos !== undefined && (!Number.isSafeInteger(args.launchBonusCentavos) || args.launchBonusCentavos < 0)) {
+      throw new ConvexError('Launch bonus must be a nonnegative whole number of centavos')
+    }
+    if (args.launchBonusMaxClaims !== undefined && (!Number.isSafeInteger(args.launchBonusMaxClaims) || args.launchBonusMaxClaims < 0)) {
+      throw new ConvexError('Launch bonus claim cap must be a nonnegative whole number')
+    }
+    const now = Date.now()
+    const row = await ensureReferralProgram(ctx, now, admin._id)
+    const launchBonusCentavos = args.launchBonusCentavos ?? row.launchBonusCentavos
+    const launchBonusMaxClaims = args.launchBonusMaxClaims ?? row.launchBonusMaxClaims
+    const launchBonusActive = args.launchBonusActive ?? row.launchBonusActive
+    await ctx.db.patch(row._id, {
+      active: args.active,
+      launchBonusActive: launchBonusActive && launchBonusCentavos > 0 && row.launchBonusClaims < launchBonusMaxClaims,
+      launchBonusCentavos,
+      launchBonusMaxClaims,
+      pausedAt: args.active ? undefined : now,
+      updatedByUserId: admin._id,
+      updatedAt: now,
+    })
+    await writeAudit(ctx, {
+      actorUserId: admin._id,
+      action: 'referral.program_updated',
+      targetType: 'referralProgram',
+      targetId: String(row._id),
+      after: { active: args.active, launchBonusActive, launchBonusCentavos, launchBonusMaxClaims },
+    })
+    return { active: args.active, launchBonusActive, launchBonusCentavos, launchBonusMaxClaims }
+  },
+})
+
+export const resolveReferralFraudSignal = mutation({
+  args: {
+    signalId: v.id('referralFraudSignals'),
+    decision: v.union(v.literal('legitimate'), v.literal('fraud')),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const admin = await requireFullAdmin(ctx)
+    const signal = await ctx.db.get(args.signalId)
+    if (!signal) throw new ConvexError('Referral signal not found')
+    if (String(signal.referrerUserId) === String(admin._id)) {
+      throw new ConvexError('Another admin must resolve a referral signal for your own account')
+    }
+    if (signal.status !== 'open') return { status: signal.status, decision: args.decision }
+    const now = Date.now()
+    const note = normalizeNote(args.note) ?? signal.note
+    let releasedCount = 0
+    let reversedCentavos = 0
+
+    await ctx.db.patch(args.signalId, {
+      status: 'reviewed',
+      reviewedByUserId: admin._id,
+      reviewedAt: now,
+      note,
+    })
+
+    if (args.decision === 'fraud') {
+      const result = await reverseReferralRewardsForReferral(ctx, signal.referralId, now)
+      reversedCentavos = result.amountCentavos ?? 0
+      const referral = await ctx.db.get(signal.referralId)
+      if (referral) {
+        await ctx.db.patch(referral._id, { status: 'reversed', updatedAt: now })
+      }
+    } else {
+      const stillOpen = await ctx.db.query('referralFraudSignals')
+        .withIndex('by_referral', (q) => q.eq('referralId', signal.referralId))
+        .collect()
+      if (stillOpen.some((row) => row.status === 'open')) {
+        await writeAudit(ctx, {
+          actorUserId: admin._id,
+          action: 'referral.signal_legitimate_blocked',
+          targetType: 'referralFraudSignal',
+          targetId: String(args.signalId),
+          after: { remainingSignals: stillOpen.filter((row) => row.status === 'open').length },
+        })
+        return {
+          status: 'reviewed',
+          decision: args.decision,
+          releasedCount,
+          reversedCentavos,
+          blockedByOpenSignals: true,
+        }
+      }
+      const referrer = await ctx.db.get(signal.referrerUserId)
+      if (!referrer || referrer.suspended) {
+        throw new ConvexError('The referrer is suspended or missing. The reward remains held.')
+      }
+      const rewards = await ctx.db.query('referralRewards')
+        .withIndex('by_referral', (q) => q.eq('referralId', signal.referralId))
+        .collect()
+      for (const reward of rewards) {
+        if (reward.status !== 'pending' || !reward.reviewRequired) continue
+        await ctx.db.patch(reward._id, { reviewRequired: undefined, updatedAt: now })
+        const delay = Math.max(0, (reward.releaseEligibleAt ?? now) - now)
+        await ctx.scheduler.runAfter(delay, internal.finance.releaseReferralReward, { rewardId: reward._id })
+        releasedCount += 1
+      }
+    }
+
+    await writeAudit(ctx, {
+      actorUserId: admin._id,
+      action: `referral.signal_${args.decision}`,
+      targetType: 'referralFraudSignal',
+      targetId: String(args.signalId),
+      after: { releasedCount, reversedCentavos },
+    })
+    return { status: 'reviewed', decision: args.decision, releasedCount, reversedCentavos, blockedByOpenSignals: false }
+  },
+})
+
+export const clearReferralRewardReview = mutation({
+  args: { rewardId: v.id('referralRewards') },
+  handler: async (ctx, args) => {
+    const admin = await requireFullAdmin(ctx)
+    const reward = await ctx.db.get(args.rewardId)
+    if (!reward) throw new ConvexError('Referral reward not found')
+    if (String(reward.referrerUserId) === String(admin._id)) {
+      throw new ConvexError('Another admin must release a referral reward for your own account')
+    }
+    if (reward.status !== 'pending') return { released: false, status: reward.status, blockedByOpenSignals: false }
+    const openSignals = await ctx.db.query('referralFraudSignals')
+      .withIndex('by_referral', (q) => q.eq('referralId', reward.referralId))
+      .collect()
+    if (openSignals.some((signal) => signal.status === 'open')) {
+      throw new ConvexError('Resolve the open referral signals before releasing this reward')
+    }
+    const referrer = await ctx.db.get(reward.referrerUserId)
+    if (!referrer || referrer.suspended) {
+      throw new ConvexError('The referrer is suspended or missing. The reward remains held.')
+    }
+    const now = Date.now()
+    await ctx.db.patch(args.rewardId, { reviewRequired: undefined, updatedAt: now })
+    const delay = Math.max(0, (reward.releaseEligibleAt ?? now) - now)
+    await ctx.scheduler.runAfter(delay, internal.finance.releaseReferralReward, { rewardId: args.rewardId })
+    await writeAudit(ctx, {
+      actorUserId: admin._id,
+      action: 'referral.reward_review_cleared',
+      targetType: 'referralReward',
+      targetId: String(args.rewardId),
+    })
+    return { released: true, status: 'pending', blockedByOpenSignals: false }
+  },
+})
+
+export const reverseReferralForBooking = mutation({
+  args: { bookingId: v.id('bookings'), reason: v.string() },
+  handler: async (ctx, args) => {
+    const admin = await requireFullAdmin(ctx)
+    const reason = requireNote(args.reason, 'Reversing a referral credit')
+    const bookingRewards = await ctx.db.query('referralRewards')
+      .withIndex('by_booking', (q) => q.eq('bookingId', args.bookingId))
+      .collect()
+    if (bookingRewards.some((reward) => String(reward.referrerUserId) === String(admin._id))) {
+      throw new ConvexError('Another admin must reverse a referral reward for your own account')
+    }
+    const result = await reverseReferralRewardForBooking(ctx, args.bookingId)
+    await writeAudit(ctx, {
+      actorUserId: admin._id,
+      action: 'referral.credit_reversed_by_admin',
+      targetType: 'booking',
+      targetId: String(args.bookingId),
+      note: reason,
+      after: { amountCentavos: result.amountCentavos ?? 0 },
+    })
+    return result
+  },
+})

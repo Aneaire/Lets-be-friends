@@ -25,7 +25,7 @@ export function Header() {
     <header className="app-header">
       <div className="app-header-inner">
         <Link to="/" className="brand-link" aria-label="Let's Be Friends home">
-          <BrandLogo className="h-8 w-7" />
+          <BrandLogo className="brand-logo-mark" />
           <span>Let&apos;s Be Friends</span>
         </Link>
 
@@ -71,7 +71,7 @@ export function Footer() {
     <footer className="app-footer">
       <div className="app-footer-inner">
         <div className="flex items-center gap-2">
-          <BrandLogo className="h-6 w-5" />
+          <BrandLogo className="brand-logo-mark brand-logo-mark-sm" />
           <span>Let&apos;s Be Friends</span>
           <span className="trust-chip" data-state="awaiting" aria-hidden="true">
             <span className="trust-chip-dot" />

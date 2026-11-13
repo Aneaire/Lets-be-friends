@@ -143,7 +143,7 @@ describe('booking dialog modal frame', () => {
   it('keeps the dialog open and the send button disabled until a future start is chosen', () => {
     renderDialog()
 
-    expect(screen.getByRole('dialog', { name: 'Book with Dana' })).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'Send booking' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole('dialog', { name: /Book with Dana/ })).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Send request' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

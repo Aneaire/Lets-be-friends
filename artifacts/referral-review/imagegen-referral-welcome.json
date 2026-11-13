@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "requested_by": "opencode",
+  "mode": "generate",
+  "use_case": "landing-page-hero",
+  "asset_type": "referral landing page hero image",
+  "primary_request": "Editorial documentary photograph of three Filipino friends in their late twenties meeting at a sunlit neighborhood community space. One friend is warmly welcoming a newcomer into the group with an open gesture toward an empty seat. Everyone is relaxed, mid-conversation, genuinely smiling, with natural body language. A small wooden table holds coffee cups and a simple board game, surrounded by plants and warm daylight. The feeling is belonging, everyday friendship, and a new connection starting.",
+  "input_images": [
+    {
+      "path": "apps/web/public/images/marketing/market-friends.webp",
+      "role": "style"
+    }
+  ],
+  "text_verbatim": "",
+  "constraints": "Candid editorial lifestyle photography; natural window light; soft film grain; realistic skin texture; authentic Filipino features; warm neutral tones; shallow depth of field; vertical 4:5 portrait; subjects in the upper two thirds with a calmer lower third for a caption overlay; hands visible and anatomically correct; no cropped heads",
+  "avoid": "no text; no logos; no watermark; no phone screens or app UI; no romantic framing; no luxury or corporate styling; no stiff posed smiles; no extra limbs; no plastic skin; no studio backdrop",
+  "output_path": "apps/web/public/images/marketing/referral-welcome-friends.png"
+}

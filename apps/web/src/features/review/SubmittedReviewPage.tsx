@@ -51,12 +51,14 @@ export function SubmittedReviewPage({ reviewId }: { reviewId?: string }) {
   }
 
   return (
+    <ReviewShell>
     <SubmittedReviewView
       review={review}
       onLike={() => toggleLike({ reviewId: review._id })}
       onCreateComment={(body) => createComment({ reviewId: review._id, body })}
       onDeleteComment={(commentId) => deleteComment({ commentId: commentId as Id<'reviewComments'> })}
     />
+    </ReviewShell>
   )
 }
 
@@ -65,6 +67,7 @@ function ReviewShell({ children }: { children: ReactNode }) {
     <main className="review-page">
       <header className="review-page-header">
         <Link to="/app" className="member-profile-back"><ArrowLeft size={15} aria-hidden="true" />Back to bookings</Link>
+        <h1 className="text-h1">Reviews</h1>
       </header>
       {children}
     </main>

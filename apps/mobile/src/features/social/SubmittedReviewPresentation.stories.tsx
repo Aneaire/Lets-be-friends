@@ -46,7 +46,7 @@ export const PrivateMemberReview: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Experience with Jordan Member')).toBeVisible()
     await expect(canvas.getByText('This private Companion-to-member review cannot be shared publicly.')).toBeVisible()
-    await expect(canvas.queryByRole('button', { name: 'Share post' })).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: 'Share post' })).toBeNull()
   },
 }
 
