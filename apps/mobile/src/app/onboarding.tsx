@@ -146,11 +146,11 @@ function ConnectedOnboarding({
   const [locating, setLocating] = useState(false)
   const [locationMessage, setLocationMessage] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [referralAction, setReferralAction] = useState<'add' | 'dismiss' | null>(null)
+  const [referralAction, setReferralAction] = useState<'add' | null>(null)
   const [referralError, setReferralError] = useState('')
   const [referralNotice, setReferralNotice] = useState('')
   const [pendingReferralCode, setPendingReferralCode] = useState('')
-  const [pendingReferralFocus, setPendingReferralFocus] = useState<'added' | 'dismissed' | null>(null)
+  const [pendingReferralFocus, setPendingReferralFocus] = useState<'added' | null>(null)
   const usernameRef = useRef<TextInput>(null)
   const usernameHeadingRef = useRef<View>(null)
   const referralToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -180,8 +180,8 @@ function ConnectedOnboarding({
   const submitApplication = useMutation(mobileApi.companions.submitApplication)
   const referral = useQuery(mobileApi.referrals.myReferral, {})
   const attributeReferral = useMutation(mobileApi.referrals.attributeReferral)
-  const dismissReferralPrompt = useMutation(mobileApi.referrals.dismissReferralPrompt)
-  const showReferralPrompt = Boolean(referral && referral.programActive && !referral.referredBy && !referral.promptDismissedAt)
+  const [referralHidden, setReferralHidden] = useState(false)
+  const showReferralPrompt = Boolean(referral && referral.programActive && !referral.referredBy && !referral.promptDismissedAt && !referralHidden)
   const [applicationForm, setApplicationForm] = useState<CompanionApplicationForm>(() => (
     defaultOnboardingCompanionForm({ bio: viewer.bio, categories: viewer.onboardingCategories })
   ))
@@ -254,7 +254,6 @@ function ConnectedOnboarding({
 
   useEffect(() => {
     if (step !== 0 || showReferralPrompt || !pendingReferralFocus) return
-    const action = pendingReferralFocus
     setPendingReferralFocus(null)
     if (!viewer.username) {
       usernameRef.current?.focus()
@@ -262,14 +261,10 @@ function ConnectedOnboarding({
       const handle = findNodeHandle(usernameHeadingRef.current)
       if (handle) AccessibilityInfo.setAccessibilityFocus(handle)
     }
-    if (action === 'dismissed') {
-      AccessibilityInfo.announceForAccessibility('Referral prompt dismissed. Continue with your welcome guide.')
-    } else {
-      referralToastTimer.current = setTimeout(() => {
-        showAppToast('Referral code added. Your friend earns 5% of the booking subtotal on every completed booking, for life.', 'success')
-        referralToastTimer.current = null
-      }, 300)
-    }
+    referralToastTimer.current = setTimeout(() => {
+      showAppToast('Referral code added. Your friend earns 5% of the booking subtotal on every completed booking, for life.', 'success')
+      referralToastTimer.current = null
+    }, 300)
   }, [pendingReferralFocus, showReferralPrompt, step, viewer.username])
 
   useEffect(() => () => {
@@ -295,18 +290,10 @@ function ConnectedOnboarding({
     }
   }
 
-  async function skipReferralPrompt() {
-    if (referralAction) return
-    setReferralAction('dismiss')
+  function skipReferralPrompt() {
+    setReferralHidden(true)
     setReferralError('')
-    try {
-      await dismissReferralPrompt({})
-      if (stepRef.current === 0) setPendingReferralFocus('dismissed')
-    } catch {
-      setReferralError('We could not dismiss this prompt. Try again, or add a code.')
-    } finally {
-      setReferralAction(null)
-    }
+    AccessibilityInfo.announceForAccessibility('Referral prompt hidden. You can continue with your welcome guide.')
   }
 
   async function requestApproximateLocation() {
@@ -546,15 +533,14 @@ function ConnectedOnboarding({
             If this username is yours, sign out below and use the Google account that originally claimed it.
           </AppText>
         )}
-        {referral && referral.programActive && !referral.referredBy && !referral.promptDismissedAt ? (
+        {showReferralPrompt ? (
           <ReferralCodeCard
             busy={referralAction === 'add'}
-            dismissing={referralAction === 'dismiss'}
             error={referralError}
             notice={referralNotice}
             initialCode={pendingReferralCode}
             onSubmit={(code) => void submitReferralCode(code)}
-            onSkip={() => void skipReferralPrompt()}
+            onSkip={skipReferralPrompt}
             onEdit={() => setReferralError('')}
           />
         ) : null}

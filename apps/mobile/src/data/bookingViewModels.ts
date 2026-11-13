@@ -47,17 +47,19 @@ export function parseManilaBookingInput(
   return { ok: true, requestedAt, durationMinutes }
 }
 
-export const bookingStatusPresentation: Record<BookingStatus, { label: string; explanation: string }> = {
-  draft: { label: 'Draft', explanation: 'This request has not been sent.' },
-  verification_required: { label: 'Verification required', explanation: 'Identity approval is needed before this request can continue.' },
-  pending_admin_review: { label: 'Safety review', explanation: 'This request is waiting for a safety review.' },
-  request_sent: { label: 'Request sent', explanation: 'The Companion can review this request.' },
-  accepted: { label: 'Accepted', explanation: 'The booking is confirmed.' },
-  declined: { label: 'Declined', explanation: 'The Companion declined this request.' },
-  cancelled: { label: 'Cancelled', explanation: 'This booking was cancelled.' },
-  completed: { label: 'Completed', explanation: 'The session was completed.' },
-  review_window: { label: 'Completed', explanation: 'The session was completed.' },
-  closed: { label: 'Closed', explanation: 'This booking is closed.' },
+export type BookingStatusTone = 'neutral' | 'self' | 'social' | 'success' | 'warning' | 'danger'
+
+export const bookingStatusPresentation: Record<BookingStatus, { label: string; explanation: string; tone: BookingStatusTone }> = {
+  draft: { label: 'Draft', explanation: 'This request has not been sent.', tone: 'neutral' },
+  verification_required: { label: 'Verification required', explanation: 'Identity approval is needed before this request can continue.', tone: 'warning' },
+  pending_admin_review: { label: 'Safety review', explanation: 'This request is waiting for a safety review.', tone: 'warning' },
+  request_sent: { label: 'Request sent', explanation: 'The Companion can review this request.', tone: 'social' },
+  accepted: { label: 'Accepted', explanation: 'The booking is confirmed.', tone: 'success' },
+  declined: { label: 'Declined', explanation: 'The Companion declined this request.', tone: 'danger' },
+  cancelled: { label: 'Cancelled', explanation: 'This booking was cancelled.', tone: 'danger' },
+  completed: { label: 'Completed', explanation: 'The session was completed.', tone: 'success' },
+  review_window: { label: 'Review window open', explanation: 'Both people confirmed. The review window is open.', tone: 'social' },
+  closed: { label: 'Closed', explanation: 'This booking is closed.', tone: 'neutral' },
 }
 
 export function bookingActions(
@@ -90,7 +92,7 @@ export function bookingActions(
 }
 
 export function formatBookingSchedule(timestamp: number) {
-  return new Intl.DateTimeFormat('en-PH', {
+  const formatted = new Intl.DateTimeFormat('en-PH', {
     timeZone: 'Asia/Manila',
     weekday: 'short',
     month: 'short',
@@ -99,6 +101,7 @@ export function formatBookingSchedule(timestamp: number) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(timestamp)
+  return `${formatted} PHT`
 }
 
 export function formatDuration(minutes: number) {

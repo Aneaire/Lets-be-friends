@@ -32,20 +32,24 @@ function ReadyCompanionBookingsScreen() {
   if (application === undefined || bookings === undefined) return <PageSkeleton variant="bookings" />
   if (!application) return <CompanionBookingsState title="Create a Companion profile first" detail="Incoming booking requests appear after you have a Companion profile." action="Open Companion tools" onPress={() => router.replace('/companion')} />
 
-  const active = bookings.filter((booking) => ['request_sent', 'accepted', 'verification_required', 'pending_admin_review'].includes(booking.status))
-  const history = bookings.filter((booking) => !active.includes(booking))
+  const requests = bookings.filter((booking) => booking.status === 'request_sent')
+  const active = bookings.filter((booking) => ['accepted', 'verification_required', 'pending_admin_review'].includes(booking.status))
+  const history = bookings.filter((booking) => !requests.includes(booking) && !active.includes(booking))
 
   return (
     <Screen contentStyle={styles.content}>
       <AppHeader title="Incoming bookings" back onBack={() => router.canGoBack() ? router.back() : router.replace('/profile')} />
-      <AppText color={theme.colors.textMuted}>{active.length} active {active.length === 1 ? 'booking' : 'bookings'} for your Companion profile.</AppText>
-      {active.length === 0 ? (
+      <AppText color={theme.colors.textMuted}>{requests.length} {requests.length === 1 ? 'request' : 'requests'} and {active.length} active {active.length === 1 ? 'booking' : 'bookings'} for your Companion profile.</AppText>
+      {requests.length ? (
+        <BookingSection label="Requests for you" bookings={requests} />
+      ) : (
         <StateView
           embedded
           title="No one is waiting on you"
           detail="New booking requests from members will appear here."
         />
-      ) : <BookingSection label="Active" bookings={active} />}
+      )}
+      {active.length ? <BookingSection label="Active" bookings={active} /> : null}
       {history.length > 0 ? <BookingSection label="History" bookings={history} /> : null}
       <ActionButton label="Companion profile and status" onPress={() => router.push('/companion')} intent="self" secondary />
       <ActionButton label="Return to Profile" onPress={() => router.replace('/profile')} intent="self" secondary />
@@ -75,6 +79,9 @@ function CompanionBookingRow({ booking }: { booking: CompanionBooking }) {
         durationMinutes: booking.durationMinutes,
         status: booking.status,
         memberTotalCentavos: booking.memberTotalCentavos,
+        companionEarningsCentavos: booking.companionEarningsCentavos,
+        viewerIsRequester: false,
+        viewerCompletedAt: booking.companionCompletedAt,
       }}
       onPress={() => router.push({ pathname: '/companion-booking/[id]', params: { id: String(booking._id) } })}
     />

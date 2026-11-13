@@ -29,6 +29,8 @@ describe('booking input and view models', () => {
       now,
     })).toEqual({ canCancel: true, canComplete: true, completionPending: false })
     expect(bookingActions('closed')).toEqual({ canCancel: false, canComplete: false, completionPending: false })
-    expect(bookingStatusPresentation.review_window.label).toBe('Completed')
+    expect(bookingStatusPresentation.review_window.label).toBe('Review window open')
+    expect(bookingStatusPresentation.accepted.tone).toBe('success')
+    expect(bookingStatusPresentation.declined.tone).toBe('danger')
   })
 })

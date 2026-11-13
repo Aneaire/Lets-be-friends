@@ -24,7 +24,7 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText(/Have a friend's code/)).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'Dismiss' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Not now' })).toBeVisible()
   },
 }
 

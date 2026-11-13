@@ -103,8 +103,16 @@ function BookingsList({
     active: filterMemberBookings(memberBookings as never, 'active'),
     past: filterMemberBookings(memberBookings as never, 'past'),
   }), [memberBookings])
+  const companionRequests = useMemo(
+    () => combined.filter((booking) => booking.perspective === 'companion' && booking.status === 'request_sent'),
+    [combined],
+  )
   const companionActive = useMemo(
-    () => combined.filter((booking) => booking.perspective === 'companion'),
+    () => combined.filter((booking) => booking.perspective === 'companion' && ['accepted', 'verification_required', 'pending_admin_review'].includes(booking.status)),
+    [combined],
+  )
+  const companionPast = useMemo(
+    () => combined.filter((booking) => booking.perspective === 'companion' && !['request_sent', 'accepted', 'verification_required', 'pending_admin_review'].includes(booking.status)),
     [combined],
   )
   const visible = grouped[filter]
@@ -124,6 +132,9 @@ function BookingsList({
           durationMinutes: record.durationMinutes,
           status: booking.status as MemberBooking['status'],
           memberTotalCentavos: record.memberTotalCentavos,
+          companionEarningsCentavos: record.companionEarningsCentavos,
+          viewerIsRequester: booking.perspective !== 'companion',
+          viewerCompletedAt: booking.perspective === 'companion' ? record.companionCompletedAt : undefined,
         }}
         onPress={() => router.push(route as never)}
       />
@@ -133,6 +144,19 @@ function BookingsList({
   return (
     <Screen contentStyle={styles.content}>
       <BookingsHeader wallet={wallet} onOpenWallet={() => router.push(BOOKINGS_WALLET_ROUTE as never)} />
+      {companionRequests.length ? (
+        <View style={[styles.companionSection, { borderColor: theme.colors.border }]}>
+          <AppText variant="heading">Requests for you</AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>
+            {companionRequests.length} waiting. Answer these first so the other member knows whether to keep the time.
+          </AppText>
+          <View style={styles.list}>
+            {companionRequests.map((booking) => (
+              <View key={`companion-request-${String(booking._id)}`}>{renderBooking(booking)}</View>
+            ))}
+          </View>
+        </View>
+      ) : null}
       <SegmentedControl
         label="Booking view"
         value={view}
@@ -171,10 +195,10 @@ function BookingsList({
             />
           )}
           <View style={styles.companionSection}>
-            <AppText variant="heading">Bookings as Companion</AppText>
+            <AppText variant="heading">Active Companion bookings</AppText>
             <AppText variant="caption" color={theme.colors.textMuted}>
               {companionActive.length === 0
-                ? 'Incoming Companion requests appear here without leaving this calendar.'
+                ? 'Accepted and completed Companion bookings appear here.'
                 : `${companionActive.length} ${companionActive.length === 1 ? 'booking' : 'bookings'} for your Companion profile.`}
             </AppText>
             {companionActive.length ? (
@@ -185,6 +209,16 @@ function BookingsList({
               </View>
             ) : null}
           </View>
+          {companionPast.length ? (
+            <View style={styles.companionSection}>
+              <AppText variant="heading">Companion booking history</AppText>
+              <View style={styles.list}>
+                {companionPast.map((booking) => (
+                  <View key={`companion-past-${String(booking._id)}`}>{renderBooking(booking)}</View>
+                ))}
+              </View>
+            </View>
+          ) : null}
         </>
       )}
       <View style={[styles.transactions, { borderTopColor: theme.colors.border }]}>

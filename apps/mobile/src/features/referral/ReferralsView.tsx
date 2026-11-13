@@ -16,6 +16,7 @@ export type MobileReferralData = {
   totalRewardedBookings: number
   totalEarnedCentavos: number
   totalPendingCentavos: number
+  referralCreditAvailableCentavos?: number
   totalReversedCentavos: number
   referralDebtCentavos: number
   canAddReferralCode: boolean
@@ -24,6 +25,10 @@ export type MobileReferralData = {
     code: string
     rewardedBookings: number
   } | null
+}
+
+export function referralAvailableCentavos(referral: Pick<MobileReferralData, 'totalEarnedCentavos' | 'referralCreditAvailableCentavos'>) {
+  return referral.referralCreditAvailableCentavos ?? referral.totalEarnedCentavos
 }
 
 export type MobileReferralRewardItem = {
@@ -75,6 +80,8 @@ export function ReferralsView({
   onOpenTerms?: () => void
 }) {
   const theme = useAppTheme()
+  const availableCentavos = referralAvailableCentavos(referral)
+  const hasHeldRewards = rewardItems.some((reward) => reward.status === 'pending' && reward.reviewRequired)
 
   const header = (
     <View style={styles.header}>
@@ -113,6 +120,9 @@ export function ReferralsView({
             A friend counts after they add your code, not just after they open the link.
           </AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
+            Your friend must add your code within 30 days of joining and before their first booking.
+          </AppText>
+          <AppText variant="caption" color={theme.colors.textMuted}>
             Your code: <AppText variant="bodyStrong" color={theme.colors.text}>{referral.code}</AppText>
           </AppText>
         </View>
@@ -121,9 +131,18 @@ export function ReferralsView({
       <View style={styles.metrics}>
         <Metric label="Friends joined" value={String(referral.totalReferrals)} />
         <Metric label="Rewarded bookings" value={String(referral.totalRewardedBookings)} />
-        <Metric label="Referral credit earned" value={formatPhp(referral.totalEarnedCentavos)} />
+        <Metric label="Referral credit available" value={formatPhp(availableCentavos)} />
+        <Metric label="Lifetime credited" value={formatPhp(referral.totalEarnedCentavos)} />
         {referral.totalPendingCentavos > 0 ? (
-          <Metric label="Pending release" value={formatPhp(referral.totalPendingCentavos)} />
+          <Metric
+            label={hasHeldRewards ? 'Pending release or under review' : 'Pending release'}
+            value={formatPhp(referral.totalPendingCentavos)}
+          />
+        ) : null}
+        {hasHeldRewards ? (
+          <AppText variant="caption" color={theme.colors.textMuted}>
+            Held credit waits for a review. Other credit releases after the 14-day hold.
+          </AppText>
         ) : null}
         {referral.referralDebtCentavos > 0 ? (
           <AppText variant="caption" color={theme.colors.textMuted}>
@@ -164,13 +183,16 @@ export function ReferralsView({
               <View style={styles.rewardCopy}>
                 <AppText variant="bodyStrong">{reward.referredDisplayName}</AppText>
                 <AppText variant="caption" color={theme.colors.textMuted}>
-                  {referralRewardLabel(reward.kind as 'lifetime' | 'launch_bonus' | undefined, reward.rewardBps)} · {new Date(reward.createdAt).toLocaleDateString()}
+                  {referralRewardLabel(reward.kind as 'lifetime' | 'launch_bonus' | undefined, reward.rewardBps)} · {formatRewardDate(reward.createdAt)}
+                </AppText>
+                <AppText variant="caption" color={theme.colors.textMuted}>
+                  Booking {reward.bookingId.slice(-6).toUpperCase()}
                 </AppText>
               </View>
               <View style={styles.rewardAmount}>
                 <AppText variant="bodyStrong">{formatPhp(reward.amountCentavos)}</AppText>
                 <AppText variant="caption" color={reward.status === 'reversed' ? theme.colors.danger : theme.colors.textMuted}>
-                  {reward.status === 'credited' ? 'available' : reward.status === 'pending' ? reward.reviewRequired ? 'under review' : 'pending release' : 'reversed'}
+                  {reward.status === 'credited' ? 'Available' : reward.status === 'pending' ? reward.reviewRequired ? 'Under review' : 'Pending release' : 'Reversed'}
                 </AppText>
               </View>
             </View>
@@ -185,7 +207,7 @@ export function ReferralsView({
         <ActionButton label="Referral terms" onPress={onOpenTerms} intent="neutral" secondary />
       ) : null}
       <AppText variant="caption" color={theme.colors.textMuted}>
-        You earn 5% of the booking subtotal on every completed booking your friend makes, for life. Credit releases after a 14-day hold. Example: a ₱700 booking subtotal earns ₱35.
+        You earn 5% of the booking subtotal on every completed booking your friend makes, for life. Credit releases after a 14-day hold. Example: a ₱700 booking subtotal earns ₱35. The 5% applies to the booking subtotal, not the member total including the service fee.
       </AppText>
     </View>
   )
@@ -212,6 +234,15 @@ export function ReferralsView({
       />
     </Screen>
   )
+}
+
+function formatRewardDate(timestamp: number) {
+  return new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(timestamp)
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

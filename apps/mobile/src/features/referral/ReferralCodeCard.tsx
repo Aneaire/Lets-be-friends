@@ -61,6 +61,9 @@ export function ReferralCodeCard({
         <AppText variant="caption" color={theme.colors.textMuted}>
           Add it within 30 days of joining and before your first booking. This prompt won't appear again.
         </AppText>
+        <AppText variant="caption" color={theme.colors.textMuted}>
+          Your friend earns 5% of the booking subtotal. You pay the normal price.
+        </AppText>
       </View>
       {displayError ? (
         <AppText accessibilityRole="alert" color={theme.colors.danger}>{displayError}</AppText>
@@ -103,12 +106,12 @@ export function ReferralCodeCard({
         disabled={!code.trim() || dismissing}
       />
       <ActionButton
-        label="Dismiss"
+        label="Not now"
         onPress={onSkip}
         intent="neutral"
         secondary
         loading={dismissing}
-        loadingLabel="Dismissing..."
+        loadingLabel="Hiding..."
         disabled={busy}
       />
     </View>

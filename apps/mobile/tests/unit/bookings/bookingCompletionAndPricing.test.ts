@@ -28,7 +28,7 @@ describe('booking completion copy', () => {
       evidenceReady: true,
     })).toMatchObject({
       actionable: false,
-      label: 'Available after the scheduled session ends',
+      label: 'Available after 9:16 AM PHT',
     })
   })
 

@@ -43,6 +43,7 @@ function ReadyReferrals() {
   const [friendNotice, setFriendNotice] = useState('')
   const [friendDismissed, setFriendDismissed] = useState(false)
   const [initialCode, setInitialCode] = useState('')
+  const [ownCodeNotice, setOwnCodeNotice] = useState('')
 
   useEffect(() => {
     let active = true
@@ -123,7 +124,14 @@ function ReadyReferrals() {
     }
   }
 
-  const friendCodeCard = referral.canAddReferralCode && !friendDismissed ? (
+  useEffect(() => {
+    if (referral.code && initialCode && referral.code === initialCode) {
+      setOwnCodeNotice('This is your own code. Share it with a friend so they can join.')
+      setInitialCode('')
+      void clearPendingReferralCode()
+    }
+  }, [initialCode, referral.code])
+  const friendCodeCard = referral.canAddReferralCode && !friendDismissed && !ownCodeNotice ? (
     <ReferralCodeCard
       busy={friendBusy}
       error={friendError}
@@ -143,7 +151,7 @@ function ReadyReferrals() {
       status={page.status}
       rewardStatus={rewardPage.status}
       busy={busy}
-      message={message}
+      message={ownCodeNotice || message}
       shareUrl={shareUrl}
       friendCodeCard={friendCodeCard}
       onCreateCode={() => void createCode()}

@@ -59,10 +59,15 @@ export function bookingCompletionCopy({
     }
   }
   if (!Number.isFinite(now) || now < scheduledEndAt) {
+    const opensAt = new Intl.DateTimeFormat('en-PH', {
+      timeZone: 'Asia/Manila',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(scheduledEndAt)
     return {
       actionable: false,
-      label: 'Available after the scheduled session ends',
-      detail: 'Completion becomes available after the listed session duration. The server checks the schedule again when you confirm.',
+      label: `Available after ${opensAt} PHT`,
+      detail: `Completion becomes available after ${opensAt} PHT. The server checks the schedule again when you confirm.`,
     }
   }
   if (pricingModel === 'member_wallet_v2' && !evidenceReady) {

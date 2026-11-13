@@ -4,6 +4,7 @@ import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-rout
 import { useCallback, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 
+import { formatPhp } from '@lets-be-friends/shared'
 import { mobileApi, type BookingId } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { BookingCancelAction } from '@/features/booking/BookingCancelAction'
@@ -17,6 +18,7 @@ import { BookingSafetyActions } from '@/features/booking/BookingSafetyActions'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
+import { StatusBadge } from '@/design-system/atoms/StatusBadge'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
 import {
@@ -74,14 +76,16 @@ function BookingDetail({ booking, canEditRequest, canCancel }: {
     <Screen contentStyle={styles.content}>
       <AppHeader title={booking.category} back onBack={() => router.canGoBack() ? router.back() : router.replace('/bookings')} />
       <AppText color={theme.colors.textMuted}>with {booking.companionDisplayName}</AppText>
-      <View accessibilityLiveRegion="polite" style={[styles.status, { backgroundColor: theme.colors.socialSoft, borderColor: theme.colors.social }]}>
-        <AppText variant="bodyStrong" color={theme.colors.social}>{status.label}</AppText>
+      <View accessibilityLiveRegion="polite" style={[styles.status, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <StatusBadge label={status.label} tone={status.tone} />
         <AppText variant="caption">{status.explanation}</AppText>
       </View>
       <View style={[styles.details, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <Detail label="Schedule" value={formatBookingSchedule(booking.requestedAt)} />
         <Detail label="Format" value={booking.mode === 'in_person' ? 'In-person session' : 'Online session'} />
         <Detail label="Duration" value={formatDuration(booking.durationMinutes)} />
+        {booking.serviceSubtotalCentavos !== undefined ? <Detail label="Session subtotal" value={formatPhp(booking.serviceSubtotalCentavos)} /> : null}
+        {booking.memberBookingFeeCentavos !== undefined ? <Detail label="Service fee (15%)" value={formatPhp(booking.memberBookingFeeCentavos)} /> : null}
         {total ? <Detail label="Booking total" value={total} /> : null}
         {booking.companionCity ? <Detail label="Companion location" value={booking.companionCity} /> : null}
       </View>

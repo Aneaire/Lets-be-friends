@@ -19,6 +19,7 @@ import { BookingSafetyActions } from '@/features/booking/BookingSafetyActions'
 import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { AppText } from '@/design-system/atoms/Typography'
+import { StatusBadge } from '@/design-system/atoms/StatusBadge'
 import { AppHeader } from '@/design-system/molecules/AppHeader'
 import { bookingActionVisibility } from '@/data/bookingLifecycle'
 import { bookingStatusPresentation, formatBookingSchedule, formatDuration } from '@/data/bookingViewModels'
@@ -113,15 +114,18 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
     <Screen contentStyle={styles.content}>
       <AppHeader title={booking.category} back onBack={() => router.canGoBack() ? router.back() : router.replace('/companion-bookings')} />
       <AppText color={theme.colors.textMuted}>requested by {booking.memberDisplayName}</AppText>
-      <View accessibilityLiveRegion="polite" style={[styles.status, { backgroundColor: theme.colors.socialSoft, borderColor: theme.colors.social }]}>
-        <AppText variant="bodyStrong" color={theme.colors.social}>{status.label}</AppText>
+      <View accessibilityLiveRegion="polite" style={[styles.status, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <StatusBadge label={status.label} tone={status.tone} />
         <AppText variant="caption">{status.explanation}</AppText>
       </View>
       <View style={[styles.details, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <Detail label="Schedule" value={formatBookingSchedule(booking.requestedAt)} />
         <Detail label="Format" value={booking.mode === 'in_person' ? 'In-person session' : 'Online session'} />
         <Detail label="Duration" value={formatDuration(booking.durationMinutes)} />
-        {booking.companionEarningsCentavos !== undefined ? <Detail label="Companion amount in booking calculation" value={formatPhp(booking.companionEarningsCentavos)} /> : null}
+        {booking.companionEarningsCentavos !== undefined ? <Detail label="Your earnings" value={formatPhp(booking.companionEarningsCentavos)} /> : null}
+        {booking.memberTotalCentavos !== undefined && booking.companionEarningsCentavos !== undefined ? (
+          <Detail label="Platform service fee" value={formatPhp(booking.memberTotalCentavos - booking.companionEarningsCentavos)} />
+        ) : null}
         {booking.memberTotalCentavos !== undefined ? <Detail label="Member booking total" value={formatPhp(booking.memberTotalCentavos)} /> : null}
       </View>
       {booking.notes ? <View style={styles.notes}><AppText variant="heading">Member notes</AppText><AppText color={theme.colors.textMuted}>{booking.notes}</AppText></View> : null}

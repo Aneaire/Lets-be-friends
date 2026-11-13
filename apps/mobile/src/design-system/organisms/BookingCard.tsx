@@ -26,15 +26,32 @@ export type BookingCardView = {
   companionEarningsCentavos?: number
   /** False when the viewer is the Companion on this booking. Defaults to the member view. */
   viewerIsRequester?: boolean
+  /** Set when the viewer already confirmed completion on an accepted booking. */
+  viewerCompletedAt?: number
+}
+
+function companionPaymentCopy(status: BookingStatus, total: string) {
+  if (status === 'request_sent' || status === 'verification_required' || status === 'pending_admin_review') {
+    return `The member pays ${total} total when you accept, which includes the service fee.`
+  }
+  if (status === 'accepted') {
+    return `The member has ${total} reserved, which includes the service fee.`
+  }
+  if (status === 'declined' || status === 'cancelled') {
+    return 'No payment was taken.'
+  }
+  return `The member paid ${total} total, which includes the service fee.`
 }
 
 export function BookingCard({ booking, onPress, compact = false }: { booking: BookingCardView; onPress: () => void; compact?: boolean }) {
   const theme = useAppTheme()
-  const status = bookingStatusPresentation[booking.status]
+  const status = booking.status === 'accepted' && booking.viewerCompletedAt !== undefined
+    ? { label: 'Waiting for member', explanation: 'You confirmed completion. The member still needs to confirm.', tone: 'warning' as const }
+    : bookingStatusPresentation[booking.status]
   const total = formatBookingTotal(booking.memberTotalCentavos)
   const viewerIsRequester = booking.viewerIsRequester ?? true
   const entitlement = formatBookingTotal(booking.companionEarningsCentavos)
-  const priceLabel = !viewerIsRequester && entitlement ? 'Your entitlement' : 'Total'
+  const priceLabel = !viewerIsRequester && entitlement ? 'Your earnings' : 'Total'
   const priceValue = !viewerIsRequester && entitlement ? entitlement : total
   const participantPreposition = booking.participantPreposition ?? 'with'
 
@@ -54,7 +71,7 @@ export function BookingCard({ booking, onPress, compact = false }: { booking: Bo
           <AppText variant="bodyStrong">{booking.category}</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>{participantPreposition} {booking.participantName}</AppText>
         </View>
-        <StatusBadge label={status.label} tone="social" />
+        <StatusBadge label={status.label} tone={status.tone} />
       </View>
       <AppText variant="caption">{formatBookingSchedule(booking.requestedAt)}</AppText>
       <View style={styles.money}>
@@ -63,7 +80,7 @@ export function BookingCard({ booking, onPress, compact = false }: { booking: Bo
             <AppText variant="bodyStrong">{priceLabel} {priceValue}</AppText>
             <AppText variant="caption" color={theme.colors.textMuted}>
               {!viewerIsRequester && total ? (
-                <>The member paid {total} total, which includes the service fee.</>
+                <>{companionPaymentCopy(booking.status, total)}</>
               ) : (
                 <>Includes service fee.</>
               )}

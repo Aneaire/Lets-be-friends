@@ -26,7 +26,7 @@ export function ReferralRow({ item, card = false }: { item: MobileReferralItem; 
           {item.rewardedBookings} {item.rewardedBookings === 1 ? 'booking' : 'bookings'} rewarded
         </AppText>
       </View>
-      <AppText variant="caption" color={item.status === 'reversed' ? theme.colors.danger : theme.colors.textMuted}>{item.status === 'reversed' ? 'reversed' : 'earning'}</AppText>
+      <AppText variant="caption" color={item.status === 'reversed' ? theme.colors.danger : theme.colors.textMuted}>{item.status === 'reversed' ? 'Reversed' : 'Earning'}</AppText>
     </View>
   )
 }
