@@ -125,7 +125,10 @@ function CompanionBookingDetail({ booking, viewerId, canCancel, busy, message, o
   return (
     <Screen contentStyle={styles.content}>
       <AppHeader title={booking.memberDisplayName} back onBack={() => router.canGoBack() ? router.back() : router.replace('/companion-bookings')} />
-      <AppText color={theme.colors.textMuted}>{booking.category}</AppText>
+      <View style={styles.headerMeta}>
+        <AppText color={theme.colors.textMuted}>{booking.category}</AppText>
+        {booking.memberIdentityApproved ? <StatusBadge label="Identity verified" tone="neutral" /> : null}
+      </View>
       <View accessibilityLiveRegion="polite" style={[styles.status, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <StatusBadge label={status.label} tone={status.tone} />
         <AppText variant="caption">{status.explanation}</AppText>
@@ -234,6 +237,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 
 const styles = StyleSheet.create({
   content: { paddingTop: 16, paddingBottom: 40, gap: 16 },
+  headerMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   state: { flexGrow: 1, justifyContent: 'center', gap: 16 },
 
   status: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 5 },

@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppText } from '@/design-system/atoms/Typography'
 import { ConfirmationDialog } from '@/design-system/molecules/ConfirmationDialog'
-import { evidenceClosedSummary, evidenceDecisionCopy, evidenceSharedRowCopy, type EvidenceDecision, type EvidenceSharedRow } from '@/data/evidence'
+import { evidenceDecisionCopy, evidenceSharedRowCopy, type EvidenceDecision, type EvidenceSharedRow } from '@/data/evidence'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density } from '@/theme/tokens'
 
@@ -60,7 +60,15 @@ export function BookingEvidencePresentation({
         <View style={styles.copy}>
           <AppText variant="heading">{canDecide ? copy.label : 'Booking evidence'}</AppText>
           <AppText variant="caption" color={theme.colors.textMuted}>
-            {loading ? 'Loading the live evidence decision.' : copy.detail}
+            {loading
+              ? 'Loading the live evidence decision.'
+              : canDecide
+                ? copy.detail
+                : decision === 'uploaded'
+                  ? 'Private image saved for authorized safety review only.'
+                  : decision === 'skipped'
+                    ? 'No image added.'
+                    : 'No evidence decision recorded.'}
           </AppText>
         </View>
 
@@ -69,8 +77,8 @@ export function BookingEvidencePresentation({
             accessibilityRole="button"
             accessibilityLabel={recordOpen ? 'Hide shared safety record' : 'View shared safety record'}
             onPress={() => setRecordOpen((open) => !open)}
-            style={styles.recordToggle}>
-            <AppText variant="caption" color={theme.colors.textMuted}>
+            style={[styles.recordToggle, { borderColor: theme.colors.border }]}>
+            <AppText variant="bodyStrong" color={theme.colors.text}>
               {recordOpen ? 'Hide shared safety record' : 'View shared safety record'}
             </AppText>
           </Pressable>
@@ -161,6 +169,6 @@ const styles = StyleSheet.create({
   panel: { borderWidth: 1, borderRadius: 16, padding: density.cardPadding, gap: 10 },
   copy: { gap: density.textStackGap },
   sharedRecord: { gap: density.textStackGap },
-  recordToggle: { minHeight: 44, justifyContent: 'center' },
+  recordToggle: { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderRadius: 8, paddingHorizontal: 10 },
   sharedRow: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: density.compactCardPadding, gap: 2 },
 })
