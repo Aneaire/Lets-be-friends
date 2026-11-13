@@ -355,6 +355,23 @@ function ConnectedOnboarding({
         policyVersion: termsVersion,
       })
       if (result.submittedApplication) setApplicationSubmitted(true)
+
+      // A saved invitation is claimed at the same point as the username,
+      // location, and policy acceptance. A failed claim never blocks onboarding.
+      if (!referral?.referredBy && !referral?.promptDismissedAt) {
+        const savedCode = await readPendingReferralCode()
+        if (savedCode) {
+          try {
+            const deviceId = await mobileReferralDeviceId()
+            await attributeReferral(deviceId ? { code: savedCode, deviceId } : { code: savedCode })
+            await clearPendingReferralCode()
+            setPendingReferralCode('')
+          } catch {
+            // Keep the pending code so the referral screen can retry it.
+          }
+        }
+      }
+
       setSubmitted(true)
       // Approved identities (and submissions where only the safety team can
       // act) finish straight into the app. Everything else opens the private
