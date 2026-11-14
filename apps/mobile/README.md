@@ -168,6 +168,13 @@ No credential creation, EAS build, deployment, or publication is performed by re
 - My posts (`/my-posts`, protected) shows the signed-in member's public posts plus their Companion reviews. Reviews settle without waiting on the skipped query for members without an approved Companion profile, and each owned review reuses the shared review card, so like, save, share, comment, and profile navigation match the feed.
 - Website share paths (`/social?postId`, `/companion-profile?companionProfileId&reviewId`, `/circles...`) normalize to native routes through the allowlisted `normalizeWebSharePath` helper wired into `+native-intent`, preserving Google OAuth callbacks and rejecting foreign hosts, malformed input, and unknown routes. This is path normalization only and does not claim universal-link or app-link domain association. Installed-device link handling has not been verified by this worker.
 
+### Referral invitations
+
+- The friend's code card in the welcome guide is an optional, first-setup prompt. `shouldShowOnboardingReferralPrompt` (`features/referral`) shows it on every visit until the account finishes the welcome guide, never for a member who already has `onboardingCompletedAt`, and never for a member who already applied a code.
+- "Not now" hides the card for the current visit only. Closing and reopening the app before setup finishes shows it again, and finishing the guide removes it for good. The Referrals screen keeps its own persisted dismissal, but still offers an invitation code that arrives through a link.
+- A completed member keeps their onboarding state even without a stored rounded area. The area is required to finish setup, not to remain a member, so the onboarding gate no longer sends an existing account back through the guide for a missing area. Current Terms, Privacy Policy, and identity acceptance is still enforced.
+- The dev deployment's completed accounts had their saved acceptance version repaired to the current policy version with `migrations.backfillUnifiedAcceptance`; accounts that never finished the welcome guide were skipped.
+
 ## Explicit exclusions
 
 This implementation does not add native identity capture, camera capture, in-app attachment downloads or storage, background uploads, marketing notifications, web push, direct FCM/APNs integration, deployment, publishing, credential creation, or EAS cloud builds. Completion uses the existing server-authoritative schedule and evidence rules; the mobile client does not bypass them.

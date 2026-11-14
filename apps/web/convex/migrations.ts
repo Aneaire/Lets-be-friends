@@ -1,7 +1,7 @@
 import { internalMutation } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { ConvexError, v } from 'convex/values'
-import { isModerationVisible, USERNAME_MAX_LENGTH, usernameBaseFromDisplayName } from '@lets-be-friends/shared'
+import { isModerationVisible, USERNAME_MAX_LENGTH, currentPolicyVersion, usernameBaseFromDisplayName } from '@lets-be-friends/shared'
 import { writeAudit } from './lib'
 import { syncCompanionLocation } from './companionLocations'
 import { settleBookingFunds } from './finance'
@@ -374,5 +374,84 @@ export const backfillReferralSummaries = internalMutation({
       updated += 1
     }
     return { updated }
+  },
+})
+
+// Unified acceptance rollout:
+//   1. Deploy the build whose onboarding gate reads the current unified
+//      acceptance for completed accounts.
+//   2. Run backfillUnifiedAcceptance to completion. It stamps the current
+//      policy version on the Terms, Privacy Policy, and identity consent
+//      scopes of every account that already finished the welcome guide, so
+//      the gate no longer sends them back through setup. Each member keeps
+//      their original acceptance timestamp; only the stored version is
+//      repaired.
+//   3. Accounts that never finished the welcome guide are skipped and still
+//      accept everything themselves at the final step.
+//   Replay-safe: accounts that already pass the current check are skipped.
+export const backfillUnifiedAcceptance = internalMutation({
+  args: {
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 50), 1), 100)
+    const page = await ctx.db.query('users').paginate({
+      cursor: args.cursor ?? null,
+      numItems: limit,
+    })
+    const migratedAt = Date.now()
+    let migrated = 0
+
+    for (const user of page.page) {
+      if (!user.onboardingCompletedAt) continue
+      const alreadyCurrent = Boolean(
+        user.approximateLocationConsentedAt
+        && user.termsAcceptedAt
+        && user.termsVersion === currentPolicyVersion
+        && user.privacyPolicyAcceptedAt
+        && user.privacyPolicyVersion === currentPolicyVersion
+        && user.identityConsentAcceptedAt
+        && user.identityConsentVersion === currentPolicyVersion,
+      )
+      if (alreadyCurrent) continue
+
+      const acceptedAt = user.termsAcceptedAt ?? user.onboardingCompletedAt ?? user.createdAt
+      await ctx.db.patch(user._id, {
+        approximateLocationConsentedAt: user.approximateLocationConsentedAt ?? acceptedAt,
+        termsAcceptedAt: acceptedAt,
+        termsVersion: currentPolicyVersion,
+        privacyPolicyAcceptedAt: user.privacyPolicyAcceptedAt ?? acceptedAt,
+        privacyPolicyVersion: currentPolicyVersion,
+        identityConsentAcceptedAt: user.identityConsentAcceptedAt ?? acceptedAt,
+        identityConsentVersion: currentPolicyVersion,
+        updatedAt: migratedAt,
+      })
+      await writeAudit(ctx, {
+        actorUserId: user._id,
+        action: 'user.unified_acceptance_backfilled',
+        targetType: 'user',
+        targetId: String(user._id),
+        before: {
+          termsVersion: user.termsVersion,
+          privacyPolicyVersion: user.privacyPolicyVersion,
+          identityConsentVersion: user.identityConsentVersion,
+        },
+        after: {
+          termsVersion: currentPolicyVersion,
+          privacyPolicyVersion: currentPolicyVersion,
+          identityConsentVersion: currentPolicyVersion,
+        },
+        note: 'Repaired the saved acceptance version for an account that already completed the welcome guide.',
+      })
+      migrated += 1
+    }
+
+    return {
+      processed: page.page.length,
+      migrated,
+      isDone: page.isDone,
+      nextCursor: page.isDone ? null : page.continueCursor,
+    }
   },
 })

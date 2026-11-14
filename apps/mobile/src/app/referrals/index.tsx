@@ -36,6 +36,7 @@ function ReadyReferrals() {
   const rewardPage = usePaginatedQuery(mobileApi.referrals.myReferralRewards, {}, { initialNumItems: 20 })
   const ensureReferralCode = useMutation(mobileApi.referrals.ensureReferralCode)
   const attributeReferral = useMutation(mobileApi.referrals.attributeReferral)
+  const dismissReferralPrompt = useMutation(mobileApi.referrals.dismissReferralPrompt)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [friendBusy, setFriendBusy] = useState(false)
@@ -131,14 +132,29 @@ function ReadyReferrals() {
       void clearPendingReferralCode()
     }
   }, [initialCode, referral.code])
-  const friendCodeCard = referral.canAddReferralCode && !friendDismissed && !ownCodeNotice ? (
+  async function dismissFriendCode() {
+    setFriendDismissed(true)
+    try {
+      await dismissReferralPrompt({})
+    } catch {
+      // Hiding the card locally is still useful if the dismissal write fails.
+    }
+  }
+
+  // A member who already opted out stays opted out, unless an invitation
+  // arrives through a link, which should still be claimable.
+  const showFriendCodeCard = referral.canAddReferralCode
+    && !friendDismissed
+    && !ownCodeNotice
+    && (!referral.promptDismissedAt || Boolean(initialCode))
+  const friendCodeCard = showFriendCodeCard ? (
     <ReferralCodeCard
       busy={friendBusy}
       error={friendError}
       notice={friendNotice}
       initialCode={initialCode}
       onSubmit={(code) => void addFriendCode(code)}
-      onSkip={() => setFriendDismissed(true)}
+      onSkip={() => void dismissFriendCode()}
       onRemove={() => {
         setInitialCode('')
         setFriendDismissed(true)

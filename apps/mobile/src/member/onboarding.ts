@@ -37,6 +37,10 @@ export function initialOnboardingStep(viewer: {
   return 0
 }
 
+// A member who finished the welcome guide stays onboarded even without a saved
+// rounded area. The area is required to finish setup, not to remain a member,
+// and re-checking it here sent legacy accounts back through the whole guide.
+// Current policy acceptance is still enforced.
 export function onboardingDecision(viewer: {
   username?: string
   onboardingCompletedAt?: number
@@ -51,12 +55,7 @@ export function onboardingDecision(viewer: {
   identityConsentVersion?: string
 }): OnboardingDecision {
   if (!viewer.username) return 'choose_username'
-  if (
-    !viewer.onboardingCompletedAt
-    || !isRoundedCoordinate(viewer.approximateLatitude)
-    || !isRoundedCoordinate(viewer.approximateLongitude)
-    || !hasCurrentUnifiedAcceptance(viewer)
-  ) return 'choose_goal'
+  if (!viewer.onboardingCompletedAt || !hasCurrentUnifiedAcceptance(viewer)) return 'choose_goal'
   return 'complete'
 }
 

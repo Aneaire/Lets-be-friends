@@ -97,7 +97,7 @@ export function ReferralCodeCard({
         <AppText variant="caption" color={theme.colors.textMuted}>
           {saved
             ? 'Saved from the invitation link you opened.'
-            : "Add it within 30 days of joining and before your first booking. This prompt won't appear again."}
+            : 'Add it within 30 days of joining and before your first booking. You can also add it later from Referrals.'}
         </AppText>
         <AppText variant="caption" color={theme.colors.textMuted}>
           Your friend earns 5% of the booking subtotal. You pay the normal price.

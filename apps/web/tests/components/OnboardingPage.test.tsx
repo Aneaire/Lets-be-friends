@@ -212,7 +212,7 @@ describe('onboarding route', () => {
     expect(window.localStorage.getItem('lets-be-friends-referral-code')).toBe('F9U29D5U')
   })
 
-  it('hides the referral prompt from the step without dismissing it on the account', async () => {
+  it('hides the referral prompt for this visit without dismissing it on the account', async () => {
     state.referral = {
       code: null,
       programActive: true,
@@ -229,6 +229,25 @@ describe('onboarding route', () => {
 
     await waitFor(() => expect(screen.queryByText(/Have a friend's code\?/)).toBeNull())
     expect(state.dismissReferralPrompt).not.toHaveBeenCalled()
+  })
+
+  it('never shows the referral prompt to an account that already finished the guide', async () => {
+    state.viewer = acceptedViewer({ onboardingCompletedAt: 1 })
+    state.referral = {
+      code: null,
+      programActive: true,
+      referrals: [],
+      rewards: [],
+      totalEarnedCentavos: 0,
+      totalReversedCentavos: 0,
+      promptDismissedAt: null,
+      referredBy: null,
+    }
+    render(<OnboardingPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+    await screen.findByText('What would you like to do here?')
+    expect(screen.queryByText(/Have a friend's code\?/)).toBeNull()
   })
 
   it('removes a saved invitation from the step', async () => {

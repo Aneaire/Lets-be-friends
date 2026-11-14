@@ -52,11 +52,13 @@ export function onboardingGateDecision({
   if (viewer === undefined) return 'loading'
   if (viewer !== null && viewer.clerkUserId !== clerkUserId) return 'identity_mismatch'
   if (viewer === null) return 'provision'
+  // A member who finished the welcome guide stays onboarded even without a
+  // saved rounded area. The area is required to finish setup, not to remain a
+  // member, and re-checking it here sent legacy accounts back through the
+  // whole guide. Current policy acceptance is still enforced.
   const onboardingComplete = Boolean(
     viewer.username
     && viewer.onboardingCompletedAt
-    && isRoundedCoordinate(viewer.approximateLatitude)
-    && isRoundedCoordinate(viewer.approximateLongitude)
     && hasCurrentUnifiedAcceptance(viewer),
   )
   if (!onboardingComplete && pathname !== '/onboarding') return 'redirect_onboarding'

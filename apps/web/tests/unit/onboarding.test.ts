@@ -92,10 +92,13 @@ describe('onboarding gate decisions', () => {
       viewer: { clerkUserId: 'clerk-current', username: 'current_friend', onboardingCompletedAt: 1 },
     })).toBe('redirect_onboarding')
     expect(onboardingGateDecision({ ...ready, viewer: completedViewer })).toBe('allow')
+    // A completed member without a saved rounded area stays in the app. The
+    // area is only required to finish setup, and re-checking it here sent
+    // legacy accounts back through the whole welcome guide.
     expect(onboardingGateDecision({
       ...ready,
-      viewer: { ...completedViewer, approximateLatitude: 10.315699 },
-    })).toBe('redirect_onboarding')
+      viewer: { ...completedViewer, approximateLatitude: undefined, approximateLongitude: undefined },
+    })).toBe('allow')
   })
 
   it('routes legacy general Terms acceptance back to onboarding for the new unified scope', () => {

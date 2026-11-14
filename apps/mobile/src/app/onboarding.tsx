@@ -30,6 +30,7 @@ import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { openPolicyDocument } from '@/features/policy/policyLinks'
 import { ReferralCodeCard } from '@/features/referral/ReferralCodeCard'
+import { shouldShowOnboardingReferralPrompt } from '@/features/referral/referralPrompt'
 import { clearPendingReferralCode, readPendingReferralCode } from '@/features/referral/pendingReferralCode'
 import { mobileReferralDeviceId } from '@/features/referral/referralDevice'
 import { AppText } from '@/design-system/atoms/Typography'
@@ -181,7 +182,14 @@ function ConnectedOnboarding({
   const referral = useQuery(mobileApi.referrals.myReferral, {})
   const attributeReferral = useMutation(mobileApi.referrals.attributeReferral)
   const [referralHidden, setReferralHidden] = useState(false)
-  const showReferralPrompt = Boolean(referral && referral.programActive && !referral.referredBy && !referral.promptDismissedAt && !referralHidden)
+  // The friend's code card belongs to first-time setup only. It is offered on
+  // every visit until the member finishes the welcome guide, and never to an
+  // account that already finished it.
+  const showReferralPrompt = shouldShowOnboardingReferralPrompt({
+    referral,
+    onboardingCompletedAt: viewer.onboardingCompletedAt,
+    hidden: referralHidden,
+  })
   const [applicationForm, setApplicationForm] = useState<CompanionApplicationForm>(() => (
     defaultOnboardingCompanionForm({ bio: viewer.bio, categories: viewer.onboardingCategories })
   ))
@@ -291,6 +299,8 @@ function ConnectedOnboarding({
   }
 
   function skipReferralPrompt() {
+    // Session-only opt-out. The card belongs to setup, so closing and
+    // reopening the app while the welcome guide is unfinished brings it back.
     setReferralHidden(true)
     setReferralError('')
     AccessibilityInfo.announceForAccessibility('Referral prompt hidden. You can continue with your welcome guide.')

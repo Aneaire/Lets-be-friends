@@ -64,7 +64,16 @@ export function OnboardingPage() {
   const completeOnboarding = useMutation(api.users.completeOnboarding)
   const referral = useQuery(api.referrals.myReferral, viewer ? {} : 'skip')
   const attributeReferral = useMutation(api.referrals.attributeReferral)
-  const showReferralPrompt = Boolean(referral && referral.programActive && !referral.referredBy && !referral.promptDismissedAt)
+  // The friend's code card is a first-time setup invitation. It is offered on
+  // every welcome guide visit until the member finishes setup, and never to an
+  // account that already finished the guide. "Not now" hides it for this visit
+  // only, so reopening the app before setup completes brings it back.
+  const showReferralPrompt = Boolean(
+    referral
+    && referral.programActive
+    && !referral.referredBy
+    && !viewer?.onboardingCompletedAt,
+  )
   const identityFlow = useIdentityVerification('member')
   const companionIdentityFlow = useIdentityVerification('companion_application')
   const navigate = useNavigate()
@@ -281,6 +290,15 @@ export function OnboardingPage() {
     } finally {
       setReferralAction(null)
     }
+  }
+
+  const skipReferralCard = () => {
+    // Session-only opt-out. The card belongs to setup, so it returns on the
+    // next app open while the welcome guide is still unfinished.
+    setReferralHidden(true)
+    setReferralError('')
+    setReferralAction('dismiss')
+    setReferralAction(null)
   }
 
   const saveProfileAndContinue = async () => {
@@ -599,7 +617,7 @@ export function OnboardingPage() {
 
             {!selectedGoal && <p className="text-meta mt-4">Choose how you'd like to take part to continue.</p>}
 
-            {referral && referral.programActive && !referral.referredBy && !referral.promptDismissedAt && !referralHidden && (
+            {showReferralPrompt && !referralHidden && (
               <div className="mt-6">
                 <ReferralCodeCard
                   busy={referralAction === 'add'}
@@ -609,7 +627,7 @@ export function OnboardingPage() {
                   savedForUserId={viewer.clerkUserId}
                   submitIntent="neutral"
                   onSubmit={(code) => void submitReferralCode(code)}
-                  onSkip={() => setReferralHidden(true)}
+                  onSkip={() => skipReferralCard()}
                   onRemoveSaved={() => {
                     clearSavedReferralCode()
                     setReferralHidden(true)

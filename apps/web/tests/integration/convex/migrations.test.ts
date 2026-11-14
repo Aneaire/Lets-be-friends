@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { internal } from '../../../convex/_generated/api'
 import schema from '../../../convex/schema'
 import { convexModules } from '../../helpers/convex'
+import { currentPolicyVersion } from '@lets-be-friends/shared'
 
 function createTest() {
   return convexTest(schema, convexModules)
@@ -261,5 +262,87 @@ describe('immediate settlement rollout', () => {
     }))
     expect(state.booking?.settlementState).toBe('blocked')
     expect(state.accounts.find((row) => row.ownerUserId === ids.companionUserId)).toMatchObject({ pendingCentavos: SUBTOTAL, availableCentavos: 0 })
+  })
+})
+
+describe('unified acceptance backfill', () => {
+  it('stamps the current policy version on completed accounts only and is replay-safe', async () => {
+    const t = createTest()
+    const now = Date.now()
+    const ids = await t.run(async (ctx) => {
+      const base = {
+        role: 'member' as const,
+        verificationStatus: 'not_started' as const,
+        suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      }
+      const legacy = await ctx.db.insert('users', {
+        ...base,
+        clerkUserId: 'legacy-completed',
+        displayName: 'Legacy Completed',
+        username: 'legacy_completed',
+        onboardingCompletedAt: now - 1_000,
+        approximateLocationConsentedAt: now - 1_000,
+        termsAcceptedAt: now - 1_000,
+        termsVersion: '2026-08-13',
+      })
+      const current = await ctx.db.insert('users', {
+        ...base,
+        clerkUserId: 'already-current',
+        displayName: 'Already Current',
+        username: 'already_current',
+        onboardingCompletedAt: now - 1_000,
+        approximateLocationConsentedAt: now - 1_000,
+        termsAcceptedAt: now - 1_000,
+        termsVersion: currentPolicyVersion,
+        privacyPolicyAcceptedAt: now - 1_000,
+        privacyPolicyVersion: currentPolicyVersion,
+        identityConsentAcceptedAt: now - 1_000,
+        identityConsentVersion: currentPolicyVersion,
+      })
+      const unfinished = await ctx.db.insert('users', {
+        ...base,
+        clerkUserId: 'never-finished',
+        displayName: 'Never Finished',
+        termsAcceptedAt: now - 1_000,
+        termsVersion: '2026-08-13',
+      })
+      return { legacy, current, unfinished }
+    })
+
+    await expect(t.mutation(internal.migrations.backfillUnifiedAcceptance, {})).resolves.toMatchObject({
+      migrated: 1,
+      isDone: true,
+    })
+
+    const state = await t.run(async (ctx) => ({
+      legacy: await ctx.db.get(ids.legacy),
+      current: await ctx.db.get(ids.current),
+      unfinished: await ctx.db.get(ids.unfinished),
+      audits: await ctx.db.query('auditLogs').collect(),
+    }))
+    expect(state.legacy).toMatchObject({
+      approximateLocationConsentedAt: now - 1_000,
+      termsAcceptedAt: now - 1_000,
+      termsVersion: currentPolicyVersion,
+      privacyPolicyAcceptedAt: now - 1_000,
+      privacyPolicyVersion: currentPolicyVersion,
+      identityConsentAcceptedAt: now - 1_000,
+      identityConsentVersion: currentPolicyVersion,
+    })
+    expect(state.current?.termsVersion).toBe(currentPolicyVersion)
+    expect(state.unfinished?.termsVersion).toBe('2026-08-13')
+    expect(state.unfinished?.privacyPolicyVersion).toBeUndefined()
+    expect(state.unfinished?.identityConsentVersion).toBeUndefined()
+    expect(state.audits).toEqual(expect.arrayContaining([
+      expect.objectContaining({ action: 'user.unified_acceptance_backfilled' }),
+    ]))
+    expect(state.audits).toHaveLength(1)
+
+    await expect(t.mutation(internal.migrations.backfillUnifiedAcceptance, {})).resolves.toMatchObject({
+      migrated: 0,
+      isDone: true,
+    })
   })
 })

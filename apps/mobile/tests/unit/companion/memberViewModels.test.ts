@@ -43,7 +43,21 @@ describe('member onboarding decisions', () => {
       privacyPolicyVersion: currentPolicyVersion,
       identityConsentAcceptedAt: 1,
       identityConsentVersion: currentPolicyVersion,
-    })).toBe('choose_goal')
+    })).toBe('complete')
+  })
+
+  it('keeps a completed member out of onboarding when no area was saved', () => {
+    expect(onboardingDecision({
+      username: 'alexrivera',
+      onboardingCompletedAt: 1,
+      approximateLocationConsentedAt: 1,
+      termsAcceptedAt: 1,
+      termsVersion: currentPolicyVersion,
+      privacyPolicyAcceptedAt: 1,
+      privacyPolicyVersion: currentPolicyVersion,
+      identityConsentAcceptedAt: 1,
+      identityConsentVersion: currentPolicyVersion,
+    })).toBe('complete')
   })
 
   it('routes legacy general Terms acceptance back for the new unified scope', () => {
