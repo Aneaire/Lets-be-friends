@@ -1,4 +1,4 @@
-import { mobileNotificationRoute, notificationAge, notificationGroup, notificationReadAction } from '@/data/notifications'
+import { mobileNotificationRoute, notificationAge, notificationGroup, notificationInitials, notificationReadAction, notificationVisualIcon } from '@/data/notifications'
 
 describe('notification read action', () => {
   it('offers mark as read for an unread notification', () => {
@@ -13,6 +13,37 @@ describe('notification read action', () => {
       label: 'Mark as unread',
       icon: 'mail-unread-outline',
     })
+  })
+})
+
+describe('notification visual icons', () => {
+  it('names the reason for each social, booking, account, and safety notification', () => {
+    expect(notificationVisualIcon('post_liked')).toBe('heart')
+    expect(notificationVisualIcon('comment_liked')).toBe('heart')
+    expect(notificationVisualIcon('direct_message')).toBe('chatbubble')
+    expect(notificationVisualIcon('post_commented')).toBe('chatbubble-ellipses')
+    expect(notificationVisualIcon('new_follower')).toBe('person-add')
+    expect(notificationVisualIcon('booking_accepted')).toBe('calendar-outline')
+    expect(notificationVisualIcon('review_received')).toBe('star')
+    expect(notificationVisualIcon('identity_verification_approved')).toBe('shield-checkmark')
+    expect(notificationVisualIcon('report_resolved')).toBe('flag')
+    expect(notificationVisualIcon('referral_credit')).toBe('gift')
+    expect(notificationVisualIcon('circle_join_requested')).toBe('people')
+  })
+
+  it('falls back to a neutral bell for unknown or missing kinds', () => {
+    expect(notificationVisualIcon()).toBe('notifications')
+    expect(notificationVisualIcon('social_digest')).toBe('notifications')
+    expect(notificationVisualIcon('something_new')).toBe('notifications')
+  })
+})
+
+describe('notification actor initials', () => {
+  it('keeps members without a photo distinguishable in an aggregate stack', () => {
+    expect(notificationInitials('Alex Rivera')).toBe('AR')
+    expect(notificationInitials('  priya   shah ')).toBe('PS')
+    expect(notificationInitials('Mateo')).toBe('M')
+    expect(notificationInitials('')).toBe('')
   })
 })
 

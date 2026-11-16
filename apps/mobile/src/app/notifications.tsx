@@ -40,6 +40,8 @@ function ReadyNotifications() {
     body: notification.body,
     timeLabel: notificationAge(notification.createdAt),
     tone: notification.tone,
+    kind: notification.kind,
+    actors: notification.actors,
     unread: !notification.readAt,
     group: notificationGroup(notification),
   }))

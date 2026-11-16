@@ -119,6 +119,8 @@ pnpm dlx eas-cli@latest build --platform android --profile production
 
 Install the development APK from the authorized EAS build result. Ordinary TypeScript, React, and StyleSheet changes then use Fast Refresh through `pnpm dev`. Rebuild the development APK after adding or changing a native dependency or native configuration.
 
+The `preview` profile reads its public values from the EAS `preview` environment, which must point at the development Convex deployment so release review never writes live data. The `production` profile carries its values inline in `eas.json`. `submit.production` uploads to the Play `internal` track as a draft and expects `apps/mobile/google-service-account.json`, which is gitignored. See `docs/play-store-release.md` for the full prerequisite list, the device sign-off checklist, and the store submission steps.
+
 ### Local release APK
 
 Local Android builds follow one fixed rule: the only local artifact is `app-release.apk`, and it always uses production variables. Use the repo script instead of invoking Gradle directly:
@@ -148,7 +150,7 @@ Set these values only in the Convex deployment environment:
 
 ```dotenv
 EXPO_PUSH_ENABLED=true
-EXPO_PROJECT_ID=a32cb8bc-1021-43b6-82ea-d5376ba33340
+EXPO_PROJECT_ID=ec604d95-771b-4985-973c-4e7d89507e2c
 EXPO_PUSH_ACCESS_TOKEN=
 EXPO_SOCIAL_PUSH_CHANNEL_ENABLED=false
 ```

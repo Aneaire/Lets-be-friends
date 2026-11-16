@@ -56,8 +56,10 @@ describe('notifications', () => {
     expect(first.page).toHaveLength(1)
     expect(first.isDone).toBe(false)
     expect(first.page[0]).not.toHaveProperty('actor')
+    expect(first.page[0]).toEqual(expect.objectContaining({ actors: [] }))
     const second = await sam.query(api.notifications.list, { paginationOpts: { cursor: first.continueCursor, numItems: 1 } })
     expect(second.page[0]).toMatchObject({ kind: 'new_follower', actor: { displayName: 'alex', profileImageUrl: 'https://example.com/alex.jpg', available: true } })
+    expect(second.page[0].actors).toEqual([{ userId: String(alexId), displayName: 'alex', profileImageUrl: 'https://example.com/alex.jpg' }])
   })
 
   it.each(['muted', 'blocked'] as const)('hides actor details and profile destinations after the recipient %s the actor', async (relationship) => {
@@ -86,6 +88,7 @@ describe('notifications', () => {
       targetAvailable: false,
     })
     expect(rows.page[0].actor).not.toHaveProperty('profileImageUrl')
+    expect(rows.page[0].actors).toEqual([])
     expect(await recipient.mutation(api.notifications.open, { notificationId: String(notificationId) })).toEqual({ status: 'unavailable' })
   })
 
@@ -102,6 +105,7 @@ describe('notifications', () => {
 
     const rows = await recipient.query(api.notifications.list, { paginationOpts: { cursor: null, numItems: 10 } })
     expect(rows.page[0].actor).toEqual({ displayName: "Let's Be Friends", available: false })
+    expect(rows.page[0].actors).toEqual([])
     expect(rows.page[0].destination).toEqual({ type: 'notifications' })
     expect(await recipient.mutation(api.notifications.open, { notificationId: String(notificationId) })).toEqual({ status: 'unavailable' })
   })

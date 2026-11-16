@@ -94,10 +94,11 @@ export function normalizeWebSharePath(
   pathname = pathname.replace(/\/{2,}/g, '/')
   if (pathname.length > 1) pathname = pathname.replace(/\/$/, '')
 
-  // Referral share links open the invite handoff, which stores the code and
-  // sends signed-in members to the claim card. Both the root link
-  // (https://host/?ref=CODE) and the named routes are accepted.
+  // Website invitation links stay in the browser, where the invite page and
+  // claim card live. Only the custom scheme keeps the in-app handoff for
+  // deliberate in-app links and manual testing.
   if (pathname === '/' || pathname === '/referrals' || pathname === '/referral-invite') {
+    if (!/^letsbefriends:/i.test(input)) return null
     const ref = searchParams.get('ref')
     if (!ref) return null
     const code = normalizeReferralCode(ref)

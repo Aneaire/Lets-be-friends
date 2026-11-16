@@ -33,5 +33,14 @@
         "EXPO_PUBLIC_WEB_APP_URL": "https://www.letsbefriends.space"
       }
     }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
   }
 }

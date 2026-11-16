@@ -2,7 +2,7 @@
   "expo": {
     "name": "Let's Be Friends",
     "slug": "lets-be-friends",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "orientation": "portrait",
     "icon": "./assets/images/official-app-icon.png",
     "scheme": "letsbefriends",
@@ -17,17 +17,58 @@
     },
     "android": {
       "package": "com.letsbefriends.mobile",
-      "versionCode": 7,
+      "versionCode": 8,
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "intentFilters": [
         {
           "action": "VIEW",
           "autoVerify": true,
-          "category": ["BROWSABLE", "DEFAULT"],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
           "data": [
-            { "scheme": "https", "host": "www.letsbefriends.space", "pathPrefix": "/" },
-            { "scheme": "https", "host": "letsbefriends.space", "pathPrefix": "/" }
+            {
+              "scheme": "https",
+              "host": "www.letsbefriends.space",
+              "pathPrefix": "/social"
+            },
+            {
+              "scheme": "https",
+              "host": "www.letsbefriends.space",
+              "pathPrefix": "/companion-profile"
+            },
+            {
+              "scheme": "https",
+              "host": "www.letsbefriends.space",
+              "pathPrefix": "/review"
+            },
+            {
+              "scheme": "https",
+              "host": "www.letsbefriends.space",
+              "pathPrefix": "/circles"
+            },
+            {
+              "scheme": "https",
+              "host": "letsbefriends.space",
+              "pathPrefix": "/social"
+            },
+            {
+              "scheme": "https",
+              "host": "letsbefriends.space",
+              "pathPrefix": "/companion-profile"
+            },
+            {
+              "scheme": "https",
+              "host": "letsbefriends.space",
+              "pathPrefix": "/review"
+            },
+            {
+              "scheme": "https",
+              "host": "letsbefriends.space",
+              "pathPrefix": "/circles"
+            }
           ]
         }
       ],
@@ -36,7 +77,17 @@
         "foregroundImage": "./assets/images/official-adaptive-foreground.png",
         "monochromeImage": "./assets/images/official-adaptive-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -102,9 +153,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "a32cb8bc-1021-43b6-82ea-d5376ba33340"
+        "projectId": "ec604d95-771b-4985-973c-4e7d89507e2c"
       }
     },
-    "owner": "gelogaming"
+    "owner": "lets-be-friends"
   }
 }

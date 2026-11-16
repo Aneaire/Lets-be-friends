@@ -9,6 +9,7 @@ import { canCancelBooking, canCompleteBooking, canReviewBooking, formatPhp } fro
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { WorkspaceShell } from '../design-system/templates/AppShell'
+import { AppDownloadPrompt } from '../features/app-download/AppDownloadPrompt'
 import { BookingDialog, type ApprovedCompanionOption } from '../features/booking/BookingDialog'
 import { BookingTransactionsPreview } from '../features/booking/BookingTransactionList'
 import { BookingRequestEditor, type EditableBookingRequest } from '../features/booking/BookingRequestEditor'
@@ -406,6 +407,11 @@ function AppPage() {
           <span>{identityFlow.error || error}</span>
         </div>
       )}
+
+      <AppDownloadPrompt
+        viewerId={viewer ? String(viewer._id) : undefined}
+        onboardingCompletedAt={viewer?.onboardingCompletedAt}
+      />
 
       <section id="bookings">
         <header className="flex items-baseline justify-between gap-3 mb-3">

@@ -372,6 +372,9 @@ async function requireOwnedNotification(ctx: { db: any }, notificationId: Id<'no
   return notification
 }
 
+const MAX_NOTIFICATION_ACTORS = 3
+const MAX_AGGREGATE_ACTOR_CHECKS = 8
+
 async function presentNotification(ctx: { db: any }, notification: Doc<'notifications'>, viewerId: Id<'users'>) {
   const actor = notification.actorUserId ? await ctx.db.get(notification.actorUserId) as Doc<'users'> | null : null
   const actorHidden = actor && notification.actorUserId
@@ -380,6 +383,13 @@ async function presentNotification(ctx: { db: any }, notification: Doc<'notifica
   const actorAvailable = Boolean(actor && !actor.suspended && !actorHidden)
   const actorProfileImageUrl = actorAvailable ? await profileImageUrl(ctx, actor!) : undefined
   const actorName = actorAvailable ? actor!.displayName : 'Let\'s Be Friends'
+  const actors = actorAvailable && notification.actorUserId
+    ? [{
+        userId: String(notification.actorUserId),
+        displayName: actorName,
+        ...(actorProfileImageUrl ? { profileImageUrl: actorProfileImageUrl } : {}),
+      }, ...await visibleAggregateActors(ctx, notification, viewerId)]
+    : []
   const target = await resolveTarget(ctx, notification, viewerId)
   const copy = buildInAppNotificationCopy(notification.kind, {
     actorName,
@@ -399,6 +409,7 @@ async function presentNotification(ctx: { db: any }, notification: Doc<'notifica
       ...(actorProfileImageUrl ? { profileImageUrl: actorProfileImageUrl } : {}),
       available: actorAvailable,
     } : undefined,
+    actors,
     title: copy.title,
     body: copy.body,
     tone: copy.tone,
@@ -407,6 +418,35 @@ async function presentNotification(ctx: { db: any }, notification: Doc<'notifica
     readAt: notification.readAt,
     createdAt: notification.createdAt,
   }
+}
+
+async function visibleAggregateActors(
+  ctx: { db: any },
+  notification: Doc<'notifications'>,
+  viewerId: Id<'users'>,
+) {
+  const aggregateActorIds = notification.aggregateActorIds ?? []
+  const actors: Array<{ userId: string; displayName: string; profileImageUrl?: string }> = []
+  const seen = new Set<string>(notification.actorUserId ? [String(notification.actorUserId)] : [])
+  let checked = 0
+  for (let index = aggregateActorIds.length - 1; index >= 0; index -= 1) {
+    if (actors.length >= MAX_NOTIFICATION_ACTORS - 1 || checked >= MAX_AGGREGATE_ACTOR_CHECKS) break
+    const actorId = aggregateActorIds[index]
+    const key = String(actorId)
+    if (seen.has(key)) continue
+    seen.add(key)
+    checked += 1
+    const actor = await ctx.db.get(actorId) as Doc<'users'> | null
+    if (!actor || actor.suspended) continue
+    if (await isHiddenByPreference(ctx, viewerId, actorId)) continue
+    const imageUrl = await profileImageUrl(ctx, actor)
+    actors.push({
+      userId: key,
+      displayName: actor.displayName,
+      ...(imageUrl ? { profileImageUrl: imageUrl } : {}),
+    })
+  }
+  return actors
 }
 
 async function resolveTarget(ctx: { db: any }, notification: Doc<'notifications'>, viewerId: Id<'users'>): Promise<{

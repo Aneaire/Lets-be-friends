@@ -32,15 +32,20 @@ describe('web share link normalization', () => {
       .toBe('/circles/circle_7?postId=post_1&commentId=c_2')
   })
 
-  it('maps referral root and named links to the invite handoff', () => {
-    expect(normalizeWebSharePath('/?ref=ab-cd12', configured)).toBe('/referral-invite?ref=ABCD12')
-    expect(normalizeWebSharePath('/referrals?ref=ABCD12', configured)).toBe('/referral-invite?ref=ABCD12')
-    expect(normalizeWebSharePath('https://app.example.com/?ref=ABCD12', configured)).toBe('/referral-invite?ref=ABCD12')
+  it('keeps website invitation links in the browser', () => {
+    expect(normalizeWebSharePath('/?ref=ab-cd12', configured)).toBeNull()
+    expect(normalizeWebSharePath('/referrals?ref=ABCD12', configured)).toBeNull()
+    expect(normalizeWebSharePath('https://app.example.com/?ref=ABCD12', configured)).toBeNull()
+    expect(normalizeWebSharePath('https://app.example.com/referrals?ref=ABCD12', configured)).toBeNull()
+    expect(normalizeWebSharePath('/', configured)).toBeNull()
+  })
+
+  it('keeps custom-scheme invitation links in the app', () => {
     expect(normalizeWebSharePath('letsbefriends://referrals?ref=ABCD12')).toBe('/referral-invite?ref=ABCD12')
     expect(normalizeWebSharePath('letsbefriends:///?ref=ABCD12')).toBe('/referral-invite?ref=ABCD12')
-    expect(normalizeWebSharePath('/?ref=SHORT', configured)).toBeNull()
-    expect(normalizeWebSharePath('/?ref=ABCDEFGHIJKLM', configured)).toBeNull()
-    expect(normalizeWebSharePath('/', configured)).toBeNull()
+    expect(normalizeWebSharePath('letsbefriends://referral-invite?ref=ABCD12')).toBe('/referral-invite?ref=ABCD12')
+    expect(normalizeWebSharePath('letsbefriends:///?ref=SHORT')).toBeNull()
+    expect(normalizeWebSharePath('letsbefriends:///?ref=ABCDEFGHIJKLM')).toBeNull()
   })
 
   it('accepts a matching configured web origin and rejects foreign hosts', () => {

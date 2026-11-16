@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Play Store deployment requirements</title>
+<style>
+  :root {
+    --blue: #1093ED;
+    --pink: #C1519C;
+    --ink: var(--foreground, #111);
+    --sub: var(--muted-foreground, #6b6b6b);
+    --line: var(--border, #e2e2e2);
+    --panel: var(--card, #fafafa);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: transparent; }
+  body {
+    font-family: var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .wrap { width: 100%; max-width: none; }
+  .deck {
+    position: relative;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    min-height: 560px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--panel);
+  }
+  .slide {
+    position: absolute; inset: 0;
+    padding: 26px 28px 22px;
+    opacity: 0; visibility: hidden;
+    transform: translateX(14px);
+    transition: opacity .26s ease, transform .26s ease, visibility .26s;
+    overflow: auto;
+  }
+  .slide.active { opacity: 1; visibility: visible; transform: none; }
+  .kicker {
+    display: inline-block;
+    font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    font-weight: 600; color: var(--sub);
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 3px 9px; margin-bottom: 12px;
+  }
+  h1 { font-size: 34px; line-height: 1.1; letter-spacing: -.02em; margin: 0 0 12px; }
+  h2 { font-size: 21px; line-height: 1.16; letter-spacing: -.015em; margin: 0 0 6px; }
+  h3 { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--sub); margin: 0 0 8px; font-weight: 600; }
+  p { margin: 0 0 10px; }
+  .lead { color: var(--sub); font-size: 14px; max-width: 62ch; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .card {
+    border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 13px; background: transparent;
+  }
+  .card.tint { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+  ul.plain { list-style: none; padding: 0; margin: 0; }
+  ul.plain li { position: relative; padding-left: 18px; margin-bottom: 7px; }
+  ul.plain li::before {
+    content: ""; position: absolute; left: 4px; top: .55em;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: currentColor; opacity: .4;
+  }
+  li.done::before { background: var(--blue) !important; opacity: 1 !important; }
+  li.open::before { background: transparent !important; border: 1px solid currentColor; opacity: .7 !important; }
+  li.block::before { background: var(--pink) !important; opacity: 1 !important; }
+  .tag {
+    display: inline-block; font-size: 10px; font-weight: 600;
+    letter-spacing: .06em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line);
+    color: var(--sub); margin-left: 6px; vertical-align: 1px;
+  }
+  .tag.blue { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 45%, transparent); }
+  .tag.pink { color: var(--pink); border-color: color-mix(in srgb, var(--pink) 45%, transparent); }
+  .stat { font-size: 26px; font-weight: 650; letter-spacing: -.02em; }
+  .stat small { font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--sub); display: block; margin-top: 2px; }
+  .gantt { margin-top: 10px; }
+  .grow { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center; margin-bottom: 9px; }
+  .grow .lbl { font-size: 11.5px; color: var(--sub); }
+  .track { position: relative; height: 22px; border-radius: 6px; background: color-mix(in srgb, var(--ink) 5%, transparent); }
+  .bar {
+    position: absolute; top: 3px; bottom: 3px; border-radius: 4px;
+    background: color-mix(in srgb, var(--blue) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--blue) 45%, transparent);
+    display: flex; align-items: center; padding: 0 8px;
+    font-size: 10.5px; font-weight: 600; color: var(--ink); white-space: nowrap;
+  }
+  .bar.gate {
+    background: color-mix(in srgb, var(--pink) 14%, transparent);
+    border-color: color-mix(in srgb, var(--pink) 50%, transparent);
+  }
+  .flow { display: flex; align-items: stretch; gap: 8px; margin: 14px 0 6px; }
+  .step {
+    flex: 1; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 11px; min-height: 74px;
+  }
+  .step .n { font-size: 10px; font-weight: 700; color: var(--sub); letter-spacing: .1em; }
+  .step strong { display: block; font-size: 12.5px; margin: 3px 0 3px; }
+  .step span { font-size: 11px; color: var(--sub); }
+  .arrow { align-self: center; color: var(--sub); font-size: 14px; }
+  .callout {
+    border-left: 2px solid var(--pink);
+    padding: 8px 0 8px 12px; margin-top: 12px;
+    font-size: 12px; color: var(--sub);
+  }
+  .callout.blue { border-left-color: var(--blue); }
+  table.req { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.req th, table.req td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.req th { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--sub); font-weight: 600; }
+  table.req td:first-child { width: 32%; font-weight: 600; }
+  .ok { color: var(--blue); font-weight: 600; }
+  .miss { color: var(--pink); font-weight: 600; }
+  .muted { color: var(--sub); }
+  code {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 11px; background: color-mix(in srgb, var(--ink) 7%, transparent);
+    padding: 1px 5px; border-radius: 4px;
+  }
+  .controls {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 4px 0;
+  }
+  .controls button {
+    appearance: none; font: inherit; font-size: 12px; font-weight: 600;
+    color: var(--ink); background: transparent;
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 5px 11px; cursor: pointer;
+  }
+  .controls button:hover { border-color: color-mix(in srgb, var(--blue) 55%, var(--line)); }
+  .controls button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .dots { display: flex; gap: 5px; margin-left: auto; }
+  .controls .dots .dot {
+    width: 7px !important; height: 7px !important;
+    min-width: 7px; min-height: 7px;
+    padding: 0 !important; border: 0 !important; border-radius: 999px !important;
+    background: color-mix(in srgb, var(--ink) 18%, transparent) !important;
+    cursor: pointer;
+  }
+  .controls .dots .dot.on { background: var(--pink) !important; }
+  .count { font-size: 11px; color: var(--sub); font-variant-numeric: tabular-nums; }
+  .cover-mark { display: flex; gap: 6px; margin-bottom: 18px; }
+  .cover-mark i { display: block; width: 22px; height: 4px; border-radius: 2px; }
+  .cover-mark i:nth-child(1) { background: var(--ink); }
+  .cover-mark i:nth-child(2) { background: var(--blue); }
+  .cover-mark i:nth-child(3) { background: var(--pink); }
+  .foot { position: absolute; left: 28px; right: 28px; bottom: 14px; font-size: 10px; color: var(--sub); }
+
+  /* Presentation mode: fill the window, either through the Fullscreen API
+     or the fixed overlay fallback when fullscreen is not permitted. */
+  body.present { overflow: hidden; }
+  body.present .wrap {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; flex-direction: column;
+    background: var(--panel);
+  }
+  body.present .deck {
+    flex: 1; height: auto; min-height: 0;
+    border: 0; border-radius: 0;
+  }
+  body.present .slide { padding: 34px 44px 26px; }
+  body.present .controls {
+    padding: 12px 18px; border-top: 1px solid var(--line);
+  }
+  .wrap:fullscreen {
+    display: flex; flex-direction: column;
+    background: var(--panel);
+  }
+  .wrap:fullscreen .deck {
+    flex: 1; height: auto; min-height: 0;
+    border: 0; border-radius: 0;
+  }
+  .wrap:fullscreen .slide { padding: 34px 44px 26px; }
+  .wrap:fullscreen .controls { padding: 12px 18px; border-top: 1px solid var(--line); }
+  @media (max-width: 560px) {
+    .deck { height: 660px; aspect-ratio: auto; }
+    .slide { padding: 20px 18px; }
+    h1 { font-size: 26px; }
+    h2 { font-size: 18px; }
+    .cols, .cols-3 { grid-template-columns: 1fr; }
+    .grow { grid-template-columns: 92px 1fr; gap: 6px; }
+    .flow { flex-direction: column; }
+    .arrow { transform: rotate(90deg); align-self: flex-start; margin-left: 10px; }
+    table.req td:first-child { width: 44%; }
+    .foot { left: 18px; right: 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="deck" id="deck">
+
+    <section class="slide active">
+      <div class="cover-mark"><i></i><i></i><i></i></div>
+      <h1>Shipping to the Play Store</h1>
+      <p class="lead">The requirements, the order they arrive in, and what is already done for the Let's Be Friends Android app.</p>
+      <div class="cols-3" style="margin-top:22px">
+        <div class="card"><div class="stat">0.1.7<small>version name, versionCode 9</small></div></div>
+        <div class="card"><div class="stat">1<small>preview build finished</small></div></div>
+        <div class="card"><div class="stat">6<small>open requirements</small></div></div>
+      </div>
+      <p class="foot">Status as of 16 November 2026</p>
+    </section>
+
+    <section class="slide">
+      <span class="kicker">01 / Where we are</span>
+      <h2>Half the pipeline is already live</h2>
+      <div class="cols" style="margin-top:12px">
+        <div class="card">
+          <h3>Done</h3>
+          <ul class="plain">
+            <li class="done">EAS project under @lets-be-friends</li>
+            <li class="done">Android keystore generated and stored</li>
+            <li class="done">Preview APK built and installable</li>
+            <li class="done">Preview env vars point at dev Convex</li>
+            <li class="done">Dev Convex EXPO_PROJECT_ID updated</li>
+            <li class="done">EAS cert added to assetlinks.json</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Open</h3>
+          <ul class="plain">
+            <li class="open">Play developer account and app</li>
+            <li class="open">Production AAB and first upload</li>
+            <li class="open">Store listing assets</li>
+            <li class="open">Account deletion web page</li>
+            <li class="open">FCM V1 key and Play service account</li>
+            <li class="open">Production Convex and Play signing cert</li>
+          </ul>
+        </div>
+      </div>
+      <p class="callout blue">Engineering is ahead of the account. The next real blocker is Google's, not the code's.</p>
+    </section>
+
+    <section class="slide">
+      <span class="kicker">02 / Timeline</span>
+      <h2>The critical path is the testing gate</h2>
+      <p class="lead">A personal account adds a mandatory closed test. An organization account skips it, at the cost of entity verification.</p>
+      <div class="gantt">
+        <div class="grow"><span class="lbl">Account setup</span><div class="track"><div class="bar" style="left:0;width:34%">1 to 3 days</div></div></div>
+        <div class="grow"><span class="lbl">Preview QA sign-off</span><div class="track"><div class="bar" style="left:0;width:20%">1 day</div></div></div>
+        <div class="grow"><span class="lbl">Production AAB</span><div class="track"><div class="bar" style="left:0;width:18%">1 day</div></div></div>
+        <div class="grow"><span class="lbl">Closed test, 12 testers</span><div class="track"><div class="bar gate" style="left:0;width:78%">14 continuous days</div></div></div>
+        <div class="grow"><span class="lbl">Production review</span><div class="track"><div class="bar" style="left:52%;width:30%">1 to 7 days</div></div></div>
+      </div>
+      <div class="cols" style="margin-top:6px">
+        <p class="muted" style="font-size:11.5px">Personal account: roughly 3 to 4 weeks end to end.</p>
+        <p class="muted" style="font-size:11.5px">Organization account: roughly 1 to 2 weeks, plus D-U-N-S lead time.</p>
+      </div>
+    </section>
+
+    <section class="slide">
+      <span class="kicker">03 / Decision</span>
+      <h2>Personal or organization</h2>
+      <table class="req" style="margin-top:8px">
+        <tr><th></th><th>Personal</th><th>Organization</th></tr>
+        <tr><td>Who owns the app</td><td>You as an individual</td><td>The registered business</td></tr>
+        <tr><td>12 testers, 14 days</td><td class="miss">Required</td><td class="ok">Exempt</td></tr>
+        <tr><td>Extra documents</td><td>Government ID</td><td>D-U-N-S, entity papers, address</td></tr>
+        <tr><td>Public developer name</td><td>Personal identity</td><td>Business name</td></tr>
+        <tr><td>Payments and tax records</td><td>Personal</td><td>Business</td></tr>
+        <tr><td>Realistic lead time</td><td>3 to 4 weeks</td><td>1 to 2 weeks</td></tr>
+      </table>
+      <p class="callout">The choice is sticky. Converting personal to organization later is not self-serve, so decide before paying the 25 USD fee.</p>
+    </section>
+
+    <section class="slide">
+      <span class="kicker">04 / Google gate</span>
+      <h2>What the closed test actually requires</h2>
+      <div class="flow">
+        <div class="step"><div class="n">STEP 1</div><strong>Upload an AAB</strong><span>Closed testing track, not internal.</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">STEP 2</div><strong>12 testers opt in</strong><span>Real Google accounts, real devices.</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">STEP 3</div><strong>14 continuous days</strong><span>Opted in the whole time, no gaps.</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">STEP 4</div><strong>Apply for production</strong><span>Google reviews the answers and the test.</span></div>
+      </div>
+      <div class="cols" style="margin-top:6px">
+        <ul class="plain" style="font-size:12px">
+          <li class="open">Internal testing does not count toward the 14 days.</li>
+          <li class="open">Pre-registration stays disabled until access is granted.</li>
+        </ul>
+        <ul class="plain" style="font-size:12px">
+          <li class="block">Drop below 12 testers and the clock resets.</li>
+          <li class="block">Emulators and paid tester farms get flagged.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="slide">
+      <span class="kicker">05 / Listing</span>
+      <h2>Store listing assets</h2>
+      <table class="req" style="margin-top:8px">
+        <tr><td>App name, 30 characters</td><td class="ok">Exists in app config</td></tr>
+        <tr><td>App icon, 512 x 512 PNG</td><td class="miss">Source art only, wrong size</td></tr>
+        <tr><td>Feature graphic, 1024 x 500</td><td class="miss">Missing</td></tr>
+        <tr><td>Phone screenshots, 2 to 8</td><td class="miss">Missing</td></tr>
+        <tr><td>Short description, 80 characters</td><td class="miss">Missing</td></tr>
+        <tr><td>Full description, 4000 characters</td><td class="miss">Missing</td></tr>
+        <tr><td>Privacy policy URL</td><td class="ok">Live at letsbefriends.space</td></tr>
+      </table>
+      <p class="callout blue">Screenshots can come from the preview APK on a phone, or from cloud simulators on a paid Expo plan.</p>
+    </section>
+
+    <section class="slide">
+      <span class="kicker">06 / Policy</span>
+      <h2>Declarations that block review</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>Must answer</h3>
+          <ul class="plain" style="font-size:12px">
+            <li>Data safety form</li>
+            <li>Content rating questionnaire</li>
+            <li>Target audience and age</li>
+            <li>Ads declaration</li>
+            <li>Financial features declaration</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Must provide</h3>
+          <ul class="plain" style="font-size:12px">
+            <li class="block">Account deletion page and in-app path</li>
+            <li class="block">Reviewer test login, Google OAuth only today</li>
+            <li>Permission justifications, location and photos</li>
+            <li>User content reporting and blocking, already built</li>
+            <li>Payments statement, PayMongo for real world services</li>
+          </ul>
+        </div>
+      </div>
+      <p class="callout">Google sign-in only means review needs a working test account. Plan one Google account for reviewers before submitting.</p>
+    </section>
+
+    <section class="slide">
+      <span class="kicker">07 / Pipeline</span>
+      <h2>Build once, submit every release</h2>
+      <div class="flow">
+        <div class="step"><div class="n">LOCAL</div><strong>Commit</strong><span>Version bump in app.json.</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">EXPO</div><strong>Build AAB</strong><span>Cloud build, signed, versionCode auto.</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">EXPO</div><strong>Submit</strong><span>Upload as draft to a track.</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">GOOGLE</div><strong>Roll out</strong><span>Internal, closed, then staged.</span></div>
+      </div>
+      <p style="margin-top:12px;font-size:12px">
+        <code>eas build -p android --profile production</code><br style="line-height:2" />
+        <code>eas submit -p android --profile production --latest</code>
+      </p>
+      <p class="muted" style="font-size:11.5px">The first release must be uploaded by hand in Play Console. Automated submits work once the app exists.</p>
+    </section>
+
+    <section class="slide">
+      <span class="kicker">08 / Engineering</span>
+      <h2>Configuration already in place</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>EAS</h3>
+          <ul class="plain" style="font-size:12px">
+            <li class="done">Project ec604d95, owner lets-be-friends</li>
+            <li class="done">Production profile builds an app-bundle</li>
+            <li class="done">Submit profile targets internal, draft</li>
+            <li class="done">Preview reads from EAS preview env</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>App and backend</h3>
+          <ul class="plain" style="font-size:12px">
+            <li class="done">Package com.letsbefriends.mobile</li>
+            <li class="done">Dev Convex project ID aligned</li>
+            <li class="done">assetlinks has the EAS certificate</li>
+            <li class="open">Production Convex project ID pending</li>
+          </ul>
+        </div>
+      </div>
+      <p class="callout blue">Nothing here needs rework before the production build. It needs the QA sign-off first.</p>
+    </section>
+
+    <section class="slide">
+      <span class="kicker">09 / Expo</span>
+      <h2>What Expo handles, what it cannot</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>Handles</h3>
+          <ul class="plain" style="font-size:12px">
+            <li class="done">Cloud builds and signing</li>
+            <li class="done">Keystore and credential storage</li>
+            <li class="done">Submission to a Play track</li>
+            <li class="done">Per-environment variables</li>
+            <li class="open">Over-the-air updates, not installed yet</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Cannot</h3>
+          <ul class="plain" style="font-size:12px">
+            <li class="block">Create or verify the Play account</li>
+            <li class="block">Waive the 12 tester gate</li>
+            <li class="block">Fill policy declarations</li>
+            <li class="block">Manage the Play listing</li>
+            <li class="block">Guarantee review approval</li>
+          </ul>
+        </div>
+      </div>
+      <p class="muted" style="font-size:11.5px">Free plan covers this launch: 15 Android builds and store submission included.</p>
+    </section>
+
+    <section class="slide">
+      <span class="kicker">10 / Risks</span>
+      <h2>What can still derail the launch</h2>
+      <table class="req" style="margin-top:8px">
+        <tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+        <tr><td class="miss">Wrong account type</td><td>Two week delay, new account</td><td>Decide before paying</td></tr>
+        <tr><td class="miss">No deletion page</td><td>Policy rejection</td><td>Ship the page with the release</td></tr>
+        <tr><td class="miss">No reviewer login</td><td>Review blocked</td><td>Dedicated Google test account</td></tr>
+        <tr><td>Missing FCM key</td><td>Push silent after install</td><td>Upload key before QA</td></tr>
+        <tr><td>Missing store assets</td><td>Cannot submit listing</td><td>Capture after sign-off</td></tr>
+        <tr><td>Play signing cert</td><td>Links open in browser</td><td>Add fingerprint after release</td></tr>
+      </table>
+    </section>
+
+    <section class="slide">
+      <span class="kicker">11 / Next</span>
+      <h2>The next five moves</h2>
+      <div class="cols">
+        <div class="card">
+          <h3>You</h3>
+          <ul class="plain" style="font-size:12px">
+            <li class="open">Choose personal or organization, then register</li>
+            <li class="open">Create the app in Play Console</li>
+            <li class="open">Recruit 12 testers if personal</li>
+            <li class="open">Create the Play service account key</li>
+            <li class="open">Add the FCM V1 key to Expo</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Repo and QA</h3>
+          <ul class="plain" style="font-size:12px">
+            <li class="open">Install the APK, run the 13 row sign-off</li>
+            <li class="open">Ship the account deletion page</li>
+            <li class="open">Produce the 512 icon and feature graphic</li>
+            <li class="open">Build the production AAB</li>
+            <li class="open">Set production Convex project ID</li>
+          </ul>
+        </div>
+      </div>
+      <p class="callout">Start the account today. Everything else can run while Google verifies.</p>
+    </section>
+
+  </div>
+
+  <div class="controls">
+    <button id="prev" aria-label="Previous slide">Prev</button>
+    <button id="next" aria-label="Next slide">Next</button>
+    <button id="fs" aria-label="Toggle full screen">Full screen</button>
+    <span class="count" id="count" aria-live="polite">1 / 12</span>
+    <div class="dots" id="dots"></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+    var dots = document.getElementById('dots');
+    var count = document.getElementById('count');
+    var index = 0;
+
+    slides.forEach(function (_, i) {
+      var b = document.createElement('button');
+      b.className = 'dot';
+      b.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+      b.addEventListener('click', function () { show(i); });
+      dots.appendChild(b);
+    });
+    var dotEls = Array.prototype.slice.call(dots.children);
+
+    function show(i) {
+      index = Math.max(0, Math.min(slides.length - 1, i));
+      slides.forEach(function (s, n) {
+        s.classList.toggle('active', n === index);
+        if (n === index) s.scrollTop = 0;
+      });
+      dotEls.forEach(function (d, n) { d.classList.toggle('on', n === index); });
+      count.textContent = (index + 1) + ' / ' + slides.length;
+    }
+
+    document.getElementById('prev').addEventListener('click', function () { show(index - 1); });
+    document.getElementById('next').addEventListener('click', function () { show(index + 1); });
+
+    var fsBtn = document.getElementById('fs');
+    var wrap = document.querySelector('.wrap');
+
+    function isPresenting() {
+      return document.fullscreenElement === wrap || document.body.classList.contains('present');
+    }
+    function syncFsLabel() {
+      fsBtn.textContent = isPresenting() ? 'Exit' : 'Full screen';
+    }
+    function toggleFullScreen() {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+        return;
+      }
+      if (document.body.classList.contains('present')) {
+        document.body.classList.remove('present');
+        syncFsLabel();
+        return;
+      }
+      if (wrap.requestFullscreen) {
+        wrap.requestFullscreen().then(syncFsLabel).catch(function () {
+          document.body.classList.add('present');
+          syncFsLabel();
+        });
+      } else {
+        document.body.classList.add('present');
+        syncFsLabel();
+      }
+    }
+    fsBtn.addEventListener('click', toggleFullScreen);
+    document.addEventListener('fullscreenchange', syncFsLabel);
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); show(index + 1); }
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(index - 1); }
+      if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleFullScreen(); }
+      if (e.key === 'Escape' && document.body.classList.contains('present')) {
+        document.body.classList.remove('present');
+        syncFsLabel();
+      }
+    });
+
+    show(0);
+    window.__deckShow = show;
+  })();
+</script>
+</body>
+</html>

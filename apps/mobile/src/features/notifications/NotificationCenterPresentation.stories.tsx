@@ -22,6 +22,23 @@ const notifications: NotificationCenterItem[] = [
     body: 'Alex accepted your conversation practice request.',
     timeLabel: '18m',
     tone: 'social',
+    kind: 'booking_accepted',
+    actors: [{ displayName: 'Alex Rivera' }],
+    unread: true,
+    group: 'new',
+  },
+  {
+    id: 'post-likes',
+    title: 'New likes',
+    body: 'Priya Shah and 4 others liked your post.',
+    timeLabel: '42m',
+    tone: 'social',
+    kind: 'post_liked',
+    actors: [
+      { displayName: 'Priya Shah' },
+      { displayName: 'Mateo Alvarez' },
+      { displayName: 'Sam Chen' },
+    ],
     unread: true,
     group: 'new',
   },
@@ -31,6 +48,72 @@ const notifications: NotificationCenterItem[] = [
     body: 'Your account can now request bookings.',
     timeLabel: '2d',
     tone: 'self',
+    kind: 'identity_verification_approved',
+    unread: false,
+    group: 'earlier',
+  },
+]
+
+const photoNotifications: NotificationCenterItem[] = [
+  {
+    id: 'photo-booking',
+    title: 'New booking request',
+    body: 'Alex Rivera sent a booking request.',
+    timeLabel: '6m',
+    tone: 'social',
+    kind: 'booking_request',
+    actors: [{
+      displayName: 'Alex Rivera',
+      profileImageUrl: 'https://randomuser.me/api/portraits/men/75.jpg',
+    }],
+    unread: true,
+    group: 'attention',
+  },
+  {
+    id: 'photo-likes',
+    title: 'New likes',
+    body: 'Priya Shah and 4 others liked your post.',
+    timeLabel: '12m',
+    tone: 'social',
+    kind: 'post_liked',
+    actors: [
+      {
+        displayName: 'Priya Shah',
+        profileImageUrl: 'https://randomuser.me/api/portraits/women/44.jpg',
+      },
+      {
+        displayName: 'Mateo Alvarez',
+        profileImageUrl: 'https://randomuser.me/api/portraits/men/32.jpg',
+      },
+      {
+        displayName: 'Sam Chen',
+        profileImageUrl: 'https://randomuser.me/api/portraits/women/68.jpg',
+      },
+    ],
+    unread: true,
+    group: 'new',
+  },
+  {
+    id: 'photo-message',
+    title: 'New message',
+    body: 'Jordan Lee sent you a message.',
+    timeLabel: '26m',
+    tone: 'social',
+    kind: 'direct_message',
+    actors: [{
+      displayName: 'Jordan Lee',
+      profileImageUrl: 'https://randomuser.me/api/portraits/women/12.jpg',
+    }],
+    unread: true,
+    group: 'new',
+  },
+  {
+    id: 'photo-system',
+    title: 'Identity verification approved',
+    body: 'Your account can now request bookings.',
+    timeLabel: '2d',
+    tone: 'self',
+    kind: 'identity_verification_approved',
     unread: false,
     group: 'earlier',
   },
@@ -73,6 +156,35 @@ export const Ready: Story = {
       }),
     )
     await expect(openNotification).toHaveBeenCalledOnce()
+    await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(
+      canvasElement.clientWidth,
+    )
+  },
+}
+
+export const AggregatedActorsAt320: Story = {
+  globals: { viewport: { value: 'mobileSmall', isRotated: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('New likes')).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: /New likes/ }),
+    ).toHaveAttribute(
+      'aria-label',
+      expect.stringContaining('Also: Mateo Alvarez, Sam Chen.'),
+    )
+    await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(
+      canvasElement.clientWidth,
+    )
+  },
+}
+
+export const ProfilePhotos: Story = {
+  args: { notifications: photoNotifications },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('New likes')).toBeVisible()
+    await expect(canvas.getByText('New booking request')).toBeVisible()
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(
       canvasElement.clientWidth,
     )

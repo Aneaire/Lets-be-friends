@@ -16,6 +16,98 @@ export function notificationReadAction(unread: boolean) {
     : { label: 'Mark as unread', icon: 'mail-unread-outline' as const }
 }
 
+export type NotificationVisualIcon =
+  | 'heart'
+  | 'chatbubble'
+  | 'chatbubble-ellipses'
+  | 'person-add'
+  | 'calendar-outline'
+  | 'star'
+  | 'shield-checkmark'
+  | 'flag'
+  | 'gift'
+  | 'people'
+  | 'notifications'
+
+/**
+ * Chooses the small badge icon shown over a notification actor stack. The
+ * icon explains why the notification exists without repeating the copy, which
+ * keeps the row readable when several actors are stacked together.
+ */export function notificationVisualIcon(kind?: string): NotificationVisualIcon {
+  switch (kind) {
+    case 'post_liked':
+    case 'comment_liked':
+    case 'circle_reaction':
+    case 'circle_comment_liked':
+    case 'review_liked':
+      return 'heart'
+    case 'direct_message':
+      return 'chatbubble'
+    case 'post_commented':
+    case 'comment_reply':
+    case 'mention':
+    case 'circle_reply':
+    case 'circle_mention':
+      return 'chatbubble-ellipses'
+    case 'new_follower':
+      return 'person-add'
+    case 'booking_request':
+    case 'booking_request_updated':
+    case 'booking_accepted':
+    case 'booking_declined':
+    case 'booking_cancelled':
+    case 'booking_completion_confirmed':
+    case 'booking_review_window_opened':
+    case 'booking_reminder':
+      return 'calendar-outline'
+    case 'review_received':
+    case 'review_commented':
+      return 'star'
+    case 'identity_verification_approved':
+    case 'identity_verification_rejected':
+    case 'identity_verification_expiring':
+    case 'identity_verification_expired':
+      return 'shield-checkmark'
+    case 'report_reviewing':
+    case 'report_resolved':
+    case 'report_dismissed':
+      return 'flag'
+    case 'referral_credit':
+    case 'referral_reversal':
+      return 'gift'
+    case 'circle_join_requested':
+    case 'circle_join_approved':
+    case 'circle_join_rejected':
+    case 'circle_post_review_requested':
+    case 'circle_post_approved':
+    case 'circle_post_rejected':
+    case 'circle_announcement':
+    case 'circle_member_removed':
+    case 'circle_member_banned':
+    case 'circle_role_changed':
+    case 'circle_host_transfer':
+    case 'circle_lifecycle':
+    case 'companion_application_approved':
+    case 'companion_application_rejected':
+      return 'people'
+    default:
+      return 'notifications'
+  }
+}
+
+/**
+ * Initials stand in for members who have not uploaded a profile photo, so an
+ * aggregate stack still reads as several distinct people instead of repeating
+ * the same placeholder portrait.
+ */
+export function notificationInitials(displayName: string) {
+  const words = displayName.trim().split(/\s+/).filter(Boolean)
+  return words
+    .slice(0, 2)
+    .map((word) => Array.from(word)[0]?.toUpperCase() ?? '')
+    .join('')
+}
+
 export function mobileNotificationRoute(destination: MobileNotificationDestination) {
   switch (destination.type) {
     case 'booking': return destination.audience === 'companion'

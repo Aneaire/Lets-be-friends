@@ -8,6 +8,7 @@ import {
   NotificationRow,
   type NotificationRowTone,
 } from '@/design-system/molecules/NotificationRow'
+import type { NotificationActor } from '@/design-system/molecules/NotificationVisual'
 import { StateView } from '@/design-system/molecules/StateView'
 import { InlineNotice } from '@/design-system/molecules/FeedbackState'
 import { Screen } from '@/design-system/templates/Screen'
@@ -22,6 +23,8 @@ export type NotificationCenterItem = {
   body?: string
   timeLabel: string
   tone?: NotificationRowTone
+  kind?: string
+  actors?: NotificationActor[]
   unread: boolean
   group: 'attention' | 'new' | 'earlier'
 }
@@ -90,36 +93,46 @@ export function NotificationCenterPresentation({
 
   return (
     <Screen contentStyle={styles.content}>
-      <AppHeader
-        back
-        onBack={onBack}
-        title="Notifications"
-        action={(
-          <IconButton
-            label={markAllBusy
-              ? 'Marking all notifications read'
-              : 'Mark all notifications read'}
-            icon="checkmark-done-outline"
-            tone="self"
-            disabled={!hasUnread || busy !== null}
-            loading={markAllBusy}
-            onPress={() => void markAllRead()}
-          />
-        )}
-      />
+      <View style={styles.gutter}>
+        <AppHeader
+          back
+          onBack={onBack}
+          title="Notifications"
+          action={(
+            <IconButton
+              label={markAllBusy
+                ? 'Marking all notifications read'
+                : 'Mark all notifications read'}
+              icon="checkmark-done-outline"
+              tone="self"
+              disabled={!hasUnread || busy !== null}
+              loading={markAllBusy}
+              onPress={() => void markAllRead()}
+            />
+          )}
+        />
+      </View>
 
-      {error ? <InlineNotice title="Notification update failed" tone="danger">{error}</InlineNotice> : null}
+      {error ? (
+        <View style={styles.gutter}>
+          <InlineNotice title="Notification update failed" tone="danger">{error}</InlineNotice>
+        </View>
+      ) : null}
 
       {loadingFirstPage ? (
-        <NotificationListSkeleton />
+        <View style={styles.gutter}>
+          <NotificationListSkeleton />
+        </View>
       ) : notifications.length === 0 ? (
-        <StateView
-          embedded
-          eyebrow="UPDATES"
-          title="You are all caught up"
-          detail="New booking, social, account, and safety updates will appear here."
-          intent="self"
-        />
+        <View style={styles.gutter}>
+          <StateView
+            embedded
+            eyebrow="UPDATES"
+            title="You are all caught up"
+            detail="New booking, social, account, and safety updates will appear here."
+            intent="self"
+          />
+        </View>
       ) : (
         <>
           {sections.map((section) => {
@@ -130,9 +143,11 @@ export function NotificationCenterPresentation({
 
             return (
               <View key={section.id} style={styles.section}>
-                <AppText variant="label" color={theme.colors.textMuted}>
-                  {section.title.toUpperCase()}
-                </AppText>
+                <View style={styles.gutter}>
+                  <AppText variant="label" color={theme.colors.textMuted}>
+                    {section.title.toUpperCase()}
+                  </AppText>
+                </View>
                 <View style={styles.list}>
                   {items.map((notification) => (
                     <NotificationRow
@@ -141,6 +156,8 @@ export function NotificationCenterPresentation({
                       body={notification.body}
                       timeLabel={notification.timeLabel}
                       tone={notification.tone}
+                      kind={notification.kind}
+                      actors={notification.actors}
                       density="compact"
                       unread={notification.unread}
                       disabled={markAllBusy || (busy !== null && busy.id !== notification.id)}
@@ -183,7 +200,8 @@ export function NotificationCenterPresentation({
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: density.screenBottom },
+  content: { paddingHorizontal: 0, paddingBottom: density.screenBottom },
+  gutter: { paddingHorizontal: density.cardPadding },
   section: { gap: density.cardGap, marginTop: density.sectionGap },
   list: { gap: 0 },
   loadMore: { alignItems: 'center', paddingVertical: density.contentGap },

@@ -165,7 +165,7 @@ function TabBarItemView({
           ],
         }}
       >
-        <AppIcon name={focused ? item.activeIcon : item.icon} color={color} size={22} />
+        <AppIcon name={focused ? item.activeIcon : item.icon} color={color} size={24} />
         {badge ? (
           <View
             accessibilityElementsHidden
@@ -178,12 +178,6 @@ function TabBarItemView({
           </View>
         ) : null}
       </Animated.View>
-      <AppText
-        numberOfLines={1}
-        style={[styles.label, { color: theme.colors.text, opacity: focused ? 1 : 0.82 }]}
-      >
-        {item.label}
-      </AppText>
     </Pressable>
   )
 }
@@ -346,18 +340,20 @@ export function AppTabBar({
         </View>
       </View>
       {showCreate ? (
-        <CreateButton
-          dark={dark}
-          onPress={() => {
-            createHaptic()
-            const request = sharePostRoute(Date.now())
-            if (focusedRoute?.name === 'index') {
-              router.setParams(request.params)
-              return
-            }
-            router.navigate(request)
-          }}
-        />
+        <View pointerEvents="box-none" style={styles.createLayer}>
+          <CreateButton
+            dark={dark}
+            onPress={() => {
+              createHaptic()
+              const request = sharePostRoute(Date.now())
+              if (focusedRoute?.name === 'index') {
+                router.setParams(request.params)
+                return
+              }
+              router.navigate(request)
+            }}
+          />
+        </View>
       ) : null}
     </Animated.View>
   )
@@ -406,18 +402,10 @@ const styles = StyleSheet.create({
     height: TAB_BAR_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
     borderRadius: 999,
   },
   pressed: {
     opacity: 0.62,
-  },
-  label: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-    letterSpacing: 0.1,
-    textAlign: 'center',
   },
   badge: {
     position: 'absolute',
@@ -438,11 +426,14 @@ const styles = StyleSheet.create({
   createSpacer: {
     width: TAB_BAR_CREATE_SIZE + 10,
   },
-  createWrap: {
+  createLayer: {
     position: 'absolute',
     top: -18,
-    left: '50%',
-    marginLeft: -(TAB_BAR_CREATE_SIZE / 2),
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  createWrap: {
     width: TAB_BAR_CREATE_SIZE,
     height: TAB_BAR_CREATE_SIZE,
   },

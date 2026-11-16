@@ -66,6 +66,8 @@ describe('social notification aggregation', () => {
       body: 'outsider and 1 other liked your post.',
       destination: { type: 'post', postId: String(postId) },
     })
+    const aggregate = page.page.find((row) => row.kind === 'post_liked')
+    expect(aggregate?.actors.map((actor) => actor.displayName)).toEqual(['outsider', 'member'])
   })
 
   it('collapses many followers into one notification', async () => {
@@ -92,5 +94,58 @@ describe('social notification aggregation', () => {
       body: 'outsider and 1 other followed you.',
       destination: { type: 'profile' },
     })
+    const aggregate = page.page.find((row) => row.kind === 'new_follower')
+    expect(aggregate?.actors.map((actor) => actor.displayName)).toEqual(['outsider', 'member'])
+  })
+
+  it('stacks the most recent actors first and omits actors the recipient has hidden', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'author')
+    const memberId = await insertUser(t, 'member')
+    await insertUser(t, 'outsider')
+    const postId = await insertPost(t, authorId)
+
+    await t.withIdentity({ subject: 'member' }).mutation(api.social.toggleLike, { postId })
+    await t.withIdentity({ subject: 'outsider' }).mutation(api.social.toggleLike, { postId })
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert('memberSafetyPreferences', {
+        ownerUserId: authorId,
+        targetUserId: memberId,
+        pairKey: `${authorId}:${memberId}`,
+        mutedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    const page = await t.withIdentity({ subject: 'author' }).query(api.notifications.list, {
+      paginationOpts: { cursor: null, numItems: 10 },
+    })
+    const aggregate = page.page.find((row) => row.kind === 'post_liked')
+    expect(aggregate?.actors.map((actor) => actor.displayName)).toEqual(['outsider'])
+    expect(aggregate?.actors.map((actor) => actor.userId)).not.toContain(String(memberId))
+    expect(aggregate?.actor).toMatchObject({ displayName: 'outsider' })
+  })
+
+  it('shows no actor stack when the most recent actor is no longer visible', async () => {
+    const t = createTest()
+    const authorId = await insertUser(t, 'author')
+    await insertUser(t, 'member')
+    const outsiderId = await insertUser(t, 'outsider')
+    const postId = await insertPost(t, authorId)
+
+    await t.withIdentity({ subject: 'member' }).mutation(api.social.toggleLike, { postId })
+    await t.withIdentity({ subject: 'outsider' }).mutation(api.social.toggleLike, { postId })
+    await t.run(async (ctx) => {
+      await ctx.db.patch(outsiderId, { suspended: true, updatedAt: Date.now() })
+    })
+
+    const page = await t.withIdentity({ subject: 'author' }).query(api.notifications.list, {
+      paginationOpts: { cursor: null, numItems: 10 },
+    })
+    const aggregate = page.page.find((row) => row.kind === 'post_liked')
+    expect(aggregate?.actor).toMatchObject({ displayName: "Let's Be Friends", available: false })
+    expect(aggregate?.actors).toEqual([])
   })
 })

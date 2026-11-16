@@ -13,6 +13,8 @@ const meta = {
     body: 'Alex Rivera sent you a message.',
     timeLabel: '8m',
     tone: 'social',
+    kind: 'direct_message',
+    actors: [{ displayName: 'Alex Rivera' }],
     unread: true,
     onOpen: fn(),
     onToggleRead: fn(),
@@ -36,6 +38,8 @@ export const ReadSelf: Story = {
     body: 'Your identity verification was approved.',
     timeLabel: '1d',
     tone: 'self',
+    kind: 'identity_verification_approved',
+    actors: undefined,
     unread: false,
   },
 }
@@ -45,6 +49,75 @@ export const SafetyTone: Story = {
     title: 'Report closed',
     body: 'The safety team closed your report.',
     tone: 'danger',
+    kind: 'report_resolved',
+    actors: undefined,
+  },
+}
+
+export const AggregatedActors: Story = {
+  args: {
+    title: 'New likes',
+    body: 'Alex Rivera and 4 others liked your post.',
+    timeLabel: '12m',
+    tone: 'social',
+    kind: 'post_liked',
+    unread: true,
+    actors: [
+      { displayName: 'Alex Rivera' },
+      { displayName: 'Priya Shah' },
+      { displayName: 'Mateo Alvarez' },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('New likes')).toBeVisible()
+    const row = canvas.getByRole('button', { name: /New likes/ })
+    await expect(row).toHaveAttribute(
+      'aria-label',
+      expect.stringContaining('Also: Priya Shah, Mateo Alvarez.'),
+    )
+  },
+}
+
+export const ProfilePhotoActors: Story = {
+  args: {
+    title: 'New likes',
+    body: 'Priya Shah and 4 others liked your post.',
+    timeLabel: '12m',
+    tone: 'social',
+    kind: 'post_liked',
+    unread: true,
+    actors: [
+      {
+        displayName: 'Priya Shah',
+        profileImageUrl: 'https://randomuser.me/api/portraits/women/44.jpg',
+      },
+      {
+        displayName: 'Mateo Alvarez',
+        profileImageUrl: 'https://randomuser.me/api/portraits/men/32.jpg',
+      },
+      {
+        displayName: 'Sam Chen',
+        profileImageUrl: 'https://randomuser.me/api/portraits/women/68.jpg',
+      },
+    ],
+  },
+}
+
+export const SystemNotification: Story = {
+  args: {
+    title: 'Identity verification approved',
+    body: 'Your identity verification was approved.',
+    timeLabel: '33d',
+    tone: 'self',
+    kind: 'identity_verification_approved',
+    actors: undefined,
+    unread: false,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const row = canvas.getByRole('button', { name: /Identity verification approved/ })
+    await expect(row.getAttribute('aria-label')).not.toContain('People shown')
   },
 }
 

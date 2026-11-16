@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { notificationReadAction } from '@/data/notifications'
 import { AppText } from '@/design-system/atoms/Typography'
 import { ActionSheet } from '@/design-system/molecules/ActionSheet'
+import { NotificationVisual, type NotificationActor } from '@/design-system/molecules/NotificationVisual'
 import { useAppTheme } from '@/theme/ThemeProvider'
 import { density as densityTokens } from '@/theme/tokens'
 
@@ -16,6 +17,8 @@ export type NotificationRowProps = {
   timeLabel?: string
   tone?: NotificationRowTone
   density?: NotificationRowDensity
+  kind?: string
+  actors?: NotificationActor[]
   unread?: boolean
   disabled?: boolean
   openBusy?: boolean
@@ -30,6 +33,8 @@ export function NotificationRow({
   timeLabel,
   tone = 'neutral',
   density = 'comfortable',
+  kind,
+  actors,
   unread = false,
   disabled = false,
   openBusy = false,
@@ -45,7 +50,21 @@ export function NotificationRow({
       : tone === 'danger'
         ? theme.colors.danger
         : theme.colors.text
-  const openLabel = [unread ? 'Unread notification.' : undefined, title, body, timeLabel]
+  const rowBackground = unread ? theme.colors.surface : theme.colors.background
+  const shownActorNames = (actors ?? [])
+    .map((actor) => actor.displayName)
+    .filter(Boolean)
+    .slice(0, 3)
+  const additionalActorNames = shownActorNames
+    .slice(1)
+    .filter((name) => !body?.includes(name))
+  const openLabel = [
+    unread ? 'Unread notification.' : undefined,
+    title,
+    body,
+    additionalActorNames.length ? `Also: ${additionalActorNames.join(', ')}.` : undefined,
+    timeLabel,
+  ]
     .filter(Boolean)
     .join(' ')
   const readAction = notificationReadAction(unread)
@@ -84,22 +103,28 @@ export function NotificationRow({
         style={({ pressed }) => [
           styles.row,
           density === 'compact' ? styles.compact : styles.comfortable,
-          { borderBottomColor: theme.colors.border, backgroundColor: unread ? theme.colors.surface : theme.colors.background },
+          { borderBottomColor: theme.colors.border, backgroundColor: rowBackground },
           pressed && styles.pressed,
           inactive && styles.disabled,
         ]}>
-        <View
-          importantForAccessibility="no-hide-descendants"
-          style={[
-            styles.dot,
-            { borderColor: theme.colors.borderStrong, backgroundColor: unread ? theme.colors.text : 'transparent' },
-          ]}
+        <NotificationVisual
+          actors={actors}
+          kind={kind}
+          tone={tone}
+          size={density === 'compact' ? 38 : 42}
+          ringColor={rowBackground}
         />
         <View style={styles.copy}>
           <AppText variant="bodyStrong" color={titleColor}>{title}</AppText>
           {body ? <AppText variant="caption" color={theme.colors.textMuted}>{body}</AppText> : null}
           {timeLabel ? <AppText variant="caption" color={theme.colors.textMuted}>{timeLabel}</AppText> : null}
         </View>
+        {unread ? (
+          <View
+            importantForAccessibility="no-hide-descendants"
+            style={[styles.dot, { backgroundColor: theme.colors.text }]}
+          />
+        ) : null}
       </Pressable>
       <ActionSheet
         visible={optionsOpen}
@@ -118,10 +143,10 @@ export function NotificationRow({
 }
 
 const styles = StyleSheet.create({
-  row: { minHeight: densityTokens.compactControlHeight, minWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row' },
-  comfortable: { padding: densityTokens.cardPadding, gap: densityTokens.compactCardPadding },
-  compact: { padding: densityTokens.compactCardPadding, gap: densityTokens.cardGap },
-  dot: { width: 8, height: 8, borderWidth: 1, borderRadius: 4, marginTop: 7 },
+  row: { minHeight: densityTokens.compactControlHeight, minWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'flex-start' },
+  comfortable: { paddingVertical: densityTokens.cardPadding, paddingHorizontal: densityTokens.cardPadding, gap: densityTokens.compactCardPadding },
+  compact: { paddingVertical: densityTokens.compactCardPadding, paddingHorizontal: densityTokens.cardPadding, gap: densityTokens.cardGap },
+  dot: { width: 8, height: 8, borderRadius: 4, marginTop: 7 },
   copy: { flex: 1, minWidth: 0, gap: densityTokens.textPairGap },
   pressed: { opacity: 0.62 },
   disabled: { opacity: 0.52 },

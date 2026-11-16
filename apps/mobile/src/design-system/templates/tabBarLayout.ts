@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react'
 
 import type { AppIconName } from '@/design-system/atoms/AppIcon'
 
-export const TAB_BAR_HEIGHT = 64
+export const TAB_BAR_HEIGHT = 58
 export const TAB_BAR_BOTTOM_GAP = 2
 export const TAB_BAR_CREATE_SIZE = 56
 export const TAB_BAR_CONTENT_GAP = 16
