@@ -35,9 +35,9 @@ const current = {
 }
 
 describe('unified policy acceptance', () => {
-  it('uses the 2026-10-17.2 lifetime version effective 2026-10-17', () => {
-    expect(currentPolicyVersion).toBe('2026-10-17.2')
-    expect(policyEffectiveDate).toBe('2026-10-17')
+  it('uses the 2026-11-20 full contract version effective 2026-11-20', () => {
+    expect(currentPolicyVersion).toBe('2026-11-20')
+    expect(policyEffectiveDate).toBe('2026-11-20')
     expect(previousPolicyVersion).toBe(old730Version)
   })
 
@@ -68,11 +68,20 @@ describe('unified policy acceptance', () => {
     expect(combined.toLowerCase()).not.toContain('marketing')
     expect(combined.toLowerCase()).not.toContain('opt out of marketing')
     expect(combined.toLowerCase()).not.toContain('appeal')
-    expect(combined.toLowerCase()).not.toContain('refund')
+    // The only retention promise is account lifetime; the legacy 730 day
+    // retention scope must never be reintroduced in policy copy.
     expect(combined).toContain('selfie')
     expect(combined).toContain('for as long as your account exists')
     expect(combined).not.toContain('730 days')
     expect(combined).not.toContain('up to 730')
+    // 2026-11-20 scope: real fees, cancellation, contact, and PH law are
+    // described because the product implements them.
+    expect(combined).toContain('15% service fee')
+    expect(combined).toContain('₱10 transfer fee')
+    expect(combined).toContain('letsbefriends896@gmail.com')
+    expect(combined).toContain('Republic of the Philippines')
+    expect(combined).toContain('National Privacy Commission')
+    expect(combined).toContain('until a completion confirmation has been recorded')
   })
 
   it('keeps sectioned and flat content identical', () => {
@@ -86,7 +95,7 @@ describe('unified policy acceptance', () => {
   })
 
   it('recognizes exactly the dedicated legal paths', () => {
-    expect(publicLegalPaths).toEqual(['/terms-and-conditions', '/privacy-policy'])
+    expect(publicLegalPaths).toEqual(['/terms-and-conditions', '/privacy-policy', '/account-deletion'])
     expect(isPublicLegalPath('/terms-and-conditions')).toBe(true)
     expect(isPublicLegalPath('/privacy-policy')).toBe(true)
     expect(isPublicLegalPath('/privacy-policy/')).toBe(true)
