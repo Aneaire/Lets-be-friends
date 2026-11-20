@@ -12,6 +12,7 @@ export function SettingsContent({
   pushNotifications,
   notificationPreferences,
   appearanceSettings,
+  accountDeletion,
   verificationValue,
   verificationDetail,
   verificationAction,
@@ -41,6 +42,7 @@ export function SettingsContent({
   pushNotifications?: ReactNode
   notificationPreferences?: ReactNode
   appearanceSettings?: ReactNode
+  accountDeletion?: ReactNode
   verificationValue?: string
   verificationDetail: string
   verificationAction: 'verify' | 'continue' | 'retry' | 'none'
@@ -122,6 +124,12 @@ export function SettingsContent({
         <SettingsRow icon="document-text-outline" label={termsDocument.title} detail="Rules for using the service, bookings, and Companion conduct" onPress={onOpenTerms} />
         <SettingsRow icon="lock-closed-outline" label={privacyDocument.title} detail="What we collect, why we use it, and how long we keep it" onPress={onOpenPrivacy} />
       </SettingsGroup>
+
+      {accountDeletion ? (
+        <SettingsGroup title="Delete account">
+          {accountDeletion}
+        </SettingsGroup>
+      ) : null}
 
       <SettingsGroup title="Session">
         <SettingsRow icon="log-out-outline" label={signingOut ? 'Signing out' : 'Sign out'} detail="End this session on this device" onPress={signingOut ? undefined : onSignOut} />

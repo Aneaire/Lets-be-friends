@@ -223,6 +223,10 @@ export default defineSchema({
     identityVerifiedAt: v.optional(v.number()),
     identityExpiresAt: v.optional(v.number()),
     suspended: v.boolean(),
+    // Set when the member deletes their account. The row is kept as a tombstone
+    // so financial and safety records keep a stable reference, while every
+    // personal field is cleared.
+    deletedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

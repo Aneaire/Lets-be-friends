@@ -4,6 +4,7 @@ import { useQuery } from 'convex/react'
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi } from '@/backend/client'
 import { AppearanceSettings } from '@/features/settings/AppearanceSettings'
+import { AccountDeletionSettings } from '@/features/settings/AccountDeletionSettings'
 import { NotificationPreferences } from '@/features/settings/NotificationPreferences'
 import { PushNotificationSettings } from '@/features/settings/PushNotificationSettings'
 import { SettingsContent } from '@/features/settings/SettingsContent'
@@ -67,6 +68,14 @@ export function ReadySettings({
         pushNotifications={<PushNotificationSettings />}
         notificationPreferences={<NotificationPreferences />}
         appearanceSettings={<AppearanceSettings />}
+        accountDeletion={(
+          <AccountDeletionSettings
+            onDeleted={async () => {
+              await runSignOut()
+              router.replace('/profile')
+            }}
+          />
+        )}
         verificationValue={profile.verificationLabel}
         verificationDetail={profile.verificationDetail}
         verificationAction={verificationAction}

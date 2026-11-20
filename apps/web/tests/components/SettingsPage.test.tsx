@@ -21,6 +21,12 @@ const state = vi.hoisted(() => ({
     digestHourMinute: 1080,
   },
   setTheme: vi.fn(),
+  deletionSummary: {
+    deleted: false,
+    canDelete: true,
+    blockers: [] as Array<{ code: string; title: string; description: string }>,
+    counts: { publicPosts: 0, conversations: 0, experiences: 0, identityImages: 0 },
+  },
 }))
 
 vi.mock('../../convex/_generated/api', () => ({
@@ -30,13 +36,19 @@ vi.mock('../../convex/_generated/api', () => ({
       mine: 'notificationPreferences.mine',
       update: 'notificationPreferences.update',
     },
+    accountDeletion: {
+      deletionSummary: 'accountDeletion.deletionSummary',
+      deleteAccount: 'accountDeletion.deleteAccount',
+    },
   },
 }))
 
 vi.mock('convex/react', () => ({
   useQuery: (query: string) => query === 'companions.myApplication'
     ? state.application
-    : query === 'notificationPreferences.mine' ? state.notificationPreferences : undefined,
+    : query === 'notificationPreferences.mine'
+      ? state.notificationPreferences
+      : query === 'accountDeletion.deletionSummary' ? state.deletionSummary : undefined,
   useMutation: () => vi.fn(async () => undefined),
 }))
 
@@ -44,6 +56,7 @@ vi.mock('@clerk/react', () => ({
   SignInButton: ({ children }: { children: ReactNode }) => <>{children}</>,
   useAuth: () => ({ isSignedIn: state.signedIn }),
   useUser: () => ({ user: { primaryEmailAddress: { emailAddress: state.email } } }),
+  useClerk: () => ({ signOut: vi.fn(async () => undefined) }),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -118,5 +131,12 @@ describe('settings route', () => {
     expect(screen.getByText('₱500.00', { exact: false })).toBeTruthy()
     expect(screen.getByRole('link', { name: /Companion profile details/ }).getAttribute('href')).toBe('/become-companion')
     expect(screen.getByRole('link', { name: /Verification status/ }).getAttribute('href')).toBe('/get-verified')
+  })
+
+  it('offers account deletion from settings', () => {
+    render(<SettingsPage />)
+
+    expect(screen.getByRole('region', { name: 'Delete account' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Delete account/ })).toBeTruthy()
   })
 })

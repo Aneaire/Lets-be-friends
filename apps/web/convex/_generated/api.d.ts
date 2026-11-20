@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as accountDeletion from "../accountDeletion.js";
 import type * as admin from "../admin.js";
 import type * as availability from "../availability.js";
 import type * as availabilityRules from "../availabilityRules.js";
@@ -40,6 +41,7 @@ import type * as rateLimit from "../rateLimit.js";
 import type * as referralProgram from "../referralProgram.js";
 import type * as referrals from "../referrals.js";
 import type * as reports from "../reports.js";
+import type * as reviewerAccess from "../reviewerAccess.js";
 import type * as reviews from "../reviews.js";
 import type * as safety from "../safety.js";
 import type * as seeds from "../seeds.js";
@@ -55,6 +57,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  accountDeletion: typeof accountDeletion;
   admin: typeof admin;
   availability: typeof availability;
   availabilityRules: typeof availabilityRules;
@@ -87,6 +90,7 @@ declare const fullApi: ApiFromModules<{
   referralProgram: typeof referralProgram;
   referrals: typeof referrals;
   reports: typeof reports;
+  reviewerAccess: typeof reviewerAccess;
   reviews: typeof reviews;
   safety: typeof safety;
   seeds: typeof seeds;

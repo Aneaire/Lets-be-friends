@@ -2,6 +2,10 @@ import { api as generatedApi } from '../../../web/convex/_generated/api'
 import type { Id } from '../../../web/convex/_generated/dataModel'
 
 export const mobileApi = {
+  accountDeletion: {
+    deletionSummary: generatedApi.accountDeletion.deletionSummary,
+    deleteAccount: generatedApi.accountDeletion.deleteAccount,
+  },
   companions: {
     listExploreDirectory: generatedApi.companions.listExploreDirectory,
     listExploreDirectoryPage: generatedApi.companions.listExploreDirectoryPage,

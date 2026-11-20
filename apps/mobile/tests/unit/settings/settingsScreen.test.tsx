@@ -7,6 +7,7 @@ const mockCanGoBack = jest.fn()
 const mockRetry = jest.fn()
 
 jest.mock('convex/react', () => ({ useQuery: () => null }))
+jest.mock('@clerk/expo', () => ({ useUser: () => ({ user: null }) }))
 jest.mock('@/features/account/useAccountSignOut', () => ({ useAccountSignOut: () => ({ signingOut: false, signOutError: false, runSignOut: jest.fn() }) }))
 
 jest.mock('@/auth/MobileAuth', () => ({ useMobileAuth: () => mockUseMobileAuth() }))
