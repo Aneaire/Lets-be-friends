@@ -51,6 +51,7 @@ function ReadyGetVerified({ member }: { member: Extract<ReturnType<typeof useMob
       <AppText variant="heading">1. Identity check</AppText>
       <StatusBadge label={model.identity.label} tone={model.identity.tone} />
       <AppText color={theme.colors.textMuted}>{model.identity.guidance}</AppText>
+      <AppText color={theme.colors.textMuted}>Only the ID image is sent to a secure OpenAI field reader to read the printed details. Your ID and selfie are kept privately for as long as your account exists for safety, fraud prevention, and incident investigation, and every submission receives a human safety team decision.</AppText>
       {member.viewer.identityEligible ? <AppText>Your identity and safety review are approved.</AppText> : null}
       {member.viewer.identityEligible ? null : <ActionButton label={opening ? 'Opening identity check' : model.identityActionLabel} intent="self" onPress={() => void openIdentity()} disabled={opening} />}
       {error ? <AppText accessibilityRole="alert" color={theme.colors.danger}>{error}</AppText> : null}

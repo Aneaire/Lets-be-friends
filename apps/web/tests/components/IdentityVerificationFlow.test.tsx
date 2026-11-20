@@ -42,6 +42,7 @@ vi.mock('@clerk/react', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
   useNavigate: () => state.navigate,
   useLocation: () => ({ pathname: '/profile' }),
 }))
@@ -181,7 +182,7 @@ describe('identity verification unified acceptance notices', () => {
     URL.revokeObjectURL = originalRevokeObjectURL
   })
 
-  it('shows no privacy checkboxes on upload and offers an explicit upload action without policy prose', async () => {
+  it('shows the data handling disclosure before the upload action and needs no extra checkbox', async () => {
     state.current = {
       _id: 'record-1',
       reason: 'member',
@@ -194,20 +195,26 @@ describe('identity verification unified acceptance notices', () => {
     }
     const { container } = renderPage()
     await screen.findByText('Government ID type')
+    const text = container.textContent ?? ''
+    // Google Play User Data policy: sensitive collection needs a prominent
+    // in-app disclosure before the consent action, not only linked legal pages.
+    expect(text).toContain('How this check handles your data')
+    expect(text).toContain('Only the ID image is sent to a secure OpenAI field reader')
+    expect(text).toContain('never sent to the field reader')
+    expect(text).toContain('for as long as your account exists')
+    expect(text).toContain('human safety team decision')
+    expect(screen.getByRole('link', { name: 'Privacy Policy' }).getAttribute('href')).toBe('/privacy-policy')
+    // The labeled upload action is the affirmative consent, so no checkbox is added.
     expect(screen.queryByRole('checkbox')).toBeNull()
-    expect(screen.queryByText(/By choosing Upload and process ID/i)).toBeNull()
-    expect(screen.queryByText(/Only the ID image is sent to the secure field reader/i)).toBeNull()
-    expect(screen.queryByText(/ID image storage terms for safety/i)).toBeNull()
-    expect(screen.queryByText(/for as long as your account exists/i)).toBeNull()
-    expect(screen.queryByText(/Privacy Policy/i)).toBeNull()
-    expect(container.textContent ?? '').not.toContain('human safety review')
+    // The disclosure must precede the upload button in the document.
+    expect(text.indexOf('How this check handles your data')).toBeLessThan(text.indexOf('Upload and process ID'))
     const input = document.getElementById('identity-front') as HTMLInputElement
     fireEvent.change(input, { target: { files: [new File(['front'], 'id-front.jpg', { type: 'image/jpeg' })] } })
     const upload = await screen.findByRole('button', { name: 'Upload and process ID' })
     expect((upload as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('shows no privacy checkbox on review and offers an explicit send action without retention prose', async () => {
+  it('keeps the data handling disclosure before the send action', async () => {
     state.current = {
       _id: 'record-1',
       reason: 'member',
@@ -219,13 +226,13 @@ describe('identity verification unified acceptance notices', () => {
       updatedAt: Date.now(),
     }
     const { container } = renderPage()
-    await screen.findByRole('button', { name: 'Send for safety review' })
+    const send = await screen.findByRole('button', { name: 'Send for safety review' })
+    const text = container.textContent ?? ''
+    expect(text).toContain('How this check handles your data')
+    expect(text).toContain('Only the ID image is sent to a secure OpenAI field reader')
+    expect(text).toContain('for as long as your account exists')
+    expect(text.indexOf('How this check handles your data')).toBeLessThan(text.indexOf('Send for safety review'))
     expect(screen.queryByRole('checkbox')).toBeNull()
-    expect(screen.queryByText(/By choosing Send for safety review/i)).toBeNull()
-    expect(screen.queryByText(/ID image storage terms for safety/i)).toBeNull()
-    expect(screen.queryByText(/for as long as your account exists/i)).toBeNull()
-    expect(screen.queryByText(/Only the ID image is sent/i)).toBeNull()
-    expect(container.textContent ?? '').not.toContain('human safety review')
-    expect((screen.getByRole('button', { name: 'Send for safety review' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((send as HTMLButtonElement).disabled).toBe(false)
   })
 })

@@ -112,6 +112,64 @@ Policy, the 18+ and no-ads declarations match the Terms, and the account
 deletion answers match both documents. The privacy policy and account deletion
 URLs in the listing are unchanged.
 
+## Google Play User Data policy audit, 2026-11-20
+
+Audited against the User Data policy (Privacy, Deception and Device Abuse,
+support.google.com/googleplay/android-developer/answer/10144311).
+
+Passes without change:
+
+- Persistent device identifiers (IMEI, IMSI, SIM serial) are never collected
+  or linked. The referral and push identifiers are app-scoped, resettable IDs
+  (random web UUID, Expo installation ID, push token) used for fraud
+  prevention, which the policy permits, and they are disclosed in the Privacy
+  Policy and the Data safety answers.
+- No data sale, no ad SDK, no advertising ID or App Set ID use.
+- Financial and government ID data is never public: the ID number is not
+  collected, ID images are visible only to purpose-bound reviewers, and payout
+  account numbers are encrypted with only the last four digits displayed.
+- Secure handling: TLS everywhere, runtime permissions for location and
+  media, encrypted payout storage, audit-logged restricted access.
+- Privacy policy requirements: the operator name matches the Play developer
+  name, a contact mechanism exists, types of data, parties, secure handling,
+  and retention and deletion are all disclosed, the page is titled Privacy
+  Policy, and the URL is a public non-PDF web page reachable from in-app
+  Settings and signed-out footers.
+- Account deletion: in-app in Settings on both platforms, public web URL,
+  blockers disclosed with reasons, retained records disclosed, and freezing is
+  not used as a substitute.
+- EEA, UK, and Swiss framework duties do not engage while distribution stays
+  Philippines only, which also keeps the non-trader declaration truthful.
+
+One gap found and fixed. The identity flow collected a government ID image
+and selfie with affirmative labeled actions but described the third-party
+processing, retention, and human review only in the linked legal pages. The
+User Data policy forbids that placement for sensitive collection: the
+prominent disclosure must be in the app itself, in normal usage, immediately
+before the consent action, describing the data, its use, and its sharing, and
+the policy states these requirements apply to third-party AI integrations.
+This reverses the 2026-10-17 decision to remove repeated processing and
+retention notices from the identity UI. The reversal is deliberate and
+documented here:
+
+- The web identity flow (the collection UI for both platforms, since the
+  mobile app hands off to it) now shows a data handling panel beside the
+  steps: what is collected, that only the ID image goes to the secure OpenAI
+  field reader with storage disabled, that the selfie is never sent to the
+  reader or used as biometric proof, account-lifetime retention, time-limited
+  audit-logged reviewer access, human safety team decisions, and a Privacy
+  Policy link.
+- The mobile Get verified screen, the in-app surface before the handoff,
+  carries the same disclosure sentence before the action that opens the
+  identity flow.
+- The upload and send actions remain the affirmative consent; no checkbox
+  was added, and the tests keep asserting no checkbox.
+- Tests that previously enforced the absence of the disclosure now pin its
+  presence and its position before the consent actions.
+
+The Data safety answers do not change: the disclosure describes processing
+that the form and Privacy Policy already declared.
+
 ## Remaining for counsel
 
 The items in the release decisions list of

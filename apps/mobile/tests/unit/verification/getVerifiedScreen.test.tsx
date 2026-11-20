@@ -52,6 +52,10 @@ it.each([
 it('unlocks Companion setup during current safety review and shows status without opening capture', async () => {
   mockMember.mockReturnValue({ ...mockMember(), verification: { adminStatus: 'pending', isCurrent: true, verificationSource: 'in_app', identityStage: 'ready_for_review' } })
   const tree = render()
+  // Google Play User Data policy: the sensitive identity collection has an
+  // in-app disclosure on this screen before the handoff action.
+  expect(text(tree)).toContain('Only the ID image is sent to a secure OpenAI field reader')
+  expect(text(tree)).toContain('human safety team decision')
   expect(action(tree, 'Create Companion profile').props.disabled).toBe(false)
   action(tree, 'Create Companion profile').props.onPress()
   expect(mockPush).toHaveBeenCalledWith('/companion')

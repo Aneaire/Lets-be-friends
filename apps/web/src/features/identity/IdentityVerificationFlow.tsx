@@ -1,5 +1,5 @@
 import { SignInButton, useAuth } from '@clerk/react'
-import { useLocation, useNavigate } from '@tanstack/react-router'
+import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { ArrowLeft, Camera, Check, ClipboardCheck, FileText, LockKeyhole, RefreshCw, ShieldCheck, Upload } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -365,6 +365,15 @@ export function IdentityVerificationPage({ intent, returnTo, mobileReturn }: { i
               <p className="eyebrow">Identity verification</p>
               <h1 className="text-display">A careful check, before you connect.</h1>
               <p className="text-body muted">Confirm your identity in four clear steps. Nothing from this check appears on your public profile.</p>
+              <div className="identity-data-disclosure">
+                <p className="identity-data-disclosure-title"><ShieldCheck size={16} aria-hidden="true" /> How this check handles your data</p>
+                <ul>
+                  <li>We collect your government ID image, a current selfie, and the details you confirm, to verify you are an adult and keep members safe.</li>
+                  <li>Only the ID image is sent to a secure OpenAI field reader to read the printed details, with storage disabled for that request. Your selfie is never sent to the field reader and is not used as biometric proof.</li>
+                  <li>ID images and selfies are kept privately for as long as your account exists, for user safety, fraud prevention, and incident investigation. Reviewer access is time limited and audit logged.</li>
+                  <li>Every completed submission receives a human safety team decision. Read the <Link to="/privacy-policy">Privacy Policy</Link> for the full details.</li>
+                </ul>
+              </div>
             </div>
 
             <ol className="identity-step-rail" aria-label="Verification progress">

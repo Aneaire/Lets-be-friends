@@ -457,6 +457,38 @@
   margin-top: 1.25rem;
 }
 
+.identity-data-disclosure {
+  max-width: 38rem;
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.identity-data-disclosure-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.identity-data-disclosure ul {
+  margin: 0.65rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.5rem;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.identity-data-disclosure a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .identity-step-rail {
   list-style: none;
   margin: clamp(2rem, 5vw, 4rem) 0 0;
