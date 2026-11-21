@@ -2,6 +2,7 @@ import {
   ACCOUNT_DELETION_CONFIRMATION,
   accountDeletionRow,
   canConfirmAccountDeletion,
+  deletionShutdown,
 } from '@/features/settings/accountDeletionModel'
 
 describe('account deletion settings model', () => {
@@ -39,5 +40,11 @@ describe('account deletion settings model', () => {
   it('keeps a deleted account closed', () => {
     const row = accountDeletionRow({ deleted: true, canDelete: false, blockers: [] })
     expect(row).toMatchObject({ disabled: true, detail: 'This account is already closed.' })
+  })
+
+  it('navigates instead of signing out after Clerk deletes the identity', () => {
+    // Signing out of a session Clerk already ended crashed the Android app.
+    expect(deletionShutdown({ identityDeleted: true })).toBe('navigate')
+    expect(deletionShutdown({ identityDeleted: false })).toBe('signOut')
   })
 })

@@ -73,10 +73,12 @@ describe('account deletion settings', () => {
     expect(screen.getByText(/experience request in progress/)).toBeTruthy()
   })
 
-  it('erases the account, removes the sign-in identity, and signs out', async () => {
+  it('erases the account, removes the sign-in identity, and lands on the deleted page without a dead sign-out', async () => {
     state.deleteAccount.mockResolvedValue({ deleted: true, alreadyDeleted: false })
     state.deleteUser.mockResolvedValue(undefined)
     state.signOut.mockResolvedValue(undefined)
+    const assign = vi.fn()
+    Object.defineProperty(window, 'location', { configurable: true, value: { assign } })
     render(<AccountDeletionSection />)
 
     const dialog = openDialog()
@@ -85,6 +87,21 @@ describe('account deletion settings', () => {
 
     await waitFor(() => expect(state.deleteAccount).toHaveBeenCalledWith({ confirmation: 'DELETE' }))
     await waitFor(() => expect(state.deleteUser).toHaveBeenCalled())
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/account-deletion?deleted=1'))
+    // Clerk ends the session with the identity, so signOut must not run after it.
+    expect(state.signOut).not.toHaveBeenCalled()
+  })
+
+  it('falls back to sign-out when the identity could not be deleted', async () => {
+    state.deleteAccount.mockResolvedValue({ deleted: true, alreadyDeleted: false })
+    state.deleteUser.mockRejectedValue(new Error('fresh session required'))
+    state.signOut.mockResolvedValue(undefined)
+    render(<AccountDeletionSection />)
+
+    const dialog = openDialog()
+    fireEvent.change(within(dialog).getByLabelText(/type delete to confirm/i), { target: { value: 'DELETE' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /^delete account$/i }))
+
     await waitFor(() => expect(state.signOut).toHaveBeenCalledWith({ redirectUrl: '/account-deletion?deleted=1' }))
   })
 

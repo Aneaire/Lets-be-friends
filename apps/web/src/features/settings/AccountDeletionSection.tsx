@@ -43,12 +43,24 @@ export function AccountDeletionSection() {
     // The Convex records are already erased at this point. Removing the sign-in
     // identity is the last step, and it must not block the member from leaving
     // if Clerk asks for a fresh session.
+    let identityDeleted = false
     try {
       await user?.delete()
+      identityDeleted = Boolean(user)
     } catch {
-      // Signing out still ends the session. Support can remove the identity.
+      identityDeleted = false
     }
-    await signOut({ redirectUrl: '/account-deletion?deleted=1' })
+    if (identityDeleted) {
+      // Clerk ends the session with the identity, so signing out afterwards
+      // touches a dead session and can throw.
+      window.location.assign('/account-deletion?deleted=1')
+      return
+    }
+    try {
+      await signOut({ redirectUrl: '/account-deletion?deleted=1' })
+    } catch {
+      window.location.assign('/account-deletion?deleted=1')
+    }
   }
 
   return (

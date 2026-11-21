@@ -7,7 +7,11 @@ import { mobileApi } from '@/backend/client'
 import { AccountDeletionSettingsPresentation } from './AccountDeletionSettingsPresentation'
 import { ACCOUNT_DELETION_CONFIRMATION } from './accountDeletionModel'
 
-export function AccountDeletionSettings({ onDeleted }: { onDeleted: () => Promise<void> | void }) {
+export function AccountDeletionSettings({
+  onDeleted,
+}: {
+  onDeleted: (result: { identityDeleted: boolean }) => Promise<void> | void
+}) {
   const summary = useQuery(mobileApi.accountDeletion.deletionSummary, {})
   const deleteAccount = useMutation(mobileApi.accountDeletion.deleteAccount)
   const { user } = useUser()
@@ -35,14 +39,19 @@ export function AccountDeletionSettings({ onDeleted }: { onDeleted: () => Promis
     }
     // The Convex records are already erased. Removing the sign-in identity must
     // not stop the member from leaving if Clerk asks for a fresh session.
+    let identityDeleted = false
     try {
       await user?.delete()
+      identityDeleted = Boolean(user)
     } catch {
-      // Signing out below still ends the session on this device.
+      identityDeleted = false
     }
     setBusy(false)
     setConfirming(false)
-    await onDeleted()
+    // Clerk ends the session when it deletes the identity. Calling signOut on
+    // that dead session is what crashed the app on Android, so the caller only
+    // signs out when the identity is still alive.
+    await onDeleted({ identityDeleted })
   }
 
   return (

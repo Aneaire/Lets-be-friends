@@ -16,6 +16,15 @@ export function canConfirmAccountDeletion(value: string) {
   return value.trim().toUpperCase() === ACCOUNT_DELETION_CONFIRMATION
 }
 
+/**
+ * After Clerk deletes the identity the session is already over. Calling
+ * signOut() on that dead session crashed the Android app, so deletion decides
+ * between navigating to the signed-out screen and running the normal sign-out.
+ */
+export function deletionShutdown({ identityDeleted }: { identityDeleted: boolean }): 'navigate' | 'signOut' {
+  return identityDeleted ? 'navigate' : 'signOut'
+}
+
 export function accountDeletionRow(summary: AccountDeletionSummary | null | undefined) {
   if (!summary) {
     return { label: 'Delete account', detail: 'Checking your account.', disabled: true }

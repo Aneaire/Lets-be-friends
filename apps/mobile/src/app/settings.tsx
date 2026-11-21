@@ -5,6 +5,7 @@ import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi } from '@/backend/client'
 import { AppearanceSettings } from '@/features/settings/AppearanceSettings'
 import { AccountDeletionSettings } from '@/features/settings/AccountDeletionSettings'
+import { deletionShutdown } from '@/features/settings/accountDeletionModel'
 import { NotificationPreferences } from '@/features/settings/NotificationPreferences'
 import { PushNotificationSettings } from '@/features/settings/PushNotificationSettings'
 import { SettingsContent } from '@/features/settings/SettingsContent'
@@ -70,8 +71,8 @@ export function ReadySettings({
         appearanceSettings={<AppearanceSettings />}
         accountDeletion={(
           <AccountDeletionSettings
-            onDeleted={async () => {
-              await runSignOut()
+            onDeleted={async ({ identityDeleted }) => {
+              if (deletionShutdown({ identityDeleted }) === 'signOut') await runSignOut()
               router.replace('/profile')
             }}
           />
