@@ -3,7 +3,7 @@ import { SignInButton, useAuth } from '@clerk/react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Check } from 'lucide-react'
+import { Check, ChevronLeft } from 'lucide-react'
 import {
   hasCurrentUnifiedAcceptance,
   normalizeUsername,
@@ -772,7 +772,7 @@ export function OnboardingPage() {
                 disabled={submitting}
                 onClick={() => { setError(''); setStep((current) => current - 1) }}
               >
-                <ArrowLeft size={18} aria-hidden="true" />
+                <ChevronLeft size={18} aria-hidden="true" />
               </Button>
             )}
             {step === 1 && <Button intent="self" disabled={submitting || !approxLocation || (!viewer.username && (Boolean(localUsernameError) || usernameAvailability === undefined || !usernameAvailability.available))} onClick={() => void saveUsernameAndContinue()}>Continue</Button>}

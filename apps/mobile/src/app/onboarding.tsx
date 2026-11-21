@@ -24,6 +24,7 @@ import { buildMobileWebHandoffUrl, resolveMobileWebAppConfiguration } from '@/ba
 import { mobileApi } from '@/backend/client'
 import { ActionButton } from '@/design-system/atoms/ActionButton'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
+import { OnboardingActionRow } from '@/features/onboarding/OnboardingActionRow'
 import { Chip } from '@/design-system/atoms/Chip'
 import { showAppToast, useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { Screen } from '@/design-system/templates/Screen'
@@ -972,44 +973,53 @@ function ConnectedOnboarding({
       </View> : null}
 
       <View style={styles.actions}>
-        {step < 4 ? <ActionButton
-          label="Continue"
-          onPress={() => setStep((current) => Math.min(current + 1, maxStep))}
-          intent="self"
-          icon="arrow-forward"
-          disabled={(step === 0 && !usernameReady) || (step === 1 && (!location || locating)) || (step === 2 && goal === 'companion' && !policyOnly && categories.length === 0)}
-        /> : step === 3 ? <ActionButton
-          label="Continue"
-          onPress={continueFromProfile}
-          intent="self"
-          icon="arrow-forward"
-          disabled={submitting || submitted}
-        /> : step === 4 ? <ActionButton
-          label="Continue to review"
-          onPress={goToFinalStep}
-          intent="self"
-          icon="arrow-forward"
-          disabled={submitting || submitted}
-        /> : !policyOnly && goal === 'companion' && !hasApplication ? <ActionButton
-          label={
-            submitting || submitted
-              ? 'Saving welcome guide'
-              : identity.approved || identity.action === 'none'
-                ? 'Save Companion profile and finish'
-                : 'Save and verify identity'
-          }
-          onPress={() => void finishOnboarding('submit-profile')}
-          intent="self"
-          disabled={!usernameReady || !location || !acceptanceSatisfied || categories.length === 0 || locating || submitting || submitted}
-          icon="checkmark-circle-outline"
-        /> : <ActionButton
-          label={submitting || submitted ? 'Saving welcome guide' : identity.approved || identity.action === 'none' ? 'Finish setup' : 'Accept and complete'}
-          onPress={() => void finishOnboarding('complete')}
-          intent="self"
-          disabled={!usernameReady || !location || !acceptanceSatisfied || (goal === 'companion' && !policyOnly && !hasApplication && categories.length === 0) || locating || submitting || submitted}
-          icon="checkmark-circle-outline"
-        />}
-        {step > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Go to previous step" disabled={submitting || submitted} onPress={() => setStep((current) => Math.max(0, current - 1))} style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}><AppIcon name="arrow-back" color={theme.colors.selfText} size={18} /><AppText variant="caption" color={theme.colors.selfText}>Back</AppText></Pressable> : null}
+        <OnboardingActionRow
+          showBack={step > 0}
+          backDisabled={submitting || submitted}
+          onBack={() => setStep((current) => Math.max(0, current - 1))}
+          primary={step < 4 ? <ActionButton
+            label="Continue"
+            onPress={() => setStep((current) => Math.min(current + 1, maxStep))}
+            intent="self"
+            icon="arrow-forward"
+            disabled={(step === 0 && !usernameReady) || (step === 1 && (!location || locating)) || (step === 2 && goal === 'companion' && !policyOnly && categories.length === 0)}
+            style={styles.primaryAction}
+          /> : step === 3 ? <ActionButton
+            label="Continue"
+            onPress={continueFromProfile}
+            intent="self"
+            icon="arrow-forward"
+            disabled={submitting || submitted}
+            style={styles.primaryAction}
+          /> : step === 4 ? <ActionButton
+            label="Continue to review"
+            onPress={goToFinalStep}
+            intent="self"
+            icon="arrow-forward"
+            disabled={submitting || submitted}
+            style={styles.primaryAction}
+          /> : !policyOnly && goal === 'companion' && !hasApplication ? <ActionButton
+            label={
+              submitting || submitted
+                ? 'Saving welcome guide'
+                : identity.approved || identity.action === 'none'
+                  ? 'Save Companion profile and finish'
+                  : 'Save and verify identity'
+            }
+            onPress={() => void finishOnboarding('submit-profile')}
+            intent="self"
+            disabled={!usernameReady || !location || !acceptanceSatisfied || categories.length === 0 || locating || submitting || submitted}
+            icon="checkmark-circle-outline"
+            style={styles.primaryAction}
+          /> : <ActionButton
+            label={submitting || submitted ? 'Saving welcome guide' : identity.approved || identity.action === 'none' ? 'Finish setup' : 'Accept and complete'}
+            onPress={() => void finishOnboarding('complete')}
+            intent="self"
+            disabled={!usernameReady || !location || !acceptanceSatisfied || (goal === 'companion' && !policyOnly && !hasApplication && categories.length === 0) || locating || submitting || submitted}
+            icon="checkmark-circle-outline"
+            style={styles.primaryAction}
+          />}
+        />
         {step === 0 ? <Pressable
           accessibilityRole="button"
           accessibilityLabel="Sign out and use another account"
@@ -1228,9 +1238,9 @@ const styles = StyleSheet.create({
   multiline: { minHeight: 110, textAlignVertical: 'top' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   actions: { marginTop: 24, gap: 3 },
+  primaryAction: { flex: 1, minWidth: 0 },
   finalActions: { gap: 10 },
   signOutLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  backLink: { minHeight: 44, alignSelf: 'center', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   signOutText: { fontWeight: '600', textAlign: 'center' },
   message: { borderWidth: 1, borderRadius: 16, padding: 14 },
   pressed: { opacity: 0.76 },

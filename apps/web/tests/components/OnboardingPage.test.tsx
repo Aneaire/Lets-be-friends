@@ -276,6 +276,8 @@ describe('onboarding route', () => {
     const primary = screen.getByRole('button', { name: 'Continue' })
     expect(row).toBeTruthy()
     expect(back.textContent).toBe('')
+    expect(back.querySelector('svg.lucide-chevron-left')).toBeTruthy()
+    expect(back.querySelector('svg.lucide-arrow-left')).toBeNull()
     expect(row!.contains(back)).toBe(true)
     expect(row!.contains(primary)).toBe(true)
     expect(screen.queryByRole('button', { name: /Skip for now|Finish and set up later/ })).toBeNull()
