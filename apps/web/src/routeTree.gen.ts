@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountDeletionRouteImport } from './routes/account-deletion'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as BecomeCompanionRouteImport } from './routes/become-companion'
+import { Route as ChildSafetyRouteImport } from './routes/child-safety'
 import { Route as CirclesRouteImport } from './routes/circles'
 import { Route as CompanionRouteImport } from './routes/companion'
 import { Route as CompanionProfileRouteImport } from './routes/companion-profile'
@@ -58,6 +59,11 @@ const AppRoute = AppRouteImport.update({
 const BecomeCompanionRoute = BecomeCompanionRouteImport.update({
   id: '/become-companion',
   path: '/become-companion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChildSafetyRoute = ChildSafetyRouteImport.update({
+  id: '/child-safety',
+  path: '/child-safety',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CirclesRoute = CirclesRouteImport.update({
@@ -196,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/account-deletion': typeof AccountDeletionRoute
   '/app': typeof AppRoute
   '/become-companion': typeof BecomeCompanionRoute
+  '/child-safety': typeof ChildSafetyRoute
   '/circles': typeof CirclesRouteWithChildren
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
@@ -228,6 +235,7 @@ export interface FileRoutesByTo {
   '/account-deletion': typeof AccountDeletionRoute
   '/app': typeof AppRoute
   '/become-companion': typeof BecomeCompanionRoute
+  '/child-safety': typeof ChildSafetyRoute
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
   '/discover': typeof DiscoverRoute
@@ -260,6 +268,7 @@ export interface FileRoutesById {
   '/account-deletion': typeof AccountDeletionRoute
   '/app': typeof AppRoute
   '/become-companion': typeof BecomeCompanionRoute
+  '/child-safety': typeof ChildSafetyRoute
   '/circles': typeof CirclesRouteWithChildren
   '/companion': typeof CompanionRoute
   '/companion-profile': typeof CompanionProfileRoute
@@ -294,6 +303,7 @@ export interface FileRouteTypes {
     | '/account-deletion'
     | '/app'
     | '/become-companion'
+    | '/child-safety'
     | '/circles'
     | '/companion'
     | '/companion-profile'
@@ -326,6 +336,7 @@ export interface FileRouteTypes {
     | '/account-deletion'
     | '/app'
     | '/become-companion'
+    | '/child-safety'
     | '/companion'
     | '/companion-profile'
     | '/discover'
@@ -357,6 +368,7 @@ export interface FileRouteTypes {
     | '/account-deletion'
     | '/app'
     | '/become-companion'
+    | '/child-safety'
     | '/circles'
     | '/companion'
     | '/companion-profile'
@@ -390,6 +402,7 @@ export interface RootRouteChildren {
   AccountDeletionRoute: typeof AccountDeletionRoute
   AppRoute: typeof AppRoute
   BecomeCompanionRoute: typeof BecomeCompanionRoute
+  ChildSafetyRoute: typeof ChildSafetyRoute
   CirclesRoute: typeof CirclesRouteWithChildren
   CompanionRoute: typeof CompanionRoute
   CompanionProfileRoute: typeof CompanionProfileRoute
@@ -444,6 +457,13 @@ declare module '@tanstack/react-router' {
       path: '/become-companion'
       fullPath: '/become-companion'
       preLoaderRoute: typeof BecomeCompanionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/child-safety': {
+      id: '/child-safety'
+      path: '/child-safety'
+      fullPath: '/child-safety'
+      preLoaderRoute: typeof ChildSafetyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/circles': {
@@ -649,6 +669,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountDeletionRoute: AccountDeletionRoute,
   AppRoute: AppRoute,
   BecomeCompanionRoute: BecomeCompanionRoute,
+  ChildSafetyRoute: ChildSafetyRoute,
   CirclesRoute: CirclesRouteWithChildren,
   CompanionRoute: CompanionRoute,
   CompanionProfileRoute: CompanionProfileRoute,

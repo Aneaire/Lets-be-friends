@@ -32,6 +32,7 @@ export function PrivacyPolicyPage() {
       <nav className="mt-6" aria-label="Related policy pages">
         <Link to={related.path} className="btn btn-neutral btn-sm">{policyCrossLinkLabel(related)}</Link>
         <Link to="/account-deletion" className="btn btn-neutral btn-sm ml-2">Delete your account</Link>
+        <Link to="/child-safety" className="btn btn-neutral btn-sm ml-2">Child safety</Link>
       </nav>
     </main>
   )

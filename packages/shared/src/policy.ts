@@ -17,10 +17,12 @@ export const policyEffectiveDate = '2026-11-20'
 export const termsPath = '/terms-and-conditions'
 export const privacyPath = '/privacy-policy'
 export const accountDeletionPath = '/account-deletion'
+export const childSafetyPath = '/child-safety'
 
 // Public pages a signed-out visitor must reach. Account deletion is included so
-// the published URL in the Play listing works without an active session.
-export const publicLegalPaths = [termsPath, privacyPath, accountDeletionPath] as const
+// the published URL in the Play listing works without an active session, and
+// child safety is included for the Play child safety standards declaration.
+export const publicLegalPaths = [termsPath, privacyPath, accountDeletionPath, childSafetyPath] as const
 
 export function isPublicLegalPath(pathname: string): boolean {
   const normalized = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname

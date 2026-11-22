@@ -95,7 +95,7 @@ describe('unified policy acceptance', () => {
   })
 
   it('recognizes exactly the dedicated legal paths', () => {
-    expect(publicLegalPaths).toEqual(['/terms-and-conditions', '/privacy-policy', '/account-deletion'])
+    expect(publicLegalPaths).toEqual(['/terms-and-conditions', '/privacy-policy', '/account-deletion', '/child-safety'])
     expect(isPublicLegalPath('/terms-and-conditions')).toBe(true)
     expect(isPublicLegalPath('/privacy-policy')).toBe(true)
     expect(isPublicLegalPath('/privacy-policy/')).toBe(true)
