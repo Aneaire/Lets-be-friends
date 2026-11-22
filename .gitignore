@@ -23,3 +23,6 @@ storybook-static-mobile/
 
 # Locally built Android release artifacts
 artifacts/*.apk
+
+# Local and downloaded release bundles
+artifacts/*.aab
