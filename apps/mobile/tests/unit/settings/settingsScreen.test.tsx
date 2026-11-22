@@ -80,6 +80,28 @@ describe('mobile settings screen', () => {
     state.props.onAction()
     expect(mockRetry).toHaveBeenCalledTimes(1)
   })
+
+  it('rethrows session-ended errors so the root app error boundary handles them', () => {
+    expect(() => ErrorBoundary({ error: new Error('Account is suspended'), retry: mockRetry } as any)).toThrow('Account is suspended')
+  })
+
+  it('finishes account deletion by routing to auth and using direct sign-out fallback', async () => {
+    const signOut = jest.fn(async () => undefined)
+    const element = ReadySettings({
+      signOut,
+      viewer: { _id: 'a', displayName: 'Alex', role: 'member', createdAt: 0, verificationStatus: 'approved', identityEligible: true } as never,
+      verification: { adminStatus: 'approved' } as never,
+    })
+
+    await element.props.accountDeletion.props.onDeleted({ identityDeleted: true })
+    expect(signOut).not.toHaveBeenCalled()
+    expect(mockReplace).toHaveBeenCalledWith('/auth')
+
+    mockReplace.mockReset()
+    await element.props.accountDeletion.props.onDeleted({ identityDeleted: false })
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(mockReplace).toHaveBeenCalledWith('/auth')
+  })
 })
 
  it('links Settings verification status and renewal guidance to Get verified', () => {

@@ -24,8 +24,8 @@ export function AppTabsPresentation({ signedIn, unreadCount = 0 }: { signedIn: b
           <Tabs.Screen name="index" options={{ title: 'Home' }} />
           <Tabs.Screen name="explore" options={{ title: 'Explore Companions' }} />
           <Tabs.Protected guard={signedIn}>
-            <Tabs.Screen name="bookings" options={{ title: 'Bookings' }} />
             <Tabs.Screen name="messages" options={{ title: 'Messages' }} />
+            <Tabs.Screen name="bookings" options={{ title: 'Bookings' }} />
           </Tabs.Protected>
           <Tabs.Screen name="profile" options={{ title: 'Profile and settings' }} />
         </Tabs>

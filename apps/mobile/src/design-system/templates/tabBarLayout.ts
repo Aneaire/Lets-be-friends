@@ -39,10 +39,10 @@ export type TabBarItem = {
 }
 
 /**
- * Four frequent destinations sit around the raised Create action. Bookings
+ * Four frequent destinations sit around the raised Create action. Profile
  * stays registered as a tab route so it remains deep-linkable and reachable
- * from the quick actions and the Profile screen, but it is not one of the four
- * visible destinations.
+ * from the Home account sheet and account settings, but it is not one of the
+ * four visible destinations.
  */
 export const TAB_BAR_ITEMS: TabBarItem[] = [
   {
@@ -70,12 +70,12 @@ export const TAB_BAR_ITEMS: TabBarItem[] = [
     tone: 'social',
   },
   {
-    routeName: 'profile',
-    label: 'Profile',
-    accessibilityLabel: 'Profile and settings tab',
-    icon: 'person-circle-outline',
-    activeIcon: 'person-circle',
-    tone: 'self',
+    routeName: 'bookings',
+    label: 'Bookings',
+    accessibilityLabel: 'Bookings tab',
+    icon: 'calendar-outline',
+    activeIcon: 'calendar',
+    tone: 'social',
   },
 ]
 
@@ -101,9 +101,7 @@ export function tabBadgeLabel(count: number) {
 }
 
 export function tabIsFocused(routeName: string, focusedRouteName: string | undefined) {
-  if (routeName === focusedRouteName) return true
-  // Bookings is reached from Profile, so the Profile tab stays lit there.
-  return routeName === 'profile' && focusedRouteName === 'bookings'
+  return routeName === focusedRouteName
 }
 
 export function sharePostRoute(now: number) {

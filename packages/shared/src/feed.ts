@@ -326,6 +326,60 @@ function compareRankedCandidates<T extends FeedRankingCandidate>(left: RankedFee
   return left.id.localeCompare(right.id)
 }
 
+/**
+ * Keeps the order of feed items a member is already looking at.
+ *
+ * Ranking reads counters and viewer interactions, so a like, save, or comment
+ * changes the inputs of the very query that produced the list and the server
+ * can answer with a different order for items already on screen. Reordering
+ * under the member's finger reads as a jump: the post they just appreciated
+ * appears to teleport. This function freezes the relative order of items that
+ * were already shown and only places items the member has not seen, using the
+ * server order to choose their slot. A genuinely new top-ranked post still
+ * arrives at the top, a newly loaded page still arrives at the bottom, and
+ * nothing jumps between them.
+ *
+ * `previousKeys` must be the displayed order from the last render, not the
+ * server order, or the freeze has nothing to preserve.
+ */
+export function stabilizeFeedOrder<T>(
+  items: readonly T[],
+  previousKeys: readonly string[],
+  keyOf: (item: T) => string,
+): T[] {
+  if (items.length === 0) return []
+  if (previousKeys.length === 0) return [...items]
+
+  const previousIndex = new Map<string, number>()
+  previousKeys.forEach((key, index) => {
+    if (!previousIndex.has(key)) previousIndex.set(key, index)
+  })
+
+  const kept = items
+    .filter((item) => previousIndex.has(keyOf(item)))
+    .sort((left, right) => (previousIndex.get(keyOf(left)) as number) - (previousIndex.get(keyOf(right)) as number))
+
+  // Each unseen item is slotted after the number of kept items the server put
+  // before it: 0 means the very top (a fresh post), kept.length means the end
+  // (the next loaded page).
+  const slots: T[][] = Array.from({ length: kept.length + 1 }, () => [])
+  let keptSeen = 0
+  for (const item of items) {
+    if (previousIndex.has(keyOf(item))) {
+      keptSeen += 1
+      continue
+    }
+    slots[keptSeen].push(item)
+  }
+
+  const ordered: T[] = []
+  kept.forEach((item, index) => {
+    ordered.push(...slots[index], item)
+  })
+  ordered.push(...slots[kept.length])
+  return ordered
+}
+
 export const FEED_V2_ALGORITHM_VERSION = 'feed_v2'
 export const FEED_V2_MAX_DIRECT_REVIEWS = 2
 export const FEED_V2_REVIEW_SUPPRESSION_MS = 7 * 24 * 60 * 60 * 1000

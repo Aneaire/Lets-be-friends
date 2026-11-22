@@ -6,17 +6,22 @@ device sign-off, then the `production` AAB uploaded to Google Play.
 The preview build path has been exercised once. Everything after the device
 sign-off is still unexecuted.
 
+Live checklist: [play-store-readiness.md](play-store-readiness.md). Update that
+file as items finish, not this one.
+
 ## Current state
 
 | Piece | State |
 | --- | --- |
-| `production` build profile | Configured (`app-bundle`, store distribution, inline production env, remote auto-increment). Never run. |
+| `production` build profile | Configured (`app-bundle`, store distribution, inline production env, remote auto-increment). Built once on 2026-11-20: versionName 0.1.7, versionCode 10, EAS build `ae8b3a94`, signed with the upload keystore `cWipOck1oS`. Not yet uploaded. |
 | `preview` build profile | Configured (internal APK). Preview EAS environment variables are set and point at the development Convex deployment. First build finished, versionCode 9. |
 | `submit.production` | Configured to upload to the `internal` track as a draft. Needs a service account key file. |
 | Play Console app | Not created. |
 | EAS project | Linked to `@lets-be-friends/lets-be-friends` (`ec604d95-771b-4985-973c-4e7d89507e2c`), owned by the `lets-be-friends` organization. |
-| EAS login and Android keystore | Logged in as the organization owner. No keystore yet; the first Android build generates one. |
-| `assetlinks.json` fingerprint | Currently the local debug certificate only. See Known blockers. |
+| EAS login and Android keystore | Logged in as the organization owner (`lbf001`). Upload keystore exists, created 2026-11-16, key alias `5c7e4ded7245529124d3b…`, SHA-256 `70:38:A9:0F:05:E3:E8:1B:C7:56:B0:3F:E4:DC:67:57:5A:AD:80:5D:EF:87:6A:2F:BA:D7:26:E4:07:79:41:48`, valid until 2054-04-03. Downloaded 2026-11-17 and stored in the password manager, fingerprint verified against EAS before storing. |
+| FCM V1 credential | Provisioned 2026-11-17 on EAS for Firebase project `lets-be-friends-da0e5`. Private key ID `9db3f664…`. |
+| Account deletion | Shipped on web and mobile, with the public page at `/account-deletion`. See [account-deletion.md](account-deletion.md). |
+| `assetlinks.json` fingerprint | Holds the local debug certificate (`FA:C6:…:3B:9C`) and the EAS upload keystore certificate (`70:38:…:41:48`). The Play app signing certificate still has to be appended after the first Play release. |
 | Version | `expo.version` 0.1.7. `expo.android.versionCode` is ignored because `appVersionSource` is `remote`. |
 
 ## Project ownership
@@ -26,9 +31,9 @@ The app config previously pointed at EAS project `a32cb8bc-1021-43b6-82ea-d5376b
 Consequences to keep in mind:
 
 - The old project is orphaned. It has no Play releases, so nothing public depends on it. Delete it from the `gelogaming` account if that account is recovered.
-- The Expo project ID changed. The app reads it from `Constants.easConfig.projectId`, so the client follows automatically, but the Convex deployment must set `EXPO_PROJECT_ID` to the new value or push registration is rejected.
-- The Android keystore is new. The first Android build generates one. Back it up before the first Play upload.
-- FCM V1 credentials must be provisioned on the new project, not the old one.
+- The Expo project ID changed. The app reads it from `Constants.easConfig.projectId`, so the client follows automatically, but the Convex deployment must set `EXPO_PROJECT_ID` to the new value or push registration is rejected. Production was still on the old ID until 2026-11-17, which made `pushNotifications.validateRegistration` reject every production device; prod now reads `ec604d95-771b-4985-973c-4e7d89507e2c`.
+- The Android keystore exists in EAS and now has an offline copy in the password manager. The keystore password and the key password are different values, and both are stored with it.
+- FCM V1 credentials now live on the new project. The old project never received one.
 
 ## What only an authorized owner can do
 
@@ -36,9 +41,13 @@ These need credentials and cannot be done by an agent working in the repo:
 
 1. Create the Play Console app and complete its declarations.
 2. Create the Google Cloud service account and grant it Play Console access.
-3. Provision the FCM V1 credential on the new EAS project.
 
-Already done: EAS login, project linking, the preview environment variables, the first preview build, and the development Convex `EXPO_PROJECT_ID`.
+Already done: EAS login, project linking, the preview environment variables, the
+first preview build, the development and production Convex `EXPO_PROJECT_ID`,
+the FCM V1 credential on the new EAS project, and the keystore backup.
+
+Still open from this list: the Play Console app and the Google Cloud service
+account for `eas submit`.
 
 ## 1. One-time Play Console setup
 
@@ -49,8 +58,9 @@ Already done: EAS login, project linking, the preview environment variables, the
    privacy policy URL, Data safety form, content rating questionnaire, target
    audience, ads, and the payments declaration (Companion sessions are real
    world services, so Play billing does not apply).
-4. Provide account deletion. The app has accounts, so Play requires both an
-   in-app deletion path and a public web URL describing it.
+4. Provide account deletion. The app has accounts, and Play requires both an
+   in-app deletion path and a public web URL describing it. Both exist: Settings
+   has Delete account, and `/account-deletion` is public on the web app.
 5. Decide the developer account type. Personal accounts created after November
    2023 need closed testing with at least 12 testers for 14 continuous days
    before production access can be requested. Organization accounts skip that
@@ -221,14 +231,18 @@ certificate's SHA-256 from Play Console (App integrity, App signing key
 certificate) after the first Play release. Until that is done, links open in the
 browser on Play-installed builds.
 
-**Push has no FCM V1 credential.**
-Real Android delivery needs the FCM V1 service account provisioned in the EAS
-project. Keep `EXPO_PUSH_ENABLED` unset or false on the mobile-tested Convex
-deployment until it exists, otherwise push jobs fail closed and look like bugs.
+**Push credentials are in place, delivery is unproven.**
+The FCM V1 service account exists on the new EAS project and
+`EXPO_PUSH_ENABLED` is `true` on both Convex deployments. What remains is an
+installed-device check: register a token, confirm the registration does not fail
+with a project mismatch, and confirm a real notification arrives.
 
-**Account deletion must ship.**
-Play requires an in-app deletion path plus a public web URL. Do not submit
-without both.
+**Account deletion is shipped.**
+Members delete their account from Settings on web and mobile, and
+`https://www.letsbefriends.space/account-deletion` is the public URL for the Play
+listing. Deletion is blocked while money, a withdrawal, a live experience, or
+Circle hosting is open. What is erased and what is kept is listed in
+[docs/account-deletion.md](account-deletion.md).
 
 **Testing track minimum.**
 Personal developer accounts need 12 testers for 14 continuous days of closed

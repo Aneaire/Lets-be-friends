@@ -13,17 +13,17 @@ import {
 } from '../../../src/design-system/templates/tabBarLayout'
 
 describe('native tab bar layout', () => {
-  it('keeps Home, Explore, Messages, and Profile around the raised Create action', () => {
+  it('keeps Home, Explore, Messages, and Bookings around the raised Create action', () => {
     const items = visibleTabBarItems(['index', 'explore', 'bookings', 'messages', 'profile'])
 
-    expect(items.map((item) => item.label)).toEqual(['Home', 'Explore', 'Messages', 'Profile'])
-    expect(items.some((item) => item.routeName === 'bookings')).toBe(false)
+    expect(items.map((item) => item.label)).toEqual(['Home', 'Explore', 'Messages', 'Bookings'])
+    expect(items.some((item) => item.routeName === 'profile')).toBe(false)
   })
 
   it('drops protected destinations for signed-out members', () => {
     const items = visibleTabBarItems(['index', 'explore', 'profile'])
 
-    expect(items.map((item) => item.label)).toEqual(['Home', 'Explore', 'Profile'])
+    expect(items.map((item) => item.label)).toEqual(['Home', 'Explore'])
   })
 
   it('keeps the floating bar close to the home indicator and Android navigation area', () => {
@@ -40,10 +40,11 @@ describe('native tab bar layout', () => {
     expect(tabBadgeLabel(128)).toBe('99+')
   })
 
-  it('keeps Profile lit while the hidden Bookings tab is open', () => {
-    expect(tabIsFocused('home', 'home')).toBe(true)
+  it('highlights only the active visible tab', () => {
+    expect(tabIsFocused('index', 'index')).toBe(true)
     expect(tabIsFocused('messages', 'messages')).toBe(true)
-    expect(tabIsFocused('profile', 'bookings')).toBe(true)
+    expect(tabIsFocused('bookings', 'bookings')).toBe(true)
+    expect(tabIsFocused('bookings', 'profile')).toBe(false)
     expect(tabIsFocused('messages', 'profile')).toBe(false)
   })
 

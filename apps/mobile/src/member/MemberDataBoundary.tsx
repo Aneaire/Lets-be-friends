@@ -4,6 +4,7 @@ import { MobileMemberStateProvider } from './MobileMemberContext'
 
 type Props = {
   children: ReactNode
+  fallbackChildren?: ReactNode
   resetKey: string
 }
 
@@ -35,7 +36,7 @@ export class MemberDataBoundary extends Component<Props, State> {
           status: 'error',
           message: 'Your member profile is temporarily unavailable. Please try again later.',
         }}>
-          {this.props.children}
+          {this.props.fallbackChildren ?? this.props.children}
         </MobileMemberStateProvider>
       )
     }

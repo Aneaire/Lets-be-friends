@@ -7,13 +7,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 const feedState = vi.hoisted(() => ({
   viewer: { _id: 'user-viewer', displayName: 'Viewer Friend' } as { _id: string; displayName: string; profileImageUrl?: string },
   postCount: 105,
+  order: null as number[] | null,
   feedHookCalls: 0,
   impressionCalls: [] as Array<{ items: Array<{ itemKey: string; position: number }> }>,
   links: [] as Array<{ to?: unknown; search?: Record<string, unknown>; label?: string }>,
 }))
 
 function buildFeedPosts(count: number) {
-  return Array.from({ length: count }, (_, index) => {
+  const posts = Array.from({ length: count }, (_, index) => {
     const postId = `post-${index}`
     const featuredComment = index === 0 ? {
       _id: 'comment-0',
@@ -65,6 +66,8 @@ function buildFeedPosts(count: number) {
       },
     }
   })
+  if (!feedState.order) return posts
+  return feedState.order.map((index) => posts[index])
 }
 
 vi.mock('convex/react', () => ({
@@ -116,6 +119,7 @@ afterEach(() => {
   cleanup()
   feedState.feedHookCalls = 0
   feedState.postCount = 105
+  feedState.order = null
   feedState.impressionCalls.length = 0
   feedState.links.length = 0
   feedState.viewer = { _id: 'user-viewer', displayName: 'Viewer Friend' }
@@ -174,6 +178,33 @@ describe('SocialPage feed stability', () => {
     } finally {
       errorSpy.mockRestore()
     }
+  })
+
+  it('keeps the displayed order when a like re-ranks the feed query', async () => {
+    const view = render(<SocialPage />)
+    await waitFor(() => expect(screen.getAllByText('Most discussed')).toHaveLength(1))
+
+    const displayedPosts = () => Array.from(view.container.querySelectorAll('.social-feed .ds-post-copy')).map((node) => node.textContent)
+    const before = displayedPosts()
+    expect(before).toHaveLength(105)
+
+    // A like updates the ranking signals, so the live feed query answers with
+    // the appreciated post first. The list the member is reading must not jump.
+    feedState.order = Array.from({ length: feedState.postCount }, (_, index) => feedState.postCount - 1 - index)
+    view.rerender(<SocialPage />)
+
+    expect(buildFeedPosts(feedState.postCount)[0].post.body).toBe('Feed post 104')
+    expect(displayedPosts()).toEqual(before)
+
+    // A genuinely new post still arrives at the top of the list.
+    feedState.postCount = 106
+    feedState.order = [105, ...Array.from({ length: 105 }, (_, index) => index)]
+    view.rerender(<SocialPage />)
+
+    const withNewPost = displayedPosts()
+    expect(withNewPost).toHaveLength(106)
+    expect(withNewPost[0]).toBe('Feed post 105')
+    expect(withNewPost.slice(1)).toEqual(before)
   })
 
   it('shows the most discussed comment and opens its conversation on demand', async () => {

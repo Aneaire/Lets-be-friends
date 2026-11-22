@@ -11,6 +11,7 @@ import {
   scoreFeedCandidate,
   scoreReviewCandidate,
   selectFeaturedComment,
+  stabilizeFeedOrder,
   suppressRecentlyShownReviews,
   FEED_V2_MAX_DIRECT_REVIEWS,
   type FeedRankingCandidate,
@@ -53,6 +54,55 @@ describe('feed ranking', () => {
     expect(first.slice(0, 8).filter((candidate) => candidate.source === 'exploration')).toHaveLength(2)
     expect(first.every((candidate, index) => index === 0 || candidate.authorId !== first[index - 1].authorId)).toBe(true)
     expect(first[0].seen).not.toBe(true)
+  })
+})
+
+describe('feed order stability', () => {
+  const keyOf = (item: { key: string }) => item.key
+  const items = (...keys: string[]) => keys.map((key) => ({ key }))
+  const keys = (ordered: Array<{ key: string }>) => ordered.map(keyOf)
+
+  it('keeps the displayed order when ranking moves an item after a like', () => {
+    const previous = ['post:a', 'post:b', 'post:c', 'post:d']
+    const reranked = items('post:d', 'post:a', 'post:b', 'post:c')
+
+    expect(keys(stabilizeFeedOrder(reranked, previous, keyOf))).toEqual(previous)
+  })
+
+  it('places a genuinely new item where the server ranked it', () => {
+    const previous = ['post:a', 'post:b']
+    const atTop = items('post:new', 'post:b', 'post:a')
+    const loadedPage = items('post:a', 'post:b', 'post:next-1', 'post:next-2')
+
+    expect(keys(stabilizeFeedOrder(atTop, previous, keyOf))).toEqual(['post:new', 'post:a', 'post:b'])
+    expect(keys(stabilizeFeedOrder(loadedPage, previous, keyOf))).toEqual(['post:a', 'post:b', 'post:next-1', 'post:next-2'])
+  })
+
+  it('keeps server order when nothing has been displayed yet', () => {
+    const serverOrder = items('post:c', 'post:a', 'post:b')
+
+    expect(keys(stabilizeFeedOrder(serverOrder, [], keyOf))).toEqual(['post:c', 'post:a', 'post:b'])
+    expect(stabilizeFeedOrder([], ['post:a'], keyOf)).toEqual([])
+  })
+
+  it('preserves the server order of unseen items around the kept order', () => {
+    const previous = ['post:a', 'post:b']
+    const withNewItems = items('post:new-1', 'post:b', 'post:new-2', 'post:a', 'post:new-3')
+
+    expect(keys(stabilizeFeedOrder(withNewItems, previous, keyOf))).toEqual([
+      'post:new-1',
+      'post:a',
+      'post:new-2',
+      'post:b',
+      'post:new-3',
+    ])
+  })
+
+  it('keeps a single new item at its server slot when it arrives mid-list', () => {
+    const previous = ['post:a', 'post:b', 'post:c']
+    const reranked = items('post:b', 'post:new', 'post:c', 'post:a')
+
+    expect(keys(stabilizeFeedOrder(reranked, previous, keyOf))).toEqual(['post:a', 'post:new', 'post:b', 'post:c'])
   })
 })
 

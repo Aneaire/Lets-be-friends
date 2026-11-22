@@ -8,7 +8,7 @@ import { buildMemberConnectionMessage } from '@/backend/convexTokenDiagnostics'
 import { mobileApi } from '@/backend/client'
 
 import { isViewerForClerkUser } from './account'
-import { memberViewerQueryArgs } from './authenticatedQueries'
+import { memberVerificationQueryArgs, memberViewerQueryArgs } from './authenticatedQueries'
 import { MobileMemberStateProvider } from './MobileMemberContext'
 
 export { MobileMemberStateProvider, useMobileMember } from './MobileMemberContext'
@@ -34,7 +34,10 @@ export function AuthenticatedMemberProvider({
   const canReadViewer = viewerArgs !== 'skip'
   const viewer = useQuery(mobileApi.users.viewer, viewerArgs)
   const viewerMatchesAccount = auth.status === 'signed_in' && isViewerForClerkUser(viewer, auth.clerkUserId)
-  const verification = useQuery(mobileApi.users.latestMemberVerification, canReadViewer && viewerMatchesAccount ? {} : 'skip')
+  const verification = useQuery(
+    mobileApi.users.latestMemberVerification,
+    memberVerificationQueryArgs(canReadViewer, viewerMatchesAccount, viewer?.suspended),
+  )
   const ensureViewer = useMutation(mobileApi.users.ensureViewer)
   const attemptedUserId = useRef<string | null>(null)
   const [syncingUserId, setSyncingUserId] = useState<string | null>(null)

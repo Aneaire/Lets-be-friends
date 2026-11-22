@@ -5,7 +5,8 @@ import { useMobileAuth } from '@/auth/MobileAuth'
 import { mobileApi } from '@/backend/client'
 import { AppearanceSettings } from '@/features/settings/AppearanceSettings'
 import { AccountDeletionSettings } from '@/features/settings/AccountDeletionSettings'
-import { deletionShutdown } from '@/features/settings/accountDeletionModel'
+import { completeAccountDeletionShutdown } from '@/features/settings/accountDeletionModel'
+import { isSessionEndedError } from '@/features/app/appErrorModel'
 import { NotificationPreferences } from '@/features/settings/NotificationPreferences'
 import { PushNotificationSettings } from '@/features/settings/PushNotificationSettings'
 import { SettingsContent } from '@/features/settings/SettingsContent'
@@ -72,8 +73,11 @@ export function ReadySettings({
         accountDeletion={(
           <AccountDeletionSettings
             onDeleted={async ({ identityDeleted }) => {
-              if (deletionShutdown({ identityDeleted }) === 'signOut') await runSignOut()
-              router.replace('/profile')
+              await completeAccountDeletionShutdown({
+                identityDeleted,
+                signOut,
+                navigateToAuth: () => router.replace('/auth'),
+              })
             }}
           />
         )}
@@ -110,6 +114,7 @@ function SettingsState({ title, detail, action, onPress }: { title: string; deta
   return <Screen scroll={false} contentStyle={{ paddingHorizontal: 16 }}><StateView eyebrow="SETTINGS" title={title} detail={detail} actionLabel={action} onAction={onPress} intent="self" /></Screen>
 }
 
-export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  if (isSessionEndedError(error)) throw error
   return <SettingsState title="Settings are temporarily unavailable" detail="No settings were changed." action="Try again" onPress={retry} />
 }

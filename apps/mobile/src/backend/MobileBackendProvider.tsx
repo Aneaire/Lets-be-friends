@@ -121,7 +121,7 @@ function AuthenticatedBackendInner({
 
   return (
     <ConvexProviderWithClerk key={retryVersion} client={client} useAuth={useDiagnosticClerkAuth}>
-      <MemberDataBoundary resetKey={accountKey}>
+      <MemberDataBoundary resetKey={accountKey} fallbackChildren={children}>
         <AuthenticatedMemberProvider key={accountKey} tokenFailureCategory={tokenFailure}>
           <PushNotificationsProvider>{children}</PushNotificationsProvider>
         </AuthenticatedMemberProvider>

@@ -45,14 +45,47 @@ const baseProps = {
   ] as never,
   signingOut: false,
   signOutError: false,
+  onOpenProfile: jest.fn(),
   onSelect: jest.fn(),
   onSignOut: jest.fn(),
 }
 
 describe('account sheet content', () => {
   beforeEach(() => {
+    baseProps.onOpenProfile.mockReset()
     baseProps.onSelect.mockReset()
     baseProps.onSignOut.mockReset()
+  })
+
+  it('opens the profile when tapping the top identity card', () => {
+    const element = AccountSheetContent({ ...baseProps })
+    const buttons = collectByRole(element, 'button')
+
+    const identityCard = buttons.find((button) => button.props.accessibilityLabel === 'View profile for Alex Rivera')
+    expect(identityCard).toBeDefined()
+    expect(identityCard!.props.disabled).toBe(false)
+    identityCard!.props.onPress()
+    expect(baseProps.onOpenProfile).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to selecting the profile item when onOpenProfile is omitted', () => {
+    const element = AccountSheetContent({ ...baseProps, onOpenProfile: undefined })
+    const buttons = collectByRole(element, 'button')
+
+    const identityCard = buttons.find((button) => button.props.accessibilityLabel === 'View profile for Alex Rivera')
+    expect(identityCard).toBeDefined()
+    identityCard!.props.onPress()
+    expect(baseProps.onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'profile', route: { pathname: '/profile' } }),
+    )
+  })
+
+  it('disables the top identity card while sign-out is in flight', () => {
+    const element = AccountSheetContent({ ...baseProps, signingOut: true })
+    const buttons = collectByRole(element, 'button')
+
+    const identityCard = buttons.find((button) => button.props.accessibilityLabel === 'View profile for Alex Rivera')
+    expect(identityCard?.props.disabled).toBe(true)
   })
 
   it('routes row selection through the real sheet item definitions', () => {

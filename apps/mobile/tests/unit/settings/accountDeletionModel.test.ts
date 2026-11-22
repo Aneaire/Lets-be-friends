@@ -1,8 +1,12 @@
 import {
   ACCOUNT_DELETION_CONFIRMATION,
   accountDeletionRow,
+  beginAccountDeletion,
   canConfirmAccountDeletion,
+  completeAccountDeletionShutdown,
   deletionShutdown,
+  finishAccountDeletion,
+  isAccountDeletionInProgress,
 } from '@/features/settings/accountDeletionModel'
 
 describe('account deletion settings model', () => {
@@ -46,5 +50,35 @@ describe('account deletion settings model', () => {
     // Signing out of a session Clerk already ended crashed the Android app.
     expect(deletionShutdown({ identityDeleted: true })).toBe('navigate')
     expect(deletionShutdown({ identityDeleted: false })).toBe('signOut')
+  })
+
+  it('skips sign-out and goes to auth when Clerk already deleted the identity', async () => {
+    const signOut = jest.fn(async () => undefined)
+    const navigateToAuth = jest.fn()
+
+    await completeAccountDeletionShutdown({ identityDeleted: true, signOut, navigateToAuth })
+
+    expect(signOut).not.toHaveBeenCalled()
+    expect(navigateToAuth).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs fallback sign-out and still routes to auth even if sign-out fails', async () => {
+    const signOut = jest.fn(async () => { throw new Error('session closed') })
+    const navigateToAuth = jest.fn()
+
+    await completeAccountDeletionShutdown({ identityDeleted: false, signOut, navigateToAuth })
+
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(navigateToAuth).toHaveBeenCalledTimes(1)
+  })
+
+  it('tracks active account deletions without leaking state', () => {
+    expect(isAccountDeletionInProgress()).toBe(false)
+    beginAccountDeletion()
+    expect(isAccountDeletionInProgress()).toBe(true)
+    finishAccountDeletion()
+    expect(isAccountDeletionInProgress()).toBe(false)
+    finishAccountDeletion()
+    expect(isAccountDeletionInProgress()).toBe(false)
   })
 })

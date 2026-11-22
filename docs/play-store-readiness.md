@@ -29,13 +29,24 @@ because no row uses it yet; that is expected for an optional field.
 | [x] | Create the Play Console app | owner | Created 2026-11-19 under `letsbefriends896@gmail.com` (developer account `Let's Be Friends`, ID `8333673342987616936`, personal). App ID `4976300225929972172`, package `com.letsbefriends.mobile`, status draft |
 | [x] | Account-level setup | owner | Trader status declared non-trader, contact email and phone verified, legal name and address recorded. Account page shows no pending tasks |
 | [x] | Create the default store listing | owner | Created and saved 2026-11-20 with the icon, feature graphic, five phone screenshots, and both descriptions. Assets live in `docs/play-store-assets/` |
-| [ ] | Complete the 10 app content declarations | owner | All 10 are unstarted: privacy policy, ads, sign-in details, content ratings, target audience, data safety, advertising ID, government apps, financial features, health apps. Answers are in [play-store-listing.md](play-store-listing.md) |
+| [x] | Privacy policy declaration | owner, 2026-11-20 | `https://www.letsbefriends.space/privacy-policy`, confirmed loading signed out |
+| [x] | Ads declaration | agent, 2026-11-20 | No ads |
+| [x] | Sign in details declaration | agent, 2026-11-20 | Reviewer test member credential set added with the reviewer account, notes, and the full-access confirmation |
+| [x] | Government apps declaration | agent, 2026-11-20 | Not a government app |
+| [x] | Financial features declaration | agent, 2026-11-20 | "My app doesn't provide any financial features", per the decision to stay personal. No documentation required |
+| [x] | Health apps declaration | agent, 2026-11-20 | "My app does not have any health features", no regional requirements |
+| [x] | Advertising ID declaration | agent, 2026-11-20 | No, the app does not use advertising ID |
+| [ ] | Target audience and content | owner | 18 and over only, not child-directed. Open from App content |
+| [ ] | Content ratings | owner | IARC questionnaire, category Social, answers in [play-store-listing.md](play-store-listing.md) |
+| [ ] | Data safety | owner | Table in [play-store-listing.md](play-store-listing.md) |
+| [ ] | Send app content changes for review | owner | After all declarations, use Publishing overview to submit the batch |
 | [ ] | Set distribution countries to Philippines only | owner | Must happen before the first release so the non-trader declaration stays truthful. Excludes every EEA country and the UK. Expanding to the EEA or UK later requires updating the declaration to trader, which then publishes contact details |
 | [x] | Create a dedicated Google account for the reviewer | owner | `lbf.reviewer@gmail.com`, created 2026-11-20. Sign-in is Google only, so this is a separate account, not a personal one |
 | [x] | Prepare the reviewer account | agent | Signed in on production 2026-11-20 as `playreviewer`. Identity approved, onboarding completed, ₱500.00 credited through the wallet ledger with `test_member_credit` |
 | [ ] | Closed testing: at least 12 testers opted in for 14 continuous days, then apply for production access | owner | Play shows 0 testers opted in on 2026-11-19. The clock starts when a closed testing release is live |
 | [ ] | Create the Google Cloud service account for `eas submit` and grant it Play Console release access, then upload the JSON under "Google service account key for Expo Submit" | owner | Credential upload page is empty as of 2026-11-17 |
-| [ ] | Build the production AAB (`eas build --profile production`) and verify it installs from the internal track | agent builds, owner uploads | Profile configured, never run. Only debug-signed local APKs exist |
+| [x] | Build the production AAB | agent, 2026-11-20 | `artifacts/lets-be-friends-0.1.7-v11.aab`, versionName 0.1.7, versionCode 11, EAS build `9dfce16e`. A versionCode 10 build (`ae8b3a94`) exists but Play already registered that code, so it cannot be uploaded |
+| [ ] | Upload the versionCode 12 fix to internal testing | owner | Pending a new build that also carries `fcf89de`, the app error boundary for the post-deletion render crash. Builds 12 and later must be created on the user's signal. Version codes 10, 11 and 12 are registered in Play, so the next build is 13 |
 | [ ] | Installed-device QA on the production build: push end to end, photo and media uploads, maps and nearby, permissions, keyboard, one live payment, one live withdrawal | owner with agent support | Outstanding since the 2026-10-22 audit |
 | [ ] | After the first Play release, append Google's app signing certificate SHA-256 to `apps/web/public/.well-known/assetlinks.json` | owner, agent edits | Play re-signs the app, so current fingerprints do not cover Play installs |
 
@@ -44,7 +55,7 @@ because no row uses it yet; that is expected for an optional field.
 | State | Item | Evidence |
 | --- | --- | --- |
 | [x] | Account deletion, in app on web and mobile | Settings sections in `AccountDeletionSection.tsx` and `AccountDeletionSettings.tsx`, 11 Convex tests, 4 web component tests, 5 mobile model tests |
-| [x] | Public deletion URL for the listing | `/account-deletion`, reachable signed out, linked from the Privacy Policy |
+| [x] | Public deletion URL for the listing | `/account-deletion`, reachable signed out, linked from the Privacy Policy. Deployed 2026-11-20 in commit `c440ecc`, verified returning 200 with the page content |
 | [x] | Account deletion policy copy | `packages/shared/src/policy.ts`, deletion and retention sections |
 | [x] | FCM V1 credential on the EAS project | Uploaded 2026-11-17, project `lets-be-friends-da0e5`, private key ID `9db3f664…` |
 | [x] | Production `EXPO_PROJECT_ID` corrected | Was the orphaned `a32cb8bc…`; now `ec604d95-771b-4985-973c-4e7d89507e2c` |

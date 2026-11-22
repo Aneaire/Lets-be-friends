@@ -1,4 +1,4 @@
-import { activeMentionQuery, arrangeCommentThreads, NOTIFICATION_HIGHLIGHT_MS, pollValidationError, withoutLeadingReplyMention, type CommentThreadPosition, type FeedInstrumentationAction } from '@lets-be-friends/shared'
+import { activeMentionQuery, arrangeCommentThreads, NOTIFICATION_HIGHLIGHT_MS, pollValidationError, stabilizeFeedOrder, withoutLeadingReplyMention, type CommentThreadPosition, type FeedInstrumentationAction } from '@lets-be-friends/shared'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { SignInButton, useAuth } from '@clerk/react'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
@@ -112,9 +112,28 @@ export function SocialPage({ postId, commentId, compose }: { postId?: string; co
 
   const mediaLimit = mediaUsage?.limit ?? 5
   const remainingUploads = mediaUsage?.remaining ?? mediaLimit
-  const displayedFeedItems = useMemo(() => feedItems && requestedPost && !feedItems.some((item) => item.kind === 'post' && String(item.post._id) === String(requestedPost._id))
+  const serverFeedItems = useMemo(() => feedItems && requestedPost && !feedItems.some((item) => item.kind === 'post' && String(item.post._id) === String(requestedPost._id))
     ? [{ kind: 'post' as const, itemKey: `post:${requestedPost._id}`, source: 'recent' as const, reason: 'Opened from your notification', post: requestedPost }, ...feedItems]
     : feedItems, [feedItems, requestedPost])
+
+  // Ranking reads the viewer's own reactions and the posts' counters, so a like
+  // re-ranks the query that produced the list and the appreciated post jumps
+  // toward the top. Keep the order already on screen: only items the member has
+  // not seen take a new slot, so a fresh post still arrives at the top and the
+  // next page still arrives at the bottom.
+  const feedOrder = useRef<{ filter: FeedFilter; keys: string[] }>({ filter: feedFilter, keys: [] })
+  const displayedFeedItems = useMemo(() => {
+    if (!serverFeedItems) return undefined
+    const previousKeys = feedOrder.current.filter === feedFilter ? feedOrder.current.keys : []
+    return stabilizeFeedOrder(serverFeedItems, previousKeys, (item) => item.itemKey)
+  }, [serverFeedItems, feedFilter])
+
+  useEffect(() => {
+    feedOrder.current = {
+      filter: feedFilter,
+      keys: (displayedFeedItems ?? []).map((item) => item.itemKey),
+    }
+  }, [displayedFeedItems, feedFilter])
 
   useEffect(() => {
     if (!viewer || !displayedFeedItems) return

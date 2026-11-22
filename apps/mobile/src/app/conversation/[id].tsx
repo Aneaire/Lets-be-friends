@@ -4,7 +4,7 @@ import { router, useFocusEffect, useLocalSearchParams, type ErrorBoundaryProps }
 import * as DocumentPicker from 'expo-document-picker'
 import * as ImagePicker from 'expo-image-picker'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
+import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { extractConvexErrorMessage, NOTIFICATION_HIGHLIGHT_MS } from '@lets-be-friends/shared'
 
@@ -54,7 +54,10 @@ import {
   conversationBookingCardView,
   countMessagesAfter,
   isMessageListAtLatest,
+  KEYBOARD_FOLLOW_SETTLE_MS,
   messageCounter,
+  messageListAtLatestAfterScroll,
+  shouldPinLatestOnListResize,
   shouldShowMessageCounter,
   validateMessageBody,
 } from '@/data/messageViewModels'
@@ -676,6 +679,9 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   const atLatestRef = useRef(true)
   const pendingNewestRef = useRef(false)
   const lastComposerHeight = useRef(0)
+  const listHeightRef = useRef(0)
+  const keyboardFollowRef = useRef(false)
+  const keyboardFollowTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [composerHeight, setComposerHeight] = useState(0)
   const [newMessageCount, setNewMessageCount] = useState(0)
   const latestMessage = chronologicalMessages[chronologicalMessages.length - 1]
@@ -740,6 +746,7 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
   useEffect(() => () => {
     if (initialSettleTimer.current) clearTimeout(initialSettleTimer.current)
     if (highlightTimer.current) clearTimeout(highlightTimer.current)
+    if (keyboardFollowTimer.current) clearTimeout(keyboardFollowTimer.current)
   }, [])
 
   /** A different conversation starts a fresh reading position. */
@@ -779,27 +786,53 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
 
   /**
    * The keyboard changes the visible list height, so the newest message would
-   * otherwise sit behind the composer. Pull it back up once the keyboard
-   * settles, but leave the list alone when the member is reading older
-   * messages.
+   * otherwise sit behind the composer. Ask for a follow as soon as the keyboard
+   * reports itself, then pin the newest message again when the list actually
+   * receives its new height: the keyboard padding lands after the event, so a
+   * single scroll at event time still measures the taller list and leaves the
+   * newest message hidden. A member reading older messages is left alone.
    */
   useEffect(() => {
     if (Platform.OS === 'web') return
-    let settleTimer: ReturnType<typeof setTimeout> | undefined
-    const subscription = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        if (!atLatestRef.current) return
-        listRef.current?.scrollToEnd({ animated: true })
-        if (settleTimer) clearTimeout(settleTimer)
-        settleTimer = setTimeout(() => followLatestMessage(false), 180)
-      },
-    )
+    const settleLatestMessage = () => {
+      if (!atLatestRef.current) return
+      keyboardFollowRef.current = true
+      listRef.current?.scrollToEnd({ animated: true })
+      if (keyboardFollowTimer.current) clearTimeout(keyboardFollowTimer.current)
+      keyboardFollowTimer.current = setTimeout(() => {
+        keyboardFollowRef.current = false
+        keyboardFollowTimer.current = null
+        followLatestMessage(false)
+      }, KEYBOARD_FOLLOW_SETTLE_MS)
+    }
+    const subscriptions = [
+      Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', settleLatestMessage),
+      Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', settleLatestMessage),
+    ]
     return () => {
-      subscription.remove()
-      if (settleTimer) clearTimeout(settleTimer)
+      subscriptions.forEach((subscription) => subscription.remove())
+      if (keyboardFollowTimer.current) clearTimeout(keyboardFollowTimer.current)
+      keyboardFollowTimer.current = null
+      keyboardFollowRef.current = false
     }
   }, [followLatestMessage, listRef])
+
+  /** Re-pin once the list has its keyboard height, which is when the pin is measurable. */
+  const handleMessageListLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = event.nativeEvent.layout.height
+    const previousHeight = listHeightRef.current
+    listHeightRef.current = nextHeight
+    if (!shouldPinLatestOnListResize({ previousHeight, nextHeight, followRequested: keyboardFollowRef.current })) return
+    atLatestRef.current = true
+    listRef.current?.scrollToEnd({ animated: false })
+  }, [listRef])
+
+  /** A deliberate drag wins over a pending keyboard follow. */
+  const cancelLatestFollow = useCallback(() => {
+    keyboardFollowRef.current = false
+    if (keyboardFollowTimer.current) clearTimeout(keyboardFollowTimer.current)
+    keyboardFollowTimer.current = null
+  }, [])
 
   const handleMessageListScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent
@@ -808,7 +841,11 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
       contentHeight: contentSize.height,
       viewportHeight: layoutMeasurement.height,
     })
-    atLatestRef.current = nextAtLatest
+    atLatestRef.current = messageListAtLatestAfterScroll({
+      atLatest: atLatestRef.current,
+      nextAtLatest,
+      followingKeyboard: keyboardFollowRef.current,
+    })
     atTopRef.current = contentOffset.y <= 48
     if (nextAtLatest) setNewMessageCount((count) => (count === 0 ? count : 0))
     if (initialScrollReady && atTopRef.current) requestOlderMessages()
@@ -874,6 +911,8 @@ function ThreadView({ conversation, messages, paginationStatus, loadMore, body, 
           }}
           contentContainerStyle={[styles.messages, messages.length === 0 ? styles.messagesEmpty : styles.messagesFilled]}
           keyboardShouldPersistTaps="handled"
+          onLayout={handleMessageListLayout}
+          onScrollBeginDrag={cancelLatestFollow}
           maintainVisibleContentPosition={allowMaintainVisible ? { minIndexForVisible: 0 } : undefined}
           onScrollToIndexFailed={(info) => {
             listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true })

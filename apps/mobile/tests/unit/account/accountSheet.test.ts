@@ -1,10 +1,12 @@
 import {
   accountIdentityKey,
+  accountSheetRoutes,
   buildAccountSheetItems,
   createAccountSignOutCoordinator,
   resolveAccountAvatarAction,
   runAccountSignOut,
   selectAccountSheetItem,
+  selectAccountSheetRoute,
   type AccountSheetItem,
   type AccountSignOutSession,
 } from '@/features/account/accountSheet'
@@ -76,6 +78,15 @@ describe('account sheet model', () => {
       navigate: (route) => { order.push(`navigate:${route.pathname}`) },
     })
     expect(order).toEqual(['close', 'navigate:/settings'])
+  })
+
+  it('closes the sheet before routing to the member profile from the identity card', () => {
+    const order: string[] = []
+    selectAccountSheetRoute(accountSheetRoutes().profile({}), {
+      close: () => { order.push('close') },
+      navigate: (route) => { order.push(`navigate:${route.pathname}`) },
+    })
+    expect(order).toEqual(['close', 'navigate:/profile'])
   })
 })
 

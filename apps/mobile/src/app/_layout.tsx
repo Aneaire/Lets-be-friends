@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 
 import { useMobileAuth } from '@/auth/MobileAuth'
 import { canAccessMemberRoutes } from '@/auth/routeAccess'
-import { AppErrorBoundary } from '@/app/AppErrorBoundary'
+import { AppErrorBoundary } from '@/features/app/AppErrorBoundary'
 import { MobileBackendProvider } from '@/backend/MobileBackendProvider'
 import { SafeAreaRoot } from '@/design-system/templates/SafeAreaRoot'
 import { useMobileMember } from '@/member/MobileMember'

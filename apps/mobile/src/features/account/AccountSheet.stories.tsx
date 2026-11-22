@@ -24,6 +24,7 @@ const baseArgs = {
   items,
   signingOut: false,
   signOutError: false,
+  onOpenProfile: fn(),
   onSelect: fn(),
   onSignOut: fn(),
 }
@@ -69,6 +70,8 @@ export const SignOutError: Story = {
 export const SelectAndSignOut: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'View profile for Alex Rivera' }))
+    await expect(args.onOpenProfile).toHaveBeenCalledOnce()
     await userEvent.click(canvas.getByRole('menuitem', { name: 'Settings' }))
     await expect(args.onSelect).toHaveBeenCalledOnce()
     await userEvent.click(canvas.getByRole('menuitem', { name: 'Sign out' }))
@@ -90,6 +93,10 @@ function HostedSheet() {
         items={items}
         signingOut={false}
         signOutError={false}
+        onOpenProfile={() => {
+          setSelected('profile')
+          setVisible(false)
+        }}
         onSelect={(item) => {
           setSelected(item.id)
           setVisible(false)
@@ -111,6 +118,18 @@ export const HostedSelectClosesSheet: Story = {
     await expect(documentRoot.getByRole('dialog')).toBeVisible()
     await userEvent.click(await documentRoot.findByRole('menuitem', { name: 'Settings' }))
     await expect(canvas.getByText('Selected settings')).toBeVisible()
+    await waitFor(() => expect(documentRoot.queryByRole('dialog')).toBeNull())
+  },
+}
+
+export const HostedIdentityCardOpensProfile: Story = {
+  render: () => <HostedSheet />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const documentRoot = within(canvasElement.ownerDocument.body)
+    await expect(documentRoot.getByRole('dialog')).toBeVisible()
+    await userEvent.click(await documentRoot.findByRole('button', { name: 'View profile for Alex Rivera' }))
+    await expect(canvas.getByText('Selected profile')).toBeVisible()
     await waitFor(() => expect(documentRoot.queryByRole('dialog')).toBeNull())
   },
 }

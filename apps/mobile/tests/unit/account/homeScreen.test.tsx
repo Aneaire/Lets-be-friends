@@ -64,5 +64,7 @@ describe('mobile home screen account entry', () => {
     expect(source).not.toContain('useUser(')
     expect(source).toContain('resolveAccountAvatarAction')
     expect(source).toContain('selectAccountSheetItem')
+    expect(source).toContain('selectAccountSheetRoute')
+    expect(source).toContain('onOpenProfile={openAccountProfile}')
   })
 })

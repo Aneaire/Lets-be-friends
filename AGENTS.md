@@ -31,12 +31,21 @@ The logo accents are semantic, not decorative:
 
 Admin approve/resolve actions are neutral. Reject/report/suspend actions are danger. Do not use pink just because an admin action involves another user.
 
-## Local Android Builds
+## Android Emulator Development (Live Hot Reload)
 
-- Build local Android artifacts only with `pnpm build:apk`. It is the single supported local build path and is enforced by `scripts/mobile/build-local-apk.mjs`.
-- A local build always produces the release-variant APK at `android/app/build/outputs/apk/release/app-release.apk`, copied to `artifacts/lets-be-friends-<version>-production.apk`. Never produce debug APKs, app bundles, or any other APK variant locally.
-- A local build always embeds the production `EXPO_PUBLIC_*` values from `apps/mobile/eas.json` (`build.production.env`). Never build a local APK with `.env.local` values. The script hides `.env.local`, restores it afterwards, and fails if the finished bundle contains a local value.
-- Do not run `./gradlew clean` before a local release build. It deletes MapLibre codegen output and breaks the app's CMake configure. The script regenerates codegen and then assembles release.
+- Use the Expo development client (`debug` variant) with Metro (`pnpm dev:mobile`) for Android emulator testing and iterative UI work so edits hot-reload via Fast Refresh.
+- Do not install the static release APK (`artifacts/lets-be-friends-<version>-production.apk`) onto the emulator for development or live UI testing; release builds bundle JS statically and never hot-reload.
+- If the emulator does not have an up-to-date development client installed (or after native dependency/config changes), build and install the debug dev client from `apps/mobile/android` without running `./gradlew clean`:
+  1. Run `./gradlew generateCodegenArtifactsFromSchema assembleDebug` in `apps/mobile/android` (never `./gradlew clean`, which deletes MapLibre codegen output and breaks CMake configure).
+  2. Install `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk` on the emulator (`adb install -r ...`), run `adb reverse tcp:8081 tcp:8081`, and start Metro with `pnpm dev:mobile`.
+- Never copy `app-debug.apk` into `artifacts/` or ship/distribute a debug build as a release artifact.
+
+## Local Release Android Artifacts
+
+- When building a local **release/production** Android artifact for distribution or release verification, build it only with `pnpm build:apk`. It is the single supported local release build path and is enforced by `scripts/mobile/build-local-apk.mjs`.
+- A local release build always produces the release-variant APK at `android/app/build/outputs/apk/release/app-release.apk`, copied to `artifacts/lets-be-friends-<version>-production.apk`. Never put debug APKs, app bundles, or any other APK variant in `artifacts/` via local release builds.
+- A local release build always embeds the production `EXPO_PUBLIC_*` values from `apps/mobile/eas.json` (`build.production.env`). Never build a local release APK with `.env.local` values. The script hides `.env.local`, restores it afterwards, and fails if the finished bundle contains a local value.
+- Do not run `./gradlew clean` before any local Android build. It deletes MapLibre codegen output and breaks the app's CMake configure. Regenerate codegen first (`generateCodegenArtifactsFromSchema`).
 
 ## Verification
 

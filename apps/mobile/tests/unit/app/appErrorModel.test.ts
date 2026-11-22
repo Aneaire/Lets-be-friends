@@ -2,7 +2,8 @@ import {
   genericErrorFallbackCopy,
   isSessionEndedError,
   sessionEndedFallbackCopy,
-} from '@/app/appErrorModel'
+  shouldSignOutOnSessionEndedError,
+} from '@/features/app/appErrorModel'
 
 describe('app error model', () => {
   it('recognizes the suspended error that follows account deletion', () => {
@@ -27,5 +28,13 @@ describe('app error model', () => {
     const copy = genericErrorFallbackCopy()
     expect(copy.actionLabel).toBe('Try again')
     expect(copy.detail).toContain('Your data is safe')
+  })
+
+  it('does not race sign-out while account deletion is already in flight', () => {
+    expect(shouldSignOutOnSessionEndedError({ authStatus: 'signed_in', deletionInProgress: true })).toBe(false)
+    expect(shouldSignOutOnSessionEndedError({ authStatus: 'signed_in', deletionInProgress: false })).toBe(true)
+    expect(shouldSignOutOnSessionEndedError({ authStatus: 'needs_task', deletionInProgress: false })).toBe(true)
+    expect(shouldSignOutOnSessionEndedError({ authStatus: 'signed_out', deletionInProgress: false })).toBe(false)
+    expect(shouldSignOutOnSessionEndedError({ authStatus: 'unconfigured', deletionInProgress: false })).toBe(false)
   })
 })

@@ -25,6 +25,45 @@ export function deletionShutdown({ identityDeleted }: { identityDeleted: boolean
   return identityDeleted ? 'navigate' : 'signOut'
 }
 
+let activeAccountDeletions = 0
+
+export function beginAccountDeletion() {
+  activeAccountDeletions += 1
+}
+
+export function finishAccountDeletion() {
+  activeAccountDeletions = Math.max(0, activeAccountDeletions - 1)
+}
+
+export function isAccountDeletionInProgress() {
+  return activeAccountDeletions > 0
+}
+
+/**
+ * Finishes leaving the app after Convex erases the member record. This runs
+ * even if the settings screen already unmounted when the account flipped to
+ * suspended, so fallback sign-out must not depend on component mount state.
+ */
+export async function completeAccountDeletionShutdown({
+  identityDeleted,
+  signOut,
+  navigateToAuth,
+}: {
+  identityDeleted: boolean
+  signOut: () => Promise<void>
+  navigateToAuth: () => void
+}) {
+  if (deletionShutdown({ identityDeleted }) === 'signOut') {
+    try {
+      await signOut()
+    } catch {
+      // The account is already erased on the server and the session may already
+      // be closed. Still move the user to the signed-out screen.
+    }
+  }
+  navigateToAuth()
+}
+
 export function accountDeletionRow(summary: AccountDeletionSummary | null | undefined) {
   if (!summary) {
     return { label: 'Delete account', detail: 'Checking your account.', disabled: true }

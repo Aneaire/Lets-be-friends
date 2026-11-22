@@ -26,7 +26,7 @@ export const SignedOut: Story = {
     await expect(canvas.getByRole('tab', { name: 'Explore Companions tab' })).toBeVisible()
     await expect(canvas.queryByRole('tab', { name: 'Bookings tab' })).toBeNull()
     await expect(canvas.queryByRole('tab', { name: /Messages tab/ })).toBeNull()
-    await expect(canvas.getByRole('tab', { name: 'Profile and settings tab' })).toBeVisible()
+    await expect(canvas.queryByRole('tab', { name: 'Profile and settings tab' })).toBeNull()
     await expect(canvas.queryByRole('button', { name: 'Create a post' })).toBeNull()
   },
 }
@@ -37,6 +37,8 @@ export const SignedIn: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getAllByRole('tab')).toHaveLength(4)
     await expect(canvas.getByRole('tab', { name: 'Messages tab' })).toBeVisible()
+    await expect(canvas.getByRole('tab', { name: 'Bookings tab' })).toBeVisible()
+    await expect(canvas.queryByRole('tab', { name: 'Profile and settings tab' })).toBeNull()
     await expect(canvas.getByRole('button', { name: 'Create a post' })).toBeVisible()
   },
 }
@@ -112,6 +114,8 @@ export const OverContent: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('tab', { name: 'Home tab' })).toBeVisible()
     await expect(canvas.getByRole('tab', { name: 'Messages, 3 unread' })).toBeVisible()
+    await expect(canvas.getByRole('tab', { name: 'Bookings tab' })).toBeVisible()
+    await expect(canvas.queryByRole('tab', { name: 'Profile and settings tab' })).toBeNull()
     await expect(canvas.getByRole('button', { name: 'Create a post' })).toBeVisible()
     await expect(canvas.getByText('Shared evening walk')).toBeVisible()
   },

@@ -121,9 +121,23 @@ Install the development APK from the authorized EAS build result. Ordinary TypeS
 
 The `preview` profile reads its public values from the EAS `preview` environment, which must point at the development Convex deployment so release review never writes live data. The `production` profile carries its values inline in `eas.json`. `submit.production` uploads to the Play `internal` track as a draft and expects `apps/mobile/google-service-account.json`, which is gitignored. See `docs/play-store-release.md` for the full prerequisite list, the device sign-off checklist, and the store submission steps.
 
+### Local Android emulator development (Fast Refresh)
+
+For live UI testing on an Android emulator with Fast Refresh, install the Expo development client (`app-debug.apk`) and run Metro instead of installing the static release APK:
+
+```bash
+cd apps/mobile/android
+./gradlew generateCodegenArtifactsFromSchema assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb reverse tcp:8081 tcp:8081
+pnpm dev:mobile
+```
+
+Only rebuild `app-debug.apk` when native dependencies or native config change. Never run `./gradlew clean` (it deletes MapLibre codegen output and breaks CMake configure), and never copy `app-debug.apk` into `artifacts/`.
+
 ### Local release APK
 
-Local Android builds follow one fixed rule: the only local artifact is `app-release.apk`, and it always uses production variables. Use the repo script instead of invoking Gradle directly:
+Local **release** Android artifacts follow one fixed rule: the only distributable local release artifact is `app-release.apk`, and it always uses production variables. Use the repo script instead of invoking Gradle directly:
 
 ```bash
 pnpm build:apk
@@ -131,7 +145,7 @@ pnpm build:apk
 
 `scripts/mobile/build-local-apk.mjs` enforces the rule:
 
-- It builds the release variant only and writes `android/app/build/outputs/apk/release/app-release.apk`. It never builds debug APKs, app bundles, or any other variant.
+- It builds the release variant only and writes `android/app/build/outputs/apk/release/app-release.apk`. It never outputs debug APKs, app bundles, or any other variant into `artifacts/`.
 - It reads the production `EXPO_PUBLIC_CONVEX_URL`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, and `EXPO_PUBLIC_WEB_APP_URL` values from `eas.json` (`build.production.env`). `.env.local` is moved aside for the build and restored afterwards.
 - It verifies the finished JavaScript bundle contains every production value and none of the local `.env.local` values, then copies the APK to `artifacts/lets-be-friends-<version>-production.apk` and prints its size and SHA-256.
 - It regenerates React Native codegen before assembling. Do not run `./gradlew clean` for a local release build, because it deletes MapLibre codegen output and breaks the app's CMake configure.

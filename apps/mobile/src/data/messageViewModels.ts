@@ -57,6 +57,41 @@ export function isMessageListAtLatest(input: { offsetY: number; contentHeight: n
 }
 
 /**
+ * Android applies the keyboard padding after the keyboard event, so the list
+ * receives its new height a frame or two later. Until that height settles, a
+ * scroll event reports the old offset against the shorter viewport and would
+ * mark a member who is waiting on the newest message as reading older ones.
+ */
+export const KEYBOARD_FOLLOW_SETTLE_MS = 600
+
+export const MESSAGE_LIST_HEIGHT_EPSILON = 1
+
+export function messageListAtLatestAfterScroll(input: {
+  atLatest: boolean
+  nextAtLatest: boolean
+  followingKeyboard: boolean
+}) {
+  if (input.nextAtLatest) return true
+  if (input.followingKeyboard) return input.atLatest
+  return false
+}
+
+/**
+ * A keyboard follow is only honored once the list actually received its new
+ * height. Scrolling before that measures the old viewport and still leaves the
+ * newest message behind the composer.
+ */
+export function shouldPinLatestOnListResize(input: {
+  previousHeight: number
+  nextHeight: number
+  followRequested: boolean
+}) {
+  if (!input.followRequested) return false
+  if (!Number.isFinite(input.nextHeight) || input.nextHeight <= 0) return false
+  return Math.abs(input.nextHeight - input.previousHeight) >= MESSAGE_LIST_HEIGHT_EPSILON
+}
+
+/**
  * Counts messages appended after the message the member last saw. Older pages
  * that load above it move its index without adding to the count. A missing
  * previous message means history was removed, not appended.

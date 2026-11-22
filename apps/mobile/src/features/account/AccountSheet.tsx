@@ -17,6 +17,7 @@ export function AccountSheet({
   items,
   signingOut,
   signOutError,
+  onOpenProfile,
   onSelect,
   onSignOut,
   onClose,
@@ -29,6 +30,7 @@ export function AccountSheet({
   items: AccountSheetItem[]
   signingOut: boolean
   signOutError: boolean
+  onOpenProfile?: () => void
   onSelect: (item: AccountSheetItem) => void
   onSignOut: () => void
   onClose: () => void
@@ -49,6 +51,7 @@ export function AccountSheet({
         items={items}
         signingOut={signingOut}
         signOutError={signOutError}
+        onOpenProfile={onOpenProfile}
         onSelect={onSelect}
         onSignOut={onSignOut}
       />
@@ -64,6 +67,7 @@ export function AccountSheetContent({
   items,
   signingOut,
   signOutError,
+  onOpenProfile,
   onSelect,
   onSignOut,
 }: {
@@ -74,13 +78,32 @@ export function AccountSheetContent({
   items: AccountSheetItem[]
   signingOut: boolean
   signOutError: boolean
+  onOpenProfile?: () => void
   onSelect: (item: AccountSheetItem) => void
   onSignOut: () => void
 }) {
   const theme = useAppTheme()
+  function handleOpenProfile() {
+    if (onOpenProfile) {
+      onOpenProfile()
+      return
+    }
+    const profileItem = items.find((item) => item.id === 'profile')
+    if (profileItem) onSelect(profileItem)
+  }
   return (
     <View style={styles.content}>
-      <View style={[styles.identity, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`View profile for ${name}`}
+        accessibilityHint="Opens your member profile"
+        disabled={signingOut}
+        onPress={handleOpenProfile}
+        style={({ pressed }) => [
+          styles.identity,
+          { borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
+          pressed && styles.pressed,
+        ]}>
         <View style={styles.avatarWrap}>
           <Avatar uri={imageUrl} name={name} size={56} />
           {fullyVerified ? (
@@ -94,7 +117,8 @@ export function AccountSheetContent({
           {email ? <AppText variant="caption" color={theme.colors.textMuted} numberOfLines={1}>{email}</AppText> : null}
           {fullyVerified ? <AppText variant="caption" color={theme.colors.textMuted}>Identity and Companion profile verified.</AppText> : null}
         </View>
-      </View>
+        <AppIcon name="chevron-forward" color={theme.colors.textMuted} size={20} />
+      </Pressable>
       <View style={styles.list} accessibilityRole="menu" accessibilityLabel="Account">
         {items.map((item) => (
           <Pressable

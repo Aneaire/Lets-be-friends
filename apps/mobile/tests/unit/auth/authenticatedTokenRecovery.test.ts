@@ -1,5 +1,5 @@
 import { wrapGetTokenForDiagnostics } from '@/backend/convexTokenDiagnostics'
-import { memberViewerQueryArgs } from '@/member/authenticatedQueries'
+import { memberVerificationQueryArgs, memberViewerQueryArgs } from '@/member/authenticatedQueries'
 
 describe('authenticated member bootstrap recovery', () => {
   it('loads authenticated member queries after an initial token failure recovers', async () => {
@@ -22,5 +22,13 @@ describe('authenticated member bootstrap recovery', () => {
     expect(token).toBeNull()
     expect(memberViewerQueryArgs(true, token !== null)).toBe('skip')
     expect(memberViewerQueryArgs(false, true)).toBe('skip')
+  })
+
+  it('skips latestMemberVerification as soon as a deleted or suspended viewer updates', () => {
+    expect(memberVerificationQueryArgs(true, true, false)).toEqual({})
+    expect(memberVerificationQueryArgs(true, true, undefined)).toEqual({})
+    expect(memberVerificationQueryArgs(true, true, true)).toBe('skip')
+    expect(memberVerificationQueryArgs(true, false, false)).toBe('skip')
+    expect(memberVerificationQueryArgs(false, true, false)).toBe('skip')
   })
 })

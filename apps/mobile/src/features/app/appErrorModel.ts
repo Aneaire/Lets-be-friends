@@ -16,6 +16,17 @@ export function isSessionEndedError(cause: unknown): boolean {
   return SESSION_ENDED_PATTERNS.some((pattern) => pattern.test(message))
 }
 
+export function shouldSignOutOnSessionEndedError({
+  authStatus,
+  deletionInProgress,
+}: {
+  authStatus: string
+  deletionInProgress: boolean
+}): boolean {
+  if (deletionInProgress) return false
+  return authStatus === 'signed_in' || authStatus === 'needs_task'
+}
+
 export function sessionEndedFallbackCopy() {
   return {
     eyebrow: 'ACCOUNT',

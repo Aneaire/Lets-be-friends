@@ -11,7 +11,7 @@ const routes = [
   { key: 'index', name: 'index' },
   { key: 'explore', name: 'explore' },
   { key: 'messages', name: 'messages' },
-  { key: 'profile', name: 'profile' },
+  { key: 'bookings', name: 'bookings' },
 ]
 
 export default function TabPreviewScreen() {

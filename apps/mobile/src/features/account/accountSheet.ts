@@ -100,15 +100,22 @@ export function accountIdentityKey(input: { status: string; clerkUserId?: string
 }
 
 /**
- * Sheet selection closes the sheet before routing so the overlay is gone
+ * Sheet navigation closes the sheet before routing so the overlay is gone
  * before the next screen mounts.
  */
+export function selectAccountSheetRoute(
+  route: AccountSheetRoute,
+  controls: { close: () => void; navigate: (route: AccountSheetRoute) => void },
+): void {
+  controls.close()
+  controls.navigate(route)
+}
+
 export function selectAccountSheetItem(
   item: AccountSheetItem,
   controls: { close: () => void; navigate: (route: AccountSheetRoute) => void },
 ): void {
-  controls.close()
-  controls.navigate(item.route)
+  selectAccountSheetRoute(item.route, controls)
 }
 
 export type AccountSignOutSession = {

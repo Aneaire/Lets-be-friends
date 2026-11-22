@@ -2,6 +2,7 @@ import {
   COMPACT_COUNTER_THRESHOLD,
   COMPOSER_MAX_HEIGHT,
   COMPOSER_MIN_HEIGHT,
+  KEYBOARD_FOLLOW_SETTLE_MS,
   LATEST_MESSAGE_FOLLOW_THRESHOLD,
   clampComposerHeight,
   conversationBookingCardView,
@@ -12,6 +13,8 @@ import {
   conversationPreview,
   formatFileSize,
   messageCounter,
+  messageListAtLatestAfterScroll,
+  shouldPinLatestOnListResize,
   shouldShowMessageCounter,
   validateMessageBody,
 } from '@/data/messageViewModels'
@@ -101,6 +104,29 @@ describe('message view models', () => {
     expect(countMessagesAfter(messages, 'd')).toBe(0)
     expect(countMessagesAfter(messages, 'missing')).toBe(0)
     expect(countMessagesAfter(messages, '')).toBe(0)
+  })
+
+  it('stays at the latest message while the keyboard resizes the list', () => {
+    expect(KEYBOARD_FOLLOW_SETTLE_MS).toBeGreaterThanOrEqual(300)
+    // The list shrinks under an unchanged scroll offset, which reads as "older
+    // messages" until the keyboard finishes. Following must survive that.
+    expect(messageListAtLatestAfterScroll({ atLatest: true, nextAtLatest: false, followingKeyboard: true })).toBe(true)
+    expect(messageListAtLatestAfterScroll({ atLatest: true, nextAtLatest: true, followingKeyboard: true })).toBe(true)
+  })
+
+  it('keeps a member who scrolled up reading older messages', () => {
+    expect(messageListAtLatestAfterScroll({ atLatest: false, nextAtLatest: false, followingKeyboard: false })).toBe(false)
+    expect(messageListAtLatestAfterScroll({ atLatest: false, nextAtLatest: false, followingKeyboard: true })).toBe(false)
+    expect(messageListAtLatestAfterScroll({ atLatest: false, nextAtLatest: true, followingKeyboard: false })).toBe(true)
+  })
+
+  it('pins the newest message only after the list receives a new height', () => {
+    expect(shouldPinLatestOnListResize({ previousHeight: 700, nextHeight: 380, followRequested: true })).toBe(true)
+    expect(shouldPinLatestOnListResize({ previousHeight: 380, nextHeight: 700, followRequested: true })).toBe(true)
+    expect(shouldPinLatestOnListResize({ previousHeight: 700, nextHeight: 380, followRequested: false })).toBe(false)
+    expect(shouldPinLatestOnListResize({ previousHeight: 700, nextHeight: 700, followRequested: true })).toBe(false)
+    expect(shouldPinLatestOnListResize({ previousHeight: 0, nextHeight: 0, followRequested: true })).toBe(false)
+    expect(shouldPinLatestOnListResize({ previousHeight: 700, nextHeight: Number.NaN, followRequested: true })).toBe(false)
   })
 
   it('does not count older pages loaded above the last seen message', () => {

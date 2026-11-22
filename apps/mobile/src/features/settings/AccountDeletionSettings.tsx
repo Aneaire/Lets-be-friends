@@ -1,11 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useUser } from '@clerk/expo'
 import { useMutation, useQuery } from 'convex/react'
 
 import { mobileApi } from '@/backend/client'
 
 import { AccountDeletionSettingsPresentation } from './AccountDeletionSettingsPresentation'
-import { ACCOUNT_DELETION_CONFIRMATION } from './accountDeletionModel'
+import {
+  ACCOUNT_DELETION_CONFIRMATION,
+  beginAccountDeletion,
+  finishAccountDeletion,
+} from './accountDeletionModel'
 
 export function AccountDeletionSettings({
   onDeleted,
@@ -15,10 +19,18 @@ export function AccountDeletionSettings({
   const summary = useQuery(mobileApi.accountDeletion.deletionSummary, {})
   const deleteAccount = useMutation(mobileApi.accountDeletion.deleteAccount)
   const { user } = useUser()
+  const mountedRef = useRef(true)
   const [confirming, setConfirming] = useState(false)
   const [confirmation, setConfirmation] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   function close() {
     if (busy) return
@@ -30,28 +42,37 @@ export function AccountDeletionSettings({
   async function confirm() {
     setBusy(true)
     setError(null)
+    beginAccountDeletion()
     try {
-      await deleteAccount({ confirmation: ACCOUNT_DELETION_CONFIRMATION })
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not delete your account. Try again.')
-      setBusy(false)
-      return
+      try {
+        await deleteAccount({ confirmation: ACCOUNT_DELETION_CONFIRMATION })
+      } catch (cause) {
+        if (mountedRef.current) {
+          setError(cause instanceof Error ? cause.message : 'Could not delete your account. Try again.')
+          setBusy(false)
+        }
+        return
+      }
+      // The Convex records are already erased. Removing the sign-in identity must
+      // not stop the member from leaving if Clerk asks for a fresh session.
+      let identityDeleted = false
+      try {
+        await user?.delete()
+        identityDeleted = Boolean(user)
+      } catch {
+        identityDeleted = false
+      }
+      if (mountedRef.current) {
+        setBusy(false)
+        setConfirming(false)
+      }
+      // Clerk ends the session when it deletes the identity. Calling signOut on
+      // that dead session is what crashed the app on Android, so the caller only
+      // signs out when the identity is still alive.
+      await onDeleted({ identityDeleted })
+    } finally {
+      finishAccountDeletion()
     }
-    // The Convex records are already erased. Removing the sign-in identity must
-    // not stop the member from leaving if Clerk asks for a fresh session.
-    let identityDeleted = false
-    try {
-      await user?.delete()
-      identityDeleted = Boolean(user)
-    } catch {
-      identityDeleted = false
-    }
-    setBusy(false)
-    setConfirming(false)
-    // Clerk ends the session when it deletes the identity. Calling signOut on
-    // that dead session is what crashed the app on Android, so the caller only
-    // signs out when the identity is still alive.
-    await onDeleted({ identityDeleted })
   }
 
   return (

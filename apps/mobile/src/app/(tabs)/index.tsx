@@ -16,8 +16,10 @@ import { Avatar } from '@/design-system/atoms/Avatar'
 import { AppIcon } from '@/design-system/atoms/AppIcon'
 import { AccountSheet } from '@/features/account/AccountSheet'
 import {
+  accountSheetRoutes,
   resolveAccountAvatarAction,
   selectAccountSheetItem,
+  selectAccountSheetRoute,
   type AccountSheetItem,
 } from '@/features/account/accountSheet'
 import { homeAccountModel } from '@/features/account/homeAccountModel'
@@ -329,6 +331,13 @@ function ConnectedHome() {
     setAccountOpen(false)
   }
 
+  function openAccountProfile() {
+    selectAccountSheetRoute(accountSheetRoutes().profile({}), {
+      close: () => setAccountOpen(false),
+      navigate: (route) => router.push(route as never),
+    })
+  }
+
   function selectAccountItem(item: AccountSheetItem) {
     selectAccountSheetItem(item, {
       close: () => setAccountOpen(false),
@@ -502,6 +511,7 @@ function ConnectedHome() {
           items={account.items}
           signingOut={signingOut}
           signOutError={signOutError}
+          onOpenProfile={openAccountProfile}
           onSelect={selectAccountItem}
           onSignOut={() => void runSignOut()}
           onClose={closeAccount}
