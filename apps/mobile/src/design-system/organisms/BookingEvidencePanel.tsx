@@ -7,6 +7,7 @@ import { mobileApi, type BookingId } from '@/backend/client'
 import { evidenceAssetToArrayBuffer } from '@/data/evidence'
 
 import { BookingEvidencePresentation } from './BookingEvidencePresentation'
+import { mediaLibraryPermission } from '@/media/mediaLibraryPermission'
 
 export function BookingEvidencePanel({
   bookingId,
@@ -50,7 +51,7 @@ export function BookingEvidencePanel({
     setMessage('')
     try {
       if (Platform.OS !== 'web') {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(false)
+        const permission = await mediaLibraryPermission()
         if (!permission.granted) {
           setMessage('Photo access is needed only to select an existing private evidence image. You can continue without uploading and review the skip warning instead.')
           return

@@ -44,6 +44,7 @@ import { AppText } from '@/design-system/atoms/Typography'
 import { dedupeFeedItems, maximumPostMediaItems, postMediaValidationError } from '@/data/discovery'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
+import { mediaLibraryPermission } from '@/media/mediaLibraryPermission'
 
 type FeedFilter = 'for_you' | 'following' | 'saved'
 type FeedItem = FunctionReturnType<typeof mobileApi.social.feedPage>['page'][number]
@@ -231,7 +232,7 @@ function ConnectedHome() {
         return
       }
       if (Platform.OS !== 'web') {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(false)
+        const permission = await mediaLibraryPermission()
         if (!permission.granted) {
           setPostError('Photo access lets you choose a profile photo, community post media, or optional booking evidence.')
           return

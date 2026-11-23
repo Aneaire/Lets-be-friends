@@ -17,6 +17,7 @@ import { Screen } from '@/design-system/templates/Screen'
 import { PageSkeleton } from '@/design-system/templates/PageSkeleton'
 import { StateView } from '@/design-system/molecules/StateView'
 import { useAppTheme } from '@/theme/ThemeProvider'
+import { mediaLibraryPermission } from '@/media/mediaLibraryPermission'
 
 const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024
 
@@ -55,7 +56,7 @@ function ReadyProfileEdit({ viewer }: { viewer: Extract<ReturnType<typeof useMob
     setMessage('')
     try {
       if (Platform.OS !== 'web') {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(false)
+        const permission = await mediaLibraryPermission()
         if (!permission.granted) {
           setMessage('Photo access is needed only to choose a profile image from your library.')
           return

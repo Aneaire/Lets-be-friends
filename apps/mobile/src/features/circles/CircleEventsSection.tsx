@@ -22,6 +22,7 @@ import {
   type CircleEventItem,
   type CircleEventMode,
 } from './circlePresentation'
+import { mediaLibraryPermission } from '@/media/mediaLibraryPermission'
 
 export function CircleEventsSection({ circleId, canModerate, circleState, readOnly = false }: {
   circleId: CircleId
@@ -140,7 +141,7 @@ function CircleEventForm({ circleId, initial, onClose, onSaved }: {
     setError('')
     try {
       if (Platform.OS !== 'web') {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(false)
+        const permission = await mediaLibraryPermission()
         if (!permission.granted) {
           setError('Photo access is needed to choose an event thumbnail. You can save the event without one.')
           return

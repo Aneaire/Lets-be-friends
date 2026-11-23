@@ -24,6 +24,7 @@ import {
   circleMediaSelectionLimit,
   circlePollAnnouncementError,
 } from './circlePresentation'
+import { mediaLibraryPermission } from '@/media/mediaLibraryPermission'
 
 /**
  * Circle discussion composer. Media authoring reuses the shared Home upload
@@ -186,7 +187,7 @@ export function CircleComposer({
         return
       }
       if (Platform.OS !== 'web') {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(false)
+        const permission = await mediaLibraryPermission()
         if (!permission.granted) {
           setError('Photo access lets you add Circle post media. You can still publish a text post.')
           return

@@ -63,6 +63,7 @@ import {
 } from '@/data/messageViewModels'
 import { useMobileMember } from '@/member/MobileMember'
 import { useAppTheme } from '@/theme/ThemeProvider'
+import { mediaLibraryPermission } from '@/media/mediaLibraryPermission'
 
 type Conversation = FunctionReturnType<typeof mobileApi.conversations.conversation>
 type Message = FunctionReturnType<typeof mobileApi.conversations.messagePage>['page'][number]
@@ -153,7 +154,7 @@ function ReadyConversationThreadScreen({ viewerId }: { viewerId: string }) {
     setPicking(true)
     try {
       if (Platform.OS !== 'web') {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(false)
+        const permission = await mediaLibraryPermission()
         if (!permission.granted) {
           setError('Photo access is needed only to choose message attachments from your library.')
           return

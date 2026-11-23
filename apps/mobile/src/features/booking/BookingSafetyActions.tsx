@@ -24,6 +24,7 @@ import { Dialog } from '@/design-system/molecules/Dialog'
 import { FormField } from '@/design-system/molecules/FormField'
 import { useAppToastMessage } from '@/design-system/molecules/AppToast'
 import { density } from '@/theme/tokens'
+import { mediaLibraryPermission } from '@/media/mediaLibraryPermission'
 
 export function BookingSafetyActions({ bookingId, status, viewerHasReviewed, viewerReviewId }: {
   bookingId: BookingId
@@ -69,7 +70,7 @@ export function BookingSafetyActions({ bookingId, status, viewerHasReviewed, vie
     setMessage('')
     try {
       if (Platform.OS !== 'web') {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(false)
+        const permission = await mediaLibraryPermission()
         if (!permission.granted) {
           setPhotoError('Photo access is needed only to choose a review photo from your library.')
           return

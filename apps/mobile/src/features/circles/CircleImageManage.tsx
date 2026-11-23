@@ -11,6 +11,7 @@ import { useAppTheme } from '@/theme/ThemeProvider'
 
 import { circleActionError, circleImageKindLabel } from './circlePresentation'
 import { isCircleImageSafeMessage, uploadCircleImage } from './circleImageUpload'
+import { mediaLibraryPermission } from '@/media/mediaLibraryPermission'
 
 /**
  * Host-only Circle icon and cover management. Uses the existing Circle image
@@ -36,7 +37,7 @@ export function CircleImageManage({ circleId, iconUrl, coverUrl, active }: {
     setConfirmRemove(null)
     try {
       if (Platform.OS !== 'web') {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync(false)
+        const permission = await mediaLibraryPermission()
         if (!permission.granted) {
           setError('Photo access is needed to choose a Circle image. The current image stays in place.')
           return
