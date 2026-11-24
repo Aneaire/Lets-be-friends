@@ -21,7 +21,7 @@ file as items finish, not this one.
 | EAS login and Android keystore | Logged in as the organization owner (`lbf001`). Upload keystore exists, created 2026-11-16, key alias `5c7e4ded7245529124d3b…`, SHA-256 `70:38:A9:0F:05:E3:E8:1B:C7:56:B0:3F:E4:DC:67:57:5A:AD:80:5D:EF:87:6A:2F:BA:D7:26:E4:07:79:41:48`, valid until 2054-04-03. Downloaded 2026-11-17 and stored in the password manager, fingerprint verified against EAS before storing. |
 | FCM V1 credential | Provisioned 2026-11-17 on EAS for Firebase project `lets-be-friends-da0e5`. Private key ID `9db3f664…`. |
 | Account deletion | Shipped on web and mobile, with the public page at `/account-deletion`. See [account-deletion.md](account-deletion.md). |
-| `assetlinks.json` fingerprint | Holds the local debug certificate (`FA:C6:…:3B:9C`) and the EAS upload keystore certificate (`70:38:…:41:48`). The Play app signing certificate still has to be appended after the first Play release. |
+| `assetlinks.json` fingerprint | Holds five certificates: the Play app signing key (`59:DA:FB:A7:…:20:AA`), both parts of the Play hybrid key (`72:34:88:EE:…:53:F1`, `48:EF:13:30:…:00:5C`), the EAS upload keystore (`70:38:…:41:48`), and the local debug certificate (`FA:C6:…:3B:9C`). Google's checker verifies `www.letsbefriends.space`; the apex redirect in Vercel still blocks that host. |
 | Version | `expo.version` 0.1.7. `expo.android.versionCode` is ignored because `appVersionSource` is `remote`. |
 
 ## Project ownership
@@ -221,15 +221,16 @@ required, then production with a staged rollout.
 
 ## 7. Known blockers in this repo
 
-**App links need the Play signing certificate added after the first release.**
-`apps/web/public/.well-known/assetlinks.json` now lists the local debug
-certificate and the EAS upload keystore. Redeploy the web app for the file to take
-effect. Android only hands verified HTTPS links to the app when the served
-fingerprint matches the installed signer. Google Play re-signs with its own app
-signing certificate, which is the default for new apps, so append that
-certificate's SHA-256 from Play Console (App integrity, App signing key
-certificate) after the first Play release. Until that is done, links open in the
-browser on Play-installed builds.
+**App links: www verifies, the apex host does not.**
+`apps/web/public/.well-known/assetlinks.json` lists all five signing
+certificates: the Play app signing key, both parts of the Play hybrid key, the
+EAS upload keystore, and the local debug certificate. Google's Digital Asset
+Links service reports `https://www.letsbefriends.space` as verified with every
+fingerprint present. `https://letsbefriends.space` still fails with
+`ERROR_CODE_REDIRECT` because Vercel serves it as a 308 redirect to www, and the
+service refuses to follow redirects. Either drop the apex host from
+`intentFilters` (needs a new versionCode) or stop redirecting the apex domain in
+Vercel. Details are in [mobile-referral-links.md](mobile-referral-links.md).
 
 **Push credentials are in place, delivery is unproven.**
 The FCM V1 service account exists on the new EAS project and
