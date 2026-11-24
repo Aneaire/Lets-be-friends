@@ -54,7 +54,8 @@ because no row uses it yet; that is expected for an optional field.
 | [x] | Build and verify the deletion crash fix | agent + owner, 2026-11-22 | VersionCode 13 (`b66b72cc`) built from `473eb83`, uploaded to internal testing, device check passed: the account is deleted, the app returns to the signed-out state, and it no longer shows "app has stopped" |
 | [ ] | Installed-device QA on the production build: push end to end, photo and media uploads, maps and nearby, permissions, keyboard, one live payment, one live withdrawal | owner with agent support | Outstanding since the 2026-10-22 audit |
 | [x] | Append Google's app signing certificate SHA-256 to `apps/web/public/.well-known/assetlinks.json` | agent, 2026-11-24 | All five certificates are served: Play app signing (`59:DA:…:20:AA`), hybrid classical and post-quantum, EAS upload keystore, local debug. Google's Digital Asset Links checker verifies `www.letsbefriends.space` with no errors |
-| [ ] | Clear the last unverified domain: the apex redirect | owner decides | `letsbefriends.space` returns a Vercel 308 to www and the Digital Asset Links service refuses to follow redirects (`ERROR_CODE_REDIRECT`). Either drop the apex host from `intentFilters` in a new versionCode, or stop redirecting the apex domain in Vercel. See [mobile-referral-links.md](mobile-referral-links.md) |
+| [x] | Declare app links on the www host only | agent, 2026-11-24 | `0e9deda` removes the apex host from `intentFilters` and from the iOS associated domains. VersionCode 15 is the first build with a single declared host, which is the only one that can verify while Vercel redirects the apex |
+| [ ] | Upload versionCode 15 to the Alpha track, then re-check deep links | owner + agent | After the release is live, Play re-runs the domain check and should report 4 links on 1 domain, all verified |
 
 ## C. Done and verified
 
