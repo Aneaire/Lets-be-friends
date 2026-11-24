@@ -11,8 +11,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.letsbefriends.mobile",
       "associatedDomains": [
-        "applinks:www.letsbefriends.space",
-        "applinks:letsbefriends.space"
+        "applinks:www.letsbefriends.space"
       ]
     },
     "android": {
@@ -47,26 +46,6 @@
             {
               "scheme": "https",
               "host": "www.letsbefriends.space",
-              "pathPrefix": "/circles"
-            },
-            {
-              "scheme": "https",
-              "host": "letsbefriends.space",
-              "pathPrefix": "/social"
-            },
-            {
-              "scheme": "https",
-              "host": "letsbefriends.space",
-              "pathPrefix": "/companion-profile"
-            },
-            {
-              "scheme": "https",
-              "host": "letsbefriends.space",
-              "pathPrefix": "/review"
-            },
-            {
-              "scheme": "https",
-              "host": "letsbefriends.space",
               "pathPrefix": "/circles"
             }
           ]

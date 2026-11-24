@@ -13,6 +13,11 @@ Android App Links are scoped to content share paths in `app.json`: `/social`,
 `/invite`, `/referrals`, `/referral-invite`) are deliberately excluded so
 referral links open in the browser.
 
+Only `www.letsbefriends.space` is declared. The apex host is left out on purpose:
+Vercel answers it with a 308 redirect to www, and Android refuses to verify a
+host whose asset link file redirects. Apex links therefore open in the browser
+and follow the redirect, while www links open the app directly.
+
 `apps/web/public/.well-known/assetlinks.json` lists every signing certificate
 allowed to open the app's links. It holds five entries:
 
@@ -47,10 +52,9 @@ Two rules decide whether a host verifies at all:
   `https://digitalassetlinks.googleapis.com/v1/statements:list?source.web.site=https://www.letsbefriends.space&relation=delegate_permission/common.handle_all_urls`
 
 As of 2026-11-24 `www.letsbefriends.space` verifies and lists all five
-certificates. The apex host `letsbefriends.space` is configured in Vercel as a
-308 redirect to www, so it cannot verify while that redirect exists. Remove the
-apex host from `intentFilters`, or stop redirecting it in Vercel, before
-expecting Play to report every declared domain as verified.
+certificates. `intentFilters` declares only that host, from versionCode 15 on.
+Earlier versions also declared the apex, which Vercel redirects to www and which
+therefore never verified.
 
 Get the fingerprint from a signing keystore:
 
@@ -60,9 +64,9 @@ keytool -list -v -keystore <keystore> -alias <alias> | grep SHA256
 
 ## iOS
 
-`app.json` declares `applinks:www.letsbefriends.space` and
-`applinks:letsbefriends.space` for content links. Apple also needs an
-`apple-app-site-association` file served from the same host with the Apple Team
+`app.json` declares `applinks:www.letsbefriends.space` for content links. The
+apex host is not declared, for the same redirect reason as on Android. Apple
+also needs an `apple-app-site-association` file served from the same host with the Apple Team
 ID and bundle ID (`TEAMID.com.letsbefriends.mobile`). That value is not stored
 in this repository, so add the file when the iOS build credentials exist.
 
