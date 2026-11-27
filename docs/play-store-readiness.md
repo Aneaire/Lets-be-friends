@@ -6,7 +6,7 @@ date and something that can be inspected.
 
 Status key: `[ ]` not started, `[~]` in progress, `[x]` done.
 
-Last reviewed: 2026-11-20.
+Last reviewed: 2026-11-27.
 
 ## A. Prerequisite: deploy the current backend
 
@@ -80,7 +80,24 @@ because no row uses it yet; that is expected for an optional field.
 | [ ] | Confirm production money settings at launch | `PAYMONGO_MODE=live`, `MEMBER_WALLET_V2_ENABLED=true`, `COMPANION_WITHDRAWALS_ENABLED=true` are already on in prod |
 | [x] | Confirm whether the Privacy Policy change needs a version bump | Resolved 2026-11-20: the Terms and Privacy Policy were expanded to the full contract surface (fees, cancellation, liability, providers, PH rights) and the version was bumped to `2026-11-20`, forcing one re-acceptance for every member, including the Play reviewer account. See [privacy-policy-handoff-2026-11-20.md](privacy-policy-handoff-2026-11-20.md) |
 
-## E. Keeping this file current
+## E. After the 14 day closed test
+
+The 14 days have not started. They begin the day the 12th tester opts in and
+only count while 12 remain opted in. Everything below happens after that.
+
+| State | Step | Owner | Note |
+| --- | --- | --- | --- |
+| [ ] | Hold 12 opted in testers for 14 continuous days | owner | Play counts days, not installs. Any day below 12 restarts the run. Invite 16 so a dropout does not cost the window |
+| [ ] | Keep the feedback log current | owner, agent drafts | [play-store-testing-feedback.md](play-store-testing-feedback.md) holds the log, the fixes shipped, and the draft answers |
+| [ ] | Apply for production access | owner | Production, Apply for production access. Enabled once the counter completes |
+| [ ] | Answer the application questions with specifics | owner | Recruitment channels, engagement, feedback acted on, why it is ready. Vague answers are the usual refusal reason |
+| [ ] | Wait for the production access decision | Google | Days to a week or more. The app stays in closed testing meanwhile. Answer any follow up email promptly. A refusal keeps testing going and allows a reapplication |
+| [ ] | Promote versionCode 15 to production | owner + agent | Production, Create new release, Add from library. No rebuild needed |
+| [ ] | Set production countries to Philippines only | owner | Must match the non-trader declaration from section D |
+| [ ] | Roll out and wait for the production review | Google | A first production release is reviewed again, usually hours to a couple of days |
+| [ ] | Confirm the listing is live | owner | Search the app name on a signed out device in the Philippines, then check that the store listing, screenshots, and data safety answers match the shipped build |
+
+## F. Keeping this file current
 
 - When an item is finished, change `[ ]` or `[~]` to `[x]`, add the date, and put
   the artifact in the evidence column (build ID, credential page, test name).
@@ -89,6 +106,7 @@ because no row uses it yet; that is expected for an optional field.
 - Update the review date at the top.
 - Related documents: [play-store-release.md](play-store-release.md),
   [play-store-listing.md](play-store-listing.md),
+  [play-store-testing-feedback.md](play-store-testing-feedback.md),
   [account-deletion.md](account-deletion.md), [backup-restore.md](backup-restore.md).
 - Printable version of this checklist:
   [play-store-deployment-checklist.docx](play-store-deployment-checklist.docx).
